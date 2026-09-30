@@ -327,6 +327,24 @@ boundary between "where you said the parts meet" and "where they
 actually do", kept visible. (Nothing yet mints a mate frame from a
 selected face; that is issue #944.)
 
+**What the solve would refuse about a mate on its own, the insert
+refuses.** A head that resolves to no member, one member named
+twice, a class outside the vocabulary, a frame with no definite
+direction, a primitive-and-rider pair the coset table has no row
+for, a clocking rider that contradicts the frame coincidence it rides
+— each is a fact about the mate alone, which the solve records
+against the mate whenever it reads the datum. So `Doc.insert` asks
+the solve's own per-mate admission and raises `EditError` with
+variant `mate_refused`, `fault` carrying the solve's `MateFault`
+whole. The rider on a coincidence is decided over the mated parts'
+extent, so that one needs `resolver=` at the insert; everything else
+is decided on the datum alone. The doors decide edits and the solve
+decides states: a verdict about a *pair* — under-determined, two
+mates that contradict each other — is the solve's, met at evaluation
+as below, and so is a per-mate fault a mate comes to carry after
+insert — a head a rebind or a shrunk pattern strands, a `Part`
+re-pointed at another copy, a file whose snapshot holds one.
+
 **Ask `class_admission` before you author a class.** The solve and the
 gate admit different sets, and the table is one value both read:
 

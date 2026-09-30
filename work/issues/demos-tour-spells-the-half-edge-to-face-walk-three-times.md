@@ -4,6 +4,8 @@ kind: issue
 title: demos/tour spells the half-edge to face walk three times, twice byte-identically
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 
@@ -37,7 +39,7 @@ in a `src/` file and a `tests/common/` file of the same root.
 `lily.rs`'s `face_of` is the same walk stopping at the face.
 
 **This is not a conversion request against the demo rule.**
-`work/dup/program.md`'s `keep_out` holds that demos are never converted
+`work/reroute/program.md`'s `keep_out` holds that demos are never converted
 to reach past the public API — that rule protects the demo from reaching
 IN. Here the fold goes the other way: `face_of_half_edge` is `pub`, so
 the folded spelling is the natural public-API one and is what a user

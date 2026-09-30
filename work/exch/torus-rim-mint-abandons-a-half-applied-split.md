@@ -4,7 +4,9 @@ kind: issue
 title: The torus rim mint bails with Ok(()) after `split_at_midpoint` has already mutated the solid
 status: open
 opened: 2026-09-11
-refs: [step-adopt-let-ok-iso-discards]
+refs: []
+priority: P0
+cost: H
 ---
 
 
@@ -72,3 +74,7 @@ this row's class.
 ## Fence
 
 `crates/step-import/src/*` is EXCH's (Track U).
+
+## Reference note (DOOR's sweep, 2026-09-21)
+
+`step-adopt-let-ok-iso-discards` was dropped from this row's `refs` because the row closed with **DOOR**, which left the tracker at sweep 19 — `work/door/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 284ca7e9889f:work/door/step-adopt-let-ok-iso-discards.md`.

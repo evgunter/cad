@@ -378,33 +378,57 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
     assert_eq!(named, tabled, "the constants must cover exactly the table");
 }
 
+test_utils::f6_variants! {
+    /// `FmtQuantityError`'s census: one ident per variant, feeding
+    /// both the wildcard-free `match` rustc checks and the identifier
+    /// roster the weld bans from every rendering. An arm added to the
+    /// enum stops this file compiling until it is named here, and
+    /// naming it is also rostering it, so it then reds until it has a
+    /// case below. The mechanism and what it does NOT weld are
+    /// documented on [`test_utils::f6::assert_f6_every_variant`].
+    const FMT_QUANTITY_ERROR: FmtQuantityError = [NonFinite];
+}
+
+/// The `Debug` field-name token this enum's payload would leak. `{` is
+/// [`test_utils::f6::assert_f6`]'s own and is banned whatever this
+/// list says; what this entry buys over it is a brace-free `value: `
+/// written into the sentence by hand.
+const FMT_QUANTITY_ERROR_FIELDS: &[&str] = &["value:"];
+
 /// The Display contract (#1111): a façade consumer renders a
 /// `FmtQuantityError` through this module's own words — the refused
 /// value and why it has no display form — and never as the `Debug`
 /// struct dump. The variant identifier and the field-name punctuation
 /// are the dump's fingerprints; asserting their ABSENCE is what keeps
 /// a future `write!(f, "{self:?}")` from passing this test.
+///
+/// **The ban is the ENUM's roster, not this arm's own**
+/// ([`FMT_QUANTITY_ERROR`]). A rendering that leaks a SIBLING arm's
+/// identifier is a dump as surely as one that leaks its own, and the
+/// per-arm string this row used to spell could see neither that nor an
+/// arm added tomorrow.
 #[test]
 fn fmt_quantity_error_display_names_its_content_not_its_struct() {
-    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-        let err = FmtQuantityError::NonFinite { value };
-        let shown = err.to_string();
-        for want in ["no display form", "poison", &value.to_string()] {
-            assert!(
-                shown.contains(want),
-                "{err:?} renders as {shown:?}, missing {want:?}"
-            );
-        }
-        assert!(
-            !shown.contains("NonFinite"),
-            "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
-        );
-        assert!(
-            !shown.contains('{') && !shown.contains("value:"),
-            "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
-        );
-        assert_ne!(shown, format!("{err:?}"));
-    }
+    let values = [f64::NAN, f64::INFINITY, f64::NEG_INFINITY];
+    // The refused value is `want`ed as the text the sentence must
+    // carry, so the rendered decimal has to outlive the borrow.
+    let rendered: Vec<String> = values.iter().map(f64::to_string).collect();
+    let cases: Vec<(FmtQuantityError, Vec<&str>)> = values
+        .iter()
+        .zip(&rendered)
+        .map(|(&value, text)| {
+            (
+                FmtQuantityError::NonFinite { value },
+                vec!["no display form", "poison", text.as_str()],
+            )
+        })
+        .collect();
+    test_utils::f6::assert_f6_every_variant(
+        &cases,
+        &FMT_QUANTITY_ERROR,
+        &[],
+        FMT_QUANTITY_ERROR_FIELDS,
+    );
 }
 
 /// The authored carriers do what the plain newtypes cannot: survive

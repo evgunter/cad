@@ -10,16 +10,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
-use crate::verbs_shell::{cut, two_void_box};
+use crate::common::cavity::cut;
+use crate::common::shell_operands::{hollow_box, two_void_box};
 use sweep::test_support::{block, brick};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
     topo::classify_shells(body, Tol::witness())
@@ -70,10 +67,12 @@ fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     let outer = block(6.0, 4.0, 4.0, Tol::witness());
     // A: x 1.0..2.5, y 0.8..1.8   B: x 2.9..4.4, y 2.3..3.3, both z 1..3.
     let one = cut(
+        "first void",
         &outer,
         &brick((1.0, 2.5), (0.8, 1.8), (1.0, 3.0), Tol::witness()),
     );
     let body = cut(
+        "second void",
         &one,
         &brick((2.9, 4.4), (2.3, 3.3), (1.0, 3.0), Tol::witness()),
     );
@@ -115,10 +114,12 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     let tol = Tol::witness();
     let outer = block(6.0, 4.0, 4.0, Tol::witness());
     let one = cut(
+        "first void",
         &outer,
         &brick((1.0, 2.5), (-1.0, 1.8), (1.0, 3.0), Tol::witness()),
     );
     let body = cut(
+        "second void",
         &one,
         &brick((2.9, 4.4), (2.3, 5.0), (1.0, 3.0), Tol::witness()),
     );
@@ -153,11 +154,11 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
 
 /// A cylinder of radius `r` spanning `z0..z1`, coaxial with `z`.
 fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, z0), 0.0),
-        ProfileVertex::new(p2(r, z0), 0.0),
-        ProfileVertex::new(p2(r, z1), 0.0),
-        ProfileVertex::new(p2(0.0, z1), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, z0), 0.0),
+        (Point2::new(r, z0), 0.0),
+        (Point2::new(r, z1), 0.0),
+        (Point2::new(0.0, z1), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -165,7 +166,7 @@ fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -247,7 +248,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
         .find(|(_, s)| voids.contains(s))
         .expect("a thin solid for the void")
         .0;
-    let twin = out.get_solid(twin_solid).expect("the thin solid").shells[0];
+    let twin = out.shells_of_solid(twin_solid).expect("the thin solid")[0];
     let tb = shell_box(out, twin);
     assert!(
         tb[0].1 > 0.85 + 1e-9,
@@ -280,6 +281,7 @@ fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
     .expect("the small box shells")
     .body;
     let body = cut(
+        "hollow inner box",
         &brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness()),
         &inner,
     );
@@ -334,7 +336,7 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
             .expect("the operand void")
             .faces
             .clone();
-        let shells = &out.get_solid(solid).expect("a thin solid").shells;
+        let shells = out.shells_of_solid(solid).expect("a thin solid");
         assert_eq!(shells.len(), 2, "a thin solid is twin plus void");
         let twin = *shells
             .iter()
@@ -360,22 +362,29 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
 // ---------------------------------------------------------------------
 
 /// **`move_shells_to_new_solid` will mint a solid with NO outer
-/// boundary**, and nothing downstream objects. Its five preconditions
-/// are all structural (resolve, one solid, non-empty remainder); none
-/// is about the shells forming a coherent piece of material. Moving a
+/// boundary**, and tier 3 now REFUSES it. Its five preconditions are
+/// all structural (resolve, one solid, non-empty remainder); none is
+/// about the shells forming a coherent piece of material, so moving a
 /// hollow box's VOID out on its own leaves one solid whose only shell
-/// has negative signed volume, and tier 3 passes it.
+/// has negative signed volume.
 ///
-/// The shell verb never does this — it always moves the pair — but the
-/// door is `pub` on `Body`, and its own docs claim only "tier-1
-/// preservation". Measured here so the boundary of what it guarantees
-/// is on the page.
+/// **What moved, and why the row reads the other way now.** Tier 3
+/// used to pass this body, and that was measured here as a boundary of
+/// what the door guarantees. Check 7 read the BODY's total signed
+/// volume, which for these two solids is the hollow box's `+V` plus
+/// the lone void's `−v` and stays positive. ATREST-1 made check 7's
+/// subject the SOLID, so the minted solid is now weighed on its own
+/// faces and refuses `NegativeVolume` naming it. The door's own
+/// contract is unchanged — it still claims only tier-1 preservation,
+/// and it still accepts the move — but the body it mints no longer
+/// certifies at tier 3.
+///
+/// The shell verb never does this: it always moves the pair. The door
+/// is `pub` on `Body`, which is why the boundary is worth a row.
 #[test]
 fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
     let tol = Tol::witness();
-    let mut body = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, tol)
-        .expect("the box hollows")
-        .body;
+    let mut body = hollow_box();
     let voids = void_shells(&body);
     assert_eq!(voids.len(), 1);
     let minted = body
@@ -383,13 +392,16 @@ fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
         .expect("MEASURED: the door accepts a lone void");
     assert_eq!(body.solids().count(), 2);
     assert_eq!(
-        body.get_solid(minted).expect("the minted solid").shells,
+        body.shells_of_solid(minted).expect("the minted solid"),
         vec![voids[0]]
     );
     assert_eq!(
         topo::validate_geometric(&body, tol),
-        Ok(()),
-        "MEASURED: tier 3 passes a solid whose only shell is a cavity"
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: minted
+        }]),
+        "check 7's subject is the solid: the minted one encloses negative volume, \
+         and the hollow box beside it is not implicated"
     );
     let roles = topo::classify_shells(&body, tol).expect("classifies");
     let minted_roles: Vec<ShellRole> = roles

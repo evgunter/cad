@@ -14,11 +14,14 @@
 //! below, because the camera is the instrument here and not the
 //! subject; a fixture read from the same constants as the expectation
 //! would track it silently. What carries no oracle is shared:
-//! `common::xy_frame` and `common::gallery_ring_at`.
+//! `common::{ang, xy_frame, rectangle, inserted, len, scl,
+//! gallery_ring_at, index_of, down_from, ring_delta}`. The slabs' own dimensions,
+//! the height the rays start above them and the world positions aimed
+//! at them stay here, where the expectation is written.
 //!
 //! Rows marked **EVIDENCE** assert nothing about the subject and exist
 //! to print what the review measured; they are not gates
-//! (`memories/test-suite-cost.md`) and should be dropped or given
+//! (implementer-discipline §8) and should be dropped or given
 //! assertions if they survive a fix pass.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -30,24 +33,24 @@ test_utils::gated_to![
     "crates/pncad/src/",
     "crates/bvh/src/",
     "crates/viewer/tests/common/",
-    "crates/viewer/tests/gallery_ring.pncad"
+    "crates/viewer/tests/gallery_ring.pncad",
+    "crates/viewer/src/test_support.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::sync::{Arc, Mutex};
 
 use crate::common;
-use crate::common::xy_frame;
+use crate::common::{ang, len, scl, xy_frame};
 
-use pncad::document::{
-    Dimension, Doc, DocEdit, Evaluation, Expr, LoopProgram, Node, PatternKind, ProfileProgram,
-    RecipeNodeId, apply,
-};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::document::{Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
@@ -65,46 +68,24 @@ fn delta() -> DisplayTolerance {
     DisplayTolerance::new(3.0e-4).expect("a positive delta")
 }
 
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
-}
-
-fn length(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a finite length")
-}
-
-fn insert(
+/// `common::inserted` at this suite's tolerance: one node into `doc`
+/// through the document's door, no session.
+fn inserted(
     doc: &Doc<ProfileProgram>,
     node: Node<ProfileProgram>,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = apply(
-        doc,
-        &DocEdit::InsertNode { node },
-        tol(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the insert applies");
-    let id = applied.record.minted.expect("an insert mints an id");
-    (applied.doc, id)
-}
-
-/// A rectangle profile in the XY plane, `w` by `h`, at the origin.
-fn rectangle(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]).expect("finite corners"),
-        ],
-    })
+    common::inserted(doc, node, tol())
 }
 
 fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: [length(dx), length(dy), length(dz)],
-        rotation_axis: [scalar(0.0), scalar(0.0), scalar(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
-    }
+        pncad::document::Step::Rigid {
+            translation: [len(dx), len(dy), len(dz)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    )
 }
 
 /// One extruded slab, `w` × `h` × `t`, its own document. Deliberately
@@ -112,13 +93,13 @@ fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfilePro
 /// below are not tuned to the fixture the unit was written against.
 fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol());
-    let (doc, plane) = insert(&doc, xy_frame());
-    let (doc, profile) = insert(&doc, rectangle(plane, w, h));
-    let (doc, extrude) = insert(
+    let (doc, plane) = inserted(&doc, xy_frame());
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], w, h));
+    let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile,
-            distance: length(t),
+            distance: len(t),
         },
     );
     (doc, extrude)
@@ -133,8 +114,8 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
 /// carry the extrude's names.
 fn two_placements() -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (doc, extrude) = slab(0.03, 0.02, 0.01, "r2-two-placements");
-    let (doc, left) = insert(&doc, translated(extrude, 0.0, 0.0, 0.0));
-    let (doc, right) = insert(&doc, translated(extrude, 0.10, 0.0, 0.0));
+    let (doc, left) = inserted(&doc, translated(extrude, 0.0, 0.0, 0.0));
+    let (doc, right) = inserted(&doc, translated(extrude, 0.10, 0.0, 0.0));
     (doc, left, right)
 }
 
@@ -142,50 +123,33 @@ fn two_placements() -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 /// node, and a structural slot that can consume one of them.
 fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, extrude) = slab(0.015, 0.015, 0.010, "r2-pattern");
-    let (doc, pattern) = insert(
+    let (doc, pattern) = inserted(
         &doc,
         Node::Pattern {
             input: extrude,
             count: Expr::count(count),
             kind: PatternKind::Linear {
-                direction: [scalar(1.0), scalar(0.0), scalar(0.0)],
-                spacing: length(0.04),
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(0.04),
             },
         },
     );
     (doc, pattern)
 }
 
-fn index_at(session: &DocSession, d: DisplayTolerance) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("an evaluation has landed");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, PictureKey::of(generation, d), session.tol())
-        .expect("the fixture indexes")
-}
-
 fn landed_index(session: &DocSession) -> PickIndex {
-    index_at(session, delta())
-}
-
-/// A δ coarse enough that the gallery ring tessellates cheaply — the
-/// e2e row's subject is the selection walk, not the facet count.
-fn coarse() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
+    common::index_of(session, delta())
 }
 
 fn evaluation(session: &DocSession) -> &Evaluation<f64> {
     session.evaluation().expect("an evaluation has landed")
 }
 
-/// A ray straight down the −z axis through `(x, y)`, starting above
-/// anything these fixtures build.
+/// A ray straight down at `(x, y)` from five metres up. The height is
+/// this suite's claim about its own fixture, which reaches higher than
+/// the plate the shared door's default was chosen for.
 fn down_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 5.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
+    common::down_from(x, y, 5.0)
 }
 
 /// A camera looking at a box, at `aspect`.
@@ -484,19 +448,24 @@ fn the_sampled_pixel_is_one_pixel_wide_and_correctly_oriented() {
     };
     let aspect = pane.aspect().expect("a positive aspect");
     let camera = camera_on(&box_of([0.0, 0.0, 0.0], [0.06, 0.04, 0.008]), aspect);
-    let matrix = camera.view_projection(aspect).expect("defined");
-    let vp = matrix.map(|column| column.map(|v| v as f32));
+    let vp = camera.view_projection_f32(aspect).expect("defined");
     let centre = [pane.width_px * 0.5, pane.height_px * 0.5];
+    // `ViewportSize::ndc_of` is the one home for the pixel-to-NDC
+    // flip, and the seam is the one home for the narrowing: this row
+    // spelled both itself, which is two of the four spellings that
+    // door's own doc names.
     let ndc = |c: [f64; 2]| {
-        [
-            (2.0 * c[0] / pane.width_px - 1.0) as f32,
-            (1.0 - 2.0 * c[1] / pane.height_px) as f32,
-        ]
+        pane.ndc_of(c)
+            .expect("a positive area")
+            .narrow()
+            .expect("an ordinary cursor")
     };
     let sampled = cursor_projection(
         &vp,
         ndc(centre),
-        [pane.width_px as f32, pane.height_px as f32],
+        [pane.width_px, pane.height_px]
+            .narrow()
+            .expect("a viewport of ordinary size"),
     );
     // A world point on the ray through a cursor `n` pixels to the
     // right of the sampled one must land at target-x ≈ `n` — one at
@@ -506,7 +475,8 @@ fn the_sampled_pixel_is_one_pixel_wide_and_correctly_oriented() {
             .ray_through([centre[0] + dx, centre[1] + dy], pane)
             .expect("un-projects");
         let p = ray.origin + ray.dir * 0.2;
-        let v = [p.x as f32, p.y as f32, p.z as f32, 1.0];
+        let [px, py, pz] = p.narrow().expect("a point the seam draws");
+        let v = [px, py, pz, 1.0];
         let mut out = [0.0f32; 4];
         for (row, slot) in out.iter_mut().enumerate() {
             *slot = sampled[0][row] * v[0]
@@ -727,7 +697,7 @@ fn the_ray_path_and_the_id_map_invert_each_other_patch_included() {
 /// answers a name that is drawn under some id, and every such id
 /// inverts to a patch whose own name is that answer.
 ///
-/// A counterexample search (`memories/test-suite-cost`'s first shape):
+/// A counterexample search (implementer-discipline §8's first shape):
 /// the seed varies, the count rides the EFFORT dial, and cutting it
 /// loses detection power rather than correctness. The anti-vacuity
 /// witness is NOT drawn from the same sample — it is a static list of
@@ -986,13 +956,7 @@ fn picking_again_replaces_rather_than_accumulates() {
         .expect("no refusal")
         .expect("the top face");
     let side = index
-        .face_at(
-            eval,
-            &Ray {
-                origin: Point3::new(-1.0, 0.010, 0.005),
-                dir: Vec3::new(1.0, 0.0, 0.0),
-            },
-        )
+        .face_at(eval, &common::along_x(1.0, 0.010, 0.005))
         .expect("no refusal")
         .expect("a wall");
     assert_ne!(top.name, side.name, "the fixture offers two distinct faces");
@@ -1400,7 +1364,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     let outcome = session.perform(SessionOp::Open(file.clone()));
     assert!(outcome.refusal.is_none(), "the gallery opens: {outcome:?}");
     session.pump();
-    let index = index_at(&session, coarse());
+    let index = common::index_of(&session, common::ring_delta());
     println!(
         "E2E opened: {} tree rows, {} drawn parts, {} ids",
         session.tree_rows().len(),
@@ -1511,11 +1475,11 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     //    and a rebuilt one describes the new generation.
     let generation = session.landed_generation().expect("a generation");
     assert!(
-        !index.current_for(Some(PictureKey::of(generation, coarse()))),
+        !index.current_for(Some(PictureKey::of(generation, common::ring_delta()))),
         "the pre-edit index is stale after two evaluations"
     );
-    let rebuilt = index_at(&session, coarse());
-    assert!(rebuilt.current_for(Some(PictureKey::of(generation, coarse()))));
+    let rebuilt = common::index_of(&session, common::ring_delta());
+    assert!(rebuilt.current_for(Some(PictureKey::of(generation, common::ring_delta()))));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

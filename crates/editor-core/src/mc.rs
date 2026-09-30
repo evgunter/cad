@@ -52,8 +52,7 @@ use geom_core::Tol;
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox, sample_offset};
 use crate::doc::{Doc, ParamName};
 use crate::eval::{
-    CancelToken, ContentKey, EvalOptions, Evaluation, NodeResult, ProfileLift, ValuePayload,
-    evaluate,
+    CancelToken, ContentKey, EvalOptions, Evaluation, ProfileLift, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
@@ -357,14 +356,15 @@ pub fn monte_carlo(
     // replay, and finding that out once beats finding it out `samples`
     // times.
     let nominal: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
-    if let Some(&node) = nominal
+    if let Some(standing) = nominal
         .order
         .iter()
-        .find(|id| !matches!(nominal.nodes.get(id), Some(NodeResult::Ok(_))))
+        .find_map(|&id| nominal.usable(id).err())
     {
+        let node = standing.node();
         let cause = nominal
             .node_error(node)
-            .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
+            .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
         return Err(McRefusal::NominalDoesNotBuild { node, cause });
     }
 
@@ -409,7 +409,7 @@ pub fn monte_carlo(
             let Ok(offset) = sample_offset(name, dist, rng.unit()) else {
                 unreachable!(
                     "every law was proved sampleable before the run, yet {} refused",
-                    name.0
+                    name.as_str()
                 )
             };
             if let Some(p) = analyzed.get(name)
@@ -438,25 +438,22 @@ pub fn monte_carlo(
         let readings = sinks
             .iter()
             .map(|&(id, is_measure)| {
+                // Every standing is one `NoValue` reading: the tally
+                // counts samples with no reading, not why.
+                let payload = ev.value(id).map(|v| &v.payload);
                 if is_measure {
-                    match ev.result(id) {
-                        Some(NodeResult::Ok(v)) => match &v.payload {
-                            ValuePayload::Measure { value, .. } => Reading::Value(*value),
-                            _ => Reading::NoValue,
-                        },
+                    match payload {
+                        Some(ValuePayload::Measure { value, .. }) => Reading::Value(*value),
                         _ => Reading::NoValue,
                     }
                 } else {
-                    match ev.result(id) {
-                        Some(NodeResult::Ok(v)) => match &v.payload {
-                            ValuePayload::Assertion(AssertionVerdict::Holds { .. }) => {
-                                Reading::Holds
-                            }
-                            ValuePayload::Assertion(AssertionVerdict::Violated { .. }) => {
-                                Reading::Violated
-                            }
-                            _ => Reading::NoValue,
-                        },
+                    match payload {
+                        Some(ValuePayload::Assertion(AssertionVerdict::Holds { .. })) => {
+                            Reading::Holds
+                        }
+                        Some(ValuePayload::Assertion(AssertionVerdict::Violated { .. })) => {
+                            Reading::Violated
+                        }
                         _ => Reading::NoValue,
                     }
                 }
@@ -560,7 +557,16 @@ enum Reading {
 /// shortcut cancels catastrophically when the mean dominates the
 /// spread, which is exactly the regime a tolerance study lives in (a
 /// 0.6 m web with a 0.02 mm spread).
-fn summarize(values: &[f64]) -> (f64, f64, f64, f64) {
+///
+/// **Public because a consumer that checks its own replay against
+/// [`monte_carlo`]'s report has to run THIS reduction, not one like
+/// it.** The tour's two density cells each summarize their own replay
+/// and require the four numbers to equal a report's bit for bit; while
+/// this was private they did it through hand transcriptions of these
+/// six lines, and the copies had already dropped both guards below. A
+/// bitwise comparison whose two sides are two spellings is a
+/// comparison of the spellings, so the reduction is a door.
+pub fn summarize(values: &[f64]) -> (f64, f64, f64, f64) {
     if values.is_empty() {
         return (f64::NAN, f64::NAN, f64::NAN, f64::NAN);
     }

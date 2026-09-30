@@ -4,6 +4,8 @@ kind: issue
 title: The viewer's prose names the frame entry point `update`, and no such function has ever existed
 status: open
 opened: 2026-09-16
+priority: P4
+cost: E
 ---
 
 

@@ -2,9 +2,10 @@
 id: viewer-preview-names-a-verb-by-its-variant-identifier
 kind: issue
 title: the profile preview names a Verb by its variant identifier, the class PR 2053 enforced
-status: open
+status: closed
 opened: 2026-09-06
-refs: [verb-and-dimension-render-through-debug, the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused, 2053]
+refs: [2347, 2053]
+closed: 2026-09-19
 ---
 
 
@@ -89,3 +90,44 @@ its `Dimension` half alone, and whoever takes its `Verb` half takes
 this row with it. Neither `work/fix/` nor that item was edited by
 PR 2053: a unit branch does not file or close on another program's
 slate (`docs/prompts/implementer-discipline.md`, §6).
+
+## Closed 2026-09-19 — already discharged, and not by this program
+
+Re-deriving this row's PREMISE at VNEWS' first dispatch: **there is no
+`{verb:?}` anywhere in `crates/viewer/src`, and the fix this row
+specifies has already landed.**
+
+- `profile::path::Verb` has a `Display` — `crates/profile/src/path/program.rs`,
+  inside the macro that also declares `Verb::ALL`, which is the shape
+  `work/fix/verb-and-dimension-render-through-debug` proposed.
+- `PreviewError`'s `Display` arm in `crates/viewer/src/sketch.rs` now
+  reads `"loop {loop_} step {step}: {verb} is not well-typed there — the
+  tip is {}"` — `{verb}`, forwarding to that `Display`, beside
+  `tip_state_words(*state)`. The two policies the row objected to
+  sharing one sentence are now one policy.
+
+**Who closed it.** `work/fix/verb-and-dimension-render-through-debug`
+(FIX, PR 2347, closed 2026-09-11) took both halves. That item's own
+closing note records the consequence this row was never told about:
+*"`prose_census.rs`'s `UNDECIDED` named `crates/viewer/src/sketch.rs` /
+`PreviewError` / `verb`; that site is gone, so the entry is deleted."*
+So the row was discharged eight days ago and travelled through VIEW's
+re-scope into this program still reading as open.
+
+**Two stale citations in this row, left rather than repointed**, per the
+register's rule that a citation whose subject has moved is disclosed and
+not shifted onto whatever now sits at the number: `sketch.rs:663` is not
+the `write!` (the file moved again after the row was filed), and
+`work/issues/the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused.md`
+is now `work/census/…`, live on CENSUS' slate and untouched by this.
+
+**What this cost, said plainly.** VNEWS' §Order correction of earlier
+today said this row "needs `impl Display for Verb` in `crates/profile`,
+which is PATHS' territory" and routed it accordingly. That was wrong:
+the orchestrator re-derived the row's citation and not its premise,
+which is the half of the register's rule that matters more, and is the
+same rule handed to every lane dispatched this morning.
+
+## Reference note (FIX's sweep, 2026-09-21)
+
+`verb-and-dimension-render-through-debug` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/verb-and-dimension-render-through-debug.md`.

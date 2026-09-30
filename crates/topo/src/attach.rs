@@ -45,13 +45,14 @@
 //! determinism (D9) is about identical histories minting identical
 //! keys, and a setter call is part of the history.
 
-use geom_brep::EdgeCurveSpec;
+use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::Decide;
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey};
-use crate::euler::{EulerOpError, FaceSurface};
+use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey};
+use crate::euler::{EulerOpError, FaceSurface, ParentSide};
 use crate::geometry::{CurveKey, SurfaceKey};
+use crate::pcurves::{SiteHalf, SiteMint, SiteRows};
 use geom_core::Tol;
 
 impl<T: Decide> Body<T> {
@@ -69,11 +70,32 @@ impl<T: Decide> Body<T> {
     /// can invalidate an adjacent edge's certification; tier 3 reports
     /// it — attach surfaces before upgrading edge descriptions.)
     ///
+    /// **The face's pcurve rows are not a cache this door may keep.** A
+    /// row is a curve stated in a face's CHART
+    /// ([`crate::pcurves`]), so re-charting the face in place makes
+    /// every one of its rows a statement about a surface the face is no
+    /// longer on — the loop-re-parenting doors' defect with the two
+    /// sides swapped, and it takes their answer: a swap onto the same
+    /// chart carries every row untouched, and a swap onto a different
+    /// one drops the face's rows ([`Body::drop_face_rows`]), deriving
+    /// nothing. A caller that wants the face's rows on its new chart
+    /// runs [`crate::pcurves::mint_pcurves`]. Leaving them was silent
+    /// wherever the new surface does not mint — tier 3's pcurve pass
+    /// skips such a face — so what the drop removes is a wrong row no
+    /// reader could be warned about.
+    ///
+    /// **Sense** ([`crate::Face::sense`]): the face stands as its own
+    /// parent and the door passes [`ParentSide::With`], so the bit is
+    /// kept on the face's own chart and stated on any other
+    /// ([`Body::resolve_face_surface`]).
+    ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] if `face` does not resolve;
     /// [`EulerOpError::StaleGeometry`] if a `Shared` key does not
-    /// resolve. The body is untouched on `Err`.
+    /// resolve; [`EulerOpError::SenseContradictsChart`] if a spec on
+    /// the face's own chart states the other bit. The body is
+    /// untouched on `Err`.
     pub fn set_face_surface(
         &mut self,
         face: FaceKey,
@@ -83,18 +105,23 @@ impl<T: Decide> Body<T> {
             key: EntityId::Face(face),
         })?;
         let old = face_data.surface;
-        self.check_face_surface(&surface)?;
+        let resolved =
+            self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.mint_face_surface(surface, old);
+        let Some(f) = self.get_face_mut(face) else {
+            unreachable!(
+                "set_face_surface: `face` resolved in the plan phase and minting a \
+                 surface kills no face"
+            )
+        };
+        f.sense = resolved.sense;
         if new != old {
-            let Some(f) = self.get_face_mut(face) else {
-                unreachable!(
-                    "set_face_surface: `face` resolved in the plan phase and minting a \
-                     surface kills no face"
-                )
-            };
             f.surface = new;
+            if !resolved.on_parent_chart {
+                self.drop_face_rows(face);
+            }
             self.remove_surface_if_orphaned(old);
         }
 
@@ -103,44 +130,27 @@ impl<T: Decide> Body<T> {
         Ok(new)
     }
 
-    /// Sets `face`'s orientation sense ([`crate::Face::sense`]) — the
-    /// constructor-facing writer of the S10 orientation bit, opened in
-    /// M5 S11.
+    /// Sets `face`'s orientation sense ([`crate::Face::sense`]) in
+    /// place, on the chart it already has.
     ///
-    /// An Euler operator mints `sense: true` on a face it puts on a
-    /// NEW surface, because the material side is not op-level
-    /// knowledge: `mef` sees two chords, not the profile. Whether a
-    /// swept wall's material lies with or against its surface's chart
-    /// normal is the **constructor's**
-    /// knowledge, decided from exact stored structure (a concave arc
-    /// segment's turn sign against its loop's canonical winding — the
-    /// profile's material-left rule), so the constructor attaches the
-    /// honest bit here right after the mint, exactly as
-    /// [`Body::set_face_surface`] attaches a surface the mint could not
-    /// know. Callers must keep the two encodings of orientation
-    /// coherent (the bit and the loop winding — tier 3's check 6
-    /// falsifies planar disagreement at rest); the test-only hand-flip
-    /// door [`Body::flipped_face_sense_for_tests`] is the deliberate
-    /// exception.
+    /// A face minted or re-charted states its bit with its chart
+    /// instead ([`FaceSurface`]; [`Body::resolve_face_surface`] owns
+    /// the rule), so this door is for a bit learned while the chart
+    /// stands still. Callers must keep the two encodings of
+    /// orientation coherent — the bit and the loop winding — and the
+    /// obligation is the CALLER'S, because at rest it is only partly
+    /// checkable: tier 3's check 6 falsifies a planar disagreement
+    /// whose loop rides `Line`, `Circle` and `Ellipse` carriers, and
+    /// passes over one whose loop rides a spiric or NURBS carrier (the
+    /// residue named at the arm's banner), so a planar face bounded so
+    /// can carry an inverted bit through this door and certify. The
+    /// test-only hand-flip door [`Body::flipped_face_sense_for_tests`]
+    /// is the deliberate exception to the coherence rule; it is not the
+    /// only way to break it.
     ///
     /// Not an Euler operator (no topology changes) and not a numeric
     /// decision (a `bool` is written, nothing compared); tier 1 is
     /// trivially preserved.
-    ///
-    /// **Splitting inherits the bit exactly where the fragment is the
-    /// same region.** A `mef` or `mfkrh` re-mint that keeps the
-    /// parent's surface takes the parent's `sense` — a piece of a
-    /// reversed wall is the same surface region with the same material
-    /// side — and stamps `true` only when the fragment lands somewhere
-    /// that is NOT the parent's surface (a fresh one, or a foreign
-    /// shared key), which is not the parent's region at all and whose
-    /// honest bit is this door's to attach.
-    /// `Body::mint_face_surface_and_sense`
-    /// owns that rule; the boolean's chord re-mints (`chord_join.rs`)
-    /// pass `FaceSurface::Inherit` and so inherit, while
-    /// `splitting/finish.rs`'s section promotion is the live case of
-    /// the mint. Guard: sweep's `m5_s12_curved_ops.rs`, the row named
-    /// `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
     ///
     /// # Errors
     ///
@@ -161,6 +171,43 @@ impl<T: Decide> Body<T> {
     /// be **adjacency-coherent** (module docs). The old curve is
     /// removed iff no other edge references it.
     ///
+    /// **A carrier swap leaves the pcurve rows where they are, and
+    /// that is not [`Body::set_face_surface`]'s case.** A row is stated
+    /// in a FACE's chart and keyed on a half-edge; this door moves
+    /// neither, so no row changes what it is ABOUT. What it does change
+    /// is what the row must agree WITH, and the tier-3 pcurve pass
+    /// re-derives that agreement from the edge's CURRENT curve on every
+    /// run — so on a COMPLETE face a row left saying the old carrier's
+    /// image is refused per half-edge, loud, which is where the surface
+    /// setter was silent.
+    ///
+    /// **Two faces of the pass are silent, and neither is this door's
+    /// to close.** A face whose chart mints nothing holds no minted row
+    /// for a carrier swap to stale at all. A HALF-MINTED face does hold
+    /// them, and the pass skips its re-certification entirely — it
+    /// reports the missing rows and then measures nothing else about
+    /// that face
+    /// (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
+    /// so a row this door stales there is accepted unmeasured. That is
+    /// the pass's property for every content staleness in the tree, not
+    /// a fact about carrier swaps, and dropping rows here would buy a
+    /// `MissingCache` on that one face at the price of a re-mint on
+    /// every swap that certifies — including the upgrades this door
+    /// exists for, whose rows stay true within band.
+    ///
+    /// **A null edge's first description re-mints its face.**
+    /// [`Body::mev_null`] adds two halves with no carrier to derive a
+    /// row from, and returns a minted face half-minted. The carrier
+    /// arrives here, so before the door mutates, each face the halves
+    /// are on that was minted (it stores a row) and has no other null
+    /// edge on it is re-minted whole, through the site mint the Euler
+    /// operators run ([`crate::pcurves`]' `site_rows`): it leaves
+    /// complete — the rows of halves an operator added while it was
+    /// half-minted included — or rowless where the closed-form lane
+    /// cannot mint it. While another null edge is on the face, the
+    /// face is left as found, and that edge's description re-mints it.
+    /// A face on a spline chart is left as found.
+    ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] on
@@ -168,7 +215,9 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::DescriptionNotAdjacent`] on an
     /// `Intersection`/`Seam` description whose surfaces are not the
     /// edge's faces' surfaces; [`EulerOpError::Certification`] on a
-    /// failed gate. The body is untouched on `Err`.
+    /// failed gate; [`EulerOpError::PcurveMint`] where a null edge's
+    /// face is re-minted and a half-edge of it does not resolve. The
+    /// body is untouched on `Err`.
     pub fn set_edge_curve(
         &mut self,
         edge: EdgeKey,
@@ -259,9 +308,7 @@ impl<T: Decide> Body<T> {
         let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
         })?;
-        let old = edge_data.curve;
         let he_plus = edge_data.he_plus;
-        let he_minus = edge_data.he_minus;
         let plus_data = self.resolve_half_edge(he_plus)?;
         let end_vertex = self.half_edge_end(he_plus).ok_or(EulerOpError::StaleKey {
             key: EntityId::HalfEdge(he_plus),
@@ -269,8 +316,146 @@ impl<T: Decide> Body<T> {
         let p_start = self.resolve_vertex_point(plus_data.start)?;
         let p_end = self.resolve_vertex_point(end_vertex)?;
 
-        // Adjacency coherence (module docs): resolvable now that both
-        // faces exist.
+        self.check_description_adjacent(edge, &curve.description)?;
+
+        let certified = certify(self, curve, p_start, p_end, tol)?;
+        let rows = self.null_description_rows(edge, &certified, tol)?;
+
+        // ---- Mutation (infallible from here on). ----
+        let new = self.replace_edge_curve(edge, certified);
+        crate::pcurves::apply_site_rows(self, rows, None);
+
+        #[cfg(debug_assertions)]
+        self.assert_tier1_postcondition("set_edge_curve");
+        Ok(new)
+    }
+
+    /// **The rows a null edge's first description writes**, decided
+    /// before [`Body::set_edge_curve_via`] mutates: one plan per face
+    /// the edge's halves are on, for [`crate::pcurves::apply_site_rows`].
+    ///
+    /// Empty unless `edge` is a null edge ([`crate::CurveGeom::NullScaffold`]):
+    /// a certified edge's description moves no key, so no row goes
+    /// missing (the door's docs), and a face it finds half-minted is
+    /// left as found. A null edge's description is the first door that
+    /// can derive its halves' rows, so it re-mints each face they are
+    /// on that [`crate::pcurves::SiteMint::Description`] selects — a
+    /// minted face with no other null edge on it — whole, through the
+    /// Euler operators' site mint ([`Body::plan_site_rows_as`]). The
+    /// face leaves complete, or rowless where the closed-form lane
+    /// cannot mint it; on a spline chart it is left as found.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] where
+    /// a half, loop, face or surface does not resolve;
+    /// [`EulerOpError::Certification`] where `tol` builds no band;
+    /// [`EulerOpError::PcurveMint`] naming the face a half-edge of which
+    /// did not resolve.
+    fn null_description_rows(
+        &self,
+        edge: EdgeKey,
+        curve: &EdgeCurve<T>,
+        tol: Tol,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Edge(edge),
+        })?;
+        let is_null = self
+            .get_curve_geom(edge_data.curve)
+            .ok_or(EulerOpError::StaleGeometry {
+                key: GeomRef::Curve(edge_data.curve),
+            })?
+            .null_scaffold()
+            .is_some();
+        if !is_null {
+            return Ok(Vec::new());
+        }
+        let halves = [edge_data.he_plus, edge_data.he_minus];
+        let touched = [
+            self.resolve_half_edge(halves[0])?.parent_loop,
+            self.resolve_half_edge(halves[1])?.parent_loop,
+        ];
+        let site_half = |h: HalfEdgeKey| {
+            if halves.contains(&h) {
+                SiteHalf::Described(h)
+            } else {
+                SiteHalf::Existing(h)
+            }
+        };
+        self.plan_site_rows_as(
+            SiteMint::Description(halves),
+            &touched,
+            |body, minted| {
+                minted
+                    .iter()
+                    .map(|(face, from)| {
+                        let every_loop: Vec<(LoopKey, Vec<SiteHalf>)> = from
+                            .loops
+                            .iter()
+                            .filter_map(|(lk, cycle)| {
+                                Some((
+                                    *lk,
+                                    cycle.as_deref()?.iter().copied().map(site_half).collect(),
+                                ))
+                            })
+                            .collect();
+                        body.site_face(*face, &every_loop, None)
+                    })
+                    .collect()
+            },
+            curve,
+            tol,
+        )
+    }
+
+    /// The mutation half of every door that re-describes an existing
+    /// edge ([`Body::set_edge_curve`] and its lane twin,
+    /// [`Body::kev_describing`]'s re-described members): insert the
+    /// certified curve, point `edge` at it, and reap the curve it
+    /// replaced iff orphaned. Returns the new key.
+    ///
+    /// Infallible on the caller's proof that `edge` resolved in its
+    /// plan phase and that nothing between that plan and this write
+    /// removes it.
+    pub(crate) fn replace_edge_curve(
+        &mut self,
+        edge: EdgeKey,
+        certified: EdgeCurve<T>,
+    ) -> CurveKey {
+        let new = self.add_curve(certified);
+        let Some(e) = self.get_edge_mut(edge) else {
+            unreachable!(
+                "replace_edge_curve: the caller's plan phase resolved `edge`, and nothing \
+                 between that plan and this write removes it"
+            )
+        };
+        let old = core::mem::replace(&mut e.curve, new);
+        self.remove_curve_if_orphaned(old);
+        new
+    }
+
+    /// The **description-adjacency coherence** check (module docs) for
+    /// a spec about to describe `edge`: an intrinsic description's two
+    /// surfaces are exactly the edge's two faces' surfaces, a chart
+    /// image names one of them, a chart seam names the one surface on
+    /// both sides, and a scaffold names none. Pure — the plan-phase
+    /// half of every door that re-describes an existing edge.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] when the edge, a half, a loop or a
+    /// face does not resolve; [`EulerOpError::DescriptionNotAdjacent`]
+    /// when the description names surfaces that are not the edge's.
+    pub(crate) fn check_description_adjacent(
+        &self,
+        edge: EdgeKey,
+        description: &geom_brep::EdgeDescriptionSpec<T>,
+    ) -> Result<(), EulerOpError> {
+        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Edge(edge),
+        })?;
+        let (he_plus, he_minus) = (edge_data.he_plus, edge_data.he_minus);
         let face_surface = |body: &Self, he: crate::entity::HalfEdgeKey| {
             let he_data = body.resolve_half_edge(he)?;
             let loop_data = body
@@ -287,7 +472,7 @@ impl<T: Decide> Body<T> {
         };
         let fs_plus = face_surface(self, he_plus)?;
         let fs_minus = face_surface(self, he_minus)?;
-        match curve.description {
+        match *description {
             // Both intrinsic variants carry the same adjacency
             // obligation: the described pair IS the faces' pair
             // (M5 PR 9 — TangentIntersection mirrors Intersection).
@@ -319,22 +504,6 @@ impl<T: Decide> Body<T> {
             // The scaffolding door names no surface — there is none.
             geom_brep::EdgeDescriptionSpec::Scaffold(_) => {}
         }
-
-        let certified = certify(self, curve, p_start, p_end, tol)?;
-
-        // ---- Mutation (infallible from here on). ----
-        let new = self.add_curve(certified);
-        let Some(e) = self.get_edge_mut(edge) else {
-            unreachable!(
-                "set_edge_curve: `edge` resolved in the plan phase and adding a curve \
-                 kills no edge"
-            )
-        };
-        e.curve = new;
-        self.remove_curve_if_orphaned(old);
-
-        #[cfg(debug_assertions)]
-        self.assert_tier1_postcondition("set_edge_curve");
-        Ok(new)
+        Ok(())
     }
 }

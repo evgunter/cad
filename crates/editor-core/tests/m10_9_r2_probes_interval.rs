@@ -26,7 +26,6 @@
 //! NOT proposed for merge: the branch carries a probe instrument
 //! (`DecisionShape::enclosure`, `Decide::enclosure_probe`).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
@@ -35,7 +34,7 @@ use std::collections::BTreeMap;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     select_where,
@@ -43,20 +42,12 @@ use editor_core::{
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
-
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// M10-9's tier with the door shut — M10-8's. The rows here are
@@ -98,9 +89,9 @@ const BORE: f64 = 0.6e-3;
 /// ask for (±20 µm on the half-width, σ = 10 µm on the bores).
 pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,
@@ -127,11 +118,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         },
     );
 
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
 
     let neg_w = Expr::neg(plen("half_w"));
     // The chain's own idiom for a tangent arc between two tangent legs:
@@ -151,6 +138,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![outline],
+        ids: Vec::new(),
     }));
     let thickness = len(1.0e-3);
     let body = r.insert(Node::Extrude {
@@ -163,6 +151,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
             centre: [len(HALF_L), len(0.0)],
             radius: plen("bore_r"),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,
@@ -449,10 +438,10 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
 /// NOT a door measurement any more (the shipped set carries the
 /// algebra too), which is why the arms are labelled that way and no
 /// ratio is printed as if it were the door's: the link's ceiling does
-/// not move under either (`m10_10_pins_interval` holds the bracket).
-/// EVIDENCE-ONLY since M10-10's fix pass (51 s release, and every
-/// claim it gated is pinned elsewhere: the door registers on the link
-/// in `m10_9_pins_interval`, the bracket in `m10_10_pins_interval`).
+/// not move under either (the bracket is recorded in
+/// `m10_9_pins_interval::measured_studies`). EVIDENCE-ONLY since
+/// M10-10's fix pass (51 s release; the door registering on the link
+/// is pinned in `m10_9_pins_interval`).
 #[test]
 #[ignore = "evidence-only: the link's real study and ceiling under M10-9's door-shut tier and the shipped set"]
 fn r2_link_end_to_end_with_and_without_the_door() {
@@ -497,8 +486,7 @@ fn r2_link_end_to_end_with_and_without_the_door() {
         // The bound: the over-band SET at ceiling + δ, never a first
         // refusal at a multiple of the ceiling
         // (M10's closed
-        // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
-        // `docs/DOC-LEDGER.md` sweep 13).
+        // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
         let beyond = at(hi);
         let analyzed = analyzed_box(&beyond, &AnalysisPolicy::default());
         let (shapes, refusal, counts) = replay(&beyond, &ParamBox::of(&analyzed), rules, tol);
@@ -846,7 +834,7 @@ fn r2_evidence_plate_enclosure_vs_scale() {
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
             let table = envelopes(&shapes);
-            let pick = |p: &str| {
+            let pick = |p: &'static str| {
                 table
                     .get(p)
                     .map_or("-".to_owned(), |w| format!("[{:.4e},{:.4e}]", w.lo, w.hi))

@@ -4,6 +4,8 @@ kind: issue
 title: the certified determinant refuses a crossing whose ray lies within rounding of the triangle's plane
 status: open
 opened: 2026-09-16
+priority: P2
+cost: H
 ---
 
 
@@ -42,3 +44,12 @@ The shape of a fix, if the class is ever worth its cost, is an exact
 or extended-precision fallback for the uncertified candidates only —
 never a widened bound, which moves the tie behaviour the
 `index_memo` rows pin.
+
+## Re-banded P0 → P2 (2026-09-29, EDIT orchestrator)
+
+The residue is a ray within about 2u of a triangle's plane crossing
+its open interior. No corpus ray is in that class; the witness is
+synthetic. That makes it an interval and error propagation question
+(P2), not a live wrong answer on normal geometry. The fix shape the
+row names, an exact fallback for uncertified candidates only, is
+unchanged.

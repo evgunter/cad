@@ -57,7 +57,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     ALL_RECOURSES, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
@@ -78,12 +78,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(p2(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 /// `a ∖ b`, the one boolean these rows use.
@@ -95,12 +91,12 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// its turned prism with, so the two fixtures differ in the ONE thing
 /// their rows are about: whether the box is axis-aligned.
 fn ball_at(c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
@@ -283,7 +279,7 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
             BlendError::TangentialEdge { margin, .. }
                 if margin.predicate == "fillet3_convexity_sign"
                     && margin.sign == Sign::Zero
-                    && margin.value() == Some(0.0)
+                    && margin.reading.diagnostic_f64_for_error_text().value() == Some(0.0)
         ),
         "a co-surface seam is the zero-margin wedge, got {err:?}"
     );
@@ -383,27 +379,27 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 }
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
-/// every door it names is executed.** Four of them, since the closed
-/// clause gained its "one face carries every arc" half.
+/// every door it names is executed.** Four of them: the open clause and
+/// three readings of the closed clause's "whole latitude rim".
 ///
 /// The refusal: an OPEN chain whose supports are not plane–plane (the
 /// edge between a wedge wall and the sphere zone of a PARTIAL revolve),
 /// which has no built termination — the sentence's own open-chain
 /// clause, so it is true at the site that carries it.
 ///
-/// The sentence names four requests that carve, and each is built here:
-/// open plane–plane links ending at fully-requested trivalent corners
-/// (the cube whole), a closed circular plane–sphere rim (the dome's
-/// equator), the "either material side" half via a CONCAVE closed rim
-/// (the waisted revolve's waist, whose band adds material), and the
-/// "one face carries every arc" half via the REPAIRED lantern's neck
-/// (`merge_coplanar_faces` fuses each pole cap's two half-disks into
-/// one face, as every boolean consumer must, leaving both arcs on ONE
-/// plane face with trivalent crossings).
+/// The sentence names requests that carve, and each is built here:
+/// one-link open plane–plane chains ending at fully requested
+/// trivalent corners of one convexity (the cube whole), a whole
+/// latitude rim (the dome's equator), the same on a CONCAVE rim (the
+/// waisted revolve's waist, whose band adds material — a whole rim
+/// carves at either material side), and a whole rim whose arcs all lie
+/// on ONE face (the REPAIRED lantern's neck: `merge_coplanar_faces`
+/// fuses each pole cap's two half-disks into one face, as every boolean
+/// consumer must, leaving both arcs on ONE plane face with trivalent
+/// crossings).
 ///
-/// What is NOT pinned: the open-chain clause says "on either material
-/// side", and the concave side would need an all-plane concave
-/// trivalent corner, which no fixture here builds.
+/// What is NOT pinned: "of one convexity" admits an all-concave
+/// plane–plane corner, which no fixture here builds.
 #[test]
 fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // A PARTIAL revolve of the dome profile: its wedge walls are planes
@@ -441,13 +437,26 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // several other `UnsupportedChain` arms also satisfy.
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
-            if *detail == "an open chain's supports are neither plane–plane nor a ruled cylinder \
-                 pair (the trivalent corner patch and the transverse cut-off are the only \
-                 terminations built)"),
+            if *detail == "an open chain's supports are neither a plane–plane nor a ruled \
+                 cylinder pair"),
         "an open chain whose supports are neither plane–plane nor ruled has no built \
          termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
+    // The corner clause's two conditions, each true of every corner the
+    // surgery carves and each a reader needs: a fully requested corner
+    // that is not trivalent, or is of mixed convexity, still refuses.
+    // Pinned one by one, so dropping either is red.
+    for condition in [
+        "fully requested trivalent plane\u{2013}plane corners",
+        "of one convexity",
+        "junction carry-through and run-outs are not implemented",
+    ] {
+        assert!(
+            FILLET3_ASSEMBLY_RECOURSE.contains(condition),
+            "the assembly recourse lost {condition:?}: {FILLET3_ASSEMBLY_RECOURSE}"
+        );
+    }
 
     let d = dome(1.0, tol());
     let equator = one_edge_rim_at(&d, 1.0, 0.0);

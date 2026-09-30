@@ -5,6 +5,8 @@ title: SSI_MAX_FIT_SAMPLES is a fixed cap on a sample count the marcher grows as
 status: open
 opened: 2026-09-15
 refs: [D70]
+priority: P1
+cost: D
 ---
 
 

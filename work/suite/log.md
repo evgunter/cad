@@ -348,3 +348,42 @@ longer checkable at the site. It now reads the sections back and
 asserts three one-loop quads, every bulge exactly `0.0` — falsified
 before commit with a `0.01` bulge. Better than the revert this
 orchestrator offered.
+
+## Rows arriving from FIX, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that **FIX carries no design decisions**:
+*"can you kick all the design decisions back to the track they actually
+belong to, leaving fix design-free?"* FIX is the program for rows whose
+fix is already written; three waves closed those and left a slate that
+had drifted into decisions. Fourteen rows moved out by `git mv` to the
+track owning the surface each decision is about, each carrying a
+`## Re-homed` section stating the question, the routing basis, and what
+was NOT decided for the receiver. Routing was taken from
+`python3 scripts/work.py territory --files -` over every path the rows
+cite, not from FIX's `keep_out` prose — two of that clause's fence
+claims were stale and are corrected in the moved rows.
+
+**One row: `band-helper-duplicated-across-suites`.** A three-line
+`fn band() -> Band` wrapper with no parameter to vary, written out once
+per test suite. PR 2377 (merged) collapsed the free half — 39 wrappers in
+`crates/sweep` onto `tests/common/approx.rs`, 47 files — and the row
+stayed open for the part that needs a decision: a shared home for the
+remaining copies across six crates.
+
+It lands here rather than on S-TINT's or S-TCOST's board because SUITE is
+constituted as the slate for exactly these — *a slate, not a second claim
+on `crates/*/tests/*`* — beside `genus-rings-helper-spelled-nine-times`
+and `prune-report-rows-are-nine-copies-of-one-assertion`.
+
+**Two corrections the merged PR made to the row's own text**, both now in
+its body: the remaining `tests/` population is **22 sites across six
+crates**, not 12 across three (the row missed `geom-brep`, `editor-core`
+and `mesh` entirely and undercounted `geom-core` sevenfold); and a
+**second population of 20** lives in `crates/*/src` `#[cfg(test)] mod
+tests` blocks, which cannot reach a `tests/` helper tree at all — so the
+shared-home decision as currently framed does not cover them.
+
+`branch:` and `pr:` were cleared in the move: PR 2377 is merged, and a
+live-looking branch field reads as work in flight.
+
+Signed (FIX orchestrator).

@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use crate::wire::doctored;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -40,7 +41,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -193,7 +194,7 @@ fn boxed(
 
 /// A sphere of radius `r` centred at (0, 0, cz): a bulge-1 half-disc on
 /// the XZ frame, revolved a full turn about the world Z axis.
-fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
+fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
     let half = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(-r)]),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -226,6 +227,7 @@ fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![half],
+                ids: Vec::new(),
             }),
         },
     );
@@ -270,6 +272,7 @@ fn cylinder(
                     centre: [len(cx), len(cy)],
                     radius: len(r),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -729,6 +732,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.001),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -789,7 +793,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 measure,
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
-                bound: Expr::literal(100.0, Dimension::Length).expect("finite"),
+                bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -826,12 +830,14 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
             (
                 "transform",
-                Node::Transform {
-                    input: victim,
-                    translation: [len(1.0), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                },
+                Node::transform(
+                    victim,
+                    editor_core::Step::Rigid {
+                        translation: [len(1.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                ),
             ),
             (
                 "extrude-profile",
@@ -886,7 +892,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(100.0, Dimension::Length).expect("finite"),
+                bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -970,7 +976,6 @@ fn r2_a_measure_at_dual64_is_bit_identical_and_untangented() {
 
 /// Interval containment on a `gap` — the SIGNED arm, where a loose
 /// enclosure is easier to get wrong than on a magnitude.
-#[cfg(feature = "interval")]
 #[test]
 fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
     use geom_core::{Bounds, Interval};
@@ -1039,12 +1044,14 @@ fn r2_a_transform_has_no_emission_to_measure() {
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Transform {
-                input: b,
-                translation: [len(100.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            node: Node::transform(
+                b,
+                editor_core::Step::Rigid {
+                    translation: [len(100.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         },
     );
     let ev = eval(&d3);
@@ -1123,7 +1130,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1167,7 +1174,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Angle).expect("finite"),
+                bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1181,7 +1188,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure: b,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1238,7 +1245,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
             &DocEdit::InsertNode {
                 node: Node::Assertion {
                     measure,
-                    bound: Expr::literal(0.02, Dimension::Length).expect("finite"),
+                    bound: len(0.02),
                     dir: AssertionDir::AtLeast,
                 },
             },
@@ -1315,16 +1322,13 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
     );
     let assertion = *doc.order().last().expect("the assertion is the last node");
     let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
-    let split = text.find('{').expect("the JSON body follows the id header");
-    let (header, body) = text.split_at(split);
-    let wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
 
     // (a) the bound's DIMENSION retyped to Angle: the measure is a
     // Length, so `measured: Length` against `bound: Angle`. BOTH
@@ -1333,18 +1337,16 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     // one door earlier, by the wire's `Expr::literal_with_unit`
     // rebuild, and would never reach the snapshot walk this row is
     // about.
-    let mut corrupt = wire.clone();
-    let lit =
-        &mut corrupt["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
-    assert_eq!(
-        lit["dim"],
-        serde_json::json!("Length"),
-        "the surgery is aimed at the bound's length literal"
-    );
-    lit["dim"] = serde_json::json!("Angle");
-    lit["unit"] = serde_json::json!("rad");
-    let dim_corrupt = format!("{header}{corrupt}");
-    assert_ne!(dim_corrupt, text, "the dimension corruption must land");
+    let dim_corrupt = doctored(&text, |wire| {
+        let lit = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["bound"]["Literal"];
+        assert_eq!(
+            lit["dim"],
+            serde_json::json!("Length"),
+            "the surgery is aimed at the bound's length literal"
+        );
+        lit["dim"] = serde_json::json!("Angle");
+        lit["unit"] = serde_json::json!("rad");
+    });
     match editor_core::load(&dim_corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
             measured: Dimension::Length,
@@ -1355,16 +1357,16 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     }
 
     // (b) the assertion's target repointed at a non-measure node.
-    let mut corrupt = wire;
-    let target = &mut corrupt["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
-    assert_eq!(
-        *target,
-        serde_json::json!(measure.0),
-        "the surgery is aimed at the assertion's target"
-    );
-    *target = serde_json::json!(b.0);
-    let tgt_corrupt = format!("{header}{corrupt}");
-    assert_ne!(tgt_corrupt, text, "the target corruption must land");
+    let tgt_corrupt = doctored(&text, |wire| {
+        let target =
+            &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+        assert_eq!(
+            *target,
+            serde_json::json!(measure.0),
+            "the surgery is aimed at the assertion's target"
+        );
+        *target = serde_json::json!(b.0);
+    });
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionTarget {
             measure,
@@ -1399,7 +1401,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let d0 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::from_static("s"),
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
@@ -1413,7 +1415,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(ParamName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar is a Length");
     let (d2, id) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
@@ -1426,8 +1428,8 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
             node: Node::Extrude {
                 profile: RecipeNodeId(1),
                 distance: Expr::div(
-                    Expr::literal(13.0, Dimension::Length).unwrap(),
-                    Expr::param(ParamName::new("s"), Dimension::Scalar),
+                    len(13.0),
+                    Expr::param(ParamName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
             },
@@ -1466,7 +1468,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let d0 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::from_static("s"),
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
@@ -1480,7 +1482,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(ParamName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
@@ -1490,7 +1492,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+                bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             },
         },

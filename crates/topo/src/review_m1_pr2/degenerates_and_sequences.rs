@@ -1,6 +1,4 @@
-//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16). These are
-//! **independent derivations**. Promoted per Ev's request (PR #17
-//! thread).
+//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16).
 //!
 //! Degenerate sites (with hand E-P ledgers), ring-split mef, and fresh
 //! construction sequences: tetrahedron, triangular prism, two disjoint
@@ -16,11 +14,8 @@ use crate::{
 use geom_core::Point3;
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
 fn p(x: f64) -> Point3<f64> {
-    pt(x, 0.0, 0.0)
+    Point3::new(x, 0.0, 0.0)
 }
 
 #[test]
@@ -29,7 +24,7 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
     let mut body = Body::<f64>::new();
 
     // mvfs: v1 e0 f1 r0 s1 h0 -> 1-0+1-0 = 2(1-0). Ledger OK.
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(euler_poincare_holds(&body, 1, 0));
 
@@ -96,7 +91,7 @@ fn lone_mef_circular_edge_ledger() {
     let tol = Tol::witness();
     // Lone mef straight from the mvfs state: v1 e1 f2 -> 1-1+2 = 2.
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let circ = body
         .mef_chord(
             MefSite::Lone {
@@ -128,7 +123,7 @@ fn lone_mef_circular_edge_ledger() {
 fn fan_mev_across_a_circular_edge() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let circ = body
         .mef_chord(
             MefSite::Lone {
@@ -174,7 +169,7 @@ fn fan_mev_across_a_circular_edge() {
 fn self_loop_chord_between_distinct_half_edges() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let g = body
         .mev_line(
             MevSite::Lone {
@@ -237,7 +232,7 @@ fn self_loop_chord_between_distinct_half_edges() {
 fn ring_split_mef_keeps_the_ring_on_the_old_face() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -388,13 +383,13 @@ fn ring_split_mef_keeps_the_ring_on_the_old_face() {
 #[test]
 fn tetrahedron_by_ops_with_orientation() {
     let tol = Tol::witness();
-    let a = pt(0.0, 0.0, 0.0);
-    let b = pt(1.0, 0.0, 0.0);
-    let c = pt(0.5, 1.0, 0.0);
-    let d = pt(0.5, 0.3, 1.0);
+    let a = Point3::new(0.0, 0.0, 0.0);
+    let b = Point3::new(1.0, 0.0, 0.0);
+    let c = Point3::new(0.5, 1.0, 0.0);
+    let d = Point3::new(0.5, 0.3, 1.0);
 
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     let ab = body
         .mev_line(
             MevSite::Lone {
@@ -510,13 +505,13 @@ fn triangular_prism_by_ops_with_orientation() {
     let tol = Tol::witness();
     // Bottom A B C at z=0, top A' B' C' at z=1.
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let ab = body
         .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            pt(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
             tol,
         )
         .unwrap();
@@ -526,7 +521,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he1: ab.he_minus,
                 he2: ab.he_minus,
             },
-            pt(0.5, 1.0, 0.0),
+            Point3::new(0.5, 1.0, 0.0),
             tol,
         )
         .unwrap();
@@ -553,7 +548,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he1: ab.he_plus,
                 he2: ab.he_plus,
             },
-            pt(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
             tol,
         )
         .unwrap();
@@ -563,7 +558,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he1: bc.he_plus,
                 he2: bc.he_plus,
             },
-            pt(1.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
             tol,
         )
         .unwrap();
@@ -573,7 +568,7 @@ fn triangular_prism_by_ops_with_orientation() {
                 he1: bot.he_plus,
                 he2: bot.he_plus,
             },
-            pt(0.5, 1.0, 1.0),
+            Point3::new(0.5, 1.0, 1.0),
             tol,
         )
         .unwrap();
@@ -663,7 +658,7 @@ fn two_disjoint_solids_in_one_body() {
     let mut body = Body::<f64>::new();
 
     // Solid 1: digon pillow at the origin.
-    let s1 = body.mvfs(p(0.0)).unwrap();
+    let s1 = body.mvfs(p(0.0), true).unwrap();
     let seg1 = body
         .mev_line(MevSite::Lone { r#loop: s1.r#loop }, p(1.0), tol)
         .unwrap();
@@ -679,7 +674,7 @@ fn two_disjoint_solids_in_one_body() {
     assert_eq!(validate(&body), Ok(()));
 
     // Solid 2: a second skeletal body far away, grown to a pillow too.
-    let s2 = body.mvfs(p(100.0)).unwrap();
+    let s2 = body.mvfs(p(100.0), true).unwrap();
     assert_eq!(validate(&body), Ok(()));
     let seg2 = body
         .mev_line(MevSite::Lone { r#loop: s2.r#loop }, p(101.0), tol)

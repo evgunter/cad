@@ -1,9 +1,11 @@
 ---
 id: at-cannot-bind-start-in-the-path-form
 kind: issue
-title: "paths: at(Start) — the path form cannot bind a position at the entry vertex, and does not say where the Start-anchored spelling lives"
+title: paths: at(Start) — the path form cannot bind a position at the entry vertex, and does not say where the Start-anchored spelling lives
 status: open
 opened: 2026-09-18
+priority: P0
+cost: D
 ---
 
 Reported by Ev from the viewer (2026-09-18): "`at` seems to not take `Start`, at least not in the gui."

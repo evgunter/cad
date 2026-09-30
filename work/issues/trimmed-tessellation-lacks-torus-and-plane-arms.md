@@ -5,6 +5,8 @@ title: mesh tessellate_trimmed has no torus or plane arm - a spiric-bounded wall
 status: open
 opened: 2026-09-13
 refs: [spiric-carrier-ruling, 1858]
+priority: P0
+cost: H
 ---
 
 

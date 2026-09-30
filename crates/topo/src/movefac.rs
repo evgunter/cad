@@ -257,12 +257,11 @@ impl<T: Decide> Body<T> {
             }
         }
         let listed = self
-            .get_solid(source)
+            .shells_of_solid(source)
             .ok_or(EulerOpError::StaleKey {
                 key: EntityId::Solid(source),
             })?
-            .shells
-            .clone();
+            .to_vec();
         // A shell whose back-pointer names `source` but which `source`
         // does not list is an ownership desync (tier 1's pass 7); the
         // op refuses rather than building on it.
@@ -336,7 +335,7 @@ mod tests {
     /// (body, shell, pillow_face_of_ring, promoted_face).
     fn detached_digon() -> (Body<f64>, ShellKey, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -376,7 +375,7 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        let promoted = body.mfkrh_plug(kill.ring).unwrap();
+        let promoted = body.mfkrh_plug(kill.ring, true).unwrap();
         (body, seed.shell, seed.face, promoted.face)
     }
 
@@ -508,7 +507,7 @@ mod tests {
         let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let only = cube.seed.shell;
-        let other = body.mvfs(p(9.0)).unwrap().shell;
+        let other = body.mvfs(p(9.0), true).unwrap().shell;
         let before = deep_snapshot(&body);
         let rows: [(&[ShellKey], EulerOpError); 5] = [
             (&[], EulerOpError::NoShellsNamed),
@@ -559,8 +558,8 @@ mod tests {
     #[test]
     fn cross_solid_kfmrh_is_typed() {
         let mut body = Body::<f64>::new();
-        let a = body.mvfs(p(0.0)).unwrap();
-        let b = body.mvfs(p(1.0)).unwrap();
+        let a = body.mvfs(p(0.0), true).unwrap();
+        let b = body.mvfs(p(1.0), true).unwrap();
         let before = deep_snapshot(&body);
         let err = body.kfmrh(a.face, b.face).unwrap_err();
         assert_eq!(

@@ -150,15 +150,15 @@ pub fn checks_report(
         return d::run_checks(doc, evaluation, cfg, tol);
     }
     // The gather's refusal is a SUBJECT the residents report over, not
-    // an error: `editor_core::run_checks` derives it exactly this way,
-    // and a caller holding a product has to derive it for itself.
+    // an error, and WHICH subject it is belongs to `Subject::refused`:
+    // the empty-document class is a subject that reports clean, every
+    // other class one the subject-reading residents refuse over. This
+    // caller hands the error over whole rather than drawing that line
+    // a second time.
     match memo.with(doc, evaluation, tol, |product| {
         d::run_checks_on(doc, evaluation, d::Subject::Product(product), cfg, tol)
     }) {
         Ok(report) => report,
-        Err(ref source) if source.kind().means_no_body() => {
-            d::run_checks_on(doc, evaluation, d::Subject::NoBodyRoots, cfg, tol)
-        }
         Err(ref source) => d::run_checks_on(doc, evaluation, d::Subject::refused(source), cfg, tol),
     }
 }
@@ -191,7 +191,9 @@ pub fn body(
     evaluation: &d::Evaluation<f64>,
     tol: Tol,
 ) -> Result<topo::Body<f64>, d::ProductError> {
-    memo.with(doc, evaluation, tol, |product| product.body.clone())
+    memo.with(doc, evaluation, tol, |product| {
+        topo::Body::clone(&product.body)
+    })
 }
 
 /// **`product_named`'s body**: the aggregate and the names its entities
@@ -204,7 +206,7 @@ pub fn body_and_names(
 ) -> Result<(topo::Body<f64>, Vec<pncad::prelude::StableName>), d::ProductError> {
     memo.with(doc, evaluation, tol, |product| {
         (
-            product.body.clone(),
+            topo::Body::clone(&product.body),
             product.names.iter().map(|(name, _)| name.clone()).collect(),
         )
     })

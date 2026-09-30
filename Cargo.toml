@@ -11,7 +11,7 @@ resolver = "3"
 # that tail is is counted once, in `benches/Cargo.toml`, and deliberately
 # not restated here: two copies of one count drift apart independently and
 # nothing reads either. That manifest states the exclusion's full price.
-# interval-transcendentals/ is the `interval` feature's backend (M5 PR 1)
+# interval-transcendentals/ is the interval scalar's backend (M5 PR 1)
 # and IS depended on by geom-core, but stays a separate workspace root on
 # purpose: its differential-certification oracle is a gmp-backed inari
 # DEV-dependency, and dev-dependencies of a path dependency never enter
@@ -47,9 +47,8 @@ members = [
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-# Held equal to rust-toolchain.toml's channel by
-# scripts/gates/msrv-floor-equals-channel.sh, whose header says why and
-# when to delete it. Not documentation-only: `resolver = "3"` above makes
+# Kept equal to rust-toolchain.toml's channel; bump the two together.
+# Not documentation-only: `resolver = "3"` above makes
 # this an input to dependency version selection.
 rust-version = "1.97.0"
 # Nothing is publishable until the project has its name (Q9).
@@ -74,20 +73,19 @@ rayon = "1.11"
 # topology store; `SecondaryMap` carries D5 provenance. Zlib license.
 # 1.1.1 released 2025-12-06.
 slotmap = "1.1.1"
-# Interval arithmetic (Q1's certified scalar), behind geom-core's `interval`
-# feature — never a default dependency. In-repo crate (#115): rigorous
+# Interval arithmetic (Q1's certified scalar). In-repo crate (#115): rigorous
 # enclosures over the same pure-Rust `libm` the kernel already uses, with
 # PROVEN per-function outward error pads, differentially certified against
 # two independent oracles. It replaced `inari` as the backend in M5 PR 1:
 # inari's transcendentals require its `gmp` feature, which pulls the
 # LGPL-3.0+ `gmp-mpfr-sys`/`rug` C build — the license/toolchain fork issue
-# #4 resolved by feature-gating. After the swap the `interval` feature is
-# MIT/Apache and C-free like every other build configuration, and the
+# #4 resolved by feature-gating. After the swap the scalar and its backend
+# are MIT/Apache and C-free like every other part of the kernel, and the
 # dependency-age policy is moot for an in-repo crate. inari survives only as
 # a DEV-dependency of that crate (its differential oracle); dev-dependencies
-# of a path dependency never enter the dependent's graph. M5 PR 2 also takes
-# it as a geom-core DEV-dependency — the differential oracle for the C9
-# interval ring on the DEFAULT (featureless) build path.
+# of a path dependency never enter the dependent's graph. geom-core takes it
+# as a normal dependency, so it is on every build path — which is also what
+# serves the C9 interval ring's differential oracle in that crate's tests.
 interval-transcendentals = { path = "interval-transcendentals" }
 # DEV-ONLY derivative oracle for Dual<f64> tests (M0 PR 5). The crate table
 # originally slated num-dual as the Dual<f64> implementation; it was demoted
@@ -190,21 +188,6 @@ missing_docs = "warn"
 #    helpers.) Each helper tree carries one file-level allow citing this
 #    paragraph; none of them restates it.
 unreachable_pub = "warn"
-# LOAD-BEARING — DO NOT REMOVE. This declares the `nightly_suite` cfg name so
-# `unexpected_cfgs` accepts it. Demoted tests carry
-# `#[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]`, and the
-# scheduled nightly job builds with `RUSTFLAGS="--cfg nightly_suite"` to run
-# exactly that set (a plain `#[ignore]` stays skipped in BOTH configurations,
-# which is the point). VERIFIED on rustc 1.97.0: with this line deleted, that
-# marker becomes `error: unexpected 'cfg' condition name: 'nightly_suite'`
-# under CI's `-D warnings` and the WHOLE WORKSPACE fails to build. Tidying it
-# away is not a cleanup, it is a red gate.
-#
-# Mirrored by hand in `crates/pncad-py/Cargo.toml` (see the header there) and
-# enforced by its `crate_lints_match_the_workspace_minus_unsafe_code` test —
-# edit both, and keep the line byte-identical: that test compares the manifests
-# textually.
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nightly_suite)'] }
 
 [workspace.lints.clippy]
 # D9: the kernel never panics on any INPUT — every input-reachable failure

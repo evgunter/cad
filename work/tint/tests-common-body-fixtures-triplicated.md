@@ -4,6 +4,8 @@ kind: issue
 title: Three crates' tests/common each carry the same six body fixtures; three pairs are byte-identical and three have drifted
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 ## Finding

@@ -4,6 +4,8 @@ kind: issue
 title: Open… ignores its starting directory under xdg-desktop-portal 1.6 (Ev's box)
 status: open
 opened: 2026-09-18
+priority: P1
+cost: E
 ---
 
 

@@ -8,19 +8,16 @@
 //! every assertion below is written from the PR's prose, so a fixture
 //! read from the shipped rows' own constants would make the oracle and
 //! the subject one thing. The sugar that carries no oracle is shared
-//! from `tests/common`: `len`, `scl`, `xy_frame`, `tempdir`.
+//! from `tests/common`: `ang`, `edited`, `inserted`, `len`,
+//! `rectangle`, `scl`, `tempdir`, `xy_frame`. This file's own slab
+//! dimensions and parameter name stay here, where the expectations
+//! that read them are; the profile's shape is not an oracle here, so
+//! it is drawn with the shared rectangle.
 //!
-//! Randomized rows follow `memories/test-suite-cost.md`: a fresh seed
+//! Randomized rows follow implementer-discipline §8: a fresh seed
 //! per run through `test_utils::fuzz` (logged unconditionally,
 //! `CAD_FUZZ_SEED` replays), counts on `CAD_FUZZ_EFFORT`. Every row
 //! asserts; there is no print-only probe in this file.
-//!
-//! # Two rows are `#[ignore]`d because they are RED against the head
-//! this review froze on (956ef3cf)
-//!
-//! They are the review's two seam findings, written as the gates they
-//! should become. Remove the `#[ignore]` when the fix lands — that is
-//! the whole of the promotion work they need.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
@@ -28,55 +25,33 @@
 test_utils::gated_to![
     "crates/viewer/src/",
     "crates/pncad/src/",
-    "crates/viewer/tests/common/"
+    "crates/viewer/tests/common/",
+    "crates/viewer/src/test_support.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, LoopProgram, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId, apply,
+    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, Node, ParamName, ProfileProgram,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 
-use crate::common::{len, scl, tempdir, xy_frame};
+use crate::common;
+use crate::common::{ang, edited, inserted, len, scl, tempdir, xy_frame};
 use test_utils::fuzz;
 use viewer::evalseam::{EvalRequest, EvalService, InlineEvaluator, ThreadEvaluator};
 use viewer::generation::Generation;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
-use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
+use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp, Step};
 use viewer::{docio, props, tree};
 
 // --- fixtures, authored here rather than borrowed -------------------
 
-fn rect(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]).expect("finite corners"),
-        ],
-    })
-}
-
-fn push(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = apply(
-        doc,
-        &DocEdit::InsertNode { node },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the insert applies");
-    let id = applied.record.minted.expect("an insert mints an id");
-    (applied.doc, id)
-}
-
 fn width_param() -> ParamName {
-    ParamName::new("width")
+    ParamName::from_static("width")
 }
 
 /// A slab whose extrude distance is a LITERAL and whose transform's
@@ -85,20 +60,17 @@ fn width_param() -> ParamName {
 /// the unit's own `parametric_plate`.
 fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-slab", tol);
-    let doc = apply(
+    let (doc, _) = edited(
         &doc,
-        &DocEdit::SetDocParam {
+        DocEdit::SetDocParam {
             name: width_param(),
             value: DocParam::continuous(Dimension::Length, 0.005),
         },
         tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the parameter declares")
-    .doc;
-    let (doc, plane) = push(&doc, xy_frame(), tol);
-    let (doc, profile) = push(&doc, rect(plane, 0.03, 0.02), tol);
-    let (doc, extrude) = push(
+    );
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.02), tol);
+    let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -106,19 +78,21 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, moved) = push(
+    let (doc, moved) = inserted(
         &doc,
-        Node::Transform {
-            input: extrude,
-            translation: [
-                Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
-                    .expect("length * scalar is a length"),
-                len(0.0),
-                len(0.0),
-            ],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
-        },
+        Node::transform(
+            extrude,
+            pncad::document::Step::Rigid {
+                translation: [
+                    Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
+                        .expect("length * scalar is a length"),
+                    len(0.0),
+                    len(0.0),
+                ],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
     (doc, extrude, moved)
@@ -209,7 +183,7 @@ fn an_abandoned_subtree_keeps_its_grandchildren_their_documents_and_their_edits(
 /// A counterexample search over undo/redo walks: after any sequence of
 /// undos and edits, walking undo to the root and redo back must land on
 /// the document the last commit produced. The seed varies per run
-/// (`memories/test-suite-cost.md`); the walk length rides the effort
+/// (implementer-discipline §8); the walk length rides the effort
 /// dial.
 #[test]
 fn redo_from_the_root_returns_to_the_last_committed_state_under_random_walks() {
@@ -331,7 +305,9 @@ fn opening_a_file_and_saving_it_straight_back_reproduces_its_bytes() {
     assert!(
         matches!(
             reopened.perform(SessionOp::Undo).refusal,
-            Some(Refusal::NothingToDo)
+            Some(Refusal::NothingToDo {
+                direction: Step::Undo
+            })
         ),
         "the file's log is exactly two steps long"
     );
@@ -672,9 +648,9 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
 fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-broken", tol);
-    let (doc, plane) = push(&doc, xy_frame(), tol);
-    let (doc, profile) = push(&doc, rect(plane, 0.03, 0.02), tol);
-    let (doc, bad) = push(
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.02), tol);
+    let (doc, bad) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -684,14 +660,16 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
         },
         tol,
     );
-    let (doc, downstream) = push(
+    let (doc, downstream) = inserted(
         &doc,
-        Node::Transform {
-            input: bad,
-            translation: [len(0.01), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
-        },
+        Node::transform(
+            bad,
+            pncad::document::Step::Rigid {
+                translation: [len(0.01), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
 
@@ -712,7 +690,8 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     assert_eq!(
         failed.status,
         viewer::tree::RowStatus::Failed {
-            message: expected.clone()
+            message: expected.clone(),
+            carried: Vec::new(),
         },
         "the badge is NodeError's own Display, not a sentence the panel wrote"
     );
@@ -958,7 +937,11 @@ fn the_panel_models_are_pure_functions_of_the_document_and_the_evaluation() {
         assert_eq!(session.slot_rows(), session.slot_rows());
         assert_eq!(
             session.tree_rows(),
-            tree::rows(session.doc(), session.evaluation()),
+            tree::rows(
+                session.doc(),
+                session.evaluation(),
+                &viewer::parts::PartFiles::default()
+            ),
             "the session's tree is the free function's"
         );
         assert_eq!(

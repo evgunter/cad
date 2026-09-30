@@ -35,29 +35,34 @@
 //! **A fourth question is judged here and belongs to neither list:
 //! whether a replayed loop can be DRAWN.** It is not the profile
 //! layer's, because a loop can be a perfectly good profile and still
-//! have an arc whose radius or centre is not a number — a finite
-//! bulge near the bottom of the exponent range, or two vertices whose
-//! midpoint overflows. And it is not a literal's, because every
-//! literal involved passed the literal door already. It is the
-//! flattener's, it is answered by
-//! [`PreviewError::Unflattenable`], and it exists because this module
-//! is the one place that turns a loop into coordinates.
+//! be a shape no point of which is a place — an arc whose radius or
+//! centre is not a number, from a finite bulge near the bottom of the
+//! exponent range or two vertices whose midpoint overflows; a vertex
+//! the replay's own arithmetic put past the top of that range; a
+//! point along an arc whose frame is finite and whose far side is
+//! not. And it is not a literal's, because every literal involved
+//! passed the literal door already. It is the flattener's, it is
+//! answered by [`PreviewError::Unflattenable`], and it exists because
+//! this module is the one place that turns a loop into coordinates.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Datum, DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram,
-    Node, ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram, Node,
+    ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
     ValuePayload, resolve_loops, unparse,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{
-    ArcData, ArcMode, ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ProfileVertex,
-    ReplayError, ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
+    ArcData, ArcMode, ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayError,
+    ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
     arc_specs_at, replay,
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
+
+use crate::frame::Tone;
+use crate::session::refuse::{NodeKindWanted, admits};
 
 /// One loop of the add-profile door: a template shape, or a PATH
 /// authored verb by verb.
@@ -118,11 +123,9 @@ pub enum ProfileShape {
 /// **A step of `verb` with the path form's starting numbers** — what
 /// a row becomes when its verb is picked.
 ///
-/// Exhaustive on the kernel's [`Verb`], and that is what holds the
-/// form to the algebra: the form offers [`Verb::ALL`], so a verb the
-/// transition table gains reaches the menu by itself, and it has no
-/// starting step until this match gives it one — a compile error, not
-/// a verb that is silently missing.
+/// The form offers [`Verb::ALL`], so a verb the transition table gains
+/// reaches the menu by itself; this match is where it is given its
+/// starting step.
 ///
 /// **Millimetre-scale, never zero.** A leg of length zero and a
 /// fillet of radius zero are both geometry refusals, so a fresh step
@@ -175,8 +178,7 @@ pub fn fresh_step(verb: Verb) -> Step<f64> {
 
 /// **An arc spec of `mode` with the form's starting numbers** —
 /// millimetre-scale and never degenerate, for the reason
-/// [`fresh_step`]'s are; exhaustive on the kernel's [`ArcMode`] for
-/// the reason that one is on [`Verb`].
+/// [`fresh_step`]'s are.
 pub fn fresh_arc(mode: ArcMode) -> ArcData<f64> {
     let target = fresh_target(TargetKind::Point);
     match mode {
@@ -555,6 +557,7 @@ pub fn program_edits(
     let held = Node::Profile(ProfileProgram {
         plane: current.plane,
         loops: loops.to_vec(),
+        ids: Vec::new(),
     });
     let mut probe = Node::Profile(current.clone());
     let mut edits = Vec::new();
@@ -664,12 +667,7 @@ pub fn frame_placement(
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    // Either frame kind: what is drawn is the landed VALUE, which both
-    // produce.
-    if !matches!(
-        doc.node(frame),
-        Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-    ) {
+    if !admits(doc.node(frame), NodeKindWanted::Frame) {
         return None;
     }
     let ValuePayload::Datum(DatumValue::Frame(f)) = &evaluation.value(frame)?.payload else {
@@ -679,7 +677,9 @@ pub fn frame_placement(
 }
 
 /// **Every frame datum in the document, in document order** — what the
-/// creation forms' frame picker offers.
+/// creation forms' frame picker offers, which is exactly the set a
+/// frame seat [`admits`], so the picker cannot offer a node the commit
+/// door refuses.
 ///
 /// Document order rather than sorted by id or by name: the feature
 /// tree lists nodes that way, so the picker and the tree name the
@@ -688,12 +688,7 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.order()
         .iter()
         .copied()
-        .filter(|id| {
-            matches!(
-                doc.node(*id),
-                Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-            )
-        })
+        .filter(|id| admits(doc.node(*id), NodeKindWanted::Frame))
         .collect()
 }
 
@@ -782,6 +777,76 @@ impl ProfilePreview {
     pub fn has_open_chain(&self) -> bool {
         self.loops.iter().any(|drawn| !drawn.closed)
     }
+
+    /// **What this drawn preview holds the commit for**, when it holds
+    /// it — the one partition of the value that both the sentence a
+    /// surface draws ([`PreviewHold`]'s `Display`) and its salience
+    /// ([`PreviewHold::tone`]) are read from.
+    ///
+    /// An open chain is asked FIRST and answers whatever
+    /// [`Self::invalid`] says. [`preview`] never validates while a
+    /// chain is open, so a value it built is never both; a value built
+    /// otherwise that is both still gets the open chain's answer,
+    /// because a verdict on loops that have not closed is not one.
+    ///
+    /// `None` is a drawn, valid preview: it holds nothing and has no
+    /// verdict to say. What a surface shows under it — the loop count
+    /// — is state, not a verdict, and has no tone.
+    #[must_use]
+    pub fn hold(&self) -> Option<PreviewHold<'_>> {
+        if self.has_open_chain() {
+            Some(PreviewHold::OpenChain)
+        } else {
+            self.invalid.as_ref().map(PreviewHold::Invalid)
+        }
+    }
+}
+
+/// **Why a drawn preview holds the commit** — [`ProfilePreview::hold`]'s
+/// answer, carrying its own sentence (`Display`) and its own tone.
+#[derive(Clone, Copy, Debug)]
+pub enum PreviewHold<'a> {
+    /// A chain has not closed yet. It is in the viewport, drawn under
+    /// the provisional close, so the shape can be looked at while it
+    /// is written; what it is not yet is a loop, and the commit door
+    /// refuses a program that does not close. Its sentence says which
+    /// of the two this is, rather than leaving a disabled button with
+    /// a lattice refusal beside it.
+    OpenChain,
+    /// The loops closed and validation refused them.
+    Invalid(&'a ProfileError),
+}
+
+impl PreviewHold<'_> {
+    /// **How loud a surface draws this hold** — the salience read off
+    /// the value, as [`crate::session::Standing::tone`] reads it off a
+    /// selection.
+    ///
+    /// [`Self::OpenChain`] is [`Tone::Advisory`]: it is unfinished,
+    /// not wrong ([`PreviewError::is_unfinished`] states why), the
+    /// same voice [`PreviewError::tone`] gives an unfinished chain
+    /// that could not be drawn. [`Self::Invalid`] is
+    /// [`Tone::Actionable`]: the loops cross, or a hole is not inside
+    /// its outer, and the commit door refuses the profile until the
+    /// reader moves a step they wrote.
+    #[must_use]
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::OpenChain => Tone::Advisory,
+            Self::Invalid(_) => Tone::Actionable,
+        }
+    }
+}
+
+impl core::fmt::Display for PreviewHold<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::OpenChain => {
+                f.write_str("the chain does not close yet — its last step has to target the start")
+            }
+            Self::Invalid(invalid) => write!(f, "does not validate: {invalid}"),
+        }
+    }
 }
 
 /// Why a preview could not be drawn at all.
@@ -818,10 +883,11 @@ pub enum PreviewError {
         /// The ill-typed verb, `None` for end-of-program.
         verb: Option<Verb>,
     },
-    /// A bulged segment replayed, and the arc it stands for cannot be
-    /// drawn: its radius, its swept angle, its centre or its start
-    /// angle is not a finite number, so no point along it is one
-    /// either.
+    /// A loop replayed and one of the points it would be drawn
+    /// through is not a place: a vertex whose own position is not a
+    /// pair of finite numbers, or a bulged segment whose arc is not
+    /// one — its radius, its swept angle, its centre, its start
+    /// angle, or a point along it.
     ///
     /// **Separate from [`PreviewError::Geometry`]**, which carries the
     /// DRIVER's refusal about a leg somebody authored. This one is the
@@ -831,10 +897,11 @@ pub enum PreviewError {
     Unflattenable {
         /// Which loop could not be drawn.
         loop_: usize,
-        /// The ordinal of its vertex whose outgoing segment refused
-        /// — the loop's OWN vertex, not the authored step, because
-        /// one step can contribute several and the flattener walks
-        /// what replay produced.
+        /// The ordinal of the vertex that refused — its own
+        /// position, or the segment leaving it. The loop's OWN
+        /// vertex, not the authored step, because one step can
+        /// contribute several and the flattener walks what replay
+        /// produced.
         vertex: usize,
     },
     /// A leg's geometry refused — the driver's own rendered refusal.
@@ -880,8 +947,9 @@ impl core::fmt::Display for PreviewError {
             },
             Self::Unflattenable { loop_, vertex } => write!(
                 f,
-                "loop {loop_} vertex {vertex}: the arc leaving it has no drawable \
-                 shape — its radius, sweep or centre is not a number"
+                "loop {loop_} vertex {vertex}: nothing there can be drawn — its \
+                 position, or the radius, sweep, centre or points of the arc \
+                 leaving it, is not a number"
             ),
             Self::Geometry {
                 loop_,
@@ -893,6 +961,53 @@ impl core::fmt::Display for PreviewError {
 }
 
 impl core::error::Error for PreviewError {}
+
+impl PreviewError {
+    /// **Whether this refusal says only that a chain is unfinished** —
+    /// the one spelling of that predicate, read by [`preview`] (which
+    /// retries exactly these under a provisional close) and by
+    /// [`Self::tone`].
+    ///
+    /// **Unfinished is not wrong.** [`Self::Transition`] with no verb
+    /// says only that a chain has no closing verb yet, which is the
+    /// state every chain passes through while it is being written.
+    /// Every other refusal blames something somebody actually wrote —
+    /// a field that is not a number, an expression that will not
+    /// resolve, an ill-typed verb, a leg with no geometry, a point
+    /// whose numbers put it out of reach.
+    #[must_use]
+    pub fn is_unfinished(&self) -> bool {
+        match self {
+            Self::Transition { verb, .. } => verb.is_none(),
+            Self::Lowering(_)
+            | Self::Resolve { .. }
+            | Self::Unflattenable { .. }
+            | Self::Geometry { .. } => false,
+        }
+    }
+
+    /// **How loud a surface draws this refusal** — read off the value,
+    /// as [`PreviewHold::tone`] reads a drawn preview's.
+    ///
+    /// An unfinished chain ([`Self::is_unfinished`]) is
+    /// [`Tone::Advisory`]. It reaches a surface as a refusal rather
+    /// than as a drawn [`PreviewHold::OpenChain`] whenever the
+    /// provisional close [`preview`] retries it under is itself
+    /// refused, for whatever reason — a close that would enclose
+    /// nothing, as a one- or two-point chain's does; a tip with a
+    /// direction and no position; an arc arrival still waiting for a
+    /// binder — and it is the same state either
+    /// way, so it is the same voice. Every other refusal is
+    /// [`Tone::Actionable`].
+    #[must_use]
+    pub fn tone(&self) -> Tone {
+        if self.is_unfinished() {
+            Tone::Advisory
+        } else {
+            Tone::Actionable
+        }
+    }
+}
 
 /// **Replay the loops a form is holding and flatten them for
 /// drawing.**
@@ -918,22 +1033,23 @@ impl core::error::Error for PreviewError {}
 /// (this module's, never recorded) and the resulting
 /// [`PreviewLoop`] is marked `closed: false`, which tells the consumer
 /// not to draw the leg back to the start. Every other replay refusal
-/// blames a step somebody actually wrote and is still reported.
+/// is still reported ([`PreviewError::is_unfinished`] says which are
+/// which).
 ///
 /// # Errors
 ///
 /// [`PreviewError`], per arm — everything that leaves no geometry to
 /// draw. A profile that replays and fails VALIDATION is a success
 /// here, carrying its refusal in [`ProfilePreview::invalid`]. An
-/// unclosed chain whose provisional close is itself ill-typed — a tip
-/// with a direction and no position, an arc arrival still waiting for
-/// a binder — reports the ORIGINAL end-of-program refusal, never one
-/// belonging to the appended step. A loop that replays and whose arcs
-/// have no drawable shape is [`PreviewError::Unflattenable`] — the
-/// one refusal here that is about the PICTURE rather than the
-/// profile, and the reason it is a refusal rather than a loop drawn
-/// short is that a preview is what a form shows instead of the
-/// geometry.
+/// unclosed chain whose provisional close is itself refused — a close
+/// that would enclose nothing, a tip with a direction and no position,
+/// an arc arrival still waiting for a binder — reports the ORIGINAL end-of-program refusal, never one
+/// belonging to the appended step. A loop that replays and has a
+/// point no picture can put anywhere is
+/// [`PreviewError::Unflattenable`] — the one refusal here that is
+/// about the PICTURE rather than the profile, and the reason it is a
+/// refusal rather than a loop drawn short is that a preview is what a
+/// form shows instead of the geometry.
 pub fn preview(
     plane: SketchPlane<f64>,
     shapes: &[ProfileShape],
@@ -973,24 +1089,28 @@ pub fn preview(
             // until the last step landed, which is precisely when a
             // person no longer needs to see it.
             //
-            // The end-of-program arm (`verb: None`) is the only one
-            // that means "unfinished" rather than "wrong": every other
-            // refusal blames a step that was authored. So that arm,
-            // and only it, is retried under a PROVISIONAL closing leg
-            // — `line_to Start`, appended here and never recorded
-            // anywhere — which is enough to make the driver hand back
-            // the geometry it already walked. The leg itself is not
-            // drawn: it contributes no vertex, so a consumer that
-            // declines to wrap an open polyline draws exactly the legs
-            // that were authored and nothing else.
+            // Only an UNFINISHED refusal is retried
+            // (`PreviewError::is_unfinished` says which, and why every
+            // other one blames an authored step), under a PROVISIONAL
+            // closing leg — `line_to Start`, appended here and never
+            // recorded anywhere — which is enough to make the driver
+            // hand back the geometry it already walked. The leg itself
+            // is not drawn: it contributes no vertex, so a consumer
+            // that declines to wrap an open polyline draws exactly the
+            // legs that were authored and nothing else.
             //
             // Nothing about the lattice is re-implemented to do it.
             // The provisional close goes through the same `replay` as
-            // everything else, and when it is ill-typed at the tip
-            // (a bound direction with no position, an arc arrival
-            // still waiting for a binder) the ORIGINAL refusal is
+            // everything else, and when it is refused (a close that
+            // would enclose nothing, a bound direction with no
+            // position, an arc arrival still waiting for a binder) the
+            // ORIGINAL refusal is
             // reported — never one belonging to a step nobody wrote.
-            Err(error) if matches!(error.kind, ReplayErrorKind::Transition { verb: None, .. }) => {
+            Err(error) => {
+                let refused = refusal(index, &error);
+                if !refused.is_unfinished() {
+                    return Err(refused);
+                }
                 let mut provisional = steps.clone();
                 provisional.push(Step::LineTo(Target::Start));
                 match replay(&provisional, tol) {
@@ -998,10 +1118,9 @@ pub fn preview(
                         loops.push(replayed);
                         closed_flags.push(false);
                     }
-                    Err(_) => return Err(refusal(index, &error)),
+                    Err(_) => return Err(refused),
                 }
             }
-            Err(error) => return Err(refusal(index, &error)),
         }
     }
     let open = closed_flags.iter().any(|closed| !closed);
@@ -1010,7 +1129,7 @@ pub fn preview(
         .zip(&closed_flags)
         .enumerate()
         .map(|(loop_, (lp, closed))| {
-            let (points, vertices) = flatten(lp.vertices(), chord)
+            let (points, vertices) = flatten(lp.vertices(), lp.bulges().iter().copied(), chord)
                 .map_err(|vertex| PreviewError::Unflattenable { loop_, vertex })?;
             Ok(PreviewLoop {
                 points,
@@ -1061,7 +1180,7 @@ pub struct CommittedProfile {
 pub struct CommittedProfiles {
     /// One per profile node drawn, in document order.
     pub drawn: Vec<CommittedProfile>,
-    /// The profile nodes whose validated value has an arc the
+    /// The profile nodes whose validated value has a point the
     /// flattener cannot draw ([`PreviewError::Unflattenable`]'s case),
     /// in document order. Drawn not at all rather than with that leg
     /// missing: a loop drawn without one of its legs is a shape the
@@ -1094,7 +1213,7 @@ pub fn committed(
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
     for &node in doc.order() {
-        if Some(node) == except || !matches!(doc.node(node), Some(Node::Profile(_))) {
+        if Some(node) == except || !admits(doc.node(node), NodeKindWanted::Profile) {
             continue;
         }
         let Some(value) = evaluation.value(node) else {
@@ -1108,7 +1227,8 @@ pub fn committed(
             .loops()
             .iter()
             .map(|lp| {
-                flatten(lp.vertices(), chord).map(|(points, vertices)| PreviewLoop {
+                let bulges = lp.segments().iter().map(|s| s.bulge);
+                flatten(lp.vertices(), bulges, chord).map(|(points, vertices)| PreviewLoop {
                     points,
                     vertices,
                     closed: true,
@@ -1225,7 +1345,22 @@ pub fn fresh_step_at(verb: Verb, state: Option<TipState>) -> Step<f64> {
             fresh(0, spec);
             fresh(1, spec2);
         }
-        _ => {}
+        // No arc spec to freshen.
+        Step::At(_)
+        | Step::Angle(_)
+        | Step::Toward { .. }
+        | Step::Tangent
+        | Step::Cusp
+        | Step::Turn(_)
+        | Step::Line(_)
+        | Step::LineTo(_)
+        | Step::ContinueTo(_)
+        | Step::TangentArcTo(_)
+        | Step::Fillet { .. }
+        | Step::FarEndTo(_)
+        | Step::CloseTo
+        | Step::Circle { .. }
+        | Step::CircleSplit { .. } => {}
     }
     step
 }
@@ -1288,10 +1423,26 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
 /// any preview pane resolves.
 const MAX_ARC_POINTS: usize = 256;
 
+/// **Whether a flattened point is a place**: both coordinates finite.
+///
+/// Asked of every coordinate [`flatten`] emits — the loop's own
+/// vertices and an arc's interior points alike — because the drawn
+/// output is what this module answers for, and a polyline carrying a
+/// point that is not a pair of numbers is a picture of nowhere.
+///
+/// **Every is checkable**: the two `out.push` calls in [`flatten`] are
+/// the only places a coordinate joins the output, so a reader holds
+/// the whole population by grepping that function for `out.push`. The
+/// arc frame goes through here too, one call further down, which is
+/// the same question about a `[f64; 2]` and not a second one.
+fn drawable(point: [f64; 2]) -> bool {
+    point[0].is_finite() && point[1].is_finite()
+}
+
 /// One loop as a closed polyline: every vertex, with each bulged
 /// segment subdivided finely enough that it sags less than `chord`.
 ///
-/// The bulge convention is [`ProfileVertex`]'s
+/// The bulge convention is [`pncad::profile::ProfileLoop::bulges`]'s
 /// — `b = tan(θ/4)` for the segment LEAVING each vertex, positive
 /// counterclockwise, the last vertex's belonging to the closing
 /// segment — so this reads the loop exactly as the kernel writes it
@@ -1299,12 +1450,16 @@ const MAX_ARC_POINTS: usize = 256;
 ///
 /// # Errors
 ///
-/// The vertex ordinal of the first bulged segment whose arc frame is
-/// not numbers a point can be computed from. **Refused rather than
-/// skipped**: a segment dropped here would leave the loop drawn with a
-/// leg it does not have, which is the same defect one door along.
+/// The vertex ordinal at which a point stopped being one: the
+/// vertex's own position, the arc frame of the segment leaving it, or
+/// a point along that arc. **Refused rather than skipped**: a segment
+/// dropped here would leave the loop drawn with a leg it does not
+/// have, and a vertex dropped would put the legs either side of it
+/// through a corner nobody authored — the same defect one door
+/// along.
 fn flatten(
-    vertices: &[ProfileVertex<f64>],
+    vertices: &[Point2<f64>],
+    bulges: impl IntoIterator<Item = f64>,
     chord: f64,
 ) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
     let mut out: Vec<[f64; 2]> = Vec::with_capacity(vertices.len());
@@ -1314,12 +1469,21 @@ fn flatten(
     // indistinguishable from its ends — so the flattener, which is the
     // one place that knows, says it.
     let mut at: Vec<usize> = Vec::with_capacity(vertices.len());
-    for (index, vertex) in vertices.iter().enumerate() {
-        let from = vertex.pos();
-        let to = vertices[(index + 1) % vertices.len()].pos();
+    for (index, (&from, bulge)) in vertices.iter().zip(bulges).enumerate() {
+        let to = vertices[(index + 1) % vertices.len()];
+        // The loop's own vertex, asked the same question its arcs are
+        // asked below and asked BEFORE it is emitted. A replay whose
+        // literals are all finite can still land one past the top of
+        // the exponent range, and every guard under this loop is about
+        // an arc — so a loop with no bulges at all reaches none of
+        // them and a polygon drawn through a point that is nowhere is
+        // exactly what this module says it refuses.
+        let place = [from.x, from.y];
+        if !drawable(place) {
+            return Err(index);
+        }
         at.push(out.len());
-        out.push([from.x, from.y]);
-        let bulge = vertex.bulge();
+        out.push(place);
         if bulge == 0.0 {
             continue;
         }
@@ -1346,13 +1510,18 @@ fn flatten(
         let start = (from.y - centre[1]).atan2(from.x - centre[0]);
         // **Every point below is `centre + radius·(cos, sin)` of an
         // angle built from `start` and `theta`**, so those four are
-        // what have to BE numbers, and they are asked before any of
-        // them is used. The two guards above this block — `bulge ==
-        // 0.0` and `half == 0.0 || sin_half == 0.0` — are the
-        // degenerate segments a loop legitimately holds, and a value
-        // that is not a number takes neither side of either: a `NaN`
-        // is not equal to zero, so it reads as an ordinary arc all the
-        // way to the coordinates.
+        // asked to be numbers before any of them is used. The two
+        // guards above this block — `bulge == 0.0` and `half == 0.0
+        // || sin_half == 0.0` — are the degenerate segments a loop
+        // legitimately holds, and a value that is not a number takes
+        // neither side of either: a `NaN` is not equal to zero, so it
+        // reads as an ordinary arc all the way to the coordinates.
+        //
+        // **A frame of four numbers does not make a point one**, so
+        // each point is asked again as it is minted: a centre a few
+        // hundred orders of magnitude from the origin and a radius to
+        // match sum past the top of the range on the far side of the
+        // arc, with every value here finite.
         //
         // `radius` carries `centre` with it. `apothem` is
         // `±radius·cos(θ/2)` written as `half / tan(θ/2)`, so it is
@@ -1361,17 +1530,21 @@ fn flatten(
         // chord's own midpoint, which overflows on its own for two
         // vertices near the top of the exponent range — hence
         // `centre`, and `start` after it.
-        let Some(count) = arc_points(radius, theta, chord)
-            .filter(|_| centre[0].is_finite() && centre[1].is_finite() && start.is_finite())
+        let Some(count) =
+            arc_points(radius, theta, chord).filter(|_| drawable(centre) && start.is_finite())
         else {
             return Err(index);
         };
-        for point in 1..count {
-            let angle = start + theta * (point as f64) / (count as f64);
-            out.push([
+        for ordinal in 1..count {
+            let angle = start + theta * (ordinal as f64) / (count as f64);
+            let place = [
                 centre[0] + radius * angle.cos(),
                 centre[1] + radius * angle.sin(),
-            ]);
+            ];
+            if !drawable(place) {
+                return Err(index);
+            }
+            out.push(place);
         }
     }
     Ok((out, at))
@@ -1430,14 +1603,41 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
 /// zooming out shrinks them below a pixel.
 pub const TIP_MARK_PX: f64 = 20.0;
 
-/// **Which way the chain leaves the vertex at `at`** — a unit vector,
-/// or `None` where there is no next point to take one from.
+/// **Which way the chain leaves the vertex at `at`** — the separation
+/// divided by its own length, or `None` where there is none to be had.
 ///
 /// The next flattened point, which is the tangent to within the chord
 /// tolerance the preview was flattened at. At the LAST vertex of an
 /// open chain there is no leaving direction, so the INCOMING one is
 /// answered instead: that tip is where the chain currently ends, and
 /// the heading a reader wants there is the one it arrived on.
+///
+/// **A separation that is not a finite length has no direction
+/// either**, which is the second thing the `None` arm says. Two
+/// flattened points a few hundred orders of magnitude apart differ by
+/// ordinary numbers whose `hypot` overflows: the length is then `inf`,
+/// which is greater than zero, and each component divided by it is
+/// `0.0`. A zero vector handed out under the name of a unit one is
+/// this arm not being taken — the caller draws its tip mark along
+/// nothing and cannot tell that from a mark it drew.
+///
+/// **Unit LENGTH is a property of the separation and not of the
+/// guard.** What the guard buys is that no component exceeds a finite
+/// length, so each quotient lands in `[-1, 1]`; the pair is a unit
+/// vector to within a rounding step only while the length is a NORMAL
+/// number. Below that the division has no precision left to divide
+/// with: `dx = dy = 1e-320` answers a length of 1.000129 and
+/// `dx = dy = 5e-324` answers `[1.0, 1.0]`, of length 1.4142.
+///
+/// It is still a DIRECTION there, which is why this is stated rather
+/// than refused. Both components are divided by one length, and that
+/// length's own rounding is a common factor: over every separation
+/// whose components are the first 400 multiples of `5e-324` the angle
+/// is wrong by at most one rounding step (2.2e-16 rad) while the
+/// length is wrong by up to 41%. The caller scales a screen mark by
+/// the pair, so what a subnormal separation costs is a mark up to 41%
+/// long and pointing the right way — and `None`, this door's only
+/// other answer, would draw no mark at all.
 pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]> {
     let (from, to) = if at + 1 < points.len() {
         (points[at], points[at + 1])
@@ -1450,12 +1650,18 @@ pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]>
     };
     let (dx, dy) = (to[0] - from[0], to[1] - from[1]);
     let length = dx.hypot(dy);
-    (length > 0.0).then(|| [dx / length, dy / length])
+    // Finite and non-zero is what makes each quotient below land in
+    // [-1, 1]; normal is what makes the pair unit length. See above.
+    (length.is_finite() && length > 0.0).then(|| [dx / length, dy / length])
 }
 
 #[cfg(test)]
 mod tests {
-    use super::arc_points;
+    use pncad::document::{EvalError, SlotId};
+    use pncad::profile::{ProfileError, SketchPlane, TipState, Verb};
+
+    use super::{PreviewError, PreviewHold, PreviewLoop, ProfilePreview, arc_points};
+    use crate::frame::Tone;
 
     /// **A count the arithmetic could not compute is not a count.**
     ///
@@ -1504,5 +1710,97 @@ mod tests {
         // All three pairs. A set of three has three of them, and
         // checking the two adjacent ones leaves this one unread.
         assert_ne!(floor, cap, "the floor and the cap");
+    }
+
+    /// A drawn loop over three points, `closed` as asked.
+    fn drawn_loop(closed: bool) -> PreviewLoop {
+        PreviewLoop {
+            points: vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]],
+            vertices: vec![0, 1, 2],
+            closed,
+        }
+    }
+
+    /// A preview over one loop, `closed` and `invalid` as planted —
+    /// every combination of the two, including the one [`super::preview`]
+    /// never builds (open AND invalid).
+    fn planted(closed: bool, invalid: Option<ProfileError>) -> ProfilePreview {
+        ProfilePreview {
+            plane: SketchPlane::xy(),
+            loops: vec![drawn_loop(closed)],
+            invalid,
+        }
+    }
+
+    /// **A drawn preview's hold, by partition** — the open chain asked
+    /// first, so a value that is open AND invalid is the open chain,
+    /// quiet; an invalid closed profile is loud; a valid one holds
+    /// nothing.
+    #[test]
+    fn a_drawn_previews_hold_is_read_off_one_partition() {
+        let open_and_invalid = planted(false, Some(ProfileError::EmptyProfile));
+        let hold = open_and_invalid.hold();
+        assert!(matches!(hold, Some(PreviewHold::OpenChain)), "{hold:?}");
+        assert_eq!(hold.map(|hold| hold.tone()), Some(Tone::Advisory));
+
+        let open = planted(false, None);
+        assert!(matches!(open.hold(), Some(PreviewHold::OpenChain)));
+        assert_eq!(open.hold().map(|hold| hold.tone()), Some(Tone::Advisory));
+
+        let invalid = planted(true, Some(ProfileError::EmptyProfile));
+        assert!(matches!(invalid.hold(), Some(PreviewHold::Invalid(_))));
+        assert_eq!(
+            invalid.hold().map(|hold| hold.tone()),
+            Some(Tone::Actionable)
+        );
+
+        let valid = planted(true, None);
+        assert!(valid.hold().is_none(), "{:?}", valid.hold());
+    }
+
+    /// **Every refusal's tone, by arm** — the mapping itself, over a
+    /// value planted per arm. The two `Transition`s differ only in
+    /// whether a verb was written, which is the whole rule.
+    #[test]
+    fn a_preview_refusal_is_loud_unless_it_only_says_the_chain_is_unfinished() {
+        let transition = |verb| PreviewError::Transition {
+            loop_: 0,
+            step: 1,
+            state: TipState::PlainPoint,
+            verb,
+        };
+        for (error, tone) in [
+            (transition(None), Tone::Advisory),
+            (transition(Some(Verb::Tangent)), Tone::Actionable),
+            (
+                PreviewError::Lowering(pncad::document::RecordedProgramError::CarrierInChain),
+                Tone::Actionable,
+            ),
+            (
+                PreviewError::Resolve {
+                    slot: SlotId::Count,
+                    source: EvalError::CountExprInContinuousEval,
+                },
+                Tone::Actionable,
+            ),
+            (
+                PreviewError::Unflattenable {
+                    loop_: 0,
+                    vertex: 1,
+                },
+                Tone::Actionable,
+            ),
+            (
+                PreviewError::Geometry {
+                    loop_: 0,
+                    step: 1,
+                    rendered: String::new(),
+                },
+                Tone::Actionable,
+            ),
+        ] {
+            assert_eq!(error.tone(), tone, "{error:?}");
+            assert_eq!(error.is_unfinished(), tone == Tone::Advisory, "{error:?}");
+        }
     }
 }

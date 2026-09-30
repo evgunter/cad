@@ -9,7 +9,12 @@ appearance attributes and metadata. All mutation goes through the typed
 (`src/edit.rs`) — pure over the document and the mated parts' reach — which
 returns a new document with the cluster-record maintenance the edit performed;
 undo is keeping the prior value, and replay re-applies the recorded maintenance
-without a solve.
+without a solve. A mate being inserted passes the solve's own per-mate
+admission at that door (`EditError::MateRefused`, the solve's fault unaltered),
+so what the coset table refuses about a mate alone is met where the mate is
+authored; the doors decide edits and the solve decides states, so a verdict
+about a pair, and a per-mate fault a mate comes to carry after insert (a
+stranded head, a re-pointed `Part`, a loaded snapshot), are met at evaluation.
 The evaluation service (`src/eval/`), `evaluate(doc, prior, cancel, opts, tol)
 -> Evaluation<T>`, runs the live nodes in a deterministic topological order,
 reuses prior results by content key (`src/eval/memo.rs`: bit-exact inputs plus
@@ -160,7 +165,7 @@ nodes share the rule vocabulary and slot map.
 
 A profile is a program (`crates/profile/README.md`); *replay* elaborates its
 resolved steps into a loop and *validation* canonicalizes the loops. Structure
-(fillet candidate, fit signs, corner gates, loop roles, canonical start) is
+(fillet candidate, fit signs, corner gates, loop roles, loop orientation) is
 selected once at f64, identically for every lane (C6); geometry at the lane
 scalar is the lift.
 
@@ -180,18 +185,19 @@ different pockets, so re-ranking is a second choice, not a check).
 **PP2 — The structure record.** `profile::ProfileStructure`: per loop a
 `ReplayStructure` (each fillet's corner-gate outcomes, survivor count, chosen
 candidate index, fit signs) and a `CanonicalStructure` (per loop: role,
-containment row, representative vertex, reversal, canonical start, per-segment
-shapes, tangent-joint set). Derived, content-keyed, never persisted.
+containment row, representative vertex, reversal, per-segment shapes,
+tangent-joint set). The canonical start is always the authored vertex 0, so
+there is no start to record. Derived, content-keyed, never persisted.
 
-**PP3 — Canonicalization is pinned.** `validate_guided` takes rotation and
-reversal from the record instead of re-running `lex_min` and the orientation
-decide (ulp-wide bands: total at f64, indeterminate at `Interval` on
+**PP3 — Canonicalization is pinned.** `validate_guided` takes the reversal
+from the record instead of re-running the orientation decide (and
+the containment representative instead of re-running `lex_min`) (ulp-wide bands: total at f64, indeterminate at `Interval` on
 essentially every input); it verifies the value channel they induce (segment
 shapes, declared joints) and re-runs the containment forest, an ordinary
 decided predicate, against the record.
 
 **PP4 — Naming stays f64.** `derive_naming` runs on pass 1 only; names are
-program-structural indices and the lane pass takes them verbatim. `T`-valued
+canonical indices and the lane pass takes them verbatim. `T`-valued
 geometry changes no name because the canonical permutation is pinned (PP3);
 the two decisions are one commitment.
 

@@ -4,6 +4,8 @@ kind: issue
 title: test-utils documents itself as dev-only but is production source to every gate that narrows by test-only mounts
 status: open
 opened: 2026-09-15
+priority: P1
+cost: D
 ---
 
 

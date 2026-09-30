@@ -4,6 +4,8 @@ kind: issue
 title: an item's stated sweep pattern can fail to match the instance it was derived from, so a lane re-running it faithfully finds nothing
 status: open
 opened: 2026-09-16
+priority: P3
+cost: D
 ---
 
 

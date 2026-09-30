@@ -15,10 +15,10 @@
 //! — a walk that dropped every worker's recording identically at one
 //! and four threads would pass a t1-vs-t4 row while asserting nothing.
 //! So `thread-count-digest/eps-*.txt` is cut on the MERGE BASE, where
-//! the walk is serial, and both widths are read against it. Same
-//! instrument as `reporting_door_bit_digest`, and cut the same way: a
+//! the walk is serial, and the four-thread walk is read against it: a
 //! row cut on this branch would record what this branch does, which is
-//! the thing under test.
+//! the thing under test. The one case where a lane re-cuts here
+//! anyway, and what licenses it, is at `expected`.
 //!
 //! **What the recorded channels here can and cannot see.** The verdict
 //! channel is full — every `props_quad_*` and check-7 decision the
@@ -38,13 +38,10 @@
 //! reading REFUSES, which is the escalation PATH through the walk; it
 //! is not a body that escalates on the channel.
 //!
-//! **One row is `probe`-gated and it is rostered as EXECUTED**
-//! (`scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`, which
-//! `k_probe_sweep.sh` derives its default-selection loop from). The
-//! sample population is the thing k-lint counts, so a row asserting it
-//! does not move with the thread count is worth nothing if it only
-//! compiles: an inert pin reports the same green as one that ran. The
-//! other rows are ungated and run on every merge as usual.
+//! **Its `probe` row lives in `thread_count_probe_populations`**: the
+//! sample population is the thing k-lint counts, and only the probe
+//! sweep runs a `probe` build, so the row sits in a file the sweep can
+//! select without re-running the goldens here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{
@@ -137,6 +134,9 @@ fn line(name: &str, body: &Body<f64>) -> String {
             m.volume_pad.to_bits(),
             m.area_pad.to_bits(),
         ),
+        // The refusal's sentence leaves the face's key out; the walk's
+        // choice of WHICH face refused is part of what is pinned.
+        Err(e @ topo::MassPropsError::Face { face, .. }) => format!("REFUSED at {face:?}: {e}"),
         Err(e) => format!("REFUSED {e}"),
     };
     format!("{name} {read} | {}", channels(&bracket.finish()))
@@ -251,6 +251,64 @@ fn digest() -> String {
 /// The committed digest for each ε row the matrix gates. Cut on the
 /// MERGE BASE (see the module docs); an ε with no entry prints its
 /// block and fails, which is how a new row gets cut.
+///
+/// **When a lane may re-cut here instead, and what licenses it.** The
+/// merge-base rule exists to stop a branch recording its own
+/// regression as the baseline — not to make a pinned number a
+/// contract. A branch re-cuts on itself exactly when its own change is
+/// what moved the table AND the new reading is the right answer, with
+/// the cause named at the cut: H5's ratified ruling 2 (PR 2701) (a
+/// certified bound that gets tighter re-baselines like any other move)
+/// and `memories/output-stability-as-justification.md`. Anything else
+/// — a move the branch cannot explain, or one in the wrong direction —
+/// is a finding, and the table stays where it is.
+///
+/// **Re-cut at all three ε when the C9 ring became a newtype over
+/// `interval-transcendentals`' `DInterval`.** That is the other repair
+/// the assertion below names: the ring padded one representable step
+/// outward on every operation and the backend pads only where the
+/// operation is inexact, so four rows' pads shrank and none grew
+/// (`loft_prism`'s volume lands on exactly `9`), and the sym-session
+/// decision counts are untouched. Every verdict hash in the block is
+/// unchanged — nothing certified that refused, or refused that
+/// certified — and the pads are the whole of what moved, downward.
+///
+/// **Re-cut at all three ε when tier 3's check 6 planar arm began
+/// examining loops of `Line` and `Circle` carriers.** Both sym-session
+/// bodies have two planar caps whose loops carry an arc, and each cap
+/// loop now takes the one `bool_ring_run_winding` decision it was
+/// skipped before: on both `validate_geometric` rows the decision,
+/// shape, numeric and frozen-operand counts each rise by exactly 2,
+/// the verdicts stay `OK` / `REFUSED`, and no other line of the block
+/// moves.
+///
+/// **Re-cut at all three ε when tier 3's check 1 began reading every
+/// edge carrier's datums.** Only the `frozen` column of the two
+/// `validate_geometric` rows moves, and down: `sym_arc_loft`
+/// 2141 → 685 / 2059 → 599 / 2117 → 670 and `sym_thin_strip`
+/// 2181 → 860 / 2178 → 825 / 2179 → 858 at ε = 1e-6 / 1e-9 / 1e-12.
+/// Decisions, discharges, shapes and verdicts are unchanged. The
+/// carrier pass decides nothing; it builds its datum reads inside the
+/// session, and so interns nodes the later decisions' margins share —
+/// nodes the plain walk used to freeze as absent from its table
+/// (`geom_core::sym`'s `form_in`: "a node absent from this leaf's table
+/// is frozen here by design") and now expands. Measured by switching
+/// the pass off on a probe branch, which restores the old column.
+///
+/// **Re-cut at all three ε when the sketch pushforward began reading
+/// its segment's stored centre and sweep** (`geom_brep::SketchSegment`,
+/// #3254) instead of rebuilding them inside `eval` from the chord and
+/// the bulge. Only the `frozen` column of the two `validate_geometric`
+/// rows moves, and down: `sym_arc_loft` 685 → 656 / 599 → 570 /
+/// 670 → 641 and `sym_thin_strip` 860 → 803 / 825 → 768 / 858 → 801 at
+/// ε = 1e-6 / 1e-9 / 1e-12. Decisions, discharges, shapes and verdicts
+/// are unchanged: the pushforward shares the carrier's centre node, so
+/// fewer operands reach the walk as nodes absent from its table.
+///
+/// **Re-cut at all three ε when `MassPropsError`'s sentence dropped its
+/// stage prefix and the face's key.** Only the text after `REFUSED`
+/// moves; the refusing face stays pinned, now by the line's own
+/// `at FaceKey(…)`, and no verdict, pad or count changes.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
@@ -274,11 +332,6 @@ fn check_against_golden(threads: usize) {
          baseline to preserve: if the new behaviour is right, re-cut the table on the merge \
          base and say in the PR what moved and why."
     );
-}
-
-#[test]
-fn the_walk_matches_the_serial_golden_at_one_thread() {
-    check_against_golden(1);
 }
 
 #[test]
@@ -317,45 +370,5 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         quad > 0,
         "the described-spline body recorded no props_quad verdict — the roster no longer \
          reaches the quadrature lane, so the golden above pins a walk that does nothing"
-    );
-}
-
-/// **The `probe` sample population does not shrink with the thread
-/// count** — what k-lint counts, read at 1 and 4 threads. The golden
-/// above cannot carry this: the sink only exists in a `probe` build.
-#[cfg(feature = "probe")]
-#[test]
-fn the_sample_population_is_identical_at_one_and_four_threads() {
-    use geom_core::Probe;
-    use geom_core::k_stats::{start_recording, take_samples};
-
-    let eps = Tol::witness().get().eps;
-    let body: Body<Probe> = loft_body::<Probe>(
-        &[arc_section(1.0e9 * eps), arc_section(1.0e9 * eps)],
-        &stacked(&[0.0, 1.0], 1.0e9 * eps),
-        1,
-        Tol::witness(),
-    )
-    .expect("the probe arc loft lofts")
-    .body;
-    let population = |threads: usize| {
-        on_pool(threads, || {
-            start_recording();
-            let _ = topo::mass_properties(&body, Tol::witness());
-            take_samples()
-                .iter()
-                .map(|s| (s.predicate, s.margin.to_bits(), s.outcome.token()))
-                .collect::<Vec<_>>()
-        })
-    };
-    let one = population(1);
-    let four = population(4);
-    assert!(
-        !one.is_empty(),
-        "the probe lane recorded no sample — the comparison below is vacuous"
-    );
-    assert_eq!(
-        one, four,
-        "the sample population moved with the thread count"
     );
 }

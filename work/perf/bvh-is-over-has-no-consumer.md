@@ -4,6 +4,8 @@ kind: issue
 title: Bvh::is_over has no caller in the tree once the pick index keys by the memo entry
 status: open
 opened: 2026-09-13
+priority: P4
+cost: E
 ---
 
 

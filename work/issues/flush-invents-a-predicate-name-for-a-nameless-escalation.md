@@ -4,6 +4,8 @@ kind: issue
 title: eval: the flush selector invents a predicate name when an escalation carries none
 status: open
 opened: 2026-09-17
+priority: P0
+cost: D
 ---
 
 

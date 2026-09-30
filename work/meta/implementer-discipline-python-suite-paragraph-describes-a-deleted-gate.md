@@ -2,8 +2,11 @@
 id: implementer-discipline-python-suite-paragraph-describes-a-deleted-gate
 kind: issue
 title: implementer-discipline §2 still tells every lane the python suite is seed-gated; the gate was deleted on 2026-09-12 and it runs on every code-tier run
-status: open
+status: closed
+closed: 2026-09-28
 opened: 2026-09-13
+priority: P4
+cost: E
 ---
 
 
@@ -67,10 +70,10 @@ gone under an axis nothing reads.
   same fact from the other side: it asks whether the computed-and-unread
   AXIS should be given a consumer or deleted. It does not touch the
   standing doc, and the doc is wrong whichever way that is decided.
-- `work/ciw/python-suite-axis-skips-only-two-members` (open) asks
+- `python-suite-axis-skips-only-two-members` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) (open) asks
   whether the exception earns its machinery. Same axis, same
   independence from this row.
-- `work/ciw/ciw-rows-and-ci-local-prose-rotted-by-the-c1-c3-restore`
+- `ciw-rows-and-ci-local-prose-rotted-by-the-c1-c3-restore` (deleted; `docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`)
   (open) is the prose-rot row for exactly the commit that caused this —
   but it enumerates THREE sites, all of them CIW's own
   (`local-scripts/*` and two CIW items), and says so in its own header.
@@ -82,3 +85,5 @@ gone under an axis nothing reads.
 own rule — it is the standing discipline handed to every lane by path.
 So this is a row to be taken with that in mind, not a wording fix a
 lane can land in passing.
+
+Closed 2026-09-28: implementer-discipline §2 is rewritten for the latency-cut gate (`work/ciw/latency-cut.md`).

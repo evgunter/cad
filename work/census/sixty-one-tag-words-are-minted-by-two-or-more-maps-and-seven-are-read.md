@@ -4,6 +4,8 @@ kind: issue
 title: Most of the tags.rs words minted by two or more maps have never been read against the scoping rule
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

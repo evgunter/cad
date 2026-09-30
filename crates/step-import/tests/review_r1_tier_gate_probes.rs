@@ -146,7 +146,9 @@ fn r1_control_single_inverted_cube_refuses_negative_volume() {
     };
     assert_eq!(*solid, None, "a one-solid file's subject is the whole body");
     assert!(
-        errors.contains(&ValidationError::NegativeVolume),
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
         "want NegativeVolume among the verdicts: {errors:?}"
     );
 }
@@ -188,7 +190,9 @@ fn r1_multisolid_cannot_smuggle_an_inverted_solid_at_any_position() {
             "the refusal must name the guilty solid, not merely that one exists"
         );
         assert!(
-            errors.contains(&ValidationError::NegativeVolume),
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
             "the per-solid subject exposes the +V verdict the sum hid: {errors:?}"
         );
     }

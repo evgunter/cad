@@ -14,12 +14,12 @@ use crate::revolve_common;
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2, TAU};
 use profile::RawLoop;
 
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate_geometric};
 
-use geom_core::Tol;
-use revolve_common::{axis_y, donut_profile, full_pappus_y, p2, validated};
+use geom_core::{Point2, Tol};
+use revolve_common::{axis_y, donut_profile, full_pappus_y, validated};
 
 /// Tight relative tolerance for closed-form-vs-closed-form agreement.
 fn assert_close(what: &str, got: f64, expect: f64) {
@@ -44,12 +44,12 @@ fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
 #[test]
 fn l_prism_matches_closed_forms() {
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ]);
     let body = extrude(
         &validated(vec![lp]),
@@ -66,10 +66,15 @@ fn l_prism_matches_closed_forms() {
 fn square_with_two_vertex_hole_matches_closed_forms() {
     // 4×4 square with a centered circular hole of radius 1, the closed
     // carrier split into two bulge-1 semicircle segments (genus 1).
-    let outer = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 0.0), 1.0),
-        ProfileVertex::new(p2(-1.0, 0.0), 1.0),
+    let outer = ProfileLoop::polygon([
+        Point2::new(-2.0, -2.0),
+        Point2::new(2.0, -2.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(-2.0, 2.0),
+    ]);
+    let hole = bulge_loop(vec![
+        (Point2::new(1.0, 0.0), 1.0),
+        (Point2::new(-1.0, 0.0), 1.0),
     ]);
     let body = extrude(
         &validated(vec![outer, hole]),
@@ -86,7 +91,12 @@ fn square_with_two_vertex_hole_matches_closed_forms() {
 
 #[test]
 fn washer_matches_closed_forms() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -106,9 +116,9 @@ fn washer_matches_closed_forms() {
 
 #[test]
 fn ball_matches_closed_forms() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -128,7 +138,11 @@ fn ball_matches_closed_forms() {
 
 #[test]
 fn cone_matches_closed_forms() {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -167,7 +181,12 @@ fn donut_matches_closed_forms() {
 
 #[test]
 fn partial_wedge_matches_theta_scaled_closed_forms() {
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -182,7 +201,12 @@ fn partial_wedge_matches_theta_scaled_closed_forms() {
 
 #[test]
 fn axis_touching_wedge_matches_closed_forms() {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -200,7 +224,12 @@ fn near_full_wedge_matches_theta_scaled_closed_forms() {
     // A non-dyadic near-full angle (past 3π/2 — the PR 6 blocker
     // family's territory, exercised here on the exact side).
     let theta = TAU - 0.01;
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -223,8 +252,18 @@ fn holed_wedge_matches_theta_scaled_closed_forms() {
     // planted through the ring rather than grown from the mvfs seed.
     // Outer square x ∈ [1, 3], y ∈ [0, 2]; hole x ∈ [1.5, 2.5],
     // y ∈ [0.5, 1.5]; θ = π/2 about +y, so r = x.
-    let outer = ProfileLoop::polygon([p2(1.0, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(1.0, 2.0)]);
-    let hole = ProfileLoop::polygon([p2(1.5, 0.5), p2(2.5, 0.5), p2(2.5, 1.5), p2(1.5, 1.5)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(3.0, 0.0),
+        Point2::new(3.0, 2.0),
+        Point2::new(1.0, 2.0),
+    ]);
+    let hole = ProfileLoop::polygon([
+        Point2::new(1.5, 0.5),
+        Point2::new(2.5, 0.5),
+        Point2::new(2.5, 1.5),
+        Point2::new(1.5, 1.5),
+    ]);
     let t = revolve(
         &validated(vec![outer, hole]),
         axis_y(),

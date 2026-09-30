@@ -4,7 +4,6 @@ kind: issue
 title: The revolve tool cannot be reached from the panels: no form authors a Datum::AxisInPlane
 status: closed
 opened: 2026-09-04
-refs: [viewer-session-god-module-split]
 closed: 2026-09-17
 branch: viewer/axis-in-plane-form
 ---

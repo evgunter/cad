@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does NOT keep is a `mod <helper>;` line of its
 //! own: the shared helper trees are declared once, below, as modules of
 //! THIS root, and a suite that wants one says `use crate::<helper>;`.
@@ -66,6 +66,8 @@ mod asm2a_instantiate;
 mod asm2b_multisolid;
 #[path = "asm4_split_inline.rs"]
 mod asm4_split_inline;
+#[path = "asm_parent_held_names.rs"]
+mod asm_parent_held_names;
 #[path = "asm_r2a_mate_solve.rs"]
 mod asm_r2a_mate_solve;
 #[path = "asm_r2a_mate_wire.rs"]
@@ -78,6 +80,8 @@ mod asm_r2b_interface_wire;
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
+#[path = "assemble_one_local_battery.rs"]
+mod assemble_one_local_battery;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -140,6 +144,8 @@ mod edit_blend_canonical;
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
 mod edit_doc_param_unit;
+#[path = "edit_has_minted.rs"]
+mod edit_has_minted;
 #[path = "edit_instance_crossing_names.rs"]
 mod edit_instance_crossing_names;
 #[path = "edit_ladder_rim.rs"]
@@ -148,12 +154,22 @@ mod edit_ladder_rim;
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_placement_corpus_bits.rs"]
+mod edit_placement_corpus_bits;
+#[path = "edit_placement_type.rs"]
+mod edit_placement_type;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
 mod edit_ruled_carve;
+#[path = "edit_set_program.rs"]
+mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
+#[path = "emit_boolean_vertex_keys.rs"]
+mod emit_boolean_vertex_keys;
+#[path = "emit_union_member_order.rs"]
+mod emit_union_member_order;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
@@ -168,12 +184,26 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "refusal_concision.rs"]
+mod refusal_concision;
+#[path = "refusal_concision_at_rest.rs"]
+mod refusal_concision_at_rest;
+#[path = "refusal_concision_chains.rs"]
+mod refusal_concision_chains;
+#[path = "remap_reorders_ids.rs"]
+mod remap_reorders_ids;
+#[path = "resolve_group_membership.rs"]
+mod resolve_group_membership;
+#[path = "resolve_upstream_scope.rs"]
+mod resolve_upstream_scope;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "gather_placed_under_two_roots.rs"]
+mod gather_placed_under_two_roots;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -208,6 +238,8 @@ mod lib_u5_interrogate;
 mod lib_u7_select;
 #[path = "load_door_payload_param_ref.rs"]
 mod load_door_payload_param_ref;
+#[path = "load_door_program_validate.rs"]
+mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]
@@ -234,6 +266,10 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "maintenance_net.rs"]
+mod maintenance_net;
+#[path = "msolve10_door_admission.rs"]
+mod msolve10_door_admission;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]
@@ -349,8 +385,6 @@ mod m4_pr6_refusal;
 mod m4_pr6_review_probes;
 #[path = "m4_pr6_roundtrip.rs"]
 mod m4_pr6_roundtrip;
-#[path = "m4_pr6_roundtrip_interval.rs"]
-mod m4_pr6_roundtrip_interval;
 #[path = "m4_pr7_appearance.rs"]
 mod m4_pr7_appearance;
 #[path = "m4_pr7_appearance_interval.rs"]
@@ -407,6 +441,16 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "names_verbatim_edge_evaluator.rs"]
+mod names_verbatim_edge_evaluator;
+#[path = "node_standing.rs"]
+mod node_standing;
+#[path = "parallel_node_map_interval.rs"]
+mod parallel_node_map_interval;
+#[path = "parallel_node_map_probe.rs"]
+mod parallel_node_map_probe;
+#[path = "part_depth_bound.rs"]
+mod part_depth_bound;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -421,6 +465,8 @@ mod pinned_lift_validates_once;
 mod pirad_wire;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
+#[path = "product_gate_attribution.rs"]
+mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 
@@ -484,6 +530,8 @@ mod seat7_sweep_lowering;
 mod seat8_split_lowering;
 #[path = "seatfw_curved_flush.rs"]
 mod seatfw_curved_flush;
+#[path = "step_handle_binding.rs"]
+mod step_handle_binding;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -507,9 +555,6 @@ mod unreadable_by_this_build;
 
 test_utils::every_suite_file_is_aggregated!();
 
-#[path = "cert_m2r1_corpus.rs"]
-mod cert_m2r1_corpus;
-
 #[path = "lib_tube_node.rs"]
 mod lib_tube_node;
 
@@ -527,6 +572,7 @@ mod lib_tube_r2_probes;
 
 #[path = "m10_7_r2_probes_interval.rs"]
 mod m10_7_r2_probes_interval;
+
 #[path = "m10_8_arc_family_interval.rs"]
 mod m10_8_arc_family_interval;
 #[path = "m10_8_harness.rs"]
@@ -572,6 +618,8 @@ mod m10_derived_frame_tilted_interval;
 mod m10_sym_drive_memo_interval;
 #[path = "m10_sym_profile_interval.rs"]
 mod m10_sym_profile_interval;
+#[path = "sym11_exact_channel_rows.rs"]
+mod sym11_exact_channel_rows;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
@@ -589,3 +637,20 @@ mod wire_product_gather_tie;
 mod wire_rv_bytes;
 #[path = "wire_rv_unknown.rs"]
 mod wire_rv_unknown;
+
+#[path = "decide_1_self_dot_interval.rs"]
+mod decide_1_self_dot_interval;
+#[path = "edit_refusal_recourse.rs"]
+mod edit_refusal_recourse;
+#[path = "emit_seam_edge_merged.rs"]
+mod emit_seam_edge_merged;
+#[path = "emit_seam_junction.rs"]
+mod emit_seam_junction;
+#[path = "emit_shared_rim_several.rs"]
+mod emit_shared_rim_several;
+#[path = "emit_split_duplicate.rs"]
+mod emit_split_duplicate;
+#[path = "emit_union_flush_names.rs"]
+mod emit_union_flush_names;
+#[path = "emit_union_rim_piece_ranks.rs"]
+mod emit_union_rim_piece_ranks;

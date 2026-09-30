@@ -30,20 +30,11 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    Datum, Dimension, DocEdit, Expr, Node, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
-    apply,
+    Datum, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, apply,
 };
-use fixture::len;
+use fixture::{ang, len, scl};
 use geom_core::Tol;
 use topo::Surface;
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite")
-}
-
-fn angle(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("finite")
-}
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(d, e, Tol::witness(), &editor_core::RefusingReach)
@@ -58,7 +49,7 @@ fn axis_doc() -> (ProfileDoc, RecipeNodeId) {
         &DocEdit::InsertNode {
             node: Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
-                direction: [scalar(0.0), scalar(0.0), scalar(1.0)],
+                direction: [scl(0.0), scl(0.0), scl(1.0)],
             }),
         },
     );
@@ -92,11 +83,11 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
             &DocEdit::InsertNode {
                 node: Node::HollowTube {
                     spine,
-                    u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                    u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                     major_radius: len(2.0),
                     window: TubeWindow::Arc {
-                        t0: angle(0.0),
-                        t1: angle(1.5),
+                        t0: ang(0.0),
+                        t1: ang(1.5),
                     },
                     minor_radius: len(outer),
                     wall: len(wall),
@@ -129,7 +120,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
         &DocEdit::InsertNode {
             node: Node::Tube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.3),
@@ -155,7 +146,7 @@ fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
     let (mut doc, spine) = axis_doc();
     let mk = || Node::Tube {
         spine,
-        u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
@@ -202,7 +193,7 @@ fn a_hollow_full_rings_cavity_faces_are_named_totally() {
         &DocEdit::InsertNode {
             node: Node::HollowTube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),

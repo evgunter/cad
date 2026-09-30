@@ -5,6 +5,8 @@ title: Rim chords can exceed the snapped column count on a malign band (residual
 status: open
 opened: 2026-08-23
 github: 950
+priority: P0
+cost: H
 ---
 
 ## From GitHub issue 950

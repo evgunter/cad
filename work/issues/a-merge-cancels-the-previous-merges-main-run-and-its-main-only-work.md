@@ -4,6 +4,8 @@ kind: issue
 title: On main, ci.yml's cancel-in-progress makes each merge cancel the previous merge's run, silently dropping that commit's main-only side effects
 status: open
 opened: 2026-09-12
+priority: P4
+cost: D
 ---
 
 

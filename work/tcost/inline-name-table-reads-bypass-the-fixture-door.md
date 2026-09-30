@@ -4,6 +4,8 @@ kind: issue
 title: 127 inline name-table reads in editor-core's suites bypass the fixture's table door
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

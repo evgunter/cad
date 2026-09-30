@@ -41,14 +41,11 @@
 //! the mirror of `row_prefix`'s split — and its own `--selftest`
 //! refuses to pass on an empty listing (`:1067`-`:1072`), which is this
 //! module's vacuity floor written independently in bash.
-//! `.github/workflows/ci.yml` (`:4837`) is what produces that listing
-//! for it, and `scripts/check-ci-mirror-parity.py` (`:1584`) reads the
-//! `listing=$(cargo test … --list)` assignment as a live row rather
-//! than dropping it — the two neighbouring readers of the same output.
+//! `.github/workflows/nightly.yml` is what produces that listing for it.
 //!
-//! Nothing is shared between those three and this module, and nothing
-//! can be. They are shell and Python reading a listing produced by a
-//! `cargo test` invocation they spell themselves; this is Rust inside
+//! Nothing is shared between that reader and this module, and nothing
+//! can be. It is shell reading a listing produced by a
+//! `cargo test` invocation the workflow spells itself; this is Rust inside
 //! the binary being listed, which is the only seat from which
 //! `module_path!()` answers for the invoking module. The shell/Rust
 //! boundary is the whole reason for the second implementation. What
@@ -289,8 +286,8 @@ fn violations_against(
 /// test_utils::roster! {
 ///     the_certifying_filter_changes_a_pre_m10_6_documents_drive:
 ///         "the unit's zero-impact claim, exhibited on a document it does not hold",
-///     a_tolerance_study_end_to_end_through_the_public_doors:
-///         "the whole consumer walk; the suite's critical path",
+///     the_mc_stream_is_re_derived_bit_for_bit:
+///         "the MC lane's stream, re-derived from the algorithms",
 /// }
 /// ```
 ///
@@ -342,7 +339,7 @@ fn violations_against(
 ///
 /// One `--list` re-exec of the test binary, in single-digit
 /// milliseconds. Measured at 6.6-7.9 ms over eight runs on
-/// `editor-core`'s aggregated `all` binary under `--features interval`
+/// `editor-core`'s aggregated `all` binary with the certified lane in
 /// — the largest in the tree, ~450 MB and 1630 listed rows, of which
 /// this file contributes eight.
 ///

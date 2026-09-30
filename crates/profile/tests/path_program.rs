@@ -33,10 +33,6 @@ use profile::{
     ReplayErrorKind, Start, Step, Target, TipState, Verb, replay,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The recorded program of a chain, kept alongside its pinned loop.
 fn program_of(closed: &ClosedLoop<f64>) -> Vec<Step<f64>> {
     closed.program.clone()
@@ -119,15 +115,15 @@ fn the_fused_family_records_and_replays_bit_identically() {
     let closed = Open
         .arc_fillet(
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             0.5,
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(0.0, 3.0), Tol::witness())
+        .at(Point2::new(0.0, 3.0), Tol::witness())
         .unwrap()
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
@@ -166,7 +162,7 @@ fn the_fused_family_records_and_replays_bit_identically() {
     // directed point — recorded and replayed to the bit (`pinned` is
     // the assertion).
     let walk = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .arc_to(
@@ -180,16 +176,16 @@ fn the_fused_family_records_and_replays_bit_identically() {
         .unwrap()
         .fillet(0.2, Tol::witness())
         .unwrap()
-        .at(p2(4.0, 3.0), Tol::witness())
+        .at(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.25,
             Center {
-                c: p2(2.0, 6.0),
+                c: Point2::new(2.0, 6.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0, 9.0),
+                p: Point2::new(2.0, 9.0),
             },
             Tol::witness(),
         )
@@ -203,7 +199,7 @@ fn the_fused_family_records_and_replays_bit_identically() {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(1.0, 4.0), Tol::witness())
+        .at(Point2::new(1.0, 4.0), Tol::witness())
         .unwrap()
         .toward(0.0, -1.0, Tol::witness())
         .unwrap()
@@ -246,15 +242,15 @@ fn the_mid_chain_radius_row_records_and_replays() {
     let closed = Open
         .arc_fillet_arc(
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
+                p: Point2::new(5.0, 0.0),
             },
             0.5,
             Center {
-                c: p2(0.0, 7.0),
+                c: Point2::new(0.0, 7.0),
                 winding: ArcSweep::Cw,
-                p: p2(0.0, 4.0),
+                p: Point2::new(0.0, 4.0),
             },
             Tol::witness(),
         )
@@ -268,7 +264,7 @@ fn the_mid_chain_radius_row_records_and_replays() {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(-2.0, 2.0), Tol::witness())
+        .at(Point2::new(-2.0, 2.0), Tol::witness())
         .unwrap()
         .toward(0.0, -1.0, Tol::witness())
         .unwrap()
@@ -314,13 +310,13 @@ fn the_eye_is_one_fused_step() {
     let closed = Open
         .arc_fillet_arc(
             Center {
-                c: p2(-0.5, 0.0),
+                c: Point2::new(-0.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
+                p: Point2::new(0.0, -tip),
             },
             0.35,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -377,7 +373,7 @@ fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
     use profile::{ArcSide, Sweep};
     let t = Tol::witness();
     let mut prefixes: Vec<Vec<String>> = Vec::new();
-    let path = Open.at(p2(0.0, 0.0));
+    let path = Open.at(Point2::new(0.0, 0.0));
     prefixes.push(rendered(path.recorded()));
     let path = path.angle(0.0, t).unwrap();
     prefixes.push(rendered(path.recorded()));
@@ -394,7 +390,7 @@ fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
     prefixes.push(rendered(path.recorded()));
     let path = path.fillet(0.2, t).unwrap();
     prefixes.push(rendered(path.recorded()));
-    let path = path.at(p2(4.0, 3.0), t).unwrap();
+    let path = path.at(Point2::new(4.0, 3.0), t).unwrap();
     prefixes.push(rendered(path.recorded()));
     let path = path.toward(0.0, 1.0, t).unwrap();
     prefixes.push(rendered(path.recorded()));
@@ -446,7 +442,7 @@ fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
 /// alone.
 #[test]
 fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
-    let closed = profile::circle(p2(1.5, -2.25), 0.75, Tol::witness()).unwrap();
+    let closed = profile::circle(Point2::new(1.5, -2.25), 0.75, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::Circle]);
     assert_eq!(
         closed.program.len(),
@@ -455,9 +451,9 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
     );
     let lowered = pinned(closed);
     assert_eq!(lowered.vertices().len(), 2);
-    assert_eq!(lowered.vertices()[0].pos().x.to_bits(), 2.25_f64.to_bits());
-    assert_eq!(lowered.vertices()[1].pos().x.to_bits(), 0.75_f64.to_bits());
-    assert_eq!(lowered.vertices()[0].bulge().to_bits(), 1.0_f64.to_bits());
+    assert_eq!(lowered.vertices()[0].x.to_bits(), 2.25_f64.to_bits());
+    assert_eq!(lowered.vertices()[1].x.to_bits(), 0.75_f64.to_bits());
+    assert_eq!(lowered.bulges()[0].to_bits(), 1.0_f64.to_bits());
     assert!(
         lowered.tangent_joints().is_empty(),
         "same-carrier joints declare nothing — there is no tangency to claim"
@@ -472,22 +468,23 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
 /// (same-carrier identities, exactly `circle`'s posture).
 #[test]
 fn circle_split_is_a_one_step_program_with_structural_seams() {
-    let closed = profile::circle_split(p2(1.0, 0.5), 0.4, 3, 0.25, Tol::witness()).unwrap();
+    let closed =
+        profile::circle_split(Point2::new(1.0, 0.5), 0.4, 3, 0.25, Tol::witness()).unwrap();
     assert_eq!(verbs(&program_of(&closed)), vec![Verb::CircleSplit]);
     let lowered = pinned(closed);
     assert_eq!(lowered.vertices().len(), 3, "n vertices, n arcs");
     // Expected values through the SAME libm-pure trig the lowering uses
     // (geom-core `Real`; std's tan/sin_cos may differ by an ulp).
     let expected_bulge = geom_core::Real::tan(std::f64::consts::PI / 6.0);
-    for v in lowered.vertices() {
-        assert_eq!(v.bulge().to_bits(), expected_bulge.to_bits());
+    for b in lowered.bulges() {
+        assert_eq!(b.to_bits(), expected_bulge.to_bits());
     }
     // Vertex k at centre + r·(cos θ_k, sin θ_k), θ_k = phase + k·2π/n.
     for (k, v) in lowered.vertices().iter().enumerate() {
         let theta = 0.25 + (k as f64) * std::f64::consts::TAU / 3.0;
         let (s, c) = geom_core::Real::sin_cos(theta);
-        assert_eq!(v.pos().x.to_bits(), (1.0 + 0.4 * c).to_bits());
-        assert_eq!(v.pos().y.to_bits(), (0.5 + 0.4 * s).to_bits());
+        assert_eq!(v.x.to_bits(), (1.0 + 0.4 * c).to_bits());
+        assert_eq!(v.y.to_bits(), (0.5 + 0.4 * s).to_bits());
     }
     assert!(
         lowered.tangent_joints().is_empty(),
@@ -502,16 +499,16 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
 #[test]
 fn circle_split_refuses_nonpositive_radius_and_tiny_counts() {
     let _tol = Tol::witness().get();
-    match profile::circle_split(p2(0.0, 0.0), 0.0, 4, 0.0, Tol::witness()) {
+    match profile::circle_split(Point2::new(0.0, 0.0), 0.0, 4, 0.0, Tol::witness()) {
         Err(PathError::NonpositiveCircleRadius { .. }) => {}
         other => panic!("r = 0 must refuse as NonpositiveCircleRadius, got {other:?}"),
     }
-    match profile::circle_split(p2(0.0, 0.0), 1.0, 1, 0.0, Tol::witness()) {
+    match profile::circle_split(Point2::new(0.0, 0.0), 1.0, 1, 0.0, Tol::witness()) {
         Err(PathError::CircleSplitCount { n: 1 }) => {}
         other => panic!("n = 1 must refuse as CircleSplitCount, got {other:?}"),
     }
     // n = 2 is legal — the smallest subdivision, circle's own count.
-    let two = profile::circle_split(p2(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
+    let two = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 2, 0.0, Tol::witness()).unwrap();
     assert_eq!(pinned(two).vertices().len(), 2);
 }
 
@@ -534,17 +531,17 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
     use profile::Bulge;
     let q = std::f64::consts::FRAC_PI_8.tan();
     let closed = Open
-        .at(p2(0.0, -0.5))
+        .at(Point2::new(0.0, -0.5))
         .arc_to(
             Bulge {
-                p: p2(0.5, 0.0),
+                p: Point2::new(0.5, 0.0),
                 b: q,
             },
             Tol::witness(),
         )
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(0.0, 0.5), Tol::witness())
+        .tangent_arc_to(Point2::new(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -562,16 +559,16 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
     assert_eq!(lowered.vertices().len(), 3);
     let v1 = lowered.vertices()[1];
     assert_eq!(
-        (v1.pos().x.to_bits(), v1.pos().y.to_bits()),
+        (v1.x.to_bits(), v1.y.to_bits()),
         (0.5f64.to_bits(), 0.0f64.to_bits()),
         "the equator vertex is the authored point exactly"
     );
-    assert_eq!(lowered.vertices()[0].bulge().to_bits(), q.to_bits());
+    assert_eq!(lowered.bulges()[0].to_bits(), q.to_bits());
     assert_eq!(
-        v1.bulge().to_bits(),
+        lowered.bulges()[1].to_bits(),
         0x3fda827999fcef33,
         "the derived bulge is the retired verb's, bit for bit (got {:#x})",
-        v1.bulge().to_bits()
+        lowered.bulges()[1].to_bits()
     );
     assert_eq!(lowered.tangent_joints(), &[1], "the joint is declared");
     validate_ok(&lowered);
@@ -710,7 +707,7 @@ fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: 
 /// reachable only from a hand-edited or corrupt wire form.
 #[test]
 fn lattice_violations_refuse_as_the_transition_class() {
-    let a = p2(0.0, 0.0);
+    let a = Point2::new(0.0, 0.0);
     // A leading fillet: nothing is bound yet.
     assert_transition(
         &[Step::Fillet { radius: 0.5 }],
@@ -796,7 +793,7 @@ fn lattice_violations_refuse_as_the_transition_class() {
             Step::FilletArc {
                 radius: 0.25,
                 spec: profile::ArcData::Bulge {
-                    target: Target::Point(p2(2.0, 2.0)),
+                    target: Target::Point(Point2::new(2.0, 2.0)),
                     b: 0.5,
                 },
             },
@@ -811,7 +808,11 @@ fn lattice_violations_refuse_as_the_transition_class() {
 /// AFTER the close are the same class, one step past where they stop.
 #[test]
 fn unclosed_trailing_and_empty_programs_are_the_transition_class() {
-    let (a, b, c) = (p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0));
+    let (a, b, c) = (
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+    );
     assert_transition(&[], 0, TipState::Entry, None);
     assert_transition(
         &[Step::At(a), Step::LineTo(Target::Point(b))],
@@ -863,8 +864,8 @@ fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
 
     let unclosed = replay(
         &[
-            Step::At(p2(0.0, 0.0)),
-            Step::LineTo(Target::Point(p2(1.0, 0.0))),
+            Step::At(Point2::new(0.0, 0.0)),
+            Step::LineTo(Target::Point(Point2::new(1.0, 0.0))),
         ],
         Tol::witness(),
     )
@@ -884,16 +885,16 @@ fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
 fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     let square = |r: f64| {
         vec![
-            Step::At(p2(0.0, -1.0)),
+            Step::At(Point2::new(0.0, -1.0)),
             Step::Angle(0.0),
             Step::Fillet { radius: r },
-            Step::At(p2(1.0, 0.0)),
+            Step::At(Point2::new(1.0, 0.0)),
             Step::Angle(std::f64::consts::FRAC_PI_2),
             Step::Fillet { radius: r },
-            Step::At(p2(0.0, 1.0)),
+            Step::At(Point2::new(0.0, 1.0)),
             Step::Angle(std::f64::consts::PI),
             Step::Fillet { radius: r },
-            Step::At(p2(-1.0, 0.0)),
+            Step::At(Point2::new(-1.0, 0.0)),
             Step::Angle(-std::f64::consts::FRAC_PI_2),
             Step::Fillet { radius: r },
             Step::CloseTo,
@@ -912,7 +913,7 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     // The sign gates are the same class, carried straight through.
     match replay(
         &[Step::Circle {
-            centre: p2(0.0, 0.0),
+            centre: Point2::new(0.0, 0.0),
             radius: 0.0,
         }],
         Tol::witness(),
@@ -925,7 +926,7 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
     }
     match replay(
         &[
-            Step::At(p2(0.0, 0.0)),
+            Step::At(Point2::new(0.0, 0.0)),
             Step::Angle(0.0),
             Step::Fillet { radius: -1.0 },
         ],
@@ -980,7 +981,7 @@ fn radii(closed: &ClosedLoop<f64>) -> Vec<(usize, RadiusRole, usize)> {
 fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
     use profile::{ArcSide, Center, Radius, Sweep};
     let walk = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .arc_to(
@@ -994,16 +995,16 @@ fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
         .unwrap()
         .fillet(0.2, Tol::witness())
         .unwrap()
-        .at(p2(4.0, 3.0), Tol::witness())
+        .at(Point2::new(4.0, 3.0), Tol::witness())
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.25,
             Center {
-                c: p2(2.0, 6.0),
+                c: Point2::new(2.0, 6.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0, 9.0),
+                p: Point2::new(2.0, 9.0),
             },
             Tol::witness(),
         )
@@ -1017,7 +1018,7 @@ fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(1.0, 4.0), Tol::witness())
+        .at(Point2::new(1.0, 4.0), Tol::witness())
         .unwrap()
         .toward(0.0, -1.0, Tol::witness())
         .unwrap()
@@ -1063,7 +1064,7 @@ fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
 fn a_fused_step_records_one_emission_per_radius_role() {
     use profile::{ArcSide, Radius, Sweep};
     let three = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .line(4.0, Tol::witness())
@@ -1083,7 +1084,7 @@ fn a_fused_step_records_one_emission_per_radius_role() {
             Tol::witness(),
         )
         .unwrap()
-        .at(p2(2.0, 6.0))
+        .at(Point2::new(2.0, 6.0))
         .toward(-1.0, 0.0, Tol::witness())
         .unwrap()
         .line(2.0, Tol::witness())
@@ -1132,10 +1133,10 @@ fn a_fused_step_records_one_emission_per_radius_role() {
 fn an_arc_no_radius_drew_records_no_emission() {
     use profile::{Bulge, Center};
     let bulged = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .arc_fillet(
             Bulge {
-                p: p2(3.0, 0.0),
+                p: Point2::new(3.0, 0.0),
                 b: 0.2,
             },
             0.2,
@@ -1144,9 +1145,9 @@ fn an_arc_no_radius_drew_records_no_emission() {
         .unwrap()
         .toward(0.0, 1.0, Tol::witness())
         .unwrap()
-        .to(p2(3.3, 4.0), Tol::witness())
+        .to(Point2::new(3.3, 4.0), Tol::witness())
         .unwrap()
-        .line_to(p2(0.0, 4.0), Tol::witness())
+        .line_to(Point2::new(0.0, 4.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -1159,15 +1160,15 @@ fn an_arc_no_radius_drew_records_no_emission() {
         "the bulge spec's arc names no radius; the fillet's own still does"
     );
     let centred = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -1194,12 +1195,12 @@ fn an_arc_no_radius_drew_records_no_emission() {
 /// neighbour that happens to be an arc too.
 fn stored_radius(closed: &ClosedLoop<f64>, i: usize) -> Option<f64> {
     let vs = closed.loop_.vertices();
-    let b = vs[i].bulge();
+    let b = closed.loop_.bulges()[i];
     if b == 0.0 {
         return None;
     }
-    let a = vs[i].pos();
-    let z = vs[(i + 1) % vs.len()].pos();
+    let a = vs[i];
+    let z = vs[(i + 1) % vs.len()];
     let chord = (z - a).norm_squared().sqrt();
     Some(chord * (1.0 + b * b) / (4.0 * b.abs()))
 }
@@ -1219,15 +1220,15 @@ fn stored_radius(closed: &ClosedLoop<f64>, i: usize) -> Option<f64> {
 fn the_exact_fit_close_records_its_fillet_on_the_closing_segment() {
     use profile::Center;
     let exact = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             1.0,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -1254,15 +1255,15 @@ fn the_exact_fit_close_records_its_fillet_on_the_closing_segment() {
         "and the segment it names is stored at the authored radius, not {got}"
     );
     let inexact = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -1295,15 +1296,15 @@ fn a_via_close_credits_its_fillet_to_the_binder_not_the_closing_step() {
     use profile::Via;
     let h = 2.0_f64.sqrt();
     let closed = Open
-        .at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), Tol::witness())
+        .at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), Tol::witness())
         .unwrap()
         .toward(2.0, 0.0, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Via {
-                q: p2(h, h),
+                q: Point2::new(h, h),
                 p: Start,
             },
             Tol::witness(),
@@ -1351,7 +1352,7 @@ fn a_via_close_credits_its_fillet_to_the_binder_not_the_closing_step() {
 fn a_radius_bearing_leg_records_its_own_step_at_every_position() {
     use profile::{ArcLen, ArcSide, Sweep};
     let walk = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, Tol::witness())
         .unwrap()
         .arc_to(
@@ -1474,4 +1475,345 @@ fn every_radius_role_is_reached_by_the_corpus() {
          {missing:?} — the guided fence reproduces only the roles it reaches, \
          so add a chain to `coverage_corpus` that authors them"
     );
+}
+
+// ------------------------------------------------------------------
+// Pieces: which step and role each segment is.
+// ------------------------------------------------------------------
+
+/// The pieces a closed chain's segments are, as `(step, role)`.
+fn pieces_of(closed: &ClosedLoop<f64>) -> Vec<(usize, profile::PieceRole)> {
+    closed
+        .structure
+        .pieces
+        .iter()
+        .map(|p| (p.step, p.role))
+        .collect()
+}
+
+/// EDIT's zero-fit chain: `at`, `toward(+x)`, `fillet(r)`,
+/// `toward(+y)`, `to (2, 2)`, `line_to(0, 2)`, `line_to(Start)`.
+fn zero_fit_chain(r: f64) -> ClosedLoop<f64> {
+    let t = Tol::witness();
+    Open.at(Point2::new(0.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .to(Point2::new(2.0, 2.0), t)
+        .unwrap()
+        .line_to(Point2::new(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap()
+}
+
+/// **A fillet draws its run in, its arc and its run out, all credited
+/// to the step its radius is authored on.** The far end's own leg is
+/// the run out drawn as one segment with it; the fillet is authored
+/// first, so the segment is the fillet's run out and the far-end step
+/// draws nothing of its own.
+#[test]
+fn a_fillet_draws_its_run_in_its_arc_and_its_run_out() {
+    use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
+    let closed = zero_fit_chain(0.3);
+    assert_eq!(
+        pieces_of(&closed),
+        vec![(2, RunIn), (2, Arc), (2, RunOut), (5, Leg), (6, Leg)]
+    );
+    pinned(closed);
+}
+
+/// **A run a `Zero` fit suppresses is no piece, and nothing else moves**:
+/// at `r = 2` both runs have no length, the arc spans the whole corner,
+/// and every other segment keeps the piece it was.
+#[test]
+fn a_zero_fit_run_is_no_piece_and_every_other_keeps_its_own() {
+    use profile::PieceRole::{Arc, Leg};
+    let closed = zero_fit_chain(2.0);
+    assert_eq!(pieces_of(&closed), vec![(2, Arc), (5, Leg), (6, Leg)]);
+    pinned(closed);
+}
+
+/// **A leg a fillet's run continues keeps the segment**: the `line`
+/// is authored before the fillet, so the extended segment is the
+/// line's leg and the fillet's run in is not drawn.
+#[test]
+fn a_leg_a_run_continues_keeps_the_segment() {
+    use profile::PieceRole::{Arc, Leg, RunOut};
+    let t = Tol::witness();
+    let closed = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .fillet(0.3, t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .to(Point2::new(2.0, 2.0), t)
+        .unwrap()
+        .line_to(Point2::new(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&closed),
+        vec![(2, Leg), (3, Arc), (3, RunOut), (6, Leg), (7, Leg)]
+    );
+    pinned(closed);
+}
+
+/// `at`, `toward(+x)`, `fillet(1)`, `toward(+y)`, `at(2, 1)` — a corner
+/// fillet whose arrival point is exactly its tangent point, so the
+/// chain's next segment is the first one after the arc, drawn by
+/// whichever step comes next.
+fn corner_then()
+-> profile::PartialPath<f64, profile::path::HasPos<profile::path::Plain>, profile::path::HasAng> {
+    let t = Tol::witness();
+    Open.at(Point2::new(0.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(1.0, t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .at(Point2::new(2.0, 1.0), t)
+        .unwrap()
+}
+
+/// **A fillet's run out is only a segment on its arrival carrier.** A
+/// straight leg up the arrival ray after the fillet is its run out,
+/// drawn as one segment with the leg; a tangent arc there rides a
+/// circle, so it is the tangent arc's own leg and the fillet's run out
+/// is not drawn. Crediting the arc to the fillet would let a name on it
+/// move onto whatever straight run the fillet draws once the tangent
+/// arc's step is dropped.
+#[test]
+fn a_run_out_is_only_a_segment_on_the_arrival_carrier() {
+    use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
+    let t = Tol::witness();
+    let straight = corner_then()
+        .line(1.0, t)
+        .unwrap()
+        .line_to(Point2::new(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&straight),
+        vec![(2, RunIn), (2, Arc), (2, RunOut), (6, Leg), (7, Leg)]
+    );
+    pinned(straight);
+    let arc = corner_then()
+        .tangent_arc_to(Point2::new(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&arc),
+        vec![(2, RunIn), (2, Arc), (5, Leg), (6, Leg)]
+    );
+    pinned(arc);
+}
+
+/// **A fused verb's authored arc carrier is its run**: `arc_fillet`'s
+/// incoming arc is its run in, drawn by the fused step itself.
+#[test]
+fn a_fused_verbs_incoming_arc_is_its_run_in() {
+    use profile::Bulge;
+    use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
+    let t = Tol::witness();
+    let closed = Open
+        .at(Point2::new(0.0, 0.0))
+        .arc_fillet(
+            Bulge {
+                p: Point2::new(3.0, 0.0),
+                b: 0.2,
+            },
+            0.2,
+            t,
+        )
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .to(Point2::new(3.3, 4.0), t)
+        .unwrap()
+        .line_to(Point2::new(0.0, 4.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&closed),
+        vec![(1, RunIn), (1, Arc), (1, RunOut), (4, Leg), (5, Leg)]
+    );
+    pinned(closed);
+}
+
+/// **A circle is two pieces, a `circle_split` is `n`**: the one step's
+/// `Piece(k)` for its segment `k`.
+#[test]
+fn a_carrier_form_draws_piece_k_for_its_segment_k() {
+    use profile::PieceRole::Piece;
+    let t = Tol::witness();
+    let circle = profile::circle(Point2::new(0.0, 0.0), 1.0, t).unwrap();
+    assert_eq!(pieces_of(&circle), vec![(0, Piece(0)), (0, Piece(1))]);
+    let split = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 3, 0.0, t).unwrap();
+    assert_eq!(
+        pieces_of(&split),
+        vec![(0, Piece(0)), (0, Piece(1)), (0, Piece(2))]
+    );
+    pinned(circle);
+    pinned(split);
+}
+
+/// **The role lists admit what their verbs draw and nothing else**: a
+/// fillet's three roles, a leg's one, a carrier's `Piece(k)` below its
+/// count, and nothing on a binder.
+#[test]
+fn a_role_list_admits_its_verbs_roles_only() {
+    use profile::PieceRole::{Arc, Leg, Piece, RunIn, RunOut};
+    use profile::{RoleList, Verb};
+    assert_eq!(RoleList::of(Verb::At).named(), &[] as &[profile::PieceRole]);
+    assert_eq!(RoleList::of(Verb::LineTo).named(), &[Leg]);
+    assert_eq!(
+        RoleList::of(Verb::ArcFilletArc).named(),
+        &[RunIn, Arc, RunOut]
+    );
+    assert!(
+        !RoleList::of(Verb::Line).admits(Arc, 0),
+        "a leg verb draws no arc"
+    );
+    assert!(
+        !RoleList::of(Verb::Fillet).admits(Leg, 0),
+        "a fillet draws no leg"
+    );
+    assert!(
+        RoleList::of(Verb::CircleSplit).admits(Piece(2), 3),
+        "piece 2 of 3"
+    );
+    assert!(
+        !RoleList::of(Verb::CircleSplit).admits(Piece(3), 3),
+        "piece 3 of 3"
+    );
+    assert!(
+        !RoleList::of(Verb::Circle).admits(Leg, 2),
+        "a carrier draws no leg"
+    );
+    let answered: Vec<RoleList> = Verb::ALL.iter().map(|v| RoleList::of(*v)).collect();
+    for list in RoleList::ALL {
+        assert!(answered.contains(&list), "{list:?} is no verb's list");
+    }
+    for list in &answered {
+        assert!(
+            RoleList::ALL.contains(list),
+            "{list:?} is missing from RoleList::ALL"
+        );
+    }
+}
+
+/// **A record naming a role its verb's list lacks is a kernel bug**,
+/// and the check every closing verb runs says so.
+#[test]
+#[should_panic(expected = "does not hold")]
+fn a_record_off_its_role_list_fails_loud() {
+    let t = Tol::witness();
+    let mut circle = profile::circle(Point2::new(0.0, 0.0), 1.0, t).unwrap();
+    circle.structure.pieces[1].role = profile::PieceRole::Piece(2);
+    circle.structure.check_role_lists(&circle.program);
+}
+
+/// **A fused verb's authored arrival arc is its fillet's `RunOut`,
+/// wherever it is drawn.** A `Via` or `Radius` arrival is emitted by a
+/// LATER binder step, and the emission site claims the arc as the run
+/// out; no geometric reading stands between the arc and its name. Far
+/// from the origin at a tight ε the arc's radial misses round past the
+/// band, and a reading refused the chain as a near-coincidence on the
+/// arrival carrier or named the arc the binder's `Leg`, a role no fused
+/// list holds.
+///
+/// Each scene is translated to two far corners. At every ε row it
+/// either builds and names its arrival arc the fused step's `RunOut`,
+/// or refuses with the geometry's own refusal — never on the naming
+/// decision. Where the geometry decides, it builds: at every ε of 1e-6
+/// and wider everywhere, and the `Via` close at (−1.35e6, 819) at
+/// 1e-11 too, which the carrier reading refused. At 1e-12 every scene
+/// at these corners refuses on the fillet arc's own storage decision,
+/// which rounds at ε·|coordinate| as the carrier reading did.
+#[test]
+fn a_fused_arrival_arc_far_from_the_origin_is_its_run_out() {
+    use profile::PieceRole::RunOut;
+    use profile::{ArcSide, Radius, Sweep, Via};
+    let t = Tol::witness();
+    let eps = t.eps();
+    let s2 = core::f64::consts::SQRT_2;
+    // `(scene, corner, the fused step, whether this ε must build it)`.
+    let far = (-1.35e6, 819.0);
+    let other = (85000.0, 40000.0);
+    let rows = [
+        ("via", far, 3, eps >= 1e-11),
+        ("via", other, 3, eps >= 1e-6),
+        ("radius", far, 4, eps >= 1e-6),
+        ("radius", other, 4, eps >= 1e-6),
+    ];
+    for (scene, (ox, oy), fused, must_build) in rows {
+        let p = |x: f64, y: f64| Point2::new(x + ox, y + oy);
+        let built = if scene == "via" {
+            Open.at(p(0.0, 2.0))
+                .line_to(p(0.0, 0.0), t)
+                .unwrap()
+                .toward(2.0, 0.0, t)
+                .unwrap()
+                .fillet_arc(
+                    0.5,
+                    Via {
+                        q: p(s2, s2),
+                        p: Start,
+                    },
+                    t,
+                )
+                .and_then(|a| a.toward(-1.0, 0.0, t))
+        } else {
+            Open.at(p(0.0, 0.0))
+                .angle(0.0, t)
+                .unwrap()
+                .line(4.0, t)
+                .unwrap()
+                .tangent()
+                .arc_fillet_arc(
+                    Sweep {
+                        r: 2.0,
+                        side: ArcSide::Left,
+                        angle: 0.6,
+                    },
+                    0.25,
+                    Radius {
+                        r: 3.0,
+                        side: ArcSide::Left,
+                    },
+                    t,
+                )
+                .and_then(|a| a.at(p(2.0, 6.0)).toward(-1.0, 0.0, t))
+                .and_then(|a| a.line(2.0, t))
+                .and_then(|a| a.line_to(Start, t))
+        };
+        let label = format!("{scene} at ({ox}, {oy}), eps {eps:e}");
+        match built {
+            Ok(closed) => assert!(
+                pieces_of(&closed).contains(&(fused, RunOut)),
+                "{label}: {:?}",
+                pieces_of(&closed)
+            ),
+            Err(e) => {
+                assert!(!must_build, "{label} refused: {e}");
+                assert!(
+                    !e.to_string().contains("arrival carrier"),
+                    "{label} refused on the naming decision: {e}"
+                );
+            }
+        }
+    }
 }

@@ -4,6 +4,8 @@ kind: issue
 title: the symmetric U-cutter tie document is hand-built in thirteen test files with no shared builder
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

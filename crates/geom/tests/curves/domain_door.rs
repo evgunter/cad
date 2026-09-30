@@ -110,9 +110,15 @@ fn on_domain_refuses_as_the_domain_and_serves_both_dimensions() {
         src.on_domain(0.9, 0.3).unwrap_err(),
         SplineError::DomainInvalid { lo: 0.9, hi: 0.3 }
     );
-    assert_eq!(
-        src.on_domain(0.5, f64::NAN).unwrap_err().to_string(),
-        "the domain [0.5, NaN] is not a finite increasing interval of finite width"
+    // The fragment, not the whole string: the rendering carries a
+    // recourse clause behind the condition
+    // (`every_spline_error_arm_names_a_recourse`), and a full-string
+    // pin here would make that clause unwritable rather than checking
+    // anything about the door.
+    let msg = src.on_domain(0.5, f64::NAN).unwrap_err().to_string();
+    assert!(
+        msg.contains("the domain [0.5, NaN] is not a finite increasing interval of finite width"),
+        "the domain door's own refusal is not what was rendered: {msg}"
     );
 
     let knots = KnotVector::clamped(vec![1.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap();

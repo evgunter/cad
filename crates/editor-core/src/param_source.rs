@@ -203,7 +203,7 @@ fn encode(expr: &Expr, out: &mut Vec<u8>) {
         }
         ExprKind::Param(name) => {
             out.push(T_PARAM);
-            let bytes = name.0.as_bytes();
+            let bytes = name.as_str().as_bytes();
             // A length prefix, because a name is the one payload with
             // no fixed width. The width is `u32`, saturating: a name
             // beyond four gigabytes is not a name any document can
@@ -690,13 +690,10 @@ mod tests {
 
     use super::*;
     use crate::doc::ParamName;
+    use crate::test_support::len;
 
-    fn p(name: &str) -> Expr {
-        Expr::param(ParamName::new(name), Dimension::Length)
-    }
-
-    fn lit(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Length).unwrap()
+    fn p(name: &'static str) -> Expr {
+        Expr::param(ParamName::from_static(name), Dimension::Length)
     }
 
     fn root() -> ParamScope {
@@ -758,7 +755,7 @@ mod tests {
     /// naming its row.
     #[test]
     fn the_alphabet_covers_the_encoder() {
-        let arms = match ExprKind::Neg(Box::new(lit(0.0))) {
+        let arms = match ExprKind::Neg(Box::new(len(0.0))) {
             ExprKind::Literal(_)
             | ExprKind::CountLiteral(_)
             | ExprKind::Param(_)
@@ -827,10 +824,10 @@ mod tests {
             p("ab"),
             p("c"),
             p("bc"),
-            Expr::param(ParamName::new("a"), Dimension::Angle),
-            lit(0.0),
-            lit(-0.0),
-            lit(1.0),
+            Expr::param(ParamName::from_static("a"), Dimension::Angle),
+            len(0.0),
+            len(-0.0),
+            len(1.0),
             count.clone(),
             Expr::count_to_scalar(count).unwrap(),
         ];
@@ -847,7 +844,7 @@ mod tests {
                 out.extend(Expr::atan2(x.clone(), y.clone()).ok());
             }
         }
-        let angle = Expr::param(ParamName::new("th"), Dimension::Angle);
+        let angle = Expr::param(ParamName::from_static("th"), Dimension::Angle);
         out.extend(Expr::sin(angle.clone()).ok());
         out.extend(Expr::cos(angle.clone()).ok());
         out.extend(Expr::tan(angle).ok());

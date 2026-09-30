@@ -48,7 +48,7 @@ fn mirrored_cube_is_caught_by_negative_volume() {
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::NegativeVolume)),
+            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
         "+V must fire on the mirrored cube; got {errs:?}"
     );
 }
@@ -62,7 +62,7 @@ fn megascale_mirrored_cube_is_caught() {
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::NegativeVolume)),
+            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
         "+V must fire at 1e6 scale; got {errs:?}"
     );
 }
@@ -136,11 +136,14 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
     };
     body.set_face_surface(
         fk,
-        FaceSurface::New(Surface::Plane {
-            origin: origin + normal * 0.05,
-            normal,
-            u_ref,
-        }),
+        FaceSurface::New {
+            surface: Surface::Plane {
+                origin: origin + normal * 0.05,
+                normal,
+                u_ref,
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
@@ -151,7 +154,7 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
     assert!(
         errs.iter().all(|e| !matches!(
             e,
-            ValidationError::NegativeVolume | ValidationError::VolumeUncomputable { .. }
+            ValidationError::NegativeVolume { .. } | ValidationError::VolumeUncomputable { .. }
         )),
         "volume verdicts must be suppressed on an unclean report; got {errs:?}"
     );

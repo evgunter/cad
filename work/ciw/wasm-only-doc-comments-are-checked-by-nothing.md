@@ -4,6 +4,8 @@ kind: issue
 title: no browser rustdoc pass runs, so a doc comment on a wasm-only item gets neither a doc build nor a lint
 status: open
 opened: 2026-09-10
+priority: P4
+cost: E
 ---
 
 
@@ -102,6 +104,7 @@ conditional. That much is confirmed. Three things refuse it:
 
 ## Fence
 
-The CI row is `.github/workflows/ci.yml`, which is **CIW's**. The
+The CI row would sit beside the rustdoc gate in
+`.github/workflows/nightly.yml` (`rustdoc-roots`), which is **CIW's**. The
 `examples/` fix and the lint selection for a browser pass are this
 crate's.

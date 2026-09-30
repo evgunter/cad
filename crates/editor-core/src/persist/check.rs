@@ -42,6 +42,7 @@ use crate::meta::MetaVersionError;
 use crate::names::StableName;
 use crate::node::SlotId;
 use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
+use crate::placement::{FrameFault, FrameSite};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
 use geom_core::Tol;
@@ -238,7 +239,7 @@ impl Walk {
             Walk::NonFinite => first_non_finite(snapshot, edits)
                 .map(|site| super::PersistError::NonFinite { site }),
             Walk::MaintenanceFrame => {
-                first_maintenance_frame_fault(edits).map(|(index, row, fault)| {
+                first_maintenance_frame_fault(edits, tol).map(|(index, row, fault)| {
                     super::PersistError::MaintenanceFrame { index, row, fault }
                 })
             }
@@ -263,7 +264,7 @@ impl Walk {
                 .map(|(node, fault)| param_ref_refusal(node, ParamRefAddress::Payload, fault)),
             Walk::Program => first_program_fault(snapshot, tol)
                 .map(|(node, fault)| super::PersistError::ProfileProgram { node, fault }),
-            Walk::Snapshot => validate_snapshot(snapshot)
+            Walk::Snapshot => validate_snapshot(snapshot, tol)
                 .err()
                 .map(super::PersistError::Snapshot),
         }
@@ -500,7 +501,7 @@ fn first_slot_param_ref_fault(
 /// and [`crate::node::payload_exprs`] together do NOT reach every
 /// `Expr` a node can hold: a `Node::Pattern`'s or `Node::PlacedUnion`'s
 /// COUNT expression under an `Explicit` rule is addressed by no slot
-/// (`node::rule_slots` gives a count slot only under a STEPPED rule)
+/// (`node::rule_rows` gives a count slot only under a STEPPED rule)
 /// and is no payload either. Such a file is still refused — by
 /// [`Walk::Snapshot`], as `PlacementRule` with
 /// `PlacementRuleFault::CountSpelling`, because a count expression and
@@ -527,16 +528,17 @@ fn first_payload_param_ref_fault(
 /// placement** — the log's rows are trusted bytes otherwise, and a
 /// row's frame enters the registry at replay without passing the
 /// `SetPlacement` door, so it is held here to exactly what that door
-/// holds a frame to ([`crate::Frame::admission_fault`]: finite, and
-/// proper). Named by the entry's index in the log and the row's index
+/// holds a frame to ([`crate::Frame::admission_fault`]: finite, proper
+/// and rigid). Named by the entry's index in the log and the row's index
 /// in the entry.
 fn first_maintenance_frame_fault(
     edits: &[LoggedEdit<ProfileProgram>],
+    tol: Tol,
 ) -> Option<(usize, usize, crate::placement::FrameFault)> {
     edits.iter().enumerate().find_map(|(index, entry)| {
         entry.maintenance.iter().enumerate().find_map(|(row, act)| {
             act.frame()
-                .and_then(|f| f.admission_fault())
+                .and_then(|f| f.admission_fault(tol))
                 .map(|fault| (index, row, fault))
         })
     })
@@ -697,6 +699,10 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }
+        // A program's continuous arguments are `Expr` literals, finite
+        // by the construction door like an inserted profile's; its
+        // provenance is integers.
+        | DocEdit::SetProgram { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }
@@ -730,6 +736,30 @@ pub enum SnapshotError {
         id: RecipeNodeId,
         /// The counter.
         next_id: u64,
+    },
+    /// A profile's step ids are not the ones its edit doors would have
+    /// minted (`names/README.md`, "N1, the profile pieces"): not one
+    /// per authored step, not in the mint log, or one id standing for
+    /// two steps anywhere in the document.
+    StepIds {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// What is wrong.
+        fault: crate::program::StepIdFault,
+    },
+    /// The step mint's log is not strictly ascending: an id logged
+    /// twice, or out of order — a log no mint wrote.
+    MintLogOrder {
+        /// The first entry not greater than the one before it.
+        step: crate::node::StepId,
+    },
+    /// A name the document holds spells a profile step its mint log
+    /// does not hold — one the document never minted.
+    NameStepNotMinted {
+        /// The name.
+        name: Box<crate::names::StableName>,
+        /// The step it spells.
+        step: crate::node::StepId,
     },
     /// A node's input ref does not name a live node.
     DanglingInput {
@@ -784,23 +814,42 @@ pub enum SnapshotError {
         /// The offending key.
         node: RecipeNodeId,
     },
-    /// A placement frame carrying a non-finite coordinate. The edit
-    /// door refuses it, so a file holding one is corrupt — refused,
-    /// never repaired.
+    /// A placement frame carrying a non-finite coordinate — a
+    /// registry row's, or a literal step of a transform's placement.
+    /// The edit door refuses it, so a file holding one is corrupt —
+    /// refused, never repaired.
     PlacementNonFinite {
-        /// The offending key.
+        /// The registry key, or the transform.
         node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
     },
     /// An IMPROPER placement frame — determinant ≤ 0, the A6 mirror
     /// case R4 gates. Its own arm rather than
     /// [`SnapshotError::PlacementNonFinite`]: a mirror is authored data
     /// this build declines to admit, a non-finite coordinate is data no
-    /// predicate can read, and the repairs differ.
+    /// predicate can read, and the repairs differ. A registry row's
+    /// frame, or a literal step of a transform's placement.
     PlacementImproper {
-        /// The offending key.
+        /// The registry key, or the transform.
         node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
         /// The linear part's determinant.
         determinant: f64,
+    },
+    /// A proper placement frame that is not definitely a rigid motion
+    /// at tolerance — a registry row's, or a literal step of a
+    /// transform's placement. The edit door refuses it by the
+    /// predicate the evaluation moves a body by.
+    PlacementNonRigid {
+        /// The registry key, or the transform.
+        node: RecipeNodeId,
+        /// Which of its frames.
+        at: FrameSite,
+        /// The rigidity check that refused; routing, never rendered by
+        /// name.
+        check: &'static str,
     },
     /// A placement row keyed by an instance that is NOT its cluster's
     /// gauge (ASM-R2a D-3). A11 puts the frame on the cluster, and the
@@ -964,6 +1013,50 @@ pub enum SnapshotError {
     },
 }
 
+impl SnapshotError {
+    /// The arm a frame the admission rule refused is reported under,
+    /// at `at` on `node`.
+    fn placement_frame(node: RecipeNodeId, at: FrameSite, fault: FrameFault) -> Self {
+        match fault {
+            FrameFault::NonFinite => Self::PlacementNonFinite { node, at },
+            FrameFault::Improper { determinant } => Self::PlacementImproper {
+                node,
+                at,
+                determinant,
+            },
+            FrameFault::NotRigid { check } => Self::PlacementNonRigid { node, at, check },
+        }
+    }
+}
+
+/// **A placement frame's refusal at load**: the frame's subject at its
+/// site and the frame rule's own clause, then what a user holding the
+/// file can do. The edit doors never admitted a non-finite or a
+/// mirrored frame, so a file holding one was not written by them; a
+/// frame that is not rigid was admitted by earlier builds at the
+/// registry and in an explicit rule, and a current build refuses it at
+/// the edit door with that frame's own recourse.
+fn frame_refusal(
+    f: &mut core::fmt::Formatter<'_>,
+    node: RecipeNodeId,
+    at: FrameSite,
+    fault: FrameFault,
+) -> core::fmt::Result {
+    write!(f, "{} {fault}. ", at.subject(node))?;
+    match fault {
+        FrameFault::NonFinite | FrameFault::Improper { .. } => {
+            f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
+        }
+        FrameFault::NotRigid { .. } => {
+            write!(
+                f,
+                "{}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            )
+        }
+    }
+}
+
 // The document layer's prose for a corrupt snapshot: each arm states
 // WHAT is wrong and WHERE, and forwards the payload's own `Display`
 // wherever the payload has one (`RootFault`, `PlacementRuleFault`,
@@ -983,6 +1076,21 @@ impl core::fmt::Display for SnapshotError {
                 "node id {} is at or beyond the mint counter {next_id} — replay would \
                  re-mint a referenced id",
                 id.0
+            ),
+            Self::StepIds { node, fault } => {
+                write!(f, "profile node {}'s step ids: {fault}", node.0)
+            }
+            Self::MintLogOrder { step } => write!(
+                f,
+                "the step mint's log is not strictly ascending at id {} — an id logged twice or \
+                 out of order, which no mint writes",
+                step.0
+            ),
+            Self::NameStepNotMinted { name, step } => write!(
+                f,
+                "the {name} spells the profile step id #{}, which the document's mint log does not \
+                 hold — the document never minted it",
+                step.0
             ),
             Self::DanglingInput { node, input } => write!(
                 f,
@@ -1023,20 +1131,24 @@ impl core::fmt::Display for SnapshotError {
             // (`crate::placement::FrameFault`); these arms supply only
             // the subject, so a reader sees one sentence about a frame
             // wherever a frame was refused.
-            Self::PlacementNonFinite { node } => write!(
+            Self::PlacementNonFinite { node, at } => {
+                frame_refusal(f, *node, *at, FrameFault::NonFinite)
+            }
+            Self::PlacementImproper {
+                node,
+                at,
+                determinant,
+            } => frame_refusal(
                 f,
-                "the placement frame on node {} {}",
-                node.0,
-                crate::placement::FrameFault::NonFinite
+                *node,
+                *at,
+                FrameFault::Improper {
+                    determinant: *determinant,
+                },
             ),
-            Self::PlacementImproper { node, determinant } => write!(
-                f,
-                "the placement frame on node {} {}",
-                node.0,
-                crate::placement::FrameFault::Improper {
-                    determinant: *determinant
-                }
-            ),
+            Self::PlacementNonRigid { node, at, check } => {
+                frame_refusal(f, *node, *at, FrameFault::NotRigid { check })
+            }
             Self::PlacementNotGauge { node, gauge } => write!(
                 f,
                 "the placement keyed by node {} belongs on its cluster's gauge, node {}",
@@ -1141,7 +1253,7 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
-                "metadata {key:?} on the {name} does not carry the D7 integer \
+                "metadata {key:?} on the {name} does not carry an integer \
                  \"v\" version field: {error}"
             ),
         }
@@ -1150,7 +1262,7 @@ impl core::fmt::Display for SnapshotError {
 
 /// Re-checks the document invariants `apply` maintains — on a parsed
 /// snapshot (load) and on the in-memory snapshot (save) alike.
-fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
+fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // order ↔ nodes agreement (and no duplicates: equal lengths plus
     // every order id resolving implies a bijection on a BTreeMap).
     let mut position = std::collections::BTreeMap::new();
@@ -1179,6 +1291,33 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             Ok(())
         }
     };
+    // The mint log first, since every check below asks it: strictly
+    // ascending, the only log a mint writes.
+    if let Some(step) = doc.step_mint.out_of_order() {
+        return Err(SnapshotError::MintLogOrder { step });
+    }
+    // Every profile's step ids: one per authored step, each one the
+    // mint log holds, and no id standing for two steps anywhere in the
+    // document — the three things the edit doors' minting makes true
+    // (N1).
+    let mut seen_steps = std::collections::BTreeSet::new();
+    for (&id, node) in &doc.nodes {
+        let Node::Profile(program) = node else {
+            continue;
+        };
+        let fault = |fault| SnapshotError::StepIds { node: id, fault };
+        program.check_id_shape().map_err(fault)?;
+        for ids in &program.ids {
+            for &step in ids {
+                if !doc.step_mint.has_minted(step) {
+                    return Err(fault(crate::program::StepIdFault::NotMinted { step }));
+                }
+                if !seen_steps.insert(step) {
+                    return Err(fault(crate::program::StepIdFault::Repeated { step }));
+                }
+            }
+        }
+    }
     for (&id, node) in &doc.nodes {
         check_id(id)?;
         for input in node.inputs() {
@@ -1209,8 +1348,18 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // and every rule on the wire must be one the edit door would
         // have accepted — one spelling of the count, at least one
         // placement, and frames that are finite and proper.
-        if let Some(fault) = node.placement_rule_fault() {
+        if let Some(fault) = node.placement_rule_fault(tol) {
             return Err(SnapshotError::PlacementRule { node: id, fault });
+        }
+        // A transform's literal frames, held by the predicate the edit
+        // door asks, for the rule's reason: the snapshot is the one road
+        // to a document that does not pass `apply`.
+        if let Some((index, fault)) = node.placement_frame_fault(tol) {
+            return Err(SnapshotError::placement_frame(
+                id,
+                FrameSite::Step { index },
+                fault,
+            ));
         }
         // DM5's third caller, for the reason the placement rule above
         // has one: a saved file is DATA, and a SNAPSHOT is the one way
@@ -1288,6 +1437,19 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         for n in derivation_nodes(carrier.name()) {
             check_id(n)?;
         }
+        // And every profile step it spells, against the mint log: a
+        // step a `SetProgram` dropped stays in it.
+        if let Some(&step) = carrier
+            .name()
+            .piece_steps()
+            .iter()
+            .find(|s| !doc.step_mint.has_minted(**s))
+        {
+            return Err(SnapshotError::NameStepNotMinted {
+                name: Box::new(carrier.name().clone()),
+                step,
+            });
+        }
     }
     // The witness store's key rule, by the same
     // `doc::witness_site_fault` the witness edit doors ask: a witness
@@ -1309,12 +1471,11 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // have accepted.
     for (&node, frame) in &doc.placements {
         check_id(node)?;
-        if let Some(fault) = crate::doc::placement_fault(doc, node, frame) {
+        if let Some(fault) = crate::doc::placement_fault(doc, node, frame, tol) {
             return Err(match fault {
                 PlacementFault::NotAnInstance => SnapshotError::PlacementSite { node },
-                PlacementFault::NonFiniteFrame => SnapshotError::PlacementNonFinite { node },
-                PlacementFault::ImproperFrame { determinant } => {
-                    SnapshotError::PlacementImproper { node, determinant }
+                PlacementFault::Frame(fault) => {
+                    SnapshotError::placement_frame(node, FrameSite::Registry, fault)
                 }
             });
         }
@@ -1368,9 +1529,12 @@ pub enum ProgramFault {
     /// The program is not a legal lattice walk (LIB-SWITCH §4h: the
     /// replay PROBE under the document's params refused with the
     /// Transition class — no authoring surface can record this).
-    /// Geometry refusals and resolve failures deliberately PASS this
-    /// door: they are V1 class 2, legal at rest, surfaced as typed
-    /// node errors at evaluation.
+    /// Geometry refusals, resolve failures and validate refusals
+    /// ([`crate::ProgramRefusal::Validate`] — a bowtie loop, even one
+    /// drawn in literals the insert door refuses) deliberately PASS
+    /// this door: they are V1 class 2, legal at rest, surfaced as
+    /// typed node errors at evaluation (the validate class as
+    /// [`crate::NodeErrorKind::Profile`]).
     Lattice {
         /// The offending loop.
         loop_: u32,
@@ -1461,6 +1625,7 @@ mod tests {
     use crate::expr::Dimension;
     use crate::node::{Node, RecipeNodeId, SlotId};
     use crate::persist::{PersistError, SnapshotError, save};
+    use crate::placement::FrameSite;
     use crate::program::ProfileDoc;
     use geom_core::Tol;
 
@@ -1509,6 +1674,9 @@ mod tests {
         const SNAPSHOT_ERROR: SnapshotError = [
             OrderMismatch,
             IdBeyondCounter,
+            StepIds,
+            MintLogOrder,
+            NameStepNotMinted,
             DanglingInput,
             ForwardInput,
             DeclareInput,
@@ -1524,6 +1692,7 @@ mod tests {
             PlacementSite,
             PlacementNonFinite,
             PlacementImproper,
+            PlacementNonRigid,
             PlacementNotGauge,
             MateAlignment,
             PlacementRule,
@@ -1550,6 +1719,9 @@ mod tests {
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::OrderMismatch
             | SnapshotError::IdBeyondCounter { .. }
+            | SnapshotError::StepIds { .. }
+            | SnapshotError::MintLogOrder { .. }
+            | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DanglingInput { .. }
             | SnapshotError::ForwardInput { .. }
             | SnapshotError::DeclareInput { .. }
@@ -1560,6 +1732,7 @@ mod tests {
             | SnapshotError::PlacementSite { .. }
             | SnapshotError::PlacementNonFinite { .. }
             | SnapshotError::PlacementImproper { .. }
+            | SnapshotError::PlacementNonRigid { .. }
             | SnapshotError::PlacementNotGauge { .. }
             | SnapshotError::MateAlignment { .. }
             | SnapshotError::PlacementRule { .. }
@@ -1600,6 +1773,23 @@ mod tests {
                 id: node,
                 next_id: 4,
             },
+            SnapshotError::StepIds {
+                node,
+                fault: crate::program::StepIdFault::Repeated {
+                    step: crate::node::StepId(2),
+                },
+            },
+            SnapshotError::MintLogOrder {
+                step: crate::node::StepId(3),
+            },
+            SnapshotError::NameStepNotMinted {
+                name: Box::new(crate::names::StableName {
+                    kind: crate::names::EntityKind::Face,
+                    node,
+                    path: Vec::new(),
+                }),
+                step: crate::node::StepId(9),
+            },
             SnapshotError::DanglingInput {
                 node,
                 input: RecipeNodeId(9),
@@ -1623,22 +1813,22 @@ mod tests {
             SnapshotError::SlotUnknownDocParam {
                 node,
                 slot: SlotId::Radius,
-                name: ParamName::new("fillet"),
+                name: ParamName::from_static("fillet"),
             },
             SnapshotError::SlotDocParamDimension {
                 node,
                 slot: SlotId::Distance,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::PayloadUnknownDocParam {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
             },
             SnapshotError::PayloadDocParamDimension {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::from_static("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1648,10 +1838,19 @@ mod tests {
                 descendant: RecipeNodeId(2),
             }),
             SnapshotError::PlacementSite { node },
-            SnapshotError::PlacementNonFinite { node },
+            SnapshotError::PlacementNonFinite {
+                node,
+                at: FrameSite::Registry,
+            },
             SnapshotError::PlacementImproper {
                 node,
+                at: FrameSite::Step { index: 1 },
                 determinant: -1.0,
+            },
+            SnapshotError::PlacementNonRigid {
+                node,
+                at: FrameSite::Step { index: 1 },
+                check: "transform_rigid_col0_unit",
             },
             SnapshotError::PlacementNotGauge {
                 node,
@@ -1889,7 +2088,7 @@ mod tests {
             },
         );
         match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node })) => {
+            Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node, .. })) => {
                 assert_eq!(node, ids[0]);
             }
             other => panic!("a non-finite placement must refuse at save, got {other:?}"),

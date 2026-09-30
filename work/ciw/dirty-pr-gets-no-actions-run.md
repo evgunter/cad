@@ -5,6 +5,8 @@ title: A PR that goes mergeable_state dirty against a moved main gets NO Actions
 status: open
 opened: 2026-09-05
 refs: [1910]
+priority: P4
+cost: E
 ---
 
 
@@ -196,7 +198,7 @@ one:
   workflow run is the record.
 
 **A second open row on this slate names the same defect.**
-`work/ciw/an-unmergeable-pr-is-silently-ungated-not-visibly-red` was
+`an-unmergeable-pr-is-silently-ungated-not-visibly-red` (folded below) was
 opened on 2026-09-16 — *"A PR whose merge ref cannot be computed gets
 ZERO check runs, which reads as green unless you count jobs"*. That is
 this row's subject from the reader's side rather than the lane's, and
@@ -207,3 +209,14 @@ CIW's call, not INSTR's** — recorded here rather than acted on, because
 merging another program's rows across the fence is not a passing
 lane's to do. This evidence is filed on this row because it is the
 older and the one the closed row already points at.
+
+## Folded: `an-unmergeable-pr-is-silently-ungated-not-visibly-red` (2026-09-28, CIW)
+
+This row survives; the other is deleted and its fix shapes are carried
+here, strongest first: (1) a required check that runs unconditionally,
+so a head with zero runs cannot merge; (2) a merge rule that refuses a
+head with no run attached; (3) the one-line discipline sentence above,
+which is the weakest because it asks every reader to remember what the
+gate could enforce. The reader's-side symptom it added: a lane polling
+for "no failures" or "all checks complete" reads a runless head as
+green; only a lane that asserts a positive job count notices.

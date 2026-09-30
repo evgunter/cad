@@ -9,7 +9,7 @@ use crate::common;
 
 use common::{brick, cube_into, mapped_cube, prism, prism_z};
 use geom_core::Tol;
-use geom_core::{Bounds, Decide, Point3, Vec3};
+use geom_core::{Decide, Point3, Vec3};
 use topo::{
     Body, BooleanError, BooleanResult, ContactRecords, SplitError, SplitJoinError, SplitPart,
     SplitPlane, ValidationError, intersect, mass_properties, split, subtract, union,
@@ -105,7 +105,7 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 /// documented "double refusal = genuine both-sided zero-area residue"
 /// reading. Controls: each single-sided half succeeds under the SAME
 /// plane with exact volume conservation.
-fn both_sided_pinch_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
+fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     for (profile, must_succeed) in [(BUMP_ONLY, true), (NOTCH_ONLY, true), (BOTH_SIDED, false)] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
@@ -150,7 +150,7 @@ fn r1_both_sided_pinch_f64() {
 /// Compares volumes, shell/face/edge/vertex counts per assigned side,
 /// and the section-face normal convention (above section m = −n,
 /// below m = +n) that the doc claims survives the swap.
-fn mirror_identity_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
+fn mirror_identity_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     for profile in [MIRRORED, NOTCHED] {
         let fx = prism::<T>(profile, 1.0, Tol::witness());
         let rp = split(&fx.body, &plane_y::<T>(1.0, 1.0), Tol::witness()).unwrap();
@@ -232,7 +232,6 @@ fn r1_mirror_identity_structural_f64() {
     mirror_identity_scenario::<f64>();
 }
 
-#[cfg(feature = "interval")]
 mod interval_r1 {
     use super::*;
 
@@ -254,6 +253,8 @@ mod interval_r1 {
 /// slabs occupying the same z range. The census has no face-face
 /// sweep; the claim is the skeleton lanes catch it. Expect LOUD:
 /// EdgeEdgeCross (in-plane boundary crossings) and/or EdgeFaceOverlap.
+/// The instance arm reads those crossings as touches of two wedges
+/// whose interiors meet, and refuses the pair as a mixed touch.
 #[test]
 fn r2_coplanar_plus_overlap_detected() {
     let mut body = mapped_cube(|x, y, z| Point3::new(3.0 * x, 1.0 + y, z), Tol::witness());
@@ -264,10 +265,18 @@ fn r2_coplanar_plus_overlap_detected() {
     );
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
-    assert!(
+    // Beside the findings, the instance arm's one refusal of the pair.
+    assert_eq!(
         errors
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .filter(|e| !matches!(e, ValidationError::UndeclaredContact { .. }))
+            .map(|e| match e {
+                ValidationError::CensusUndecidable { what, .. } =>
+                    what.contains("one passes into the other where they touch"),
+                _ => false,
+            })
+            .collect::<Vec<_>>(),
+        [true],
         "{errors:?}"
     );
     assert!(
@@ -510,7 +519,7 @@ fn r4_extended_sweep_volume_identities() {
 /// `pm_census_ve_span` (and the vv lane at delta = 0 corners). For
 /// every delta at or inside ε the validator must REFUSE (finding or
 /// typed escalation) — a silent Ok is the R5 falsification.
-fn straddle_scenario<T: Decide + topo::PropsQuadLane + geom_core::Bounds>(delta: f64) {
+fn straddle_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(delta: f64) {
     let fx = prism_z::<T>(
         &[
             (0.0, 0.0),
@@ -686,7 +695,6 @@ fn r7_closure_reversed_rows_loud() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval_r5 {
     use super::*;
 

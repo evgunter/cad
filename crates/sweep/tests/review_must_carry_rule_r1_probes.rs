@@ -21,11 +21,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeDescription, MustCarryVerdict, must_carry_over_edge};
-use geom_core::{Band, MarginDiag, Point2, Point3, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_brep::{MustCarryVerdict, must_carry_over_edge};
+use geom_core::{Band, ErrorTextReading, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, RevolveError, extrude, revolve};
 use topo::Body;
+
+use crate::common::contact_edges::intrinsic_edges;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("the run's linear band")
@@ -93,17 +95,17 @@ fn kappa_rel_varies_along_a_lane_admitted_carrier_and_the_second_station_decides
     };
     let (s1, s2, s4) = (at(1), at(2), at(4));
     assert_eq!(
-        s1.verdict,
+        s1.verdict.map(|d| d.sign),
         Ok(Sign::Positive),
         "station 1 is definite: {s1:?}"
     );
     assert_eq!(
-        s2.verdict,
+        s2.verdict.map(|d| d.sign),
         Ok(Sign::Zero),
         "station 2 is the zero of κ_rel: {s2:?}"
     );
     assert_eq!(
-        s4.verdict,
+        s4.verdict.map(|d| d.sign),
         Ok(Sign::Positive),
         "the midpoint station is definite: {s4:?}"
     );
@@ -189,8 +191,8 @@ fn in_band_margins() -> [f64; 2] {
 fn assert_in_band(source: geom_core::Indeterminate) {
     assert_eq!(source.predicate, Some("tangent_second_order"));
     let b = band();
-    match source.margin {
-        MarginDiag::Value(m) => assert!(
+    match source.margin.diagnostic_f64_for_error_text() {
+        ErrorTextReading::Value(m) => assert!(
             m.abs() > b.zero() && m.abs() < b.escalate(),
             "margin {m:e} outside ({:e}, {:e})",
             b.zero(),
@@ -200,19 +202,6 @@ fn assert_in_band(source: geom_core::Indeterminate) {
     }
 }
 
-fn tangent_intersections(body: &Body<f64>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(geom_brep::EdgeCurve::description),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count()
-}
-
 const STADIUM_R: f64 = 0.4;
 
 /// A stadium — two semicircles of radius [`STADIUM_R`] joined by two
@@ -220,13 +209,12 @@ const STADIUM_R: f64 = 0.4;
 /// whose fold is `min(∞, r, h)`.
 fn stadium(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let r = STADIUM_R;
-    let p2 = Point2::<f64>::new;
     // A semicircle's bulge is tan(π/4) = 1.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 0.0),
-        ProfileVertex::new(p2(2.0, -r), 1.0),
-        ProfileVertex::new(p2(2.0, r), 0.0),
-        ProfileVertex::new(p2(0.0, r), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 0.0),
+        (Point2::new(2.0, -r), 1.0),
+        (Point2::new(2.0, r), 0.0),
+        (Point2::new(0.0, r), 1.0),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -247,9 +235,9 @@ fn a_stadium_strut_refuses_at_both_ends_of_the_band_and_stores_either_definite_s
         }
     }
     let positive = stadium(arm_for(STADIUM_R / 4.0, STADIUM_R)).expect("definite builds");
-    assert_eq!(tangent_intersections(&positive), 4);
+    assert_eq!(intrinsic_edges(&positive), 4);
     let zero = stadium(arm_for(band().zero() / 50.0, STADIUM_R)).expect("under-determined builds");
-    assert_eq!(tangent_intersections(&zero), 0);
+    assert_eq!(intrinsic_edges(&zero), 0);
 }
 
 const LIP_R: f64 = 0.4;
@@ -262,24 +250,23 @@ const LIP_R: f64 = 0.4;
 /// ANGLE, not a radius, is what puts the sagitta in the band.
 fn lipped_ring(chord: f64) -> Result<Body<f64>, RevolveError> {
     let r = LIP_R;
-    let p2 = Point2::<f64>::new;
     // A 45° arc (bulge tan(π/16)) from the outer equator, so its far
     // end meets the top annulus at a CORNER: one smooth join only.
     let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
     let c = core::f64::consts::FRAC_1_SQRT_2;
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.2, -0.5), 0.0),
-        ProfileVertex::new(p2(1.0, -0.5), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), bulge),
-        ProfileVertex::new(p2(1.0 - r + r * c, r * c), 0.0),
-        ProfileVertex::new(p2(0.2, r * c), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.2, -0.5), 0.0),
+        (Point2::new(1.0, -0.5), 0.0),
+        (Point2::new(1.0, 0.0), bulge),
+        (Point2::new(1.0 - r + r * c, r * c), 0.0),
+        (Point2::new(0.2, r * c), 0.0),
     ])
     .with_tangent_joints(vec![2]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a valid lipped ring");
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let theta = 2.0 * (chord / 2.0).asin();
@@ -300,7 +287,7 @@ fn a_lipped_ring_refuses_at_both_ends_of_the_band_and_stores_the_definite_side()
     }
     // A wide angle: the fold saturates at the lip radius, margin r/2.
     let positive = lipped_ring(2.0 * (0.25f64).sin()).expect("definite builds");
-    assert_eq!(tangent_intersections(&positive), 1);
+    assert_eq!(intrinsic_edges(&positive), 1);
     let zero = lipped_ring(arm_for(band().zero() / 50.0, LIP_R)).expect("under-determined builds");
-    assert_eq!(tangent_intersections(&zero), 0);
+    assert_eq!(intrinsic_edges(&zero), 0);
 }

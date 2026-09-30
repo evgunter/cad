@@ -4,6 +4,8 @@ kind: issue
 title: Shelled names operand shells to result solids, not the wall it built: the second shell_open cannot choose its t or name the inner wall
 status: open
 opened: 2026-09-08
+priority: P0
+cost: D
 ---
 
 

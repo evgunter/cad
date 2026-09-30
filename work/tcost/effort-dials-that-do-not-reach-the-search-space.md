@@ -4,6 +4,8 @@ kind: issue
 title: Two EFFORT dials buy nothing: a 1681-point enumeration on a multiplier, and a walk depth that never scales
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

@@ -123,15 +123,14 @@
 //! `f64` report sums. No ε is consulted and no funnel predicate is
 //! minted.
 //!
-//! Nothing here persists, and the goldening form is M10-6's: it will
-//! want a `serialize()` shaped like `ParamBoxVerdict`'s (floats as
-//! exact bits, one line per row). The door is visible; nothing is built
-//! behind it.
+//! Nothing here persists. The goldening form is [`Stackup::serialize`]
+//! (floats as exact bits, one line per row) and [`Stackup::content_key`]
+//! keys it, derived on demand; [`Stackup::render`] is the human form.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use geom_core::{Dual64, Tol};
+use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -139,7 +138,7 @@ use crate::doc::{Doc, DocParam, ParamName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
-    NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeErrorKind, NodeResult, NodeStanding, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
@@ -543,10 +542,6 @@ fn leaf_opts(box_: ParamBox) -> EvalOptions {
     }
 }
 
-/// The measured value at `id`, or the refusal rendered with the node
-/// it came from (the measure itself, or the failed ancestor a poisoned
-/// measure names) — the one ladder every reader of a measure payload
-/// takes.
 /// The stackup's NOMINAL column: the f64 value, or the typed reason
 /// there is none — distinguished from a measure node that genuinely
 /// failed, which stays an error.
@@ -558,22 +553,39 @@ fn nominal_of(
     ev: &Evaluation<f64>,
     id: RecipeNodeId,
 ) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (RecipeNodeId, String)> {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
+    match ev.usable(id) {
+        Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
             ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
             other => Err((id, format!("node is a {}", other.kind_name()))),
         },
-        other => Err((id, format!("the measure did not evaluate: {other:?}"))),
+        Err(standing) => Err(no_measure(ev, standing)),
     }
 }
 
+/// The refusal for a measure node with no value, rendered with the
+/// node it came from: a failed measure's own error, a poisoned one's
+/// failed ancestor's, and otherwise the standing.
+fn no_measure<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    standing: NodeStanding,
+) -> (RecipeNodeId, String) {
+    ev.node_error(standing.node()).map_or_else(
+        || (standing.node(), standing.to_string()),
+        |e| (e.node, e.kind.to_string()),
+    )
+}
+
+/// The measured value at `id`, or the refusal rendered with the node
+/// it came from (the measure itself, or the failed ancestor a poisoned
+/// measure names) — the one ladder every reader of a measure payload
+/// takes.
 fn measure_of<T: geom_core::Decide + Copy>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Result<T, (RecipeNodeId, String)> {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
+    match ev.usable(id) {
+        Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(*value),
             // **A measure with no value at this scalar reads as a
             // refusal HERE**, carrying its own reason, and that is the
@@ -594,10 +606,7 @@ fn measure_of<T: geom_core::Decide + Copy>(
                 format!("node evaluated to a {}, not a measure", other.kind_name()),
             )),
         },
-        _ => Err(ev.node_error(id).map_or_else(
-            || (id, "not evaluated".to_owned()),
-            |e| (e.node, e.kind.to_string()),
-        )),
+        Err(standing) => Err(no_measure(ev, standing)),
     }
 }
 
@@ -882,10 +891,13 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(14);
             for lp in p.validated.loops() {
                 d.u64(lp.vertices().len() as u64);
-                for v in lp.vertices() {
-                    d.scalar(v.pos().x);
-                    d.scalar(v.pos().y);
-                    d.scalar(v.bulge());
+                // Each vertex with the bulge its segment was lowered
+                // from: an arc's carrier and sweep are functions of
+                // these, so they are digested through them.
+                for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                    d.scalar(v.x);
+                    d.scalar(v.y);
+                    d.scalar(s.bulge);
                 }
             }
         }
@@ -1280,11 +1292,11 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
-                row.param.0,
+                row.param.as_str(),
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
-                    Err(u) => format!("unavailable:{}", u.param().0),
+                    Err(u) => format!("unavailable:{}", u.param().as_str()),
                 },
                 match &row.chamber_span {
                     Some(c) => format!(
@@ -1305,7 +1317,7 @@ impl Stackup {
                     "unavailable:{}",
                     blockers
                         .iter()
-                        .map(|b| b.param().0.clone())
+                        .map(|b| b.param().as_str().to_owned())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),
@@ -1317,7 +1329,7 @@ impl Stackup {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let crate::report::MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "  forced_by {}", p.0);
+                let _ = writeln!(s, "  forced_by {}", p.as_str());
             }
         }
         let _ = write!(s, "{}", coverage_bits(&self.coverage));
@@ -1351,13 +1363,16 @@ impl Stackup {
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
              leaf/leaves",
-            self.worst_case.lo, self.worst_case.hi, self.worst_case.leaves
+            Readable(self.worst_case.lo),
+            Readable(self.worst_case.hi),
+            self.worst_case.leaves
         );
         match &self.nominal {
             Ok(v) => {
                 let _ = writeln!(
                     s,
-                    "  nominal (f64 build): {v}  [{}]",
+                    "  nominal (f64 build): {}  [{}]",
+                    Readable(*v),
                     match &self.chamber {
                         Chamber::ChamberCertified { .. } =>
                             "the nominal sits in a certified chamber",
@@ -1376,29 +1391,15 @@ impl Stackup {
             }
         }
         let _ = writeln!(s, "  ADVISORY, never gating:");
-        let _ = writeln!(
-            s,
-            "    rss {}",
-            match &self.rss {
-                Rss::Advisory { sigma } => format!("σ ≈ {sigma} (linearized, first-order)"),
-                Rss::UnavailableBecause { blockers } => format!(
-                    "UNAVAILABLE — {}",
-                    blockers
-                        .iter()
-                        .map(|b| format!("{b}"))
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                ),
-            }
-        );
+        let _ = write!(s, "{}", render_rss(&self.rss));
         for row in &self.per_param {
             let _ = writeln!(
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
-                row.param.0,
+                row.param.as_str(),
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
-                    Ok(v) => format!("{v}"),
+                    Ok(v) => Readable(*v).to_string(),
                     Err(u) => format!("[{u}]"),
                 }
             );
@@ -1411,6 +1412,49 @@ impl Stackup {
         s
     }
 }
+
+/// The human form's rss row; under a refused column, a count and then
+/// one line per blocker.
+///
+/// The boundary between blockers is the line break, not punctuation a
+/// blocker's sentence may itself write. No [`Unavailable`] arm writes
+/// a line break (`every_blocker_renders_on_one_line`, over every arm),
+/// so the lines under the count are exactly the blockers
+/// (`a_refused_rss_splits_back_into_its_blockers`). The parameter name
+/// a blocker frames is the document's, not the arm's; what a name may
+/// contain is the declaration door's to decide.
+fn render_rss(rss: &Rss) -> String {
+    use core::fmt::Write as _;
+    let mut s = String::new();
+    match rss {
+        Rss::Advisory { sigma } => {
+            let _ = writeln!(
+                s,
+                "    rss σ ≈ {} (linearized, first-order)",
+                Readable(*sigma)
+            );
+        }
+        Rss::UnavailableBecause { blockers } => {
+            let _ = writeln!(
+                s,
+                "    rss UNAVAILABLE — {} {}:",
+                blockers.len(),
+                if blockers.len() == 1 {
+                    "blocker"
+                } else {
+                    "blockers"
+                }
+            );
+            for b in blockers {
+                let _ = writeln!(s, "{RSS_BLOCKER_LEAD}{b}");
+            }
+        }
+    }
+    s
+}
+
+/// What opens each blocker's line under a refused rss row.
+const RSS_BLOCKER_LEAD: &str = "      - ";
 
 /// One sensitivity reading, in one spelling shared by the goldening
 /// form and the human one — the number and its E4 mark, never the
@@ -1448,7 +1492,8 @@ pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
             match refusal {
                 LiftRefusal::PinnedSection { section, param } => format!(
                     "{} feeds the section of node {}, which stays f64 (C6/D9)",
-                    param.0, section.0
+                    param.as_str(),
+                    section.0
                 ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
@@ -1756,7 +1801,7 @@ pub fn stackup(
 /// [`geom_core::Interval`], which has no tangent channel, and the
 /// bracket is read through
 /// [`geom_core::CertifiedEnclosure::certified_bracket`] — the
-/// domain-honest door, so a poisoned enclosure refuses named instead of
+/// domain-honest door, so a refused enclosure refuses named instead of
 /// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,
@@ -1839,4 +1884,104 @@ fn worst_case(
         hi,
         leaves: brackets.len(),
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
+    use crate::ParamName;
+
+    test_utils::f6_variants! {
+        /// Every [`Unavailable`] arm, welded to the enum by the match
+        /// the macro writes; [`every_arm`] must produce each of them.
+        const UNAVAILABLE: Unavailable = [
+            TangentDegraded,
+            MeasureRefused,
+            Unliftable,
+            BandHasNoMeasure,
+        ];
+    }
+
+    /// One blocker of every arm, for `param` — checked against the
+    /// weld, so an arm with no example here fails every row that reads
+    /// this.
+    fn every_arm(param: &'static str) -> Vec<Unavailable> {
+        let param = ParamName::from_static(param);
+        let all = vec![
+            Unavailable::TangentDegraded {
+                param: param.clone(),
+            },
+            Unavailable::MeasureRefused {
+                param: param.clone(),
+            },
+            Unavailable::Unliftable {
+                param: param.clone(),
+            },
+            Unavailable::BandHasNoMeasure { param },
+        ];
+        let mut made: Vec<String> = all.iter().map(test_utils::f6::variant_identifier).collect();
+        made.sort();
+        let mut welded: Vec<String> = UNAVAILABLE
+            .identifiers()
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        welded.sort();
+        assert_eq!(made, welded, "one example per Unavailable arm, no more");
+        all
+    }
+
+    /// The claim the rss row's line-per-blocker layout rests on: no
+    /// arm's sentence writes a line break of its own.
+    #[test]
+    fn every_blocker_renders_on_one_line() {
+        for b in every_arm("width") {
+            let line = b.to_string();
+            assert!(!line.contains(['\n', '\r']), "{line:?}");
+        }
+    }
+
+    /// A refused rss row splits back into exactly the blockers it was
+    /// made from, in order — including blockers whose sentences carry
+    /// the punctuation a flat join would have split on, which a
+    /// sentence is free to write. A NAME cannot carry it: a `ParamName`
+    /// is one identifier by construction, so the second batch is a
+    /// second identifier and the sentences alone carry the separators.
+    #[test]
+    fn a_refused_rss_splits_back_into_its_blockers() {
+        let mut blockers = every_arm("width");
+        blockers.extend(every_arm("depth"));
+        let rendered = render_rss(&Rss::UnavailableBecause {
+            blockers: blockers.clone(),
+        });
+        let mut lines = rendered.lines();
+        assert_eq!(
+            lines.next(),
+            Some(format!("    rss UNAVAILABLE — {} blockers:", blockers.len()).as_str()),
+            "{rendered}"
+        );
+        let items: Vec<&str> = lines
+            .map(|l| {
+                l.strip_prefix(RSS_BLOCKER_LEAD)
+                    .unwrap_or_else(|| panic!("a blocker line opens with the lead: {l:?}"))
+            })
+            .collect();
+        let want: Vec<String> = blockers.iter().map(ToString::to_string).collect();
+        assert_eq!(items, want, "{rendered}");
+    }
+
+    #[test]
+    fn a_single_blocker_is_counted_in_the_singular() {
+        let rendered = render_rss(&Rss::UnavailableBecause {
+            blockers: vec![Unavailable::Unliftable {
+                param: ParamName::from_static("w"),
+            }],
+        });
+        assert_eq!(
+            rendered,
+            "    rss UNAVAILABLE — 1 blocker:\n      - parameter w's seed could not reach the \
+             measure: the lift refused typed\n"
+        );
+    }
 }

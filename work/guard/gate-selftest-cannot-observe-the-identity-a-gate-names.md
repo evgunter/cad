@@ -4,6 +4,8 @@ kind: issue
 title: gate_selftest_case matches one substring of a gate's output, so a gate whose product is a file:line and an identifier can ship a wrong identifier with every case green
 status: open
 opened: 2026-09-07
+priority: P3
+cost: D
 ---
 
 Found by the correctness review of #2106, and found **by accident**,

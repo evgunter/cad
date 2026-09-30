@@ -143,29 +143,25 @@ fixing one.
 
 No row in `review` is this program's.
 
-## The register
+## The discipline a lane is held to
 
-**`work/view/plan.md`'s rule register binds every lane dispatched from
-this program, inherited BY REFERENCE and not copied.** Read it in full
-before writing a dispatch. More of it was earned on this program's
-ground than on any other's: the citation rules, the census rules, the
-proxy table, the sweep-rule-beside-the-claim rule.
+**`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md`**, handed to every lane by path.
+Read both before writing a dispatch; they are the standing obligations
+and they are the only ones.
 
-The reason it is not copied is the register's own: a claim fixed in one
-place and stale in another contradicts itself, and four copies of a
-register that is re-derived every wave guarantee four divergent copies
-within a week. The register is also evidence — every rule in it is a
-named failure at a named PR — and a copy detached from the program that
-paid for it reads as a rule without its receipt. **A program whose
-whole subject is second copies of a claim does not open by making
-one.**
+**The rule register this section used to inherit by reference is
+deleted** (2026-09-21, Ev's ruling; it lived in `work/view/plan.md`).
+Eighty-seven rules in eighteen days, of which the ones that both named
+a real problem and would have been prevented by an advance warning
+turned out to be already written — in the two files above, and in
+`memories/agent-lane-operations.md`. The rest were retrospective
+categorisation: true after the fact, useless before it. It is
+recoverable at `66d7357417` if a row here cites one of its rules.
 
-**What that costs, said plainly:** `work/view/plan.md` goes when VIEW's
-directory goes at its exit walk, and this reference dangles that day.
-The register's permanent home is
-`work/view/the-lane-register-has-no-home-after-views-directory-goes`,
-open on VIEW's slate, and it is a precondition of VIEW's exit walk
-rather than a follow-up to it. This section re-points when it lands.
+So a dispatch from this program carries the two prompt docs by path,
+plus whatever this program's own `log.md` tail says about the ground
+the unit lands on — not a register.
 
 ## Review posture
 

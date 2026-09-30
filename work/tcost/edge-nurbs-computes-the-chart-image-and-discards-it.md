@@ -36,7 +36,7 @@ redundancy is not what the finding says.
 - `crates/topo/src/census.rs`' `census_and_certify` — called by the
   tier-3′ door immediately after its check-7 certificate, and its
   product is a verdict vector;
-- `PropsQuadLane::recertify_approx` — re-derives a surface certificate
+- `geom_brep::OffsetFitLane::recertify` — re-derives a surface certificate
   per validation pass, by design (tier 3's never-trust posture), which
   is the case where the discard is CORRECT and the unit would be wrong
   to collapse it. It is listed so the sweep's blind spot is stated:
@@ -93,7 +93,7 @@ a cost lever.** It means the certifier reading the stored cache, and
 `topo/src/validate.rs:3297-3299` ratifies the opposite posture —
 *"Re-certification re-derives; it never trusts the stored
 certificate."* That is the same reason this file's own
-`PropsQuadLane::recertify_approx` sibling is listed as the case where a
+`OffsetFitLane::recertify` sibling is listed as the case where a
 discard is CORRECT. Anyone who wants it takes the never-trust question
 to Ev first, on evidence this row does not have.
 

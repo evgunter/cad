@@ -54,7 +54,7 @@ impl DeleteAffordance {
         let cascade = cascade_delete_order(doc, node);
         let Some(target) = doc.node(node) else {
             return Self {
-                label: format!("Delete feature {}", node.0),
+                label: format!("Delete {}", crate::tree::node_number(node)),
                 hover: None,
                 cascade,
             };

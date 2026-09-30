@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-27
 github: 1058
 refs: [1048, 1019]
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 1058

@@ -37,7 +37,12 @@ use geom_core::{Band, Point2, Point3, Real, Vec3};
 /// The interval lane's measured `ssi_hull_sup` bound for this fixture
 /// (the PR row's constant). Probe 3 uses it as a STRICT ceiling for
 /// the f64 lane's own bound; probe 1 uses it to pick the arm.
-const HULL_SUP_AT_INTERVAL: f64 = 1.799_393_940_644_834_8e-12;
+/// **Re-measured when the C9 ring became a newtype over
+/// `interval-transcendentals`' `DInterval`**
+/// (`1.799_393_940_644_834_8e-12` before): the backend pads only where
+/// an operation is inexact, so the bound is tighter. Probe 3's
+/// strict-ceiling claim and probe 1's arm selection are unmoved.
+const HULL_SUP_AT_INTERVAL: f64 = 1.798_501_029_796_955_5e-12;
 
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
@@ -111,11 +116,7 @@ fn fit_image() -> NurbsCurve2<f64> {
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
@@ -124,7 +125,7 @@ fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
 /// image against the (sphere, tilted plane) pair at `T`.
 fn drive_fitted_door<T>() -> Result<PcurveCache<T>, PcurveCertifyError>
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
     let band = Band::linear(Tol::witness()).unwrap();
     let (f0, f1) = ARC;
@@ -140,6 +141,7 @@ where
         Some(&tilted_plane::<T>()),
         window,
         band,
+        T::fitted_lane().expect("a certifying scalar holds the fitted door"),
     )
 }
 
@@ -164,16 +166,14 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
                 margin,
                 band,
                 predicate: Some("probe"),
+                terminal_sliver: false,
             },
         }
         .to_string()
     };
-    let value = escalated(MarginDiag::Value(1.5e-12));
-    let enclosure = escalated(MarginDiag::Enclosure {
-        lo: 1.5e-12,
-        hi: 2.5e-12,
-    });
-    let poison = escalated(MarginDiag::Invalid);
+    let value = escalated(MarginDiag::value(1.5e-12));
+    let enclosure = escalated(MarginDiag::enclosure(1.5e-12, 2.5e-12));
+    let poison = escalated(MarginDiag::INVALID);
     let hole = PcurveCertifyError::FittedCertificate {
         limb: None,
         what: "probe",
@@ -234,7 +234,6 @@ fn the_f64_siblings_hull_bound_sits_strictly_under_the_interval_constant() {
     );
 }
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use geom_core::interval::Interval;
 
@@ -276,17 +275,23 @@ mod interval_lane {
         }
         // The refusal itself, then the refusal as the tier-3 pass
         // reports it (the consumer's actual seam).
+        // The escalating predicate is named on the typed refusal; the
+        // sentence leaves routing out.
+        assert!(format!("{err:?}").contains("ssi_hull_sup"), "{err:?}");
         let direct = err.to_string();
         let wrapped = topo::pcurves::PcurveMintError::Certify {
             half_edge: topo::HalfEdgeKey::default(),
             error: err,
-        }
-        .to_string();
+        };
+        let wrapped = wrapped.to_string();
+        // Both renderings say what escalated in words.
         for text in [&direct, &wrapped] {
             assert!(
-                text.contains("ssi_hull_sup"),
-                "the escalating predicate's name is the actionable part: {text}"
+                text.contains("the fitted lane's certificate escalated"),
+                "{text}"
             );
+        }
+        for text in [&direct, &wrapped] {
             // AMENDED (fix pass): escalations now render through
             // `IndeterminatePayload`, the classifier's own renderer, so
             // the wording is "enclosure [lo, hi] cannot be classified
@@ -300,13 +305,13 @@ mod interval_lane {
                 "the margin must render as an enclosure, not a value or a hole: {text}"
             );
             assert!(
-                text.contains("zero = ") && text.contains("escalate = "),
+                text.contains("ambiguity band ("),
                 "an escalation must render the band it was judged against: {text}"
             );
             // Both endpoints of the degenerate enclosure — rendered
             // twice, since lo == hi.
             assert_eq!(
-                text.matches("1.7993939406448348e-12").count(),
+                text.matches("1.7985010297969555e-12").count(),
                 2,
                 "both enclosure endpoints must be visible: {text}"
             );

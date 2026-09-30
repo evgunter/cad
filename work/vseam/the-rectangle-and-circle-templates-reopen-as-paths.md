@@ -4,6 +4,8 @@ kind: issue
 title: A profile authored from the rectangle or circle template reopens in the editor as a path, not as the template
 status: open
 opened: 2026-09-19
+priority: P0
+cost: D
 ---
 
 

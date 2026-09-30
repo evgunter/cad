@@ -5,6 +5,8 @@ title: BOOL-9's shut-build proof (a downstream crate cannot mint a ProfileLoop w
 status: open
 opened: 2026-09-08
 refs: [2134]
+priority: P3
+cost: D
 ---
 
 BOOL-9 (PR 2134 §11) measured the enforcement by hand — a witness crate

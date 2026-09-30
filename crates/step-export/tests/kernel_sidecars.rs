@@ -39,6 +39,19 @@
 //! cross-ε claim: two certified enclosures of the SAME body's true
 //! volume must overlap — `|live − pinned| ≤ live_pad + pinned_pad`.
 //! The census fields are ε-independent and byte-asserted everywhere.
+//!
+//! **Re-pinned at all four quadrature fixtures when the C9 interval
+//! ring became a newtype over `interval-transcendentals`'
+//! `DInterval`.** The ring padded one representable step outward on
+//! every operation and the backend pads only where the operation is
+//! inexact, so `cut_cylinder`, `loft_prism`, `nonuniform_loft` and
+//! `swept_elbow` each carry a strictly SMALLER
+//! `KERNEL_VOLUME_PAD_MM3` (by 1.0000001x, 5.33x, 4.51x and 1.93x)
+//! and none grew; each new enclosure is a SUBSET of the one it
+//! replaced, so every literal here still certifies the same true
+//! volume the old one did, and `loft_prism`'s midpoint now lands on
+//! the exact 9e9 rather than 8e-6 mm³ off it. The censuses and the
+//! closed-form fixtures' volumes are unchanged.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;

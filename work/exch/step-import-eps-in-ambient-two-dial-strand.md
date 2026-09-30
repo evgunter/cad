@@ -4,6 +4,8 @@ kind: issue
 title: recognition promotes at eps_in while selection and certify run at ambient: a column bent between the dials strands its edge
 status: open
 opened: 2026-09-04
+priority: P1
+cost: D
 ---
 
 

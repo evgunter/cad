@@ -35,12 +35,8 @@ use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 
 const PI: f64 = core::f64::consts::PI;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn on_circle(centre: Point2<f64>, r: f64, angle: f64) -> Point2<f64> {
-    p2(centre.x + r * angle.cos(), centre.y + r * angle.sin())
+    Point2::new(centre.x + r * angle.cos(), centre.y + r * angle.sin())
 }
 
 /// PR 1895's grid-A authoring, spelled from its own parameters: the
@@ -59,9 +55,9 @@ fn arc_arc(
     delta_out: f64,
     r: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let corner = p2(0.0, 0.0);
-    let c1 = p2(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
-    let c2 = p2(
+    let corner = Point2::new(0.0, 0.0);
+    let c1 = Point2::new(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
+    let c2 = Point2::new(
         corner.x - r_out * a_out.cos(),
         corner.y - r_out * a_out.sin(),
     );
@@ -102,8 +98,8 @@ fn anchors(
     tau_out: f64,
     delta_out: f64,
 ) -> (Point2<f64>, Point2<f64>) {
-    let c1 = p2(-r_in * a_in.cos(), -r_in * a_in.sin());
-    let c2 = p2(-r_out * a_out.cos(), -r_out * a_out.sin());
+    let c1 = Point2::new(-r_in * a_in.cos(), -r_in * a_in.sin());
+    let c2 = Point2::new(-r_out * a_out.cos(), -r_out * a_out.sin());
     (
         on_circle(c1, r_in, a_in - tau_in * delta_in),
         on_circle(c2, r_out, a_out + tau_out * delta_out),
@@ -295,7 +291,7 @@ fn c1_a_window_discarded_crossing_that_really_refused_is_dropped() {
     );
     let rendered = one.to_string();
     assert_eq!(
-        rendered.matches("at the corner near").count(),
+        rendered.matches("at corner (").count(),
         1,
         "one sentence, for one of the two crossings: {rendered}"
     );
@@ -327,7 +323,7 @@ fn c3_the_envelope_radius_is_the_authored_one_on_every_arm() {
         // Every entry's sentence is rendered under this one radius.
         let rendered = err.to_string();
         assert_eq!(
-            rendered.matches("at the corner near").count(),
+            rendered.matches("at corner (").count(),
             corners.len(),
             "one sentence per entry: {rendered}"
         );

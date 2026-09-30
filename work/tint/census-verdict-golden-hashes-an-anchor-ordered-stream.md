@@ -2,8 +2,11 @@
 id: census-verdict-golden-hashes-an-anchor-ordered-stream
 kind: issue
 title: the shell census golden hashes voided_rod's verdicts in decision order, so a pure re-anchoring of a loop moves it and a sign change is indistinguishable from a move
-status: open
+status: closed
+closed: 2026-09-28
 opened: 2026-09-14
+priority: P3
+cost: E
 ---
 
 Filed by the TOPO revert-wrap fix pass (PR 2573, 2026-09-14), on this
@@ -54,6 +57,11 @@ both, and what that costs the other two goldens that share the fold
 (`mass_props_are_thread_count_invariant`, `reporting_door_bit_digest`).
 The fold itself is one of the FNV copies
 `work/perf/fnv-digest-and-memo-machinery-copies.md` lists.
+
+**2026-09-28:** the shell census's golden rows and
+`reporting_door_bit_digest` were deleted in the 2026-09-28 CI-latency cut;
+`voided_rods_verdicts_as_a_sorted_multiset` stays, and the only golden
+left on `common::channels` is `mass_props_are_thread_count_invariant`'s.
 
 ## Re-derived (2026-09-15, lane C)
 
@@ -121,3 +129,5 @@ while folding their own way (byte-wise in place, and word-wise).
 
 **Recommendation (orchestrator's call).** Keep open, unchanged in
 substance; amend the "two goldens" count to one when the unit is cut.
+
+Closed 2026-09-28: the test this item concerns is deleted (`work/ciw/latency-cut.md`).

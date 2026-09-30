@@ -20,10 +20,11 @@
 //! node id, `t`, and hit point) or a typed error; the
 //! [`topo::FaceKey`]s live inside the private [`MeshPick`] state and
 //! the private winning-triangle lookup. The one stated exception is
-//! the [`HitTestError::Unnamed`] BUG arm, whose payload (inherited
-//! verbatim from [`super::hit`]) carries the unnamed [`EntityRef`] —
-//! that is a naming-emission diagnostic for a kernel bug report,
-//! never a selection value, and typed beats stringly even there.
+//! the [`UnnamedEntity`] BUG report (the payload of
+//! [`HitTestError::Unnamed`], and the whole per-entity refusal of the
+//! name doors), which carries the unnamed [`EntityRef`] — that is a
+//! naming-emission diagnostic for a kernel bug report, never a
+//! selection value, and typed beats stringly even there.
 //!
 //! Picking is a UI concern with no D9 predicate obligation (GQ6
 //! re-survey §3): everything here is plain `f64` with conservative
@@ -83,8 +84,8 @@ use geom_core::{Decide, Point3, Tol, Vec3};
 use mesh::{Mesh, PatchKeys, PatchMemo, StoredPatchId, TessellateError, tessellate_with};
 use topo::FaceKey;
 
-use super::hit::{HitTestError, entity_name};
-use crate::eval::{ContentKey, Evaluation, NamingKey, NodeResult, NodeValue};
+use super::hit::{HitTestError, UnnamedEntity, entity_name, lookup};
+use crate::eval::{ContentKey, Evaluation, NamingKey, NodeStanding};
 use crate::ident::DocumentId;
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
@@ -592,9 +593,9 @@ impl<'a> PickTarget<'a> {
 /// Typed failure of [`NodePick::build`] (closed; no silent lanes).
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodePickError {
-    /// The node has no `Ok` value in this evaluation — the same
-    /// standing vocabulary [`pick_face`] answers.
-    Standing(HitTestError),
+    /// The node has no value in this evaluation, so there is no body
+    /// to index.
+    Standing(NodeStanding),
     /// The node's value denotes no output body at all (datum,
     /// profile, declarations, mate).
     NotABody {
@@ -619,15 +620,14 @@ pub enum NodePickError {
 // door owns state the PROBLEM in the pick-build vocabulary — which
 // node, and why its payload offers no body to index — and keep the
 // two payload distinctions the enum draws ("never draws" vs "draws
-// nothing today"). The wrapping arms FORWARD the payload's own
-// `Display` verbatim rather than paraphrasing a vocabulary another
-// door owns: `Standing` is the hit-test door's standing prose about
-// the same evaluation, and `Tessellate`/`Index` each carry their own
-// door's words, prefix included.
+// nothing today"). `Standing` puts this door's prefix on the
+// standing's own sentence; `Tessellate`/`Index` FORWARD their
+// payload's `Display` verbatim, each carrying its own door's words,
+// prefix included.
 impl core::fmt::Display for NodePickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Standing(error) => write!(f, "{error}"),
+            Self::Standing(standing) => write!(f, "pick: {standing}"),
             Self::NotABody { node } => write!(
                 f,
                 "pick: node {}'s value is not body-denoting (a datum, profile, declaration, or \
@@ -649,32 +649,59 @@ impl core::fmt::Display for NodePickError {
 
 impl core::error::Error for NodePickError {}
 
-/// One node's `Ok` value, or the standing refusal that says why there
-/// is none.
-///
-/// The ladder [`NodePick::build`] and [`NodePick::build_all`] both
-/// climb, written once: two spellings of one standing vocabulary is
-/// how the two doors come to disagree about a poisoned node.
-fn standing_value<T: Decide>(
-    eval: &Evaluation<T>,
-    node: RecipeNodeId,
-) -> Result<&NodeValue<T>, NodePickError> {
-    match eval.nodes.get(&node) {
-        Some(NodeResult::Ok(value)) => Ok(value),
-        Some(NodeResult::Failed(_)) => {
-            Err(NodePickError::Standing(HitTestError::NodeFailed { node }))
-        }
-        Some(NodeResult::Poisoned { through }) => {
-            Err(NodePickError::Standing(HitTestError::NodePoisoned {
-                node,
-                through: *through,
-            }))
-        }
-        None => Err(NodePickError::Standing(HitTestError::NodeNotEvaluated {
-            node,
-        })),
+/// The node's standing, at the door that needed its body.
+impl From<NodeStanding> for NodePickError {
+    fn from(standing: NodeStanding) -> Self {
+        Self::Standing(standing)
     }
 }
+
+/// **Why [`NodePick::patch_names`] or [`NodePick::boundary_names`]
+/// refused the whole call** (closed): the evaluation is of another
+/// document, or the node has no table in it. A per-entity refusal is
+/// not here — it rides its own slot as [`UnnamedEntity`].
+///
+/// No hit test runs at these doors, so the refusal is its own type and
+/// says a name lookup refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NameLookupError {
+    /// The handed evaluation is of another document (DI3, A2a): node
+    /// ids are minted per document, so its tables would answer about
+    /// other geometry. `expected` is the document the index was built
+    /// from.
+    EvaluationOfAnotherDocument(crate::ident::Mispaired),
+    /// The node has no value in the handed evaluation, so there is no
+    /// table to read.
+    Standing(NodeStanding),
+}
+
+impl From<crate::ident::Mispaired> for NameLookupError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument(m)
+    }
+}
+
+impl From<NodeStanding> for NameLookupError {
+    fn from(standing: NodeStanding) -> Self {
+        Self::Standing(standing)
+    }
+}
+
+impl core::fmt::Display for NameLookupError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::EvaluationOfAnotherDocument(m) => write!(
+                f,
+                "name lookup: the evaluation is of document {}, not of document {} — the index \
+                 and the tables it is read against are of two documents",
+                m.found, m.expected
+            ),
+            Self::Standing(standing) => write!(f, "name lookup: {standing}"),
+        }
+    }
+}
+
+impl core::error::Error for NameLookupError {}
 
 /// A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
 /// CONSTRUCTION: [`NodePick::build`] fetches the body from the
@@ -742,8 +769,8 @@ struct PickEntry {
 /// identities that memo reports.
 ///
 /// **Node level.** The key is the evaluation memo's own reuse
-/// condition, exactly — [`NodeValue::content_key`] AND
-/// [`NodeValue::naming_key`] (`eval_node`'s memo hit, whose doc carries
+/// condition, exactly — [`crate::eval::NodeValue::content_key`] AND
+/// [`crate::eval::NodeValue::naming_key`] (`eval_node`'s memo hit, whose doc carries
 /// the argument: the content key proves the body's bits, the naming
 /// key its names and so the face keys the id map is built on) — plus
 /// the document's identity (node ids are minted per document) and
@@ -1014,18 +1041,6 @@ impl PickMemo {
     }
 }
 
-/// The pairing for the three doors that take a second evaluation:
-/// `None` when `eval` is of `expected`, else the typed refusal, which
-/// is `HitTestError`'s `From<Mispaired>` and no second spelling of
-/// which field goes where.
-///
-/// The comparison is `ident::mispaired`, the one predicate the pairing
-/// doors share (A2a) — identity only, never a version, so a LATER
-/// evaluation of the same document still pairs.
-fn mispairing<T: Decide>(expected: DocumentId, eval: &Evaluation<T>) -> Option<HitTestError> {
-    crate::ident::mispaired(expected, eval.document).map(HitTestError::from)
-}
-
 fn tolerance_bits(delta: f64, tol: Tol) -> [u64; 3] {
     let ambient = tol.get();
     [delta.to_bits(), ambient.eps.to_bits(), ambient.k.to_bits()]
@@ -1047,7 +1062,7 @@ impl NodePick {
         delta: f64,
         tol: Tol,
     ) -> Result<Self, NodePickError> {
-        let value = standing_value(eval, node)?;
+        let value = eval.usable(node)?;
         // The payload's body-denoting sources, tagged with the SAME
         // output-body indices the node's name table keys its rows by
         // (`product::sources_of` — the one shipped enumeration; using
@@ -1088,7 +1103,7 @@ impl NodePick {
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Self, NodePickError> {
-        let value = standing_value(eval, node)?;
+        let value = eval.usable(node)?;
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
@@ -1188,7 +1203,7 @@ impl NodePick {
         delta: f64,
         tol: Tol,
     ) -> Result<Vec<Self>, NodePickError> {
-        let value = standing_value(eval, node)?;
+        let value = eval.usable(node)?;
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
@@ -1214,7 +1229,7 @@ impl NodePick {
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Vec<Self>, NodePickError> {
-        let value = standing_value(eval, node)?;
+        let value = eval.usable(node)?;
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
@@ -1246,10 +1261,15 @@ impl NodePick {
     /// goes in, the name comes out.
     ///
     /// Total, per patch, and honest about the loud arm: an
-    /// evaluated-but-unnamed face is [`HitTestError::Unnamed`] in ITS
-    /// OWN slot rather than a refusal of the whole call, because one
+    /// evaluated-but-unnamed face is [`UnnamedEntity`] in ITS OWN
+    /// slot rather than a refusal of the whole call, because one
     /// naming-emission bug should not cost a consumer the names of
-    /// every other patch it is drawing.
+    /// every other patch it is drawing. That is the only thing a slot
+    /// can hold besides a name — the node's standing is one fact
+    /// about the call and is settled before any slot is filled — so
+    /// the slot's type is exactly that, and a reader of it handles no
+    /// hit-test arm: no hit test runs here, and the refusal's own
+    /// sentence says a lookup did.
     ///
     /// **`eval` must be an evaluation OF the document this index was
     /// built from** (DI3, A2a). The index is built from one evaluation
@@ -1261,44 +1281,36 @@ impl NodePick {
     /// table is read.
     ///
     /// The refusal is of the CALL and sits OUTSIDE the vector, which
-    /// is the shape of the fact: a mispairing is one thing that is
-    /// wrong with the arguments, not one thing wrong with each patch,
-    /// and a per-slot `Err` repeating it once per patch would read as
-    /// `n` unnamed faces. The per-patch lane keeps its own meaning.
+    /// is the shape of the fact: a mispairing, or a node with no table
+    /// in `eval`, is one thing that is wrong with the arguments, not
+    /// one thing wrong with each patch, and a per-slot `Err` repeating
+    /// it once per patch would read as `n` unnamed faces. The
+    /// per-patch lane keeps its own meaning.
     ///
     /// A LATER evaluation of the SAME document is admitted, even one
     /// that re-tessellated this node: identity is what a pairing is
     /// about (DI3), and whether the patches still line up is the
     /// content keys' business, which is what [`PickMemo`] reads them
-    /// for.
+    /// for. A later evaluation in which this node FAILED is admitted
+    /// by the pairing and refused by the standing: the stale index
+    /// has no table to read, and the call says so once.
     ///
     /// # Errors
     ///
-    /// [`HitTestError::EvaluationOfAnotherDocument`] — the only way
-    /// the call as a whole refuses.
+    /// [`NameLookupError::EvaluationOfAnotherDocument`] for the
+    /// pairing; [`NameLookupError::Standing`] when `eval` holds no table
+    /// for this node. Nothing else refuses the call.
     pub fn patch_names(
         &self,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
-        if let Some(refusal) = mispairing(self.document, eval) {
-            return Err(refusal);
-        }
-        Ok(self
-            .mesh
-            .patches
-            .iter()
-            .map(|patch| {
-                entity_name(
-                    eval,
-                    self.node,
-                    EntityRef {
-                        body: self.body,
-                        key: EntityKey::Face(patch.face),
-                    },
-                )
-                .cloned()
-            })
-            .collect())
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
+        self.names_of(
+            eval,
+            self.mesh
+                .patches
+                .iter()
+                .map(|patch| EntityKey::Face(patch.face)),
+        )
     }
 
     /// The stable name of every boundary polyline of
@@ -1314,38 +1326,54 @@ impl NodePick {
     /// and reads the name out of here; the key never leaves.
     ///
     /// Total, per polyline, with the loud arm in its own slot: an
-    /// evaluated-but-unnamed edge is [`HitTestError::Unnamed`] for
-    /// that polyline alone, because one naming-emission bug should not
-    /// cost a consumer the names of every other edge it is drawing.
+    /// evaluated-but-unnamed edge is [`UnnamedEntity`] for that
+    /// polyline alone, because one naming-emission bug should not
+    /// cost a consumer the names of every other edge it is drawing —
+    /// and it is the only thing a slot holds besides a name, for
+    /// [`NodePick::patch_names`]' reason.
     ///
-    /// The pairing is [`NodePick::patch_names`]', for the same reason
-    /// and with the same boundary: `eval` must be an evaluation of the
-    /// document this index was built from, a later evaluation of that
-    /// document is admitted, and the refusal is of the call rather
-    /// than of each polyline.
+    /// The pairing and the standing are [`NodePick::patch_names`]',
+    /// for the same reason and with the same boundary: `eval` must be
+    /// an evaluation of the document this index was built from, a
+    /// later evaluation of that document is admitted, and a refusal
+    /// is of the call rather than of each polyline.
     ///
     /// # Errors
     ///
-    /// [`HitTestError::EvaluationOfAnotherDocument`] — the only way
-    /// the call as a whole refuses.
+    /// As [`NodePick::patch_names`]: the pairing arm, or a standing
+    /// arm. Nothing else refuses the call.
     pub fn boundary_names(
         &self,
         eval: &Evaluation<f64>,
-    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
-        if let Some(refusal) = mispairing(self.document, eval) {
-            return Err(refusal);
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
+        self.names_of(
+            eval,
+            self.mesh
+                .boundaries
+                .iter()
+                .map(|boundary| EntityKey::Edge(boundary.edge)),
+        )
+    }
+
+    /// The two name doors' one body: the pairing, then the standing,
+    /// then one table read per key, in the order the keys come.
+    fn names_of(
+        &self,
+        eval: &Evaluation<f64>,
+        keys: impl Iterator<Item = EntityKey>,
+    ) -> Result<Vec<Result<StableName, UnnamedEntity>>, NameLookupError> {
+        if let Some(m) = crate::ident::mispaired(self.document, eval.document) {
+            return Err(m.into());
         }
-        Ok(self
-            .mesh
-            .boundaries
-            .iter()
-            .map(|boundary| {
-                entity_name(
-                    eval,
+        let value = eval.usable(self.node)?;
+        Ok(keys
+            .map(|key| {
+                lookup(
+                    value,
                     self.node,
                     EntityRef {
                         body: self.body,
-                        key: EntityKey::Edge(boundary.edge),
+                        key,
                     },
                 )
                 .cloned()
@@ -1554,28 +1582,14 @@ pub fn pick_face<T: Decide>(
     // The pairing, before any standing is read: a foreign
     // evaluation has an `Ok` value for these node ids too (docs).
     for target in targets {
-        if let Some(refusal) = mispairing(target.document, eval) {
-            return Err(refusal);
+        if let Some(m) = crate::ident::mispaired(target.document, eval.document) {
+            return Err(m.into());
         }
     }
 
     // Target standing, up front (docs: an error, never a silent miss).
     for target in targets {
-        match eval.nodes.get(&target.node) {
-            Some(NodeResult::Ok(_)) => {}
-            Some(NodeResult::Failed(_)) => {
-                return Err(HitTestError::NodeFailed { node: target.node });
-            }
-            Some(NodeResult::Poisoned { through }) => {
-                return Err(HitTestError::NodePoisoned {
-                    node: target.node,
-                    through: *through,
-                });
-            }
-            None => {
-                return Err(HitTestError::NodeNotEvaluated { node: target.node });
-            }
-        }
+        eval.usable(target.node)?;
     }
 
     // The survivors of the certified order: a candidate no other
@@ -2162,7 +2176,13 @@ impl Crossing {
 /// operands `e1`, `e2`, `d`, `s` as exact**. It is a bound on this
 /// evaluation's rounding, not on the mesh's own coordinates: a
 /// triangle whose corners are themselves approximations is a question
-/// for whoever tessellated it, and nothing here can see it.
+/// for whoever tessellated it, and nothing here can see it. That is
+/// by design, not a gap: the pick is a question about the picture the
+/// user sees, and the tessellation IS what is picked, so the mesh's
+/// deviation from the surface it stands for is not a pick error
+/// (ruled by Ev on `[ev]` PR 2889; the row
+/// `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+/// closed by design).
 ///
 /// # The derivation (the one site; [`ray_triangle`] cites it)
 ///
@@ -2343,6 +2363,8 @@ mod tests {
     use test_utils::fuzz;
     use topo::Body;
 
+    use crate::test_support::{aimed, det_and_conditioning, down_from, near_tangent};
+
     use super::{
         MeshPick, MeshPickError, PickMemo, PickTable, TSpan, crossing, ray_triangle,
         retract_to_simplex,
@@ -2426,25 +2448,6 @@ mod tests {
     // The rows below came in as review probes (branches
     // `review/pick-r1`, `review/pick-r2`); each now asserts the fixed
     // behaviour.
-
-    /// A ray through `target` at parameter `reach`, so the expected
-    /// hit is `t = reach` at `target`.
-    fn ray_through(target: Point3<f64>, dir: Vec3<f64>, reach: f64) -> Ray {
-        Ray {
-            origin: target - dir * reach,
-            dir,
-        }
-    }
-
-    /// `|det| / (|e1|·|e2|·|d|)` — up to a constant the sine of the
-    /// angle between the ray and the plane: the conditioning of the
-    /// exact test on this pair.
-    fn conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
-        let e1: Vec3<f64> = tri[1] - tri[0];
-        let e2: Vec3<f64> = tri[2] - tri[0];
-        let det = e1.dot(ray.dir.cross(e2));
-        det.abs() / (e1.norm() * e2.norm() * ray.dir.norm())
-    }
 
     /// The hit a well-conditioned interior crossing owes: accepted,
     /// at `reach` to the test's own accuracy (`~u / conditioning`
@@ -2537,7 +2540,7 @@ mod tests {
     /// eight ULP of `1`, at `u = 1`), so INFORM admits every case in
     /// this row and the fixtures that catch it are the two below.
     ///
-    /// A static witness (memories/test-suite-cost: shape 2), not a
+    /// A static witness (implementer-discipline §8: shape 2), not a
     /// search.
     #[test]
     fn the_closed_boundaries_are_pinned_one_ulp_each_way() {
@@ -2609,32 +2612,6 @@ mod tests {
             "a ray in the plane has no certified determinant, so no crossing"
         );
         assert_eq!(ray_triangle(&in_plane, &tri), None);
-    }
-
-    /// A near-tangent crossing whose determinant is certified at
-    /// `k / 6` of its own bound, over a triangle of area `0.5` that
-    /// is not degenerate: `ζ = 2⁻²⁰` and `ξ = k` ULP of it,
-    /// `e1 = (1, 0, ζ + ξ)`, `e2 = (0, 1, 0)`, `d = (1, 1, ζ)`, so
-    /// `p = (−ζ, 0, 1)` and `det = ξ` exactly. The origin is placed a
-    /// unit away and one unit off-axis, which makes `u = v = 0.5` and
-    /// `u + v = 1` exactly at every `k` — all three INSIDE the closed
-    /// range, so what happens to the candidate is INFORM's doing
-    /// alone. The bounds are `9/(k − 6)`, `15/(k − 6)` and their sum,
-    /// so `k` is the dial that moves the intervals without moving the
-    /// values.
-    fn near_tangent(k: f64) -> (Ray, [Point3<f64>; 3]) {
-        let zeta = 2f64.powi(-20);
-        let xi = k * zeta * f64::EPSILON;
-        let tri = [
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(1.0, 0.0, zeta + xi),
-            Point3::new(0.0, 1.0, 0.0),
-        ];
-        let ray = Ray {
-            origin: Point3::new(-1.0, -1.0, 0.5 * xi - zeta),
-            dir: Vec3::new(1.0, 1.0, zeta),
-        };
-        (ray, tri)
     }
 
     /// **A candidate whose barycentrics carry no information is
@@ -2787,10 +2764,7 @@ mod tests {
         let e1: Vec3<f64> = tri[1] - tri[0];
         let e2: Vec3<f64> = tri[2] - tri[0];
         let target = tri[0] + e1 * 0.25 + e2 * 0.125;
-        let ray = Ray {
-            origin: target - dir,
-            dir,
-        };
+        let ray = aimed(target, dir, 1.0);
         let [(u, err_u), (v, err_v), (sum, err_sum)] = crossing(&ray, &tri)
             .expect("a certified determinant")
             .barycentrics;
@@ -2868,10 +2842,7 @@ mod tests {
         let b = Point3::new(1.0, 0.0, zeta + xi);
         let c = Point3::new(0.0, 1.0, 0.0);
         let dir = Vec3::new(1.0, 1.0, zeta);
-        let ray = Ray {
-            origin: b - dir,
-            dir,
-        };
+        let ray = aimed(b, dir, 1.0);
         let abc = [a, b, c];
         let bca = [b, c, a];
         let det_abc = crossing(&ray, &abc).expect("certified").det;
@@ -2911,10 +2882,7 @@ mod tests {
             ("b", [a, b8, c], b8),
             ("c", [a, b8, c], c),
         ] {
-            let ray = Ray {
-                origin: corner - dir,
-                dir,
-            };
+            let ray = aimed(corner, dir, 1.0);
             assert!(crossing(&ray, &tri).is_some());
             assert_eq!(
                 ray_triangle(&ray, &tri),
@@ -2949,8 +2917,8 @@ mod tests {
             let inplane = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
             let dir: Vec3<f64> = inplane + e1.cross(e2) * 10f64.powf(rng.range(-6.0, -2.0));
             let reach = rng.range(0.5, 4.0);
-            let ray = ray_through(target, dir, reach);
-            if conditioning(&ray, &tri) < 1e-7 {
+            let ray = aimed(target, dir, reach);
+            if det_and_conditioning(&ray, &tri).1 < 1e-7 {
                 continue;
             }
             assert_interior_hit(&ray, &tri, reach, "general position");
@@ -2988,8 +2956,8 @@ mod tests {
             let inplane = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
             let dir: Vec3<f64> = inplane + e1.cross(e2) * 10f64.powf(rng.range(-8.0, -2.0));
             let reach = rng.range(0.5, 4.0);
-            let ray = ray_through(target, dir, reach);
-            if conditioning(&ray, &tri) < 1e-7 {
+            let ray = aimed(target, dir, reach);
+            if det_and_conditioning(&ray, &tri).1 < 1e-7 {
                 continue;
             }
             assert_interior_hit(&ray, &tri, reach, "axis-planar");
@@ -3026,8 +2994,8 @@ mod tests {
             let theta = rng.range(0.0, std::f64::consts::TAU);
             let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
             let reach = rng.range(0.5, 3.0);
-            let ray = ray_through(target, dir, reach);
-            if conditioning(&ray, &tri) < 1e-7 {
+            let ray = aimed(target, dir, reach);
+            if det_and_conditioning(&ray, &tri).1 < 1e-7 {
                 continue;
             }
             assert_interior_hit(&ray, &tri, reach, "fan cap");
@@ -3064,7 +3032,7 @@ mod tests {
             let theta = rng.range(0.0, std::f64::consts::TAU);
             let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
             let reach = rng.range(0.5, 3.0);
-            let ray = ray_through(target, dir, reach);
+            let ray = aimed(target, dir, reach);
             let mut best: Option<f64> = None;
             for cand in index.candidates(&ray) {
                 let (tri, _) = index.triangle(&cand).expect("a built candidate");
@@ -3169,10 +3137,7 @@ mod tests {
             [shared[0], shared[1], Point3::new(0.5, -1.0, 0.0)],
         ];
         let midpoint = Point3::new(0.5, 0.0, 0.0);
-        let ray = Ray {
-            origin: Point3::new(midpoint.x, midpoint.y, 2.0),
-            dir: Vec3::new(0.0, 0.0, -1.0),
-        };
+        let ray = down_from(midpoint.x, midpoint.y, 2.0);
         let spans: Vec<TSpan> = tris
             .iter()
             .map(|tri| ray_triangle(&ray, tri).expect("the graze is a hit for both triangles"))

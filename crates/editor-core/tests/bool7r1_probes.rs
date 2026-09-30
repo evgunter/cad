@@ -22,7 +22,7 @@ use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::k_stats::Verdict;
 use geom_core::{Sign, Tol};
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -70,12 +70,14 @@ fn slot() -> Slot {
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: bar,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bar,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, cut) = insert(
         doc,
@@ -93,7 +95,7 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
     let Some(value) = ev.value(cut) else {
         return Vec::new();
     };
-    value
+    let fragments = value
         .name_table
         .iter()
         .filter_map(|(n, e)| {
@@ -101,7 +103,8 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
                 matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
             (discriminated && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
-        .collect()
+        .collect();
+    fixture::left_to_right(ev, cut, fragments)
 }
 
 /// Sign histogram of the node's `name_frag_side_of` population.
@@ -485,7 +488,7 @@ fn the_prior_only_empty_direction_also_triggers() {
 /// The partner names are minted at the bar's EXTRUDE node and carried
 /// through the transform's table, so making them unresolvable means
 /// removing both carrying nodes.
-fn without_nodes(doc: &ProfileDoc, nodes: &[RecipeNodeId]) -> Evaluation<f64> {
+fn without_nodes(doc: &editor_core::ProfileDoc, nodes: &[RecipeNodeId]) -> Evaluation<f64> {
     let mut ev = run(doc, None);
     for n in nodes {
         ev.nodes.remove(n);
@@ -810,12 +813,14 @@ fn a_second_pair_at_the_node_keeps_the_rung_out_of_a_pruned_one() {
     let (doc, b2) = block(doc, (4.0, 5.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: b1,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b1,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, tool) = insert(
         doc,

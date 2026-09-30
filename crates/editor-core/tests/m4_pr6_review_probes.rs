@@ -15,7 +15,7 @@ use editor_core::{
     ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
-use fixture::{desc, insert, len, on_frame};
+use fixture::{desc, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 fn small() -> (ProfileDoc, String) {
@@ -37,7 +37,7 @@ fn small() -> (ProfileDoc, String) {
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("q"),
+            name: ParamName::from_static("q"),
             value: DocParam::continuous(Dimension::Length, 2.5),
         },
         Tol::witness(),
@@ -206,7 +206,7 @@ fn attack_long_decimal_strings() {
         assert_ne!(crafted, text);
         let loaded = load(&crafted, Tol::witness()).expect("valid file");
         let Some(DocParam::Continuous { value, .. }) =
-            loaded.doc.params().get(&ParamName::new("q"))
+            loaded.doc.params().get(&ParamName::from_static("q"))
         else {
             panic!("param lost")
         };
@@ -229,7 +229,7 @@ fn attack_inf_via_big_exponent() {
             Err(PersistError::Parse { .. }) => {}
             Ok(l) => panic!(
                 "{s} loaded as {:?}",
-                l.doc.params().get(&ParamName::new("q"))
+                l.doc.params().get(&ParamName::from_static("q"))
             ),
             Err(e) => panic!("unexpected refusal for {s}: {e:?}"),
         }
@@ -260,7 +260,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(
         &mut doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("d"),
+            name: ParamName::from_static("d"),
             value: DocParam::continuous(Dimension::Length, 1.5),
         },
     );
@@ -285,7 +285,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Node::Extrude {
                 profile: p0,
-                distance: Expr::param(ParamName::new("d"), Dimension::Length),
+                distance: Expr::param(ParamName::from_static("d"), Dimension::Length),
             },
         },
     )
@@ -372,11 +372,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
                 input: boole,
                 count: Expr::count(2),
                 kind: editor_core::PatternKind::Linear {
-                    direction: [
-                        Expr::literal(1.0, Dimension::Scalar).unwrap(),
-                        Expr::literal(0.0, Dimension::Scalar).unwrap(),
-                        Expr::literal(0.0, Dimension::Scalar).unwrap(),
-                    ],
+                    direction: [scl(1.0), scl(0.0), scl(0.0)],
                     spacing: len(4.0),
                 },
             },

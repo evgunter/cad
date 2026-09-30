@@ -123,6 +123,11 @@ and a transform moves one. The alternatives weighed and rejected are in
     and reaches every consumer of `MateFrame`. Spec last, on top of
     MSOLVE-6's reach road (the same `PartCache` answers both the
     extent and the face pose). LIB's façade and Python half follow it.
+    Ratified by Ev on `[ev]` PR 2895 (2026-09-20); dispatches from
+    main after MSOLVE-10.
+    Spec `docs/MSOLVE-9-SPEC.md` and the A11 sentence drafted
+    2026-09-19 on an `[ev]` PR; dispatches after Ev's sign-off and
+    after MSOLVE-8.
 
 **Routed onto this slate 2026-09-13 … 09-17 by DOCM's exit sweep,
 CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
@@ -174,12 +179,35 @@ CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
     in its kernel half: `FromFace { face, reference }` names a roll
     reference, and its spec states the convention the row says is
     undocumented; the affordance itself is CHROME's viewer seam and
-    is handed there when MSOLVE-9's convention is ratified. The item
-    is parked on MSOLVE-10 and closes when both halves are recorded.
-    Spec `docs/MSOLVE-10-SPEC.md` (2026-09-20): the solve's own
-    per-mate admission asked at the door through the reach it holds.
+    is handed there when MSOLVE-9's convention is ratified. Closed
+    on PR 2913 with both halves recorded: MSOLVE-10 merged
+    2026-09-20 (spec into the ledger at the unit head), the reviews
+    settling the principle that the doors decide edits and the solve
+    decides states.
 
-The exit walk waits on 10–12 and 14–16: the program closes when the
+**Routed onto this slate 2026-09-20 … 09-23 by PROPS, CHROME and
+PORT; triaged 2026-09-24:**
+
+17. **`msolve-9-spec-prescribes-an-untagged-wire`** (PORT) — rides
+    with MSOLVE-9. The spec's wire sentence is amended on the unit
+    branch: `MateFrame` is externally tagged and the tracked corpus
+    regenerates, under Ev's ruling on PR 3123 and PR 2702's
+    no-backtracking gate.
+18. **`MSOLVE-11`** — the solve's escalations reach a node's log, and
+    the refusals it sites name the node that failed. Gathers
+    `mate-lane-escalations-reach-no-nodes-log` (PROPS, P1: the
+    whole-document solve runs outside any node's bracket, and
+    `coset::parallel` mints an `Indeterminate` by hand) and
+    `placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`
+    (CHROME, P3: `check_reference` sites a `Part`'s own index at the
+    pattern below it — one condition, two seats, the class MSOLVE-7
+    closed for the axis). Spec `docs/MSOLVE-11-SPEC.md` (2026-09-24):
+    each decision on the one mate whose answer it decided, the lever
+    finite by construction so `parallel`'s minted escalation has no
+    input, the `Part`'s index refused at the `Part`. Dispatches after
+    MSOLVE-9 merges; both rewrite `mate/solve.rs`.
+
+The exit walk waits on 10–12, 14–16 and 17–18: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
 (with the witness and the `MateFault` note), the face-resolved frame
 and the static clocking refusal are in.

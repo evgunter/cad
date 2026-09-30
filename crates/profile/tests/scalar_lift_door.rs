@@ -1,4 +1,4 @@
-//! **The raw scalar-lift door, rung by rung**: `ProfileVertex::map`,
+//! **The raw scalar-lift door, rung by rung**:
 //! `ProfileLoop::map_scalar`, `Profile::map_scalar`.
 //!
 //! The claim under test is that the lift is STRUCTURAL — every stored
@@ -14,7 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Dual64, Point2, Real, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 
 /// The fixture's vertices as `(x, y, bulge)`, authored here and read
 /// by every row as the source of truth: a negative coordinate, a
@@ -35,10 +35,10 @@ const JOINTS: [usize; 2] = [1, 2];
 const ORIGIN: (f64, f64, f64) = (-1.5, 0.25, 3.0);
 
 fn source_loop() -> ProfileLoop<f64> {
-    ProfileLoop::new(
+    bulge_loop(
         VERTS
             .iter()
-            .map(|&(x, y, b)| ProfileVertex::new(Point2::new(x, y), b))
+            .map(|&(x, y, b)| (Point2::new(x, y), b))
             .collect(),
     )
     .with_tangent_joints(JOINTS.to_vec())
@@ -70,24 +70,18 @@ fn is_lift_of(got: Dual64, want: f64, what: &str) {
 }
 
 #[test]
-fn the_vertex_rung_carries_each_scalar_through_f() {
-    for &(x, y, b) in &VERTS {
-        let lifted: ProfileVertex<Dual64> =
-            ProfileVertex::new(Point2::new(x, y), b).map(Dual64::from_f64);
-        is_lift_of(lifted.pos().x, x, "x");
-        is_lift_of(lifted.pos().y, y, "y");
-        is_lift_of(lifted.bulge(), b, "bulge");
-    }
-}
-
-#[test]
 fn the_loop_rung_carries_the_vertex_order_and_the_joint_set() {
     let lifted: ProfileLoop<Dual64> = source_loop().map_scalar(Dual64::from_f64);
     assert_eq!(lifted.vertices().len(), VERTS.len());
-    for (v, &(x, y, b)) in lifted.vertices().iter().zip(VERTS.iter()) {
-        is_lift_of(v.pos().x, x, "x");
-        is_lift_of(v.pos().y, y, "y");
-        is_lift_of(v.bulge(), b, "bulge");
+    for ((v, &lb), &(x, y, b)) in lifted
+        .vertices()
+        .iter()
+        .zip(lifted.bulges())
+        .zip(VERTS.iter())
+    {
+        is_lift_of(v.x, x, "x");
+        is_lift_of(v.y, y, "y");
+        is_lift_of(lb, b, "bulge");
     }
     assert_eq!(
         lifted.tangent_joints(),
@@ -110,10 +104,10 @@ fn the_profile_rung_carries_the_plane_and_the_loop_order() {
     for lp in &lifted.loops {
         assert_eq!(lp.vertices().len(), VERTS.len());
         assert_eq!(lp.tangent_joints(), JOINTS.as_slice());
-        for (v, &(x, y, b)) in lp.vertices().iter().zip(VERTS.iter()) {
-            is_lift_of(v.pos().x, x, "x");
-            is_lift_of(v.pos().y, y, "y");
-            is_lift_of(v.bulge(), b, "bulge");
+        for ((v, &lb), &(x, y, b)) in lp.vertices().iter().zip(lp.bulges()).zip(VERTS.iter()) {
+            is_lift_of(v.x, x, "x");
+            is_lift_of(v.y, y, "y");
+            is_lift_of(lb, b, "bulge");
         }
     }
 }
@@ -122,14 +116,14 @@ fn the_profile_rung_carries_the_plane_and_the_loop_order() {
 fn the_lift_to_f64_is_the_identity_down_to_the_sign_of_a_zero() {
     let lifted: Profile<f64> = source_profile().map_scalar(f64::from_f64);
     for lp in &lifted.loops {
-        for (v, &(x, y, b)) in lp.vertices().iter().zip(VERTS.iter()) {
-            assert!(v.pos().x.to_bits() == x.to_bits(), "x");
+        for ((v, lb), &(x, y, b)) in lp.vertices().iter().zip(lp.bulges()).zip(VERTS.iter()) {
+            assert!(v.x.to_bits() == x.to_bits(), "x");
             assert!(
-                v.pos().y.to_bits() == y.to_bits(),
+                v.y.to_bits() == y.to_bits(),
                 "the signed zero survives: got {}, want {y}",
-                v.pos().y
+                v.y
             );
-            assert!(v.bulge().to_bits() == b.to_bits(), "bulge");
+            assert!(lb.to_bits() == b.to_bits(), "bulge");
         }
     }
 }
@@ -137,14 +131,13 @@ fn the_lift_to_f64_is_the_identity_down_to_the_sign_of_a_zero() {
 /// At `Interval` every lifted scalar is a POINT enclosure of its
 /// source: the lift performs no arithmetic, so there is nothing to
 /// round outward.
-#[cfg(feature = "interval")]
 #[test]
 fn the_lift_to_interval_is_point_wide() {
     use geom_core::{Bounds, Interval};
     let lifted: Profile<Interval> = source_profile().map_scalar(Interval::from_f64);
     for lp in &lifted.loops {
-        for (v, &(x, y, b)) in lp.vertices().iter().zip(VERTS.iter()) {
-            for (got, want) in [(v.pos().x, x), (v.pos().y, y), (v.bulge(), b)] {
+        for ((v, &lb), &(x, y, b)) in lp.vertices().iter().zip(lp.bulges()).zip(VERTS.iter()) {
+            for (got, want) in [(v.x, x), (v.y, y), (lb, b)] {
                 assert!(
                     got.lo().to_bits() == want.to_bits() && got.hi().to_bits() == want.to_bits(),
                     "[{}, {}] is not the point enclosure of {want}",

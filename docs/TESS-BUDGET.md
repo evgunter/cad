@@ -2,8 +2,7 @@
 
 **Status: measurement complete; the SPAN half is FIXED (TESS-SPAN,
 merged as #594; its binding spec was deleted with the other
-closed-unit artifacts and is recoverable through
-`docs/DOC-LEDGER.md`), and the SPLIT half is FIXED (TESS-SPLIT):
+closed-unit artifacts), and the SPLIT half is FIXED (TESS-SPLIT):
 the shipped point selection is now the cell minimizer on the same
 certified ellipse under the ratified A = 16 first-fundamental-form
 aspect cap (`mesh::nurbs_cert::ASPECT_CAP` and
@@ -60,8 +59,14 @@ feature gates is the instrument — `Mode`, `arm`, `take`, the
 thread-local, and the recording the lane does between them.
 
 The default `cargo test` therefore exercises the inert half; the armed
-half has its own CI row (`cargo test -p mesh --features budget`),
-mirrored in `local-scripts/ci-local.sh`. That row also carries the
+half has its own CI row (`cargo test -p mesh --features budget`), run on
+every PR that builds `mesh` and every night. The sweep and the
+`tools/tess-lint` gate against the committed baseline run in the
+nightly's `k-lint (release-budget)` row. **No `assert!` in `mesh` is
+reachable only under a feature**, so no build flag can add a panic to
+the tessellation path (which is not the claim that the path cannot
+panic).
+That row also carries the
 per-triangle certificate falsifier
 (`probe_review::z1_per_triangle_certificate_falsification`), which
 drives the deviation pass at 12 samples per edge and asserts on
@@ -712,3 +717,22 @@ fundamental form. The options:
 generalizes both extremes — A is the dial). Executed by TESS-SPLIT
 (#951) over TESS-SPAN's sizing functions; `NurbsFaceBound::split_steps`
 and `mesh::nurbs_cert::ASPECT_CAP` are the shipped statement of record.
+
+### The sliver hazard the schedule is built around
+
+An anisotropic lattice strip admits a Delaunay-legal sliver of
+certificate ~`(aspect²+1)/8·δ_s` beside ANY off-lattice point — trim
+chords, band interfaces' foreign columns, anchor tops, refinement
+centroids — and no local insertion converges. What keeps slivers out on
+ruled walls is lattice ALIGNMENT, not spacing: the per-v-band schedule
+(`NurbsCellGrid::band_schedule`) snaps `nuc` to the whole-patch count
+where aspect demands it, and the split selection projects to an exact
+patch count run to a fixpoint. Read both aspect bounds at their
+constants, `mesh::nurbs_cert::SAFE_ASPECT` and `ASPECT_CAP`, never from
+a second copy: they are different quantities and both bind.
+
+Two live caveats. The cheapest split is a strip at a parameter aspect
+nothing would choose, so `opt_cells` is an UPPER BOUND on a practical
+schedule. And `nurbs_cert`'s grid steps are shared with the chord pass's
+adjacent-face boundary tightening, so a schedule change is not local to
+the grid.

@@ -4,6 +4,8 @@ kind: issue
 title: viewer-module-kinds.sh's two gate_require_file guards can both be deleted with its selftest green
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

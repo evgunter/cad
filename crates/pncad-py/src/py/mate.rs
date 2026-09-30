@@ -560,8 +560,9 @@ impl Subgroup {
 /// `predicate`, `clash`, `part`, `named`, `selected`, `what`,
 /// `expected_document`, `found_document`, `inner_variant`, `margin`,
 /// `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`,
-/// `lever_tilt`, `lever_residual`, `lever_arm`. The human message is
-/// the kernel's own prose, available as `str(fault)`.
+/// `lever_tilt`, `lever_residual`, `lever_arm`, `cause`. The human
+/// message is the kernel's own prose, available as `str(fault)`; the
+/// refusal it carries and does not quote is `cause`.
 ///
 /// **The classifier's words are the frame door's words.** `margin` /
 /// `margin_low` / `margin_high`, `zero` / `escalate`, `field` /
@@ -620,10 +621,23 @@ impl MateFault {
     /// every node failure crosses with (`EvaluationError.kind`) — the
     /// same vocabulary, so a caller branches on one set of words
     /// whether the refusal reached them from the node or from the
-    /// mate that placed it. `str(fault)` carries its prose.
+    /// mate that placed it. [`MateFault::cause`] carries its prose.
     #[getter]
     fn error(&self) -> Option<&'static str> {
         self.payload().error
+    }
+
+    /// **The refusal this fault carries, typed** — the placer's own,
+    /// on `mate_placer_refused` where the placer is poisoned and cannot
+    /// state it: the `EvaluationError` the placer's own evaluation
+    /// raises, which `str(fault)` points at and never quotes. The same
+    /// value a raised `MateError` carries as its `__cause__`. `None` on
+    /// every other arm, and where the placer fails in its own right and
+    /// its own failure states it.
+    #[getter]
+    fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        super::value::carried_cause(py, self.0.carried_chain())
+            .map(|cause| cause.into_value(py).into_any())
     }
 
     /// The instance a self-mate names twice.
@@ -730,7 +744,7 @@ impl MateFault {
 
     /// The in-band margin the classifier saw, when it saw a value.
     ///
-    /// Reading it is not branching on it: what the escalation
+    /// For error text only, not a decision input: what the escalation
     /// contract forbids is recovering the margin to make the sign
     /// decision the classifier refused.
     #[getter]
@@ -739,13 +753,14 @@ impl MateFault {
     }
 
     /// The classified enclosure's lower bound, where the classifier
-    /// saw an enclosure rather than a value.
+    /// saw an enclosure rather than a value. For error text only, not
+    /// a decision input.
     #[getter]
     fn margin_low(&self) -> Option<Length> {
         self.payload().margin_low.map(length)
     }
 
-    /// Its upper bound.
+    /// Its upper bound. For error text only, not a decision input.
     #[getter]
     fn margin_high(&self) -> Option<Length> {
         self.payload().margin_high.map(length)
@@ -853,7 +868,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
     let value = Py::new(py, MateFault(fault.clone()))
         .map(|v| v.into_any())
         .unwrap_or_else(|_| py.None());
-    typed_err(
+    let err = typed_err(
         py,
         ErrorClass::Mate,
         fault.to_string(),
@@ -864,7 +879,10 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
             ),
             ("fault", value),
         ],
-    )
+    );
+    // The refusal the fault carries, typed, as the cause — the value's
+    // own `cause`, and what a node failure does with one.
+    super::value::with_carried(py, err, fault.carried_chain())
 }
 
 /// The document's solved poses: each instance's pose relative to its
@@ -1061,9 +1079,9 @@ impl Maintenance {
 #[pymethods]
 impl Maintenance {
     /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
-    /// `strand`, `stranded_appearance` or `orphaned_declare`, the
-    /// seven the stub lists for this attribute. The word decides
-    /// which of the payload attributes below carry.
+    /// `strand`, `stranded_appearance` or `orphaned_declare`, the seven
+    /// the stub lists for this attribute. The
+    /// word decides which of the payload attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
     #[getter]
@@ -1091,11 +1109,13 @@ impl Maintenance {
         }
     }
 
-    /// The stranded name itself, in the opaque text every name door
-    /// on this surface speaks — the payload name for a `strand`, the
-    /// appearance store's key for a `stranded_appearance`. Its
-    /// minting node is the one the edit deleted; `Doc.rebind` is the
-    /// repair this surface carries for either one.
+    /// The name this row is about, in the opaque text every name door
+    /// on this surface speaks — the stranded payload name for a
+    /// `strand`, the appearance store's stranded key for a
+    /// `stranded_appearance`. A stranded name is spelled as the
+    /// document holds it — its minting node deleted, or its profile
+    /// step dropped — and `DocEdit.rebind` from that spelling is the
+    /// repair this surface carries.
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {

@@ -30,14 +30,15 @@ test_utils::gated_to![
     "crates/editor-core/src/meta/",
     "crates/geom-core/src/tolerance.rs",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::fixture;
 
 use editor_core::{
-    Dimension, DocEdit, DocParam, Expr, MetaValue, Node, ParamName, ProfileDoc, load, save,
+    Dimension, DocEdit, DocParam, MetaValue, Node, ParamName, ProfileDoc, load, save,
 };
-use fixture::desc;
+use fixture::{desc, len};
 use geom_core::Tol;
 use proptest::prelude::*;
 
@@ -53,7 +54,7 @@ fn round_trip(value: f64) -> ProfileDoc {
     doc = push(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("p"),
+            name: ParamName::from_static("p"),
             value: DocParam::continuous(Dimension::Length, value),
         },
     );
@@ -83,11 +84,7 @@ fn round_trip(value: f64) -> ProfileDoc {
         &doc,
         DocEdit::InsertNode {
             node: Node::Datum(editor_core::Datum::Point {
-                position: [
-                    Expr::literal(value, Dimension::Length).expect("finite literal"),
-                    Expr::literal(0.0, Dimension::Length).unwrap(),
-                    Expr::literal(-0.0, Dimension::Length).unwrap(),
-                ],
+                position: [len(value), len(0.0), len(-0.0)],
             }),
         },
     );
@@ -107,7 +104,9 @@ fn assert_bits(label: &str, value: f64, loaded: f64) {
 
 fn check_all_slots(value: f64) {
     let doc = round_trip(value);
-    let Some(DocParam::Continuous { value: p, .. }) = doc.params().get(&ParamName::new("p")) else {
+    let Some(DocParam::Continuous { value: p, .. }) =
+        doc.params().get(&ParamName::from_static("p"))
+    else {
         panic!("param lost");
     };
     assert_bits("doc param", value, *p);

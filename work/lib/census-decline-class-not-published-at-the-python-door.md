@@ -4,6 +4,8 @@ kind: issue
 title: the census decline's carried cause is not published at the Python door — CUR3's row, the six rotten prelude sentences, and the equality question come with it
 status: open
 opened: 2026-09-11
+priority: P3
+cost: D
 ---
 
 

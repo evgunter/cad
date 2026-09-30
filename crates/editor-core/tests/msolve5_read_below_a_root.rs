@@ -41,9 +41,9 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
     EntityKind, Entry, EvalOptions, Evaluation, Expr, LeverRefusal, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, PartSelect,
-    PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg,
-    SitedFace, StableName, product,
+    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, NodeStanding,
+    PartSelect, PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef,
+    RoleSeg, SitedFace, StableName, product,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
@@ -192,13 +192,11 @@ fn scene_no_pattern(label: &str) -> Scene {
 }
 
 /// The first TIED row of `kind` in the node's table.
-fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (StableName, u32) {
+fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (StableName, usize) {
     fixture::table(ev, node)
         .iter()
         .find_map(|(n, e)| match e {
-            Entry::Tied(c) if n.kind == kind => {
-                Some((n.clone(), u32::try_from(c.len()).expect("a small tie")))
-            }
+            Entry::Tied(c) if n.kind == kind => Some((n.clone(), c.len())),
             Entry::Tied(_) | Entry::Unique(_) => None,
         })
         .unwrap_or_else(|| panic!("node {} holds a tied {kind:?} row", node.0))
@@ -556,7 +554,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::RootFailed { node } if node == base)
+                if matches!(**e, ProductError::Root(NodeStanding::Failed { node }) if node == base)
         ),
         "the gather refuses at the failed root before any reference is read: {err:?}"
     );

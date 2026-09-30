@@ -4,6 +4,8 @@ kind: issue
 title: mate/solve.rs holds the D-3 cluster-record maintenance beside the solve, a second concern the module doc gives one bullet
 status: open
 opened: 2026-09-19
+priority: P1
+cost: D
 ---
 
 

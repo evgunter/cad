@@ -23,7 +23,7 @@ use super::{
     Discharge, INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param,
     plain_form,
 };
-use crate::predicate::{Indeterminate, MarginDiag, Sign};
+use crate::predicate::{Decided, Indeterminate, Sign};
 
 /// How one decision at the symbolic scalar came out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,6 +98,9 @@ thread_local! {
     /// How many levels below a blocked residual [`explain`] walks
     /// (zero: no explanation is rendered).
     static EXPLAIN: Cell<usize> = const { Cell::new(0) };
+    /// The most characters of one rendered form [`explain`] prints
+    /// ([`explain_render_chars`]).
+    static RENDER_CHARS: Cell<usize> = const { Cell::new(EXPLAIN_RENDER_CHARS) };
     static SHAPES: RefCell<Vec<DecisionShape>> = const { RefCell::new(Vec::new()) };
     static NAMES: RefCell<BTreeMap<u128, String>> = const { RefCell::new(BTreeMap::new()) };
 }
@@ -109,9 +112,14 @@ pub fn start_shape_report() {
 }
 
 /// Removes the report and answers everything recorded since
-/// [`start_shape_report`].
+/// [`start_shape_report`]. The explanation's render width goes back to
+/// its default here too ([`explain_render_chars`] is per report, not
+/// per thread: a row that raised it cannot leak the raised width into
+/// a later decision rendered on the same thread of a shared test
+/// binary).
 pub fn take_shape_report() -> Vec<DecisionShape> {
     ACTIVE.set(false);
+    RENDER_CHARS.set(EXPLAIN_RENDER_CHARS);
     SHAPES.with(|s| core::mem::take(&mut *s.borrow_mut()))
 }
 
@@ -121,6 +129,15 @@ pub fn take_shape_report() -> Vec<DecisionShape> {
 /// renders no explanation.
 pub fn explain_depth(levels: usize) {
     EXPLAIN.set(levels);
+}
+
+/// Sets the most characters of one rendered form the explanation
+/// prints (the default cuts at 1500, which is a page and is where an
+/// atom's argument gets cut open when the form carrying it is wide —
+/// a row that has to READ the argument raises it). Set it after
+/// [`start_shape_report`]: [`take_shape_report`] restores the default.
+pub fn explain_render_chars(chars: usize) {
+    RENDER_CHARS.set(chars);
 }
 
 /// Registers a parameter's NAME for rendering, on this thread.
@@ -139,7 +156,7 @@ pub(super) fn active() -> bool {
 /// the tier answered it, if it did: an unconditional theorem, or one
 /// gated on a clause-3 sign read (rule C).
 pub(super) fn record(
-    numeric: &Result<Sign, Indeterminate>,
+    numeric: &Result<Decided, Indeterminate>,
     symbolic: Option<Discharge>,
     rendered: Option<Rendered>,
     enclosure: Option<(f64, f64)>,
@@ -151,9 +168,14 @@ pub(super) fn record(
         (Some(Discharge::Theorem), _) => ShapeOutcome::Theorem,
         (Some(Discharge::SignGated), _) => ShapeOutcome::SignGated,
         (Some(Discharge::Registered), _) => ShapeOutcome::Registered,
-        (None, Ok(Sign::Zero)) => ShapeOutcome::NumericZero,
-        (None, Ok(s)) => ShapeOutcome::Definite(*s),
-        (None, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,
+        (
+            None,
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }),
+        ) => ShapeOutcome::NumericZero,
+        (None, Ok(Decided { sign, .. })) => ShapeOutcome::Definite(*sign),
+        (None, Err(e)) if e.margin.is_invalid() => ShapeOutcome::Invalid,
         (None, Err(_)) => ShapeOutcome::Indeterminate,
     };
     let (form, early_form, sizes, explain) = match rendered {
@@ -190,7 +212,8 @@ pub(super) struct Rendered {
 /// The largest numerator (terms) [`explain`] renders in full.
 const EXPLAIN_RENDER_TERMS: usize = 80;
 
-/// The most characters of one rendered form [`explain`] prints.
+/// The most characters of one rendered form [`explain`] prints unless
+/// [`explain_render_chars`] set another.
 const EXPLAIN_RENDER_CHARS: usize = 1500;
 
 fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
@@ -237,7 +260,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
             let text = render_form(sess, &e, 0);
             let cut = text
                 .char_indices()
-                .nth(EXPLAIN_RENDER_CHARS)
+                .nth(RENDER_CHARS.get())
                 .map_or(text.len(), |(i, _)| i);
             let _ = writeln!(
                 out,
@@ -247,7 +270,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
             );
         }
         if depth < levels {
-            for k in node.kids[..node.op.arity()].iter().rev() {
+            for k in node.kids().iter().rev() {
                 stack.push((*k, depth + 1));
             }
         }

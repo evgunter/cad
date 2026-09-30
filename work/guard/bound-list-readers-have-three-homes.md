@@ -4,6 +4,8 @@ kind: issue
 title: Three bracket-depth bound-list readers: bounds-allowlist.sh awk, bounds_census.rs, test_utils::source
 status: open
 opened: 2026-09-06
+priority: P3
+cost: D
 ---
 
 

@@ -25,7 +25,7 @@
 //!   bounded domain is excluded, accounted, or the operation refuses
 //!   typed at the named floor. It is also the seed generator, so
 //!   "marching finds it" never depends on luck.
-//! - [`enclose`] supplies every certified bound, in the C9 ring only.
+//! - [`enclose`] supplies every certified bound, in certification arithmetic only.
 //!
 //! # The two arms wired here (spec §5, minimal by rule)
 //!
@@ -89,7 +89,7 @@
 //! the origin** — an interior-knot (multi-cell) wall currently
 //! refuses at limb 1 (march/fit quality at the knot line), a span
 //! window straddling a knot line or leaving the domain hulls the
-//! neighbor cell's polynomial extension into the bound or poisons,
+//! neighbor cell's polynomial extension into the bound or refuses,
 //! and far-from-origin operands hit the projection and exhaustiveness
 //! machinery's own representation floors — every one of these is a
 //! loud, typed refusal, never a silent miscertification.
@@ -99,7 +99,7 @@
 //! **exactly** (`÷2R`), so limb 2 certifies with no invented scale
 //! factor. The torus's composite is quartic (m⁴) and its conversion
 //! back to meters needs a certified reciprocal of `A + 4Rρ`, which
-//! needs a square root the C9 ring deliberately does not have. Shipping
+//! needs a square root certification arithmetic deliberately does not have. Shipping
 //! the pair whose certificate is *exact* rather than the pair whose
 //! certificate would need a new unratified mechanism is the same
 //! judgment C12.1 makes everywhere: retire arms one at a time, with
@@ -124,6 +124,7 @@ pub mod system;
 
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::Bounds;
 use geom_core::{Band, Indeterminate, Margin, Point3};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
@@ -342,14 +343,17 @@ pub enum SsiError {
         /// How many rungs were offered and answered with nothing.
         rungs: u32,
     },
-    /// Limb 3's transversality enclosure straddles zero over a tube
-    /// box: two branches pass within the band of each other. A genuine
-    /// sliver (F6), not a resolution failure to retry.
+    /// Limb 3's transversality is not certified clear of the zero band
+    /// over the tube chain (its enclosure straddles zero, or its
+    /// clearance lies inside the band): two branches pass within the
+    /// band of each other. A genuine sliver (F6), not a resolution
+    /// failure to retry.
     TubeStraddles {
-        /// The certified transversality margin in meters: a
-        /// dimensionless sine-like quantity already levered by the
-        /// tube scale's arm (zero when the enclosure straddles).
-        margin: f64,
+        /// The verdict on the certified transversality clearance: a
+        /// dimensionless sine-like lower bound levered by the tube
+        /// scale's arm, so a length in metres (zero when the enclosure
+        /// straddles).
+        verdict: crate::recourse::Refused,
         /// Boxes in the chain.
         boxes: u32,
     },
@@ -513,12 +517,13 @@ impl core::fmt::Display for SsiError {
                  enclosure, so limb 3 has nothing to decide — a structural refusal, \
                  with no margin behind it"
             ),
-            Self::TubeStraddles { margin, boxes } => write!(
+            Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "ssi: the uniqueness tube's transversality enclosure straddles zero \
-                 over its {boxes}-box chain (margin {margin:e} m) — two branches pass \
-                 within the band of each other, which is a genuine sliver of the \
-                 operand pair, not a resolution to refine away"
+                "ssi: the uniqueness tube's transversality is not certified clear of the \
+                 zero band over its {boxes}-box chain (certified clearance {:e} m) — two \
+                 branches pass within the band of each other, which is a genuine sliver \
+                 of the operand pair at this tolerance, not a resolution to refine away",
+                verdict.margin()
             ),
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,
@@ -640,7 +645,7 @@ pub struct SsiDomain {
 }
 
 impl SsiDomain {
-    /// The slab as a ring box.
+    /// The slab as a enclosure box.
     fn slab(&self) -> Box3 {
         Box3::around(self.center, self.half_extent)
     }
@@ -1009,7 +1014,7 @@ pub fn plane_nurbs_ssi(
     if !speed.is_finite() {
         return Err(SsiError::UnsupportedCertificate {
             what: "the NURBS wall's certified chart speed is not finite — its \
-                   derivative bound overflowed or is poison — so no floor in \
+                   derivative bound overflowed or is refused — so no floor in \
                    meters can be translated into its parameter domain",
         });
     }
@@ -1091,7 +1096,7 @@ pub fn plane_nurbs_ssi(
 /// per-span chain is also precisely the region limb 3's chart form
 /// proved a single arc over, so the two agree by construction.
 fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
-    let coords = p.ring_coords();
+    let coords = p.certified_coords();
     let kv = p.knots();
     let mut out = Vec::new();
     // One pair per coordinate channel, minted once outside the span
@@ -1110,7 +1115,7 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
         };
         let hu = wu.hull();
         let hv = wv.hull();
-        if hu.is_poison() || hv.is_poison() {
+        if !hu.is_certified() || !hv.is_certified() {
             // A window this pass cannot bound is not banked. Dropping
             // it only ever SHRINKS the accounted set, so the accounting
             // pass gets strictly harder: the failure direction is the
@@ -1344,17 +1349,18 @@ pub fn idealized_trace_r3(
 }
 
 /// `max` that PROPAGATES NaN — `f64::max` returns the non-NaN operand,
-/// so a lone poisoned fold input would be dropped before any guard
-/// with an `is_finite`/`is_nan` arm could see it.
+/// so a lone refused fold input (a refused box's `mag` reads NaN) would
+/// be dropped before any guard with an `is_finite`/`is_nan` arm could
+/// see it.
 ///
 /// At its one call site (the seeding guard's chart-speed fold) the
 /// difference from `f64::max` is defensive rather than reachable
-/// today: a poisoned derivative box needs a zero-touching weight hull
+/// today: a refused derivative box needs a zero-touching weight hull
 /// or a malformed net — both refused at construction — and an
 /// OVERFLOWED box saturates its `mag` to `+∞`, which both folds hand
 /// to the same not-finite refusal. The pin below is therefore on this
 /// helper by name; the reachability argument lives here so that a
-/// future producer of one-sided poison (a new box source, a widened
+/// future producer of a one-sided refusal (a new box source, a widened
 /// constructor) finds the fold already stated as load-bearing.
 fn nan_propagating_max(a: f64, b: f64) -> f64 {
     if a.is_nan() || b.is_nan() {

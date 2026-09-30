@@ -9,10 +9,13 @@
 //! rows call directly, because framing is not what they check — the
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
-//! What carries no oracle is shared: `common::xy_frame` and
-//! `common::gallery_ring_at`.
+//! What carries no oracle is shared: `common::{xy_frame, rectangle,
+//! inserted, len, scl, gallery_ring_at, index_of, down_from, ring_delta}`. The
+//! blocks' own dimensions, the height the rays start above them and
+//! the cursor positions aimed at them stay here, where the aim is
+//! written.
 //!
-//! Conventions per `memories/test-suite-cost.md`: the randomized rows
+//! Conventions per implementer-discipline §8: the randomized rows
 //! draw a fresh seed per run through `test_utils::fuzz` (logged
 //! unconditionally, replayable via `CAD_FUZZ_SEED`), and their counts
 //! ride the shared effort dial. The one `#[ignore]`d row is an
@@ -32,18 +35,21 @@ test_utils::gated_to![
     "crates/pncad/src/",
     "crates/bvh/src/",
     "crates/viewer/tests/common/",
-    "crates/viewer/tests/gallery_ring.pncad"
+    "crates/viewer/tests/gallery_ring.pncad",
+    "crates/viewer/src/test_support.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::common;
-use crate::common::xy_frame;
+use crate::common::{inserted, len, scl, xy_frame};
 
-use pncad::document::{Doc, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::geom_core::{Point3, Tol};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
+use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
@@ -56,50 +62,12 @@ fn delta() -> DisplayTolerance {
     DisplayTolerance::new(1.5e-4).expect("a positive delta")
 }
 
-/// A square profile at an offset — this suite's own authoring helper,
-/// so the fixtures do not share the unit's.
-fn offset_square(plane: RecipeNodeId, x0: f64, y0: f64, side: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([
-                (x0, y0),
-                (x0 + side, y0),
-                (x0 + side, y0 + side),
-                (x0, y0 + side),
-            ])
-            .expect("finite corners"),
-        ],
-    })
-}
-
-/// Insert one node, keeping the id.
-fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = pncad::document::apply(
-        doc,
-        &pncad::document::DocEdit::InsertNode { node },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the fixture edit applies");
-    let id = *applied
-        .doc
-        .order()
-        .last()
-        .expect("the inserted node is last");
-    (applied.doc, id)
-}
-
 /// Two DISJOINT extruded blocks under two separate roots: block A is
 /// `[0,0.02]² × 0.01`, block B is `[0.1,0.14]×[0,0.04] × 0.02`.
 fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-two-blocks", tol);
     let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, pa) = inserted(&doc, offset_square(plane, 0.0, 0.0, 0.02), tol);
+    let (doc, pa) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.02, 0.02), tol);
     let (doc, a) = inserted(
         &doc,
         Node::Extrude {
@@ -108,7 +76,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, pb) = inserted(&doc, offset_square(plane, 0.1, 0.0, 0.04), tol);
+    let (doc, pb) = inserted(&doc, common::rectangle(plane, [0.1, 0.0], 0.04, 0.04), tol);
     let (doc, b) = inserted(
         &doc,
         Node::Extrude {
@@ -120,16 +88,6 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     (doc, a, b)
 }
 
-fn len(metres: f64) -> pncad::document::Expr {
-    pncad::document::Expr::literal(metres, pncad::document::Dimension::Length)
-        .expect("a finite length")
-}
-
-fn scl(value: f64) -> pncad::document::Expr {
-    pncad::document::Expr::literal(value, pncad::document::Dimension::Scalar)
-        .expect("a finite scalar")
-}
-
 /// A landed session plus its pick index.
 fn landed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
     let mut session = DocSession::inline(doc, tol);
@@ -139,29 +97,14 @@ fn landed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
 }
 
 fn index_of(session: &DocSession) -> PickIndex {
-    index_at(session, delta())
+    common::index_of(session, delta())
 }
 
-fn index_at(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("the inline seam lands");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(
-            session.landed_generation().expect("a landed generation"),
-            delta,
-        ),
-        session.tol(),
-    )
-    .expect("the fixture indexes")
-}
-
-/// A ray straight down at `(x, y)` from above everything here.
+/// A ray straight down at `(x, y)` from above everything here. The
+/// height is this suite's claim about its own fixture, so it stays in
+/// this file rather than riding the shared door's default.
 fn down(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 0.5),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
+    common::down_from(x, y, 0.5)
 }
 
 // --- un-projection, this suite's own construction -------------------
@@ -251,8 +194,7 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         )
         .expect("a finite camera");
         let aspect = rng.range(0.4, 3.0);
-        let matrix = camera.view_projection(aspect).expect("defined");
-        let vp32 = matrix.map(|c| c.map(|v| v as f32));
+        let vp32 = camera.view_projection_f32(aspect).expect("defined");
         let point = Point3::new(
             rng.range(-0.8, 0.8),
             rng.range(-0.8, 0.8),
@@ -261,13 +203,15 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         if camera.project(point, aspect).expect("defined").is_none() {
             continue; // behind the eye: not this row's subject
         }
-        let cursor = [rng.range(-1.0, 1.0) as f32, rng.range(-1.0, 1.0) as f32];
-        let size = [
-            rng.range(64.0, 4000.0) as f32,
-            rng.range(64.0, 4000.0) as f32,
-        ];
+        let cursor = [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0)]
+            .narrow()
+            .expect("a cursor inside the device cube");
+        let size = [rng.range(64.0, 4000.0), rng.range(64.0, 4000.0)]
+            .narrow()
+            .expect("a viewport of ordinary size");
         let shifted = cursor_projection(&vp32, cursor, size);
-        let v = [point.x as f32, point.y as f32, point.z as f32, 1.0f32];
+        let [px, py, pz] = point.narrow().expect("a point the seam draws");
+        let v = [px, py, pz, 1.0f32];
         let apply = |m: &[[f32; 4]; 4]| {
             let mut out = [0.0f32; 4];
             for (row, slot) in out.iter_mut().enumerate() {
@@ -476,7 +420,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-pattern", tol);
     let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, offset_square(plane, 0.0, 0.0, 0.03), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
@@ -508,10 +452,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let index = index_of(&session);
     // The third instance spans y ∈ [0.16, 0.19]; a horizontal ray
     // along +x at its mid-height meets its x=0 wall first.
-    let wall = Ray {
-        origin: Point3::new(-1.0, 0.175, 0.0075),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let wall = common::along_x(1.0, 0.175, 0.0075);
     let face = index
         .face_at(session.evaluation().expect("landed"), &wall)
         .expect("no refusal")
@@ -554,14 +495,14 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     let tol = Tol::witness();
     // Coarser than the block fixtures' δ: the ring is a revolve and
     // this row tessellates it twice; picking semantics do not depend
-    // on the facet count (`memories/test-suite-cost.md` — keep the
+    // on the facet count (implementer-discipline §8 — keep the
     // per-run cost where the claim needs it).
-    let ring_delta = DisplayTolerance::new(2.0e-3).expect("a positive delta");
+    let ring_delta = common::ring_delta();
     let loaded =
         pncad::document::load(&common::gallery_ring_at(tol), tol).expect("the gallery ring loads");
     let mut session = DocSession::inline(loaded.snapshot, tol);
     session.pump();
-    let index = index_at(&session, ring_delta);
+    let index = common::index_of(&session, ring_delta);
     assert!(!index.ids().is_empty(), "the ring draws pickable patches");
 
     let viewport = ViewportSize {
@@ -676,7 +617,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     session.perform(SessionOp::Undo);
     session.pump();
     assert!(session.standing().live(), "the un-deleted owner resolves");
-    let fresh = index_at(&session, ring_delta);
+    let fresh = common::index_of(&session, ring_delta);
     let re_hit = fresh
         .op_for(
             session.evaluation().expect("landed"),

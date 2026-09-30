@@ -4,6 +4,8 @@ kind: issue
 title: A fillet's own legs escalate a span predicate against each other at small turns, so the loop cannot validate whatever the fillet does
 status: open
 opened: 2026-09-13
+priority: P0
+cost: H
 ---
 
 

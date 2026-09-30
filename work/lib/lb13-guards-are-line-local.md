@@ -20,7 +20,7 @@ it was re-homed by header edit and `git mv`, never by copying.
 for items whose owner is obvious.
 
 Found by CIW while asking the ruling on
-`work/ciw/facade-guards-defer-to-rustdoc-json` (#696, PR 1841). That
+`facade-guards-defer-to-rustdoc-json` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) (#696, PR 1841). That
 PR rewrote the three guards' doc comments — the deferral half — and
 left this, the logic half, here.
 
@@ -54,7 +54,7 @@ The hazard is not hypothetical shape: 33 of 74 statements are already
 written that way, and 17 of those already reach into `editor_core`, so
 the regression's cheapest spelling is also its invisible one.
 
-**Correction to the numbers in `work/ciw/facade-guards-defer-to-rustdoc-json`,
+**Correction to the numbers in `facade-guards-defer-to-rustdoc-json` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`),
 which stated 33 of **77**, **15** naming `editor_core::`.** Both were
 re-derived here and the check wins:
 

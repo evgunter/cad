@@ -21,7 +21,11 @@ certified quadrature refined per face to `QUAD_TARGET_LEN_FACTOR · ε`
 unreachable target after round 0). Two consequences, both measured:
 
 - **A false refusal.** The teapot's canal at ε = 1e-12: round 0's
-  enclosure excluded zero by ~5 orders of magnitude, and the body was
+  enclosure excluded zero — by about ten of its own half-widths, as
+  re-read on the current spout in PR 3333
+  (`V in [4.997e-5, 6.017e-5] m³`; the "~5 orders" first written here
+  metered `width_len`, a lower bound on the width of a round never
+  run, as if it were that enclosure) — and the body was
   refused `VolumeUncomputable { QuadratureBudget { width_len: 2.53e-8,
   target_len: 1.024e-9, rounds: 1 } }` — a valid solid reported
   unvalidatable for missing a precision the check never reads.

@@ -33,28 +33,14 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// The pinned diagnosis-corpus digest (update ONLY on a ratified
 /// resolution-semantics change — this is the replay-identity family's
 /// resolution member).
-// RE-PINNED at M4 PR 5: the corpus's sliding-union scenario now
-// DECLARES its flush planes (F5), shifting downstream node ids; the
-// row SHAPES are unchanged (verified: flip-vanish → PredicateFlip,
-// cascade → Cascade, structural-param, node-gone, ambiguous).
-// RE-PINNED at M5 PR 8 (ratified 2026-07-29): the corpus runs the
-// PRODUCTION (realized BVH) sweep, and exactly ONE row changed shape
-// — "flip-vanish" now diagnoses the documented evidence-free fallback
-// RecipeEdit{NodeChanged(minting node)} instead of PredicateFlip: the
-// scenario's disjoint run prunes the pair space, so the flip evidence
-// is never computed (NAMING-DESIGN N5 as amended). All other rows
-// unchanged (cascade → Cascade, structural-param, node-gone,
-// ambiguous).
-// NOT MOVED by the shadow-execution rung: this row is the OrderAlong
-// half, which `resolve::shadow_exec_flip`'s docs record as
-// unrecoverable and say why. The rung's own row for the recovered
-// (SideOf) half is in `bool7_shadow_exec`.
-// RE-PINNED for the sketch-frame node: a profile's plane is a document
-// node, so every corpus scenario gained one and the ids inside the
-// diagnosed names shifted. The five row SHAPES are unchanged and were
-// re-read before this pin moved (flip-vanish → RecipeEdit/NodeChanged,
-// cascade → Cascade, structural-param, node-gone, ambiguous).
-const DIAGNOSIS_DIGEST: u64 = 0xf745_47d1_c387_f440;
+// What the pin holds: flip-vanish → GroupResized { was: 2, now: 1 }
+// naming B's cap vertex as the one cutter gone; cascade → Cascade;
+// structural-param → StructuralParam; node-gone; ambiguous. Re-pinned
+// when profile pieces became named by minted step ids: the diagnosed
+// names spell `{ step, role }`, and every row keeps its shape; and
+// again when step ids became digests of the document's mint chain: the
+// ids the names spell moved, and every row keeps its shape.
+const DIAGNOSIS_DIGEST: u64 = 0xf656_8c12_cc7b_c381;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

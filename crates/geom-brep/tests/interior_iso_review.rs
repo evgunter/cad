@@ -83,11 +83,7 @@ fn cubic_chart(net: Net, scale: f64) -> NurbsSurface<f64> {
 }
 
 fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
-    let control = s
-        .control()
-        .iter()
-        .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-        .collect();
+    let control = s.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsSurface::new(
         s.knots_u().clone(),
         s.knots_v().clone(),
@@ -98,11 +94,7 @@ fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
 }
 
 fn lift_curve<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).unwrap()
 }
 
@@ -238,7 +230,6 @@ fn r1_c1_collapse_matches_evaluation_f64() {
 /// contain the f64 truth, at degenerate `u*` (mid-span, ON the interior
 /// knot — the straddle, near an end) and at a WIDE `u*` straddling the
 /// knot, where the row must enclose `S(u, v)` for every `u` in it.
-#[cfg(feature = "interval")]
 #[test]
 fn r1_c1_collapse_encloses_evaluation_interval() {
     use geom_core::Interval;
@@ -294,7 +285,6 @@ fn r1_c1_collapse_encloses_evaluation_interval() {
 /// scalar: the per-span hull must enclose `S(u, v)` on both sides — a
 /// first-span-only extractor extrapolates the wrong polynomial across
 /// the crease.
-#[cfg(feature = "interval")]
 #[test]
 fn r1_c1_straddle_at_a_crease_interval() {
     use geom_core::Interval;
@@ -449,7 +439,6 @@ fn r1_c2_shared_space_f64() {
     c2_body::<f64>("f64");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn r1_c2_shared_space_interval() {
     c2_body::<geom_core::Interval>("interval");
@@ -523,7 +512,6 @@ fn r1_c3_slack_soundness_f64() {
     c3_body::<f64>("f64");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn r1_c3_slack_soundness_interval() {
     c3_body::<geom_core::Interval>("interval");
@@ -578,7 +566,6 @@ fn out_of_domain_u_star_refuses_typed_f64() {
     out_of_domain_body::<f64>("f64");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn out_of_domain_u_star_refuses_typed_interval() {
     out_of_domain_body::<geom_core::Interval>("interval");

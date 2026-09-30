@@ -5176,3 +5176,110 @@ Filed while sweeping, on FIX's slate:
 reach `Subject::Unavailable`.
 
 Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## Announced seam from FIX (2026-09-21)
+
+**`crates/pncad-py/src/product_memo.rs`, one arm deleted — PR 2943.**
+
+FIX's `subject-refused-accepts-the-one-refusal-that-must-not-go-through-it`
+gave the gather-refusal routing one home. `checks::Subject::refused` now
+reads `product::ProductErrorKind::means_no_body` itself and returns
+`Subject::NoBodyRoots` for that class, so the hand-routing arm both
+production callers carried is dead. `checks_report`'s copy —
+
+```rust
+Err(ref source) if source.kind().means_no_body() => {
+    d::run_checks_on(doc, evaluation, d::Subject::NoBodyRoots, cfg, tol)
+}
+```
+
+— is removed, and the comment above the match now says the line is drawn
+in `Subject::refused` rather than drawn a second time here. **No
+signature moved and no document changes behaviour**: this caller already
+routed correctly by hand, and the deletion is what stops it being a
+second place the classification is re-derived.
+
+This is the same shape WIRE's `nobodyroots-classification-has-two-homes`
+(PR 2629) landed on `ProductErrorKind::means_no_body`, one consumer
+further out.
+
+**One thing left alone in your crate, deliberately.**
+`crates/pncad-py/src/tests.rs`'s `check_registry_tags_are_stable`
+hand-builds `ChecksError::Product { kind: Some(NoBodyRoots), .. }` — a
+state production can no longer reach, since `Unavailable` never carries
+that kind now. Read at the site and judged sound: the row pins a tag
+STRING, the tag function reads only the variant, and the map must still
+cover every kind, so the row still fails for the reason it names. No row
+filed. If you read it the other way it is a one-line kind swap in your
+file.
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2945, and a row filed on your slate
+
+**`crates/pncad-py/src/py/refactor.rs`, three lines.** FIX's
+`remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites` added
+a `missing: RecipeNodeId` field to `SplitError::NameStraddlesCut`,
+`SplitError::PartNameReachesRemainder` and
+`InlineError::StrandedPartName`. Three arms in `split_err`/`inline_err`
+were struct patterns binding `name` by name and no longer compile, so
+they now bind `..`.
+
+**Nothing Python-visible moved.** The tag inventory is untouched — both
+tag functions match `{ .. }`, no tag added, renamed or removed, and
+`crates/pncad-py/src/tests.rs`'s tables did not change. The projection
+tuple is unchanged.
+
+**The decision that was NOT taken here is yours, and it is filed:**
+`work/lib/split-and-inline-name-refusals-do-not-project-the-missing-node.md`.
+The new id is not projected. The lane could have put it in the free
+`node` slot for two of the three arms — but `PartNameReachesRemainder`
+already spends that slot on the CUT NODE carrying the reference, a
+different node, so a half-projection would have been worse than none.
+Whether to project it, and what slot the third arm gets, wants your call
+plus the `.pyi` stub, the binding census and the stub tests.
+
+Grepped your slate first: `pncad-py-seven-doors-lack-field-projection`
+is about doors with NO projection and lists `split`/`inline` among those
+that already have one, so this is a different and much smaller unit.
+
+Signed (FIX orchestrator).
+
+## Announced seam from PATHS (2026-09-25) — `ProfileVertex` leaves the façade
+
+**`crates/pncad/src/profile.rs` and `crates/pncad/src/prelude.rs`, one
+name each.** `profile::ProfileVertex`, the bulge input form's vertex
+record, is retired (Ev's ruling on #3218, q4), so both re-exports drop
+it. Nothing on the façade handed one out or took one: read-back is
+`ProfileLoop::{vertices, segments, bulges}`, which are unchanged.
+
+**What else moved in your ground.** `pncad/tests/all.rs`'s
+`no_raw_loop_minting_door_is_nameable_through_the_facade` swaps its
+`ProfileVertex{` needle, a type that no longer exists, for the new
+fixture helper `bulge_loop(`. The pncad-py binding census drops the
+`ProfileVertex` INTERIOR row with the name. No Python binding named the
+type, so nothing Python-visible changed.
+
+Fixtures that wrote a bulge chain now call
+`profile::test_support::bulge_loop`, which exists only under
+`test`/`test-support`. `RawLoop::new` takes the canonical form (a vertex
+and its `Segment` per edge). Neither is on the façade.
+
+Signed (PATHS orchestrator).
+
+## Announced from ENCL (2026-09-26): two tag rows in `pncad-py`
+
+ENCL's batch PR (the must-carry first-order gate) adds
+`SmoothJoinRefuted { edge }` to `ExtrudeError` and `RevolveError`. It is
+unreachable but reported, in the style of `CapPlane`: the must-carry rule
+refuting the verb's own smooth-join premise. `pncad-py`'s two tag maps and
+its tag tables gained `smooth_join_refuted`. That is an addition, not a
+claim on your ground.
+
+Signed: (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3390 (merged `719ef596a1`). The shell volume-sign decision is sized (`geom_brep::recourse::SizedPass::NonZero`, the offer valued at |m|/K). `ShellClassifyError` gains a `Straddles` arm and a `payload()` data view, and its `Display` ends in its decision's one ending. `recourse::UNREADABLE_MARGIN_NOTE` is the shared unreadable-margin sentence. pncad-py gains the `straddles` inner-variant tag (tags.rs, the census, `.pyi`, `py/checks.rs`); `pncad/src/document.rs` says 'five ways'. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. Filed: `wedge-check-is-a-rung-under-sliver-dihedral` (carry `WedgeCheck` to the façade; non-carriage argued at its declaration, DISPOSITIONS entry added). (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) adds two closed decision types under `topo::BooleanError` (D4 ¶1 (i), PR 3352): `BooleanDecision` on `Escalated` and `Contradiction` on `DeclarationContradicted`. `scripts/payload-rung-sweep.py --check` found both as new rungs. Their non-carriage is argued beside `Contradiction` in `crates/topo/src/boolean/refusal_routes.rs`, `DISPOSITIONS` gains two rows citing it, and the carry is filed on this slate as `boolean-decision-and-contradiction-are-rungs-under-boolean-error`. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: PR 3493's fix pass moves the non-carriage argument for `BooleanDecision` and `Contradiction` out of `Contradiction`'s doc and into `boolean-decision-and-contradiction-are-rungs-under-boolean-error`, which also names the two types nested one rung further down (`SectorRung`, `CrossingDecision`) that `payload-rung-sweep.py` does not reach; both `DISPOSITIONS` rows are now `filed` against that row. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) adds `BooleanErrorKind::DegenerateTorus`, which `pncad-py`'s `boolean_error_tag` maps to `degenerate_torus`; the word is shared with `validation_error_tag`'s and entered in `SHARED_TAG_WORDS` with what the two mean. It also adds `topo::TorusConvention` (re-exported from `geom_brep`), `PlaneRung` and `MergeDecision`, which the payload-rung sweep dispositions onto `work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error.md`. An addition, not a claim on your ground. (TOPO, PR 3506 fix pass)

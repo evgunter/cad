@@ -1,6 +1,4 @@
-//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16). These are
-//! **independent derivations**. Promoted per Ev's request (PR #17
-//! thread).
+//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16).
 //!
 //! Tier-1-INVALID bodies fed into the operators. The debug-vs-release
 //! expectations are split with `cfg(debug_assertions)` guards, so neither
@@ -17,17 +15,10 @@
 //! has.
 //!
 //! **That job is the only lane in the tree that compiles the
-//! `cfg(not(debug_assertions))` rows, and `local-scripts/ci-local.sh` is
-//! not a second one.** The hosted job pins
-//! `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`; the local
-//! `topo_release` row does not, so against the root `[profile.release]`'s
-//! `debug-assertions = true` it compiles the DEBUG arms of this file and
-//! the row below does not exist there at all. The local row also selects
-//! a subset — this module and one `review_m1_pr4` row, and no
-//! `review_d18`. So the local gate exercises the debug expectations a
-//! second time; the release expectations are the hosted job's alone.
-//! Both halves grep this sentence for the job's name, so renaming it here or
-//! there is loud.
+//! `cfg(not(debug_assertions))` rows.** It pins
+//! `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`; any other
+//! `--release` run, against the root `[profile.release]`'s
+//! `debug-assertions = true`, compiles the DEBUG arms of this file.
 //!
 //! # What of the contract is still ratified
 //!
@@ -104,7 +95,7 @@ fn pillow(
     crate::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -182,7 +173,7 @@ fn large_torn_body_terminates_quickly() {
     let tol = Tol::witness();
     let n: i32 = if cfg!(debug_assertions) { 500 } else { 3000 };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {

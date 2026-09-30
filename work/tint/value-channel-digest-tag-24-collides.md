@@ -4,6 +4,8 @@ kind: issue
 title: the value-channel digest's discriminator is not injective: tag 24 is claimed twice
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

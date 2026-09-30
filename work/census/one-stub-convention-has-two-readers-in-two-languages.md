@@ -4,6 +4,8 @@ kind: issue
 title: pncad.pyi's Final convention has a Python reader and a Rust reader, held equal by nothing, and they had drifted
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

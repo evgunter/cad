@@ -5,6 +5,8 @@ title: boolean::ops declared_surface_pairs emits one surviving declared pair per
 status: open
 opened: 2026-09-07
 refs: [cylindrical-rest-pair-hits-planar-merge, 2105]
+priority: P0
+cost: D
 ---
 
 

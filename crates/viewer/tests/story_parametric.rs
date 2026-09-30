@@ -31,7 +31,7 @@ use crate::common;
 
 use core::f64::consts::PI;
 
-use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
     Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, EditError, ParamName, ProfileProgram,
     RecipeNodeId, SlotId, StepArg,
@@ -40,7 +40,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
-use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{BoundsTarget, DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 /// The lighthouse's proportions, as the parameters are first declared:
@@ -129,10 +129,10 @@ fn drum(
     distance: f64,
 ) -> (RecipeNodeId, RecipeNodeId) {
     let plane = common::xy_frame_in(session);
-    let profile = insert(
+    let profile = session_insert(
         session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Circle {
                 // A positive placeholder; the expression takes over
                 // before anything downstream consumes it.
@@ -143,7 +143,7 @@ fn drum(
     );
     let radius = radius_slot(session.committed_doc(), profile);
     drive(session, profile, radius, radius_expr);
-    let extrude = insert(
+    let extrude = session_insert(
         session,
         SessionOp::AddExtrude {
             profile,
@@ -169,10 +169,10 @@ fn the_parametric_living_walk() {
 
     // ── 2. The user declares the proportions FIRST — four parameters,
     // each one committed `SetDocParam` edit and one undo step.
-    let base_r = ParamName::new("base_r");
-    let taper = ParamName::new("taper");
-    let height = ParamName::new("height");
-    let embed = ParamName::new("embed");
+    let base_r = ParamName::from_static("base_r");
+    let taper = ParamName::from_static("taper");
+    let height = ParamName::from_static("height");
+    let embed = ParamName::from_static("embed");
     for (name, param) in [
         (&base_r, DocParam::continuous(Dimension::Length, BASE_R)),
         (&taper, DocParam::continuous(Dimension::Scalar, TAPER)),
@@ -205,7 +205,8 @@ fn the_parametric_living_walk() {
     // an undeclared name — here a typo — is refused by the EDIT door
     // instead: `DocEdit::SetDocParamValue` carries an existing
     // declaration forward and says so, `EditError::DocParamNotDeclared`
-    // naming the parameter and the recourse ("declare it first").
+    // naming the parameter and the one recourse both doors render
+    // (`editor_core::edit::UNDECLARED_PARAM_RECOURSE`).
     // Neither commits or mints history.
     let before = session.history().len();
     let outcome = session.perform(SessionOp::CreateParam {
@@ -228,13 +229,13 @@ fn the_parametric_living_walk() {
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     let outcome = session.perform(SessionOp::SetParam {
-        name: ParamName::new("tapper"),
+        name: ParamName::from_static("tapper"),
         value: SlotValue::Continuous(0.5),
     });
     match outcome.refusal {
         Some(Refusal::Edit(ref error)) => match **error {
             // The door rides along now; this row is about the NAME.
-            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.0, "tapper"),
+            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.as_str(), "tapper"),
             ref other => panic!("expected DocParamNotDeclared, got {other:?}"),
         },
         ref other => panic!("expected the edit door's refusal, got {other:?}"),
@@ -273,7 +274,7 @@ fn the_parametric_living_walk() {
     // tower wall crossing the base's top cap transversally.
     let (_tower_profile, tower) = drum(&mut session, "base_r * taper", 0.055);
     drive(&mut session, tower, SlotId::Distance, "height * 2.0");
-    let tower_up = insert(
+    let tower_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: tower,
@@ -291,7 +292,7 @@ fn the_parametric_living_walk() {
         SlotId::Translation(Axis3::Z),
         "height - embed",
     );
-    let hull = insert(
+    let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -342,7 +343,7 @@ fn the_parametric_living_walk() {
         12.0,
         "shown as twelve millimetres"
     );
-    let lamp_up = insert(
+    let lamp_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: lamp,
@@ -360,7 +361,7 @@ fn the_parametric_living_walk() {
         SlotId::Translation(Axis3::Z),
         "height * 3.0 - embed * 2.0",
     );
-    let lighthouse = insert(
+    let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -447,7 +448,7 @@ fn the_parametric_living_walk() {
     );
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: ParamName::new("tapper"),
+            name: ParamName::from_static("tapper"),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));

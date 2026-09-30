@@ -5,6 +5,8 @@ title: boolean::ops describe_minted_edges drops a Certification { ResidualExceed
 status: open
 opened: 2026-09-13
 refs: [declared-surface-pairs-emits-duplicate-pairs, 2105]
+priority: P1
+cost: E
 ---
 
 

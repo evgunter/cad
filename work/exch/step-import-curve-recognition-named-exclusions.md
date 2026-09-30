@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-11
 github: 389
 refs: [327, 388, 391]
+priority: P3
+cost: H
 ---
 
 ## From GitHub issue 389

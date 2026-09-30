@@ -15,7 +15,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use profile::RawLoop;
 use std::sync::Arc;
 
 use geom::Surface;
@@ -25,7 +24,7 @@ use geom_brep::{Pcurve, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
 use mesh::TessellateError;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::loft_prism;
 use sweep::{Extrusion, extrude};
 use test_utils::vacuity;
@@ -155,6 +154,7 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
             Some(&sphere()),
             window,
             Band::linear(Tol::witness()).unwrap(),
+            geom_brep::FittedLane::certified(),
         )
         .expect("the fitted cache certifies through the M6-2 door"),
     )
@@ -165,9 +165,9 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
 /// The m5_pr11_trimmed suite's split cylinder (trimmed cylinder walls
 /// with Harmonic caches), lower half — `disc`/`halves` verbatim.
 fn split_cylinder_half() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-1.0, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 1.0),
+        (Point2::new(1.0, 0.0), 1.0),
     ]);
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -244,18 +244,32 @@ fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
     };
 
     // ---- Arm 1: the CHORD pass, on a NURBS face --------------------
+    //
+    // The refusal is pinned to THIS EDGE, not merely to the variant.
+    // `tessellate` is a whole-body call and any later lane can refuse
+    // for its own reasons; an arm that admitted the fitted image would
+    // then very likely still return `Err`, from somewhere downstream,
+    // and a note-only assertion would read that as the door holding.
+    // The edge key is what distinguishes "the chord pass refused this
+    // cache" from "the body did not mesh".
     let mut body = loft_prism(Tol::witness());
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Nurbs(_)));
+    let fitted_edge = body.get_half_edge(hek).expect("the traced half-edge").edge;
     body.attach_pcurve(hek, cache.clone());
     match mesh::tessellate(&body, 1e-2, Tol::witness()) {
-        Err(TessellateError::UnsupportedCurve { note, .. }) => {
+        Err(TessellateError::UnsupportedCurve { edge, note }) => {
             assert!(
                 note.contains("FITTED") && note.contains("UV speed bound"),
                 "CHORD: the chord arm's note names the real blocker: {note}"
             );
+            assert_eq!(
+                edge, fitted_edge,
+                "CHORD: the refusal is the FITTED cache's own edge, not a downstream \
+                 lane refusing something else: {note}"
+            );
         }
         other => panic!(
-            "CHORD: expected the chord-pass fitted refusal, got {:?}",
+            "CHORD: expected the chord-pass fitted refusal on {fitted_edge:?}, got {:?}",
             other.map(|_| ())
         ),
     }
@@ -263,16 +277,22 @@ fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
     // ---- Arm 2: the TRIM WALK, on an analytic trimmed face ---------
     let mut body = split_cylinder_half();
     let hek = cached_half_edge_on(&body, |s| matches!(s, Surface::Cylinder { .. }));
+    let fitted_edge = body.get_half_edge(hek).expect("the traced half-edge").edge;
     body.attach_pcurve(hek, cache);
     match mesh::tessellate(&body, 1e-2, Tol::witness()) {
-        Err(TessellateError::UnsupportedCurve { note, .. }) => {
+        Err(TessellateError::UnsupportedCurve { edge, note }) => {
             assert!(
                 note.contains("FITTED") && note.contains("boolean layer"),
                 "TRIM-WALK: the trim-walk arm's note names the real blocker: {note}"
             );
+            assert_eq!(
+                edge, fitted_edge,
+                "TRIM-WALK: the refusal is the FITTED cache's own edge, not a \
+                 downstream lane refusing something else: {note}"
+            );
         }
         other => panic!(
-            "TRIM-WALK: expected the trim-walk fitted refusal, got {:?}",
+            "TRIM-WALK: expected the trim-walk fitted refusal on {fitted_edge:?}, got {:?}",
             other.map(|_| ())
         ),
     }

@@ -5,6 +5,8 @@ title: TABLED (Ev): consider (E) — teach the lanes an interior pole — instea
 status: deferred
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census]
+priority: P1
+cost: D
 ---
 
 

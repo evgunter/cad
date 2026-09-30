@@ -4,6 +4,8 @@ kind: issue
 title: A CLASS - hand-written citations nothing checks: line-numbered file.rs:NNN citations across work/ (seven rot in one doc-only PR) and test-function names in doc comments, which cannot be intra-doc links
 status: open
 opened: 2026-09-12
+priority: P3
+cost: D
 ---
 
 

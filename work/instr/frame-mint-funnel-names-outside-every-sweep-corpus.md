@@ -4,6 +4,8 @@ kind: issue
 title: Two frame-mint funnel names, one of them production, reach no k-lint sweep corpus
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 ## What

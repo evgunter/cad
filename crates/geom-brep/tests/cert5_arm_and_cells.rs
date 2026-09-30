@@ -19,7 +19,8 @@
 //! EXCLUDES the truth rather than as a slightly different width.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::spline::KnotVector;
 
 use crate::shared::patch::{face_posture, oracle_patch};
@@ -37,7 +38,7 @@ use crate::shared::ring::pt;
 fn drive(
     ku: &KnotVector,
     kv: &KnotVector,
-    control: &[[RingInterval; 3]],
+    control: &[[Interval; 3]],
     weights: &[f64],
     eps: f64,
 ) -> Option<(f64, f64)> {
@@ -56,7 +57,7 @@ fn drive(
 /// single entry. That is a change of 1 part in 10^16 to the surface and
 /// no change at all to its shape, but it is exactly the hypothesis the
 /// exact arm rests on, so the engine must fall back to the composite.
-fn s_bend_wall(perturb: bool) -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>, Vec<f64>) {
+fn s_bend_wall(perturb: bool) -> (KnotVector, KnotVector, Vec<[Interval; 3]>, Vec<f64>) {
     let c = std::f64::consts::FRAC_1_SQRT_2;
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
@@ -150,7 +151,7 @@ fn the_exact_arm_is_taken_exactly_where_its_hypothesis_holds() {
 /// is not taken: that arm integrates v per knot span whatever the cut
 /// list says, so under it the mutation is invisible in v by
 /// construction.
-fn c0_jump_composite_arm() -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>, Vec<f64>) {
+fn c0_jump_composite_arm() -> (KnotVector, KnotVector, Vec<[Interval; 3]>, Vec<f64>) {
     let c = std::f64::consts::FRAC_1_SQRT_2;
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.377, 0.61, 1.0, 1.0], 1).unwrap();

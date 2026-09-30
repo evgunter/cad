@@ -35,7 +35,7 @@ use editor_core::{
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -107,12 +107,14 @@ fn band_cut() -> BandCut {
     );
     let (doc, transform) = insert(
         doc,
-        Node::Transform {
-            input: band,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            band,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, sub) = insert(
         doc,
@@ -296,12 +298,14 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, transform) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(2.5), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            editor_core::Step::Rigid {
+                translation: [len(2.5), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     // M4 PR 5: the slide's flush planes are declared (the disjoint
     // position keeps the same coplanarity, so ONE declare serves both).
@@ -399,8 +403,12 @@ fn fused_vertex_scenario(
         // on a recipe edit or structural parameter that did not
         // happen. Under the realized sweep the recorded evidence can
         // honestly be ABSENT (the disjoint prior pruned every pair —
-        // module comment above), in which case exactly the documented
-        // evidence-free fallback naming the MINTING node is admitted.
+        // module comment above), in which case the answers that claim
+        // no cause are admitted, both at the MINTING node: the
+        // documented evidence-free fallback, and the group-size table
+        // fact. This is a closed list of `Diagnosis` arms — when N5
+        // gains an arm, decide here whether it is honest without a
+        // recorded flip.
         let honest_flip = matches!(
             diagnosis,
             Diagnosis::PredicateFlip { .. } | Diagnosis::Cascade { .. }
@@ -409,7 +417,7 @@ fn fused_vertex_scenario(
             diagnosis,
             Diagnosis::RecipeEdit {
                 edit: editor_core::RecipeEditRef::NodeChanged { node }
-            } if *node == name.node
+            } | Diagnosis::GroupResized { node, .. } if *node == name.node
         );
         match strategy {
             topo::SweepStrategy::Idealized => assert!(

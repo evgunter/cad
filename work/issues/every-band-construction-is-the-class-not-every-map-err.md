@@ -5,6 +5,8 @@ title: The 'a typed cause is destroyed' sweeps key on map_err, and the class has
 status: open
 opened: 2026-09-11
 refs: [2378]
+priority: P1
+cost: D
 ---
 
 

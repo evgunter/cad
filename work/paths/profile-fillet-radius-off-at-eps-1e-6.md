@@ -5,6 +5,8 @@ title: profile: the fuzzed offset-carrier fillet recovers its radius 2.6e-7 off 
 status: open
 opened: 2026-09-04
 refs: [1877]
+priority: P0
+cost: H
 ---
 
 

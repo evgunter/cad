@@ -4,7 +4,8 @@ kind: issue
 title: FreeCAD, the 3.12 interpreter and the demo render venv are pinned as literals nothing reconciles
 status: open
 opened: 2026-09-11
-refs: [session-start-hook-restates-ci-pins, pinned-version-named-in-present-tense-prose]
+priority: P3
+cost: E
 ---
 
 Found by the whole-tree arm of the pin sweep on PR `ciw/pin-residue`, and
@@ -19,23 +20,23 @@ NONE of them is in that block, so the prescribed sweep cannot see any of them.
 
 Three populations, one question each, all inside CIW's territory:
 
-1. **FreeCAD 1.1.2** — 9 lines in `.github/workflows/ci.yml` (the STEP-oracle
-   job: cache key, step name, four URL/filename interpolations), 10 in
-   `.github/workflows/render.yml` (the same install, plus the provenance line
-   the render lane writes into its own output), 1 in `demos/README.md`. The
-   two workflows install it independently and nothing compares them; the
+1. **FreeCAD 1.1.2** — spelled as a literal in `.github/workflows/ci.yml`'s and
+   `nightly.yml`'s `step-import` jobs (cache key, step name, URL and
+   filename interpolations), in `.github/workflows/render.yml` (the same
+   install, plus the provenance line the render lane writes into its own
+   output), and in `demos/README.md`. The workflows install it independently and nothing compares them; the
    checksum step verifies the ARTIFACT against its published SHA256, which
    proves the download is the 1.1.2 someone asked for and says nothing about
    whether the two lanes asked for the same version. A render lane and a STEP
    oracle on different FreeCADs is the failure, and it is silent.
 
-2. **The 3.12 interpreter** — `.github/workflows/ci.yml:4030` and
-   `.github/workflows/nightly.yml:648` each set `python-version: "3.12"`;
+2. **The 3.12 interpreter** — `.github/workflows/ci.yml`'s and
+   `.github/workflows/nightly.yml`'s `python` jobs each set
+   `python-version: "3.12"`;
    `.claude/hooks/session-start.sh`'s `PY=/usr/bin/python3.12` is a third
    copy (a PATH, so it cannot read a pin as it stands); `ruff.toml:35`
    asserts the fact in prose — *"the hosted python-suite job pins 3.12"* —
-   to justify `target-version = "py311"`, which is the present-tense shape
-   `pinned-version-named-in-present-tense-prose` is about, in a file no
+   to justify `target-version = "py311"`, a present-tense restatement of a pin, in a file no
    program's `paths` claims.
 
 3. **The demo render venv** — `'numpy==2.2.6' 'matplotlib==3.10.3'` at six
@@ -52,5 +53,8 @@ so `render.yml` and the hook read them the way `nightly.yml` reads
 `demos/render-requirements.txt` both render scripts and the hook install from
 is the cheap shape for (3), and it is a different answer from (1)'s. Taking
 one of those decisions per population is the unit; `.claude/` is out of every
-hosted gate's reach either way, which is what
-`session-start-hook-restates-ci-pins` settled by READING rather than checking.
+hosted gate's reach either way.
+
+## Re-homed to CIW (2026-09-28)
+
+Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.

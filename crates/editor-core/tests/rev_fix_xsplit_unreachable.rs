@@ -95,7 +95,7 @@ struct Sweep {
 /// asserts the AQ8 invariant on each accepted one: an interface record
 /// is always empty, and any remainder mate whose ends straddle the cut
 /// is NOT an A12 edge.
-fn sweep_every_cut(doc: &ProfileDoc, label: &str) -> Sweep {
+fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
     let ids: Vec<RecipeNodeId> = doc.order().to_vec();
     assert!(ids.len() <= 12, "2^n: keep the recipe small");
     // A mate is an EDGE iff BOTH its heads resolve to members — which
@@ -206,15 +206,17 @@ fn three_shapes() -> ProfileDoc {
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a
     // two-level nest, which is the name such a table never mints:
-    // NOT an edge, welds nothing.
-    let (doc, _) = step(
+    // NOT an edge, welds nothing. The insert door refuses such a
+    // head, so it is authored the way one arises after insert
+    // (`insert_mate_with_stranded_head`).
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
-        DocEdit::InsertNode {
-            node: seat(
-                in_copy(npc, 1, in_part(c, CapEnd::End)),
-                in_part(b, CapEnd::End),
-            ),
-        },
+        seat(
+            in_copy(npc, 1, in_part(c, CapEnd::End)),
+            in_part(b, CapEnd::End),
+        ),
+        editor_core::MateSide::A,
+        b,
     );
     doc
 }
@@ -227,10 +229,7 @@ fn three_shapes() -> ProfileDoc {
 /// diverge.
 fn foreign_master() -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-foreign"), Tol::witness());
-    let (doc, _datum) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, _datum) = insert(doc, fixture::xy_frame());
     let (doc, a) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-a")));
     let (doc, pa) = insert(
         doc,
@@ -242,14 +241,17 @@ fn foreign_master() -> ProfileDoc {
     );
     let (doc, c) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-c")));
     let (doc, d) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-d")));
-    let (doc, _) = step(
+    // The head resolves to no member (the walk reaches `a` under a
+    // name whose master is `c`), which the insert door refuses: it is
+    // authored the way such a head arises after insert.
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
-        DocEdit::InsertNode {
-            node: seat(
-                in_copy(pa, 2, in_part(c, CapEnd::End)),
-                in_part(d, CapEnd::Start),
-            ),
-        },
+        seat(
+            in_copy(pa, 2, in_part(c, CapEnd::End)),
+            in_part(d, CapEnd::Start),
+        ),
+        editor_core::MateSide::A,
+        d,
     );
     doc
 }

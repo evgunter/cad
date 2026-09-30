@@ -2,7 +2,8 @@
 id: pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error
 kind: issue
 title: closing the ring's own wide candidate needs a bound over the mesh's coordinate error, which crossing's does not cover
-status: open
+status: closed
+closed: 2026-09-20
 opened: 2026-09-16
 ---
 
@@ -66,3 +67,59 @@ sentence, given its own file.
   and `RING_WIDE_CANDIDATE_T` record the answer this row would move.
 - The pick door would need a tessellation-derived quantity it does not
   take today, which is the design question rather than the work.
+
+## Put to Ev (2026-09-19, EDIT orchestrator) — the sixth `[ev]` PR
+
+**The question.** The pick door's certified `t` interval bounds the
+ARITHMETIC (`crossing`'s barycentric bounds and `t_span`'s projection
+rounding) and nothing else; the mesh's own deviation from the surface
+it stands for is outside it, and `crossing`'s doc says so ("a triangle
+whose corners are themselves approximations is a question for whoever
+tessellated it"). The pick door already receives that number:
+`NodePick::build` takes the chordal tolerance `delta` it tessellates
+at. Should the certified interval compose the tessellation's
+deviation, and if so per what?
+
+**Recommendation: yes, per candidate by its patch's surface kind.** A
+patch tessellated from a planar face has corners ON the surface (the
+chords are exact) and contributes nothing; a patch from a curved face
+has corners within `delta` of it, so its interval widens by the
+ray-direction projection of that deviation — a bound derived from
+`delta` and the ray/triangle geometry, no chosen factor (the doubling
+your PICK3 ruling refused stays refused). Consequence under your tie
+ruling: a cursor within the tessellation's deviation of a shared edge
+between two curved faces becomes a certified tie between faces and is
+REFUSED, where today it answers whichever arithmetic happened to win;
+on the gallery ring the wide flat candidate and the two transversal
+neighbours become the tie the parked row asked for. Kernel unit (the
+EDIT-PICK lineage: v6 dual, block EDIT-B2 slot 2) once ruled.
+
+**Alternatives.** (a) One `delta`-wide term for every candidate,
+planar or not — simpler, refuses more near-edge picks on flat models
+than the geometry warrants. (b) Leave the interval arithmetic-only
+and say so at `TSpan::width` — zero code, and a certified interval
+that is not one where the model is curved. (c) Compose it but keep the
+answer: treat a `delta`-only tie as ONE answer by the nearer `t` — a
+second key, which your item-2 ruling on `[ev]` #2795 removed for the
+reason it would return here.
+
+## RULED (2026-09-20, Ev on `[ev]` #2889) — alternative (b): the certificate stops at the tessellation, by design
+
+Ev: "referring to the tesselation is probably correct? it's what the
+user can see." Read as (b) and confirmed on the PR: the pick is a
+question about the picture the user sees, and the tessellation IS
+what is picked — so an interval that certifies the arithmetic on the
+triangle as given is the certificate the question needs, and the
+mesh's deviation from the surface it stands for is not a pick error.
+The recommendation (compose each candidate's deviation) is not built;
+no kernel unit.
+
+## Closed (2026-09-20, EDIT orchestrator) — by design, E-class
+
+One sentence at `crossing`'s "What the bounds bound" paragraph
+(`crates/editor-core/src/resolve/pick.rs`) names the reason, citing
+this row and the ruling. `TSpan::width`'s "a measurement, never a
+key" and the item-2 tie ruling are untouched. The ring's wide flat
+candidate stays an answer, not a tie: its rounding is the only
+uncertainty the door is asked about.
+

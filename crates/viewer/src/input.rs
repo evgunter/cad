@@ -372,12 +372,32 @@ impl InputMap {
 
     /// World units per physical pixel, measured in the plane through
     /// the target perpendicular to the view.
+    ///
+    /// **`None` is this door's refusal — there is no viewport to scale
+    /// against** — and a height that is not a number is one of those.
+    /// `height_px <= 0.0` alone does not say so: it is FALSE for a
+    /// `NaN`, and an ordering is not a domain test on a value that has
+    /// no order, so the height is asked whether it is a number before
+    /// the bound on it is read as one. [`Camera`]'s own `finite` and
+    /// `crate::datums::View::metres_per_pixel_at` ask it the same way.
+    ///
+    /// **And the quotient is asked as well as the height**, because a
+    /// height that is a positive number does not make every division
+    /// by it one: the visible height is `2 · distance · tan(fov/2)`,
+    /// which overflows for a camera standing off far enough, and a
+    /// subnormal height divides a perfectly ordinary one to infinity.
+    /// A scale of infinity is not a scale, and the pan below is
+    /// `delta_px` times this — so without the second check the door
+    /// hands a rate to an arithmetic whose product only
+    /// [`Camera`]'s op guard would catch, one refusal away from the
+    /// question the user actually asked.
     fn world_per_px(&self, viewport: ViewportSize, camera: &Camera) -> Option<f64> {
-        if viewport.height_px <= 0.0 {
+        if !(viewport.height_px.is_finite() && viewport.height_px > 0.0) {
             return None;
         }
         let visible_height = 2.0 * camera.distance() * (camera.fov_y() * 0.5).tan();
-        Some(visible_height / viewport.height_px)
+        let scale = visible_height / viewport.height_px;
+        scale.is_finite().then_some(scale)
     }
 }
 

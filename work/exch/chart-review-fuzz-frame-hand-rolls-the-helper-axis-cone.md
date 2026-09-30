@@ -4,6 +4,8 @@ kind: issue
 title: chart_review_fuzz's frame() hand-rolls the |x| < 0.9 helper-axis cone instead of calling Vec3::orthonormal_basis
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

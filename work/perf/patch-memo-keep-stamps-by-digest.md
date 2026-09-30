@@ -4,6 +4,8 @@ kind: issue
 title: PatchMemo::keep stamps an entry found by digest where record stamps one proved by its key
 status: open
 opened: 2026-09-13
+priority: P2
+cost: E
 ---
 
 

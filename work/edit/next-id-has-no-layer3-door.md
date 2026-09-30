@@ -2,8 +2,10 @@
 id: next-id-has-no-layer3-door
 kind: issue
 title: Doc::next_id is pub(crate), so DI1's minting-entry walk has no layer-3 door
-status: spec
+status: closed
+closed: 2026-09-20
 branch: edit/minted-id-door
+pr: 2905
 opened: 2026-09-04
 refs: [layer3-recipenodeid-aliases-across-rewinds]
 ---
@@ -53,6 +55,18 @@ standing to pick.
 this program's, and which cannot start its holder sweep without the
 reading.
 
+## Unblocked (2026-09-20)
+
+The door is `Doc::has_minted(&self, id: RecipeNodeId) -> bool`
+(`crates/editor-core/src/doc.rs`, beside `Doc::node`), true exactly
+when the id is below the mint counter. `next_id` stays `pub(crate)`,
+so what layer 3 can ask is *could this document have minted this id*
+and not *where does the counter stand* — which is the whole of what
+DI1's walk needs. `layer3-recipenodeid-aliases-across-rewinds` can
+start its holder sweep: the walk is `History::entry` up the history
+until an entry's `doc()` answers `false`, and the last entry that
+answered `true` is the minting one.
+
 ## Ruled and spec'd (2026-09-20, EDIT orchestrator) — E-class, wave 15, branch `edit/minted-id-door`
 
 **Ruling: the narrower door — a predicate, not the counter.** This
@@ -84,4 +98,33 @@ the row's `## Who is blocked` gets an `## Unblocked` paragraph naming
 the door. Territory: `doc.rs`, `IDENTITY.md`'s one parenthetical
 (EDIT); `crates/editor-core/tests/*` (TCOST/TINT). E-class: green CI
 and the orchestrator's read; no review lane.
+
+
+## Built (2026-09-20)
+
+- `Doc::has_minted` on `crates/editor-core/src/doc.rs`, `pub`, beside
+  `Doc::node`; `next_id` unchanged and still `pub(crate)`. The doc
+  comment carries DI1's citation, the monotonicity sentence the field
+  states, and what a `true` does not mean.
+- `crates/editor-core/tests/edit_has_minted.rs` (four rows: fresh,
+  after an insert, after a delete, across save/load), aggregated in
+  `crates/editor-core/tests/all.rs`. All four go red under an
+  off-by-one in the predicate, checked by mutating `<` to `<=`.
+- `crates/editor-core/IDENTITY.md` DI1's parenthetical names
+  `Doc::has_minted` in place of `Doc::next_id`.
+- NOT done, and deliberately: DI1's record line still says the VIEW
+  row is "parked behind `next-id-has-no-layer3-door`". That stays
+  true until this merges and the row's `blocked_on` clears; the two
+  should move together.
+
+## Closed (2026-09-20, EDIT orchestrator) — E-class, merged on green CI and the orchestrator's read
+
+`Doc::has_minted(id)` is the counter's one public reading, true iff
+the id is below the counter, with the doc saying what a `true` does
+not mean; the counter stays `pub(crate)`. Four rows pin the four facts
+DI1's walk rests on, each red under `<` → `<=`. DI1's parenthetical
+names the door (a description the code moved; the sentence's
+ratification is `087779036`, found by the lane). The parked VIEW row
+is `open` again with its `blocked_on` cleared and DI1's record line
+re-worded to match — the walk is VIEW's to write. PR #2905.
 

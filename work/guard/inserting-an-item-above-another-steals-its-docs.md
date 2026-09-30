@@ -4,6 +4,8 @@ kind: issue
 title: inserting a type above an existing one silently moves the existing item's doc comment onto the new one
 status: open
 opened: 2026-09-05
+priority: P4
+cost: E
 ---
 
 

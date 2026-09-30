@@ -4,6 +4,8 @@ kind: issue
 title: mesh7r1_probes' R1-DOOR-ONLY markers are grep-only: sentinels with no programmatic reader
 status: open
 opened: 2026-09-13
+priority: P3
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: work/README.md documents 'territory --base main', but in this repo's working model the local main ref is reliably stale, so the documented invocation answers confidently wrong instead of refusing
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

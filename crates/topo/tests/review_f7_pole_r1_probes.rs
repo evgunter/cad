@@ -5,14 +5,12 @@
 //! **ADOPTED (VERBS/F7), and RE-POLARISED.** These were written to
 //! falsify a gate exemption that has since been WITHDRAWN — the
 //! attacks succeeded, which is why it was. R1's fixture geometry and
-//! reasoning are preserved verbatim; what changed is the assertions,
+//! reasoning are preserved; what changed is the assertions,
 //! which now pin the behaviour the fixtures actually produce: every
-//! one of these bent/ordinary shapes REFUSES `NonMaximalFaces`, and
-//! that is what makes them the negative differential rows for the
-//! repair op's collinearity trigger (`merge_faces::
-//! redundant_subdivision_vertex`). The positive pole of that
-//! differential is `verbs_f7_collinear_seam` and, for a real revolve
-//! cap, `sweep`'s `f7_pole_split_cap_repairs_to_one_face`.
+//! one of these bent/ordinary shapes REFUSES `NonMaximalFaces` at the
+//! boolean's maximal-faces gate. Repairing such an operand is the
+//! caller's explicit `merge_coplanar_faces` (for a real revolve cap,
+//! `sweep`'s `f7_pole_split_cap_repairs_to_one_face`).
 //! Every fixture here is HAND-BUILT via public euler ops — no revolve
 //! anywhere — so what these rows measure is the structural predicate
 //! itself, divorced from the producer whose shape motivated it.
@@ -29,7 +27,7 @@
 
 use crate::common;
 
-use common::{brick, prism_z};
+use common::{brick, plant_ring_face, prism_z};
 use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite, boolean_reduce,
@@ -70,7 +68,7 @@ fn he_at(body: &Body<f64>, face: topo::FaceKey, x: f64, y: f64, z: f64) -> topo:
 /// exists, and the gate refuses. (The "exemption" these rows were
 /// written against was WITHDRAWN; what ships is a repair in
 /// `merge_coplanar_faces`, and the gate is unchanged — so this control
-/// and its siblings are the repair trigger's negative rows.)
+/// and its siblings pin the gate.)
 #[test]
 fn p1_single_chord_pair_still_refuses() {
     let p = prism_z::<f64>(
@@ -148,9 +146,11 @@ fn p2_subdivided_chord_pair_still_refuses() {
 
 /// Builds the prism whose top face carries an inset coplanar PATCH:
 /// ring planted (strut + kemr), grown P→Q→R→S, closed by a mef whose
-/// membrane inherits the TOP face's own plane key. The membrane and
-/// the top face are two same-plane-key faces adjacent across all four
-/// ring edges, and all four ring vertices have valence 2.
+/// membrane inherits the TOP face's own plane key
+/// ([`common::plant_ring_face`], anchored at the top face's corner
+/// (0, 0)). The membrane and the top face are two same-plane-key faces
+/// adjacent across all four ring edges, and all four ring vertices have
+/// valence 2.
 fn inset_patch_prism() -> (
     Body<f64>,
     topo::FaceKey,        // top face
@@ -164,61 +164,28 @@ fn inset_patch_prism() -> (
         Tol::witness(),
     );
     let mut b = p.body;
-    let tol = Tol::witness();
-    let pt = geom_core::Point3::new;
-    // (f) strut from corner (0,0) to P(0.5, 0.5).
     let he_a = he_at(&b, p.top_face, 0.0, 0.0, 1.0);
-    let strut = b
-        .mev_line(
-            MevSite::Fan {
-                he1: he_a,
-                he2: he_a,
-            },
-            pt(0.5, 0.5, 1.0),
-            tol,
-        )
-        .unwrap();
-    // (g) kill it: P is an empty ring of the top face.
-    let kill = b.kemr(strut.he_plus, strut.he_minus).unwrap();
-    // (h) grow P→Q→R→S.
-    let s_pq = b
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(1.5, 0.5, 1.0), tol)
-        .unwrap(); // Q
-    let s_qr = b
-        .mev_line(
-            MevSite::Fan {
-                he1: s_pq.he_minus,
-                he2: s_pq.he_minus,
-            },
-            pt(1.5, 1.5, 1.0),
-            tol,
-        )
-        .unwrap(); // R
-    let s_rs = b
-        .mev_line(
-            MevSite::Fan {
-                he1: s_qr.he_minus,
-                he2: s_qr.he_minus,
-            },
-            pt(0.5, 1.5, 1.0),
-            tol,
-        )
-        .unwrap(); // S
-    // (i) close: the ring becomes the patch rim; the membrane face
-    // inherits the top face's surface key (mef_chord ⇒ Inherit).
-    b.mef_chord(
-        MefSite::Chords {
-            he1: s_pq.he_plus,
-            he2: s_rs.he_minus,
-        },
-        tol,
-    )
-    .unwrap();
+    let ring = plant_ring_face(
+        &mut b,
+        he_a,
+        &[
+            geom_core::Point3::new(0.5, 0.5, 1.0),
+            geom_core::Point3::new(1.5, 0.5, 1.0),
+            geom_core::Point3::new(1.5, 1.5, 1.0),
+            geom_core::Point3::new(0.5, 1.5, 1.0),
+        ],
+        Tol::witness(),
+    );
     (
         b,
         p.top_face,
-        [strut.vertex, s_pq.vertex, s_qr.vertex, s_rs.vertex],
-        kill.ring,
+        [
+            ring.strut.vertex,
+            ring.rim[0].vertex,
+            ring.rim[1].vertex,
+            ring.rim[2].vertex,
+        ],
+        ring.kill.ring,
     )
 }
 
@@ -257,7 +224,6 @@ fn p3_inset_coplanar_patch_still_refuses() {
 fn p4_mixed_pair_refuses() {
     let (mut b, top, [pv, _qv, rv, _sv], ring) = inset_patch_prism();
     let tol = Tol::witness();
-    let pt = geom_core::Point3::new;
     // Bridge corner (0,0) → P: joins the ring into the outer loop.
     let target = he_at(&b, top, 0.0, 0.0, 1.0);
     let ring_he = {
@@ -287,7 +253,7 @@ fn p4_mixed_pair_refuses() {
                 he1: he_c,
                 he2: he_c,
             },
-            pt(1.8, 1.7, 1.0),
+            geom_core::Point3::new(1.8, 1.7, 1.0),
             tol,
         )
         .unwrap(); // M
@@ -307,7 +273,10 @@ fn p4_mixed_pair_refuses() {
             he1: strut2.he_minus,
             he2: he_r,
         },
-        common::line(pt(1.8, 1.7, 1.0), pt(1.5, 1.5, 1.0)),
+        common::line(
+            geom_core::Point3::new(1.8, 1.7, 1.0),
+            geom_core::Point3::new(1.5, 1.5, 1.0),
+        ),
         FaceSurface::Inherit,
         tol,
     )

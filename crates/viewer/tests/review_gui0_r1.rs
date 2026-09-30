@@ -33,22 +33,13 @@
 //!   kept going and returned the last error would also satisfy. Two
 //!   different refusal arms in both orders pin the "first".
 //!
-//! # Randomised rows, per `memories/test-suite-cost.md`
+//! # Randomised rows, per implementer-discipline §8
 //!
 //! Three rows are counterexample searches (*for all sampled x, P(x)*),
 //! so they draw a fresh seed per run through `test_utils::fuzz` — the
 //! one harness every randomized sweep in the tree draws from, logged
 //! unconditionally, replayed by `CAD_FUZZ_SEED`, with every count a
 //! multiple of `CAD_FUZZ_EFFORT`.
-//!
-//! # One reporting row
-//!
-//! `framing_at_an_extreme_aspect_should_contain_or_refuse` is
-//! `#[ignore]`d: it encodes the contract `Camera::fitted` documents and
-//! is RED at the frozen head (review finding: at aspect ≲ 0.03 the
-//! zoom-band clamp silently wins and the framed camera does not contain
-//! the scene). Un-ignore it when that is either fixed or the contract
-//! is narrowed in prose.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
@@ -117,7 +108,7 @@ fn built(delta: f64) -> viewer::SceneMesh {
 
 /// Every claim `Camera`'s module docs make about a reachable state,
 /// checked on one camera. Labelled per assertion so a merged row still
-/// names the property that broke (`memories/test-suite-cost.md`).
+/// names the property that broke (implementer-discipline §8).
 ///
 /// `provenance` is a THUNK, not a string: this runs once per step of a
 /// sweep whose depth rides `CAD_FUZZ_EFFORT`, and a message built eagerly
@@ -528,18 +519,14 @@ fn framing_contains_and_is_tight_across_realistic_aspects() {
     }
 }
 
-/// `Camera::fitted` documents that a frame "backs off far enough that
-/// the bounding sphere fits", and `Camera` refuses rather than
-/// inventing state everywhere else. At an extreme aspect the
-/// scene-derived zoom band clamps the computed distance and the result
-/// used to be neither: a camera that does not contain its scene,
-/// returned `Ok`.
-///
-/// **UN-IGNORED in the fix pass** (was `#[ignore]`d and RED at the
-/// frozen head, R1's own reporting row): `fitted` now refuses
-/// `CameraError::Unfittable` instead of clamping, so both acceptable
-/// answers — fit, or refuse — are the only ones reachable, and this
-/// row gates them.
+/// `Camera::fitted`'s postcondition is containment — every point of
+/// the bounds projects inside the frustum — and `Camera` refuses rather
+/// than inventing state everywhere else. At an extreme aspect the
+/// fitting distance leaves the scene-derived zoom band, and `fitted`
+/// refuses `CameraError::Unfittable` there rather than clamping. This
+/// row checks containment on every `Ok` — a clamped camera that does
+/// not contain its scene reds it — and accepts any `Err` without
+/// reading its kind.
 #[test]
 fn framing_at_an_extreme_aspect_should_contain_or_refuse() {
     let bounds = plate_bounds();

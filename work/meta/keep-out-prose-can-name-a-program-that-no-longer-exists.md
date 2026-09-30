@@ -4,6 +4,8 @@ kind: issue
 title: keep_out prose can name a closed program, and lint cannot see it — two instances found in one day
 status: open
 opened: 2026-09-11
+priority: P3
+cost: E
 ---
 
 

@@ -5,6 +5,8 @@ title: The gated_to! tests/ half derives sibling mod imports only and cannot see
 status: open
 opened: 2026-09-19
 refs: [gated-markers-name-too-few-src-paths]
+priority: P3
+cost: D
 ---
 
 

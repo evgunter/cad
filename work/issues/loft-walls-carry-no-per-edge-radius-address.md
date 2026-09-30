@@ -4,6 +4,8 @@ kind: issue
 title: Lofted::side_faces and LoftGeometry group walls per loop per segment but reach no flow row, so a loft that declares a per-edge source has no address to attach it at
 status: open
 opened: 2026-09-17
+priority: P1
+cost: D
 ---
 
 Disclosed by the `edit/chain-radius-attach` unit (PR 2804), whose

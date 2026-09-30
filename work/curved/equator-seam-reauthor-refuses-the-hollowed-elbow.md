@@ -5,6 +5,8 @@ title: The klein elbow's equator seams (RevolvedPoint-declared chart seams) refu
 status: open
 opened: 2026-09-14
 refs: [c5-plane-torus-cone-cylinder-arms, spiric-carrier-ruling, 2566]
+priority: P0
+cost: H
 ---
 
 

@@ -107,6 +107,10 @@ from pncad import (
     SketchPlane,
     SplitHalf,
     Start,
+    AuthoredStep,
+    Piece,
+    Role,
+    StepId,
     SurfaceKind,
     Workspace,
     assemble,
@@ -1015,13 +1019,12 @@ for _instance in _report.instances:
 # is what the doors are for.
 _names_doc = Doc()
 _names_frame = _names_doc.sketch_frame()
+_names_profile: NodeId = _names_doc.insert(
+    Node.profile(circle((2 * m, 1 * m), 0.5 * m), plane=_names_frame)
+)
 _revolved: NodeId = _names_doc.insert(
     Node.revolve(
-        _names_doc.insert(
-            Node.profile(
-                circle((2 * m, 1 * m), 0.5 * m), plane=_names_frame
-            )
-        ),
+        _names_profile,
         _names_doc.insert(
             Node.datum_axis_in_plane(_names_frame, (
                 Expr.length_in(0, m),
@@ -1034,13 +1037,17 @@ _revolved: NodeId = _names_doc.insert(
         Expr.angle_in(360, deg),
     )
 )
-minted_band: str = band(_revolved, 0, 0)
-minted_half: str = band_pi(_revolved, 0, 0)
-minted_rim: str = band_rim(_revolved, 0, 1)
-minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, 0, 1)
-# A hole's loop is spelled the same way: the loop index is an argument
-# like the segment, and no loop is privileged.
-minted_hole_band: str = band(_revolved, 1, 0)
+# A piece is spelled from the handle its authoring call returned, in
+# the loop the author states; `Doc.pieces` is the positional reading.
+_pieces: list[list[Piece]] = _names_doc.pieces(_names_profile)
+_step_ids: list[list[StepId]] = _names_doc.step_ids(_names_profile)
+_carrier: AuthoredStep = circle((2 * m, 1 * m), 0.5 * m).step
+_first: Piece = _names_doc.piece(_names_profile, 0, _carrier.piece(0))
+_second: Piece = Piece(_names_doc.step(_names_profile, 0, _carrier), Role.piece(1))
+minted_band: str = band(_revolved, _first)
+minted_half: str = band_pi(_revolved, _pieces[0][0])
+minted_rim: str = band_rim(_revolved, _second)
+minted_vertex: str = meridian_vertex(MeridianEnd.Seam, _revolved, _second)
 minted_survivor: str = carried(_revolved, minted_band)
 _blended: NodeId = _names_doc.insert(
     Node.fillet(_revolved, Expr.length_in(0.1, m), [minted_rim])

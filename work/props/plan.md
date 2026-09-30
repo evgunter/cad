@@ -1,157 +1,69 @@
-# PROPS — enclosure certificates and interval honesty (plan)
+# PROPS — the plan
 
-**STATUS: OPEN (2026-09-03).** Opened 2026-09-03 from `docs/WORK-TRACKS-2026-09.md` (PROPS section), which is this
-program's charter until this plan supersedes it. Live state is
-`work/props/log.md`'s tail and the item files beside this plan, never
-this file.
+enclosure certificates and interval honesty
 
-Branch prefix (the #396 convention): **`props/`** — unit branches
-`props/<unit>-<slug>`, orchestrator branch `props/orchestrator`.
-Away-channel tag `(PROPS orchestrator)`. A/B ordinal band
-**PROPS = 2400–2499**, claimed in `docs/MODEL-AB-LOG.md`'s banding
-entry in the opening commit, per that entry's rule.
+Re-scoped 2026-09-20 by PROPS's priority-seam cut
+(`work/README.md`, Track size). Nothing dispatched.
 
-**Opened 2026-09-06** at S-CERT's exit walk (#1924). See §Opening condition.
+## The slate
 
-## Charter
+**32.5 budget points** of dispatchable work against a ceiling of 30.
 
-Certified enclosures that are wrong-but-green or uselessly wide, and
-interval lanes that answer silently where the DL6 contract says they
-must refuse — the second pass over S-CERT's ground, plus the verdict
-plumbing M10 left. S-CERT's charter and four rulings are cited, never
-re-litigated. If S-CERT prefers to extend its own slate with this list
-instead of exiting, this program folds into it.
+| pri | item | cost | title |
+|---|---|---|---|
+| P0 | `cone-apex-cap-refuses-degenerateface` | H | props: a cone face bounded by one rim with the apex interior refuses DegenerateFace; its missing extreme is the apex, and the guard against its unbounded complement needs a sense bit fn cone does not take |
+| P0 | `rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify` | H | The rim-level rule's structurally-impossible arm throws by feeding f64::NAN into classify, and unreachable_zero returns a 4-tuple of NaNs into live flux arithmetic |
+| P0 | `rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order` | H | props_rim_side and props_rim_dir_group read whichever rim the loop walk from Cycle::first meets first, so their recorded signs are facts about cycle order rather than about the face |
+| P0 | `sphere-flux-arm-refuses-partial-bands` | H | the sphere flux arm's coplanar premise leaves lune-family bodies outside tier 3 |
+| P0 | `sphere-wedge-arm-does-not-fold-split-meridians-by-lineage` | H | sphere()'s wedge arm reads a two-edge boundary and refuses a meridian that arrives in lineage pieces, where the torus arm folds pieces by lineage |
+| P0 | `stored-spans-read-raw-past-winding-bound` | D | props: two more stored spans read raw past the winding bound (torus single-edge meridian; the rim Δu sum for all four kinds) |
+| P0 | `the-shape-door-could-take-the-sense-free-rim-side-residue` | D | props: require_iso_rectangle admits a face whose rims encode different material sides; the sense-free residue unanimous_rim_side already decides it in the gate arm |
+| P3 | `the-gating-corpus-reaches-no-collapsed-arm-gate` | D | The gating corpus reaches no collapsed-arm gate: five of the eight predicates have zero rows, three have only positive |
+| None | `PROPS-1` | None | The lost-correlation members of the linalg audit — mirror_across_plane and reject_from respelled, one re-baseline pass |
+| None | `affine3-try-map-the-fallible-walk-has-no-kernel-door` | None | Affine3::try_map: the fallible per-coordinate walk over an Affine3 has no kernel door, so editor-core keeps a private one |
+| None | `band-has-no-door-for-an-explicit-eps-with-the-runs-k` | None | Band has no door for an explicit eps with the run's K — four suites open-code Band::new(eps, k*eps) |
+| None | `band-linear-errors-doc-is-false-empty-is-reachable-at-subnormal-eps` | None | Band::linear's AND Band::angular_at's # Errors both say BandError arises only on K-epsilon overflow; BandError::Empty is reachable from a validated tolerance with no overflow, and angular_at reaches it at an ORDINARY epsilon |
+| None | `budgetexhausted-conflates-three-terminations` | None | BudgetExhausted conflates three terminations (rounds out, sample cap reached, unmarked) — a cap-named refusal would name the knob |
+| None | `coefficients-carry-their-knot-vector` | None | The coefficient↔knot-vector pairing is length-only |
+| None | `escalation-channel-misses-op-minted-indeterminates` | None | k_stats: the escalation channel misses op-minted Indeterminates (eight sites), two raw sign_within calls, and the unbracketed mate solve |
+| None | `indeterminate-error-arms-sweep` | None | The ~40 Indeterminate-carrying error variants the escalation channel makes unnecessary to match on: a deletion sweep |
+| None | `k-stats-escalation-channel-and-redo` | None | k_stats: an escalation channel beside the verdict log (and the redo that channel is already owed) |
+| None | `lily-authoring-needs-shadow-vector-algebra` | None | API friction — authoring the lily naturally meant building a shadow vector algebra beside Vec3 |
+| None | `map-affine-retires-into-affine3-try-map` | None | anchor::map_affine retires into Affine3::try_map in the PR that adopts it |
+| None | `metered-margin-doc-promises-an-inf-bound-three-sites-pass-a-sup` | None | Margin::metered's doc promises a certified speed LOWER bound; three sites push a certified UPPER bound through it |
+| None | `offset-fit-mignitude-floor-on-norm-e` | None | offset_fit small-|d| certificates are floored by the componentwise mignitude lower bound on ‖E‖, not by rounding |
+| None | `register-equals-witness-limits-citation-names-no-file` | None | Real::register_equal's doc cites geom-core/tests/m10_9_witness_limits_interval.rs, a file that has never existed |
+| None | `rim-stores-its-traversal-direction-twice` | None | Rim stores the traversal direction twice (d_u: T and d_u_sign: Sign) and du_of_rims compares the exact one through the tolerance funnel |
+| None | `rimless-polar-cap-refuses-degenerateface` | None | props: a rimless-boundary polar cap — one circular edge, no meridian — refuses DegenerateFace; its extent has no arc to derive from |
+| None | `rotation-about-diagonal-width-floor` | None | Mat3::rotation_about's diagonal carries a width floor at exact angles (1 − cos plus cos's own enclosure), and Affine3 composition through MappedCurve::restrict grows it per split |
+| None | `span-carries-its-knot-vector` | None | Consider giving Span its KnotVector — close the unbranded-pairing hole structurally |
+| None | `three-per-node-verdict-shapes` | None | Three shapes for per-node verdicts: consolidate or record the split deliberately |
+| None | `two-face-sphere-split-measures-zero-volume` | None | props: a closed sphere split into two faces by the same two meridian arcs measures volume 0.0 — one parse hands both faces the same levels |
+| None | `vec3-point3-const-and-conversion-doors` | None | Vec3::new/Point3::new are not const fn and there is no Vec→Point conversion door — the two spellings the lily rewrite could not route through a door |
 
-## Opening condition
+## Order
 
-MET 2026-09-06: S-CERT's exit walk (#1924) was ratified by Ev and its
-eight charter items re-homed here in that PR (the three offset_fit
-items, `refine-dir…`, `quad2-rational…`, `normalize-overflow…`,
-`orthonormal-basis-poisons…`, `pole-branch…`), with the territory
-(`geom-brep/src/props/*`, `offset_fit.rs`, `patch_bound.rs`,
-`geom-core/src/*`, `geom/src/*`) joining the program header. Before the
-gate the lanes that overlapped no live PR ran under §Early lanes.
+`rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order` first:
+`props_rim_side` and `props_rim_dir_group` read whichever rim the loop
+walk from `Cycle::first` meets first, so their recorded signs are
+facts about CYCLE ORDER rather than about the face. Everything else
+this program computes about a rim rests on those two.
 
-## Lanes (at opening)
+Then `rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify`
+— `unreachable_zero` returning a 4-tuple of NaNs into live flux
+arithmetic is the one row here that corrupts a shipped number rather
+than refusing.
 
-- **offset_fit**: `budgetexhausted-conflates-three-terminations` (E)
-  → `offset-fit-mignitude-floor-on-norm-e` (H; the micron row is the
-  instrument) → `patch-bound-offset-fit-recentring-origins` (D→H;
-  measure first).
-- **Sphere polar extent**: `rimless-polar-cap-refuses-degenerateface`
-  → `two-face-sphere-split-measures-zero-volume` (both H; CERT-1's
-  three exact pole rows stay green) →
-  `sphere-flux-arm-refuses-partial-bands` (H; two extensions of the
-  same sphere arm — the two-meridian band with `Δu` derived from the
-  arcs, and the general-circle boundary, which is a design
-  conversation; arrived from VERBS' sweep, same `fn sphere`).
-- **Rational quad lane**: `quad-face-extent-trusts-caller-perimeter`
-  (E) → `refine-dir-hairline-knot-insertion` (H; before the dial so
-  the floors are stable; its knot-slice-copy half is Track R's C3/D30)
-  → `quad2-rational-max-rounds-dial-decision` (D→E; a D2 argument for
-  Ev) → `purchasable-area-tightness-valve` stays parked on a consumer.
-- **Props hygiene**: `props-two-eps-vocabularies-five-sites` (E);
-  `props-refusal-cannot-carry-measured-overshoot` (a ruling on the
-  bounds allowlist).
-- **Linalg interval honesty** (an audit; DL6 is ratified):
-  `certified-lane-non-real-contract-audit` (H, L; member by member —
-  **PROPS-1** takes `mirror_across_plane` and `reject_from` with the
-  one re-baseline pass both owe, `lerp` decided and left; member 5 is
-  its own item `rotation-about-diagonal-width-floor`, a D) →
-  `interval-orthonormal-basis-sign-hull` (D→H; the next unit on
-  `vec.rs`; M10-5's clearance workaround retires after) →
-  `normalize-overflow-yields-zero-axis` (D→E; S-CERT's item until the
-  inheritance, or handed over early) →
-  `pole-branch-pick-two-integer-shift` (D→E; `chord_join.rs` is Track
-  Q's / CURVED's — by note).
-- **Verdict recording**: `three-per-node-verdict-shapes` (D→E, first)
-  → `k-stats-escalation-channel-and-redo` (D→H, L; a returned value or
-  an RAII bracket carrying both verdicts and escalations; the nesting
-  bug).
-- **geom-core doors** (filed by other programs' sweeps, 2026-09-08 →
-  09-12; E riders, style-reviewed, batched two or three to a lane):
-  `geom-core-linalg-has-no-array-doors` +
-  `point3-has-no-order-and-vec3-no-sup-norm-door` (the vec3-doors
-  successor); `affine3-try-map-the-fallible-walk-has-no-kernel-door` +
-  `map-affine-retires-into-affine3-try-map` (one PR: the door and its
-  adopter); `band-has-no-door-for-an-explicit-eps-with-the-runs-k` +
-  `band-linear-errors-doc-is-false-empty-is-reachable-at-subnormal-eps`
-  (the `Band` pair);
-  `nan-sign-is-not-stable-under-code-motion-so-d9s-fixed-order-covers-non-nan-only`
-  (D→E: a D9 scope sentence, an `[ev]` line if it narrows a ratified
-  clause).
-- **Props hygiene, continued** (after sphere-pole-side lands, on the
-  same file):
-  `rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify`
-  (E→H: the `unreachable_zero` NaN tuple in live flux arithmetic),
-  `quadrature-budget-prints-its-two-lengths-alike` (E).
-- **Certificates sealed**: `certificate-types-have-public-fields-and-are-forgeable`
-  (D→H; after mignitude-floor lands, since `OffsetCertificate` is in
-  the family — private fields and one minting door per certificate
-  type, the same shape across `topo::props`, `pcurve`, `certify`,
-  `ssi`, `offset_fit`).
-- **Filed by other programs, 2026-09-13/14** (unslotted until the two
-  open units land; read at the next plan pass):
-  `a-widened-derived-placement-normalises-a-straddling-newell-sum`,
-  `certified-hull-padding-is-the-leaf-width-not-the-lane`,
-  `coincidence-zone-priced-budget-at-the-floor` (M10's inheritance),
-  `mc-lanes-draws-are-not-reproducible-from-outside-the-crate`,
-  `min-clearance-refusal-stringly-twin`,
-  `parametric-polygon-loop-certifies-nothing`,
-  `register-equals-witness-limits-citation-names-no-file` (a one-line
-  doc fix, takeable by any lane in `real.rs`),
-  `the-scalar-lift-convention-mints-doors-faster-than-consumers`.
-  `rim-side-and-rim-dir-group-signs-are-facts-about-cycle-order` and
-  `rim-stores-its-traversal-direction-twice` went into the sphere lane
-  instead (the spec's 2026-09-14 amendment).
-- **Singles**: `m6-sense-gate-recorded-residuals` (four H gate
-  extensions; residual 2 carries a design choice),
-  `span-carries-its-knot-vector` (an `[ev]` ruling, then an L sweep if
-  A or B), `lily-authoring-needs-shadow-vector-algebra` (D→E: which
-  `Vec3` doors; closes code-quality `D79`),
-  `contribution-bounds-via-dual-interval` (H; waits on certification
-  widths).
-
-Not here: `k-report-baseline-fold-cert1-roster` and
-`tess-budget-doc-finding-block-stale` are Track K's and re-home there
-at S-CERT's sweep; `edge-chord-len-defaults-to-one-metre` is S-BOOL's
-ground; `loft-seam-carrier-exact-knot-compare` and
-`unify-edge-descriptions-on-pcurves` are TRIM's; `ssi-chart-speed-usability-boundary`
-is CURVED's.
-
-## Early lanes (before the inheritance — what ran, 2026-09-05)
-
-Ev's direction (in-chat, 2026-09-05): start the work that does not
-overlap S-CERT's live PRs. The gate for the inheritance is unchanged —
-S-CERT's exit walk ratified, its issue files re-homed here — but a lane
-whose files no live PR touches may run now with a territory notice to
-the S-CERT orchestrator. Measured against the changed-file lists of
-#1877 (CERT-M3), #1879 (CERT-N3), #1828 (M10-8) and #1617 (MESH-12):
-
-- **runs now**: the linalg interval-honesty lane (`linalg/frame.rs`,
-  `vec.rs`, `point.rs`, `mat.rs` — none in any live PR) and the Span
-  `[ev]` ruling (tracker file only; its sweep waits for CERT-N3's
-  `spline/` edits);
-- **design now, code after M10-8 merges**: the verdict-recording lane
-  (`drive.rs`, `k_stats.rs`, `eval/mod.rs` are in #1828, small);
-- **waits**: `m6-sense-gate-recorded-residuals` (`validate.rs` is in
-  #1877), the sphere lane (`props/curved.rs` is in #1617 and carries
-  S-CERT's two pole items), `contribution-bounds-via-dual-interval`
-  (certification widths).
-
-Landed under this section before the gate (all in the log): PROPS-1
-(#1918), verdict-shapes (#1920), ONB-measure (#1939), lily-vec3
-(#1954), the Span sweep (#1952), the k-stats bracket (#1969), the
-rotation-floor and vec3-doors riders (#1980, #1977), the coeffs window
-and its fix pass (#1985, #1992). Still waiting at the opening: the
-sphere lane on MESH-12 (#1617, unanswered), the sign-hull unit on the
-`[ev]` ruling #1944.
+The three refusal rows on ordinary revolved shapes
+(`cone-apex-cap-refuses-degenerateface`, `sphere-flux-arm-refuses-partial-bands`,
+`sphere-wedge-arm-does-not-fold-split-meridians-by-lineage`) are one
+family: each is a face the kernel builds and the property layer will
+not measure.
 
 ## Review posture
 
-Full v6 dual with Fable specs; E riders single-reviewed.
-
-## Exit shape
-
-Tracks R and N are empty and every lane above has landed or been
-ruled; the walk convention applies.
+OPEN, for this program's first dispatch. PROPS inherits protocol v7
+(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
+only, opus/opus outside it. Nobody has re-asked the triage question for
+this slate, so the first orchestrator answers it here rather than
+inheriting an answer.

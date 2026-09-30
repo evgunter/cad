@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-31
 github: 1344
 refs: [571]
+priority: P3
+cost: D
 ---
 
 ## From GitHub issue 1344

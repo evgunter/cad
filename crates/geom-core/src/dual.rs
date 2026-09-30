@@ -6,10 +6,10 @@
 //! `Dual { value: x, deriv: 1 }` yields `Dual { value: f(x), deriv: f'(x) }`
 //! — exact forward-mode differentiation, no finite differences, one pass.
 //! The wrapper is generic over the base scalar: `Dual<f64>` ([`Dual64`])
-//! gives fast sensitivities, `Dual<Interval>` ([`DualInterval`], behind the
-//! `interval` cargo feature) gives *certified* derivative enclosures — the
-//! same chain-rule code serves both, which is the point of writing the
-//! chain rules in [`Real`]-surface operations.
+//! gives fast sensitivities, `Dual<Interval>` ([`DualInterval`]) gives
+//! *certified* derivative enclosures — the same chain-rule code serves
+//! both, which is the point of writing the chain rules in
+//! [`Real`]-surface operations.
 //!
 //! # In-house generic wrapper; num-dual demoted to a test oracle
 //!
@@ -141,19 +141,18 @@
 
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
-use crate::predicate::{Band, Decide, Indeterminate, Sign};
+use crate::predicate::{Band, Decide, Decided, Indeterminate};
 use crate::real::{Bounds, Real};
 use crate::tolerance::Tol;
 
-#[cfg(feature = "interval")]
 use crate::interval::Interval;
 
 /// A forward-mode dual number over the base scalar `T`: a value and the
 /// derivative of that value with respect to one scalar parameter.
 ///
-/// Implements [`Real`] for the kernel's base scalars (`f64` and, behind
-/// the `interval` feature, [`Interval`]), so any evaluation code generic
-/// over [`Real`] differentiates itself when instantiated here. See the
+/// Implements [`Real`] for the kernel's base scalars (`f64` and
+/// [`Interval`]), so any evaluation code generic over [`Real`]
+/// differentiates itself when instantiated here. See the
 /// [module docs](self) for the value-channel contract, the kink
 /// conventions, and the decide-by-value rule.
 ///
@@ -203,9 +202,8 @@ impl<T: Real> Dual<T> {
 /// The non-smooth selectors [`Dual`]'s chain rules need from their base
 /// scalar — a **sealed, crate-private helper trait** (written with
 /// [`Real`] as its supertrait) implemented for `f64` here and for
-/// [`Interval`] in `crate::interval` (feature-gated). It carries exactly
-/// the three kink selectors: the `abs` sign factor and the `min`/`max`
-/// tangent choice.
+/// [`Interval`] in `crate::interval`. It carries exactly the three kink
+/// selectors: the `abs` sign factor and the `min`/`max` tangent choice.
 ///
 /// [`Real`] deliberately has no comparisons, and `d|x|/dx` or "whose
 /// tangent does `min` keep" are order decisions *by nature* — not
@@ -431,6 +429,16 @@ impl<T: Real> Neg for Dual<T> {
 /// poisons alongside through its arithmetic (division by a poisoned or
 /// zero denominator, multiplication by a poisoned factor).
 impl<T: KinkJacobian> Real for Dual<T> {
+    /// **`T`'s.** The dual's value channel is bit-identical to the
+    /// plain-`T` computation of the same recipe (the module-level
+    /// contract), so what a comparison here proves is exactly what one
+    /// at `T` proves — the same reason [`Real::register_equal`] below
+    /// is `T`'s verbatim. The derivative channel is not a witness of
+    /// anything and is not consulted.
+    const WITNESS: crate::real::Witness = T::WITNESS;
+
+    const NAME: &'static str = "dual";
+
     /// A constant embed: `(T::from_f64(x), 0)`. Exact because `T`'s
     /// embedding is; the derivative of a constant is exactly zero.
     fn from_f64(x: f64) -> Self {
@@ -454,7 +462,8 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// Nothing is recorded — a `Dual` tracks no expression
     /// ([`Real::register_equal`]). Which refusal arm it can answer is
     /// `T`'s: over `f64` it is `Disputed` and never `Contradicted`,
-    /// over `Interval` the reverse.
+    /// over `Interval` the reverse — which is [`Real::WITNESS`] above,
+    /// forwarded from the same `T` for the same reason.
     fn register_equal(self, other: Self, tol: Tol) -> crate::sym::SymRegistration {
         self.value.register_equal(other.value, tol)
     }
@@ -742,7 +751,7 @@ impl<T> Decide for Dual<T>
 where
     T: Decide + KinkJacobian,
 {
-    fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
+    fn sign_within(self, band: Band) -> Result<Decided, Indeterminate> {
         self.value.sign_within(band)
     }
 }
@@ -802,7 +811,7 @@ where
 /// # This grants no certification right
 ///
 /// [`crate::CertifiedEnclosure`] is deliberately unimplemented for `Dual`
-/// and this impl does not change that: every C9-ring door is bounded by it
+/// and this impl does not change that: every C9 certification door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
 /// and **selections**, which are the ones with a condition on them: a
@@ -850,7 +859,6 @@ pub type Dual64 = Dual<f64>;
 /// Forward-mode dual over the certified interval scalar: derivative
 /// *enclosures* riding on enclosure values (the instantiation that never
 /// existed off the shelf — see the module-doc deviation note).
-#[cfg(feature = "interval")]
 pub type DualInterval = Dual<Interval>;
 
 #[cfg(test)]
@@ -859,7 +867,7 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
-    use crate::predicate::MarginDiag;
+    use crate::predicate::{MarginDiag, Sign};
 
     // Global-state discipline (see `crate::tolerance`'s test module): all
     // bands here are built purely via `Band::new`, never via the
@@ -1458,17 +1466,23 @@ mod tests {
         // Clean definite value with adversarial tangents: still definite.
         for adversarial in [f64::NAN, f64::INFINITY, 1e308, -1e308] {
             assert_eq!(
-                Dual::new(1.0, adversarial).sign_within(band),
+                Dual::new(1.0, adversarial)
+                    .sign_within(band)
+                    .map(|d| d.sign),
                 Ok(Sign::Positive),
                 "deriv = {adversarial:?}"
             );
             assert_eq!(
-                Dual::new(-1.0, adversarial).sign_within(band),
+                Dual::new(-1.0, adversarial)
+                    .sign_within(band)
+                    .map(|d| d.sign),
                 Ok(Sign::Negative),
                 "deriv = {adversarial:?}"
             );
             assert_eq!(
-                Dual::new(0.0, adversarial).sign_within(band),
+                Dual::new(0.0, adversarial)
+                    .sign_within(band)
+                    .map(|d| d.sign),
                 Ok(Sign::Zero),
                 "deriv = {adversarial:?}"
             );
@@ -1478,12 +1492,12 @@ mod tests {
         let err = Dual::new(5e-9, f64::NAN)
             .sign_within(band)
             .expect_err("sliver-band value must be indeterminate");
-        assert_eq!(err.margin, MarginDiag::Value(5e-9));
+        assert_eq!(err.margin, MarginDiag::value(5e-9));
         // Poisoned value: Invalid, even with a perfectly clean tangent.
         let err = Dual::new(f64::NAN, 1.0)
             .sign_within(band)
             .expect_err("NaN value must be indeterminate");
-        assert_eq!(err.margin, MarginDiag::Invalid);
+        assert_eq!(err.margin, MarginDiag::INVALID);
     }
 
     // ------------------------------------------------------------------
@@ -1781,14 +1795,13 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Dual<Interval> (feature-gated)
+    // Dual<Interval>
     // ------------------------------------------------------------------
 
     /// `Dual<Interval>` through the public API only ([`crate::real::Bounds`]
     /// on the channels); the decoration-level pins for the interval kink
     /// selectors live in `crate::interval`'s test module, which can see
     /// the wrapped `DecInterval`.
-    #[cfg(feature = "interval")]
     mod interval_duals {
         use super::*;
         use crate::interval::Interval;
@@ -1987,16 +2000,22 @@ mod tests {
                 Interval::from_bounds(1.0, 2.0),
                 Interval::from_f64(f64::NAN),
             );
-            assert_eq!(nai_tangent.sign_within(band), Ok(Sign::Positive));
+            assert_eq!(
+                nai_tangent.sign_within(band).map(|d| d.sign),
+                Ok(Sign::Positive)
+            );
             let huge_tangent = di(1.0, 2.0, -1e300, 1e300);
-            assert_eq!(huge_tangent.sign_within(band), Ok(Sign::Positive));
+            assert_eq!(
+                huge_tangent.sign_within(band).map(|d| d.sign),
+                Ok(Sign::Positive)
+            );
             // A sliver-band point value is indeterminate whatever rides
             // along, carrying the ENCLOSURE diagnostic of the value part.
             let sliver = di(5e-9, 5e-9, 1e300, 1e300);
             let err = sliver
                 .sign_within(band)
                 .expect_err("sliver point must stay indeterminate");
-            assert_eq!(err.margin, MarginDiag::Enclosure { lo: 5e-9, hi: 5e-9 });
+            assert_eq!(err.margin, MarginDiag::enclosure(5e-9, 5e-9));
             // A straddling value is indeterminate (subdivision's cue).
             let straddle = di(-1.0, 1.0, 0.0, 0.0);
             assert!(straddle.sign_within(band).is_err());
@@ -2010,7 +2029,7 @@ mod tests {
             let err = clamped
                 .sign_within(band)
                 .expect_err("Trv-decorated value must refuse to classify");
-            assert_eq!(err.margin, MarginDiag::Invalid);
+            assert_eq!(err.margin, MarginDiag::INVALID);
         }
 
         /// THE contract at interval type: the dual's value channel is
@@ -2225,7 +2244,6 @@ mod tests {
         /// endpoints — not a point, and not touched by an unbounded
         /// tangent (E9: tangent poison never refuses). Red if the impl
         /// hulls the channels together: `[−∞, ∞]` would swallow `[−1, 2]`.
-        #[cfg(feature = "interval")]
         #[test]
         fn dual_interval_bracket_is_the_value_enclosure() {
             use crate::interval::Interval;

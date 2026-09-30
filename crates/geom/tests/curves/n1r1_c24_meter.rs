@@ -8,29 +8,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::NurbsCurve3;
-use geom_core::Point3;
-use geom_core::spline::KnotVector;
+use crate::curves::meter_fixture::{DEGREES, curve};
 use std::hint::black_box;
 use std::time::Instant;
-
-fn curve(p: usize, interior: usize) -> NurbsCurve3<f64> {
-    let mut k = vec![0.0; p + 1];
-    for i in 1..=interior {
-        k.push(i as f64 / (interior + 1) as f64);
-    }
-    k.extend(std::iter::repeat_n(1.0, p + 1));
-    let kv = KnotVector::clamped(k, p).unwrap();
-    let n = kv.control_count();
-    let control: Vec<Point3<f64>> = (0..n)
-        .map(|i| {
-            let t = i as f64;
-            Point3::new(t * 0.31, (t * 1.1).sin(), (t * 0.7).cos() * 2.0)
-        })
-        .collect();
-    let weights: Vec<f64> = (0..n).map(|i| 1.0 + 0.25 * (i % 5) as f64).collect();
-    NurbsCurve3::new(kv, control, weights).unwrap()
-}
 
 #[test]
 fn n1r1_c24_meter() {
@@ -39,7 +19,7 @@ fn n1r1_c24_meter() {
     }
     const REPS: usize = 200_000;
     println!("degree/interior  eval_in_span  deriv_in_span(order1)  ders_in_span().1(retired)");
-    for (p, interior) in [(2usize, 3usize), (3, 8), (5, 8), (7, 8)] {
+    for (p, interior) in DEGREES {
         let c = curve(p, interior);
         let span = c.span_at(0.37);
         // warm

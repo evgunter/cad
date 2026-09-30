@@ -4,6 +4,8 @@ kind: issue
 title: the K-roster claim has no mechanical guard: a new decide("…") name can ship with no docs/K-REPORT.md row and nothing reds
 status: open
 opened: 2026-09-14
+priority: P3
+cost: D
 ---
 
 Filed by TOPO's `tier3-accepts-a-ring-outside-its-outer-loop` (PR 2529)

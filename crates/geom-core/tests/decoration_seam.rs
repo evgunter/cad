@@ -19,26 +19,27 @@
 //! `Bounds` answers (1) and never refuses. [`CertifiedEnclosure`] answers
 //! (2), and at `Interval` — the scalar this suite is about — it refuses
 //! below `Def`. **That threshold is `Interval`'s spelling of the refusal,
-//! not the whole of it**: the door refuses on each type's own poison, which
-//! at `f64` and at `RingInterval` is read off the value rather than off a
-//! decoration. `certified_door.rs` sweeps all four implementors against
-//! that one postcondition; these rows pin both halves here, and pin that
-//! the C9-ring crossing this crate can reach — `spline::hull`'s, through
+//! not the whole of it**: each door refuses exactly what its scalar cannot
+//! certify — `f64`'s poison, read off the value rather than off a
+//! decoration, and an interval's refusal. `certified_door.rs` sweeps all
+//! four implementors against that one postcondition; these rows pin both
+//! halves here, and pin that the crossing into certification arithmetic
+//! this crate can reach — `spline::hull`'s, through
 //! [`hull::domain_hull`] — follows the second door rather than the first,
 //! which is the actual defect S41 found: it read the bracket, so a `Trv`
-//! enclosure crossed into `RingInterval` as a healthy bound.
+//! enclosure crossed into `Interval` as a healthy bound.
 //!
 //! **What these rows do NOT pin, named exactly, because a roster with a
 //! count in it is what the finding was about.**
-//! `RingInterval::from_certified` is reached from four other places in
+//! `Interval::from_certified` is reached from four other places in
 //! `crates/*/src`, every one of them inside a crate that depends on this
 //! one, so no test here can call them:
 //!
-//! - `geom`'s `ring_coords`, which lifts a control net channel by channel
-//!   — pinned by `geom/tests/{curves,surfaces}/decoration_ring_coords.rs`;
+//! - `geom`'s `certified_coords`, which lifts a control net channel by channel
+//!   — pinned by `geom/tests/{curves,surfaces}/decoration_certified_coords.rs`;
 //! - `geom_brep::ssi::certify`'s three direct reads of a plane normal —
 //!   pinned by that file's `normal_crossing_tests`, which drives
-//!   `probe_tube_chart` and therefore runs `ring_coords` as well;
+//!   `probe_tube_chart` and therefore runs `certified_coords` as well;
 //! - `topo::props`'s bracket helper — pinned by that file's
 //!   `bracket_seam_tests`;
 //! - `geom_brep::ssi::enclose`'s, which **no row named here pins**.
@@ -46,15 +47,15 @@
 //! The sweeps are **paired**: each walks an operand across the domain
 //! boundary and requires refusal *iff* the decoration degraded, with
 //! non-vacuity assertions on both halves. A laundering implementation
-//! certifies the whole sweep and fails; an implementation that poisons
+//! certifies the whole sweep and fails; an implementation that refuses
 //! indiscriminately refuses the whole sweep and fails too.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::interval::certification::Certification;
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, CertifiedEnclosure, Interval, Real, RingInterval};
+use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 
 /// A domain violation with finite endpoints: `sqrt([−1, 4])` clamps to
 /// `[0, 2]` and records the violation only in the decoration.
@@ -96,9 +97,9 @@ fn the_trv_fixture_is_nonempty_with_finite_endpoints() {
     );
     assert_eq!((lo, hi), (0.0, 2.0), "fixture is not the clamped sqrt");
     assert!(matches!(
-        x.sign_within(band()),
+        x.sign_within(band()).map(|d| d.sign),
         Err(Indeterminate {
-            margin: MarginDiag::Invalid,
+            margin: MarginDiag::INVALID,
             ..
         })
     ));
@@ -149,23 +150,24 @@ fn the_certified_door_refuses_a_violated_decoration() {
         Some((1.0, 2.0)),
         "a certified enclosure must hand over its own endpoints unchanged"
     );
-    // The other two lanes read their poison off the value itself rather
-    // than off a decoration, and refuse on it. `certified_door.rs` sweeps
-    // both; these two pairs are here so this row's `Def` threshold is not
-    // mistaken for the only way the door can refuse.
+    // `f64` refuses on its poison, read off the value itself rather than
+    // off a decoration, and `Interval::refused()` is the permanent
+    // refusal. `certified_door.rs` sweeps both; these two pairs are here
+    // so this row's `Def` threshold is not mistaken for the only way the
+    // door can refuse.
     assert_eq!(2.5_f64.certified_bracket(), Some((2.5, 2.5)));
     assert!(f64::NAN.certified_bracket().is_none());
     assert_eq!(
-        RingInterval::from_bounds(-1.0, 1.0).certified_bracket(),
+        Interval::from_bounds(-1.0, 1.0).certified_bracket(),
         Some((-1.0, 1.0))
     );
-    assert!(RingInterval::poison().certified_bracket().is_none());
+    assert!(Interval::refused().certified_bracket().is_none());
 }
 
 /// The C9 hull bound over a two-coefficient degree-1 spline whose first
 /// coefficient is `c` — the shortest path from an evaluation scalar into
-/// `RingInterval` through a public door.
-fn hull_bound(c: Interval) -> RingInterval {
+/// `Interval` through a public door.
+fn hull_bound(c: Interval) -> Interval {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     kv.with_coeffs(&[c, Interval::from_f64(1.0)])
         .unwrap()
@@ -182,7 +184,7 @@ fn the_hull_bound_refuses_exactly_where_the_decoration_degrades() {
         let c = Interval::from_bounds(a, 4.0).sqrt();
         let bound = hull_bound(c);
         assert_eq!(
-            bound.is_poison(),
+            !bound.is_certified(),
             !c.is_certified(),
             "sqrt([{a}, 4]) is {} but its hull bound is {bound:?}",
             if c.is_certified() {
@@ -219,7 +221,7 @@ fn the_crossing_follows_the_certified_door_not_the_bracket() {
 
     let bound = hull_bound(x);
     assert!(
-        bound.is_poison(),
+        !bound.is_certified(),
         "the hull crossing reproduced the BRACKET answer {bracket_answer:?} \
          as {bound:?} — it is reading `Bounds`, not `CertifiedEnclosure`. \
          The crossing's bound must require the certified door."

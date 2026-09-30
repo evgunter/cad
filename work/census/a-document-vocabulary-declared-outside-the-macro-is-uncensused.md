@@ -4,6 +4,8 @@ kind: issue
 title: A document vocabulary declared with a plain pub enum gets no ALL_NAMES, no census, and nothing detects it
 status: open
 opened: 2026-09-13
+priority: P3
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: the circle limb certifies locus and closure, not the map: a re-timed closed carrier promotes on locus alone
 status: open
 opened: 2026-09-04
+priority: P1
+cost: D
 ---
 
 

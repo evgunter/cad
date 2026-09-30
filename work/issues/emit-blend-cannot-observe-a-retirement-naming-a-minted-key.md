@@ -4,6 +4,8 @@ kind: issue
 title: editor-core: emit_blend's retired-set guard cannot observe a retirement naming a minted key
 status: open
 opened: 2026-09-13
+priority: P0
+cost: D
 ---
 
 

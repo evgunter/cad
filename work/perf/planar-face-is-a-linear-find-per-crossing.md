@@ -4,6 +4,8 @@ kind: issue
 title: planar_face is a linear find per declared pair per crossing, and confirm_declarations scans faces per record - the arena-scan shape the census grep could not see
 status: open
 opened: 2026-09-13
+priority: P4
+cost: D
 ---
 
 

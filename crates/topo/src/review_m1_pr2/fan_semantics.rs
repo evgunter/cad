@@ -1,6 +1,4 @@
-//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16). These are
-//! **independent derivations**. Promoted per Ev's request (PR #17
-//! thread).
+//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16).
 //!
 //! Independent fan-semantics verification (NOT the shipped valence-4
 //! fixture): a valence-5 star, hand-derived orbit, asymmetric split, the
@@ -29,7 +27,7 @@ fn p(x: f64) -> Point3<f64> {
 fn valence_five_fan_split_moves_the_clockwise_run() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let g = body
         .mev_line(
             MevSite::Lone {
@@ -160,7 +158,7 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
     // faces glued -- 1 mvfs + 2 mev + 1 mef gives the two-edge digon;
     // instead build the 3-vertex chain + close = triangle lamina).
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let ab = body
         .mev_line(
             MevSite::Lone {

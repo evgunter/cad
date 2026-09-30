@@ -24,15 +24,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::slab;
 use core::f64::consts::PI;
-use profile::RawLoop;
 
 use geom::Curve3;
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use geom_core::{Band, Point2, Vec3};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::ball_poled_y;
+use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
 
@@ -40,43 +41,12 @@ use topo::{Body, BooleanDeclarations, BooleanError};
 // Fixtures and helpers (the S12 suite's, radius-generalized).
 // ---------------------------------------------------------------------
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn slack() -> f64 {
     (1e3 * Tol::witness().get().eps).max(1e-9)
 }
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
-}
-
-/// The 4 × 4 × 1 slab (the S12 finding's own dimensions).
-/// `m5_pr9_boss_union::plate`'s box, spelled again here.
-fn slab() -> Body<f64> {
-    sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
-}
-
-/// A radius-`r` ball (two half-sphere bands on ONE sphere surface, the
-/// PR 9c authoring) translated to `centre`. Its poles land on a
-/// horizontal axis — the chart the §1 re-cut must re-align.
-fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: geom_core::Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
 }
 
 /// Spherical cap volume, height `h` off a radius-`r` ball.
@@ -109,8 +79,10 @@ fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 const PIP_R: f64 = 0.5;
 const PIP_H: f64 = 0.3;
 
+/// The pip's ball, y-poled: its poles lie on a horizontal axis, which
+/// is the chart the §1 re-cut must re-align.
 fn pip_ball(x: f64, y: f64) -> Body<f64> {
-    ball_at(PIP_R, Vec3::new(x, y, 1.0 + PIP_R - PIP_H))
+    ball_poled_y(PIP_R, Vec3::new(x, y, 1.0 + PIP_R - PIP_H), Tol::witness())
 }
 
 // ---------------------------------------------------------------------
@@ -278,7 +250,7 @@ fn in_band_extent_escalates_instead_of_answering() {
     let band = Band::linear(Tol::witness()).unwrap();
     let mid = 0.5 * (band.zero() + band.escalate());
     // Center above the slab so that r − |s| = mid for the top face.
-    let b = ball_at(1.0, Vec3::new(2.0, 2.0, 2.0 - mid));
+    let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 2.0 - mid), Tol::witness());
     let err =
         topo::union(&slab(), &b, Tol::witness()).expect_err("an in-band extent must not answer");
     let BooleanError::Escalated { .. } = err else {
@@ -293,7 +265,7 @@ fn in_band_extent_escalates_instead_of_answering() {
 #[test]
 fn certified_disjoint_and_contained_shells_keep_their_answers() {
     // Disjoint: assembly, volumes add.
-    let far = ball_at(0.5, Vec3::new(2.0, 2.0, 3.0));
+    let far = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 3.0), Tol::witness());
     let joined = both_lanes(BooleanOp::Union, &slab(), &far);
     assert!(
         (vol(&joined) - (16.0 + 4.0 * PI * 0.125 / 3.0)).abs() < slack(),
@@ -303,7 +275,7 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
     assert_eq!(joined.shells().count(), 2);
 
     // Contained: ∪ is the slab; ∖ voids the ball out.
-    let buried = ball_at(0.4, Vec3::new(2.0, 2.0, 0.5));
+    let buried = ball_poled_y(0.4, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let joined = both_lanes(BooleanOp::Union, &slab(), &buried);
     assert!((vol(&joined) - 16.0).abs() < slack(), "{}", vol(&joined));
     let cut = both_lanes(BooleanOp::Subtract, &slab(), &buried);
@@ -329,8 +301,8 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
 /// layer higher.
 #[test]
 fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
-    let b1 = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));
-    let b2 = ball_at(1.0, Vec3::new(2.0, 2.0, 1.9));
+    let b1 = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
+    let b2 = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.9), Tol::witness());
     let err = topo::union(&b1, &b2, Tol::witness()).expect_err("no sphere×sphere seam lane");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the scan's typed refusal, got {err:?}");
@@ -359,7 +331,7 @@ fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
 fn trimmed_sphere_group_operand_assembles_with_a_clear_partner() {
     let pip = both_lanes(BooleanOp::Subtract, &slab(), &pip_ball(2.0, 2.0));
     let pip_v = vol(&pip);
-    let far = ball_at(0.5, Vec3::new(2.0, 2.0, 3.5));
+    let far = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 3.5), Tol::witness());
     let joined = both_lanes(BooleanOp::Union, &pip, &far);
     assert_eq!(joined.shells().count(), 2, "the pipped slab plus the ball");
     let want = pip_v + 4.0 * PI * 0.125 / 3.0;
@@ -389,9 +361,9 @@ fn trimmed_sphere_group_operand_assembles_with_a_clear_partner() {
 /// answers.
 #[test]
 fn cylinder_near_sphere_refuses_typed_at_the_scan() {
-    let disc = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.35, 0.0), 1.0),
-        ProfileVertex::new(p2(-0.35, 0.0), 1.0),
+    let disc = bulge_loop(vec![
+        (Point2::new(0.35, 0.0), 1.0),
+        (Point2::new(-0.35, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
@@ -399,7 +371,7 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
     let cyl = extrude(&vp, Extrusion::Distance(1.3), Tol::witness())
         .unwrap()
         .body;
-    let ball = ball_at(0.05, Vec3::new(0.34, 0.34, 0.65));
+    let ball = ball_poled_y(0.05, Vec3::new(0.34, 0.34, 0.65), Tol::witness());
     let err = topo::union(&cyl, &ball, Tol::witness())
         .expect_err("nearness to a cylinder wall cannot certify");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
@@ -416,9 +388,9 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
 /// `FallbackExtentUnsupported`.
 #[test]
 fn a_ball_above_the_cylinders_cap_is_certified_separated() {
-    let disc = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.35, 0.0), 1.0),
-        ProfileVertex::new(p2(-0.35, 0.0), 1.0),
+    let disc = bulge_loop(vec![
+        (Point2::new(0.35, 0.0), 1.0),
+        (Point2::new(-0.35, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
@@ -428,7 +400,7 @@ fn a_ball_above_the_cylinders_cap_is_certified_separated() {
         .body;
     // Ball bottom at z = 1.55, cap at z = 1.3: a gap of 0.25, less
     // than the wall's 0.35 radius.
-    let ball = ball_at(0.2, Vec3::new(0.0, 0.0, 1.75));
+    let ball = ball_poled_y(0.2, Vec3::new(0.0, 0.0, 1.75), Tol::witness());
     let out = topo::union(&cyl, &ball, Tol::witness())
         .expect("a genuinely separated pair must be certified, not refused");
     let kind = out.body().expect("a non-empty union").kind;

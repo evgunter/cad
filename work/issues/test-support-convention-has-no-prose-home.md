@@ -4,6 +4,8 @@ kind: issue
 title: The test-support feature convention is restated in four manifests and has no prose home
 status: open
 opened: 2026-09-17
+priority: P3
+cost: E
 ---
 
 

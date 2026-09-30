@@ -301,32 +301,32 @@ fn the_re_posed_cup_merges_identically() {
 
 /// **The boolean after the merge, MEASURED.** The merge was the
 /// precondition F7 was asking for, and with it satisfied the subtract
-/// walks past that gate and stops at the next door on the road:
-/// `CurvedPierceUnsupported`, the shared curved-pierce substrate. That
-/// is this row's whole content — it records where the cup's boolean
-/// actually stands, and the boundary it names belongs to the pierce
-/// lane, not to the coplanar pair this unit repaired.
+/// walks past that gate, past the crossing layer, and stops at the
+/// join: `UnpairedLooseEnds { count: 4 }`. That is this row's whole
+/// content — it records where the cup's boolean actually stands, and
+/// the boundary it names belongs to the join, not to the coplanar pair
+/// this unit repaired.
+///
+/// The crossing layer's door it used to stop at was the cutter's edge
+/// `x = 0.02, y = 0.1` (along `z`) against the cup's half-cylinder
+/// face `3v1`: the line straddles the carrier and crosses it once, at
+/// azimuth ≈ 65°, OUTSIDE that half's window. The straddle arm read the
+/// accounted-for crossing as a contradiction; it is now the certified
+/// negative (`SpanVerdict::Elsewhere`), and the sibling half `9v1`
+/// records the crossing on its own visit.
 #[test]
-fn the_boolean_after_the_merge_reaches_the_curved_pierce_door() {
+fn the_boolean_after_the_merge_reaches_the_join() {
     let tol = Tol::witness();
     let (cup, _) = merge_the_cup(teapot_cup(tol), tol);
     let out = topo::boolean::subtract(&cup, &cutter(tol), tol);
-    let Err(topo::BooleanError::CurvedPierceUnsupported {
-        operand,
-        face,
-        edge,
-        ..
-    }) = out
-    else {
-        panic!(
-            "the merged cup clears F7 and stops at the curved-pierce substrate, got {:?}",
-            out.map(|_| "Ok")
-        );
-    };
-    // The payload the PR quotes, pinned: it is the CUTTER's edge (B)
-    // meeting a curved face of the cup, which is what makes this the
-    // pierce lane's door and not the coplanar pair's.
-    assert_eq!(operand, topo::Operand::B, "the cutter's edge pierces");
-    assert_eq!(format!("{face:?}"), "FaceKey(3v1)", "the cup's curved face");
-    assert_eq!(format!("{edge:?}"), "EdgeKey(8v1)", "the cutter's edge");
+    assert!(
+        matches!(
+            out,
+            Err(topo::BooleanError::Join(
+                topo::SplitJoinError::UnpairedLooseEnds { count: 4 }
+            ))
+        ),
+        "the merged cup clears F7 and the crossing layer and stops at the join, got {:?}",
+        out.map(|_| "Ok")
+    );
 }

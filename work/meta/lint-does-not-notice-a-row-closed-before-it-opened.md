@@ -4,6 +4,8 @@ kind: issue
 title: work.py lint resolves references and measures territory but never compares closed against opened, so a row closed before it opened passes
 status: open
 opened: 2026-09-13
+priority: P3
+cost: E
 ---
 
 ## Finding

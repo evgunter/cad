@@ -4,6 +4,8 @@ kind: issue
 title: a plan's table can drift from its program's item files in both directions with lint green
 status: open
 opened: 2026-09-16
+priority: P3
+cost: D
 ---
 
 

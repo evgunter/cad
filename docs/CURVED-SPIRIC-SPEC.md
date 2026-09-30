@@ -213,7 +213,7 @@ exhaustiveness with the reason at the site.
 | `replace_face.rs:cone_v_range` | U |
 | `replace_face.rs:plan_edge` | no change (constructs `Nurbs`) |
 | `topo/src/pcurves.rs:nurbs_iso_derive`, `derive_general_image` | no change (let-else on `Nurbs`) |
-| `topo/src/merge_faces.rs:loop_winding` ×2 | `None` — the honest remainder, as `Nurbs` |
+| `topo/src/loop_winding.rs:planar_loop_winding` ×2 | `None` — the honest remainder, as `Nurbs` |
 | `topo/src/chord_join.rs:between_edge_in_plane` | R `SectionInvariant` (the join lanes are fenced; never assume "on") |
 | `topo/src/boolean/reduce.rs:gate_operand_edges` | R `CurvedEdgeUnsupported` — the boolean fence (§7) |
 | `boolean/boxes.rs:edge_box_rule` | `EdgeBoxRule::Spiric` → `spiric_arc_aabb` |
@@ -420,8 +420,8 @@ Suites: `crates/geom/src/curves.rs` in-src rows for the kind; a new
 7. **Rigid re-pose parity**: the hollowed-to-check-7 elbow's minted spiric carriers
    re-posed by `transform` equal the carriers of the re-posed operand's own hollow,
    field by field within 1 ulp (the `torax_the_lune_cavity_survives_a_rigid_re_pose`
-   shape, on the cavity BEFORE tier 3 — `validate_geometric_structural` is the
-   door that stops short of check 7).
+   shape, on the cavity BEFORE tier 3 — whose only refusal at
+   `validate_geometric_structural` is check 7's closed-form `VolumeUncomputable`).
 8. **`Interval` lane**: `torax_interval`'s klein row flips to the §4 door at
    `T = Interval`, and a sibling encloses the minted rim: `eval` at bracketed `v`
    contains the f64 point, residual enclosures straddle zero. Every new `decide`

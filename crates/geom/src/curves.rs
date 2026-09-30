@@ -74,6 +74,14 @@ pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 /// payload is immutable after validated construction — sharing is
 /// D9-clean (no address-dependent behavior, no interior mutability).
 #[derive(Clone, Debug)]
+// The variant roster the analytic-kind fixtures read
+// ([`crate::test_support`]; this crate's `test-support` feature,
+// test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(Curve3Variant), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum Curve3<T: Real> {
     /// The infinite straight line `P(t) = origin + dir·t`.
     ///
@@ -139,9 +147,12 @@ pub enum Curve3<T: Real> {
     ///   discipline) — and are refused by [`Curve3::ellipse`], the one
     ///   deciding constructor. Like every conventional invariant the
     ///   ordering is *data* here: evaluators consume the fields as
-    ///   given, tier-3 certification owns the invariant at rest, and a
-    ///   struct-literal that bypasses the constructor owns the
-    ///   consequences (well-defined garbage, not poison).
+    ///   given, and a struct-literal that bypasses the constructor owns
+    ///   the consequences (well-defined garbage, not poison). At rest,
+    ///   tier 3 certifies `major > 0` and `minor > 0`
+    ///   ([`Curve3::representability_margins`]) and NOT the ordering: a
+    ///   swapped pair names the same ellipse through a `u_ref` along its
+    ///   minor axis.
     Ellipse {
         /// The ellipse's center.
         center: Point3<T>,
@@ -306,7 +317,7 @@ pub enum SpiricInvalid {
     /// cutting plane is not parallel to the torus axis.
     FrameNotOrthogonal,
     /// A constructor predicate landed in the ambiguity band or was
-    /// poisoned (`spiric_minor_positive`, `spiric_ring`,
+    /// poisoned (`spiric_minor_positive`, `ring_torus_convention`,
     /// `spiric_two_ovals`, `spiric_frame_orthogonal`).
     Escalated(Indeterminate),
 }
@@ -347,7 +358,222 @@ impl core::fmt::Display for SpiricInvalid {
 
 impl std::error::Error for SpiricInvalid {}
 
+/// A stored datum of an analytic [`Curve3`] — the FIELD, named apart
+/// from the variant that carries it (a circle's and an ellipse's
+/// `center` are both [`CurveDatum::Center`]). The curve half of
+/// [`crate::SurfaceDatum`]; a consumer naming a datum names the curve
+/// kind beside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// Every value, for `topo`'s samples (this crate's `test-support`
+// feature, test builds only).
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
+pub enum CurveDatum {
+    /// A line's `origin`.
+    Origin,
+    /// A line's `dir`.
+    Dir,
+    /// A circle's, ellipse's or spiric's `center`.
+    Center,
+    /// The `axis` of a circle, ellipse or spiric.
+    Axis,
+    /// The seam direction `u_ref` of a circle, ellipse or spiric.
+    URef,
+    /// A circle's `radius`.
+    Radius,
+    /// An ellipse's semi-major `major`.
+    Major,
+    /// An ellipse's semi-minor `minor`.
+    Minor,
+    /// A spiric's torus `major_radius`.
+    MajorRadius,
+    /// A spiric's torus `minor_radius`.
+    MinorRadius,
+    /// A spiric's plane stand-off `offset`.
+    Offset,
+    /// A `Nurbs` carrier's control net — the one datum a spline stores
+    /// that is a number at the curve's scalar (its knots and weights are
+    /// `f64` structure, validated finite at construction).
+    Control,
+}
+
+impl CurveDatum {
+    /// The datum's field name, as the variant spells it.
+    ///
+    /// **Hand-kept against the variants' field names**, and nothing
+    /// derives it: a renamed field leaves this string stale with
+    /// nothing red. The exhaustive match only guarantees every datum
+    /// HAS a name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Origin => "origin",
+            Self::Dir => "dir",
+            Self::Center => "center",
+            Self::Axis => "axis",
+            Self::URef => "u_ref",
+            Self::Radius => "radius",
+            Self::Major => "major",
+            Self::Minor => "minor",
+            Self::MajorRadius => "major_radius",
+            Self::MinorRadius => "minor_radius",
+            Self::Offset => "offset",
+            Self::Control => "control",
+        }
+    }
+}
+
+/// A carrier's stored data, by what kind of datum it stores
+/// ([`Curve3::data`]).
+#[derive(Debug)]
+pub enum CurveData<'a, T: Real> {
+    /// An analytic kind's fields.
+    Analytic(crate::AnalyticData<T, CurveDatum>),
+    /// A spline net, unread.
+    Nurbs(&'a Arc<NurbsCurve3<T>>),
+}
+
 impl<T: Real> Curve3<T> {
+    /// **The carrier's stored data** — the one walk of the analytic
+    /// kinds' fields, which each reader that visits them field by field
+    /// folds with its own question (a poison read, a hash key), and the
+    /// payload of the spline kind: the curve half of
+    /// [`crate::Surface::data`].
+    ///
+    /// The variants are destructured without `..`, so a field a variant
+    /// gains is a compile error here rather than a datum every reader
+    /// silently skips; a kind that is not read as fields is a new
+    /// [`CurveData`] arm, which every reader matches exhaustively. A field
+    /// that takes a kind past the walk's width is caught later, by the
+    /// build that first instantiates the walk (`AnalyticData::new`'s
+    /// bound), which `cargo check` does not reach.
+    pub fn data(&self) -> CurveData<'_, T> {
+        use crate::AnalyticData;
+        use crate::DatumValue::{Direction, Point, Scalar};
+        use CurveDatum as D;
+        CurveData::Analytic(match *self {
+            Curve3::Line { origin, dir } => {
+                AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
+            }
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::Radius, Scalar(radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::Major, Scalar(major)),
+                (D::Minor, Scalar(minor)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::URef, Direction(u_ref)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::Offset, Scalar(offset)),
+            ]),
+            Curve3::Nurbs(ref n) => return CurveData::Nurbs(n),
+        })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// **The representability margins of this carrier's datum
+    /// conventions** — the curve half of
+    /// [`crate::Surface::representability_margins`], with that door's
+    /// contract: each quantity a variant's docs require to be strictly
+    /// positive for its stored datum to describe the curve the variant
+    /// names at all, named by the datum it constrains and the END of the
+    /// convention it measures, scalar conventions first:
+    ///
+    /// - `Circle`: `radius`, lower end (`radius > 0`: at zero the circle
+    ///   is a point);
+    /// - `Ellipse`: `major` and `minor`, each at its lower end (a zero
+    ///   semi-axis is a segment or a point). The ordering
+    ///   `major > minor` relates two datums rather than bounding one,
+    ///   and is not a margin here — a swapped pair still describes an
+    ///   ellipse, and [`Curve3::ellipse`] is where the ordering is
+    ///   decided;
+    /// - `Spiric`: `minor_radius`, lower end (the `r > 0` half of the
+    ///   ring convention). `R > r` and `|offset| < R − r` relate datums,
+    ///   and [`Curve3::spiric`] decides them;
+    /// - **the frame**, for `Circle`, `Ellipse` and `Spiric`: `axis` and
+    ///   `u_ref` unit and `u_ref ⊥ axis` within `band`'s ε at the
+    ///   carrier's largest radius (the circle's `radius`, the larger
+    ///   semi-axis MAGNITUDE, the spiric's `R + r`) — the surface door's
+    ///   frame margins, for the same reason: a circle whose `axis` is
+    ///   `2·ẑ` evaluates an ellipse;
+    /// - `Line`, `Nurbs`: none — a line's `dir` spans the same line at
+    ///   any length, and a spline's datum is its net.
+    ///
+    /// **Nothing is decided here**, exactly as on the surface door: the
+    /// quantities are computed at `T` and returned, a margin of a
+    /// poisoned datum is poison, and the variants are destructured
+    /// without `..` so a field a variant gains is a compile error here.
+    pub fn representability_margins(
+        &self,
+        band: Band,
+    ) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
+        use crate::convention::{frame_margins, lower};
+        let frame = |axis, u_ref, arm| {
+            frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
+        };
+        match self {
+            Curve3::Circle {
+                center: _,
+                axis,
+                radius,
+                u_ref,
+            } => core::iter::once(lower(CurveDatum::Radius, *radius))
+                .chain(frame(*axis, *u_ref, *radius))
+                .collect(),
+            Curve3::Ellipse {
+                center: _,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => [
+                lower(CurveDatum::Major, *major),
+                lower(CurveDatum::Minor, *minor),
+            ]
+            .into_iter()
+            .chain(frame(*axis, *u_ref, major.abs().max(minor.abs())))
+            .collect(),
+            Curve3::Spiric {
+                center: _,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset: _,
+            } => core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
+                .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
+                .collect(),
+            Curve3::Line { origin: _, dir: _ } | Curve3::Nurbs(_) => Vec::new(),
+        }
+    }
+
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
     /// whose control points are all-poison, so evaluation yields the
@@ -415,7 +641,8 @@ impl<T: Decide> Curve3<T> {
     ///
     /// - `spiric_minor_positive` — margin `minor_radius` (m): Positive
     ///   required; else [`SpiricInvalid::MinorNotPositive`].
-    /// - `spiric_ring` — margin `major_radius − minor_radius` (m):
+    /// - `ring_torus_convention` ([`crate::ring_torus`], the convention's
+    ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
     /// - `spiric_two_ovals` — margin `(major_radius − minor_radius) −
     ///   |offset|` (m), the length the two-oval regime closes by,
@@ -450,7 +677,7 @@ impl<T: Decide> Curve3<T> {
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         let ring = major_radius - minor_radius;
-        match decide("spiric_ring", Margin::of(ring), band) {
+        match crate::ring_torus(major_radius, minor_radius, band).map(|d| d.sign) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
@@ -486,9 +713,12 @@ impl<T: Real> Curve3<T> {
     /// `radial = u_ref·c + v_ref·s` with `v_ref = axis × u_ref`, result
     /// `center + radial·radius`, exactly as parenthesized (D9).
     ///
-    /// It is a door rather than a copy: `eval`'s `Circle` arm CALLS
-    /// this, so there is one expression and a caller that builds a
-    /// point here builds the very node `eval` would. That is what
+    /// It is a door rather than a copy: the point expression lives in
+    /// [`Self::circle_point`] alone, this is that expression on a frame
+    /// built here, `eval`'s `Circle` arm CALLS this, and `ders1`'s
+    /// `Circle` arm calls `circle_point` on the one frame it shares
+    /// with its tangent half — so a caller that builds a point here
+    /// builds the very node either door would. That is what
     /// `sweep::swept::register_span_identity` rests on — node ids are
     /// content hashes, so "the constructor states the identity about
     /// the node the certifier will ask about" is a fact of this
@@ -505,8 +735,17 @@ impl<T: Real> Curve3<T> {
         u_ref: Vec3<T>,
         t: T,
     ) -> Point3<T> {
-        let radial = azimuth::frame(axis, u_ref, t).radial.0;
-        center + radial * radius
+        Self::circle_point(center, &azimuth::frame(axis, u_ref, t), radius)
+    }
+
+    /// The circle's point from an azimuthal frame already built:
+    /// `center + radial·radius`, exactly as parenthesized (D9). The one
+    /// spelling of that expression — [`Self::circle_at`] builds the
+    /// frame and calls this; `ders1`'s `Circle` arm calls this on the
+    /// frame its tangent half reads too, which is how the jet pays one
+    /// frame and still produces `eval`'s bits.
+    fn circle_point(center: Point3<T>, frame: &azimuth::AzimuthFrame<T>, radius: T) -> Point3<T> {
+        center + frame.radial.0 * radius
     }
 }
 
@@ -571,7 +810,10 @@ pub fn nonrational_second_derivative_sup(
     knots: &geom_core::spline::KnotVector,
     control: &[Point3<f64>],
 ) -> Result<f64, SecondDerivativeUnbounded> {
-    use geom_core::ring_interval::RingInterval;
+    use geom_core::Bounds;
+    use geom_core::interval::Interval;
+    use geom_core::interval::certification::Certification;
+    use geom_core::spline::SplineCoeffs;
     let p = knots.degree();
     if p < 2 {
         return Err(SecondDerivativeUnbounded::DegreeBelowTwo);
@@ -581,28 +823,33 @@ pub fn nonrational_second_derivative_sup(
     else {
         return Err(SecondDerivativeUnbounded::DerivativeKnotVector);
     };
-    let mut sum_sq = RingInterval::zero();
+    let mut sum_sq = Interval::zero();
     for comp in 0..3 {
-        let coeffs: Vec<RingInterval> = control
+        let coeffs: Vec<Interval> = control
             .iter()
             .map(|pt| {
-                RingInterval::point(match comp {
+                Interval::point(match comp {
                     0 => pt.x,
                     1 => pt.y,
                     _ => pt.z,
                 })
             })
             .collect();
-        let q2 = kv1.difference_coeffs(&knots.difference_coeffs(&coeffs));
-        let mut hull = RingInterval::poison();
-        for (k, q) in q2.iter().enumerate() {
-            hull = if k == 0 {
-                *q
-            } else {
-                RingInterval::hull(hull, *q)
-            };
-        }
+        let q1 = knots.difference_coeffs(&coeffs);
+        // The hull of the SECOND-difference net through the geom-core
+        // door: the second difference is the first difference of `q1`
+        // against the derivative vector `kv1`, which is what
+        // `derivative_domain_hull` answers. A length the mint refuses
+        // arrives refused.
+        let hull = kv1
+            .with_coeffs(&q1)
+            .map_or_else(Interval::refused, SplineCoeffs::derivative_domain_hull);
         sum_sq = sum_sq + hull.sqr();
+    }
+    // A refused hull carries its refusal in the decoration rather than
+    // in the endpoints, so it is asked by name.
+    if !sum_sq.is_certified() {
+        return Err(SecondDerivativeUnbounded::PoisonedHull);
     }
     let bound = sum_sq.hi().sqrt().next_up();
     if bound.is_finite() {
@@ -709,12 +956,13 @@ impl<T: SpanLocate> Curve3<T> {
     ///   order; `|dP/dv| ≥ r` (the variant docs).
     /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
     ///
-    /// There is no jet door: a caller wanting `deriv` and [`Self::deriv2`]
-    /// at one `t` pays two frames. Measured at release, that is 19 ns
-    /// per pair against a fused jet on the conic arms, and the one
-    /// consumer that asks for both (the splitting orbit's conic arm)
-    /// evaluated it 0 times on the boolean corpus — so no `CurveJet` is
-    /// minted for it.
+    /// The order-1 jet is [`Self::ders1`]: a caller wanting the point
+    /// and this at one `t` asks once. There is no order-2 jet on the
+    /// enum: a caller wanting `deriv` and [`Self::deriv2`] at one `t`
+    /// pays two frames on the conic arms (its one consumer, the
+    /// splitting orbit's conic arm, never reaches `Nurbs`, where the
+    /// payload's [`NurbsCurve3::ders`] would answer all three from one
+    /// pass).
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line { dir, .. } => *dir,
@@ -751,6 +999,87 @@ impl<T: SpanLocate> Curve3<T> {
                 m * f1 + *axis * (*minor_radius * c)
             }
             Curve3::Nurbs(n) => n.deriv(t),
+        }
+    }
+
+    /// The point and the first derivative at parameter `t` from ONE
+    /// pass — the order-1 jet for a caller wanting both, who would
+    /// otherwise run [`Self::eval`] and [`Self::deriv`] (on `Nurbs`, two
+    /// span selections and two basis passes for what one answers).
+    ///
+    /// Each half is its own evaluator's answer, bit for bit:
+    /// - Line: `(origin + dir·t, dir)`.
+    /// - Circle: one azimuthal frame, both its fields —
+    ///   `(center + radial·radius, tangential·radius)`, the frame's own
+    ///   formulas.
+    /// - Ellipse: one `sin_cos`, then the two combinations exactly as
+    ///   [`Self::eval`] and [`Self::deriv`] parenthesize them.
+    /// - Spiric: one `sin_cos`, one `sqrt` (`ρ` and `f` shared), then
+    ///   the two combinations exactly as [`Self::eval`] and
+    ///   [`Self::deriv`] parenthesize them.
+    /// - Nurbs: the payload's [`NurbsCurve3::ders1`].
+    ///
+    /// On the `Nurbs` arm the tangent half is `deriv`'s by
+    /// construction and the point half is `eval`'s because the order-0
+    /// row of the derivative basis recursion is the evaluation
+    /// recursion, pinned by rows — [`NurbsCurve3::ders1`] says which is
+    /// which. At `Dual` each half carries its own derivative channel;
+    /// at `Interval` the point box and the tangent box are each their
+    /// own evaluator's enclosure, hulled independently across the
+    /// spans an interval parameter overlaps, not a coupled jet.
+    ///
+    /// The return is the tuple the NURBS jets return; a consumer
+    /// destructures it on the spot. `eval` and `deriv` keep their own
+    /// passes and are not projections of this one.
+    pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
+        match self {
+            Curve3::Line { origin, dir } => (*origin + *dir * t, *dir),
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => {
+                // One frame for both halves: that is the whole saving
+                // on this arm, and no bit row can see it (two frames
+                // give the same bits), so the `ders1_meter` row's
+                // analytic table is its only guard.
+                let f = azimuth::frame(*axis, *u_ref, t);
+                (
+                    Self::circle_point(*center, &f, *radius),
+                    f.tangential.0 * *radius,
+                )
+            }
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => {
+                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
+                (
+                    *center + (*u_ref * (*major * c) + v_ref * (*minor * s)),
+                    *u_ref * (-(*major * s)) + v_ref * (*minor * c),
+                )
+            }
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
+                let f1 = -(*minor_radius * rho * s) / f;
+                (
+                    *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s),
+                    m * f1 + *axis * (*minor_radius * c),
+                )
+            }
+            Curve3::Nurbs(n) => n.ders1(t),
         }
     }
 
@@ -944,8 +1273,8 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
             Curve3::Circle { center, .. } => {
                 let w = p - *center;
-                let r_near = self.eval(near) - *center;
-                let tau_near = self.deriv(near);
+                let (p_near, tau_near) = self.ders1(near);
+                let r_near = p_near - *center;
                 Some(near + w.dot(tau_near).atan2(w.dot(r_near)))
             }
             Curve3::Spiric {
@@ -1580,7 +1909,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "interval")]
     mod spiric_interval {
         use geom_core::{Bounds, Interval};
 
@@ -1696,7 +2024,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "interval")]
     mod ellipse_interval {
         use geom_core::{Bounds, Interval};
 
@@ -1750,6 +2077,9 @@ mod tests {
         assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan());
         let d2 = n.deriv2(0.5);
         assert!(d2.x.is_nan() && d2.y.is_nan() && d2.z.is_nan());
+        let (jp, jd) = n.ders1(0.5);
+        assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
+        assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
     }
 
     /// A described NURBS fixture: the rational quadratic quarter circle
@@ -1919,6 +2249,71 @@ mod tests {
         }
     }
 
+    /// `ders1` is `eval` and `deriv` bit for bit at the whole-curve
+    /// level — one span selection and one order-1 pass answering both
+    /// — on the knotted fixture at every knot value, span boundary and
+    /// span midpoint. A differential, not a digest: a one-ulp move in
+    /// either half against its own evaluator reds it by name.
+    #[test]
+    fn ders1_is_eval_and_deriv_bit_for_bit() {
+        let c = knotted_curve();
+        for t in knot_and_span_params(&c) {
+            let (p, d) = c.ders1(t);
+            let q = c.eval(t);
+            let e = c.deriv(t);
+            for (name, a, b) in [
+                ("x", p.x, q.x),
+                ("y", p.y, q.y),
+                ("z", p.z, q.z),
+                ("dx", d.x, e.x),
+                ("dy", d.y, e.y),
+                ("dz", d.z, e.z),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits(), "t = {t}: {name} {a} vs {b}");
+            }
+        }
+    }
+
+    /// The analytic arms' `ders1` is their `eval` and `deriv` bit for
+    /// bit: the line's closed form, the circle's one azimuthal frame
+    /// against the two frames the pair builds, the ellipse's one
+    /// `sin_cos` against the pair's two, the spiric's one `sin_cos` and
+    /// one `sqrt` against the pair's two of each — on the tilted
+    /// fixtures, at parameters that are not special to any of them.
+    #[test]
+    fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
+        let line = Curve3::Line {
+            origin: Point3::new(1.0, -2.0, 0.5),
+            dir: Vec3::new(0.3, -0.4, 1.2),
+        };
+        for (kind, c) in [
+            ("line", line),
+            ("circle", tilted_circle()),
+            ("ellipse", tilted_ellipse()),
+            ("spiric", tilted_spiric()),
+        ] {
+            for t in [-7.3, -1.0, 0.0, 0.37, 1.0, FRAC_PI_2, 2.9, TAU, 41.5] {
+                let (p, d) = c.ders1(t);
+                let q = c.eval(t);
+                let e = c.deriv(t);
+                for (name, a, b) in [
+                    ("x", p.x, q.x),
+                    ("y", p.y, q.y),
+                    ("z", p.z, q.z),
+                    ("dx", d.x, e.x),
+                    ("dy", d.y, e.y),
+                    ("dz", d.z, e.z),
+                ] {
+                    assert_eq!(
+                        a.to_bits(),
+                        b.to_bits(),
+                        "{kind} at t = {t}: {name} {a} vs {b}"
+                    );
+                }
+            }
+        }
+    }
+
     /// `ders1_in_span` is `ders_in_span`'s first two components bit for
     /// bit — the order-1 pass and the order-2 pass agree on everything
     /// the order-2 pass does not need its third row for — on the
@@ -1961,6 +2356,9 @@ mod tests {
         assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
         let d = c.deriv(f64::NAN);
         assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan());
+        let (jp, jd) = c.ders1(f64::NAN);
+        assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
+        assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
         let line = Curve3::Line {
             origin: Point3::origin(),
             dir: Vec3::unit_x(),
@@ -1970,6 +2368,7 @@ mod tests {
         // The line's deriv is parameter-independent — NaN t does not
         // poison it (there is nothing to poison: the tangent is data).
         assert_eq!(line.deriv(f64::NAN).x, 1.0);
+        assert_eq!(line.ders1(f64::NAN).1.x, 1.0);
     }
 
     #[test]
@@ -1981,18 +2380,21 @@ mod tests {
             let _ = c.eval(t);
             let _ = c.deriv(t);
             let _ = c.deriv2(t);
+            let _ = c.ders1(t);
         }
         // ±∞ specifically poisons through sin_cos — every channel of
         // the point, not the first one.
         let p = c.eval(f64::INFINITY);
         assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
+        let (jp, jd) = c.ders1(f64::INFINITY);
+        assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
+        assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
     }
 
     // ------------------------------------------------------------------
-    // Interval instantiation (feature-gated)
+    // Interval instantiation
     // ------------------------------------------------------------------
 
-    #[cfg(feature = "interval")]
     mod interval {
         use geom_core::{Bounds, Interval};
 

@@ -5,6 +5,8 @@ title: sphere()'s wedge arm reads a two-edge boundary and refuses a meridian tha
 status: open
 opened: 2026-09-16
 refs: [2748, 542]
+priority: P0
+cost: H
 ---
 
 Found by BOOL-5's dual review (PR 2748) and filed by the S-BOOL

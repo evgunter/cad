@@ -435,7 +435,6 @@ fn plane_eq_nan_and_negzero() {
 }
 
 // ---- Interval lane spot checks on the review fixtures. ----
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Interval;
@@ -545,24 +544,30 @@ fn generic_edge_edge_mixed_order_pair() {
     }
 }
 
-/// A brick of `b` with one face relabelled a torus centred at
-/// `center` — the operand gate's fixture on both sides of its
-/// question. The torus arm reads nothing from the boundary, so the
-/// centre alone decides whether the face's box can reach `a`.
+/// A brick over `x` with one face relabelled a cone whose apex sits
+/// one unit before the brick on the `x` axis — the operand gate's
+/// fixture on both sides of its question. The cone is a kind with no
+/// wired boolean arm (the torus, which this fixture used to carry, is
+/// on the roster now), and its box is read off the face's own
+/// boundary, so where the BRICK sits decides whether the box reaches
+/// `a`.
 #[cfg(test)]
-fn brick_with_torus_face_at(center: geom_core::Point3<f64>) -> (topo::Body<f64>, topo::FaceKey) {
+fn brick_with_cone_face_at(x: (f64, f64)) -> (topo::Body<f64>, topo::FaceKey) {
     use geom_core::Vec3;
-    let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let apex = geom_core::Point3::new(x.0 - 1.0, 0.5, 0.5);
+    let mut b = brick::<f64>(x, (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom::Surface::Torus {
-            center,
-            axis: Vec3::new(1.0, 0.0, 0.0),
-            major_radius: 1.0,
-            minor_radius: 0.25,
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
-        }),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Cone {
+                apex,
+                axis: Vec3::new(1.0, 0.0, 0.0),
+                half_angle: 0.25,
+                u_ref: Vec3::new(0.0, 0.0, 1.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     (b, face)
@@ -574,19 +579,18 @@ fn brick_with_torus_face_at(center: geom_core::Point3<f64>) -> (topo::Body<f64>,
 /// rather than the body.
 #[test]
 fn curved_face_gate_witness() {
-    use geom_core::Point3;
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    // Centred on `a`: the torus box definitely reaches it.
-    let (b, face) = brick_with_torus_face_at(Point3::new(0.0, 0.0, 1.0));
+    // The brick overlaps `a`, so the cone face's box reaches it.
+    let (b, face) = brick_with_cone_face_at((0.5, 1.5));
     let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
         Err(e) => e,
-        Ok(_) => panic!("a torus face reaching the other operand must refuse"),
+        Ok(_) => panic!("a cone face reaching the other operand must refuse"),
     };
     let BooleanError::CurvedPairUnsupported {
         op: None,
         operand: topo::Operand::B,
         face: f,
-        kind: geom_brep::SurfaceKind::Torus,
+        kind: geom_brep::SurfaceKind::Cone,
         other_kind: geom_brep::SurfaceKind::Plane,
         ..
     } = err
@@ -596,30 +600,29 @@ fn curved_face_gate_witness() {
     assert_eq!(f, face);
     let msg = format!("{err}");
     assert!(
-        msg.contains("MAY INTERSECT"),
-        "the refusal states the box conservatism: {msg}"
+        msg.contains("the second operand's cone face may meet the first operand's plane face"),
+        "the refusal names the pair, each face by its operand, and says the \
+         overlap is a may rather than a computed meeting: {msg}"
     );
     assert!(
-        msg.contains("MAY, not a DOES"),
-        "the refusal says the overlap is not a computed meeting: {msg}"
+        msg.contains("move them so the cone face stays clear of the other solid"),
+        "the refusal ends on the recourse the box conservatism makes real: {msg}"
     );
 }
 
 /// **The other side of the same question**: the SAME body, with the
-/// torus face's box moved clear of the other operand, is no longer
+/// cone face's box moved clear of the other operand, is no longer
 /// gated at all — the reduction runs. The two bricks are disjoint, so
 /// what this row pins is the gate's scope and nothing downstream: a
 /// kind with no arm cannot disqualify an operation it could never
 /// enter. Reverting the gate to a per-body kind scan reds it.
 #[test]
-fn a_torus_face_whose_box_clears_the_other_operand_does_not_gate() {
-    use geom_core::Point3;
+fn a_cone_face_whose_box_clears_the_other_operand_does_not_gate() {
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    // Ten units out along the torus axis: `center ± (R + r)` cannot
-    // reach x ∈ [0, 1].
-    let (b, _) = brick_with_torus_face_at(Point3::new(10.0, 0.0, 1.0));
+    // Ten units out along x: the face's box cannot reach x ∈ [0, 1].
+    let (b, _) = brick_with_cone_face_at((10.0, 11.0));
     let red = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
-        .expect("a torus face out of reach must not gate the union");
+        .expect("a cone face out of reach must not gate the union");
     assert!(
         red.null_pairs.is_empty(),
         "the two bricks are disjoint; the gate's scope is what this row pins"
@@ -630,8 +633,7 @@ fn a_torus_face_whose_box_clears_the_other_operand_does_not_gate() {
 /// (M5 PR 9 fix pass, F6/dev 4 aftermath): a NURBS-walled operand
 /// passes the per-arm gate (the SECTION arm is certified since
 /// PR 7b), and the pipeline surfaces its CURRENT typed refusal at
-/// the crossing layer — the sweep's edge×NURBS-face arm — naming the
-/// missing boolean piece and the banked unit (PR 9c). The spec's
+/// the crossing layer — the sweep's edge×NURBS-face arm. The spec's
 /// original "one 7b-flag-flip from live" claim was wrong (the
 /// crossing layer is not behind 7b's flag); this row pins what IS
 /// true.
@@ -642,9 +644,10 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::placeholder(),
-        ))),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
+            sense: true,
+        },
     )
     .unwrap();
     let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
@@ -660,16 +663,12 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     };
     let msg = format!("{err}");
     assert!(
-        msg.contains("fitted-chord join lane"),
-        "the refusal names the unwritten lane that blocks it: {msg}"
+        msg.contains("one solid's spline (NURBS) face meets the face of the other solid"),
+        "the refusal names the face kind with no crossing layer: {msg}"
     );
     assert!(
-        msg.contains("crossing layer"),
-        "the refusal names the missing boolean piece: {msg}"
-    );
-    assert!(
-        msg.contains("already implemented at the INTERSECTION layer"),
-        "the refusal is honest that the SECTION arm is already certified: {msg}"
+        msg.contains("Recourse: "),
+        "the refusal ends on what the person can do: {msg}"
     );
 }
 

@@ -20,14 +20,16 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
-    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
-    LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, apply, content_pin, evaluate,
+    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, content_pin, evaluate,
 };
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{CapEnd, EntityKind, NamePat, Ray, SegPat, SegTag, Selector};
+use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
-use viewer::session::{DocSession, SessionOp};
+use viewer::session::{DocSession, FaceSelection, SessionOp};
+
+use super::{edit_into, insert_into, len};
 
 /// The post's square section and height, metres.
 pub const POST_SECTION: f64 = 0.02;
@@ -64,42 +66,16 @@ pub struct Bench {
     pub shelf_bottom: StableName,
 }
 
-fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a length literal")
-}
-
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(
-        doc,
-        &DocEdit::InsertNode { node },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the insert applies");
-    *doc = applied.doc;
-    applied.record.minted.expect("an insert mints an id")
-}
-
-fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
-    let applied = apply(doc, e, tol, &pncad::document::RefusingReach).expect("the edit applies");
-    *doc = applied.doc;
-}
-
 /// One extruded box, authored through the ordinary doors.
 fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let outline = LoopProgram::polygon([(0.0, 0.0), (width, 0.0), (width, depth), (0.0, depth)])
-        .expect("a literal rectangle");
-    let plane = insert(&mut doc, super::xy_frame(), tol);
-    let profile = insert(
+    let plane = insert_into(&mut doc, super::xy_frame(), tol);
+    let profile = insert_into(
         &mut doc,
-        Node::Profile(ProfileProgram {
-            plane,
-            loops: vec![outline],
-        }),
+        super::rectangle(plane, [0.0, 0.0], width, depth),
         tol,
     );
-    insert(
+    insert_into(
         &mut doc,
         Node::Extrude {
             profile,
@@ -152,20 +128,20 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let shelf_ref = reference(&shelf);
 
     let mut asm = ProfileDoc::empty(DocumentId::derive("gui4-bench"), tol);
-    let post_a = insert(&mut asm, Node::instantiate_part(post_ref), tol);
-    let shelf_i = insert(&mut asm, Node::instantiate_part(shelf_ref), tol);
-    edit(
+    let post_a = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
+    let shelf_i = insert_into(&mut asm, Node::instantiate_part(shelf_ref), tol);
+    edit_into(
         &mut asm,
-        &DocEdit::SetPlacement {
+        DocEdit::SetPlacement {
             node: shelf_i,
             frame: Frame::translation(SHELF_AT),
         },
         tol,
     );
-    let post_b = insert(&mut asm, Node::instantiate_part(post_ref), tol);
-    edit(
+    let post_b = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
+    edit_into(
         &mut asm,
-        &DocEdit::SetPlacement {
+        DocEdit::SetPlacement {
             node: post_b,
             frame: Frame::translation(POST_B_AT),
         },
@@ -209,32 +185,34 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
     }
 }
 
-/// A ray straight down onto the assembly at `(x, y)`.
-pub fn down_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 1.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
-}
+// The assembly suites say `asm::down_at` / `asm::up_at`; both name the
+// shared rays, re-exported rather than restated.
+pub use super::{down_at, up_at};
 
-/// A ray straight up from under the assembly at `(x, y)` — how a
-/// part's underside is picked.
-pub fn up_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, -1.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    }
-}
-
-/// The seat choice the mate rows commit: Rest at frame coincidence,
+/// The mate tool's choice for the seat: Rest at frame coincidence,
 /// axes opposed, no clocking rider — on a frame coincidence the coset
 /// table decides any nonzero rider contradictory.
-pub fn seat() -> viewer::matetool::MateChoice {
+pub fn seat_choice() -> viewer::matetool::MateChoice {
     viewer::matetool::MateChoice {
         class: pncad::select::ContactClass::Rest,
         primitive: pncad::document::MatePrimitive::FrameCoincidence,
         sense: pncad::document::AxisSense::Opposed,
         clocking: None,
+    }
+}
+
+/// **The seat as a planar REST alone**, at `b_x` along the shelf: one
+/// planar rest fixes the seating plane and nothing else, so the pair
+/// may still slide and spin in it and the solve refuses UNDER, naming
+/// the one mate. The refusal the badge rows build a refused cluster
+/// from — a verdict about the PAIR, which the edit door admits and the
+/// solve decides (a mate the table refuses on its own datum is
+/// refused at the insert).
+pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
+    use pncad::document::{Alignment, MatePrimitive};
+    Alignment {
+        primitive: MatePrimitive::PlanarRest { offset: 0.0 },
+        ..seat_alignment(b_x, None)
     }
 }
 
@@ -268,6 +246,53 @@ pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Align
     }
 }
 
+/// [`seat_alignment`] under the shelf's middle, with no rider.
+pub fn middle_seat_alignment() -> pncad::document::Alignment {
+    seat_alignment(SHELF_LENGTH / 2.0, None)
+}
+
+/// **A seat that contradicts the middle one**: [`seat_alignment`] one
+/// centimetre further along the shelf. Authored on the same pair as a
+/// [`middle_seat_alignment`] mate, the two frame coincidences cannot
+/// both hold, and the solve names the pair `Contradictory`.
+pub fn contradicting_seat_alignment() -> pncad::document::Alignment {
+    seat_alignment(SHELF_LENGTH / 2.0 + 0.01, None)
+}
+
+/// **The seat mate as the op the session takes**: `post`'s top cap
+/// onto the bench shelf's underside, as `class`, at `alignment`.
+///
+/// One home for the op because the two faces it names are one fact
+/// about this fixture; what a row varies is the post, the class and
+/// the alignment. A row hands it to [`super::commit_mate`] or
+/// [`super::session_insert`], or performs it itself when its subject
+/// is the outcome.
+pub fn seat_op(
+    bench: &Bench,
+    post: RecipeNodeId,
+    class: pncad::select::ContactClass,
+    alignment: pncad::document::Alignment,
+) -> SessionOp {
+    seat_op_under(bench, post, bench.shelf_i, class, alignment)
+}
+
+/// [`seat_op`] under a shelf instance other than the bench's — one a
+/// row authored itself.
+pub fn seat_op_under(
+    bench: &Bench,
+    post: RecipeNodeId,
+    shelf: RecipeNodeId,
+    class: pncad::select::ContactClass,
+    alignment: pncad::document::Alignment,
+) -> SessionOp {
+    SessionOp::AddMate {
+        a: super::head(in_part(post, &bench.post_top)),
+        b: super::head(in_part(shelf, &bench.shelf_bottom)),
+        class,
+        alignment,
+    }
+}
+
 /// A `BTreeMap` from a small list — the shape a few rows want for
 /// expected-per-instance assertions.
 pub fn map_of<K: Ord, V>(entries: impl IntoIterator<Item = (K, V)>) -> BTreeMap<K, V> {
@@ -280,17 +305,54 @@ pub fn delta() -> viewer::scene::DisplayTolerance {
     viewer::scene::DisplayTolerance::new(1.0e-3).expect("a positive delta")
 }
 
-/// The pick index for a session's landed evaluation.
+/// The pick index for a session's landed evaluation, at this
+/// fixture's δ.
 pub fn index_of(session: &DocSession) -> viewer::pickindex::PickIndex {
-    let (doc, eval) = session.landed_pair().expect("an evaluation has landed");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    viewer::pickindex::PickIndex::build(
-        doc,
-        eval,
-        viewer::pickindex::PictureKey::of(generation, delta()),
-        session.tol(),
+    super::index_of(session, delta())
+}
+
+/// [`super::displayed_face_at`] through a fresh [`index_of`] — one
+/// pick, when a row has no index of its own to reuse.
+pub fn pick_face(session: &DocSession, ray: &pncad::select::Ray) -> FaceSelection {
+    super::displayed_face_at(session, &index_of(session), ray)
+}
+
+/// The ray straight up through the middle of the shelf's footprint:
+/// from below, the first face it meets is the shelf's underside unless
+/// a row has put something between.
+pub fn under_shelf() -> pncad::select::Ray {
+    up_at(
+        SHELF_AT[0] + SHELF_LENGTH / 2.0,
+        SHELF_AT[1] + SHELF_DEPTH / 2.0,
     )
-    .expect("the assembly indexes")
+}
+
+/// The ray straight down through the middle of post_b's AUTHORED
+/// footprint: its top cap while post_b stands where the bench put it,
+/// and a miss once a probe or a mate has moved it.
+pub fn over_post_b() -> pncad::select::Ray {
+    down_at(
+        POST_B_AT[0] + POST_SECTION / 2.0,
+        POST_B_AT[1] + POST_SECTION / 2.0,
+    )
+}
+
+/// The face [`under_shelf`] picks — the shelf's underside, or whatever
+/// instance a row has placed there.
+pub fn shelf_underside(session: &DocSession) -> FaceSelection {
+    pick_face(session, &under_shelf())
+}
+
+/// **The two picks the seat mate starts from**: post_b's top cap from
+/// above, then the shelf's underside from below, each at its face's
+/// middle and each checked to land on the instance it aims at.
+pub fn seat_picks(session: &DocSession, bench: &Bench) -> (FaceSelection, FaceSelection) {
+    let post_top = pick_face(session, &over_post_b());
+    assert_eq!(post_top.node, bench.post_b, "the first pick is post_b's");
+    let shelf_bottom = shelf_underside(session);
+    assert_eq!(
+        shelf_bottom.node, bench.shelf_i,
+        "the second pick is the shelf's"
+    );
+    (post_top, shelf_bottom)
 }

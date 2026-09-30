@@ -7,32 +7,45 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use eframe::egui;
+use pncad::document::Evaluation;
+use pncad::prelude::StableName;
 
-use crate::app::{ViewerBehavior, chrome, to_f32};
+use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
+use crate::display::DisplayView;
 use crate::frame;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
-use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
+use crate::input::{self, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
+use crate::narrowing::Narrow;
 use crate::pickcache;
-use crate::pickindex::{PickIndex, PictureKey};
+use crate::pickindex::{PickError, PickIndex, PictureKey};
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 
-/// **One sketch-plane segment, placed and appended to an overlay lane**
+/// **One sketch-plane segment, placed and offered to an overlay lane**
 /// as the line-list pair the edge pass draws.
+///
+/// This function PLACES and nothing else: whether a leg can be drawn
+/// is [`marks::LegLane`]'s answer, which is where the crate keeps it
+/// and where a test can ask it with no pane in existence. What is
+/// particular here is that this lane is the one with an authored
+/// producer: a path whose corner is `7e307` — a number the
+/// add-profile form takes, because it is a number — replays,
+/// flattens, and arrives on its plane with coordinates whose
+/// narrowing is an infinity. A path with one such corner and the rest
+/// ordinary is drawn as its ordinary legs and a gap, which is
+/// `LegLane::undrawn`'s subject.
 fn push_segment(
-    lane: &mut Vec<[f32; 3]>,
+    lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     a: [f64; 2],
     b: [f64; 2],
 ) {
-    for [x, y] in [a, b] {
-        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
-        lane.push([world.x as f32, world.y as f32, world.z as f32]);
-    }
+    let [from, to] = [a, b].map(|[x, y]| plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    lane.leg(from, to);
 }
 
 /// **One drawn loop, placed on its plane and appended to a lane.**
@@ -45,7 +58,7 @@ fn push_segment(
 /// authored legs exactly. That is the whole of "a path draws while it
 /// is still being written".
 fn push_loop(
-    lane: &mut Vec<[f32; 3]>,
+    lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
@@ -146,6 +159,84 @@ pub(crate) fn land(
 /// ([`crate::pickcache::NotIndexed::AnotherPicture`]).
 fn drawn_index(index: Option<&PickIndex>, scene_key: Option<PictureKey>) -> Option<&PickIndex> {
     index.filter(|index| index.current_for(scene_key))
+}
+
+/// **Whether a pick action is skipped this frame**: a hover over an
+/// unchanged picture at an unmoved cursor, whose answer the session is
+/// taken to hold already. A click never skips: it is an ACTION, not an
+/// observation.
+fn skips_the_ray(action: PickAction, step: IdStep) -> bool {
+    step == IdStep::Hold && matches!(action, PickAction::Hover(_))
+}
+
+/// **Whether this frame's pick actions ask the ray at `cursor`**, and
+/// so say what it refuses there through [`frame::pick_refusal`].
+///
+/// The loop that performs the actions skips by [`skips_the_ray`] and
+/// this reads the same rule, so the two cannot disagree about which
+/// frames the pick path spoke on.
+fn ray_asked_at(actions: &[PickAction], step: IdStep, cursor: [f64; 2]) -> bool {
+    actions.iter().any(|&action| {
+        !skips_the_ray(action, step)
+            && match action {
+                PickAction::Hover(at) | PickAction::Select(at) => at == cursor,
+                // Clearing the hover asks the ray nothing.
+                PickAction::ClearHover => false,
+            }
+    })
+}
+
+/// Everything the ray path is asked beside the index: one cursor over
+/// one evaluation, through one camera, under one display view.
+#[derive(Clone, Copy)]
+struct RayQuestion<'a> {
+    eval: &'a Evaluation<f64>,
+    camera: &'a Camera,
+    viewport: ViewportSize,
+    cursor: [f64; 2],
+    display: &'a DisplayView,
+}
+
+/// **What the cursor comparison says this frame**: the two picking
+/// paths' disagreement, the ray path's refusal, or nothing.
+///
+/// The ray answer travels to [`idpass::disagreement`] typed, because a
+/// refusal is not a miss: that function reads a refused ray path as no
+/// verdict rather than as "the ray named nothing".
+///
+/// **A refusal no pick action said this frame is said here.** The
+/// refusal is the ray path's news, and it has words already
+/// ([`frame::pick_refusal`]); the pick loop says them whenever it asks
+/// the ray at this cursor, because `hovered_for` seeds through the
+/// same un-projection and hit test as `faces_under_cursor`. It does
+/// not ask on a frame it skips ([`skips_the_ray`]), and the skip reads
+/// only the cursor and the picture — so a camera that moved under a
+/// still cursor gets a ray nobody else asked. `ray_asked` is the pick
+/// loop's own record of that ([`ray_asked_at`]), which is what keeps
+/// the refusal said exactly once a frame: by the pick path when it
+/// asked, here when it did not.
+fn cursor_news(
+    index: &PickIndex,
+    question: RayQuestion<'_>,
+    answer: u64,
+    outstanding: Option<u32>,
+    ray_asked: bool,
+) -> Option<frame::Message> {
+    let RayQuestion {
+        eval,
+        camera,
+        viewport,
+        cursor,
+        display,
+    } = question;
+    let from_ray: Result<Vec<StableName>, PickError> = index
+        .faces_under_cursor(eval, camera, viewport, cursor, display)
+        .map(|faces| faces.into_iter().map(|face| face.name).collect());
+    match &from_ray {
+        Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal)),
+        _ => idpass::disagreement(index, answer, outstanding, from_ray.as_deref())
+            .map(|report| report.notice()),
+    }
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -468,9 +559,11 @@ impl ViewerBehavior<'_> {
         // still describes this cursor and this picture; a message
         // about what was under the cursor is stale on exactly that
         // judgement, so `frame::cursor_status` reads it. It only ever
-        // expires — what the cursor has to SAY is raised below, where
-        // the two picking paths are compared.
-        frame::apply(self.status, frame::cursor_status(step));
+        // expires today — what the cursor has to SAY is raised below,
+        // where the two picking paths are compared — and it goes
+        // through the policies' door all the same, because that is the
+        // only door a policy's verdict fits.
+        frame::deliver(self.notices, self.status, frame::cursor_status(step));
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss
@@ -492,13 +585,13 @@ impl ViewerBehavior<'_> {
         // 2026-09-15 ruling — the pick itself, which would otherwise
         // answer about geometry the screen is not showing.
         let on_screen = drawn_index(self.index, self.scene_key);
+        // Read before the loop spends `actions`: whether a pick action
+        // below asks the ray at this frame's cursor, and so words its
+        // refusal itself ([`cursor_news`] reads it).
+        let ray_asked = cursor_px.is_some_and(|cursor| ray_asked_at(&actions, step, cursor));
         if let (Some(index), Some(eval)) = (on_screen, self.session.evaluation()) {
             for action in actions {
-                // A hover over an unchanged picture at an unmoved
-                // cursor asks a question whose answer the session
-                // already holds. A click never skips: it is an
-                // ACTION, not an observation.
-                if step == IdStep::Hold && matches!(action, input::PickAction::Hover(_)) {
+                if skips_the_ray(action, step) {
                     continue;
                 }
                 match index.op_under(eval, self.camera, viewport, action, self.display, kinds) {
@@ -542,6 +635,20 @@ impl ViewerBehavior<'_> {
                 )
             })
             .unwrap_or_default();
+        // **The three lanes this pane composes itself**, each as the
+        // value that owns the display seam's rule
+        // ([`marks::LegLane`]) rather than as a bare `Vec` each block
+        // narrows into on its own. What they carry beyond the
+        // segments is `undrawn()` — how many legs the seam refused —
+        // which is the state a reader would have to be told to know
+        // that an outline is missing a leg rather than ending where
+        // it appears to. Nothing here holds it: the badge that would
+        // say so and the field that would carry it between frames are
+        // `crate::frame`'s and `crate::app`'s. That half is the VNEWS
+        // row `an-overlay-leg-past-the-display-seam-is-not-badged`.
+        let mut datums = marks::LegLane::default();
+        let mut profiles = marks::LegLane::default();
+        let mut preview = marks::LegLane::default();
         // **The open blend tool's held set is marked too** — all of
         // it, because the set IS what the user is composing and a
         // count alone cannot tell them WHICH twelve edges they hold.
@@ -598,10 +705,16 @@ impl ViewerBehavior<'_> {
             // records in the field above.
             *self.datums_vanished = drawn.vanished();
             for drawn in drawn.drawn {
-                for point in drawn.segments {
-                    edges
-                        .datums
-                        .push([point[0] as f32, point[1] as f32, point[2] as f32]);
+                // The same seam and the same rule as [`push_segment`],
+                // through the same value: a datum mark's endpoint the
+                // GPU cannot hold is not drawn. `datums::draws` sizes
+                // every mark against the view and refuses on its own
+                // scale, so nothing in tree produces one — the lane is
+                // here so the crate has ONE disposition for the
+                // narrowing rather than a cast that happens not to
+                // fail.
+                for leg in drawn.segments.chunks_exact(2) {
+                    datums.leg(leg[0], leg[1]);
                 }
             }
         }
@@ -624,7 +737,7 @@ impl ViewerBehavior<'_> {
             *self.profiles_undrawn = committed.undrawn.len();
             for profile in &committed.drawn {
                 for polyline in &profile.loops {
-                    push_loop(&mut edges.profiles, &profile.plane, polyline);
+                    push_loop(&mut profiles, &profile.plane, polyline);
                 }
             }
         }
@@ -660,9 +773,9 @@ impl ViewerBehavior<'_> {
             let view = datum_view(self.camera, viewport).ok();
             for polyline in &drawn.loops {
                 let points = &polyline.points;
-                push_loop(&mut edges.preview, &plane, polyline);
+                push_loop(&mut preview, &plane, polyline);
                 let mut segment = |a: [f64; 2], b: [f64; 2]| {
-                    push_segment(&mut edges.preview, &plane, a, b);
+                    push_segment(&mut preview, &plane, a, b);
                 };
                 // **The directed point at each step.** A tip is a
                 // position and, once a verb has bound one, a
@@ -718,6 +831,10 @@ impl ViewerBehavior<'_> {
             }
         }
 
+        edges.datums = datums.into_segments();
+        edges.profiles = profiles.into_segments();
+        edges.preview = preview.into_segments();
+
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere
         // one can be, so it is a read the toolbar badges
@@ -726,7 +843,12 @@ impl ViewerBehavior<'_> {
         // painted the line, and `perform_batch` then ran after this
         // pane — so on every frame whose batch acted cleanly the
         // `Clear` took it before any frame drew it.
-        let matrix = match self.camera.view_projection(aspect) {
+        // **The matrix the GPU will actually hold**, not the algebra's
+        // own: `Camera::view_projection_f32` is the camera's door at
+        // the display seam, and a projection this module can form and
+        // a GPU cannot hold refuses here by the same route and into
+        // the same badge as one the camera could not form at all.
+        let matrix = match self.camera.view_projection_f32(aspect) {
             Ok(matrix) => {
                 *self.projection_fault = None;
                 matrix
@@ -737,9 +859,9 @@ impl ViewerBehavior<'_> {
             }
         };
 
-        // The two paths' agreement, compared BY NAME (`frame::
-        // disagreement` says why ids are the wrong currency, and
-        // records the ray-authoritative role inversion against
+        // The two paths' agreement, compared BY NAME
+        // (`idpass::disagreement` says why ids are the wrong currency,
+        // and records the ray-authoritative role inversion against
         // GQ6-RESURVEY §3). Reported, never resolved.
         //
         // **The ray side of this comparison is the FACE under the
@@ -749,44 +871,72 @@ impl ViewerBehavior<'_> {
         // different one as soon as the priority rule picks an edge,
         // and feeding it would report a disagreement between two
         // questions on every frame the cursor came within
-        // `EDGE_PICK_RADIUS_PX` of an edge. So the face is re-derived
-        // through `face_under_cursor`, and only where there is a fresh
-        // answer waiting for it — `disagreement` still owns the
+        // `EDGE_PICK_RADIUS_PX` of an edge. So the faces are re-derived
+        // through `faces_under_cursor`, and only where there is a fresh
+        // answer waiting for them — `disagreement` still owns the
         // freshness rule, this only declines to do the work when no
-        // question is outstanding at all.
+        // question is outstanding at all. A ray path that could not be
+        // asked — no evaluation to ask it of — is no comparison either.
         let outstanding = self.id_log.outstanding();
-        let from_ray: Vec<_> = outstanding
-            .and_then(|_| {
-                let index = on_screen?;
-                let eval = self.session.evaluation()?;
-                index
-                    .faces_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
-                    .ok()
-            })
-            .unwrap_or_default()
-            .into_iter()
-            .map(|face| face.name)
-            .collect();
-        if let Some(report) = on_screen.and_then(|index| {
-            idpass::disagreement(
-                index,
+        let said = outstanding.and_then(|_| {
+            let question = RayQuestion {
+                eval: self.session.evaluation()?,
+                camera: self.camera,
+                viewport,
+                cursor: cursor_px?,
+                display: self.display,
+            };
+            cursor_news(
+                on_screen?,
+                question,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
-                &from_ray,
+                ray_asked,
             )
-        }) {
-            self.notices.push(report.notice());
+        });
+        if let Some(news) = said {
+            self.notices.push(news);
         }
 
+        // **The pane's own numbers at the same seam the matrix just
+        // crossed.** The size the renderer is told and the point
+        // scale the edge pass sizes marks with are the last two `f64`
+        // the GPU sees, and they cross the one narrowing rather than
+        // a cast written twice here. What this arm buys is that the
+        // seam has ONE disposition, not a door that refuses over
+        // there and a cast that cannot fail over here.
+        //
+        // **It drops the frame and says nothing, and that is the
+        // whole of what it should do.** The other two dispositions of
+        // this seam reach a reader — a scene refuses as a whole and a
+        // projection that will not narrow badges — and this one does
+        // not, deliberately: no input can reach it. `aspect()` above
+        // has already declined an extent that is not positive and
+        // finite, and what is left is an extent in physical pixels
+        // above `f32::MAX`, about `3.4e38`, which is not a window and
+        // not a scale factor. A badge here would name a state no
+        // person can put the pane into, on a frame no person can see,
+        // so the refusal is spent on not drawing an infinity and on
+        // nothing else. An overlay LEG past the seam is the opposite
+        // case and is badged (`marks::LegLane::undrawn`, and the
+        // VNEWS row above): that one is authorable, and it leaves a
+        // picture a person is looking at.
+        let (Some(viewport_px), Some(point_scale)) = (
+            [viewport.width_px, viewport.height_px].narrow(),
+            pixels_per_point.narrow(),
+        ) else {
+            return;
+        };
         let id_query = match (step, cursor_px) {
-            (IdStep::Ask { serial }, Some(cursor)) => {
-                viewport.ndc_of(cursor).map(|[nx, ny]| IdQuery {
-                    cursor_ndc: [nx as f32, ny as f32],
-                    viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
+            (IdStep::Ask { serial }, Some(cursor)) => viewport
+                .ndc_of(cursor)
+                .and_then(|ndc| ndc.narrow())
+                .map(|cursor_ndc| IdQuery {
+                    cursor_ndc,
+                    viewport_px,
                     serial,
                     answer: Arc::clone(self.id_answer),
-                })
-            }
+                }),
             _ => None,
         };
 
@@ -803,11 +953,11 @@ impl ViewerBehavior<'_> {
             ViewportCallback {
                 scene: Arc::clone(self.scene),
                 revision: self.revision,
-                view_projection: to_f32(&matrix),
+                view_projection: matrix,
                 light_direction: LIGHT_DIRECTION,
                 theme: self.theme,
-                viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
-                pixels_per_point: pixels_per_point as f32,
+                viewport_px,
+                pixels_per_point: point_scale,
                 highlight: highlight.unwrap_or_default(),
                 edges,
                 id_query,
@@ -833,20 +983,25 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        button_events, drawn_index, egui_buttons, land, scroll_event, viewer_button,
-        viewer_modifiers,
+        RayQuestion, button_events, cursor_news, drawn_index, egui_buttons, land, push_loop,
+        push_segment, ray_asked_at, scroll_event, viewer_button, viewer_modifiers,
     };
-    use crate::camera::{Camera, CameraOp, fold_recorded};
+    use crate::camera::{self, Camera, CameraOp, fold_recorded};
+    use crate::display::DisplayView;
     use crate::frame::{self, product_badge};
-    use crate::idpass;
-    use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::idpass::{self, IdStep};
+    use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
+    use crate::marks;
     use crate::pickcache::{self, NotIndexed};
-    use crate::pickindex::{IdMap, PickIndex, PictureKey};
+    use crate::pickindex::{IdMap, PickError, PickIndex, PictureKey};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
-    use pncad::document::SlotId;
+    use crate::sketch::PreviewLoop;
+    use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
+    use pncad::prelude::StableName;
+    use pncad::select::HitTestError;
 
     fn framed() -> Camera {
         Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("the plate frames")
@@ -871,8 +1026,11 @@ mod tests {
         // A message about the DOCUMENT: a clean fold retires what the
         // camera said and nothing else, so this row goes red if the
         // expiry reaches past its own subject.
-        let landing =
-            frame::Message::new(frame::Subject::Document, "product: the landing's own news");
+        let landing = frame::Message::new(
+            frame::Subject::Document,
+            "product: the landing's own news",
+            frame::Retold::Again,
+        );
         let mut status = Some(landing.clone());
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
@@ -902,7 +1060,8 @@ mod tests {
         let mut camera = framed();
         let refuses = CameraOp::Dolly { factor: 0.0 };
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
-        let older = frame::Message::new(frame::Subject::Document, "older news");
+        let older =
+            frame::Message::new(frame::Subject::Document, "older news", frame::Retold::Again);
         let mut status = Some(older.clone());
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
@@ -991,11 +1150,9 @@ mod tests {
         // The fault is built by hand rather than provoked, and that is
         // the honest way round. A fault a document can REACH by an
         // ordinary edit — a root driven to a zero distance — is a
-        // failed root, which the feature tree badges at the node and
-        // `product_badge` therefore declines. The faults this channel
-        // is for are gather-level and emission-level: they are not
-        // authorable from the panels, which is exactly why nothing else
-        // reports them.
+        // failed root, which `frame::badge_site` sends to the feature
+        // tree. The ones it keeps for this channel are not authorable
+        // from the panels.
         let tol = Tol::witness();
         let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
         let mut session = DocSession::inline(doc, tol);
@@ -1040,6 +1197,7 @@ mod tests {
         let raised = frame::Message::new(
             frame::Subject::Document,
             "product: two roots collide in the name table",
+            frame::Retold::Again,
         );
         let mut status = Some(raised.clone());
         let mut notices = Vec::new();
@@ -1308,15 +1466,312 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report =
-            idpass::disagreement(&index, nothing, Some(serial), std::slice::from_ref(&named))
-                .expect("nothing-under-the-cursor against a named face is a disagreement");
-        assert_eq!(report.from_gpu, None, "the id pass answered nothing");
+        let report = idpass::disagreement(
+            &index,
+            nothing,
+            Some(serial),
+            Ok(std::slice::from_ref(&named)),
+        )
+        .expect("nothing-under-the-cursor against a named face is a disagreement");
+        assert_eq!(
+            report.from_gpu,
+            idpass::IdAnswer::Nothing,
+            "the id pass answered nothing"
+        );
         assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 
         assert!(
             drawn_index(Some(&index), None).is_none(),
             "a picture with no index behind it is compared against no index"
+        );
+    }
+
+    /// **A refused ray beside an id-pass face**: the plate's index, an
+    /// evaluation of ANOTHER document its hit test refuses before
+    /// reading a table (a distinct identity; a twin recipe derives the
+    /// same one), a framed cursor, and the channel word of an id-pass
+    /// answer naming a face the plate really draws.
+    struct RefusedRay {
+        index: PickIndex,
+        foreign: DocSession,
+        camera: Camera,
+        pane: ViewportSize,
+        cursor: [f64; 2],
+        named: StableName,
+        /// The id the named face is drawn under.
+        id: u32,
+        serial: u32,
+        answer: u64,
+    }
+
+    fn refused_ray() -> RefusedRay {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+        let mut foreign =
+            DocSession::inline(Doc::<ProfileProgram>::empty_derived("another", tol), tol);
+        foreign.pump();
+        let id = index.ids().ids().next().expect("the plate draws patches");
+        let named = index
+            .name_of(id)
+            .expect("an id of this index has an entry")
+            .as_ref()
+            .expect("and the plate's patches name cleanly")
+            .clone();
+        let serial = 7u32;
+        RefusedRay {
+            index,
+            foreign,
+            camera: framed(),
+            pane: ViewportSize {
+                width_px: 1600.0,
+                height_px: 900.0,
+            },
+            cursor: [800.0, 450.0],
+            named,
+            id,
+            serial,
+            answer: (u64::from(serial) << 32) | u64::from(id),
+        }
+    }
+
+    /// **A ray path that REFUSED is not a ray path that named
+    /// nothing**, at the comparison itself: the same id-pass face is no
+    /// verdict against the refusal and a disagreement against an empty
+    /// answer, so the type tells the two apart.
+    #[test]
+    fn a_refused_ray_path_is_no_verdict_against_a_named_face() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let refusal = fixture
+            .index
+            .faces_under_cursor(
+                foreign,
+                &fixture.camera,
+                fixture.pane,
+                fixture.cursor,
+                &DisplayView::none(),
+            )
+            .expect_err("an evaluation of another document is refused");
+        assert!(
+            matches!(
+                refusal,
+                PickError::HitTest(HitTestError::EvaluationOfAnotherDocument { .. })
+            ),
+            "the planted refusal is the kernel declining: {refusal:?}"
+        );
+        let (index, answer, serial) = (&fixture.index, fixture.answer, Some(fixture.serial));
+        assert_eq!(
+            idpass::disagreement(index, answer, serial, Err(&refusal)),
+            None,
+            "a refused ray path is compared against nothing"
+        );
+        assert_eq!(
+            idpass::disagreement(index, answer, serial, Ok(&[])),
+            Some(idpass::Disagreement {
+                from_gpu: idpass::IdAnswer::Named(fixture.named),
+                from_ray: Vec::new(),
+            }),
+            "while a ray path that answered nothing is contradicted by the face"
+        );
+    }
+
+    /// **A ray refusal is said exactly once a frame — by the pick path
+    /// when it asked, by the comparison when it did not — and never as
+    /// a disagreement.** This drives the pane's own wiring
+    /// (`ray_asked_at`, `cursor_news`) across the two frames the id
+    /// log distinguishes.
+    ///
+    /// The second frame is the one the pick path skips: the camera
+    /// orbits under a still cursor, which the id log reads as `Hold`,
+    /// so no hover asks the ray, while the comparison asks it through
+    /// the moved camera. The refusal a camera move ALONE can bring on
+    /// is the hit test's unnamed-entity arm, which nothing in this
+    /// crate can plant; the evaluation of another document stands in
+    /// for it, and what this row pins is who says a refusal on a frame
+    /// nobody else asked the ray, not which refusal it is.
+    #[test]
+    fn a_ray_refusal_the_pick_path_did_not_ask_for_is_said_by_the_comparison() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let display = DisplayView::none();
+        let at = fixture.cursor;
+        let actions = [input::PickAction::Hover(at)];
+        let subject = idpass::IdSubject {
+            revision: 1,
+            generation: Some(fixture.index.generation()),
+        };
+        let mut log = idpass::IdQueryLog::new();
+
+        // The cursor arrives: a new question, and the pick path asks
+        // the ray there — so it says the refusal, and the comparison
+        // says nothing.
+        let arrived = log.step(Some(at), subject);
+        let serial = match arrived {
+            IdStep::Ask { serial } => Some(serial),
+            IdStep::Hold | IdStep::Void => None,
+        }
+        .expect("a cursor arriving is a new question");
+        // The id pass's answer to THIS question, naming a face: fresh,
+        // so a ray answer read as empty would be a disagreement.
+        let answer = (u64::from(serial) << 32) | u64::from(fixture.id);
+        assert!(
+            ray_asked_at(&actions, arrived, at),
+            "the hover asks the ray"
+        );
+        let asked = RayQuestion {
+            eval: foreign,
+            camera: &fixture.camera,
+            viewport: fixture.pane,
+            cursor: at,
+            display: &display,
+        };
+        assert_eq!(
+            cursor_news(&fixture.index, asked, answer, log.outstanding(), true),
+            None,
+            "the pick path said this refusal; the comparison adds nothing"
+        );
+
+        // The camera orbits; the cursor does not move.
+        let moved = camera::apply(
+            &fixture.camera,
+            &CameraOp::Orbit {
+                yaw: 0.3,
+                pitch: 0.1,
+            },
+        )
+        .expect("the orbit applies");
+        let held = log.step(Some(at), subject);
+        assert_eq!(held, IdStep::Hold, "the id log does not read the camera");
+        assert!(
+            !ray_asked_at(&actions, held, at),
+            "so the hover skips the frame and nobody on the pick path asks the ray"
+        );
+        let unasked = RayQuestion {
+            camera: &moved,
+            ..asked
+        };
+        let refusal = fixture
+            .index
+            .faces_under_cursor(foreign, &moved, fixture.pane, at, &display)
+            .expect_err("the moved ray is refused");
+        assert_eq!(
+            cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
+            Some(frame::pick_refusal(&refusal)),
+            "the comparison says the refusal in the pick path's own words"
+        );
+    }
+
+    /// **What the pane says about an id the drawn index never
+    /// assigned**, through its own wiring (`cursor_news`) over a real
+    /// plate: the id, the ray's answer at the first cursor whose ray
+    /// answer `wanted` accepts, and the news.
+    ///
+    /// An unassigned id is what a corrupt readback looks like. Read as
+    /// the clear value, it was misreported both ways: as *id buffer
+    /// nothing* against a ray that named a face, and as silent
+    /// agreement against a ray that named nothing. The two rows below
+    /// each ask one of those cursors.
+    fn unassigned_id_news(
+        wanted: impl Fn(&[StableName]) -> bool,
+    ) -> (u32, Vec<StableName>, Option<frame::Message>) {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+        let eval = session.evaluation().expect("the plate lands");
+        let unassigned = index.ids().ids().max().expect("the plate draws patches") + 1;
+        assert!(
+            index.name_of(unassigned).is_none(),
+            "an id past the last assigned one is no entry of this index"
+        );
+        let camera = framed();
+        let pane = ViewportSize {
+            width_px: 1600.0,
+            height_px: 900.0,
+        };
+        let display = DisplayView::none();
+        // The pane's corner, then out from the plate's centre (its
+        // hole) along the horizontal.
+        let (cursor, from_ray) = std::iter::once([1.0, 1.0])
+            .chain((0..16).map(|step| [800.0 - 40.0 * f64::from(step), 450.0]))
+            .map(|cursor| {
+                let faces = index
+                    .faces_under_cursor(eval, &camera, pane, cursor, &display)
+                    .expect("the plate's ray path answers");
+                (
+                    cursor,
+                    faces.into_iter().map(|face| face.name).collect::<Vec<_>>(),
+                )
+            })
+            .find(|(_, names)| wanted(names))
+            .expect("some cursor's ray answer is the one asked for");
+
+        let mut log = idpass::IdQueryLog::new();
+        let subject = idpass::IdSubject {
+            revision: 1,
+            generation: Some(index.generation()),
+        };
+        let serial = match log.step(Some(cursor), subject) {
+            IdStep::Ask { serial } => Some(serial),
+            IdStep::Hold | IdStep::Void => None,
+        }
+        .expect("a cursor arriving is a new question");
+        let question = RayQuestion {
+            eval,
+            camera: &camera,
+            viewport: pane,
+            cursor,
+            display: &display,
+        };
+        let answer = (u64::from(serial) << 32) | u64::from(unassigned);
+        let news = cursor_news(&index, question, answer, log.outstanding(), true);
+        (unassigned, from_ray, news)
+    }
+
+    /// Over what the ray calls empty space, an unassigned id is said,
+    /// not agreed with.
+    #[test]
+    fn an_unassigned_id_over_empty_space_is_said_as_that_id() {
+        let (id, _, news) = unassigned_id_news(<[StableName]>::is_empty);
+        assert_eq!(
+            news,
+            Some(frame::Message::new(
+                frame::Subject::Cursor,
+                format!(
+                    "picking paths disagree at the cursor: id buffer id {id}, \
+                     which no patch of this picture draws, ray nothing"
+                ),
+                frame::Retold::Again,
+            )),
+        );
+    }
+
+    /// Against a ray that named a face, an unassigned id is said as the
+    /// id, not as the id buffer naming nothing.
+    #[test]
+    fn an_unassigned_id_against_a_named_face_is_said_as_that_id() {
+        let (id, from_ray, news) = unassigned_id_news(|names| names.len() == 1);
+        let named = from_ray
+            .first()
+            .expect("the helper returns the one-face answer it was asked for");
+        assert_eq!(
+            news.expect("an unassigned id against a named face is a disagreement")
+                .text(),
+            format!(
+                "picking paths disagree at the cursor: id buffer id {id}, \
+                 which no patch of this picture draws, ray {named} ({:?})",
+                named.path
+            ),
         );
     }
 
@@ -1653,5 +2108,61 @@ mod tests {
                 "{egui_button:?} denotes the wrong button of the viewer's vocabulary"
             );
         }
+    }
+    /// **The pane's own producer reaches the display seam's rule**,
+    /// and a leg it refuses does not reach the lane.
+    ///
+    /// `push_segment` PLACES a sketch-plane pair and offers it; what
+    /// happens to a leg the seam cannot carry is
+    /// [`marks::LegLane`]'s, asserted there over the arithmetic. What
+    /// is asserted here is the wiring: that this producer goes
+    /// through that value at all, so a corner past `f32::MAX` reaches
+    /// the vertex buffer as an absence rather than as an infinity.
+    #[test]
+    fn a_placed_leg_past_the_display_seam_is_offered_and_refused() {
+        let plane = pncad::profile::SketchPlane::xy();
+        let mut lane = marks::LegLane::default();
+        push_segment(&mut lane, &plane, [0.0, 0.0], [1.0, 0.0]);
+        assert_eq!(lane.undrawn(), 0);
+        assert_eq!(lane.segments().len(), 2, "one leg is two positions");
+        push_segment(&mut lane, &plane, [1.0, 0.0], [7.0e307, 0.0]);
+        assert_eq!(
+            lane.segments().len(),
+            2,
+            "the refused leg added no position to the lane"
+        );
+        assert_eq!(lane.undrawn(), 1);
+        assert!(
+            lane.segments().iter().flatten().all(|c| c.is_finite()),
+            "no infinity reaches the vertex buffer"
+        );
+    }
+
+    /// **An authored outline with one far corner draws as a gap**, not
+    /// as nothing and not as a smear.
+    ///
+    /// The loop a person could compose in the add-profile form:
+    /// ordinary corners and one at `7e307`, a number the form takes
+    /// because it is a number. Four legs are authored, two of them
+    /// reach the far corner, and what the lane holds afterwards is the
+    /// other two plus a count of what it lost — which is the evidence
+    /// that the drop is visible in a picture a person is looking at
+    /// rather than only in one that is nowhere.
+    #[test]
+    fn an_authored_loop_with_one_far_corner_draws_its_other_legs() {
+        let plane = pncad::profile::SketchPlane::xy();
+        let polyline = PreviewLoop {
+            points: vec![[0.0, 0.0], [1.0, 0.0], [7.0e307, 0.0], [0.0, 1.0]],
+            vertices: vec![0, 1, 2, 3],
+            closed: true,
+        };
+        let mut lane = marks::LegLane::default();
+        push_loop(&mut lane, &plane, &polyline);
+        assert_eq!(lane.undrawn(), 2, "the two legs that reach the far corner");
+        assert_eq!(
+            lane.segments().len(),
+            4,
+            "the two legs between ordinary corners are drawn"
+        );
     }
 }

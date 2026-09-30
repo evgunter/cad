@@ -65,10 +65,10 @@
 
 use std::collections::BTreeSet;
 
-use pncad::document::{Doc, Evaluation, Expr, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Expr, NodeStanding, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
-use crate::session::{EdgeSelection, Selection, SessionOp};
+use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
 use crate::vocab::vocabulary;
 
 /// **What the tool's panel says about the freeze**, so the ratified
@@ -104,6 +104,21 @@ impl BlendTarget {
         }
     }
 
+    /// The target a face pick is about — [`Self::of`]'s twin, for the
+    /// other selection that names a drawn body.
+    ///
+    /// A door of its own rather than a destructure inside
+    /// [`Self::of_selection`], because a face pick reaches this scope
+    /// from more than that one place: the add-datum form's
+    /// frame-on-face row holds a [`FaceSelection`] and names the same
+    /// scope in the same sentence.
+    pub fn of_face(face: &FaceSelection) -> Self {
+        Self {
+            node: face.node,
+            body: face.body,
+        }
+    }
+
     /// **The drawn body a selection is a pick on**, when it is one.
     ///
     /// A face pick and an edge pick both carry `(node, body)` — they
@@ -116,10 +131,7 @@ impl BlendTarget {
     pub fn of_selection(selection: &Selection) -> Option<Self> {
         match selection {
             Selection::Edge(edge) => Some(Self::of(edge)),
-            Selection::Face(face) => Some(Self {
-                node: face.node,
-                body: face.body,
-            }),
+            Selection::Face(face) => Some(Self::of_face(face)),
             Selection::None | Selection::Node(_) | Selection::Param(_) => None,
         }
     }
@@ -134,7 +146,11 @@ impl BlendTarget {
 impl core::fmt::Display for BlendTarget {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self { node, body } = self;
-        write!(f, "feature {} body {body}", node.0)
+        // The NODE half through the crate's one spelling of it
+        // ([`crate::tree::node_number`]), so a blend refusal and a
+        // picker entry call the same feature the same thing. The body
+        // half is this scope's own and has no other home.
+        write!(f, "{} body {body}", crate::tree::node_number(*node))
     }
 }
 
@@ -218,13 +234,25 @@ pub enum BlendEvent {
         /// The body the refused pick was on.
         picked: BlendTarget,
     },
-    /// The all-edges door found no edges on the target, so nothing was
-    /// loaded and the held set is untouched. A node with no value, no
-    /// name table, or no edges answers the same way — the door cannot
-    /// tell them apart and does not pretend to.
+    /// The target has a value and no edges, so nothing was loaded and
+    /// the held set is untouched.
     NoEdgesOnTarget {
         /// The body that was asked.
         target: BlendTarget,
+    },
+    /// The target has no value in this evaluation, so there are no
+    /// edges to load; nothing was loaded and the held set is
+    /// untouched. The standing says why and where the repair is.
+    TargetHasNoValue {
+        /// The body that was asked.
+        target: BlendTarget,
+        /// Its node's standing, as the feature tree draws it
+        /// ([`crate::tree::standing_as_drawn`]).
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
+        standing: NodeStanding,
     },
     /// The target node is no longer in the document, so every held
     /// edge is about a body that is gone: the whole set is dropped at
@@ -261,6 +289,9 @@ impl core::fmt::Display for BlendEvent {
             ),
             Self::NoEdgesOnTarget { target } => {
                 write!(f, "{target} has no edges to select")
+            }
+            Self::TargetHasNoValue { target, standing } => {
+                write!(f, "{target} has no edges to select: {standing}")
             }
             Self::TargetLost { target, edges } => write!(
                 f,
@@ -469,6 +500,12 @@ impl BlendTool {
         eval: &Evaluation<f64>,
         index: &crate::pickindex::PickIndex,
     ) -> Option<BlendEvent> {
+        if let Err(standing) = eval.usable(target.node) {
+            return Some(BlendEvent::TargetHasNoValue {
+                target,
+                standing: crate::tree::standing_as_drawn(standing, eval),
+            });
+        }
         let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
             .collect();
@@ -562,18 +599,17 @@ impl BlendTool {
         let Some((_, eval)) = landed else {
             return Vec::new();
         };
+        // A target with no value in this run cannot say which edges it
+        // has: dropping the set on a transient failure would cost the
+        // picks the moment an upstream slot went momentarily bad. Say
+        // nothing and wait for a run that has an answer; the node's
+        // badge carries its standing.
+        if eval.usable(target.node).is_err() {
+            return Vec::new();
+        }
         let live: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
             .collect();
-        // A target that has no edges AT ALL in this evaluation is a
-        // node that failed or was never run, not a body that lost
-        // every edge: dropping the whole set on a transient failure
-        // would cost the picks the moment an upstream slot went
-        // momentarily bad. Say nothing and wait for a run that has an
-        // answer.
-        if live.is_empty() {
-            return Vec::new();
-        }
         let names: Vec<StableName> = self
             .edges
             .iter()

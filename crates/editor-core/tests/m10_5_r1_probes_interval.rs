@@ -14,7 +14,6 @@
 //! `extruded`) rather than sharing them — a probe file must not depend
 //! on the suite it is probing. Same reasons for the ε-scaled box: no
 //! node's interval replay builds over a wider one (issue 1191's class).
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -36,7 +35,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol, Vec3};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, ang, len, len2, scl};
 
 /// The analysis box's half-width: the shipped suite's ε/64, for the
 /// shipped suite's reason (module header).
@@ -48,11 +47,11 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(axis: &'static str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
         name(axis),
@@ -64,7 +63,7 @@ fn box_of(axis: &str) -> ParamBox {
     ParamBox::from_axes(axes)
 }
 
-fn declare_with(r: &mut Recorder, axis: &str, nominal: f64, hw: f64) {
+fn declare_with(r: &mut Recorder, axis: &'static str, nominal: f64, hw: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
         value: DocParam::Continuous {
@@ -76,17 +75,19 @@ fn declare_with(r: &mut Recorder, axis: &str, nominal: f64, hw: f64) {
     });
 }
 
-fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
+fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     declare_with(r, axis, nominal, half());
 }
 
 fn translated(input: RecipeNodeId, by: [Expr; 3]) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: by,
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    }
+        editor_core::Step::Rigid {
+            translation: by,
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    )
 }
 
 /// The xy sketch frame, as the `Datum::Frame` node a profile now names.
@@ -94,15 +95,16 @@ fn translated(input: RecipeNodeId, by: [Expr; 3]) -> Node<ProfileProgram> {
 /// `ProfileProgram::plane` became a node reference under this branch
 /// (main's move), so every fixture mints the frame first and hands the
 /// profile its id.
-fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::xy_frame())
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -110,7 +112,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     })
 }
 
-fn param(n: &str) -> Expr {
+fn param(n: &'static str) -> Expr {
     Expr::param(name(n), Dimension::Length)
 }
 
@@ -368,23 +370,23 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
 fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     let chain = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.5))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(1.5, 0.5))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.5]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 0.5]))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.5, 0.5)),
+            target: ProgramTarget::Point(len2([0.5, 0.5])),
             b: scl(1.0),
         }),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.5))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.5]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = xy_frame(&mut r);
+    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![chain],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,
@@ -482,7 +484,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
 fn a_partial_revolve_band_reports_its_phantom_turn() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let plane = xy_frame(&mut r);
+    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(fixture::desc(
         plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
@@ -711,7 +713,7 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
 
     // A duplicated name is one face: the same candidates as the name
     // given once.
-    let wall = fixture::fname(a, fixture::wall(1));
+    let wall = fixture::fname(a, fixture::wall(&doc, a, 1));
     let twice = Selection {
         at: a,
         body: 0,
@@ -932,9 +934,9 @@ fn e2e_channel_slider_over_an_epsilon_box() {
         at: channel,
         body: 0,
         faces: FaceScope::Named(vec![
-            fixture::fname(channel, fixture::wall(3)),
-            fixture::fname(channel, fixture::wall(4)),
-            fixture::fname(channel, fixture::wall(5)),
+            fixture::fname(channel, fixture::wall(&doc, channel, 3)),
+            fixture::fname(channel, fixture::wall(&doc, channel, 4)),
+            fixture::fname(channel, fixture::wall(&doc, channel, 5)),
         ]),
     };
     for (c, expect) in [(0.3, "Holds"), (0.45, "Holds"), (0.55, "Violated")] {

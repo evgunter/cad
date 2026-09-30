@@ -4,6 +4,8 @@ kind: issue
 title: Naming a boolean chain is Theta(names) per step - the depth term is gone, the constant is 0.7 us per named entity
 status: open
 opened: 2026-09-11
+priority: P2
+cost: H
 ---
 
 

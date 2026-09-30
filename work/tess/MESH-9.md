@@ -5,6 +5,8 @@ title: issue 950 — rim chords versus the rim-adjacent band, built on first dem
 status: parked
 blocked_on: [950]
 opened: 2026-08-31
+priority: P1
+cost: H
 ---
 
 Parked with a typed trigger, in the issue's own words: neither fix is needed

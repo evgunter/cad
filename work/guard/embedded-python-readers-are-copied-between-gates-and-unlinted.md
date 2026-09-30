@@ -4,6 +4,8 @@ kind: issue
 title: Three gates embed a python reader in a heredoc: copied rather than shared, and outside ruff.toml's population
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

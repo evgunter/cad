@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-29
 github: 1261
 refs: [1162, 1230, 1344]
+priority: P3
+cost: D
 ---
 
 ## From GitHub issue 1261

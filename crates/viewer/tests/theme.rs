@@ -13,7 +13,93 @@
 //! under shading, never the raw tint, because the raw tint is not
 //! what any eye receives.
 
-use viewer::theme::{Mark, Safety, Theme, from_linear, linear};
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+
+use viewer::theme::{Mark, MixFraction, Safety, Theme, from_linear, linear};
+
+/// No mix at all, and the whole of it — the two endpoints the rows
+/// below build marks at.
+///
+/// Through the public door, because that is the door a caller has:
+/// the literal constructor these two stand in for is `theme.rs`'s own
+/// and private to it.
+fn fraction(value: f32) -> MixFraction {
+    MixFraction::new(value).expect("an endpoint of [0, 1] is a mix fraction")
+}
+
+/// **The weights a shader mixes with cannot be built out of anything
+/// else.**
+///
+/// `Mark::strength` and `Theme::ambient` are written into uniform
+/// lanes by `viewer::gpu` and consumed by WGSL arithmetic that cannot
+/// refuse: a `mix` weight that is not a number spreads over the whole
+/// colour, and the sRGB encode after it has no guarantee about one
+/// either. The type is where that is stopped, so this is the row that
+/// says the type stops it.
+///
+/// **A refusal row alone would say nothing here.** `MixFraction::new`
+/// returning `None` for everything passes it, and a door that refuses
+/// every palette is the same defect as one that refuses none — which
+/// is why `every_weight_in_range_is_a_mix_fraction` is half of this
+/// pair rather than a second opinion. Nor would a difference
+/// assertion do the work: a `NaN` differs from every value including
+/// itself, so `assert_ne!` against one is answered by the broken
+/// door's own output.
+#[test]
+fn nothing_outside_the_unit_interval_is_a_mix_fraction() {
+    for refused in [
+        f32::NAN,
+        -f32::NAN,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        -0.000_001,
+        -1.0,
+        1.000_001,
+        2.0,
+        f32::MAX,
+        f32::MIN,
+    ] {
+        assert_eq!(
+            MixFraction::new(refused),
+            None,
+            "{refused} is not a fraction of a mix and the door admitted it",
+        );
+    }
+}
+
+/// **And every weight a palette could legitimately state is
+/// answered** — the other half of the pair above.
+///
+/// The endpoints, the subnormal either side of zero and one, and
+/// every weight the registry itself states: a door that refused any
+/// of these would take a shipped palette out of the build, which is
+/// the failure a refusal-only row cannot see.
+#[test]
+fn every_weight_in_range_is_a_mix_fraction() {
+    let mut accepted: Vec<f32> = vec![
+        0.0,
+        -0.0,
+        f32::MIN_POSITIVE,
+        0.5,
+        1.0,
+        1.0 - f32::EPSILON,
+        f32::EPSILON,
+    ];
+    for theme in Theme::ALL {
+        accepted.push(theme.ambient.get());
+        for (_, mark) in theme.marks() {
+            accepted.push(mark.strength.get());
+        }
+    }
+    for value in accepted {
+        assert_eq!(
+            MixFraction::new(value).map(MixFraction::get),
+            Some(value),
+            "{value} is a fraction of a mix and the door refused it",
+        );
+    }
+}
 
 /// A theme's name is how `--theme` and a preferences file will reach
 /// it, so two themes sharing one is a theme nobody can select.
@@ -53,26 +139,35 @@ fn default_is_registered() {
     );
 }
 
-/// Strengths and the ambient term are mix fractions. Checked once
-/// over the registry rather than at each use: `Mark::strength` is
-/// documented as `[0, 1]`, and a value outside it reaches the shader
-/// as a `mix` that overshoots — a colour brighter than either input,
-/// with nothing to report it.
+/// Strengths and the ambient term are mix fractions.
+///
+/// **The BACKSTOP for the registry's own door, which is the only part
+/// of [`MixFraction`]'s bound that nothing else holds.** Every
+/// fraction a caller outside `theme.rs` can build comes through
+/// `MixFraction::new` and is refused there, with its own two rows
+/// above. The registry's twelve strengths and three ambients are
+/// written as literals through a private `const fn` whose `assert!`
+/// the compiler evaluates, so a bad one fails the build — and
+/// **nothing reds if that `assert!` is deleted**: measured, 18 of 18
+/// rows here stay green. This row is what turns the combined edit —
+/// the assertion removed *and* a bad literal written — back into a
+/// failure. It says nothing about the assertion on its own, and
+/// nothing about the palettes' prose, which it does not read.
 #[test]
 fn mix_fractions_are_in_range() {
     for theme in Theme::ALL {
         assert!(
-            (0.0..=1.0).contains(&theme.ambient),
+            (0.0..=1.0).contains(&theme.ambient.get()),
             "{}: ambient {} outside [0, 1]",
             theme.name,
-            theme.ambient,
+            theme.ambient.get(),
         );
         for (which, mark) in theme.marks() {
             assert!(
-                (0.0..=1.0).contains(&mark.strength),
+                (0.0..=1.0).contains(&mark.strength.get()),
                 "{}: {which} strength {} outside [0, 1]",
                 theme.name,
-                mark.strength,
+                mark.strength.get(),
             );
         }
     }
@@ -110,7 +205,7 @@ fn a_mark_at_its_endpoints_is_body_or_tint() {
         for (which, mark) in theme.marks() {
             let none = Mark {
                 tint: mark.tint,
-                strength: 0.0,
+                strength: fraction(0.0),
             };
             assert_eq!(
                 none.over(theme.body),
@@ -120,7 +215,7 @@ fn a_mark_at_its_endpoints_is_body_or_tint() {
             );
             let full = Mark {
                 tint: mark.tint,
-                strength: 1.0,
+                strength: fraction(1.0),
             };
             assert_eq!(
                 full.over(theme.body),
@@ -453,12 +548,14 @@ mod cvd {
         let mut out = vec![("body", scale(linear(theme.body)))];
         for (label, mark) in theme.marks() {
             // **A mark that does not composite is not measured as
-            // black.** `Mark::over` answers `None` for a strength that
-            // is not a number, and this walk is where a palette's
-            // safety CLAIM is checked: taking `None` as a colour would
-            // put pure black into every distance below, which is the
-            // most legible answer there is and would certify the
-            // palette on a value nothing computed.
+            // black.** `Mark::over` carries `from_linear`'s refusal
+            // up, and this walk is where a palette's safety CLAIM is
+            // checked: taking `None` as a colour would put pure black
+            // into every distance below, which is the most legible
+            // answer there is and would certify the palette on a
+            // value nothing computed. `MixFraction` is what makes the
+            // arm unreachable from here; this is the row that
+            // measures rather than assumes it.
             let composited = mark.over(theme.body);
             assert!(
                 composited.is_some(),
@@ -560,7 +657,7 @@ mod cvd {
                 f64::from(body[2]) * shade,
             ))[0]
         };
-        at(1.0) - at(f64::from(theme.ambient))
+        at(1.0) - at(f64::from(theme.ambient.get()))
     }
 
     /// The closest a theme's GROUND comes to any of its swatches,
@@ -568,7 +665,7 @@ mod cvd {
     pub(super) fn worst_against_ground(theme: &Theme) -> (f64, String) {
         let [r, g, b] = linear(theme.ground);
         let ground = Color::new(f64::from(r), f64::from(g), f64::from(b));
-        let ambient = f64::from(theme.ambient);
+        let ambient = f64::from(theme.ambient.get());
         let shades = [ambient, ambient + (1.0 - ambient) * 0.5, 1.0];
         let mut worst = (f64::INFINITY, String::new());
         for shade in shades {
@@ -590,7 +687,7 @@ mod cvd {
     /// The closest any two of a theme's swatches come, over every
     /// vision type and across the shading range, with the pair named.
     pub(super) fn worst_separation(theme: &Theme) -> (f64, String) {
-        let ambient = f64::from(theme.ambient);
+        let ambient = f64::from(theme.ambient.get());
         // The shading term's floor, midpoint and ceiling. Three
         // levels rather than a sweep: the term is linear in
         // `lambert`, so the interior holds no surprise the ends miss.

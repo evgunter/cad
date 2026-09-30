@@ -4,6 +4,8 @@ kind: issue
 title: ValidationError raises `reason` and pncad.pyi declares only `door`, and neither attribute is present on every raise of the class
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

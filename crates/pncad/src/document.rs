@@ -70,10 +70,27 @@
 // `Applied::maintenance` answers in — the A11 cluster-record acts an
 // edit forced and the references a delete stranded (DM7) — and a
 // consumer that can hold an `Applied` in a typed field must be able to
-// hold what it carries.
+// hold what it carries. `MaintenanceNet` rides with it: a consumer
+// that applies several edits as one action (a cascade delete) folds
+// their rows into what is true of the document the action ends at, and
+// that rule has one spelling.
+// `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
+// who cannot spell it cannot author the edit — and `StepIdFault` is
+// what `EditError::StepIdsRefused` carries, so a consumer matching that
+// arm can name what it caught. `PiecesFault` is the same for
+// `NodeErrorKind::ProfilePieces` and `ProgramRefusal::Pieces`.
+// `AuthoredStep` is how an author who recorded a step reaches its id
+// and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
+// keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
+// what those doors refuse with, and the shape types are what an
+// `AuthoredStep` is made of.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    Maintenance, MetaVersionError, ProgramRefusal, apply, apply_logged, replay_entry,
+    Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
+    StepIdFault, apply, apply_logged,
+};
+pub use editor_core::{
+    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -85,8 +102,12 @@ pub use editor_core::cascade_delete_order;
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
     Axis3, BooleanOp, Datum, InputFault, MeasureNodeFault, Node, PartSelect, PatternKind,
-    PlacementRuleFault, RecipeNodeId, SlotId, TubeWindow, VectorSlot,
+    PlacementRuleFault, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot,
 };
+
+// Placement: the chain a `Node::Transform` holds — rigid steps of
+// expressions and literal frames — and its steps.
+pub use editor_core::{Placement, Step};
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
 // `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
@@ -97,22 +118,24 @@ pub use editor_core::{
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
-// `MeasureUnavailableAt` and `MinClearanceRefusal` are carried for the
+// `MeasureUnavailableAt` and `ClearanceRefusal` are carried for the
 // reason a payload's payload always is: they are what
 // `UnevaluatedReason::MeasureUnavailable` and
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
 // name the outer type and not the inner one can see that there is a
-// reason and never read it.
+// reason and never read it. `CellBudget` and `SelectionRefusal` are
+// `ClearanceRefusal`'s own `Budget` and `Selection` payloads, one rung
+// further down, for the same reason.
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
+pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceRefusal, NotAFaceName, SitedFace, SitedRef,
-    UnevaluatedReason,
+    MeasureUnavailableAt, NotAFaceName, SitedFace, SitedRef, UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -148,7 +171,9 @@ pub use editor_core::{
 pub use editor_core::expr::{EvalError, eval, eval_count};
 
 // Named document parameters.
-// `ParamName` is a parameter's name — a plain string newtype — and
+// `ParamName` is a parameter's name — a string newtype admissible by
+// construction (one identifier an expression reads back), whose
+// fallible constructor answers `ParamNameFault` — and
 // `DocParam` its declared dimension plus exact stored value: recipe
 // vocabulary, plain values, no arena key anywhere in either. They
 // complete doors this module already carried: `DocEdit::SetDocParam`
@@ -176,7 +201,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // `DistributionRefusal` is the same thing at the third field, for
 // `DocParam::with_distribution`.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, UnitSym,
+    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, ParamNameFault,
+    ParamNameReason, UnitSym,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -220,12 +246,22 @@ pub use editor_core::DocParamField;
 // what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
 // an evaluation refusal in, so a consumer can match either variant but
 // not read the cause out of it without naming the wrapper.
+// `CarriedChain`, `CarriedLevel` and `CarriedIn` ride with it: they are
+// `NodeErrorKind::carried_chain`'s answer, the one reading of which
+// refusal a failure carries and which document its node is in.
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
 // it is the one payload every pairing door carries (DI3; which doors
 // those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
 // spelled for the QUESTION rather than for any one door.
+// `NodeStanding` rides with `Evaluation` by the same rule: it is
+// `Evaluation::usable`'s refusal and the payload every door that
+// needs a node's value refuses with, so a consumer can match those
+// arms but not read which node, or which standing, without naming it.
+// `NodeErrorClass` rides with `NodeErrorKind`: it is `NodeErrorKind::class`'s
+// answer, the refusal's class a consumer can clone, compare and hash where
+// the refusal itself cannot be.
 // `Found` rides with `NodeErrorKind` by the same rule: it is the
 // `found` field of the four entity-kind refusals, so a consumer can
 // match those variants but not name what they say was there instead.
@@ -234,9 +270,10 @@ pub use editor_core::DocParamField;
 // which is the point of it: its field is private to the door that
 // mints it.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, DirectionRefusal, EvalOptions, EvalOutcome,
-    Evaluation, Found, FramePlacement, Mispaired, NodeError, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DatumValue,
+    DirectionRefusal, EvalOptions, EvalOutcome, Evaluation, Found, FramePlacement, Mispaired,
+    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    ProfileLift, SplitSide, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
@@ -248,8 +285,14 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    load_with, save,
+    save,
 };
+
+// A refusal's two renderings: under its stage word (`Display`), and as
+// the sentence a carrier that names the stage renders
+// ([`Staged::sentence`]); the recourse label, and what an API door
+// given no part resolver says to do.
+pub use editor_core::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 
 // Document identity and content pins.
 // `DocumentId` answers "which part" (authored at construction —
@@ -274,7 +317,7 @@ pub use editor_core::ContentBits;
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
 pub use editor_core::{
-    Product, ProductError, ProductErrorKind, RootFault, product, product_recorded,
+    Product, ProductError, ProductErrorKind, RootFault, SourceFinding, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -294,8 +337,8 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure, ResolveFault,
-    product_named,
+    AxisRefusal, Frame, FrameFault, FrameSite, PartFault, PartResolver, ResolveFailure,
+    ResolveFault, product_named,
 };
 
 // Mates: the declaration node's
@@ -329,9 +372,9 @@ pub use editor_core::{
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal,
-    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach,
-    member_of, reading_edges, relative_freedom_components, solve_document,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, PlacerRow,
+    ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of,
+    mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -342,7 +385,7 @@ pub use editor_core::{
 // the solve or mint door, so exposing it here is what lets a tool
 // offer only what the vocabulary can execute instead of discovering
 // the refusal after the edit lands.
-pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
+pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap};
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
 // product, mints every solved mate's declaration into its contact
@@ -395,7 +438,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, inline, split,
+    SplitOutcome, StepMap, StepMapDivergence, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s
@@ -439,7 +482,7 @@ pub use editor_core::{
 /// two different findings about the SAME thing: the component count
 /// for this subject is unknowable, because a shell's orientation read
 /// escalated or because a face of it is outside the flux inventory.
-/// Which shell, and which of the four ways the door refused, is
+/// Which shell, and which of the five ways the door refused, is
 /// `source` — and a consumer that could match the arm and not name its
 /// type read that only out of the message prose.
 ///
@@ -454,7 +497,9 @@ pub use topo::ShellClassifyError;
 // The profile description node type and its document alias, plus the
 // refusal of the door that reads a step's profile edges — matchable
 // here because a caller that asked which edges a step became has to be
-// able to say WHY it was not told.
+// able to say WHY it was not told. `CanonicalSegment` is what that door
+// answers in: a canonical position, which is what emission iterates
+// and the pieces (`crate::select::ProfilePieces`) translate.
 //
 // `RecordedNotation` rides with them because a recorded path program is
 // bare `f64`s and a document literal names its notation (D6): it is what
@@ -462,6 +507,7 @@ pub use topo::ShellClassifyError;
 // `LoopProgram::from_recorded_with_notation` so the document reads back
 // what they wrote.
 pub use editor_core::{
-    LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError, resolve_loops,
+    CanonicalSegment, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError,
+    resolve_loops,
 };

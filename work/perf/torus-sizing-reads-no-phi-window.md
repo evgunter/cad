@@ -4,6 +4,8 @@ kind: issue
 title: torus sizing reads no per-face phi window: the sharp per-window bound is left on the table (<= sqrt((R+r)/R) columns, plus ~6% from the joint max)
 status: open
 opened: 2026-09-10
+priority: P4
+cost: D
 ---
 
 

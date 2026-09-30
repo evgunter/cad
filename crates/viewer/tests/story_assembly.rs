@@ -10,11 +10,12 @@
 //! included — and a save/reopen that resolves the whole workspace
 //! again.
 //!
-//! One stage is a mistake and its recovery: a clocking rider on the
-//! seat's frame coincidence, which the coset table decides against.
-//! The refusal reaches every instance in the cluster, and the tree
-//! sends the user to the MATE that caused it — the four instance rows
-//! read as downstream of the rider, not as four failures of their own.
+//! One stage is a mistake and where it is met: a clocking rider on
+//! the seat's frame coincidence, which the coset table decides
+//! against over the mate's own lever. The edit door asks that same
+//! admission, so `perform` refuses the mate typed and nothing enters
+//! the history — no instance row ever reads as downstream of a rider
+//! the user could not have committed.
 //!
 //! The at-rest badge tells the truth twice: the mated base CERTIFIES
 //! (its one contact is a declared, nested rest), and the finished
@@ -39,17 +40,16 @@ use crate::common;
 use std::path::Path;
 
 use common::asm;
-use common::{body_volume, insert, len, near, shape};
+use common::{body_volume, near};
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{Ray, Resolution, RunCtx, resolve};
+use pncad::select::{Resolution, RunCtx, resolve};
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::input::ViewportSize;
 use viewer::matetool::{MateTool, MateToolState};
-use viewer::pickindex::PickIndex;
 use viewer::session::{
-    AtRestBadge, DocSession, FaceSelection, Hovered, ProfileShape, Refusal, Selection, SessionOp,
+    AtRestBadge, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
 };
 use viewer::tree::RowStatus;
 
@@ -99,21 +99,7 @@ fn author_box_part(
         name: name.to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let plane = common::xy_frame_in(session);
-    let profile = insert(
-        session,
-        SessionOp::AddProfile {
-            plane,
-            loops: vec![shape(&ProfileShape::Rectangle { width, height })],
-        },
-    );
-    let extrude = insert(
-        session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(depth),
-        },
-    );
+    let extrude = common::xy_box_in(session, [width, height, depth]);
     assert!(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
@@ -121,23 +107,6 @@ fn author_box_part(
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
-}
-
-/// Perform one `AddInstance`, answering the minted node.
-fn add_instance(session: &mut DocSession, id: DocumentId) -> RecipeNodeId {
-    let node = insert(session, SessionOp::AddInstance { id });
-    session.pump();
-    node
-}
-
-/// Pick a face through the session's real ray path, under the current
-/// display view (parked parts are picked where they are drawn).
-fn pick_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection {
-    let (_, eval) = session.landed_pair().expect("landed");
-    index
-        .face_at_for(eval, ray, &session.display_view())
-        .expect("the pick answers")
-        .expect("the ray hits")
 }
 
 /// Componentwise closeness at the solve's tolerance.
@@ -270,8 +239,8 @@ fn the_windmill_story() {
     // undoes — and the next add (the hub) mints a SIBLING in the
     // history: nothing destroyed, the abandoned two-tower state intact
     // on its own branch.
-    let tower_i = add_instance(&mut session, tower_id);
-    let _slip = add_instance(&mut session, tower_id);
+    let tower_i = common::instance_in(&mut session, tower_id);
+    let _slip = common::instance_in(&mut session, tower_id);
     assert_eq!(session.history().len(), 3, "root plus two adds");
     let undone = session.perform(SessionOp::Undo);
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
@@ -281,7 +250,7 @@ fn the_windmill_story() {
         .entry(session.history().current())
         .active_child()
         .expect("undo remembers the branch it left");
-    let hub_i = add_instance(&mut session, hub_id);
+    let hub_i = common::instance_in(&mut session, hub_id);
     let history = session.history();
     assert_eq!(history.len(), 4, "the sibling is minted, nothing dropped");
     let parent = history
@@ -474,9 +443,10 @@ fn the_windmill_story() {
     // underside (picked where it is DRAWN — the parked spot), then the
     // tower's top. One committed edit; the same outcome reports the
     // hub's probe superseded — discarded, not zeroed.
-    let hub_bottom = pick_at(&session, &index, &asm::up_at(HUB_PARK[0], HUB_PARK[1]));
+    let hub_bottom =
+        common::displayed_face_at(&session, &index, &asm::up_at(HUB_PARK[0], HUB_PARK[1]));
     assert_eq!(hub_bottom.node, hub_i, "the parked hub is picked");
-    let tower_top = pick_at(&session, &index, &asm::down_at(0.0, 0.0));
+    let tower_top = common::displayed_face_at(&session, &index, &asm::down_at(0.0, 0.0));
     assert_eq!(tower_top.node, tower_i);
     let mut tool = MateTool::new();
     tool.pick(hub_bottom);
@@ -484,7 +454,7 @@ fn the_windmill_story() {
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
             .expect("the seat proposes")
     };
     let outcome = session.perform(seat_proposal.op());
@@ -601,18 +571,18 @@ fn the_windmill_story() {
     // turned so the blade lands SQUARE to the first — measured against
     // the first blade's solved direction, not assumed from the walls'
     // parameterizations.
-    let sail_a = add_instance(&mut session, sail_id);
-    let sail_b = add_instance(&mut session, sail_id);
+    let sail_a = common::instance_in(&mut session, sail_id);
+    let sail_b = common::instance_in(&mut session, sail_id);
     park(&mut session, sail_a, SAIL_A_PARK);
     park(&mut session, sail_b, SAIL_B_PARK);
     let index = asm::index_of(&session);
-    let sail_a_bottom = pick_at(
+    let sail_a_bottom = common::displayed_face_at(
         &session,
         &index,
         &asm::up_at(SAIL_A_PARK[0], SAIL_A_PARK[1]),
     );
     assert_eq!(sail_a_bottom.node, sail_a);
-    let sail_b_bottom = pick_at(
+    let sail_b_bottom = common::displayed_face_at(
         &session,
         &index,
         &asm::up_at(SAIL_B_PARK[0], SAIL_B_PARK[1]),
@@ -621,23 +591,11 @@ fn the_windmill_story() {
     // The hub's front and back walls, picked at the seated hub's
     // mid-height from either side.
     let wall_z = TOWER_HEIGHT + HUB_SIDE / 2.0;
-    let front_wall = pick_at(
-        &session,
-        &index,
-        &Ray {
-            origin: Point3::new(0.0, -1.0, wall_z),
-            dir: Vec3::new(0.0, 1.0, 0.0),
-        },
-    );
+    let front_wall =
+        common::displayed_face_at(&session, &index, &common::along_y(1.0, 0.0, wall_z));
     assert_eq!(front_wall.node, hub_i, "the seated hub's front wall");
-    let back_wall = pick_at(
-        &session,
-        &index,
-        &Ray {
-            origin: Point3::new(0.0, 1.0, wall_z),
-            dir: Vec3::new(0.0, -1.0, 0.0),
-        },
-    );
+    let back_wall =
+        common::displayed_face_at(&session, &index, &common::along_y(-1.0, 0.0, wall_z));
     assert_eq!(back_wall.node, hub_i, "the seated hub's back wall");
     assert_ne!(front_wall.name, back_wall.name, "two distinct walls");
 
@@ -646,7 +604,7 @@ fn the_windmill_story() {
     tool.pick(front_wall);
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
             .expect("the first sail proposes")
     };
     let outcome = session.perform(sail_a_proposal.op());
@@ -695,7 +653,7 @@ fn the_windmill_story() {
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool
-            .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+            .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
             .expect("the second sail proposes");
         // Turn the roll: of the derived reference and its in-plane
         // quarter turn (for unit vectors, r turned 90° about n is
@@ -802,74 +760,58 @@ fn the_windmill_story() {
         "the declared overhanging blades certify through the crossing rung"
     );
 
-    // ── 11a. A CONTRADICTORY RIDER, AND WHERE THE TREE SENDS THE
-    // USER. The user tries to clock the hub about its seat — but the
-    // seat is a frame coincidence and a coincidence has already pinned
-    // the roll, so the coset table decides against the rider
-    // (`mate_clocking_redundant`). The refusal reaches the whole
-    // cluster: no instance in it has a pose any more, and the kernel
-    // records the same typed fault against each of them as that node's
-    // OWN failure, because mates and instances are DAG leaves and the
-    // placement solve is not a DAG edge.
-    //
-    // What the tree must not do is read that verbatim. The fault names
-    // the mate it is about, so the rider the user just wrote is the one
-    // actionable row, and all four instance rows — the tower and both
-    // sails included, which the rider does not touch — read as
-    // downstream of it and point at it.
+    // ── 11a. A CONTRADICTORY RIDER, AND WHERE THE DOOR STOPS IT. The
+    // user tries to clock the hub about its seat — but the seat is a
+    // frame coincidence and a coincidence has already pinned the roll,
+    // so the coset table decides against the rider
+    // (`mate_clocking_redundant`), over the hub's and the tower's own
+    // extent. The edit door asks the solve's own per-mate admission,
+    // so `perform` refuses the mate typed, carrying the solve's fault
+    // unaltered: no entry enters the history, the tree keeps its
+    // seven `Ok` rows, and there is nothing for the next evaluation to
+    // fail on and nothing to undo.
     let clocked = {
         let mut alignment = seat_proposal.alignment;
         alignment.clocking = Some(0.4);
-        insert(
-            &mut session,
-            SessionOp::AddMate {
-                a: seat_proposal.a.clone(),
-                b: seat_proposal.b.clone(),
-                class: seat_proposal.class,
-                alignment,
-            },
-        )
+        session.perform(SessionOp::AddMate {
+            a: seat_proposal.a.clone(),
+            b: seat_proposal.b.clone(),
+            class: seat_proposal.class,
+            alignment,
+        })
     };
-    session.pump();
-    let rows = session.tree_rows();
-    let status_of = |id: RecipeNodeId| common::status_of(&rows, id);
-    {
-        let RowStatus::Failed { message } = status_of(clocked) else {
-            panic!("the rider carries the cause, got {:?}", status_of(clocked));
-        };
-        assert!(
-            message.contains("mate_clocking_redundant"),
-            "the kernel's own words, on the mate's row: {message}"
+    let Some(Refusal::Edit(error)) = &clocked.refusal else {
+        panic!(
+            "the rider is refused at the door, got {:?}",
+            clocked.refusal
         );
-    }
-    assert_eq!(
-        rows.iter()
-            .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
-            .map(|row| row.id)
-            .collect::<Vec<_>>(),
-        vec![clocked],
-        "exactly one actionable row, and it is the mate the fault names"
-    );
-    for instance in [tower_i, hub_i, sail_a, sail_b] {
-        match status_of(instance) {
-            RowStatus::Poisoned { through, message } => {
-                assert_eq!(through, clocked, "the instance points at the rider");
-                assert_eq!(
-                    message,
-                    Some(viewer::tree::downstream_wording(clocked)),
-                    "and sends the user to the rider's row rather than repeating its refusal here"
-                );
-            }
-            other => panic!("instance {instance:?} must read as downstream, got {other:?}"),
-        }
-    }
-    // Undo takes the rider back out; the windmill is whole again.
-    session.perform(SessionOp::Undo);
-    session.pump();
+    };
+    let pncad::document::EditError::MateRefused { fault, .. } = &**error else {
+        panic!("the door carries the solve's own fault, got {error}");
+    };
     assert!(
-        session.doc().node(clocked).is_none(),
-        "undo removes the rider"
+        matches!(
+            **fault,
+            pncad::document::MateFault::Contradictory {
+                held,
+                added,
+                predicate: "mate_clocking_redundant",
+                clash: pncad::document::Clash::Levered(pncad::document::Lever::Roll { radians, .. }),
+            } if held == added && radians == 0.4
+        ),
+        "the table's decision, in the kernel's own words: {fault}"
     );
+    assert!(
+        clocked.committed.is_empty(),
+        "a refused edit commits nothing: {:?}",
+        clocked.committed
+    );
+    assert_eq!(
+        session.doc().order().len(),
+        7,
+        "the history holds the four instances and three mates it held before"
+    );
+    session.pump();
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

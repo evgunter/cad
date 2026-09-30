@@ -5,7 +5,6 @@
 //! the kink line, in both u and v; plus the placeholder poison at
 //! Interval (F6).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
@@ -41,13 +40,7 @@ fn lift(s: &NurbsSurface<f64>) -> NurbsSurface<Interval> {
     let ctrl = s
         .control()
         .iter()
-        .map(|p| {
-            Point3::new(
-                Interval::from_f64(p.x),
-                Interval::from_f64(p.y),
-                Interval::from_f64(p.z),
-            )
-        })
+        .map(|p| p.map(Interval::from_f64))
         .collect();
     NurbsSurface::new(
         s.knots_u().clone(),

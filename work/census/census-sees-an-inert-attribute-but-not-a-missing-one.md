@@ -4,6 +4,8 @@ kind: issue
 title: The deny_unknown_fields census is one-directional: nothing reds when a named field arrives with no attribute
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

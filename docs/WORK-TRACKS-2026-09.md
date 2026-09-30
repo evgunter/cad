@@ -18,7 +18,10 @@ homogeneous in what it demands —
   E track dispatches straight to implementers and takes the S-TCOST
   review posture: batched style review, no A/B row for infra-only or
   test-only units.
-- **D (design)**: a question with several viable answers, a
+- **D (design)**: *(Legacy since 2026-09-27: before then `D` was also
+  used to mean medium effort. The tracker now prices effort as
+  `E`/`M`/`H` and marks an open design question with a separate
+  `design: true`; see `work/README.md`, Vocabularies.)* A question with several viable answers, a
   `DESIGN.md`/API-shape choice, or a body that says "conversation
   before unit". A D track is Ev-paced: it opens with `[ev]` PRs and
   hands the builds to an E or H track once ruled.
@@ -96,7 +99,7 @@ file and `crates/geom-core/src/*` reaches `linalg/`):
 - **LIB** `crates/pncad/*`, `crates/pncad-py/*`, three design docs.
   Open-ended; its census B-family slate completed today.
 - **S-TCOST** `crates/*/tests/*`, `crates/test-utils/*`,
-  `scripts/{ci-filter.py,slowest-tests.py,base-test-listing.sh}`.
+  `scripts/ci-filter.py`.
   Open-ended, census-driven, very live.
 - **M10** at exit; **S-MATE** at exit; **PERF** a register with no
   units.
@@ -446,6 +449,8 @@ items are not swept into `work/issues/` with no owner a second time.
 #### CURVED — the curved-operand boolean remainder (`curved/`) — at VERBS' exit — 23 items [H 17, D 5, E 1]
 
 **GRADUATED (2026-09-03): opened as `work/curved/`, A/B band 2200–2299. DISPATCHING since 2026-09-04 (VERBS' walk ratified at #1793); `work/curved/plan.md` supersedes this section.**
+
+**CUT (2026-09-20, Ev in-chat): CURVED keeps the spiric lane only; REACH (`work/reach/`, 6000–6099), TANG (`work/tang/`, 6100–6199) and CHART (`work/chart/`, 6200–6299, with TRIM's chart-side residue) opened in the same commit and hold the rest of this section's lanes.**
 
 VERBS' Wave-2 claims that never became units, S-BOOL's ceded ground,
 and S-MATE's kernel residue, as one program. Territory: the
@@ -852,7 +857,7 @@ direction rather than by the S-TCOST orchestrator**, which is not how
   answer, distributed by fence.
 - **Track J's ground stays a seam.** CIW's opening took most of it
   (`.github/workflows/`, `local-scripts/`) without claiming the letter,
-  so `scripts/doc-gate.sh`, `gate-roster.sh`, `probe-suite-census.sh`
+  so `scripts/doc-gate.sh`, `probe-suite-census.sh`
   and root `[workspace.lints]` are still "unowned, not finished".
   `rustdoc-d-warnings-breakages-outside-the-doc-gate` lands exactly
   there and went to CIW because `doc-gate.sh` is in CIW's `paths`.

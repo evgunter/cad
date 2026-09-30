@@ -18,7 +18,7 @@
 //! its bundled GMP/MPFR C build, and making it optional is what lets the
 //! kernel's CI run this crate's oracle-free tier without a C toolchain.
 //!
-//! **CI runs this lane.** `ci.yml`'s `oracle-certify` job fires it
+//! **CI runs this lane.** `interval.yml`'s `oracle-certify` job fires it
 //! whenever anything under `interval-transcendentals/src/`, `tests/`,
 //! `Cargo.toml` or `Cargo.lock` changes (`scripts/ci-filter.py`'s
 //! `ORACLE_PATHS`), at `CAD_FUZZ_EFFORT=8`. To run it by hand as well:

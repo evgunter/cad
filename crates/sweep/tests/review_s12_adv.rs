@@ -26,19 +26,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands;
+use crate::common::operands::m5_boss;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use std::f64::consts::PI;
 use sweep::test_support::brick;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
@@ -47,11 +44,8 @@ fn vol(body: &Body<f64>) -> f64 {
 /// 2-arc disc radius `r` centred at origin with seam vertices at
 /// angles `phi` and `phi + pi`, extruded z0..z0+len.
 fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
-    let at = |th: f64| p2(r * th.cos(), r * th.sin());
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(phi), 1.0),
-        ProfileVertex::new(at(phi + PI), 1.0),
-    ]);
+    let at = |th: f64| Point2::new(r * th.cos(), r * th.sin());
+    let lp = bulge_loop(vec![(at(phi), 1.0), (at(phi + PI), 1.0)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -67,15 +61,15 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
 #[test]
 fn probe_torus_union_is_never_silently_wrong() {
     // Circle profile centred (1.5, 0) radius 0.4, revolved about y.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.1, 0.0), 1.0),
-        ProfileVertex::new(p2(1.9, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(1.1, 0.0), 1.0),
+        (Point2::new(1.9, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     let torus = revolve(&vp, axis, Revolution::Full, Tol::witness())
@@ -148,7 +142,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
 /// it. Exact or typed; silence is the MAJOR.
 #[test]
 fn probe_horizontal_log_halfburied_is_exact_or_typed() {
-    let slab = brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let slab = operands::slab();
     // Vertical 2-arc cylinder r=0.7, then rotate about x so the axis
     // runs along y at z = 0.5, spanning y in [0.5, 3.5].
     let log0 = disc2(0.7, 0.0, 0.0, 3.0);
@@ -169,6 +163,15 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
     let seg = r * r * (beta - beta.sin() * beta.cos()); // area beyond each slab plane
     let meet_area = PI * r * r - 2.0 * seg;
     let v_meet = meet_area * 3.0;
+    // `operands::slab()`'s volume, derived here rather than read back
+    // from the kernel so the oracle stays independent of what it
+    // checks. It is NOT the only line that depends on the fixture's
+    // dimensions, so a lane moving the fixture walks the row rather
+    // than this constant: `beta`'s `0.5` is the slab's half-thickness,
+    // as is the last component of the log's translation; that
+    // translation's `2.0` is the slab's x-centre; and the `3.0` in
+    // `v_meet` and `v_b` is the log's length, which is the meeting
+    // length only while the log lies inside the slab's y-extent.
     let v_a = 16.0;
     let v_b = PI * r * r * 3.0;
     for (op, expect) in [
@@ -245,21 +248,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
 #[test]
 fn probe_involution_on_a_boolean_result_body() {
     let plate = brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), Tol::witness());
-    let boss = {
-        let at = |th: f64| p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin());
-        let lp = ProfileLoop::new(
-            (0..3)
-                .map(|i| ProfileVertex::new(at(2.0 * PI * i as f64 / 3.0), (PI / 6.0).tan()))
-                .collect(),
-        );
-        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
-        let profile = Profile::new(plane, vec![lp])
-            .validate(Tol::witness())
-            .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-            .unwrap()
-            .body
-    };
+    let boss = m5_boss(3, 0.3, 1.0);
     let holed = topo::subtract(&plate, &boss, Tol::witness())
         .unwrap()
         .body()
@@ -277,7 +266,9 @@ fn probe_involution_on_a_boolean_result_body() {
     assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume bit-negated");
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
-        Err(vec![topo::ValidationError::NegativeVolume])
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: rev.solids().next().expect("one solid").0
+        }])
     );
     assert_eq!(
         format!("{:?}", rev.revert().unwrap()),

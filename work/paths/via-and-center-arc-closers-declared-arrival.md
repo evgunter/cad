@@ -1,11 +1,13 @@
 ---
 id: via-and-center-arc-closers-declared-arrival
 kind: issue
-title: "paths: the declared seam arrival for the Via and Center arc closers (arc_to with a via point or centre targeting Start.arrives_tangent())"
+title: paths: the declared seam arrival for the Via and Center arc closers (arc_to with a via point or centre targeting Start.arrives_tangent())
 status: open
 opened: 2026-09-02
 github: 1579
 refs: [1573, 433]
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 1579

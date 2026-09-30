@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-19
 github: 651
 refs: [613, 614, 646, 667, 681]
+priority: P3
+cost: E
 ---
 
 ## From GitHub issue 651

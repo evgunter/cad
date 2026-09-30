@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-13
 branch: curved/spiric-1a
 refs: [spiric-carrier-ruling, c5-plane-torus-cone-cylinder-arms, 1858]
+priority: P1
+cost: H
 ---
 
 

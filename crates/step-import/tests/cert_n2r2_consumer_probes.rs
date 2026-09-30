@@ -7,12 +7,12 @@ use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use topo::{Body, FaceKey, FaceSurface};
 
 fn square() -> Vec<ProfileLoop<f64>> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    vec![ProfileLoop::new(vec![
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+    vec![bulge_loop(vec![
         v(-1.0, -1.0),
         v(1.0, -1.0),
         v(1.0, 1.0),
@@ -94,7 +94,10 @@ fn masqueraded(
     );
     body.set_face_surface(
         wall,
-        FaceSurface::New(Surface::Nurbs(Arc::new(masq.clone()))),
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(masq.clone())),
+            sense: true,
+        },
     )
     .unwrap();
     (body, wall, masq)
@@ -131,7 +134,6 @@ fn n2r2_class3_chart_stretch_sup_inf_f64() {
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn n2r2_class3_chart_stretch_sup_inf_interval() {
     // Adoption fix (CERT-N2 fix pass): `from_f64` and `is_poison` are
@@ -253,7 +255,7 @@ fn n2r2_class11_class4_mint_pcurves() {
 #[test]
 fn n2r2_class10_replace_face_offset() {
     let (mut body, wall, _) = masqueraded(poison_x);
-    let r = topo::replace_face_offset(&mut body, wall, 0.1, band(), tol());
+    let r = topo::replace_face_offset(&mut body, wall, 0.1, tol());
     eprintln!("[class 10 x-poison] replace_face_offset -> {r:?}");
 }
 

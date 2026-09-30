@@ -209,7 +209,7 @@ pub enum VerbKind {
 /// **And at a third place: the SCALAR the door can run at.** `One` and
 /// `Shell` agree at both ends — one body in, one body and a record
 /// out — and are still two doors, because the shell's op door demands
-/// certification rights (`Decide + PropsQuadLane + CertifiedBounds`)
+/// certification rights (`Decide + CertifiedBounds + AtRestPolicy`)
 /// that the blend doors do not, and no `Dual` scalar has them. A
 /// `Verb<Dual<f64>>` can be handed to `One` and cannot be handed to
 /// `Shell`; that is not a run-time refusal to be spoken by this enum

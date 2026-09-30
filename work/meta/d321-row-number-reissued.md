@@ -4,6 +4,8 @@ kind: issue
 title: D321 was reissued: two different rows have carried the number, and the closed one is still cited by it
 status: open
 opened: 2026-09-04
+priority: P3
+cost: D
 ---
 
 

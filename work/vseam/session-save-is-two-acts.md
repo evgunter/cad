@@ -1,10 +1,12 @@
 ---
 id: session-save-is-two-acts
 kind: issue
-title: 'SessionOp::Save routes through the workspace save door; a save-as-new-document op spells the fork'
+title: SessionOp::Save routes through the workspace save door; a save-as-new-document op spells the fork
 status: open
 opened: 2026-09-08
 refs: [LIB-SAVEFORK, save-a-copy-duplicate-id-bricks-store, 1117, 2016]
+priority: P1
+cost: D
 ---
 
 ## The hand-off

@@ -4,6 +4,8 @@ kind: issue
 title: 31 payload attribute names are spelled in two files and nothing holds the two equal
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 Found by CENSUS-ERRORS-ARRIVAL's sweep (2026-09-15), which asked a

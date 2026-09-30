@@ -116,9 +116,13 @@ opening day.
    EDIT's. This is a hand-off to be filed and negotiated, not a diff
    from here; what this program owns is `DocSession::landed_body`'s
    side of it.
-7. **`the-two-drags-name-their-gestures-in-two-shapes`** — waits on
-   `two-hand-written-copies-of-the-g1-gesture-machine` (inbound, below),
-   which rewrites the machine both drags copy.
+7. **`the-two-drags-name-their-gestures-in-two-shapes`** — **the wait
+   is over and the row is closed** (PR #2965). It was written as
+   waiting on `two-hand-written-copies-of-the-g1-gesture-machine`,
+   which rewrites the machine both drags copy; that row's PR (#2672)
+   merged on 2026-09-15 and `crates/viewer/src/g1.rs` has been on
+   `main` since. The wait outlived its trigger by six days because the
+   row carried `status: review` after its PR merged — see §Inbound.
 8. **Held.** `pick-priority-filter-vocabulary` is **deferred**, ratified
    by `crates/viewer/GUI-DESIGN.md` GQ7; it is not work and stays
    deferred until that ruling moves.
@@ -128,43 +132,53 @@ opening day.
 
 ## Inbound
 
-Four rows in `review` are this program's and are still on VIEW's slate,
-because their lanes are in flight and a rename mid-review is a merge
-conflict for nothing. Each arrives here when its PR merges, or with
-VIEW's exit walk, whichever is first:
+**This section was wrong when it was written and is corrected here.**
+It said *"Four rows in `review` are this program's and are still on
+VIEW's slate, because their lanes are in flight and a rename mid-review
+is a merge conflict for nothing"* — and then listed **five**. None of
+the five lanes was in flight: every one of these PRs had already merged
+when the cut (#2806) wrote that sentence, so the rows kept a `review`
+status their PRs had retired, and this program recorded a wait on one
+of them (Order item 7). All five are **closed** on `main` since
+PR #2976, which closed them with their merge dates. They arrive here
+with VIEW's exit walk as ordinary closed rows, not as in-flight work:
 `the-two-seams-are-hand-maintained-twins` (#2666),
 `the-picture-key-never-became-a-type` (#2670),
 `two-hand-written-copies-of-the-g1-gesture-machine` (#2672),
 `a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see`
 (#2662), `id-query-is-keyed-on-the-generation-not-on-the-picture`
 (#2622). All five are this charter's subject exactly — a cached answer,
-a key, a twin machine, a stale picture — and item 7 of the Order waits
-on one of them.
+a key, a twin machine, a stale picture — and item 7 of the Order waited
+on one of them until PR #2965 closed it.
 
 `a-dead-seam-worker-reads-as-an-ordinary-idle-state` is also this
-charter's subject and is **not** inbound: its PR #2762 is parked on a
-ruling from Ev and the row stays on VIEW's slate until that ruling
-lands. Nothing here touches it.
+charter's subject and is **not** inbound: its PR #2762 was parked on a
+ruling from Ev. **That ruling landed** — a crashed seam worker panics
+(Ev, in-chat, 2026-09-17) — and #2762 merged carrying it, with almost
+all of the badge vocabulary deleted rather than shipped, because a
+crashed worker takes the process down and so cannot be a state the
+chrome describes. The row is closed on VIEW's slate. Nothing here
+touches it.
 
-## The register
+## The discipline a lane is held to
 
-**`work/view/plan.md`'s rule register binds every lane dispatched from
-this program, inherited BY REFERENCE and not copied.** Read it in full
-before writing a dispatch.
+**`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md`**, handed to every lane by path.
+Read both before writing a dispatch; they are the standing obligations
+and they are the only ones.
 
-The reason it is not copied is the register's own: a claim fixed in one
-place and stale in another contradicts itself, and four copies of a
-register that is re-derived every wave guarantee four divergent copies
-within a week. The register is also evidence — every rule in it is a
-named failure at a named PR — and a copy detached from the program that
-paid for it reads as a rule without its receipt.
+**The rule register this section used to inherit by reference is
+deleted** (2026-09-21, Ev's ruling; it lived in `work/view/plan.md`).
+Eighty-seven rules in eighteen days, of which the ones that both named
+a real problem and would have been prevented by an advance warning
+turned out to be already written — in the two files above, and in
+`memories/agent-lane-operations.md`. The rest were retrospective
+categorisation: true after the fact, useless before it. It is
+recoverable at `66d7357417` if a row here cites one of its rules.
 
-**What that costs, said plainly:** `work/view/plan.md` goes when VIEW's
-directory goes at its exit walk, and this reference dangles that day.
-The register's permanent home is
-`work/view/the-lane-register-has-no-home-after-views-directory-goes`,
-open on VIEW's slate, and it is a precondition of VIEW's exit walk
-rather than a follow-up to it. This section re-points when it lands.
+So a dispatch from this program carries the two prompt docs by path,
+plus whatever this program's own `log.md` tail says about the ground
+the unit lands on — not a register.
 
 ## Review posture
 

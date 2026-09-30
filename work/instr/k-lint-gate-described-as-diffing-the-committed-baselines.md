@@ -5,6 +5,8 @@ title: two sites say the k-lint gate diffs the fresh sweep against docs/k-report
 status: open
 opened: 2026-09-08
 refs: [2140]
+priority: P3
+cost: D
 ---
 
 Found by unit 7 while re-deriving the K baseline. A self-declared

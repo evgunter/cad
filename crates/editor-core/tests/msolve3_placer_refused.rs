@@ -27,8 +27,9 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
-    EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, StableName,
+    EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorClass,
+    NodeErrorKind, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
+    StableName,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
@@ -131,6 +132,15 @@ impl Scene {
         let ev = run(&self.doc, &self.opts());
         format!("{:?}", ev.result(self.placer))
     }
+
+    /// What `node`'s row in the MATED document fails with, when it
+    /// fails in its own right.
+    fn mated_refusal_of(&self, node: RecipeNodeId) -> Option<String> {
+        match run(&self.doc, &self.opts()).result(node) {
+            Some(NodeResult::Failed(err)) => Some(format!("{:?}", err.kind)),
+            _ => None,
+        }
+    }
 }
 
 /// A scene whose placer is a PATTERN of `kind` at `count`, mated onto
@@ -204,6 +214,14 @@ fn carried(fault: &MateFault) -> (RecipeNodeId, String) {
     }
 }
 
+/// The class of the refusal a `PlacerRefused` carries.
+fn carried_class(fault: &MateFault) -> NodeErrorClass {
+    match fault {
+        MateFault::PlacerRefused { error, .. } => error.kind().class(),
+        other => panic!("expected PlacerRefused, got {other:?}"),
+    }
+}
+
 // ---- A1: the cause, in the placer's own words ----
 
 /// **The finding's own document.** A pattern direction of `1e200` has
@@ -233,12 +251,28 @@ fn a1_a_non_finite_pattern_direction_names_the_direction() {
         "the carried refusal is the one the placer's own evaluation raises"
     );
     assert!(
-        kind.contains("NonFiniteDirection") && kind.contains("pattern direction"),
+        carried_class(&f) == NodeErrorClass::NonFiniteDirection
+            && kind.contains("pattern direction"),
         "and it is the direction door's own: {kind}"
     );
+    // The fold path: the placer is poisoned, so the fault carries its
+    // refusal, one level, in the mate's own document.
+    let levels: Vec<_> = f
+        .carried_chain()
+        .map(|level| (level.document, level.node, level.line()))
+        .collect();
+    let [(document, node, line)] = levels.as_slice() else {
+        panic!("the fault carries the placer's refusal, one level: {levels:?}");
+    };
+    assert_eq!(
+        (*document, *node),
+        (editor_core::CarriedIn::ThisDocument, placer),
+        "the level is the placer, in the mate's document"
+    );
     assert!(
-        f.to_string().contains("pattern direction"),
-        "the prose says which vector: {f}"
+        line.contains("pattern direction") && !f.to_string().contains("pattern direction"),
+        "the carried line says which vector, and the mate's own sentence points at it: \
+         {line} / {f}"
     );
     assert!(
         scene.placer_row().contains("Poisoned"),
@@ -264,7 +298,8 @@ fn a1_a_degenerate_pattern_direction_names_the_direction() {
     let (_, kind) = carried(&f);
     assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
     assert!(
-        kind.contains("DegenerateDirection") && kind.contains("pattern direction"),
+        carried_class(&f) == NodeErrorClass::DegenerateDirection
+            && kind.contains("pattern direction"),
         "{kind}"
     );
 }
@@ -288,7 +323,8 @@ fn a1_a_slot_that_does_not_evaluate_names_the_slot() {
     let (_, kind) = carried(&f);
     assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
     assert!(
-        kind.contains("Expr") && kind.contains(&format!("{:?}", SlotId::Spacing)),
+        carried_class(&f) == NodeErrorClass::Expr
+            && kind.contains(&format!("{:?}", SlotId::Spacing)),
         "the refusal names the slot it read: {kind}"
     );
 }
@@ -308,9 +344,71 @@ fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
     assert_eq!(placer, scene.placer, "{f:?}");
     assert_eq!(kind, scene.own_refusal(), "the twin raises the same kind");
     assert!(
-        kind.contains("NonFiniteDirection") && kind.contains("transform rotation axis"),
+        carried_class(&f) == NodeErrorClass::NonFiniteDirection
+            && kind.contains("transform rotation axis"),
         "{kind}"
     );
+}
+
+/// **A transform's CHAIN refuses in its own voice too.** A literal step
+/// then a rigid step whose motion does not derive — an axis of no
+/// definite length, or an angle that does not evaluate: the solve
+/// reaches the transform's motion through the one construction the
+/// node evaluation uses, over the node's slots from the evaluation's
+/// own door, so it refuses `PlacerRefused` naming the TRANSFORM and
+/// carrying exactly the kind the transform's own evaluation raises on
+/// the twin — the angle named at step 1's own address.
+#[test]
+fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
+    for (label, late, class) in [
+        (
+            "msolve3-chain-axis",
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(1e200), scl(0.0), scl(0.0)],
+                angle: ang(0.5),
+            },
+            NodeErrorClass::NonFiniteDirection,
+        ),
+        (
+            "msolve3-chain-angle",
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: Expr::mul(ang(1e200), scl(1e200)).expect("an angle times a scalar"),
+            },
+            NodeErrorClass::Expr,
+        ),
+    ] {
+        let (scene, _) = build(label, |doc, legs| {
+            let chain = editor_core::Placement {
+                steps: vec![
+                    editor_core::Step::Literal(Frame::translation([0.0, 0.0, 2.0])),
+                    late,
+                ],
+            };
+            let (doc, moved) = insert(doc, Node::transform(legs, chain));
+            (doc, moved, in_part(legs, CapEnd::End), Vec::new())
+        });
+        let f = scene.fault();
+        let (placer, kind) = carried(&f);
+        assert_eq!(placer, scene.placer, "{label}: names the transform: {f:?}");
+        assert_eq!(
+            kind,
+            scene.own_refusal(),
+            "{label}: the twin raises the same kind"
+        );
+        assert_eq!(carried_class(&f), class, "{label}: {kind}");
+        if class == NodeErrorClass::Expr {
+            assert!(
+                kind.contains(&format!(
+                    "{:?}",
+                    SlotId::rigid(1, editor_core::RigidArg::RotationAngle)
+                )),
+                "{label}: the refusal names step 1's angle: {kind}"
+            );
+        }
+    }
 }
 
 /// **Two faults on one node, and the same winner on both roads.** A
@@ -322,8 +420,8 @@ fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
 fn a1_two_faults_on_one_placer_pick_the_same_winner() {
     let (scene, _) = build("msolve3-two-faults", |doc, legs| {
         let mut t = xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.5);
-        if let Node::Transform { rotation_angle, .. } = &mut t {
-            *rotation_angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
+        if let Some(angle) = t.expr_mut(SlotId::RotationAngle) {
+            *angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
         }
         let (doc, moved) = insert(doc, t);
         (doc, moved, in_part(legs, CapEnd::End), Vec::new())
@@ -372,7 +470,9 @@ fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
     assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
     assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("datum axis") && kind.contains("\"datum\""),
+        carried_class(&f) == NodeErrorClass::WrongOperand
+            && kind.contains("datum axis")
+            && kind.contains("\"datum\""),
         "{kind}"
     );
 }
@@ -405,7 +505,7 @@ fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
     let (_, kind) = carried(&f);
     assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("\"body\""),
+        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"body\""),
         "{kind}"
     );
 }
@@ -450,7 +550,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
     assert_eq!(placer, scene.placer, "the pattern's wiring refuses: {f:?}");
     assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("\"instances\""),
+        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"instances\""),
         "{kind}"
     );
 }
@@ -480,7 +580,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_oper
     let (_, kind) = carried(&f);
     assert_eq!(kind, scene.own_refusal(), "word for word with the twin's");
     assert!(
-        kind.contains("WrongOperand") && kind.contains("\"body\""),
+        carried_class(&f) == NodeErrorClass::WrongOperand && kind.contains("\"body\""),
         "{kind}"
     );
 }
@@ -536,6 +636,19 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
         f.to_string().contains(&format!("node {}", datum.0)),
         "and the message names that node: {f}"
     );
+    // Off the chain, the datum is not poisoned by the fault: its own
+    // row states the refusal, so the fault points there and carries
+    // nothing.
+    assert_eq!(
+        scene.mated_refusal_of(datum).as_deref(),
+        Some(kind.as_str()),
+        "the datum's own row in the mated document states it"
+    );
+    assert_eq!(
+        f.carried_chain().count(),
+        0,
+        "a refusal the placer's own row states is not carried: {f:?}"
+    );
 }
 
 /// The datum's DIRECTION, decided: the vector is the datum's, so the
@@ -574,7 +687,8 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
         "word for word with the datum's own"
     );
     assert!(
-        kind.contains("DegenerateDirection") && kind.contains("datum axis direction"),
+        carried_class(&f) == NodeErrorClass::DegenerateDirection
+            && kind.contains("datum axis direction"),
         "{kind}"
     );
 }
@@ -618,18 +732,30 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
 // ---- what stays a dangling head ----
 
 /// A copy index at the pattern's count names a copy that does not
-/// exist — still `DanglingHead`, at the pattern.
+/// exist — still `DanglingHead`, at the pattern. The mate names copy
+/// 2 of a count-3 pattern that then shrinks to two copies: a head at
+/// the count at insert is the edit door's to refuse, and this is how
+/// one arises after it.
 #[test]
 fn an_index_at_the_count_is_still_a_dangling_head() {
-    let scene = patterned(
+    let mut scene = patterned(
         "msolve3-past-count",
         PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
         },
-        2,
+        3,
         2,
     );
+    let (doc, _) = step(
+        scene.doc,
+        DocEdit::SetStructuralParam {
+            node: scene.placer,
+            slot: editor_core::SlotId::Count,
+            expr: Expr::count(2),
+        },
+    );
+    scene.doc = doc;
     let f = scene.fault();
     assert!(
         matches!(&f, MateFault::DanglingHead { head, .. } if *head == scene.placer),

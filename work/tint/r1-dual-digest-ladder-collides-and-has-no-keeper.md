@@ -4,6 +4,8 @@ kind: issue
 title: The R1 dual digest's hand-numbered tag ladder collides at 24, beside a comment claiming the opposite
 status: open
 opened: 2026-09-12
+priority: P3
+cost: E
 ---
 
 

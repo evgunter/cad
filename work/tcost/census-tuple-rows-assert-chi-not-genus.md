@@ -5,6 +5,8 @@ title: sweep's counts() tuple rows assert χ on door-read counts rather than gen
 status: open
 opened: 2026-09-12
 refs: [no-public-census-or-genus-query, 2131]
+priority: P3
+cost: E
 ---
 
 ## Finding

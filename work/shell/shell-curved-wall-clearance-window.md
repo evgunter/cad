@@ -7,6 +7,8 @@ blocked_on: [SHELL-4]
 opened: 2026-08-27
 github: 1055
 refs: [1048, 571]
+priority: P1
+cost: H
 ---
 
 ## From GitHub issue 1055

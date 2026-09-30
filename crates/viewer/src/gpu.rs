@@ -28,15 +28,19 @@
 //! CLEARED to `IdMap::NOTHING` — so "the cursor is over nothing" is a
 //! value the pass produces rather than a case the reader infers.
 //!
-//! # Construction runs; drawing does not
+//! # What runs on a real device
 //!
-//! [`ViewportRenderer::new`] and everything it builds execute on a real
-//! device under `--features app`, so a pipeline this module cannot
-//! build is a red row. Nothing below that seam does: no surface, no
-//! frame, no readback, no pixel. The questions only a drawn frame
-//! answers — whether the depth attachment is really attached, and
-//! whether the id pass and the ray path agree on the same cursor —
-//! are open, and issue #1097 owns them.
+//! Under `--features app` two rows open the app's own device on the
+//! software adapter CI installs. One builds every pipeline
+//! [`ViewportRenderer::new`] builds, so a pipeline this module cannot
+//! build is a red row. The other renders one frame of a cube through
+//! [`ViewportCallback`]'s `prepare` and `paint`. At the projected
+//! centre of every face that faces the eye it asserts the id pass
+//! answers that face's id, and the shaded pass's depth at that pixel
+//! is the depth of that face's own plane there. So a pass that culls
+//! a face it should draw is a red row.
+//! Nothing compares colours: which pixels are which shade is not
+//! asserted anywhere.
 //!
 //! # Depth
 //!
@@ -60,7 +64,7 @@
 //! the callback, so it resets this pane's depth and nothing else. The
 //! id pass owns its own depth texture and clears it to 0 directly.
 //!
-//! # Culling is off, on purpose
+//! # Culling
 //!
 //! The triangles are outward-wound (`mesh::FacePatch`'s contract) and
 //! the shading uses that winding: the normal comes from the triangle's
@@ -190,9 +194,25 @@ struct Uniforms {
 
 /// One [`Mark`] as the uniform lane the shader reads: linear tint in
 /// `xyz`, strength in `w`.
+///
+/// **Neither half needs a door here, and they are total for
+/// different reasons.** `theme::linear` is total over `u8` and
+/// finite for every byte; the strength is a
+/// [`crate::theme::MixFraction`], so `[0, 1]` is a property of the
+/// value rather than something this function could check and the
+/// shader could not. That matters because the shader cannot refuse:
+/// `mix(base, mark.xyz, mark.w)` spreads a weight that is not a
+/// number over the whole colour, and nothing downstream takes it
+/// back. On a gamma-space surface `to_display`'s `clamp` does not —
+/// WGSL specifies `clamp` as `min(max(e1, e2), e3)`, which makes no
+/// promise about an unordered operand — and on an `*Srgb` one the
+/// `ENCODE_SRGB` early return sits ABOVE that line, so the pass runs
+/// no clamp at all. A guard added in the WGSL would also be a second
+/// spelling of a rule the palette already states, held together by
+/// nothing.
 fn mark_lane(mark: Mark) -> [f32; 4] {
     let [r, g, b] = crate::theme::linear(mark.tint);
-    [r, g, b, mark.strength]
+    [r, g, b, mark.strength.get()]
 }
 
 /// Uniform block size in bytes.
@@ -324,9 +344,7 @@ const EDGE_FLAG_PROBE: u32 = EDGE_LANE_MASK + 1;
 /// **The WGSL expression one lane's colour is**, over `base` — the body
 /// colour, probe-tinted where the instance is free-moved.
 ///
-/// An exhaustive match, so a lane added to `EdgeLane` does not compile
-/// until it is given a colour; [`lane_colour_switch`] writes one arm
-/// per lane from it.
+/// [`lane_colour_switch`] writes one arm per lane from this.
 fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
     match lane {
         // The picked marks: the theme's own mark, composited over the
@@ -532,15 +550,38 @@ struct Geometry {
     revision: u64,
 }
 
-/// How many vertices one pass over `scene` draws.
+/// **A vertex table's length as a draw range, or `None` when it is
+/// not one.**
+///
+/// `wgpu` counts vertices in `u32` and a Rust table counts them in
+/// `usize`, so the cast can fail — and its failure arm has to be a
+/// refusal rather than a number. `u32::MAX` is a corner count no
+/// caller here computed, in the field that carries the one they did:
+/// a draw over it reads a range the buffers do not hold, which is the
+/// one answer a length is asked for in order to avoid.
+///
+/// **Not reachable on a machine this runs on, and the bound is
+/// memory rather than code.** `u32::MAX + 1` corners is `2^32`
+/// positions at three `f32` each — 51.5 GB before normals, ids or
+/// flags — and `scene::TRIANGLE_BUDGET` is a starting point rather
+/// than a cap, so nothing in the crate bounds the count; the
+/// allocation does. This is the door stating what it can answer, not
+/// a repair of a live defect.
+fn draw_range(len: usize) -> Option<u32> {
+    u32::try_from(len).ok()
+}
+
+/// How many vertices one pass over `scene` draws, or `None` when the
+/// scene's corner table is longer than a draw range
+/// ([`draw_range`]).
 ///
 /// **The scene is non-indexed geometry** — [`SceneMesh`]'s own
 /// contract: every triangle emits its own three corners, so nothing
 /// is shared and the draw range is the corner table's own length.
 /// This is the only place that number is derived, so the two passes
 /// over one scene cannot draw different ranges of it.
-fn corner_count(scene: &SceneMesh) -> u32 {
-    u32::try_from(scene.positions().len()).unwrap_or(u32::MAX)
+fn corner_count(scene: &SceneMesh) -> Option<u32> {
+    draw_range(scene.positions().len())
 }
 
 impl ViewportRenderer {
@@ -617,7 +658,7 @@ impl ViewportRenderer {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                // See the module docs: both sides are drawn.
+                // See the module docs: back faces are culled.
                 cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
@@ -700,6 +741,13 @@ impl ViewportRenderer {
     }
 
     /// Upload `scene` if the buffers do not already hold `revision`.
+    ///
+    /// **A scene with no draw range is not uploaded**: the held
+    /// buffers are dropped and nothing is drawn, which is the answer
+    /// the passes already have for a scene that is not there
+    /// ([`corner_count`]). Uploading it and drawing `u32::MAX`
+    /// vertices out of a shorter buffer is the alternative, and that
+    /// is a range no caller computed.
     fn ensure_geometry(&mut self, device: &wgpu::Device, scene: &SceneMesh, revision: u64) {
         if self
             .geometry
@@ -708,6 +756,10 @@ impl ViewportRenderer {
         {
             return;
         }
+        let Some(corners) = corner_count(scene) else {
+            self.geometry = None;
+            return;
+        };
         let positions = create_init_buffer(
             device,
             "viewer_scene_positions",
@@ -737,7 +789,7 @@ impl ViewportRenderer {
             normals,
             ids,
             flags,
-            corners: corner_count(scene),
+            corners,
             revision,
         });
     }
@@ -921,11 +973,8 @@ impl IdPass {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                // Both sides, for the same reason the shaded pass draws
-                // both: which screen winding is "front" is the question
-                // #1097 settles on hardware, and an id pass that culled
-                // the wrong way would answer NOTHING over a face that
-                // is plainly there.
+                // The shaded pass's cull, so a face that is drawn is a
+                // face that can be picked and one that is not cannot.
                 cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
@@ -1104,7 +1153,13 @@ impl EdgePass {
             return;
         }
         let (positions, marks) = edge_vertices(overlay);
-        let vertices = u32::try_from(positions.len()).unwrap_or(u32::MAX);
+        // The same refusal as the scene's, for the same reason: a
+        // vertex table longer than a draw range has no draw, and
+        // `u32::MAX` would be a count this function did not compute.
+        let Some(vertices) = draw_range(positions.len()) else {
+            self.held = None;
+            return;
+        };
         self.held = Some(EdgeGeometry {
             positions: create_init_buffer(
                 device,
@@ -1273,7 +1328,7 @@ impl ViewportCallback {
         Uniforms {
             view_projection: self.view_projection,
             light_direction: [lx, ly, lz, 0.0],
-            base_color: [r, g, b, self.theme.ambient],
+            base_color: [r, g, b, self.theme.ambient.get()],
             highlight: [self.highlight.selected, self.highlight.hovered, 0, 0],
             selected: mark_lane(self.theme.selected),
             hovered: mark_lane(self.theme.hovered),
@@ -1883,16 +1938,137 @@ mod tests {
     /// **The shader's transfer curve is the palette's transfer
     /// curve.** They are two spellings — WGSL and Rust — of IEC
     /// 61966-2-1, and nothing but this row stops one from being edited
-    /// without the other. The constants are what is compared, because
-    /// they are what a divergence would be made of.
+    /// without the other.
+    ///
+    /// **It compares the CONSTANTS, on both sides, and that is all it
+    /// compares.** The sentence here used to add *"because they are
+    /// what a divergence would be made of"*, and the tree contradicts
+    /// it: `theme::channel_to_srgb8` refuses a channel that is not a
+    /// number and `to_display` has no counterpart, so one divergence
+    /// between the two spellings is made of a **guard** — which this
+    /// row cannot see and is not widened to see, because a guard in
+    /// WGSL would be a second statement of a rule with nothing
+    /// holding the two together.
+    ///
+    /// What makes that divergence harmless is stated where it is
+    /// enforced rather than here: every number `to_display` receives
+    /// is one. The tints reach it through `theme::linear`, total over
+    /// `u8`; both weights are [`crate::theme::MixFraction`]s, bounded
+    /// by their type at [`mark_lane`] and at
+    /// [`ViewportCallback::block`]; and `fs_main`'s shading term takes
+    /// its normal from a vertex attribute `scene::triangle_normal`
+    /// writes, which is a unit vector or `[0, 0, 1]` and never a zero.
+    ///
+    /// **That last leg argues about the WRITER, not about what the
+    /// fragment stage receives.** `VertexOut::normal` carries no
+    /// `@interpolate(flat)`, unlike `id` and `flag`, so `normalize`
+    /// reads an INTERPOLATED value. It is non-zero today only because
+    /// `scene`'s build loop pushes one face normal at all three
+    /// corners, which makes the interpolation an identity; a
+    /// per-vertex normal would end that without touching this row or
+    /// any other. Stated here because it is the one leg of the
+    /// argument above that rests on a caller rather than on a type.
     #[test]
     fn the_shaders_srgb_curve_states_the_same_constants_the_palette_does() {
-        for constant in ["12.92", "1.055", "0.055", "1.0 / 2.4", "0.0031308"] {
+        // **The Rust half read as the ENCODER'S BODY, not as the
+        // file.** Two narrowings, and the second is the one a
+        // file-scoped read gets wrong. `code_only` drops the prose,
+        // where all five numbers are discussed; `item_body` drops
+        // `channel_to_linear`, the DECODER twenty lines above, which
+        // spells `12.92`, `1.055` and `0.055` for the inverse curve.
+        // Three of these five are not unique to the function this row
+        // is about, so a read over the file is answered by the wrong
+        // half of the palette and reports it under the encoder's name.
+        let palette = test_utils::source::code_only(include_str!("theme.rs"));
+        let head = palette
+            .find("fn channel_to_srgb8")
+            .expect("theme.rs still defines `channel_to_srgb8`");
+        let test_utils::source::ItemBody::Body(body) =
+            test_utils::source::item_body(&palette, head)
+        else {
+            panic!("`channel_to_srgb8` is a definition with a body");
+        };
+        let encoder = &palette[body];
+        for (shader, rust) in [
+            ("12.92", "12.92"),
+            ("1.055", "1.055"),
+            ("0.055", "0.055"),
+            ("1.0 / 2.4", "1.0 / 2.4"),
+            ("0.0031308", "0.003_130_8"),
+        ] {
             assert!(
-                SHADER.contains(constant),
-                "the shader's sRGB encode no longer spells {constant}; \
+                SHADER.contains(shader),
+                "the shader's sRGB encode no longer spells {shader}; \
                  `theme::channel_to_srgb8` is the other half of this curve",
             );
+            assert!(
+                encoder.contains(rust),
+                "`theme::channel_to_srgb8` no longer spells {rust}; \
+                 the shader's `to_display` is the other half of this curve",
+            );
+        }
+    }
+
+    /// **Every weight the block carries is one the shader can mix
+    /// with, and it is the palette's own number.**
+    ///
+    /// The two lanes a WGSL weight rides in — each mark's `w` and
+    /// `base_color`'s — are where a value a theme states last passes
+    /// through Rust. The shader forms `mix(base, tint, w)` and
+    /// `ambient + (1 - ambient) * lambert` out of them and can refuse
+    /// neither, so what stands between a weight and a poisoned pixel
+    /// is [`crate::theme::MixFraction`]'s bound and nothing after it.
+    ///
+    /// **Two halves, and neither says anything alone.** That the
+    /// lanes are *in range* would be satisfied by a block that wrote
+    /// `0.0` everywhere; that they are *the theme's numbers* would be
+    /// satisfied by a block that copied a `NaN` faithfully. Together
+    /// they say the block hands the shader what the palette states
+    /// and nothing it cannot use. The bound itself is asserted at the
+    /// door, over inputs no theme in the registry has —
+    /// `tests/theme.rs`.
+    #[test]
+    fn every_weight_the_uniform_block_carries_is_a_weight_the_palette_states() {
+        let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
+        for theme in crate::theme::Theme::ALL {
+            let block = ViewportCallback {
+                scene: Arc::new(SceneMesh::empty(
+                    bvh::Aabb::from_points([pncad::geom_core::Point3::new(0.0, 0.0, 0.0)])
+                        .expect("one point is a box"),
+                    delta,
+                )),
+                revision: 0,
+                view_projection: [[0.0; 4]; 4],
+                // Nothing here lights anything: the row reads the
+                // weight lanes, and every other lane is furniture.
+                light_direction: [0.0, 0.0, -1.0],
+                theme: *theme,
+                viewport_px: [1.0, 1.0],
+                pixels_per_point: 1.0,
+                highlight: Highlight::default(),
+                edges: EdgeOverlay::default(),
+                id_query: None,
+            }
+            .block();
+            let weights = [
+                ("ambient", block.base_color[3], theme.ambient.get()),
+                ("selected", block.selected[3], theme.selected.strength.get()),
+                ("hovered", block.hovered[3], theme.hovered.strength.get()),
+                ("probe", block.probe[3], theme.probe.strength.get()),
+                ("focus", block.focus[3], theme.focus.strength.get()),
+            ];
+            for (which, lane, stated) in weights {
+                assert!(
+                    (0.0..=1.0).contains(&lane),
+                    "{}: the {which} lane carries {lane}, which is not a weight",
+                    theme.name,
+                );
+                assert_eq!(
+                    lane, stated,
+                    "{}: the {which} lane is not the weight the palette states",
+                    theme.name,
+                );
+            }
         }
     }
 
@@ -1916,7 +2092,7 @@ mod tests {
         let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
         let mesh = scene::scene_of(&doc, delta, tol).expect("the plate tessellates");
 
-        let corners = corner_count(&mesh);
+        let corners = corner_count(&mesh).expect("the plate's corners are a draw range");
         assert_eq!(
             usize::try_from(corners).expect("the corner count fits a usize"),
             mesh.stats().triangles * 3,
@@ -1937,7 +2113,47 @@ mod tests {
 
         // The empty picture draws nothing: `read_id_at` reads this as
         // "there is no answer" rather than submitting an empty pass.
-        assert_eq!(corner_count(&SceneMesh::empty(mesh.bounds(), delta)), 0);
+        assert_eq!(
+            corner_count(&SceneMesh::empty(mesh.bounds(), delta)),
+            Some(0)
+        );
+    }
+
+    /// **A vertex table too long to be a draw range is refused, not
+    /// substituted.**
+    ///
+    /// The pair, because neither half says anything alone: the
+    /// refusal has to be the ONLY thing refused, or a door that
+    /// answers `None` for everything passes the first assertion. The
+    /// legitimate half runs over the lengths the two call sites
+    /// actually produce — a scene's corner table and an overlay's
+    /// six-per-segment quad corners — and asks that each comes back
+    /// as itself rather than merely as some number.
+    ///
+    /// **`u32::MAX` is the value this row exists to exclude**, so it
+    /// is named: the unfixed door answers `Some(u32::MAX)` here, which
+    /// is a `Some` like any other and which an `is_some()` assertion
+    /// would have passed.
+    #[test]
+    fn a_vertex_table_longer_than_a_draw_range_has_no_draw_range() {
+        for len in [0_usize, 1, 6, 3 * 40_000, u32::MAX as usize] {
+            assert_eq!(
+                draw_range(len),
+                Some(u32::try_from(len).expect("the case fits by construction")),
+                "a table of {len} vertices is a draw range and `draw_range`                  did not answer it"
+            );
+        }
+        let Ok(too_many) = usize::try_from(u64::from(u32::MAX) + 1) else {
+            // A 32-bit target cannot express a length that does not
+            // fit a `u32`, so there is nothing to refuse there.
+            return;
+        };
+        assert_eq!(
+            draw_range(too_many),
+            None,
+            "`draw_range` answered a draw range for {too_many} vertices, which              it cannot count; the substituted answer is {:?}",
+            u32::try_from(too_many).unwrap_or(u32::MAX),
+        );
     }
 
     /// **Both scene passes hand [`corner_count`]'s answer to `draw`,
@@ -1970,6 +2186,56 @@ mod tests {
                  buffer here is a permutation nothing produces"
             );
         }
+    }
+
+    /// **The device the running app gets, on whatever adapter this
+    /// machine has** — the one door both real-device rows open theirs
+    /// through.
+    ///
+    /// No adapter is a FAILURE, never a skip: see
+    /// [`every_pass_builds_on_a_real_device`].
+    fn app_device() -> (wgpu::Device, wgpu::Queue) {
+        // `_from_env` so `WGPU_BACKEND` can steer these rows at an
+        // operator's hand; with the variable unset it is every
+        // backend the build has. No display handle: neither row opens
+        // a surface, so there is no window to hand one from.
+        let instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect(
+                    "NO WGPU ADAPTER. The rows that open this device build and draw this \
+                     module's passes on a real device and can report nothing without one, so \
+                     they fail rather than passing emptily. Install a software ICD: `mesa-vulkan-drivers` supplies lavapipe, \
+                     which needs no display (crates/viewer/README.md, headless).",
+                );
+        let info = adapter.get_info();
+        println!(
+            "viewer::gpu real device: adapter {:?} / {} ({:?}, driver {:?})",
+            info.backend, info.name, info.device_type, info.driver
+        );
+
+        // THE APP'S DEVICE, NOT A PERMISSIVE ONE. This crate never
+        // builds a `DeviceDescriptor`: `NativeOptions`' default
+        // `wgpu_options` carries `egui_wgpu`'s own closure, and that
+        // is what the running app requests. So this door ASKS THAT
+        // CLOSURE rather than restating its limits or handing itself
+        // `adapter.limits()` — at the adapter's limits a pipeline that
+        // fits the hardware and exceeds what egui asks for builds
+        // green here and panics at startup, which is the failure the
+        // smoke row exists to close.
+        let egui_wgpu::WgpuSetup::CreateNew(setup) =
+            egui_wgpu::WgpuConfiguration::default().wgpu_setup
+        else {
+            panic!(
+                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer \
+                 ask it for the device descriptor the app requests"
+            );
+        };
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&(setup.device_descriptor)(&adapter)))
+                .expect("the adapter above must yield a device at the limits egui_wgpu asks for");
+        (device, queue)
     }
 
     /// **Every pipeline in this module, built on a real device.**
@@ -2006,49 +2272,10 @@ mod tests {
     /// exists to close. The environment owes this row an adapter:
     /// `mesa-vulkan-drivers` supplies lavapipe, it needs no display
     /// and no X server (crates/viewer/README.md, headless), and the
-    /// panic below names it when it is missing.
+    /// panic in [`app_device`] names it when it is missing.
     #[test]
     fn every_pass_builds_on_a_real_device() {
-        // `_from_env` so `WGPU_BACKEND` can steer this row at an
-        // operator's hand; with the variable unset it is every
-        // backend the build has. No display handle: this row opens
-        // no surface, so there is no window to hand one from.
-        let instance =
-            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
-        let adapter =
-            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-                .expect(
-                    "NO WGPU ADAPTER. This row builds every pipeline in this module on a real \
-                     device and can report nothing without one, so it fails rather than passing \
-                     emptily. Install a software ICD: `mesa-vulkan-drivers` supplies lavapipe, \
-                     which needs no display (crates/viewer/README.md, headless).",
-                );
-        let info = adapter.get_info();
-        println!(
-            "viewer::gpu pipeline smoke: adapter {:?} / {} ({:?}, driver {:?})",
-            info.backend, info.name, info.device_type, info.driver
-        );
-
-        // THE APP'S DEVICE, NOT A PERMISSIVE ONE. This crate never
-        // builds a `DeviceDescriptor`: `NativeOptions`' default
-        // `wgpu_options` carries `egui_wgpu`'s own closure, and that
-        // is what the running app requests. So the row ASKS THAT
-        // CLOSURE rather than restating its limits or handing itself
-        // `adapter.limits()` — at the adapter's limits a pipeline that
-        // fits the hardware and exceeds what egui asks for builds
-        // green here and panics at startup, which is the one failure
-        // this row exists to close.
-        let egui_wgpu::WgpuSetup::CreateNew(setup) =
-            egui_wgpu::WgpuConfiguration::default().wgpu_setup
-        else {
-            panic!(
-                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer \
-                 ask it for the device descriptor the app requests"
-            );
-        };
-        let (device, _queue) =
-            pollster::block_on(adapter.request_device(&(setup.device_descriptor)(&adapter)))
-                .expect("the adapter above must yield a device at the limits egui_wgpu asks for");
+        let (device, _queue) = app_device();
 
         // THE CENSUS, BOUND TO THE SOURCE. "Every pipeline" is a claim
         // only if something notices a new one: all four of this
@@ -2094,5 +2321,333 @@ mod tests {
             drop(renderer);
             println!("  {target_format:?}: shaded, depth-reset, id and edge pipelines built");
         }
+    }
+
+    /// **Which faces of a solid the culled passes draw, read off a
+    /// rendered frame.**
+    ///
+    /// Both solid passes cull back faces, so a face whose winding or
+    /// whose `FrontFace` is wrong is ABSENT — not shaded oddly — and
+    /// absent geometry reads as a modelling error. This row renders a
+    /// cube the kernel built, through [`ViewportCallback`]'s own
+    /// `prepare` (the id pass, at the app's 1x1 target) and `paint`
+    /// (the shaded pass, into an offscreen target), from two opposite
+    /// eyes, and asks at the centre of every face that faces the eye:
+    ///
+    /// - the id pass answers THAT face's id. A face the pass dropped
+    ///   answers the one behind it, and a pass that culled nothing
+    ///   would still answer correctly, so this reads the cull's
+    ///   direction and not its presence;
+    /// - the shaded pass left, at that pixel, the depth of that face's
+    ///   own plane under the pixel's centre. The far face behind it,
+    ///   a neighbouring face, or no face leaves a different one.
+    ///
+    /// **Which faces face the eye is decided without the winding**: a
+    /// face's outward direction is its centre minus the cube's, which
+    /// holds for any convex solid and asks nothing of the triangles
+    /// the passes are testing.
+    #[test]
+    fn the_culled_passes_draw_every_face_that_faces_the_eye() {
+        use egui_wgpu::CallbackTrait as _;
+        use pncad::document::{CancelToken, Doc, EvalOptions, Node, ProfileProgram, evaluate};
+
+        use crate::camera::Camera;
+        use crate::generation::Generation;
+        use crate::pickindex::{PickIndex, PictureKey};
+        use crate::test_support::{framed_square, inserted, len, plate_delta};
+
+        const SIDE_PX: u32 = 64;
+        const SIDE: f64 = 0.04;
+        let format = wgpu::TextureFormat::Bgra8Unorm;
+        let (device, queue) = app_device();
+
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("pixel-cube", tol);
+        let (doc, profile) = framed_square(&doc, SIDE, tol);
+        let (doc, _) = inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: len(SIDE),
+            },
+            tol,
+        );
+        let eval = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let index = PickIndex::build(
+            &doc,
+            &eval,
+            PictureKey::of(Generation::FIRST, plate_delta()),
+            tol,
+        )
+        .expect("the cube indexes");
+        let scene = Arc::new(index.scene().expect("the cube draws"));
+
+        // Each face's centre: the middle of its corners' box, which on
+        // a planar axis-aligned square is the square's own centre.
+        let mut boxes: std::collections::BTreeMap<u32, ([f64; 3], [f64; 3])> =
+            std::collections::BTreeMap::new();
+        for (corner, &id) in scene.positions().iter().zip(scene.ids()) {
+            let (lo, hi) = boxes.entry(id).or_insert(([f64::MAX; 3], [f64::MIN; 3]));
+            for ((lo, hi), &x) in lo.iter_mut().zip(hi.iter_mut()).zip(corner) {
+                *lo = lo.min(f64::from(x));
+                *hi = hi.max(f64::from(x));
+            }
+        }
+        let faces: Vec<(u32, [f64; 3])> = boxes
+            .iter()
+            .map(|(&id, (lo, hi))| (id, std::array::from_fn(|a| 0.5 * (lo[a] + hi[a]))))
+            .collect();
+        assert_eq!(
+            faces.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+            index.ids().ids().collect::<Vec<_>>(),
+            "the scene draws exactly the cube's six ids, none of them NOTHING"
+        );
+        assert_eq!(faces.len(), 6, "a cube has six faces");
+
+        let aspect = 1.0;
+        let framed = Camera::framing(&scene.bounds(), aspect).expect("the cube frames");
+        let behind = Camera::new(
+            framed.target(),
+            framed.distance(),
+            framed.yaw() + std::f64::consts::PI,
+            -framed.pitch(),
+            framed.fov_y(),
+            framed.scene_radius(),
+        )
+        .expect("the opposite eye is a camera");
+        let centre = framed.target();
+        let centre = [centre.x, centre.y, centre.z];
+
+        let mut resources = egui_wgpu::CallbackResources::default();
+        resources.insert(ViewportRenderer::new(&device, format));
+        let mut seen = std::collections::BTreeSet::new();
+        for (view, camera) in [("framed", &framed), ("behind", &behind)] {
+            let eye = camera.eye();
+            let eye = [eye.x, eye.y, eye.z];
+            let facing: Vec<(u32, [f64; 3])> = faces
+                .iter()
+                .copied()
+                .filter(|(_, c)| {
+                    (0..3)
+                        .map(|a| (c[a] - centre[a]) * (eye[a] - c[a]))
+                        .sum::<f64>()
+                        > 0.0
+                })
+                .collect();
+            assert_eq!(
+                facing.len(),
+                3,
+                "{view}: an eye off every axis sees three faces of a cube"
+            );
+            let view_projection = camera
+                .view_projection_f32(aspect)
+                .expect("the camera projects");
+            let ndc = |p: [f64; 3]| {
+                camera
+                    .project(pncad::geom_core::Point3::new(p[0], p[1], p[2]), aspect)
+                    .expect("the camera projects")
+                    .expect("the cube is in front of the eye")
+            };
+            let callback = |id_query: Option<IdQuery>| ViewportCallback {
+                scene: Arc::clone(&scene),
+                // One scene for both eyes, so one revision: the second
+                // eye draws the buffers the first uploaded.
+                revision: 1,
+                view_projection,
+                light_direction: [0.0, 0.0, -1.0],
+                theme: Theme::DEFAULT,
+                viewport_px: [SIDE_PX as f32; 2],
+                pixels_per_point: 1.0,
+                highlight: Highlight::default(),
+                edges: EdgeOverlay::default(),
+                id_query,
+            };
+            let screen = egui_wgpu::ScreenDescriptor {
+                size_in_pixels: [SIDE_PX; 2],
+                pixels_per_point: 1.0,
+            };
+
+            // The id pass, one query per facing face, as the app asks it.
+            for (serial, &(id, face)) in (1..).zip(&facing) {
+                let [x, y, _] = ndc(face);
+                let answer = Arc::new(AtomicU64::new(0));
+                let mut encoder = device.create_command_encoder(&Default::default());
+                let _ = callback(Some(IdQuery {
+                    cursor_ndc: [x as f32, y as f32],
+                    viewport_px: [SIDE_PX as f32; 2],
+                    serial,
+                    answer: Arc::clone(&answer),
+                }))
+                .prepare(&device, &queue, &screen, &mut encoder, &mut resources);
+                let answer = answer.load(Ordering::Relaxed);
+                assert_eq!(answer >> 32, u64::from(serial), "{view}: the id pass ran");
+                assert_eq!(
+                    answer & u64::from(u32::MAX),
+                    u64::from(id),
+                    "{view}: the id pass at the centre of face {id} answers another id — the \
+                     face that faces the eye was culled and the one behind it answered"
+                );
+                seen.insert(id);
+            }
+
+            // The shaded pass, into a pane-sized target, depth kept.
+            let paint = callback(None);
+            let mut encoder = device.create_command_encoder(&Default::default());
+            let _ = paint.prepare(&device, &queue, &screen, &mut encoder, &mut resources);
+            let extent = wgpu::Extent3d {
+                width: SIDE_PX,
+                height: SIDE_PX,
+                depth_or_array_layers: 1,
+            };
+            let texture = |format, usage| {
+                device.create_texture(&wgpu::TextureDescriptor {
+                    label: None,
+                    size: extent,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format,
+                    usage,
+                    view_formats: &[],
+                })
+            };
+            let colour = texture(format, wgpu::TextureUsages::RENDER_ATTACHMENT);
+            let depth = texture(
+                DEPTH_FORMAT,
+                wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            );
+            let colour_view = colour.create_view(&Default::default());
+            let depth_view = depth.create_view(&Default::default());
+            {
+                // Depth cleared to 1.0, as egui's painter clears it.
+                let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: None,
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &colour_view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations::default(),
+                    })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &depth_view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                let rect =
+                    egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(SIDE_PX as f32));
+                paint.paint(
+                    egui::PaintCallbackInfo {
+                        viewport: rect,
+                        clip_rect: rect,
+                        pixels_per_point: 1.0,
+                        screen_size_px: [SIDE_PX; 2],
+                    },
+                    &mut pass.forget_lifetime(),
+                    &resources,
+                );
+            }
+            let row = u64::from(SIDE_PX) * 4;
+            assert_eq!(
+                row % COPY_ROW_ALIGNMENT,
+                0,
+                "one depth row is a whole copy row"
+            );
+            let readback = device.create_buffer(&wgpu::BufferDescriptor {
+                label: None,
+                size: row * u64::from(SIDE_PX),
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &depth,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::DepthOnly,
+                },
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &readback,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(row as u32),
+                        rows_per_image: Some(SIDE_PX),
+                    },
+                },
+                extent,
+            );
+            queue.submit(std::iter::once(encoder.finish()));
+            readback.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+            device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .expect("the depth readback completes");
+            let texels: Vec<f32> = readback
+                .slice(..)
+                .get_mapped_range()
+                .expect("the depth readback maps")
+                .chunks_exact(4)
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .collect();
+            for &(id, face) in &facing {
+                let [x, y, _] = ndc(face);
+                let px = ((x + 1.0) * 0.5 * f64::from(SIDE_PX)) as usize;
+                let py = ((1.0 - y) * 0.5 * f64::from(SIDE_PX)) as usize;
+                let drawn = f64::from(texels[py * SIDE_PX as usize + px]);
+                // The depth THIS face has at the sampled pixel: the ray
+                // through the pixel's centre, met with the face's plane
+                // (the axis its box is flat on) and projected.
+                let (lo, hi) = boxes[&id];
+                let flat = (0..3)
+                    .min_by(|&a, &b| (hi[a] - lo[a]).total_cmp(&(hi[b] - lo[b])))
+                    .expect("three axes");
+                let ray = camera
+                    .ray_through(
+                        [px as f64 + 0.5, py as f64 + 0.5],
+                        crate::input::ViewportSize {
+                            width_px: f64::from(SIDE_PX),
+                            height_px: f64::from(SIDE_PX),
+                        },
+                    )
+                    .expect("a pixel of the target names a ray");
+                let origin = [ray.origin.x, ray.origin.y, ray.origin.z];
+                let dir = [ray.dir.x, ray.dir.y, ray.dir.z];
+                let t = (face[flat] - origin[flat]) / dir[flat];
+                let hit: [f64; 3] = std::array::from_fn(|a| origin[a] + t * dir[a]);
+                assert!(
+                    (0..3).all(|a| a == flat || (lo[a] < hit[a] && hit[a] < hi[a])),
+                    "{view}: pixel {px},{py} is not inside face {id} ({hit:?}), so its depth \
+                     says nothing about that face"
+                );
+                let expected = ndc(hit)[2];
+                // Measured on llvmpipe, the drawn depth agrees with this
+                // to at most 3.1e-7 relative (f32 vertices and depth
+                // against an f64 ray). Another face's plane at the same
+                // pixel lies percent away, so 1e-4 leaves the raster
+                // ~300x room and still names which face was drawn.
+                assert!(
+                    (drawn - expected).abs() <= 1e-4 * expected,
+                    "{view}: the shaded pass at pixel {px},{py}, inside face {id}, left depth \
+                     {drawn} where that face lies at {expected} — the face that faces the eye \
+                     was not drawn there"
+                );
+            }
+        }
+        assert_eq!(
+            seen.len(),
+            6,
+            "the two eyes between them see every face: {seen:?}"
+        );
     }
 }

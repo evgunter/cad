@@ -511,12 +511,12 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
 }
 
 /// The recipe nodes that minted a solid's face carriers — the
-/// provenance a disjoint graft transplants verbatim, and therefore the
-/// honest read of "which root contributed this solid".
+/// `GeomSource` rows a disjoint graft carries verbatim, and therefore
+/// the honest read of "which root contributed this solid".
 fn minting_nodes(body: &topo::Body<f64>, solid: topo::SolidKey) -> Vec<u64> {
     let mut out = std::collections::BTreeSet::new();
-    if let Some(s) = body.get_solid(solid) {
-        for &shell in &s.shells {
+    if let Some(shells) = body.shells_of_solid(solid) {
+        for &shell in shells {
             let Some(sh) = body.get_shell(shell) else {
                 continue;
             };

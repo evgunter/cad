@@ -4,6 +4,8 @@ kind: issue
 title: four censuses of Python-visible vocabulary live in one crate in four homes, almost but not quite parallel
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

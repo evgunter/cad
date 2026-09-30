@@ -4,6 +4,8 @@ kind: issue
 title: Two planar rests a hair past parallel classify as a line and then refuse a NON-FINITE translation margin under mate_member_translation_in_plane — a false cause
 status: open
 opened: 2026-09-20
+priority: P0
+cost: H
 ---
 
 

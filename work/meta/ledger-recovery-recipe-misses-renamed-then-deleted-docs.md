@@ -4,11 +4,13 @@ kind: issue
 title: The ledger's recovery recipe does not resolve for any doc renamed into work/ before it was deleted — five sweep-5 programs, ten spellings, 51 live citations
 status: open
 opened: 2026-09-10
+priority: P4
+cost: E
 ---
 
 
 
-Routed from CIW unit 7 (`work/ciw/gui-log-citations-do-not-resolve.md`),
+Routed from CIW unit 7 (`gui-log-citations-do-not-resolve` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)),
 which fixed the seven citations inside CIW's own fence and could not fix
 the cause. `docs/DOC-LEDGER.md` is this program's `paths`; a recovery
 recipe that does not recover is the ledger's **accuracy**, which

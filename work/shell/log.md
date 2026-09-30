@@ -871,3 +871,100 @@ every cycle the same way. The tripwire's sentence gained that clause
 and a pointer to `LoopBoundary::Cycle` and `Body::revert`; no code in
 the file moved (`det = +1` is still enforced upstream). Signed (TOPO,
 the revert-wrap fix pass, `topo/revert-reparks-the-wrap`).
+
+## Rows arriving from FIX, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that **FIX carries no design decisions**:
+*"can you kick all the design decisions back to the track they actually
+belong to, leaving fix design-free?"* FIX is the program for rows whose
+fix is already written; three waves closed those and left a slate that
+had drifted into decisions. Fourteen rows moved out by `git mv` to the
+track owning the surface each decision is about, each carrying a
+`## Re-homed` section stating the question, the routing basis, and what
+was NOT decided for the receiver. Routing was taken from
+`python3 scripts/work.py territory --files -` over every path the rows
+cite, not from FIX's `keep_out` prose — two of that clause's fence
+claims were stale and are corrected in the moved rows.
+
+**One row: `plain-transform-rigid-still-refuses-the-m7-8-class`.**
+PR 2418 gave the kernel a door for a body it certifies at rest —
+`topo::transform_rigid_via` with `geom_brep::plane_nurbs_limbs`, and the
+mint-side twin `EdgeCurve::certify_via`. The plain `transform_rigid`, the
+door a caller reaches for first, **still refuses that body typed** with
+`CertifyError::Unimplemented`, and PR 2418 pins exactly that.
+
+It lands on SHELL because `crates/topo/src/transform.rs` is yours by
+`paths`, and because your slate already holds this row's siblings:
+`transform-rigid-refuses-approx-face` (the Approx arm of the same two
+matches, which FIX's `keep_out` named as yours) and
+`no-approx-faced-body-is-both-movable-and-valid`.
+
+**Three options, none pre-empted.** Ev was offered the ruling in chat on
+2026-09-20 and sent it here instead: (1) a `transform_rigid_certified`
+convenience door, which needs a compound-bound **ratification** in
+`crates/geom-core/src/real.rs` — PROPS's ground, and Ev's call, not a
+lane's; (2) signpost at the plain door, naming `transform_rigid_via`
+there — check whether 2418 already did this before assuming it did not;
+(3) decide the asymmetry is correct and say so once, which is 2418's own
+argument and closes the row with a sentence.
+
+**Why the parent item's prescribed fix is unavailable**, established by
+2418 rather than assumed: raising the bound to `T: Decide + CertifiedBounds`
+does not compile — `transform_rigid`'s caller chain runs through
+`verbs::Verb`'s blanket impl to `evaluate::<Dual64>`, and no `Dual`
+implements `CertifiedEnclosure` — **and** it would violate the
+discriminator Ev ratified on 2026-08-29 and recorded at `real.rs:1140`:
+*"the discriminator is that nothing generic calls this door"*.
+
+Its sibling at the other door, `graft-recertifies-through-the-narrow-lane`
+(`boolean/combine.rs`, `T: Decide`, reachability NOT established), went to
+REACH in the same sweep. Whichever of you rules first, the other should
+read that ruling rather than re-derive it.
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your ground:** `crates/geom-brep/src/offset_meters.rs`, which
+territory names as ENCL'"'"'s, OFFSET'"'"'s and SHELL'"'"'s together.
+`MeterError::NormalFloor` and `CurvatureHeadroom` gained repairs — the
+floor-of-exactly-zero case now says to split the face clear of the
+degeneracy, and points at `OFFSET_METER_LADDER` for the regular-patch
+case, on that constant'"'"'s own sentence that the refusal names the
+numbers "so that consumer will know". `Escalated` is unchanged in shape
+and asserted transitively at all three `MarginDiag` arms.
+
+Signed (FIX orchestrator).
+
+## 2026-09-25 — note from S-DUP: #3151 edited `offset_together.rs`
+
+S-DUP's PR #3151 (merged) touched shell's ground in
+`crates/topo/src/offset_together.rs`: `Scope`'s doc now states the
+setters' cost as the code has it under `begin_surgery()` and cites
+`topo::separation::SolidOwners` as the other owner index (they agree on
+every tier-1 body; `separation::owner_index` reds if they stop), and
+`scope_walks` absorbed the two rows of the deleted
+`crates/topo/src/shell10_r2_probes.rs`. No behaviour of the offset door
+changed. The row that asked for this is
+`work/dup/two-spellings-of-the-face-to-solid-owner-index.md` (closed).
+
+Signed (S-DUP orchestrator).
+
+- 2026-09-28 — Seam note from ENCL: PR 3332 (`encl/rigid-map-approx-headroom`) edits `crates/topo/src/transform.rs`'s `map_approx`. When a rotated Approx face's limb check refuses and the original face certifies in its own frame, `map_approx` now re-fits the mapped description through `OffsetFitLane::mint` at the same ε instead of refusing. Every map that succeeded before still ships the image bit for bit. Residues filed on encl: the 1e-12 re-fit stall, and the edge/meter refusals a re-fit cannot answer. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3351 (merged `e39a5c4cc4`) routes certification refusals per D4 ¶1 as Ev ruled on PR 3352. Recourse belongs to the decision (`CertCheck::ending()`, one table) and the reading belongs to the door: `geom_brep::certify::recourse(check, RefusedArm, Reading::{Build, AtRest, Adopt})`. `CertifyError`/`PlaneNurbsRefusal` `Display` is now payload-only. Each door appends `ending(reading)`. The `certification: ` prefix is gone. `transform.rs`: `TransformError::Certify` appends the Build-reading ending. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". `offset_meters.rs` (shared claim): meter refusals end in their decision's recourse; the Shell route's zero-floor row is 74 words. `transform.rs`: `Reading` path only. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3392 (merged `277dcb052b`) splits certify's conflated Zero/Negative verdicts: `IntervalNotForward { verdict }`, `WindingExceeded` routed as sign-certain, the tangent tube as its own `CertifyError::TubeNotSeparated` (`CertCheck::TangentTube`, lever alone at every reading), and `TubeStraddles { verdict: Refused }`. `RefusedArm::ZeroOrNegative` is deleted; `geom_brep::recourse` now holds `Refused` and `Definite`. A zero span stays a defect at every reading (Ev, e1600790f9). `offset_meters.rs`: `Refused` moved to `geom_brep::recourse` (import path only). (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3390 (merged `719ef596a1`). The shell volume-sign decision is sized (`geom_brep::recourse::SizedPass::NonZero`, the offer valued at |m|/K). `ShellClassifyError` gains a `Straddles` arm and a `payload()` data view, and its `Display` ends in its decision's one ending. `recourse::UNREADABLE_MARGIN_NOTE` is the shared unreadable-margin sentence. `ShellError::Roles` now renders exactly one recourse through `ShellClassifyError`'s Display. The row `shell-roles-refusal-ends-with-no-recourse` was deleted as moot. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+- 2026-09-29 — Seam note from ORIGIN: PR 3430 (Ev's re-ruling on PR 3412: a chart is body-wide) rewired the shell door to group each solid's own faces through `topo::chart_groups::ChartGroups`; `ShellError::ChartSpansSolids` retired, `ChartSenseMixed` and `OpenFaceChartPartial` now scoped to one solid, and `replace_faces_offset`'s `SharedSurfaceKey` to the group's solid. SHELL-8's disconnecting-subtract slab, moved to two solids, now thickens. (ORIGIN orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `sweep/tests/verbs_shell.rs`, `topo/src/offset_axial.rs`, `topo/src/offset_together.rs`, `topo/src/replace_face.rs`, `topo/src/shell.rs`. `offset_axial.rs`, `offset_together.rs` and `replace_face.rs` state each re-charted face's own bit (the door kept it before); `shell.rs`'s rim glue states the host's bit in its `mfkrh` spec and its post-hoc `set_face_sense` is gone; `sweep/tests/verbs_shell.rs`'s mixed-sense row states the inner wall's own `false` so the chart stays mixed. (TOPO implementer)

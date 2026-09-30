@@ -9,18 +9,8 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# Forwards geom-core's certified interval scalar so the workspace-wide
-# `--features interval` lane builds uniformly. Tessellation itself is
-# f64-only by ratified judgment call (display/export operation — see the
-# crate docs); the feature only propagates to dependencies.
-interval = [
-    "geom-core/interval",
-    "geom-brep/interval",
-    "topo/interval",
-]
 # Forwards geom-core's K-telemetry recording scalar so the
-# workspace-wide `--features probe` lane builds uniformly. Same shape
-# and same reason as the `interval` row above; see geom-core's manifest
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).
@@ -52,7 +42,7 @@ probe = [
 # the lane does between them. `demo-tour tess-budget` is the consumer
 # (via pncad's forward of the same name).
 #
-# Its own CI row (`mesh budget meter`, ci.yml + ci-local.sh) runs
+# Its own CI row (`mesh budget meter`, ci.yml) runs
 # clippy and the suite here, because the default rows exercise the
 # INERT half. That row also carries the per-triangle certificate
 # falsifier, whose measurements this feature is what produces.
@@ -100,6 +90,9 @@ sweep = { path = "../sweep", features = ["test-support"] }
 # same reason as `step-export`'s and `step-import`'s edges onto the same
 # door.
 topo = { path = "../topo", features = ["test-support"] }
+# `test-support` ON: the key rows' one fixture of every analytic kind is
+# `geom::test_support`'s. Dev-only, like the edges above.
+geom = { path = "../geom", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

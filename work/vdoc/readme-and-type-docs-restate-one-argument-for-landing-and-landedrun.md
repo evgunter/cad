@@ -4,6 +4,8 @@ kind: issue
 title: the README/type-doc double statement one-argument-for-outstanding found is also true of LandedRun, and nothing declares either a copy
 status: open
 opened: 2026-09-06
+priority: P4
+cost: E
 ---
 
 

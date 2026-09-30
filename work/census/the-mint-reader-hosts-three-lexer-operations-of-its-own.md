@@ -4,6 +4,8 @@ kind: issue
 title: the errors mint reader hosts three lexer operations inside a consumer, one of them the inverse of a shared one
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

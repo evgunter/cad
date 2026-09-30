@@ -4,6 +4,8 @@ kind: issue
 title: The document-parameter edit doors drop the dimension the Python payload carries
 status: open
 opened: 2026-09-16
+priority: P3
+cost: D
 ---
 
 ## Finding

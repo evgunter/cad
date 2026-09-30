@@ -4,6 +4,8 @@ kind: issue
 title: The entity door's kind is unforgeable but the key it is read off is the caller's, so a road can still refuse about the wrong entity
 status: open
 opened: 2026-09-13
+priority: P1
+cost: D
 ---
 
 

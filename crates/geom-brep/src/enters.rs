@@ -200,16 +200,7 @@ pub fn enters_material<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
-    match decide("enters_material_arm", Margin::of(arm), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("enters_material_arm"),
-            });
-        }
-    }
+    decide_positive("enters_material_arm", Margin::of(arm), band)?;
     let margin = Margin::levered(dir.normalize().dot(outward_normal.vec()), arm);
     Ok(match decide("enters_material", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
@@ -261,16 +252,7 @@ pub fn enters_material_order2<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
-    match decide("tangent_sector_order2_arm", Margin::of(arm), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("tangent_sector_order2_arm"),
-            });
-        }
-    }
+    decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)?;
     let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
     Ok(match decide("tangent_sector_order2", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
@@ -287,6 +269,19 @@ fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
+}
+
+/// The collapsed-arm gate through the same funnel
+/// ([`geom_core::k_stats::decide_positive`]): the lever arm this file's
+/// sector predicates meter against must classify definitely positive,
+/// and a definite `Zero` escalates as the funnel's own indeterminacy
+/// rather than one minted here.
+fn decide_positive<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_positive(name, margin, band)
 }
 
 #[cfg(test)]

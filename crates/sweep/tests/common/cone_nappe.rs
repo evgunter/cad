@@ -14,12 +14,12 @@
 //! in `sf2b_r2_probes` is a second derivation that must not come here;
 //! [`super::orient`]'s facing probe is a check of a body's
 //! orientation, not of a chart's nappe, and neither reads the other;
-//! `revolve_common` keeps `p2` and the revolve vocabulary at large,
-//! and this module builds on it rather than restating it.
+//! `revolve_common` keeps the revolve vocabulary at large, and this
+//! module builds on it rather than restating it.
 
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey};
 
@@ -32,18 +32,12 @@ pub const R_WIDE: f64 = 4.0 / 64.0;
 /// Their narrow radius.
 pub const R_NARROW: f64 = 2.0 / 64.0;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A full revolve of the meridian through `pts` about `+y`.
 pub fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(
-            pts.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
+        vec![bulge_loop(
+            pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect(),
         )],
     )
     .validate(Tol::witness())
@@ -51,7 +45,7 @@ pub fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -128,25 +122,6 @@ pub fn stations(body: &Body<f64>, face: FaceKey) -> Vec<f64> {
         .collect()
 }
 
-/// One `ChartMove` per surface key: the axial door names every face of
-/// the body, and a chart is moved once however many bands wear it.
-pub fn chart_moves(body: &Body<f64>, d: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for (k, f) in body.faces() {
-        match moves
-            .iter_mut()
-            .find(|m| body.get_face(m.faces[0]).unwrap().surface == f.surface)
-        {
-            Some(m) => m.faces.push(k),
-            None => moves.push(topo::ChartMove {
-                faces: vec![k],
-                distance: d,
-            }),
-        }
-    }
-    moves
-}
-
 /// Re-attach every face of `group` to one cone whose apex sits at
 /// `apex_y` on the axis, keeping the axis, half-angle and `u_ref` the
 /// group already wears. The bodies this makes are geometric nonsense —
@@ -169,10 +144,16 @@ pub fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Su
         u_ref,
     };
     let key = body
-        .set_face_surface(group[0], topo::FaceSurface::New(moved.clone()))
+        .set_face_surface(
+            group[0],
+            topo::FaceSurface::New {
+                surface: moved.clone(),
+                sense: true,
+            },
+        )
         .expect("the face takes a re-anchored cone");
     for &other in &group[1..] {
-        body.set_face_surface(other, topo::FaceSurface::Shared(key))
+        body.set_face_surface(other, topo::FaceSurface::Shared { key, sense: true })
             .expect("its neighbours share it");
     }
     moved

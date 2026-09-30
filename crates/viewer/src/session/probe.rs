@@ -239,7 +239,10 @@ fn probe_edit(
         BoundsTarget::Slot { node, slot } => props::slot_edit(
             *node,
             *slot,
-            SlotValue::of(slot.dimension(), value),
+            // A sample the slot's dimension cannot carry is a sample
+            // that cannot be expressed there, which is this door's own
+            // `None` rather than a second kind of refusal.
+            SlotValue::of(slot.dimension(), value).ok()?,
             props::slot_unit(doc, *node, *slot),
         )
         .ok(),
@@ -252,7 +255,7 @@ fn probe_edit(
             let dimension = doc.params().get(name)?.dim();
             Some(props::param_edit(
                 name.clone(),
-                SlotValue::of(dimension, value),
+                SlotValue::of(dimension, value).ok()?,
             ))
         }
     }

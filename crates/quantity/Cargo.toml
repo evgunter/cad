@@ -14,5 +14,11 @@ workspace = true
 # the one home that serves both is a leaf crate with no dependencies.
 [dependencies]
 
+# The leaf property above is about what a DEPENDENT of this crate
+# carries, and `[dev-dependencies]` is not that: nothing here is
+# compiled into a build of any consumer, nor into the wheel, whose
+# closure follows normal edges only. `test-utils` is itself a
+# zero-dependency leaf and is where the F6 display predicate lives.
 [dev-dependencies]
 proptest = { workspace = true }
+test-utils = { path = "../test-utils" }

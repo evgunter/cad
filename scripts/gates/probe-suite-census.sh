@@ -54,7 +54,7 @@
 #      feature = "X")` compiles depends on the crate's manifest, not on
 #      the gate: `crates/{topo,sweep}/Cargo.toml` carry SELF
 #      DEV-DEPENDENCIES enabling `test-support` and `sweep-testing`, so
-#      those gates DO compile, while `interval` and `budget` do not. Nor
+#      those gates DO compile, while `budget` does not. Nor
 #      can a line-reader tell `all` from `any`, or a required feature from
 #      a negated one. So this half is BEHAVIOURAL: `--check-listing` reads
 #      what the compiler built.
@@ -65,8 +65,8 @@
 # deciding half therefore keeps `--root` and a `--selftest` whose fixture
 # is TEXT, not a compilable workspace — which is why it costs no fixture
 # build. It was adopted on correctness: it is the only mechanism that
-# accepts a `test-support` gate and refuses an `interval` one, both
-# checked by planting.
+# accepts a `test-support` gate and refuses one on a feature the probe
+# loop does not enable, both checked by planting when it was adopted.
 #
 # ITS COST IS SMALL, AND BOUNDED RATHER THAN KNOWN. The marginal is the
 # link `--test all -- --list` needs, which the sweep two steps later pays
@@ -189,10 +189,12 @@ RUN_FLOOR=(
   ignored:editor-core:m10_3_driver_k_probe_interval:1
   ignored:editor-core:m4_pr8_k_probe:1
   ignored:sweep:k_report:1
+  plain:editor-core:assemble_one_local_battery:1
   plain:editor-core:m10_3_driver_k_probe_interval:1
   plain:editor-core:m10_p_fence:2
   plain:editor-core:m4_pr8_k_probe:1
   plain:editor-core:m5_pr5_corpus_probe:1
+  plain:editor-core:parallel_node_map_probe:1
   plain:geom-brep:m8_f67_r1_probes:8
   plain:geom-brep:rim_dim_review_probes:2
   plain:geom-brep:rim_dim_scale_twins:6
@@ -201,6 +203,7 @@ RUN_FLOOR=(
   plain:geom-core:k_stats_doors:2
   plain:geom-core:m10_7_r1_retag_probe:1
   plain:geom-core:m10_7_r2_sym_probes:18
+  plain:geom-core:sym11_witness_kind_rows:6
   plain:mesh:k_funnel_composition:2
   plain:profile:review_m2_pr2_probe:2
   plain:profile:review_s2_probe:1
@@ -208,20 +211,23 @@ RUN_FLOOR=(
   plain:profile:validate_ok_probe:1
   plain:sweep:contact_edge_must_carry:6
   plain:sweep:k_report:0
-  plain:sweep:mass_props_are_thread_count_invariant:4
   plain:sweep:must_carry_rule:10
+  plain:sweep:r1_lane0_e2e:2
   plain:sweep:review_chamfer_r1_probes:7
   plain:sweep:review_contact_edge_must_carry_r1_probes:5
   plain:sweep:review_contact_edge_must_carry_r2_probes:6
   plain:sweep:review_must_carry_rule_r1_probes:4
   plain:sweep:review_fillet_e1_probes:4
   plain:sweep:review_ring_clearance_r1_probes:7
-  plain:sweep:shell_census_is_thread_count_invariant:4
+  plain:sweep:sym11_far_placement_rows:3
+  plain:sweep:thread_count_probe_populations:2
+  plain:topo:lane0_r2_probes:6
   plain:topo:probe_census:1
   plain:topo:probe_s5_sectors:1
   plain:topo:review_m3_pr2:9
   plain:topo:rim_dim_boolean_twins:1
   plain:topo:rim_dim_review_probes:2
+  plain:topo:stated_general_image_mint:11
 )
 
 # EVERY CENSUSED SUITE DECLARES WHICH SIDE IT IS ON. What the executed
@@ -262,13 +268,8 @@ SWEEP_CHECK_RE='probe-suite-census\.sh[^|]*--check-executed'
 # false, and a claim citing a mechanism nobody checks is how the
 # sentences this gate now guards came to be wrong in the first place.
 #
-# THIS HALF IS SITED IN THE `mirror` JOB (`--citations`), NOT IN
-# `discipline`. Its inputs are prose — two crate headers, the K-REPORT
-# runbook, and the local half — and a change set that touches only those
-# classifies TIER=docs, so `discipline` is skipped and this half could
-# not fire on the only change class that breaks it. `mirror` has no
-# `if:`, so it runs on every tier, and it does not prune
-# `local-scripts/`, so the local half's citation is readable there too.
+# THIS HALF (`--citations`) RUNS IN NO CI JOB. Its inputs are prose —
+# two crate headers and the K-REPORT runbook — and it runs by hand.
 CITED_STEP='compile and list every probe-gated test target'
 
 # LIVE CLAIMS. Each of these says, in the present tense, what CI does to
@@ -277,7 +278,6 @@ CITING_FILES=(
   crates/topo/tests/probe_s5_sectors.rs
   crates/sweep/tests/k_report.rs
   docs/K-REPORT.md
-  local-scripts/ci-local.sh
 )
 
 # NOT LIVE CLAIMS, and the reason this list exists at all. A dated scan
@@ -331,7 +331,7 @@ CITATION_EXEMPT=(
 # (`ci-filter.py`), so what this pins is that the row is SCOPED BY THE
 # FILTER rather than hand-pinned — not that every crate is linted on
 # every run. A new suite lands in its own crate's scope either way.
-CLIPPY_ROW_RE='cargo clippy .*cargo_scope.*--all-targets.*-D warnings'
+CLIPPY_ROW_RE='cargo clippy .*(cargo_scope|\$SCOPE).*--all-targets.*-D warnings'
 # The other way to re-open the hole: silence the lint at the site.
 CFG_LINT_SILENCED_RE='(allow|expect)\(unexpected_cfgs\)|unexpected_cfgs[[:space:]]*=[[:space:]]*"allow"'
 
@@ -671,7 +671,7 @@ gate() {
         done
     )
     if [ -n "$missing" ]; then
-      gate_error "$(gate_name): $CENSUS_LISTING counts these as probe suites, but \`--features probe\` built no test from them: $missing. The census reads the gate LINE; a gate can be spelled correctly and still be true under no configuration CI runs — a second feature the probe loop does not enable (\`interval\`, \`budget\`; \`test-support\` and \`sweep-testing\` ARE enabled, by the crate's self dev-dependency), or a non-feature condition false on every runner. Fix the gate, give the suite a test, or stop counting the file"
+      gate_error "$(gate_name): $CENSUS_LISTING counts these as probe suites, but \`--features probe\` built no test from them: $missing. The census reads the gate LINE; a gate can be spelled correctly and still be true under no configuration CI runs — a second feature the probe loop does not enable (\`budget\`; \`test-support\` and \`sweep-testing\` ARE enabled, by the crate's self dev-dependency), or a non-feature condition false on every runner. Fix the gate, give the suite a test, or stop counting the file"
       exit 1
     fi
     GATE_SCAN_FILES=$(printf '%s\n' "$suites" | awk -F'\t' -v c="$CENSUS_LISTING" '$1==c' | wc -l | tr -d ' ')
@@ -770,8 +770,7 @@ gate() {
     # `unexpected_cfgs`. That only fails a run where the workspace clippy
     # row still denies warnings over all targets, so the row is checked
     # rather than assumed.
-    # MATERIALISED, NOT PIPED, for the reason `gate-roster.sh`'s header
-    # records: `grep -q` exits on its first match, SIGPIPEs the upstream
+    # MATERIALISED, NOT PIPED: `grep -q` exits on its first match, SIGPIPEs the upstream
     # `grep -v`, and `pipefail` calls the whole pipeline failed. Which
     # side wins is a race — this passed locally on a six-line fixture and
     # fired against a correctly wired ci.yml on the first hosted run.

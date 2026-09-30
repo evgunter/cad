@@ -4,6 +4,8 @@ kind: issue
 title: MODEL-AB-LOG: C5A2's row claims sample #143, taken by SEATFW which reached main first (merge order rules)
 status: open
 opened: 2026-09-05
+priority: P4
+cost: E
 ---
 
 

@@ -105,7 +105,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
     let vertex = links.vertex();
     // The caller walked this vertex's edge orbit successfully, which
     // proves the orbit half of this walk; the `parent_loop` deref
-    // `vertex_faces` adds is a stored reference nothing here proves.
+    // `Body::faces_of_vertex` adds is a stored reference nothing here proves.
     // The valence the corner derivation needs is the FACE orbit's; on a
     // manifold body it is the edge valence the door checked, and a
     // disagreement is itself the refusal.
@@ -214,8 +214,7 @@ fn chamfer_feet<T: Decide + Bounds>(
         let (Some(first), Some(second)) = (on_face.next(), on_face.next()) else {
             return Err(unbuilt_run_out(
                 EntityId::Face(face),
-                "a corner's support does not carry two requested edges; run-outs at such \
-                 corners are not implemented",
+                "a corner's support does not carry two requested edges",
             ));
         };
         let (o1, d1) = first?;
@@ -473,8 +472,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
         if struts_here.len() != 3 {
             return Err(unbuilt_run_out(
                 EntityId::Vertex(vertex),
-                "a corner did not receive a strut on each of three distinct supports; \
-                 run-outs at such corners are not implemented",
+                "a corner did not receive a strut on each of three distinct supports",
             ));
         }
         let mut spur: Option<EdgeKey> = None;
@@ -524,6 +522,12 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
         } else {
             hp
         };
+        // A spur's far vertex has valence one, so the keys-only kill
+        // merges no fan.
+        debug_assert!(
+            body.kev_merged_members(dying).is_ok_and(|m| m.is_empty()),
+            "corner kev: the spur's far vertex has valence one"
+        );
         body.kev(dying).map_err(|e| op("corner kev", e))?;
         // The corner patch is whatever face the first arc's non-blend
         // half now bounds.

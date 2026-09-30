@@ -4,6 +4,8 @@ kind: issue
 title: The repo has four Cargo workspaces plus tools/tess-meter and no local script builds them all, so a signature change sweeps crates/ and reaches hosted CI red from demos/
 status: open
 opened: 2026-09-06
+priority: P4
+cost: E
 ---
 
 
@@ -15,11 +17,14 @@ four Cargo workspaces, and `tools/tess-meter` a fifth root; hosted CI
 builds them all, and no local script does. A lane changing a public
 signature (MSOLVE-3's `Frame::rotate_then_translate` gaining a band
 and a `Result`) swept `crates/`, went green locally, and reached hosted
-CI red on `demos/tour/src/assembly.rs`. `local-scripts/ci-local.sh`
-is the natural home for a "every root" build, or a `--all-roots`
-mode on `test-fast.sh`; until then every signature sweep is a grep
-over `crates/ benches/ demos/ tools/`, and the discipline doc could
-say so.
+CI red on `demos/tour/src/assembly.rs`. A `--all-roots` mode on
+`local-scripts/test-fast.sh` is the natural home for an "every root"
+build; until then every signature sweep is a grep over
+`crates/ benches/ demos/ tools/`, and the discipline doc could say so.
+The per-PR gate builds `demos/` and `tools/` only when the diff
+touches them, so a crate-only signature change reaches those roots in
+the nightly, not on its own PR, and a local build is the only place
+the break can show before merge.
 
 ## Re-homed to CITE (2026-09-11, the cut in `docs/WORK-TRACKS-2026-09.md` addendum 3)
 
@@ -37,8 +42,8 @@ one, and the body above are unchanged by the move.
 ## Re-homed to CIW (2026-09-12, by the CITE orchestrator)
 
 **CIW's by territory and by the row's own words.** The fix lands in
-`local-scripts/ci-local.sh` or a `--all-roots` mode on
-`test-fast.sh`, and `local-scripts/*` is CIW's `paths`. CITE's
+a `--all-roots` mode on `test-fast.sh`, and `local-scripts/*` is CIW's
+`paths`. CITE's
 `keep_out` already said so — *the two local-script rows are announced
 there and CIW may simply take them* — and this is that announcement made
 as a move, since CITE never started the row and holds no work on it.

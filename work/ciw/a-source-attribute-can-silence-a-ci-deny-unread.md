@@ -4,13 +4,14 @@ kind: issue
 title: a source-level allow can return a denying CI row to what it was, and nothing reads for it
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 
 Filed from PR 2326, which turned `ci.yml`'s viewer wasm32 row into a
 `-D warnings` clippy row. The row is real and it reds — but one line of
-Rust returns it to what it was, and no gate in either half reads for
-that line.
+Rust returns it to what it was, and no gate reads for that line.
 
 ## Measured
 
@@ -44,14 +45,14 @@ be spelled as one.
 ## The class, not the instance
 
 The row this was measured on is only the newest member. Every `-D
-warnings` row in `ci.yml` and `local-scripts/ci-local.sh` is silenceable
+warnings` row in `ci.yml` and `nightly.yml` is silenceable
 the same way, in the crate it lints; the wasm row is merely the one
 whose whole subject is code no human reads on a normal day, which is
 where an unexplained `allow` is least likely to be noticed in review.
 
 ## Not obviously CIW's to fix
 
-The reader would live in `scripts/gates/`, which is GATES' program, so
+The reader would live in `scripts/gates/`, which is GUARD's (`work/guard/`), so
 widening `CFG_LINT_SILENCED_RE`'s subject — or adding a sibling — is
 announced there rather than taken here (this program's `keep_out`).
 CIW's half is whatever workflow wiring such a reader needs. Two shapes

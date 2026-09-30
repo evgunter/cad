@@ -17,7 +17,7 @@
 //!   [`KnotVector::find_span`] — at a knot value, the span *starting*
 //!   there; last span closed. One span, always.
 //! - **`Probe`**: via its `f64` (it *is* an `f64` with a recorder).
-//! - **`Interval`** (feature `interval`): the inclusive hull of the
+//! - **`Interval`**: the inclusive hull of the
 //!   spans overlapped by `[lo, hi]` — sound containment (evaluating
 //!   every overlapped span's polynomial extension over the box and
 //!   hulling contains the true image; each span's extension agrees
@@ -54,7 +54,6 @@ pub(crate) mod sealed {
     impl Sealed for crate::k_stats::Probe {}
     impl<T: Sealed> Sealed for crate::dual::Dual<T> {}
     impl<T: Sealed> Sealed for crate::sym::Sym<T> {}
-    #[cfg(feature = "interval")]
     impl Sealed for crate::interval::Interval {}
 }
 

@@ -4,6 +4,8 @@ kind: issue
 title: the container ships ruff 0.15.8 against a 0.16.1 pin, so the python-lint row skips for every lane
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 Placed by the orchestrator from CIW unit 4's style review
@@ -50,12 +52,9 @@ could not run is red.
 on exactly this row, for exactly this reason. The lane recorded it
 honestly; it cost a round trip.
 
-It is also the shape this program has spent three slates on — **a guard
-that reports the same thing whether it ran or not** — one level out. The
-difference from `nightly-demotions-have-never-run` and
-`opt-level-selftest-runs-nowhere` is that here the row DOES run on the
-gate of record, so nothing reaches `main` broken. What is lost is the
-local half, silently, for everyone.
+The row DOES run on the gate of record (`ci.yml`'s `lint` job), so
+nothing reaches `main` broken. What is lost is the local check,
+silently, for everyone.
 
 ## Shapes
 
@@ -88,3 +87,7 @@ is 3.11 against a 3.12 pin, which the hook works around by naming
 `/usr/bin/python3.12` rather than by installing). A sweep of "what the
 image ships vs what `ci.yml` pins" has not been taken and is the thing
 that would say whether `ruff` is one instance or a class.
+
+## Re-homed to CIW (2026-09-28)
+
+Moved from MIRROR when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.

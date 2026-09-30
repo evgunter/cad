@@ -4,6 +4,8 @@ kind: issue
 title: PCURVE-P2-SPEC says edge_nurbs THROWS IT AWAY; the image is the certificate's input and the advice it gives was already taken
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 

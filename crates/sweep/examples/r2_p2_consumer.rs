@@ -22,13 +22,13 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 use topo::{Body, FaceSurface, Pcurve};
 
 fn prism(scale: f64) -> Body<f64> {
     let square = move || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![profile::ProfileLoop::new(vec![
+        let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+        vec![bulge_loop(vec![
             v(-scale, -scale),
             v(scale, -scale),
             v(scale, scale),
@@ -135,11 +135,14 @@ fn main() {
     let plane = body
         .set_face_surface(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -SCALE, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -SCALE, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("flat wall restates as a plane");
     body.set_edge_curve_nurbs_lane(
@@ -167,7 +170,13 @@ fn main() {
     let widened = widened_u_chart(&old_chart);
     let bowed_face = body.faces().find(|(_, f)| f.surface == bowed).unwrap().0;
     let new_key = body
-        .set_face_surface(bowed_face, FaceSurface::New(widened))
+        .set_face_surface(
+            bowed_face,
+            FaceSurface::New {
+                surface: widened,
+                sense: true,
+            },
+        )
         .expect("rechart");
     let chart = match body.get_surface(new_key) {
         Some(Surface::Nurbs(n)) => n.as_ref().clone(),
@@ -248,6 +257,7 @@ fn main() {
                 None,
                 window,
                 band,
+                <f64 as topo::AtRestPolicy>::fitted_lane(),
             );
             println!(
                 "Q2  certify_general(mate = what mint_face supplies) -> {:?}",
@@ -267,6 +277,7 @@ fn main() {
                 Some(&plane_surf),
                 window,
                 band,
+                <f64 as topo::AtRestPolicy>::fitted_lane(),
             );
             println!(
                 "Q2  certify_general(mate = hand-picked plane)        -> {}",
@@ -369,6 +380,7 @@ fn main() {
                         mate,
                         window,
                         band,
+                        <f64 as topo::AtRestPolicy>::fitted_lane(),
                     )
                 }
                 other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
@@ -424,6 +436,7 @@ fn main() {
                         None,
                         window,
                         band,
+                        <f64 as topo::AtRestPolicy>::fitted_lane(),
                     ),
                 ),
                 other => (

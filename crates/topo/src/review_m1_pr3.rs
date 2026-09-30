@@ -34,6 +34,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::EulerCounts;
+use crate::fixtures::assert_err_deep_unchanged;
 use crate::readback::euler_counts;
 use crate::test_support_fixtures::{FaceGeometry, prism_ops};
 use crate::{
@@ -103,19 +104,6 @@ fn snapshot(body: &Body<f64>) -> Vec<String> {
         lines.push(format!("{k:?}:{e:?}"));
     }
     lines
-}
-
-/// Assert `op` fails with exactly `expected` and the body is deeply
-/// untouched.
-fn assert_err_unchanged(
-    body: &mut Body<f64>,
-    expected: &EulerOpError,
-    op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
-) {
-    let before = snapshot(body);
-    let err = op(body);
-    assert_eq!(&err, expected);
-    assert_eq!(snapshot(body), before, "body changed on Err");
 }
 
 fn starts(body: &Body<f64>, he: HalfEdgeKey) -> Vec<VertexKey> {
@@ -493,7 +481,6 @@ fn carve_hole(
 #[test]
 fn independent_genus_one_and_two_builds_with_hand_ledger() {
     let tol = Tol::witness();
-    let pt = Point3::new;
     let mut body = Body::<f64>::new();
     let b = build_box(&mut body, tol);
     let mut l = EulerCounts {
@@ -514,8 +501,16 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         he_front_ab,
         b.f_front.face,
         b.f_back.face,
-        &[pt(0.5, 0.0, 0.5), pt(1.5, 0.0, 0.5), pt(1.0, 0.0, 1.5)],
-        &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
+        &[
+            Point3::new(0.5, 0.0, 0.5),
+            Point3::new(1.5, 0.0, 0.5),
+            Point3::new(1.0, 0.0, 1.5),
+        ],
+        &[
+            Point3::new(0.5, 2.0, 0.5),
+            Point3::new(1.5, 2.0, 0.5),
+            Point3::new(1.0, 2.0, 1.5),
+        ],
         &mut l,
         0,
         tol,
@@ -570,16 +565,16 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         b.seed.face,
         b.f_bottom.face,
         &[
-            pt(0.5, 0.5, 2.0),
-            pt(1.5, 0.5, 2.0),
-            pt(1.5, 1.5, 2.0),
-            pt(0.5, 1.5, 2.0),
+            Point3::new(0.5, 0.5, 2.0),
+            Point3::new(1.5, 0.5, 2.0),
+            Point3::new(1.5, 1.5, 2.0),
+            Point3::new(0.5, 1.5, 2.0),
         ],
         &[
-            pt(0.5, 0.5, 0.0),
-            pt(1.5, 0.5, 0.0),
-            pt(1.5, 1.5, 0.0),
-            pt(0.5, 1.5, 0.0),
+            Point3::new(0.5, 0.5, 0.0),
+            Point3::new(1.5, 0.5, 0.0),
+            Point3::new(1.5, 1.5, 0.0),
+            Point3::new(0.5, 1.5, 0.0),
         ],
         &mut l,
         1,
@@ -708,8 +703,16 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         he_front_ab2,
         b2.f_front.face,
         b2.f_back.face,
-        &[pt(0.5, 0.0, 0.5), pt(1.5, 0.0, 0.5), pt(1.0, 0.0, 1.5)],
-        &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
+        &[
+            Point3::new(0.5, 0.0, 0.5),
+            Point3::new(1.5, 0.0, 0.5),
+            Point3::new(1.0, 0.0, 1.5),
+        ],
+        &[
+            Point3::new(0.5, 2.0, 0.5),
+            Point3::new(1.5, 2.0, 0.5),
+            Point3::new(1.0, 2.0, 1.5),
+        ],
         &mut l2,
         0,
         tol,
@@ -723,16 +726,16 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         b2.seed.face,
         b2.f_bottom.face,
         &[
-            pt(0.5, 0.5, 2.0),
-            pt(1.5, 0.5, 2.0),
-            pt(1.5, 1.5, 2.0),
-            pt(0.5, 1.5, 2.0),
+            Point3::new(0.5, 0.5, 2.0),
+            Point3::new(1.5, 0.5, 2.0),
+            Point3::new(1.5, 1.5, 2.0),
+            Point3::new(0.5, 1.5, 2.0),
         ],
         &[
-            pt(0.5, 0.5, 0.0),
-            pt(1.5, 0.5, 0.0),
-            pt(1.5, 1.5, 0.0),
-            pt(0.5, 1.5, 0.0),
+            Point3::new(0.5, 0.5, 0.0),
+            Point3::new(1.5, 0.5, 0.0),
+            Point3::new(1.5, 1.5, 0.0),
+            Point3::new(0.5, 1.5, 0.0),
         ],
         &mut l2,
         1,
@@ -755,7 +758,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
 /// v0–v1–…–vn in one loop, cycle [e0+ … e(n−1)+ e(n−1)− … e0−].
 fn chain(n: usize, tol: Tol) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let mut es = Vec::new();
     let first = body
         .mev_line(
@@ -1013,9 +1016,9 @@ fn kemr_anchor_collision_input_is_tier1_invalid_and_typed() {
         "self-loop segment must be tier-1-invalid"
     );
     let expected = EulerOpError::EmptyAnchorsCollide { vertex: v };
-    assert_err_unchanged(&mut body, &expected, |b| b.kemr(h1, h2).unwrap_err());
+    assert_err_deep_unchanged(&mut body, &expected, |b| b.kemr(h1, h2).unwrap_err());
     // Swapped arguments: same collision.
-    assert_err_unchanged(&mut body, &expected, |b| b.kemr(h2, h1).unwrap_err());
+    assert_err_deep_unchanged(&mut body, &expected, |b| b.kemr(h2, h1).unwrap_err());
 }
 
 // ---------------------------------------------------------------------
@@ -1564,7 +1567,7 @@ fn kemr_error_paths_are_atomic() {
     let tol = Tol::witness();
     // NotSameEdge: same key twice.
     let (mut body, _seed, es) = chain(2, tol);
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::NotSameEdge {
             he1: es[0].he_plus,
@@ -1573,7 +1576,7 @@ fn kemr_error_paths_are_atomic() {
         |b| b.kemr(es[0].he_plus, es[0].he_plus).unwrap_err(),
     );
     // NotSameEdge: halves of different edges.
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::NotSameEdge {
             he1: es[0].he_plus,
@@ -1584,7 +1587,7 @@ fn kemr_error_paths_are_atomic() {
     // NotSameEdge: corrupt bijection (edge does not claim its half).
     let (mut body, _seed, es) = chain(2, tol);
     body.get_edge_mut(es[1].edge).unwrap().he_plus = es[0].he_plus;
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::NotSameEdge {
             he1: es[1].he_plus,
@@ -1603,7 +1606,7 @@ fn kemr_error_paths_are_atomic() {
         tol,
     )
     .unwrap();
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::NotSameLoop {
             he1: seg.he_plus,
@@ -1614,7 +1617,7 @@ fn kemr_error_paths_are_atomic() {
     // StaleKey (half-edge argument).
     let (mut body, _seed, es) = chain(2, tol);
     let dead = HalfEdgeKey::default();
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::HalfEdge(dead),
@@ -1628,7 +1631,7 @@ fn kemr_error_paths_are_atomic() {
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
     body.get_half_edge_mut(es[0].he_plus).unwrap().parent_loop = ring;
     body.get_half_edge_mut(es[0].he_minus).unwrap().parent_loop = ring;
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::LoopNotCycle { r#loop: ring },
         |b| b.kemr(es[0].he_plus, es[0].he_minus).unwrap_err(),
@@ -1636,7 +1639,7 @@ fn kemr_error_paths_are_atomic() {
     // LoopCycleBroken: self-linked next skips he2 (corrupt).
     let (mut body, seed, es) = chain(2, tol);
     body.get_half_edge_mut(es[1].he_plus).unwrap().next = es[1].he_plus;
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::LoopCycleBroken {
             r#loop: seed.r#loop,
@@ -1684,7 +1687,7 @@ fn kemr_error_paths_are_atomic() {
     // StaleKey on a start vertex (corrupt half-edge).
     let (mut body, _seed, es) = chain(2, tol);
     body.get_half_edge_mut(es[1].he_plus).unwrap().start = VertexKey::default();
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::Vertex(VertexKey::default()),
@@ -1699,7 +1702,7 @@ fn mekr_error_paths_are_atomic() {
     // SameLoop.
     let (mut body, seed, es) = chain(1, tol);
     let seg = es[0];
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::SameLoop {
             r#loop: seed.r#loop,
@@ -1740,7 +1743,7 @@ fn mekr_error_paths_are_atomic() {
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
     assert_eq!(validate(&body), Ok(()));
     let target_loop = body.get_half_edge(split.he_minus).unwrap().parent_loop;
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::NotSameFace {
             target: target_loop,
@@ -1761,7 +1764,7 @@ fn mekr_error_paths_are_atomic() {
     let (mut body, seed, es) = chain(2, tol);
     let strut = es[1];
     body.kemr(strut.he_plus, strut.he_minus).unwrap();
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::RingIsOuter {
             r#loop: seed.r#loop,
@@ -1780,7 +1783,7 @@ fn mekr_error_paths_are_atomic() {
     // LoopNotEmpty: EmptyRing with a cycle ring.
     let (mut body, _seed, es) = chain(3, tol);
     let kill = body.kemr(es[1].he_plus, es[1].he_minus).unwrap();
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::LoopNotEmpty { r#loop: kill.ring },
         |b| {
@@ -1799,7 +1802,7 @@ fn mekr_error_paths_are_atomic() {
     let kill = body.kemr(es[1].he_plus, es[1].he_minus).unwrap();
     body.get_half_edge_mut(es[2].he_plus).unwrap().next = HalfEdgeKey::default();
     let ring_loop = kill.ring;
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::LoopCycleBroken { r#loop: ring_loop },
         |b| {
@@ -1832,7 +1835,7 @@ fn mekr_error_paths_are_atomic() {
         validate(&body).is_err(),
         "shared lone vertex must be tier-1-invalid"
     );
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::EmptyAnchorsCollide {
             vertex: strut.vertex,
@@ -1851,7 +1854,7 @@ fn mekr_error_paths_are_atomic() {
     // StaleKey: dead loop key as the ring.
     let (mut body, _seed, es) = chain(2, tol);
     let dead_loop = LoopKey::default();
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::Loop(dead_loop),
@@ -1872,7 +1875,7 @@ fn mekr_error_paths_are_atomic() {
     let strut = es[1];
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
     body.get_half_edge_mut(es[0].he_plus).unwrap().prev = HalfEdgeKey::default();
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::HalfEdge(HalfEdgeKey::default()),
@@ -1913,7 +1916,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     assert_eq!(validate(&body), Ok(()));
 
     // SameFace.
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::SameFace { face: seed.face },
         |b| b.kfmrh(seed.face, seed.face).unwrap_err(),
@@ -1921,8 +1924,8 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     // CrossSolid (two solids in one body): since M3 PR 1 kfmrh accepts
     // cross-shell faces of ONE solid (shell fusion); across solids it
     // stays a typed error under the new name.
-    let other = body.mvfs(Point3::new(9.0, 0.0, 0.0)).unwrap();
-    assert_err_unchanged(
+    let other = body.mvfs(Point3::new(9.0, 0.0, 0.0), true).unwrap();
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::CrossSolid {
             f1: seed.face,
@@ -1932,14 +1935,14 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     );
     // StaleKey f1 / f2.
     let dead_face = FaceKey::default();
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::Face(dead_face),
         },
         |b| b.kfmrh(dead_face, split.face).unwrap_err(),
     );
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::Face(dead_face),
@@ -1960,14 +1963,14 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
         .unwrap();
     let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
     assert_eq!(validate(&body), Ok(()));
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::FaceHasRings { face: split.face },
         |b| b.kfmrh(seed.face, split.face).unwrap_err(),
     );
 
     // ring_move: RingIsOuter.
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::RingIsOuter {
             r#loop: seed.r#loop,
@@ -1975,7 +1978,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
         |b| b.ring_move(seed.r#loop, split.face).unwrap_err(),
     );
     // ring_move: CrossShell (to the second solid's face).
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::CrossShell {
             f1: split.face,
@@ -1984,14 +1987,14 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
         |b| b.ring_move(ring, other.face).unwrap_err(),
     );
     // ring_move: stale ring / stale destination.
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::Loop(LoopKey::default()),
         },
         |b| b.ring_move(LoopKey::default(), seed.face).unwrap_err(),
     );
-    assert_err_unchanged(
+    assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::Face(dead_face),
@@ -2013,7 +2016,6 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
 #[test]
 fn failing_ring_ops_leave_lineage_pure() {
     let tol = Tol::witness();
-    let pt = Point3::new;
     let build = |inject: bool| -> (Body<f64>, Vec<String>) {
         let mut body = Body::<f64>::new();
         let b = build_box(&mut body, tol);
@@ -2039,8 +2041,16 @@ fn failing_ring_ops_leave_lineage_pure() {
             he_front_ab,
             b.f_front.face,
             b.f_back.face,
-            &[pt(0.5, 0.0, 0.5), pt(1.5, 0.0, 0.5), pt(1.0, 0.0, 1.5)],
-            &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
+            &[
+                Point3::new(0.5, 0.0, 0.5),
+                Point3::new(1.5, 0.0, 0.5),
+                Point3::new(1.0, 0.0, 1.5),
+            ],
+            &[
+                Point3::new(0.5, 2.0, 0.5),
+                Point3::new(1.5, 2.0, 0.5),
+                Point3::new(1.0, 2.0, 1.5),
+            ],
             &mut l,
             0,
             tol,
@@ -2080,7 +2090,7 @@ fn failing_ring_ops_leave_lineage_pure() {
                     he1: b.e_ab.he_minus,
                     he2: b.e_ab.he_minus,
                 },
-                pt(3.0, 0.0, 0.0),
+                Point3::new(3.0, 0.0, 0.0),
                 tol,
             )
             .unwrap();

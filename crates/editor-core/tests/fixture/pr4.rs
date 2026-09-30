@@ -21,15 +21,14 @@ use geom_core::Tol;
 /// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
 /// digest in `m4_pr4_ci`) pin what production users actually get.
 /// Scenario A's flip-vanish row therefore exercises the AMENDED N5
-/// semantics: the disjoint run's pair space is pruned, the flip
-/// evidence is never computed, and the row diagnoses to the
-/// documented evidence-free minting-node fallback (NAMING-DESIGN N5
-/// as amended). The shadow-execution rung leaves this row where it is
-/// — `resolve::shadow_exec_flip`'s docs say why. Engine-behavior tests
+/// semantics: the disjoint run's pair space is pruned and no flip
+/// evidence is computed. The vanished name is a ranked rim-edge
+/// fragment whose group went from two to one, so the row diagnoses
+/// to `GroupResized` (`resolve::group_resized`'s docs). Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.
-fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
+fn run<T>(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
     T: editor_core::EvalScalar,
 {
@@ -82,12 +81,14 @@ where
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(0.5), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            editor_core::Step::Rigid {
+                translation: [len(0.5), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     // M4 PR 5: the sliding overlap's flush planes are DECLARED (the
     // recipe intent; the retired bit rung no longer infers them). The

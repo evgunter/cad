@@ -152,7 +152,10 @@ pub(super) fn zip_seam<T: Decide>(
         let dead = body
             .half_edge_end(he)
             .ok_or_else(|| corr("kev half-edge has no end"))?;
-        body.kev(he)?;
+        // A merge of two vertices the section put a band apart (they
+        // can differ by ulps): the merged fan keeps its carriers, each
+        // re-certified at the kept vertex under the run's band.
+        body.kev_describing(he, &[], tol)?;
         report.vertex_merges.push((dead, kept));
         Ok(())
     };

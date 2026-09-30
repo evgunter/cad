@@ -4,6 +4,8 @@ kind: issue
 title: props_rim_side and props_rim_dir_group read whichever rim the loop walk from Cycle::first meets first, so their recorded signs are facts about cycle order rather than about the face
 status: open
 opened: 2026-09-14
+priority: P0
+cost: H
 ---
 
 Filed by the TOPO revert-wrap fix pass (PR 2573, 2026-09-14), on this

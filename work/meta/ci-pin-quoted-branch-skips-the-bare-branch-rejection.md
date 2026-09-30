@@ -5,6 +5,8 @@ title: ci-pin.py's quoted branch accepts a scalar its bare branch would refuse
 status: open
 opened: 2026-09-11
 refs: [2327]
+priority: P3
+cost: E
 ---
 
 Found by the correctness review of PR 2327 (CIW unit 7) and **filed here on

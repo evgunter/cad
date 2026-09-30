@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-08
 github: 250
 refs: [161, 178, 214, 222, 226, 239, 243]
+priority: P4
+cost: E
 ---
 
 ## From GitHub issue 250

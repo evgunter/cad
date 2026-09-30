@@ -4,6 +4,8 @@ kind: issue
 title: K-REPORT's decisions-bit-identical-to-f64 claim can now cite the differential that checks it
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

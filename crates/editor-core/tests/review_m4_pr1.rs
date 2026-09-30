@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::float_cmp)]
 
+use crate::fixture::{ang, len, scl};
 use editor_core::{
     Dimension, DocEdit, DocParam, EditError, Expr, ParamEnv, ParamName, RecipeNodeId, SitedRef,
     SlotId, eval, eval_count,
@@ -18,16 +19,6 @@ struct Fake(&'static str);
 impl editor_core::ProfilePayload for Fake {}
 type Doc = editor_core::Doc<Fake>;
 type Edit = DocEdit<Fake>;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 
 /// Insert a datum point whose x-component is `x` (bit-exact carrier).
 fn point_edit(x: Expr) -> Edit {
@@ -72,7 +63,7 @@ fn r1_replay_bit_identity_adversarial() {
         -f64::MAX,
     ];
     let mut log: Vec<Edit> = vec![Edit::SetDocParam {
-        name: ParamName::new("neg_zero"),
+        name: ParamName::from_static("neg_zero"),
         value: DocParam::continuous(Dimension::Length, -0.0),
     }];
     let mut doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
@@ -247,14 +238,14 @@ fn r2_dimension_smuggling_probes() {
 /// caller); both `apply` and `eval` must catch it downstream.
 #[test]
 fn r2_contradictory_param_dims_caught_downstream() {
-    let p_scl = Expr::param(ParamName::new("q"), Dimension::Scalar);
-    let p_len = Expr::param(ParamName::new("q"), Dimension::Length);
+    let p_scl = Expr::param(ParamName::from_static("q"), Dimension::Scalar);
+    let p_len = Expr::param(ParamName::from_static("q"), Dimension::Length);
     // mul(Scalar, Length) → Length: constructible with BOTH refs.
     let expr = Expr::mul(p_scl, p_len).unwrap();
     // eval: whichever binding "q" has, one ref mismatches — typed.
     let mut env: ParamEnv<f64> = ParamEnv::default();
     env.bindings.insert(
-        ParamName::new("q"),
+        ParamName::from_static("q"),
         editor_core::ParamValue::Continuous {
             dim: Dimension::Length,
             value: 2.0,
@@ -269,7 +260,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
             &Edit::SetDocParam {
-                name: ParamName::new("q"),
+                name: ParamName::from_static("q"),
                 value: DocParam::continuous(Dimension::Length, 2.0),
             },
             Tol::witness(),
@@ -591,7 +582,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
 /// v1 (the hole is the absent arm, not a validation gap).
 #[test]
 fn r4_setdocparam_sweep_and_no_delete_arm() {
-    let name = ParamName::new("d");
+    let name = ParamName::from_static("d");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
             &Edit::SetDocParam {
@@ -650,7 +641,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .doc
         .apply(
             &Edit::SetDocParam {
-                name: ParamName::new("unused"),
+                name: ParamName::from_static("unused"),
                 value: DocParam::Count { value: 1 },
             },
             Tol::witness(),
@@ -760,7 +751,7 @@ fn r6_nonfinite_doors_closed() {
     for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
             &Edit::SetDocParam {
-                name: ParamName::new("poison"),
+                name: ParamName::from_static("poison"),
                 value: DocParam::continuous(Dimension::Length, poison),
             },
             Tol::witness(),
@@ -769,7 +760,7 @@ fn r6_nonfinite_doors_closed() {
         assert_eq!(
             res.unwrap_err(),
             EditError::NonFiniteDocParam {
-                name: ParamName::new("poison"),
+                name: ParamName::from_static("poison"),
                 field: editor_core::DocParamField::Nominal,
             },
             "SetDocParam({poison})"
@@ -783,7 +774,6 @@ fn r6_nonfinite_doors_closed() {
 /// confident finite enclosure. (Source sweep: editor-core contains no
 /// `x*x` self-multiplication anywhere — checked by grep, noted in the
 /// review report; powi discipline is geom-core's.)
-#[cfg(feature = "interval")]
 #[test]
 fn r8_interval_lane_representative_and_zero_divisor() {
     use editor_core::eval;
@@ -812,7 +802,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
         );
     }
     // Zero-containing divisor (fix pass): the certified lane's
-    // empty/Trv poison is REFUSED at the eval boundary — the same
+    // empty/Trv refusal is REFUSED at the eval boundary — the same
     // typed door as the f64 lane's inf/NaN, never a confident (or
     // any) enclosure.
     let div0 = Expr::div(len(1.0), scl(0.0)).unwrap();
@@ -836,7 +826,7 @@ fn r8_interval_lane_representative_and_zero_divisor() {
 #[test]
 fn r4_structural_flag_false_positive_but_no_false_negative() {
     use editor_core::{Node, PatternKind};
-    let cnt_param = ParamName::new("n");
+    let cnt_param = ParamName::from_static("n");
     let doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(
             &Edit::SetDocParam {
@@ -874,7 +864,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     // CONTINUOUS param. The only promotion is Count→Scalar (wrong
     // direction), and a Length-dim ref in a Count slot is refused at
     // the slot-dimension check — unrepresentable, not just unvalidated.
-    let smuggle = Expr::param(ParamName::new("d_len"), Dimension::Length);
+    let smuggle = Expr::param(ParamName::from_static("d_len"), Dimension::Length);
     let res = doc.apply(
         &Edit::SetStructuralParam {
             node: pat_id,
@@ -898,7 +888,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     let a2 = doc
         .apply(
             &Edit::SetDocParam {
-                name: ParamName::new("other"),
+                name: ParamName::from_static("other"),
                 value: DocParam::continuous(Dimension::Length, 9.0),
             },
             Tol::witness(),

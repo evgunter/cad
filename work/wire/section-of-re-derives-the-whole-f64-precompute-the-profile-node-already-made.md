@@ -5,6 +5,8 @@ title: wire::section_of redoes a section profile's entire f64 precompute (resolv
 status: open
 opened: 2026-09-12
 refs: [2435]
+priority: P1
+cost: H
 ---
 
 

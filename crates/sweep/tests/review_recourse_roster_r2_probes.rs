@@ -30,9 +30,10 @@ use sweep::blend::{BlendError, BlendSite};
 fn escalation(name: Option<&'static str>) -> Indeterminate {
     let band = Band::linear(Tol::witness()).expect("the run's band forms");
     Indeterminate {
-        margin: MarginDiag::Value((band.zero() + band.escalate()) / 2.0),
+        margin: MarginDiag::value((band.zero() + band.escalate()) / 2.0),
         band,
         predicate: name,
+        terminal_sliver: false,
     }
 }
 
@@ -70,16 +71,16 @@ fn the_two_doors_render_one_gap_sentence_for_one_unknown_name() {
             );
         }
         assert!(
-            !path.contains("path junction classification"),
+            !path.contains("at this junction"),
             "no category over an unknown name: {path}"
         );
-        // Both doors name where the escalation happened before the
-        // payload. `BlendError::Escalated` carries a site field and
-        // names it; `PathError::Escalated` carries none, so the door
-        // names itself.
+        // Both doors say what was too close to call before the
+        // payload; for a name neither table knows, that is the door's
+        // own decision, and the blend door names its site too.
         assert!(
-            path.starts_with("escalated at the path door: ") && blend.starts_with("escalated at "),
-            "each door names a site ahead of the payload: {path} / {blend}"
+            path.starts_with("an unnamed decision is too close to call: ")
+                && blend.starts_with("at the chain, an unnamed decision is undecided: "),
+            "each door names what escalated ahead of the payload: {path} / {blend}"
         );
     }
 }
@@ -118,16 +119,22 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
         }
         .to_string();
         assert!(
-            text.starts_with(&format!(
-                "validation escalated between loop 0 segment 0 and loop 0 segment 1: \
-                 predicate '{name}' indeterminate:"
-            )),
+            text.starts_with(
+                "validation escalated between loop 0 segment 0 and loop 0 segment 1: "
+            ),
             "{text}"
         );
         assert!(text.contains(COINCIDENCE_RECOURSE), "{text}");
         assert!(
-            !text.contains("no recourse is recorded") && !text.contains("junction classification"),
-            "neither a gap sentence nor a category: {text}"
+            !text.contains("no recourse is recorded"),
+            "no gap sentence: {text}"
+        );
+        // The door states each name's own subject, and a name it has no
+        // words for as unnamed, never another name's.
+        assert_eq!(
+            text.contains(geom_core::UNNAMED_DECISION),
+            name == UNKNOWN,
+            "{text}"
         );
         assert_eq!(text.contains(NOTE), noted, "{text}");
     }
@@ -141,32 +148,33 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
     assert!(!text.contains(NOTE), "{text}");
 }
 
-/// **The tube door's table routes a door name, never a recourse.**
+/// **The tube's table routes which tube it names, never a recourse.**
 ///
-/// The three wall names read `tube_along_arc_hollow`; every other
-/// name, and a nameless escalation, reads `tube door` — the honest
-/// answer for a predicate both tube doors can reach — and every one of
-/// them renders the shared recourse whole, with no gap sentence.
+/// The three wall names read "the hollow tube" and the two window names
+/// "the tube" — the honest answer for a predicate both tube doors can
+/// reach; a name the tube does not decide, and a nameless escalation,
+/// read as unnamed. Every one renders the shared recourse whole, with no
+/// gap sentence.
 #[test]
 fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
-    for (name, door) in [
-        ("tube_wall", "tube_along_arc_hollow"),
-        ("tube_wall_bore", "tube_along_arc_hollow"),
-        ("tube_wall_gap", "tube_along_arc_hollow"),
-        ("tube_frame_unit", "tube door"),
-        ("tube_window_span", "tube door"),
-        (UNKNOWN, "tube door"),
+    for (name, subject) in [
+        ("tube_wall", "whether the hollow tube's wall"),
+        ("tube_wall_bore", "whether the hollow tube's wall"),
+        (
+            "tube_wall_gap",
+            "whether the hollow tube's inner and outer radii",
+        ),
+        ("tube_window_span", "whether the tube's arc window"),
+        ("tube_window_headroom", "whether the tube's arc window"),
+        // Not decided by the tube: the door has no words for it.
+        ("tube_frame_unit", "an unnamed decision"),
+        (UNKNOWN, "an unnamed decision"),
     ] {
         let text = TubeError::Escalated {
             source: escalation(Some(name)),
         }
         .to_string();
-        assert!(
-            text.starts_with(&format!(
-                "{door} escalated: predicate '{name}' indeterminate:"
-            )),
-            "{text}"
-        );
+        assert!(text.starts_with(subject), "{text}");
         assert!(
             text.contains(COINCIDENCE_RECOURSE) && !text.contains("no recourse is recorded"),
             "{text}"
@@ -177,7 +185,7 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     }
     .to_string();
     assert!(
-        text.starts_with("tube door escalated: sign indeterminate:"),
+        text.starts_with("an unnamed decision is too close to call: margin "),
         "{text}"
     );
 }

@@ -2359,3 +2359,205 @@ ledger gains the lines the gate demands. Announced here and in
 `work/tint/log.md` because `crates/test-utils/*` is both programs'
 ground by declaration (S-TCOST's `program.md:12`: the fence is the
 question, not the path).
+
+## Announced seam from FIX (2026-09-21)
+
+**`crates/quantity` now dev-depends on `test-utils`, and one module-doc
+clause in `crates/test-utils/src/source.rs` moved with it — PR 2944.**
+
+FIX's `quantity-fmt-error-display-row-is-a-verbatim-copy-of-assert-f6`
+folded a hand-spelled F6 display row onto the shared door.
+`crates/quantity/Cargo.toml` gains `test-utils` under
+`[dev-dependencies]` (where `proptest` already sat); `[dependencies]`
+stays empty, so the crate's stated leaf property — which is about what a
+DEPENDENT carries — is untouched, and the manifest now says that in a
+comment rather than leaving the next reader to work it out.
+
+**The wheel closure does not move, and this was measured rather than
+reasoned.** `scripts/ci-filter.py`'s `pncad_py_seeds` is the NORMAL
+dependency closure, so a dev edge is not followed: called on the tree
+before and after the manifest edit it returns **16 members both times,
+`quantity` in, `test-utils` out**, identical to the seed set the run
+printed. (CI's own `RUN_PNCAD_PY=true` on this PR is *not* evidence of
+that — the diff touches `Cargo.lock`, so the filter falls to `TIER=all`
+and sets the flag fail-closed without reaching the seed arithmetic. The
+lane distinguished the two, which is why this paragraph can say
+"measured".)
+
+**The doc clause.** `source.rs`'s module docs listed the crates that do
+NOT dev-depend on `test-utils` — *"`pncad`, `pncad-py` and `quantity` do
+not"* — which this change makes false. It now names `pncad` and
+`pncad-py`. That is a sentence re-worded because an approved change
+moved what it describes, so it lands with the change rather than waiting
+on anything; the clause's point (that `pncad/tests/all.rs` holds the
+class's largest unconverted reader) is unchanged.
+
+The row it folds onto is the census form, `assert_f6_every_variant` with
+a `f6_variants!` roster — not bare `assert_f6`, because that would have
+wanted a hand-typed dump list and re-minted what
+`assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums` closed.
+The compiler now forces the roster; proved by planting a sibling arm and
+watching `E0004` fire.
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21), and a case ADDED to one of your suites
+
+**PR 2945**, FIX's `remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites`.
+Three refusals in `crates/editor-core/src/refactor.rs` (FIX's own) gained
+a `missing: RecipeNodeId` field, which makes two of your files not
+compile until their patterns bind it:
+
+- `crates/editor-core/tests/asm4_split_inline.rs`
+- `crates/editor-core/tests/edit_instance_crossing_names.rs`
+
+The pattern updates are mechanical. **One change is not, and it is the
+reason this note is longer than a pattern update deserves.**
+
+`asm4_split_inline.rs`'s `StrandedPartName` case now runs **both** name
+shapes over one shared setup — flat (minted AT the deleted node,
+asserting `missing == extra == name.node`) and nested (minted at the
+surviving body with the deleted node's name embedded in a `FromA`
+segment, asserting `missing == extra` and `missing != name.node`).
+
+**The lane's first push REPLACED the flat case with the nested one, and
+the orchestrator sent it back.** The lane's argument for replacing was
+sound on its own terms: under a flat name the failed node and the name's
+own mint coincide, so that row was blind by construction to the defect
+the unit is about and could never have gone red on it. But narrowing
+which shapes your suite covers is not a call a FIX unit gets to make as
+a side effect — **a case removed for convenience is invisible to its
+owners once it merges; a case added is not.** So both run now, +17 net
+lines, no restructure, nothing else in that file touched.
+
+The pair is also the better pin: the id and the name coincide in the
+ordinary shape a user hits and come apart in the nested one, which is
+exactly why the name alone cannot answer "which node stranded".
+
+`edit_instance_crossing_names.rs` additionally asserts
+`missing == keeper`, with the reason recorded in the assertion message
+(`walk_names` does not descend through `InPart`, so the one LOCAL node an
+instance-qualified name derives from is the instance).
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your file, one assertion loosened — and the repo'"'"'s own convention is
+why.** `crates/geom/tests/curves/domain_door.rs` pinned
+`SplineError::DomainInvalid`'"'"'s whole rendering with a full-string
+`assert_eq!`. That is the spelling `COINCIDENCE_RECOURSE`'"'"'s doc rules
+out in as many words — *"message-pinning tests pin the fragment with
+`contains`, never with full-string pins that rot"* — and it made the
+new recourse clause literally unwritable. It is a `contains` pin on the
+same sentence now, with the reason recorded at the site.
+
+**Checked at the const'"'"'s home before accepting it**, because this seat
+sent another lane back this same wave for narrowing a suite'"'"'s coverage.
+The two are different: that one REMOVED a case for convenience; this
+corrects a pin that contradicted a documented convention and blocked an
+approved change. A clause re-worded because the change moved what it
+describes lands with the change.
+
+Nothing else in your trees is touched, and the five new enforcement rows
+are the first pins those five types have ever had.
+
+Signed (FIX orchestrator).
+
+## Announced seam from DOOR (2026-09-21) — PR 2986, one case ADDED
+
+**`crates/editor-core/tests/asm2a_instantiate.rs`** gains one test and
+loses nothing. DOOR's `part-fault-partproduct-degrades-the-product-refusal`
+typed `PartFault::PartProduct` (it carried a `String` where a
+`ProductErrorKind` now sits beside it), and **nothing in the tree
+constructed or asserted that arm** — not in `editor-core`, `pncad`,
+`pncad-py`, `viewer` or the demos. So the unit owed its own pin.
+
+`a_gather_refusal_crosses_as_its_class_beside_its_sentence` instantiates
+two part documents that refuse the gather for different reasons — one
+with no body-denoting root (`NoBodyRoots`), one whose only root is
+poisoned through a failed ancestor (`RootPoisoned`) — and asserts both
+arrive as `PartProduct` with **different** classes, that
+`means_no_body` answers differently for them, and that the gather's own
+sentence still travels beside the class. Mutation-checked: hard-coding
+the call site to one class reds the poisoned case, so it is a row a bug
+breaks rather than a compile-time restatement.
+
+**Why it is in your suite rather than the source file**: `parts.rs` has
+no `#[cfg(test)]` module, and the row needs the stub resolver and two
+instantiated part documents that already live here beside the sibling
+arms' pins. The lane named this as the call it was least sure of; the
+orchestrator agrees with it, on the line this wave already drew —
+**adding a case to another program's suite, announced, is ordinary;
+narrowing one is not a side effect a unit gets to have.**
+
+Signed (DOOR orchestrator).
+
+## 2026-09-22 — announced seam from VGEOM: `crates/viewer/tests/` moved by the render-grid unit
+
+(VGEOM orchestrator. Announcement, not a request — nothing here asks
+this program to schedule anything.)
+
+`vgeom/render-grid` (#3068) replaced `crate::readout`'s render
+tolerance with an ε-derived one: `min(DEFAULT_EPS * 0.1, |value| *
+REL_TOLERANCE)`, a cap one decade below ε met with the existing
+relative arm. `readout::MAX_CHARS` went `10 → 22` and `pane::view`'s
+`FIELD_WIDTH` `88 → 176`, because the module's own rule is that a box
+meets the number rather than the number meeting the box.
+
+**What that did to `crates/viewer/tests/`, which is this program's
+ground:**
+
+- `display_budget.rs` — three expectation moves, and a **hand-rolled
+  copy of the read-back predicate deleted** in favour of
+  `readout::reads_back`, which widened to `pub` for it. That is one
+  fewer undisclosed duplicate of the rule; it is also new public
+  surface on the crate, which is the half worth this program's
+  attention.
+- `panel_display.rs`, `valid_range.rs` — expectation moves only.
+
+**Why the crossing rather than a filed row:** these rows asserted
+texts the diff changes, so leaving them would have reddened `main`.
+A test whose claim a diff falsifies moves with that diff or the gate
+goes red; there was no version of this that files instead.
+
+**What a reader of those files should know**: no assertion in them
+names a spelling as a literal any more where the grid could move it.
+The property that survives at the widget seam is that a drag's text
+parses back to exactly the value the drag commits, asserted over
+about 9000 magnitudes in `widgets.rs`'s own module.
+
+- 2026-09-28 — Seam note from ENCL: PR 3343 (merged `f5390b0605`) adds `geom_core::k_stats::splice_superseded`, which splices a detached run's verdicts and samples without its escalations. The tangency certificate uses it, so a renamed refusal no longer leaves a second-order escalation on the node's log. `editor-core`'s `drive.rs` factors read (2) into `log_read` with the same behaviour. `geom-brep/tests/m5_pr9_tangent.rs` gains three rows. On a sliver-shaped box, a renamed or definite tangency refusal now bisects to the floor and is priced Budget; the evidence is appended to VERDICT's `coincidence-zone-priced-budget-at-the-floor`. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3346 (merged `fb0ec473b8`) adds `geom_core::predicate::KERNEL_DEFECT_ENDING` and `KERNEL_OR_FILE_DEFECT_ENDING`, plus hidden `concat!` macros. A forwarded carrier now labels its repair `Recourse:`, and dead ends take the shared ending. It rewords refusal prose on your ground: `predicate.rs` and `geom/src/curves/fit.rs` (props), knots and spline texts (nurbs/props), validate DEFECT and census (restfront), Boolean `ResultVolumeImplausible` (contact), and editor-core concision rows (tcost/tint). No behaviour changed. Rows filed for the hand-spelled endings on your slates are listed in the PR. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3347 (merged `2e913b87d0`) gives the offset meters one escalation-routing home, `geom_brep::offset_meters::escalation_recourse`, plus the public lever constants `NORMAL_FLOOR_RECOURSE`/`CURVATURE_HEADROOM_RECOURSE`. `topo::validate::classify_offset_fit` now reads it (its own table is deleted; the checks-window text is unchanged), and unknown names render `MissingRecourse`. It also adds a `validate` pin and the editor-core concision rows. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3348 (merged `95b59b9361`) homes the domain-uniform refinement grid in `geom_core::spline::algebra::domain_grid_points(kv, pieces, GridSkip)`. `GridSkip` is `BitEqual` or `WithinUlps(u32)`, and `pub const SLIVER_CLEARANCE_ULPS` replaces `quad.rs`'s private `SLIVER_CUT_ULPS`. It is used at `props/quad.rs` `refine_dir` and `bezier_blocks`, `ssi/certify.rs` `refined`, `edge_nurbs.rs` `localized::breaks`, and one tcost/tint test. Bits are unchanged at every site (pinning rows added first). Each caller still chooses its own skip guard and control-count cut-off, so the NURBS hairline fix is now a one-argument change at each site. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3363 (merged `c28651d7c3`) adds `geom_core::KERNEL_LIMIT_LAST_RESORT` (a tail, with `kernel_limit_last_resort!` for `concat!`) and `KERNEL_LIMIT_RECOURSE` (the whole no-value sentence, "Recourse: loosen the tolerance, as a last resort; this refusal may indicate a kernel bug worth reporting"). This is the one home for D4 ¶1 (i)'s last-resort ending: a site with no other lever composes from it rather than spelling "loosen the tolerance".
+  No change to your files; this is for awareness of the shared ending. (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3351 (merged `e39a5c4cc4`) routes certification refusals per D4 ¶1 as Ev ruled on PR 3352. Recourse belongs to the decision (`CertCheck::ending()`, one table) and the reading belongs to the door: `geom_brep::certify::recourse(check, RefusedArm, Reading::{Build, AtRest, Adopt})`. `CertifyError`/`PlaneNurbsRefusal` `Display` is now payload-only. Each door appends `ending(reading)`. The `certification: ` prefix is gone. Pins re-baselined: refusal_concision_chains (six `Transform/Certify/Routed/*` rows), m5_pr9, m7_8, mesh12 (now `ParamWinding` only), tier_gate. (ENCL orchestrator)
+
+- 2026-09-28 — Tracker sweep after the CI-latency cut: deleted 14 rows about machinery the cut removed (TCOST-B3, TCOST-C1..C4, the shard-count, rust-cache, critical-path, eps-battery, tolerance-study, M10-3 chamber and GUI-LOG-citation rows); rewrote `fuzz-depth-not-existence-run-everything-at-effort-1` against the present CI; re-pointed `run-pncad-py-is-computed-and-gates-nothing`, `gated-markers-name-too-few-src-paths` and `actions-cache-budget-under-a-hash-key`; filed `ci-filter-narrates-deleted-machinery-as-current`; rewrote `plan.md` to the present CI (the slow set, the nightly full suite, no lanes, shards or cost reporter). Recovery: `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`.
+
+- 2026-09-28 — `actions-cache-budget-under-a-hash-key` deleted: its only dependent (MIRROR's render-cell cache) went with per-PR renders. `docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`.
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Pins re-baselined: refusal_concision_chains (meter rows; largest 74 words), `tests/offset_fit.rs`, m5_pr9 (path only). (ENCL orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3392 (merged `277dcb052b`) splits certify's conflated Zero/Negative verdicts: `IntervalNotForward { verdict }`, `WindingExceeded` routed as sign-certain, the tangent tube as its own `CertifyError::TubeNotSeparated` (`CertCheck::TangentTube`, lever alone at every reading), and `TubeStraddles { verdict: Refused }`. `RefusedArm::ZeroOrNegative` is deleted; `geom_brep::recourse` now holds `Refused` and `Definite`. A zero span stays a defect at every reading (Ev, e1600790f9). Pins re-baselined: `refusal_concision_chains`, `m8_f67_r1_probes`, `review_m2_pr3_certify`, `tier_gate`. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3390 (merged `719ef596a1`). The shell volume-sign decision is sized (`geom_brep::recourse::SizedPass::NonZero`, the offer valued at |m|/K). `ShellClassifyError` gains a `Straddles` arm and a `payload()` data view, and its `Display` ends in its decision's one ending. `recourse::UNREADABLE_MARGIN_NOTE` is the shared unreadable-margin sentence. Pins: `refusal_concision_chains` (seven shell-role endings, whole text), `test_binding_census.py` (a comment). (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3401 (merged `c7c44c49ab`) adds a `dsc_checks` row pinning the void-side shell escalation's valued ending (test only). (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. Pins: validate's own-close endings, `tier3_tests` WedgeCheck matchers, `sweep/tests/torax_interval.rs` (one assertion). (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3161 (`topo/kev-describing-door`, not yet merged) makes the keys-only `Body::kev` refuse every fan merge with a certified member (`EulerOpError::MergeRebasesCarriers`); `Body::kev_describing(he, &[...], tol)` takes the re-descriptions. In your `crates/topo/tests/euler_site_pcurve_rows.rs`, `a_secant_strut_then_killed_leaves_the_wall_unminted_until_the_pass` killed the strut as `kev(s.he_minus)`, the mirror kill that merges the wall vertex's fan onto the tip; it now kills `kev(s.he_plus)`, the strut kill from its base, which merges nothing. The row's subject and its expected rows are unchanged. (TOPO fix-pass lane)
+- 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `BooleanError::Escalated` gains a `decision: BooleanDecision` field and `DeclarationContradicted` carries `fact: Contradiction` in place of its `Indeterminate`; `CarrierEqError::Contradicted` is a struct variant `{ fact, diag }`. On your ground this PR touched patterns only: `..` added in `sweep/tests/{m6_rider,mate7a_r2_probes,mate7a_torus_rest,verbs_gate_r1_probes}.rs` and `topo/tests/review_m9_1{,_r2}_probes.rs`; editor-core `refusal_concision.rs` constructs the coincidence decision; `edit_refusal_recourse.rs`'s `WORDLESS` loses ten names `topo::decision_words` now words; `sweep/tests/recourse_roster.rs` gains the blend-door row for `SplitParamEscalated`, whose ending now names the tolerance its margin gives. (TOPO implementer)
+- 2026-09-29 — Seam note from TOPO: PR 3467 adds a `sense` heading to `crates/topo/tests/loop_reparenting_pcurve_rows.rs` (five rows: `mef` `Chords` and `Lone`, `mfkrh` on the bored block and on a shared payload, `set_face_surface`) and re-words one clause of its module docs. `FaceSurface::New`/`Shared` now carry `sense`, so every spec in the file states one; `ring_move_and_mfkrh_carry_every_row_across_one_payload` states `false`, the bit `mfkrh` derives on that chart, and its expected rows do not move. (TOPO implementer)
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `editor-core/tests/display_contract.rs`, `editor-core/tests/msolve6_part_extent.rs`, `mesh/tests/common/witness_bodies.rs`, `mesh/tests/errors.rs`, `mesh/tests/loops_with_no_rim.rs`, `mesh/tests/mesh11r2_probes.rs` and 74 more. Mostly the mechanical re-spelling, stating the bit each call carried before. Beyond it: `sweep/tests/topo_ring_nesting.rs`'s inverted glue states the negated bit `mfkrh` now derives there (its `set_face_sense` flips are gone), `sweep/tests/verbs_shell.rs`'s mixed-sense row states the inner wall's own `false` so the chart stays mixed, and the `sense` heading in `topo/tests/loop_reparenting_pcurve_rows.rs` (the note above). No expected value moved. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits two tcost/tint paths. `test_utils::refusal::subjectless_escalations` recognises the new zero-band payload wording ("… lies within the zero band"), and `crates/editor-core/tests/refusal_concision.rs` gains a `DegenerateTorus` row. (TOPO, PR 3506 fix pass)

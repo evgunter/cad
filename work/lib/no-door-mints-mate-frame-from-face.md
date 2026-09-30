@@ -7,6 +7,8 @@ opened: 2026-08-23
 github: 944
 refs: [938]
 blocked_on: [mate-frames-resolve-from-a-face-at-evaluation]
+priority: P3
+cost: H
 ---
 
 ## From GitHub issue 944

@@ -25,7 +25,7 @@ use geom_brep::{
     CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
     must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Band, Margin, MarginDiag, Tol};
+use geom_core::{Band, ErrorTextReading, Margin, Tol};
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
 };
@@ -122,7 +122,7 @@ fn in_band(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> (f64, Str
                 panic!("{what}: not the rule's in-band escalation: {error}");
             };
             assert_eq!(source.predicate, Some("tangent_second_order"), "{what}");
-            let MarginDiag::Value(m) = source.margin else {
+            let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
                 panic!("{what}: the margin is not a value: {source:?}");
             };
             let b = band();
@@ -316,8 +316,20 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
         "the rod at R/r = 1.5, margin 0.75·Kε",
     );
     assert!(
-        shown.contains("past that peak only a smaller radius raises it"),
+        shown.contains(
+            "smaller on one curving the band's own way, where the margin is past its peak"
+        ),
         "the rendered sentence names the peak and the direction past it: {shown}"
+    );
+    // Each branch is scoped to the support that makes it true: the SUM
+    // branch (a support curving away from the band) grows with the
+    // radius and has no peak, and a slim corner arc is levered DOWN
+    // under the tolerance, where it builds — it is never "raised".
+    assert!(
+        shown.contains("larger on a plane support or one curving away from the band")
+            && shown.contains("slim corner arc, which then builds conventionally")
+            && !shown.contains("on a curved one"),
+        "every clause is true at the support it names: {shown}"
     );
 
     let mut table =
@@ -453,19 +465,7 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
             .iter()
             .filter(|s| s.predicate == "tangent_second_order")
             .count();
-        let contact = out
-            .body
-            .edges()
-            .filter(|(_, e)| {
-                matches!(
-                    out.body
-                        .get_curve_geom(e.curve)
-                        .and_then(|g| g.certified())
-                        .map(|c| c.description()),
-                    Some(EdgeDescription::TangentIntersection { .. })
-                )
-            })
-            .count();
+        let contact = crate::common::contact_edges::intrinsic_edges(&out.body);
         assert_eq!(
             contact,
             2 * request.len(),

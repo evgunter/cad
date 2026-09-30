@@ -168,12 +168,15 @@
 //! one left is not the tier's — it is the value channel's clause-1
 //! `Invalid` on the boss, the fifth site of
 //! `work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum`.
-//! **NOT reached**: a frame tilted about `u` (`u = (1,0,t)`), which
-//! refuses `carrier_endpoint_end` identically with the dial on and off
-//! — the rule turns the DEGREE wall into a TERM wall there (the frozen
-//! `Powi` kid goes from 606 terms at degree 60 to 440 terms at degree
-//! 28, and `440² > MAX_TERMS`) behind the `abs(1/sqrt(…))` and
-//! `copysign` atoms a `FaceFrame`'s `u_ref` derivation mints; and a
+//! **NOT reached by THIS rule**: a frame tilted about `u`
+//! (`u = (1,0,t)`), which refuses `carrier_endpoint_end` identically
+//! with the dial on and off — the rule turns the DEGREE wall into a
+//! TERM wall there (the frozen `Powi` kid goes from 606 terms at
+//! degree 60 to 440 terms at degree 28, and `440² > MAX_TERMS`) behind
+//! the `abs(1/sqrt(…))` and `copysign` atoms a `FaceFrame`'s `u_ref`
+//! derivation mints. Those two atoms are `super::manifest`'s (rule F,
+//! SYM-8), which folds them and takes that predicate to 33 theorems
+//! and no numeric — on top of this rule, not instead of it. And a
 //! `FaceFrame` on a REVOLVED body's cap, which neither dial certifies
 //! (the refusal moves to `pcurve_loop_continuity` with the rule on,
 //! frozen 3 → 902).
@@ -319,7 +322,7 @@ pub(super) fn cancel(f: &Form) -> Form {
     // `(½S + ½)/S` are the same real function and now the same FORM,
     // which is what lets an atom keyed on one meet an atom keyed on
     // the other. The magnitude, not the signed value: flipping the
-    // signs would cost `trig::manifestly_nonneg` the syntactic
+    // signs would cost `manifest::nonneg` the syntactic
     // non-negativity rule D's A1 fold reads.
     let (num, den) = match den_pivot(&den) {
         Some(s) => match s.abs().recip().and_then(|k| {

@@ -4,6 +4,8 @@ kind: issue
 title: a new gate's wiring is one announced line in CIW's files by written convention, but nothing extends that to the TIER_BLIND parity entry it cannot land without
 status: open
 opened: 2026-09-07
+priority: P3
+cost: D
 ---
 
 

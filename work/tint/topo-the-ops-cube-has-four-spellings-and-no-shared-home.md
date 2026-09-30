@@ -4,6 +4,8 @@ kind: issue
 title: The bare-topology ops cube (mev_line/mef_chord) is written out four times in topo, with no shared door
 status: open
 opened: 2026-09-16
+priority: P3
+cost: E
 ---
 
 

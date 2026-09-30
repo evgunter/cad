@@ -2,21 +2,33 @@
 id: ciw
 kind: program
 title: CIW — hosted CI, workflows and scripts
-status: open
+status: ready
 opened: 2026-09-03
 area: infra
 prefix: ciw/
 tag: (CIW orchestrator)
 ab_band: 1500-1599
-paths: [.github/workflows/*, local-scripts/*, .claude/hooks/*, scripts/apt-install.sh, demos/*.sh, demos/*.py, scripts/check-*.py, scripts/criterion-emit.py, scripts/opt-level-calibrate.py, scripts/interval-only-selection.py, scripts/nightly-only-selection.py, scripts/pr-added-tests.py, scripts/doc-gate.sh, scripts/rundump-guard-selftest.sh, scripts/check_admesh.sh, scripts/check_step.sh, scripts/k_probe_sweep.sh, scripts/tess_budget_cut.sh, scripts/tess_budget_sweep.sh]
-keep_out: [scripts/gates/* is code-quality Track K's, tools/* is INSTR's (work/instr/program.md, opened 2026-09-08), scripts/ci-filter.py and slowest-tests.py and base-test-listing.sh are S-TCOST's, scripts/work.py is the tracker's own and changes only with work/README.md, CI build knobs (profile/cache/sharding) stay S-TCOST's rule — measured in-unit or not at all, the one-line viewer bin rename in crates/viewer/Cargo.toml is announced to CHROME, what a main push re-gates is an [ev] ruling before any change to the F3 trim]
+paths: [.github/workflows/*, local-scripts/*, .claude/hooks/*, scripts/apt-install.sh, demos/*.sh, demos/*.py, scripts/check-*.py, scripts/criterion-emit.py, scripts/doc-gate.sh, scripts/check_admesh.sh, scripts/check_step.sh, scripts/k_probe_sweep.sh, scripts/tess_budget_cut.sh, scripts/tess_budget_sweep.sh]
+keep_out: [scripts/gates/* is GUARD's (work/guard/program.md), tools/* is INSTR's (work/instr/program.md), scripts/ci-filter.py is S-TCOST's, scripts/work.py is the tracker's own and changes only with work/README.md, CI build knobs (profile/cache) stay S-TCOST's rule — measured in-unit or not at all, what a main push re-gates is an [ev] ruling]
+priority: P4
 ---
 
-The S-QA ground, unowned since 2026-08-31: workflow files, the render
-lanes, the parity checkers, the perf emitters and the demo shell and
-Python. Every item is E — the fix is written in the item — with two
-rulings split out as `[ev]` PRs. Review posture (Ev, 2026-09-04): no
-A/B protocol; one subagent style review per unit, plus a correctness
-reviewer only where a unit earns one, named in its PR with the reason.
-Charter and unit order: `work/ciw/plan.md`; narrative in
-`work/ciw/log.md`.
+**The workflow half**: `.github/workflows`, the jobs that gate a PR and
+the nightly that holds the rest, and what a reader of a red run can
+tell from it.
+
+The per-PR gate is sized for latency (`ci.yml`); everything else runs in
+`nightly.yml`. `work/ciw/latency-cut.md` carries the selection and its
+evidence, and a change that adds work to the per-PR gate argues against
+it.
+
+Ev put this band low by name — *"it is low priority to improve tooling
+in order to cause ci to fail less / main to be red less often"* — and
+most of the slate is that. The rows that are not about redness are about
+a PR that is silently UNGATED rather than red (a head with no merge ref
+gets no run), and a red inherited from main that is not attributed to
+the merge that caused it. The P3 rows came from BLIND and MIRROR when
+those tracks left the tracker: instruments that pass while blind, which
+is Ev's medium band (tooling that prevents a SILENT bug).
+
+Charter and unit order: `work/ciw/plan.md`; narrative in `work/ciw/log.md`.

@@ -4,6 +4,8 @@ kind: issue
 title: The ledger's recovery recipe fails in a shallow clone with a message that reads like a wrong recipe
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

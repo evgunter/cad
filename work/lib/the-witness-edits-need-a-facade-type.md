@@ -4,6 +4,8 @@ kind: issue
 title: the two witness DocEdit arms need a facade type before Python can build them
 status: open
 opened: 2026-09-09
+priority: P3
+cost: D
 ---
 
 

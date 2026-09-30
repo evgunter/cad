@@ -12,8 +12,8 @@
 //! three impls. `Real` is the tree's own name for that, and writing it
 //! out is what makes the sameness checkable instead of assumed.
 //!
-//! **What this module does NOT absorb.** The `RingInterval` triples —
-//! `[RingInterval::point(x), …]`, spelled `p` in four suites and `p3`
+//! **What this module does NOT absorb.** The `Interval` triples —
+//! `[Interval::point(x), …]`, spelled `p` in four suites and `p3`
 //! in one — are not a `Point3` and do not go through `Real`; they are
 //! `shared::ring`. `offset_mint.rs`'s `fn p(out, pt)` appends a point's
 //! BITS to a digest and only shares the letter.
@@ -22,10 +22,10 @@ use geom_core::{Point3, Real, Vec3};
 
 /// A point from three `f64` literals, embedded in the caller's scalar.
 pub(crate) fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
-    Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    Point3::new(x, y, z).map(T::from_f64)
 }
 
 /// A vector from three `f64` literals, embedded in the caller's scalar.
 pub(crate) fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
-    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    Vec3::new(x, y, z).map(T::from_f64)
 }

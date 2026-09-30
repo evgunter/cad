@@ -4,6 +4,8 @@ kind: issue
 title: pncad.pyi's EvaluationError docstring lists five reasons; the door raises six
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

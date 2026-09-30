@@ -5,6 +5,8 @@ title: skin.rs refuses coincident loft sections by a bare f64 strict comparison 
 status: open
 opened: 2026-09-16
 refs: [2752]
+priority: P0
+cost: H
 ---
 
 Found by BOOL-6 (PR 2752) while placing the per-slab stacking fold's

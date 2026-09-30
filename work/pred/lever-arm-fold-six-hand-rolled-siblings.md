@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-01
 github: 1439
 refs: [1423]
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 1439
@@ -62,3 +64,23 @@ by reading the row against the tree on 2026-09-11, not a verdict on the
 finding, and a lane that finds it wrong says so in its PR. The id, the
 `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## A seventh spelling pair: the parallelism fallback lever (ENCL, PR 3334)
+
+The tangency certificate's second-order refusal arm
+(`geom-brep/src/certify.rs`, `run_checks`'s `Resolved::Tangent` arm,
+the `renamed` reading ~1950) now spells the rule
+`topo/boolean/contact_verify.rs`'s `tangent_locus_relation` spells at
+~394–430: "`levered_inv(sin θ, |κ_rel|)` when the second-order margin
+is definitely positive, else `levered(sin θ, folded arm)`", under the
+same kind of predicate name (`tangent_normal_parallel` /
+`contact_tangent_parallel`). They differ deliberately in role —
+certify reads the fallback only after the second-order margin has
+refused and lets only a definite reading rename that refusal, while
+contact_verify decides first-order on it and escalates an in-band
+reading — and incidentally in arm: certify's comes from
+`folded_lever_arm` through `tangent_second_order`, contact_verify's is
+its hand-rolled fold (the first bullet above). Each site's comment
+names the other. A consolidation would put the lever choice (which arm,
+given a second-order verdict) in one home beside `folded_lever_arm` and
+leave the role difference at the call sites.

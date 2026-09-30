@@ -4,7 +4,6 @@ kind: issue
 title: Ten MateFault accessors in pncad-py wildcard into None, so a new fault arm that names a mate is silently invisible
 status: closed
 opened: 2026-09-04
-refs: [blamed-mates-lost-its-exhaustive-arm]
 closed: 2026-09-08
 ---
 

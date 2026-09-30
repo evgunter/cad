@@ -37,7 +37,9 @@
 //! counter-example: its payload is recipe node ids, which are leaf
 //! values, so they cross under the node roles every other arm uses.
 
-use pncad::document::{ContentPin, DocParamValue, EditError, ParamName, RecipeNodeId, RootFault};
+use pncad::document::{
+    ContentPin, DocParamValue, EditError, FrameSite, MateFault, ParamName, RecipeNodeId, RootFault,
+};
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
 
@@ -89,10 +91,10 @@ pub struct EditPayload<'a> {
     /// entry that does not sort strictly before the one after it.
     /// Both are one index into one payload list, so they share the
     /// attribute rather than minting a second word for it.
-    pub first: Option<u32>,
+    pub first: Option<usize>,
     /// The position at which a repeat is named AGAIN — carried only by
     /// `RepeatedDesignation`, the one fault that names two entries.
-    pub again: Option<u32>,
+    pub again: Option<usize>,
     /// A refused scalar the door names in its own right — a
     /// tolerance's ε.
     pub value: Option<f64>,
@@ -100,6 +102,10 @@ pub struct EditPayload<'a> {
     pub offered: Option<DocParamValue>,
     /// A placement frame's linear determinant.
     pub determinant: Option<f64>,
+    /// Which of a node's placement frames: a transform's step, or an
+    /// explicit rule's listed placement — `None` for an instance's own
+    /// placement frame.
+    pub index: Option<usize>,
     /// The AST child indices of an expression address, from the
     /// slot's root.
     pub path: Option<&'a [u8]>,
@@ -107,6 +113,13 @@ pub struct EditPayload<'a> {
     pub value_path: Option<&'a str>,
     /// The content pin a reference already names.
     pub pin: Option<ContentPin>,
+    /// The solve's own fault about a mate the door refused on its
+    /// datum — the one nested refusal that crosses as a VALUE rather
+    /// than as a word alone, because it is the same value
+    /// `SolvedPoses.fault` answers for a mate the solve refused, and a
+    /// caller reads its lever, its clash and its recourse off the
+    /// `MateFault` type it already knows.
+    pub fault: Option<&'a MateFault>,
 }
 
 impl EditPayload<'_> {
@@ -116,7 +129,7 @@ impl EditPayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over `EditError` is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 21] {
+    pub fn presence(&self) -> [(&'static str, bool); 23] {
         let Self {
             node,
             input,
@@ -136,9 +149,11 @@ impl EditPayload<'_> {
             value,
             offered,
             determinant,
+            index,
             path,
             value_path,
             pin,
+            fault,
         } = self;
         [
             ("node", node.is_some()),
@@ -159,9 +174,11 @@ impl EditPayload<'_> {
             ("value", value.is_some()),
             ("offered", offered.is_some()),
             ("determinant", determinant.is_some()),
+            ("index", index.is_some()),
             ("path", path.is_some()),
             ("value_path", value_path.is_some()),
             ("pin", pin.is_some()),
+            ("fault", fault.is_some()),
         ]
     }
 
@@ -194,10 +211,22 @@ impl EditPayload<'_> {
         value: None,
         offered: None,
         determinant: None,
+        index: None,
         path: None,
         value_path: None,
         pin: None,
+        fault: None,
     };
+}
+
+/// The position a placement frame's site names — a transform's step or
+/// an explicit rule's listed placement — `None` for an instance's own
+/// placement frame, which is the only one it has.
+fn frame_index(at: FrameSite) -> Option<usize> {
+    match at {
+        FrameSite::Registry => None,
+        FrameSite::Listed { index } | FrameSite::Step { index } => Some(index),
+    }
 }
 
 /// Flatten one edit refusal into its payload record.
@@ -224,17 +253,26 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(*gauge),
             ..none
         },
+        // The mate is the subject, and the solve's fault about it
+        // crosses whole: `inner_variant` says which arm, `fault` is
+        // the arm's own payload.
+        EditError::MateRefused { node, fault } => EditPayload {
+            node: Some(*node),
+            fault: Some(fault),
+            ..none
+        },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {
             node: Some(*at),
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
         | EditError::PlacementOnNonInstance { node }
         | EditError::PlacementRuleMismatch { node }
         | EditError::EmptyPlacementList { node }
-        | EditError::NonFinitePlacement { node }
+
         | EditError::NonFiniteAlignment { node }
         | EditError::UpdateOnNonInstance { node } => EditPayload {
             node: Some(*node),
@@ -243,7 +281,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The nested refusals: `inner_variant` names the arm and the
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
-        | EditError::MeasureMalformed { node, fault: _ } => EditPayload {
+        | EditError::MeasureMalformed { node, fault: _ }
+        | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
             node: Some(*node),
             ..none
         },
@@ -423,7 +462,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::RebindNoReferences { name }
         | EditError::NameUnresolvedInEvaluation { name }
         | EditError::AppearanceWrongKind { name }
-        | EditError::AppearanceNamesMissingNode { name } => EditPayload {
+        | EditError::AppearanceNamesMissingNode { name }
+        // The step and the counter cross in the message; the name is
+        // what the caller wrote and repairs.
+        | EditError::NameStepNeverMinted { name, .. } => EditPayload {
             name: Some(name),
             ..none
         },
@@ -467,9 +509,22 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             value: Some(*value),
             ..none
         },
-        EditError::ImproperPlacement { node, determinant } => EditPayload {
+        // The frame's site crosses as its position: a step or a
+        // listed placement's index, none for an instance's own frame.
+        EditError::ImproperPlacement {
+            node,
+            at,
+            determinant,
+        } => EditPayload {
             node: Some(*node),
             determinant: Some(*determinant),
+            index: frame_index(*at),
+            ..none
+        },
+        EditError::NonFinitePlacement { node, at }
+        | EditError::NonRigidPlacement { node, at, .. } => EditPayload {
+            node: Some(*node),
+            index: frame_index(*at),
             ..none
         },
         EditError::PlacementAxis { error: _ } => none,

@@ -23,6 +23,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use crate::common::plate_index;
 
 use pncad::document::{Evaluation, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
@@ -31,7 +32,7 @@ use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
 use viewer::marks;
-use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds, PictureKey};
+use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds};
 use viewer::scene::{self, PLATE_EXTENT, PLATE_HOLE_RADIUS};
 use viewer::session::{DocSession, EdgeSelection, Hovered, Selection, SessionOp};
 
@@ -43,36 +44,12 @@ fn pane() -> ViewportSize {
     }
 }
 
-/// The display tolerance every row here uses — the same reading
-/// `select_pick` takes, for the same reason: coarse enough to keep the
-/// suite cheap, fine enough that the hole is a ring of facets.
-fn delta() -> scene::DisplayTolerance {
-    scene::DisplayTolerance::new(2.0e-4).expect("a positive delta")
-}
-
 /// A session over the spike plate, evaluated and landed.
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     (session, extrude)
-}
-
-/// The pick index for a session's landed evaluation.
-fn index_of(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session
-        .landed_pair()
-        .expect("the inline seam lands its first evaluation");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the plate indexes")
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -122,8 +99,13 @@ fn drawn_edges(index: &PickIndex, node: RecipeNodeId) -> Vec<(EdgeId, Vec<Point3
 fn hole_rim(index: &PickIndex, node: RecipeNodeId) -> (EdgeId, Vec<Point3<f64>>) {
     let [width, depth, thickness] = PLATE_EXTENT;
     let (cx, cy) = (width * 0.5, depth * 0.5);
+    // The rim is two half-circle edges. The rows' cursors are laid out
+    // against its +y half, so that half is chosen by GEOMETRY — the
+    // edge whose points lie above the hole's centre — rather than by
+    // the order the edges were minted in.
     drawn_edges(index, node)
         .into_iter()
+        .filter(|(_, points)| points.iter().all(|p| p.y >= cy - 1.0e-9))
         .find(|(_, points)| {
             !points.is_empty()
                 && points.iter().all(|p| {
@@ -192,7 +174,7 @@ fn plate_centre_px(camera: &Camera) -> [f64; 2] {
 fn every_drawn_edge_names_an_edge_that_resolves() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (doc, eval) = session.landed_pair().expect("a landed pair");
     let edges = drawn_edges(&index, extrude);
     assert!(
@@ -219,7 +201,7 @@ fn every_drawn_edge_names_an_edge_that_resolves() {
 fn an_edge_selection_narrows_to_the_copy_it_was_picked_from() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (id, _) = hole_rim(&index, extrude);
     let name = index
         .edge_name_of(id)
@@ -247,7 +229,7 @@ fn an_edge_selection_narrows_to_the_copy_it_was_picked_from() {
 fn a_cursor_on_a_drawn_edge_picks_that_edge() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let (id, points) = hole_rim(&index, extrude);
@@ -276,7 +258,7 @@ fn a_cursor_on_a_drawn_edge_picks_that_edge() {
 fn hover_and_click_answer_one_cursor_the_same_way() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let (id, points) = hole_rim(&index, extrude);
@@ -338,7 +320,7 @@ fn hover_and_click_answer_one_cursor_the_same_way() {
 fn the_edge_beats_the_face_exactly_inside_the_radius() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let (id, points) = hole_rim(&index, extrude);
@@ -393,7 +375,7 @@ fn the_edge_beats_the_face_exactly_inside_the_radius() {
 fn a_cursor_over_the_background_picks_nothing_at_all() {
     let tol = Tol::witness();
     let (session, _) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     // A corner of the pane: the framing fits the plate inside the
@@ -431,7 +413,7 @@ fn a_cursor_over_the_background_picks_nothing_at_all() {
 fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
@@ -491,7 +473,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
 fn one_cursor_answers_the_same_edge_twice() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let (_, points) = hole_rim(&index, extrude);
@@ -519,7 +501,7 @@ fn one_cursor_answers_the_same_edge_twice() {
 fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (rim, points) = hole_rim(&index, extrude);
     let selection = EdgeSelection {
         name: index
@@ -594,7 +576,7 @@ fn the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else() {
 fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (rim, _) = hole_rim(&index, extrude);
     let selection = EdgeSelection {
         name: index
@@ -626,7 +608,7 @@ fn a_preview_is_carried_beside_the_marks_and_derived_from_no_pick() {
 fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (rim, _) = hole_rim(&index, extrude);
     let edge = Selection::Edge(EdgeSelection {
         name: index
@@ -643,13 +625,7 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
         "an edge selection tints no patch"
     );
     let face = index
-        .face_at(
-            eval_of(&session),
-            &pncad::select::Ray {
-                origin: Point3::new(0.005, 0.005, 1.0),
-                dir: pncad::geom_core::Vec3::new(0.0, 0.0, -1.0),
-            },
-        )
+        .face_at(eval_of(&session), &common::down_at(0.005, 0.005))
         .expect("no refusal")
         .expect("a ray onto the plate hits it");
     let overlay = marks::edge_overlay(&index, &DisplayView::none(), &Selection::Face(face), None);
@@ -685,17 +661,11 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
 fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mark() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
 
     // The face half: both lanes carry the picked patch.
     let face = index
-        .face_at(
-            eval_of(&session),
-            &pncad::select::Ray {
-                origin: Point3::new(0.005, 0.005, 1.0),
-                dir: pncad::geom_core::Vec3::new(0.0, 0.0, -1.0),
-            },
-        )
+        .face_at(eval_of(&session), &common::down_at(0.005, 0.005))
         .expect("no refusal")
         .expect("a ray onto the plate hits it");
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
@@ -776,7 +746,7 @@ fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mar
 fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     let tol = Tol::witness();
     let (mut session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let (rim, _) = hole_rim(&index, extrude);
     let selection = EdgeSelection {
         name: index
@@ -812,7 +782,7 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     // the assertion, a session that stopped landing an evaluation
     // would skip the check and the row would stay green having tested
     // nothing. Both steps are expectations, so both are failures.
-    let after = index_of(&session);
+    let after = plate_index(&session);
     let overlay = marks::edge_overlay(
         &after,
         &DisplayView::none(),
@@ -820,6 +790,122 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
         session.hover(),
     );
     assert!(overlay.is_empty(), "a vanished edge lights nothing");
+}
+
+// --- the pixel measure ------------------------------------------------
+
+/// **A viewport no pixel distance can be measured in picks no edge,
+/// and refuses nothing about the cursor.**
+///
+/// The edge rule measures PIXELS, and a pixel distance is arithmetic
+/// over numbers `ViewportSize` scales: `viewer::pickindex`'s
+/// `segment_distance_px` squares a pixel separation, which overflows
+/// past about `1.34e154`, and the quotient that follows is `inf/inf`.
+/// So the walk can be handed a projection that is not a measurement
+/// **with every input to the door finite** — no cursor, placement or
+/// mesh position has to be a `NaN`, and the two routes that would
+/// need one are closed upstream anyway (`Camera::ray_through` refuses
+/// a cursor that is not a number, and `Camera::project` answers
+/// `None` for a position that is not).
+///
+/// Before the admission at `best_segment`, such a segment took
+/// neither side of `distance > EDGE_PICK_RADIUS_PX`, was installed as
+/// the best, held its boundary against every later candidate, and
+/// handed its `NaN` pixel to the occlusion probe — so the door
+/// refused with `the camera's cursor x is NaN`, **naming the caller's
+/// cursor for a pixel the walk had computed**.
+///
+/// The rows are a pair, because neither half says anything alone. The
+/// scales are one picture in different pixel units: the aspect is
+/// `pane()`'s at every one of them, so the camera, the projection and
+/// the NDC are identical and the only thing that changes is the size
+/// of the number the measure is taken in.
+///
+/// **What this does NOT claim.** `ViewportSize` is unbounded above and
+/// is a door-level input; no screen is 1e155 pixels across and no
+/// user-reachable producer of one was found.
+#[test]
+fn a_viewport_no_pixel_distance_can_be_measured_in_picks_no_edge() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = plate_index(&session);
+    let eval = eval_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let (rim, points) = hole_rim(&index, extrude);
+    let at = (points.len() - 1) / 2;
+    let wide = |scale: f64| ViewportSize {
+        width_px: 1.28 * scale,
+        height_px: 0.72 * scale,
+    };
+    // The cursor is DERIVED at each scale — the midpoint of the two
+    // pixels the drawn segment's own endpoints land on, so it is ON
+    // the chord the walk measures against whatever the viewport
+    // measures in. (The projection of the 3-D midpoint is not: the
+    // perspective divide puts it off the chord by a fraction of the
+    // chord, and a fraction of `1e100` pixels is not within a
+    // six-pixel radius. The row would then be measuring the fixture.)
+    let cursor_in = |viewport: ViewportSize| {
+        let pixel = |point: Point3<f64>| {
+            let ndc = camera
+                .project(point, viewport.aspect().expect("a positive aspect"))
+                .expect("the projection is defined")
+                .expect("a framed point is in front of the eye");
+            viewport
+                .cursor_of([ndc[0], ndc[1]])
+                .expect("a viewport with area names a pixel")
+        };
+        let (a, b) = (pixel(points[at]), pixel(points[at + 1]));
+        [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5]
+    };
+
+    // Measurable: the answer is the rim, at a distance that is one.
+    for scale in [1.0e2_f64, 1.0e100, 1.0e150] {
+        let viewport = wide(scale);
+        let pick = index
+            .edge_at_for(
+                eval,
+                &camera,
+                viewport,
+                cursor_in(viewport),
+                &DisplayView::none(),
+            )
+            .expect("a finite cursor names a ray whatever the viewport measures in")
+            .unwrap_or_else(|| {
+                panic!("the cursor is the rim segment's own midpoint, at {scale:e} across")
+            });
+        assert_eq!(
+            pick.id(),
+            rim,
+            "the same picture answers the same edge at {scale:e} pixels across"
+        );
+        assert!(
+            pick.distance_px.is_finite() && pick.distance_px <= EDGE_PICK_RADIUS_PX,
+            "the pick carries a measurement, not {} at {scale:e}",
+            pick.distance_px
+        );
+    }
+
+    // Past the measure: nothing is picked, and nothing is refused
+    // about the cursor the caller passed.
+    for scale in [1.0e160_f64, 1.0e200] {
+        let viewport = wide(scale);
+        let answer = index
+            .edge_at_for(
+                eval,
+                &camera,
+                viewport,
+                cursor_in(viewport),
+                &DisplayView::none(),
+            )
+            .expect("a pixel the walk could not measure is not the caller's cursor");
+        assert!(
+            answer.as_ref().is_none_or(
+                |pick| pick.distance_px.is_finite() && pick.distance_px <= EDGE_PICK_RADIUS_PX
+            ),
+            "whatever is answered at {scale:e} is within the radius by construction"
+        );
+    }
 }
 
 // --- the display view ------------------------------------------------
@@ -833,7 +919,7 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
 fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
@@ -908,7 +994,7 @@ fn a_hidden_root_offers_no_edge_and_a_probed_one_picks_where_it_is_drawn() {
 fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
@@ -986,7 +1072,7 @@ fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge()
 fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
@@ -1069,7 +1155,7 @@ fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face()
 fn a_cursor_the_face_pick_ties_on_still_picks_the_edge() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);

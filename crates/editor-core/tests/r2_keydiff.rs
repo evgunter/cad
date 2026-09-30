@@ -20,7 +20,7 @@ use editor_core::{
 use fixture::{ang, len, scl};
 use geom_core::Tol;
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -75,7 +75,7 @@ fn r2_measure_free_content_keys() {
     let d1 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::new("t"),
+            name: ParamName::from_static("t"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
@@ -109,7 +109,7 @@ fn r2_measure_free_content_keys() {
         &DocEdit::InsertNode {
             node: Node::Extrude {
                 profile: bp,
-                distance: Expr::param(ParamName::new("t"), Dimension::Length),
+                distance: Expr::param(ParamName::from_static("t"), Dimension::Length),
             },
         },
     );
@@ -128,12 +128,14 @@ fn r2_measure_free_content_keys() {
     let d6 = push(
         &d5,
         &DocEdit::InsertNode {
-            node: Node::Transform {
-                input: cut,
-                translation: [len(1.0), len(2.0), len(3.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            node: Node::transform(
+                cut,
+                editor_core::Step::Rigid {
+                    translation: [len(1.0), len(2.0), len(3.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         },
     );
     let ev: Evaluation<f64> = evaluate::<f64>(

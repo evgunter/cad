@@ -4,6 +4,8 @@ kind: issue
 title: the FNV-1a digest, the goldens' mesh digest and the picture-counter memo machinery exist in many copies
 status: open
 opened: 2026-09-12
+priority: P1
+cost: D
 ---
 
 

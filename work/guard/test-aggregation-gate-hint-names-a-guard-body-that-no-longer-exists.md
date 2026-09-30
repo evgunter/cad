@@ -4,6 +4,8 @@ kind: issue
 title: test-aggregation.sh's violation hint tells a crate to copy a guard body that is now a macro invocation
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

@@ -5,6 +5,8 @@ title: DeclareUnsupportedPair cannot say 'no step under either operand assignmen
 status: open
 opened: 2026-09-15
 refs: [route-declarations-ranks-the-step-question-above-the-pairs-kinds]
+priority: P1
+cost: D
 ---
 
 ## Finding

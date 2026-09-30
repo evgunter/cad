@@ -78,7 +78,7 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0) });
@@ -188,7 +188,7 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -231,7 +231,7 @@ let node = RecipeNodeId(7);
 let rim = |end| StableName {
     kind: EntityKind::Edge,
     node,
-    path: vec![RoleSeg::RimEdge(end, ProfileEdgeRef { loop_index: 0, segment: 2 })],
+    path: vec![RoleSeg::RimEdge(end, ProfileEdgeRef::Piece { step: StepId(3), role: PieceRole::Leg })],
 };
 
 // `SegPat::tag` — the variant, arguments free.
@@ -277,7 +277,7 @@ let seam = StableName {
     node,
     path: vec![RoleSeg::Seam {
         a: face(vec![RoleSeg::Cap(CapEnd::End)]).into(),
-        b: face(vec![RoleSeg::Band(ProfileEdgeRef { loop_index: 0, segment: 0 })]).into(),
+        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId(1), role: PieceRole::Leg })]).into(),
     }],
 };
 
@@ -357,7 +357,7 @@ let (next, frame) = insert(
 doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -449,6 +449,7 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
             .expect("finite corners"),
     ],
+    ids: Vec::new(),
 };
 
 // A unit box, and a smaller box RESTING on its top cap. The second

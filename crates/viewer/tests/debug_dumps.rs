@@ -21,12 +21,7 @@ use crate::common;
 
 use pncad::geom_core::Tol;
 use viewer::pickcache::{CacheStep, IndexLanding, PickCache};
-use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Landing, SessionOp};
-
-fn delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-4).expect("a positive delta")
-}
 
 /// **Every presence carried by a live session renders as an elision.**
 /// One session holds all three: `gesture` and `scratch` while a drag
@@ -130,7 +125,7 @@ fn a_held_pick_index_renders_as_an_elision_around_its_generation() {
     let empty = format!("{cache:?}");
     assert!(empty.contains("index: None"), "index: None not in {empty}");
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
+        cache.sync(session.index_inputs(), Some(common::plate_delta())),
         CacheStep::Submitted
     );
     assert_eq!(cache.pump(), vec![IndexLanding::Built]);

@@ -16,6 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::{plate6, plate6_cyl};
 use crate::mate2_common;
 use geom_brep::SurfaceKind;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
@@ -23,7 +24,7 @@ use mate2_common::{
     assert_additive, body_of, boolean_body, collar, collar_at, peg_at, plane_face, volume,
     wall_decls, walls_at,
 };
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass, FacePairDeclaration,
@@ -32,37 +33,6 @@ use topo::{
 };
 
 const BORE_R: f64 = 0.5;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-/// `r1_probes_m9_3::plate6`, copied: a 6×4 plate, z ∈ [z0, z0 + 1].
-fn plate6(z0: f64) -> Body<f64> {
-    sweep::test_support::brick((0.0, 6.0), (0.0, 4.0), (z0, z0 + 1.0), Tol::witness())
-}
-
-/// `r1_probes_m9_3::cyl_at`, copied: a three-arc cylinder centred at
-/// `(cx, 2)`, z ∈ [z0, z0 + h].
-fn cyl_at(cx: f64, z0: f64, h: f64, r: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(cx + r * th.cos(), 2.0 + r * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
 
 /// Scene A: the peg floats in the bore (z ∈ [1.5, 2.5] against a bore
 /// z ∈ [1, 2]); nine wall `Rest`s.
@@ -93,10 +63,21 @@ fn scene_c() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
 /// the through-bore of a plate above it; one planar `Rest` (the plates'
 /// mating faces) plus nine wall `Rest`s.
 fn scene_d() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
-    let p =
-        body_of(topo::union(&plate6(0.0), &cyl_at(2.0, 0.4, 1.1, BORE_R), Tol::witness()).unwrap());
+    let p = body_of(
+        topo::union(
+            &plate6(0.0),
+            &plate6_cyl(2.0, 0.4, 1.1, BORE_R),
+            Tol::witness(),
+        )
+        .unwrap(),
+    );
     let q = body_of(
-        topo::subtract(&plate6(1.0), &cyl_at(2.0, 0.8, 1.4, BORE_R), Tol::witness()).unwrap(),
+        topo::subtract(
+            &plate6(1.0),
+            &plate6_cyl(2.0, 0.8, 1.4, BORE_R),
+            Tol::witness(),
+        )
+        .unwrap(),
     );
     let mut d = BooleanDeclarations::none();
     d.coincident_faces.push(FacePairDeclaration::new(
@@ -263,8 +244,14 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
             .unwrap()
             .clone();
         keys.push(
-            body.set_face_surface(f, FaceSurface::New(described))
-                .unwrap(),
+            body.set_face_surface(
+                f,
+                FaceSurface::New {
+                    surface: described,
+                    sense: true,
+                },
+            )
+            .unwrap(),
         );
     }
     assert_eq!(keys.len(), 3);
@@ -357,13 +344,13 @@ fn d_prism_with_split_keys() -> (
     let r = (0.25f64 * 0.25 + 0.5 * 0.5).sqrt();
     let sweep = 2.0 * core::f64::consts::PI - 2.0 * 0.5f64.atan2(0.25);
     let bulge = (sweep / 2.0 / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 0.0), bulge),
-        ProfileVertex::new(p2(2.25 + r, 0.5), bulge),
-        ProfileVertex::new(p2(2.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), bulge),
+        (Point2::new(2.25 + r, 0.5), bulge),
+        (Point2::new(2.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
     let profile = Profile::new(plane, vec![lp])
@@ -409,7 +396,13 @@ fn distinct_keys(
     }
     let described = body.get_surface(kb).unwrap().clone();
     let fresh = body
-        .set_face_surface(b, FaceSurface::New(described))
+        .set_face_surface(
+            b,
+            FaceSurface::New {
+                surface: described,
+                sense: true,
+            },
+        )
         .unwrap();
     (ka, fresh)
 }
@@ -461,7 +454,13 @@ fn record_beside_a_committing_curved_run_names_only_live_faces() {
     let k = body.get_face(walls[0]).unwrap().surface;
     let described = body.get_surface(k).unwrap().clone();
     let k2 = body
-        .set_face_surface(walls[2], FaceSurface::New(described))
+        .set_face_surface(
+            walls[2],
+            FaceSurface::New {
+                surface: described,
+                sense: true,
+            },
+        )
         .unwrap();
     let faces_before = body.faces().count();
     let outcome = body
@@ -507,8 +506,14 @@ fn pair_with_no_live_faces_mints_no_record() {
     for &f in &walls {
         let described = body.get_surface(pk).unwrap().clone();
         fresh.push(
-            body.set_face_surface(f, FaceSurface::New(described))
-                .unwrap(),
+            body.set_face_surface(
+                f,
+                FaceSurface::New {
+                    surface: described,
+                    sense: true,
+                },
+            )
+            .unwrap(),
         );
     }
     assert!(
@@ -543,9 +548,9 @@ fn pair_with_no_live_faces_mints_no_record() {
 
 /// A ball of radius `r` (a revolved semicircle).
 fn ball(r: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -557,9 +562,9 @@ fn ball(r: f64) -> Body<f64> {
 
 /// A donut (a revolved circle off the axis).
 fn donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, -0.3), 1.0),
-        ProfileVertex::new(p2(1.0, 0.3), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(1.0, -0.3), 1.0),
+        (Point2::new(1.0, 0.3), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -571,7 +576,7 @@ fn donut() -> Body<f64> {
 
 fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     }
 }

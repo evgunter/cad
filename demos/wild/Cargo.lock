@@ -160,10 +160,12 @@ dependencies = [
 name = "geom-core"
 version = "0.0.0"
 dependencies = [
+ "interval-transcendentals",
  "libm",
  "num-bigint",
  "num-integer",
  "num-traits",
+ "rayon",
 ]
 
 [[package]]
@@ -187,6 +189,13 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash",
+]
+
+[[package]]
+name = "interval-transcendentals"
+version = "0.1.0"
+dependencies = [
+ "libm",
 ]
 
 [[package]]
@@ -470,7 +479,6 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
- "rayon",
  "slotmap",
 ]
 
@@ -490,7 +498,6 @@ checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 name = "verbs"
 version = "0.0.0"
 dependencies = [
- "geom-brep",
  "geom-core",
  "profile",
  "sweep",

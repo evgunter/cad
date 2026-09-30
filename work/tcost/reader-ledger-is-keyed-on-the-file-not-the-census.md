@@ -4,6 +4,8 @@ kind: issue
 title: every_site_that_reads_rust_source_is_in_the_ledger keys on the reader FILE, so a second census inside an already-listed file arrives invisibly
 status: open
 opened: 2026-09-12
+priority: P3
+cost: D
 ---
 
 

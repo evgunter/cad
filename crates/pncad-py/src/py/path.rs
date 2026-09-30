@@ -42,6 +42,7 @@ use pncad::profile as pf;
 use pncad::profile::path::{HasAng, HasPos, NoAng, NoPos, Plain, WithIncoming};
 
 use super::quantity::{Angle, Length};
+use super::step::{AuthoredStep, last_step};
 use super::typed_err;
 use crate::errors::ErrorClass;
 use crate::tags::{corner_reason_tag, path_error_tag, recorded_program_error_tag};
@@ -239,6 +240,13 @@ impl ClosedLoop {
     #[getter]
     fn step_count(&self) -> usize {
         self.0.program.len()
+    }
+
+    /// The handle of the loop's last step — the closing verb's, or the
+    /// one step of a `circle` or `circle_split`.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        last_step(&self.0.program)
     }
 }
 
@@ -522,6 +530,13 @@ pub(crate) struct PathViaArrivalStart(pf::path::ViaArrivalStart<f64>);
 
 #[pymethods]
 impl PathRadiusArrival {
+    /// The handle of the step the verb that produced this state
+    /// recorded: what `Doc.step` and `Doc.piece` bind in a profile.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        last_step(self.0.recorded())
+    }
+
     /// Bind the arrival's anchor — a real on-carrier point.
     fn at(&self, p: (Length, Length)) -> PathRadiusArrivalAt {
         PathRadiusArrivalAt(self.0.clone().at(pt(p)))
@@ -545,6 +560,13 @@ impl PathRadiusArrival {
 
 #[pymethods]
 impl PathRadiusArrivalAt {
+    /// The handle of the step the verb that produced this state
+    /// recorded: what `Doc.step` and `Doc.piece` bind in a profile.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        last_step(self.0.recorded())
+    }
+
     /// Bind the remaining director; the centre follows from it.
     fn angle(&self, py: Python<'_>, theta: Angle) -> PyResult<PathDirectedPoint> {
         let tol = Tol::witness();
@@ -568,6 +590,13 @@ impl PathRadiusArrivalAt {
 
 #[pymethods]
 impl PathRadiusArrivalDir {
+    /// The handle of the step the verb that produced this state
+    /// recorded: what `Doc.step` and `Doc.piece` bind in a profile.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        last_step(self.0.recorded())
+    }
+
     /// Bind the remaining anchor.
     fn at(&self, py: Python<'_>, p: (Length, Length)) -> PyResult<PathDirectedPoint> {
         let tol = Tol::witness();
@@ -581,6 +610,13 @@ impl PathRadiusArrivalDir {
 
 #[pymethods]
 impl PathViaArrival {
+    /// The handle of the step the verb that produced this state
+    /// recorded: what `Doc.step` and `Doc.piece` bind in a profile.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        last_step(self.0.recorded())
+    }
+
     /// Bind the arrival direction at the spec's anchor.
     fn angle(&self, py: Python<'_>, theta: Angle) -> PyResult<PathDirectedPoint> {
         let tol = Tol::witness();
@@ -604,6 +640,13 @@ impl PathViaArrival {
 
 #[pymethods]
 impl PathViaArrivalStart {
+    /// The handle of the step the verb that produced this state
+    /// recorded: what `Doc.step` and `Doc.piece` bind in a profile.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        last_step(self.0.recorded())
+    }
+
     /// Bind the seam direction, closing the loop.
     fn angle(&self, py: Python<'_>, theta: Angle) -> PyResult<ClosedLoop> {
         let tol = Tol::witness();
@@ -801,6 +844,14 @@ macro_rules! point_state {
 
         #[pymethods]
         impl $cls {
+            /// The handle of the step the verb that produced this state
+            /// recorded: what `Doc.step` and `Doc.piece` bind in a
+            /// profile.
+            #[getter]
+            fn step(&self) -> AuthoredStep {
+                last_step(self.0.recorded())
+            }
+
             /// Bind the outgoing direction (`Point -> Directed`).
             fn angle(&self, py: Python<'_>, theta: Angle) -> PyResult<PathDirected> {
                 let tol = Tol::witness();
@@ -1119,6 +1170,13 @@ pub(crate) struct PathOpen(Path<NoPos, NoAng>);
 
 #[pymethods]
 impl PathOpen {
+    /// The handle of the step the verb that produced this state
+    /// recorded: what `Doc.step` and `Doc.piece` bind in a profile.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        last_step(self.0.recorded())
+    }
+
     /// Bind the arrival side's anchor — a real on-path point.
     fn at(&self, py: Python<'_>, p: (Length, Length)) -> PyResult<PathPoint> {
         let tol = Tol::witness();
@@ -1175,6 +1233,13 @@ pub(crate) struct PathAngle(Path<NoPos, HasAng>);
 
 #[pymethods]
 impl PathAngle {
+    /// The handle of the step the verb that produced this state
+    /// recorded: what `Doc.step` and `Doc.piece` bind in a profile.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        last_step(self.0.recorded())
+    }
+
     /// Bind the position, leaving the side Directed and continuable.
     /// On a fillet arrival this completes both carriers, so the
     /// corner construction and the anchor-fit gates run HERE.
@@ -1222,6 +1287,16 @@ pub(crate) struct PathDirected(Directed);
 
 #[pymethods]
 impl PathDirected {
+    /// The handle of the step the verb that produced this state
+    /// recorded: what `Doc.step` and `Doc.piece` bind in a profile.
+    #[getter]
+    fn step(&self) -> AuthoredStep {
+        match &self.0 {
+            Directed::Plain(p) => last_step(p.recorded()),
+            Directed::WithIncoming(p) => last_step(p.recorded()),
+        }
+    }
+
     /// A straight leg of the given length along the bound direction.
     fn line(&self, py: Python<'_>, len: Length) -> PyResult<PathDirectedPoint> {
         let tol = Tol::witness();

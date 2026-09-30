@@ -4,6 +4,8 @@ kind: issue
 title: imported-chart arc-rim construction picks uniform breaks that mismatch a foreign wall's own arc spans
 status: open
 opened: 2026-09-04
+priority: P0
+cost: H
 ---
 
 

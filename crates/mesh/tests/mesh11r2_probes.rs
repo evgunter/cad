@@ -16,12 +16,6 @@ use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceSurface, MefSite, MevSite};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
 fn arc(circle: Curve3<f64>, t0: f64, t1: f64) -> EdgeCurveSpec<f64> {
     EdgeCurveSpec::arc_of_circle(circle, t0, t1).expect("arc spec")
 }
@@ -33,35 +27,38 @@ fn pole_crossing_half_cap() -> Body<f64> {
     let tol = Tol::witness();
     let z = 0.5_f64;
     let r = (1.0 - z * z).sqrt();
-    let a = p3(r, 0.0, z);
-    let b = p3(-r, 0.0, z);
+    let a = Point3::new(r, 0.0, z);
+    let b = Point3::new(-r, 0.0, z);
     let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis,
         radius: 1.0,
-        u_ref: v3(-r, 0.0, z),
+        u_ref: Vec3::new(-r, 0.0, z),
     };
-    let mut g = great(v3(0.0, 1.0, 0.0));
+    let mut g = great(Vec3::new(0.0, 1.0, 0.0));
     if g.eval(core::f64::consts::FRAC_PI_2).z < z {
-        g = great(v3(0.0, -1.0, 0.0));
+        g = great(Vec3::new(0.0, -1.0, 0.0));
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_rim = body
@@ -93,28 +90,31 @@ fn apex_crossing_bowtie() -> Body<f64> {
     let tol = Tol::witness();
     let s = core::f64::consts::FRAC_1_SQRT_2;
     let (a, b, c, d) = (
-        p3(s, 0.0, -s),
-        p3(-s, 0.0, -s),
-        p3(-s, 0.0, s),
-        p3(s, 0.0, s),
+        Point3::new(s, 0.0, -s),
+        Point3::new(-s, 0.0, -s),
+        Point3::new(-s, 0.0, s),
+        Point3::new(s, 0.0, s),
     );
     let rim = |z: f64| Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, z),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: s,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let line = EdgeCurveSpec::line_between;
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cone {
-            apex: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
-            half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: v3(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cone {
+                apex: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                half_angle: core::f64::consts::FRAC_PI_4,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_ab = body

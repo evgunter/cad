@@ -13,10 +13,11 @@
 //! its frame at node 0 and read the profile at node 1.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{ang, len, len2, scl, xy_frame};
 use editor_core::{
     CancelToken, ContentKey, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
     ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, evaluate, parse_expr,
+    RecipeNodeId, SlotId, StepArg, evaluate, parse_expr,
 };
 use geom_core::Tol;
 
@@ -44,6 +45,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
                 node: Node::Profile(ProfileProgram {
                     plane: PLANE,
                     loops,
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -58,13 +60,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
 /// two of these documents can only have come from their programs.
 fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
-        &DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Frame {
-                origin: [lit_len(0.0), lit_len(0.0), lit_len(0.0)],
-                u: [lit_scl(1.0), lit_scl(0.0), lit_scl(0.0)],
-                v: [lit_scl(0.0), lit_scl(1.0), lit_scl(0.0)],
-            }),
-        },
+        &DocEdit::InsertNode { node: xy_frame() },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -72,11 +68,35 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     .doc
 }
 
-fn lit_len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite")
-}
-fn lit_scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite")
+/// `doc` with the one expression of its profile at argument `arg`
+/// re-spelled as `expr`, through the value door: the steps keep the ids
+/// the insert minted, so two documents compared here differ in that one
+/// spelling and nothing else. (Two documents authored apart with
+/// different spellings mint their steps from different edits, so their
+/// ids — and so their keys — differ; a display unit alone is not a
+/// different spelling, D6.)
+fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Expr) -> ProfileDoc {
+    let slots: Vec<SlotId> = doc
+        .node(PROFILE)
+        .expect("the profile at node 1")
+        .slots()
+        .into_iter()
+        .filter(|s| matches!(*s, SlotId::Profile { arg: a, .. } if a == arg))
+        .collect();
+    let [slot] = slots.as_slice() else {
+        panic!("one {arg:?} slot, got {slots:?}");
+    };
+    doc.apply(
+        &DocEdit::SetParam {
+            node: PROFILE,
+            slot: *slot,
+            expr,
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the re-spelling applies")
+    .doc
 }
 
 /// Authored program ORDER is structure: the same hole wound the other
@@ -134,7 +154,7 @@ fn resolved_values_feed_the_key() {
         let doc = doc
             .apply(
                 &DocEdit::SetDocParam {
-                    name: ParamName::new("r"),
+                    name: ParamName::from_static("r"),
                     value: DocParam::continuous(Dimension::Length, value),
                 },
                 Tol::witness(),
@@ -148,12 +168,10 @@ fn resolved_values_feed_the_key() {
                     node: Node::Profile(ProfileProgram {
                         plane: PLANE,
                         loops: vec![LoopProgram::Circle {
-                            centre: [
-                                Expr::literal(0.0, Dimension::Length).unwrap(),
-                                Expr::literal(0.0, Dimension::Length).unwrap(),
-                            ],
-                            radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                            centre: [len(0.0), len(0.0)],
+                            radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                         }],
+                        ids: Vec::new(),
                     }),
                 },
                 Tol::witness(),
@@ -188,7 +206,7 @@ fn a_carrier_centre_respelled_keys_identically() {
     let doc = doc
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("cx"),
+                name: ParamName::from_static("cx"),
                 value: DocParam::continuous(Dimension::Length, 1.0),
             },
             Tol::witness(),
@@ -203,11 +221,12 @@ fn a_carrier_centre_respelled_keys_identically() {
                     plane: PLANE,
                     loops: vec![LoopProgram::Circle {
                         centre: [
-                            Expr::param(ParamName::new("cx"), Dimension::Length),
-                            Expr::literal(0.0, Dimension::Length).unwrap(),
+                            Expr::param(ParamName::from_static("cx"), Dimension::Length),
+                            len(0.0),
                         ],
-                        radius: Expr::literal(0.5, Dimension::Length).unwrap(),
+                        radius: len(0.5),
                     }],
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -215,7 +234,7 @@ fn a_carrier_centre_respelled_keys_identically() {
         )
         .unwrap()
         .doc;
-    let literal = doc_with(vec![LoopProgram::circle(1.0, 0.0, 0.5).unwrap()]);
+    let literal = respelled(&parameterized, StepArg::CenterX, len(1.0));
     assert_eq!(
         key_of(&parameterized),
         key_of(&literal),
@@ -228,17 +247,17 @@ fn a_carrier_centre_respelled_keys_identically() {
 /// leg.
 fn one_arc_chain(radius: Expr) -> LoopProgram {
     LoopProgram::Chain(vec![
-        ProgramStep::At([lit_len(0.0), lit_len(0.0)]),
+        ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::Toward {
-            dx: lit_scl(1.0),
-            dy: lit_scl(0.0),
+            dx: scl(1.0),
+            dy: scl(0.0),
         },
-        ProgramStep::Line(lit_len(4.0)),
+        ProgramStep::Line(len(4.0)),
         ProgramStep::Tangent,
         ProgramStep::ArcTo(ProgramArcData::Sweep {
             r: radius,
             side: profile::ArcSide::Left,
-            angle: Expr::literal(core::f64::consts::FRAC_PI_2, Dimension::Angle).unwrap(),
+            angle: ang(core::f64::consts::FRAC_PI_2),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
@@ -250,7 +269,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
+                name: ParamName::from_static("r"),
                 value: DocParam::continuous(Dimension::Length, value),
             },
             Tol::witness(),
@@ -264,6 +283,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
                 node: Node::Profile(ProfileProgram {
                     plane: PLANE,
                     loops,
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -289,11 +309,11 @@ fn a_chain_arcs_radius_feeds_the_key() {
     let parameterized = doc_with_r(
         0.5,
         vec![one_arc_chain(Expr::param(
-            ParamName::new("r"),
+            ParamName::from_static("r"),
             Dimension::Length,
         ))],
     );
-    let literal = doc_with_r(0.5, vec![one_arc_chain(lit_len(0.5))]);
+    let literal = doc_with_r(0.5, vec![one_arc_chain(len(0.5))]);
     assert_ne!(
         key_of(&parameterized),
         key_of(&literal),
@@ -314,24 +334,24 @@ fn a_chain_arcs_radius_feeds_the_key() {
 fn a_straight_chain_respelled_keys_identically() {
     let straight = |length: Expr| {
         LoopProgram::Chain(vec![
-            ProgramStep::At([lit_len(0.0), lit_len(0.0)]),
+            ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::Toward {
-                dx: lit_scl(1.0),
-                dy: lit_scl(0.0),
+                dx: scl(1.0),
+                dy: scl(0.0),
             },
             ProgramStep::Line(length),
-            ProgramStep::LineTo(ProgramTarget::Point([lit_len(2.0), lit_len(3.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(3.0)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])
     };
     let parameterized = doc_with_r(
         4.0,
         vec![straight(Expr::param(
-            ParamName::new("r"),
+            ParamName::from_static("r"),
             Dimension::Length,
         ))],
     );
-    let literal = doc_with_r(4.0, vec![straight(lit_len(4.0))]);
+    let literal = respelled(&parameterized, StepArg::Length, len(4.0));
     assert_eq!(
         key_of(&parameterized),
         key_of(&literal),
@@ -346,13 +366,10 @@ fn display_units_never_enter_the_key() {
     let params = std::collections::BTreeMap::new();
     let mm = parse_expr("500 mm", &params).unwrap();
     let m = parse_expr("0.5 m", &params).unwrap();
-    let canonical = Expr::literal(0.5, Dimension::Length).unwrap();
+    let canonical = len(0.5);
     let make = |r: Expr| {
         doc_with(vec![LoopProgram::Circle {
-            centre: [
-                Expr::literal(0.0, Dimension::Length).unwrap(),
-                Expr::literal(0.0, Dimension::Length).unwrap(),
-            ],
+            centre: [len(0.0), len(0.0)],
             radius: r,
         }])
     };
@@ -365,23 +382,17 @@ fn display_units_never_enter_the_key() {
 /// coincide: appending a step re-tags the stream.
 #[test]
 fn step_structure_moves_the_key() {
-    let lpt = |x: f64, y: f64| {
-        [
-            Expr::literal(x, Dimension::Length).unwrap(),
-            Expr::literal(y, Dimension::Length).unwrap(),
-        ]
-    };
     let tri = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 2.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 2.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let quad = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 2.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 2.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     assert_ne!(key_of(&doc_with(vec![tri])), key_of(&doc_with(vec![quad])));

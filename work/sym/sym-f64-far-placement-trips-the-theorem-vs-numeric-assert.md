@@ -2,8 +2,11 @@
 id: sym-f64-far-placement-trips-the-theorem-vs-numeric-assert
 kind: issue
 title: Sym<f64>/Sym<Probe> at a far placement panic in Decide's theorem-vs-numeric debug_assert: the point channel is not a proof
-status: open
+status: closed
 opened: 2026-09-14
+priority: P0
+cost: H
+closed: 2026-09-21
 ---
 
 
@@ -29,3 +32,82 @@ No shipped lane replays at `Sym<f64>` (the driver replays at `Sym<Interval>`),
 so this is a limit of the unit-test lane rather than a shipped defect; it
 stands in the way of any fixture-scale row that wants to drive `Sym<f64>` far
 from the origin (e.g. one that would count `Disputed` on the M10-10 documents).
+
+## A second mechanism: rule F turns a one-ulp sign error into a 2.0 (SYM-8, 2026-09-21)
+
+Found by SYM-8's two blinded reviews, independently, and reproduced by
+the fix pass. The row above is about MAGNITUDE — a far placement whose
+`f64` rounding exceeds the band. This one needs no far placement and no
+large residual: it is the `copysign` atom itself.
+
+**R2's adversary.** `E = (x + 1)² − x² − 2x − 1 + 1e-30·(1 + y²)` is the
+polynomial `1e-30 + 1e-30·y²` as a FORM — a positive constant plus a
+non-negative term, which SYM-8's rule F (`manifest_sign`) calls
+manifestly positive, so `copysign(1, E)` folds to the constant `1` and
+`copysign(1, E) − 1` is the zero form. At `x ≈ 1e8` the `f64`
+evaluation of the first four terms is roundoff of order one and comes
+out NEGATIVE, so the value channel's `copysign(1, E)` is `−1` and the
+margin is a DEFINITE `−2`. `Sym<f64>::sign_within`'s contradiction
+`debug_assert!` fires at **6 of 6 sampled points** (`x` ∈ {1e8, 3e8,
+5e8, 7e8, 1e9, 1.3e9}), and the panic leaves that thread's session
+installed, so the next call refuses to nest — which is why the row runs
+each point on its own thread.
+
+`E > 0` for every real `x`, `y`, so the tier's discharge is CORRECT and
+the `f64` lift's answer is not: the lift is not an enclosure and has no
+clause 1 to refuse with. What rule F adds is the amplification — it is
+the first rule that turns a one-ulp error in a SIGN argument into a
+whole `2.0` at the margin, because `copysign`'s output is `±1` however
+small the argument's error was. Any later rule that folds a sign
+decision inherits this.
+
+**R1's residue, the same shape from the other side.** At `f64`,
+`copysign(1, 1/(t − 1)²) − 1` at `t = 1` answers `theorem` where the
+function is undefined (`1/0` is `+inf`, `copysign(1, +inf)` is `1`, the
+margin is `0`). Nothing false is reported, but the f64 lift has no
+clause 1 to refuse the pole with — at `Sym<Interval>` the same box
+answers `refused Invalid`, which is what the rule's soundness argument
+relies on.
+
+**Rows.** `geom-core`'s `sym_rule_f_rows`:
+`the_adversary_a_positive_form_whose_f64_channel_reads_negative`
+(`#[ignore]`d — it fires the assertion by design),
+`the_adversary_at_the_interval_lift_is_a_plain_theorem` (gating: the
+enclosure of the margin over `x ∈ [1e8 ∓ 1]` is `[−2, 0]`, the numeric
+channel cannot decide, and the tier answers the identity), and
+`a_manifestly_positive_form_undefined_inside_the_box` (the pole, both
+arms, both boxes). SYM-8 changed nothing here: the assertion and the
+`f64` lift are this row's, not that unit's.
+
+## What was owed, and the answer (SYM-11, 2026-09-21)
+
+**The assertion's premise holds at exactly the lane scalars whose
+witness is EXACT, and the tier now charges the contradiction by that
+partition.** `Real::WITNESS` (`Witness::{Exact, Inexact}`, declared by
+every lane scalar beside `Real::register_equal`, whose refusal arm is
+the same claim) is read by `Sym<T>::sign_within`: at an exact witness
+the `debug_assert!` stands, because a certified bracket that excludes
+zero is a proof and a form that is the zero polynomial under it means
+one of the two channels does not contain its real. At an inexact one
+the contradiction is COUNTED — `SymCounts::theorems_disputed`, a
+refusal column beside `registrations_contradicted`, declared in
+`NOT_A_DISCHARGE_KIND` — the numeric answer is kept, and nothing
+panics.
+
+Both mechanisms are now gating rows rather than crashes: the far
+placement at three placements × three ε × `Sym<f64>`/`Sym<Probe>`
+(`sweep/tests/sym11_far_placement_rows.rs`) and rule F's adversary at
+all six sampled `x` plus R1's pole
+(`geom-core/tests/sym11_witness_kind_rows.rs`), with the certified
+twins asserting the count at zero
+(`sym11_witness_kind_interval_rows`, `m10_9_pins_interval`,
+`sym11_exact_channel_rows`). The fixture-scale row this item said was
+blocked — one that drives `Sym<f64>` far from the origin — is
+unblocked: the far-placement rows are exactly that, and they run.
+
+No decision at `Sym<Interval>` moved and every pin is bit-identical.
+
+The one narrowing SYM-11 left is filed as
+`work/sym/a-dispute-names-no-predicate-on-the-receipt.md`: a dispute is
+counted on the receipt and names no predicate (a new `ShapeOutcome`
+row would carry it); cited from `SymCounts::theorems_disputed`'s doc.

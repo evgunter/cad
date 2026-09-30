@@ -4,6 +4,8 @@ kind: issue
 title: The profile editor's number fields carry no per-argument affordances (expression, unit, range); a driven profile cannot be held
 status: open
 opened: 2026-09-19
+priority: P1
+cost: D
 ---
 
 

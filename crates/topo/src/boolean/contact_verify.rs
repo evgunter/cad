@@ -71,6 +71,7 @@ use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL}
 use crate::entity::FaceKey;
 
 use super::carrier_eq::{CarrierEqError, CarrierRelation};
+use super::refusal_routes::Contradiction;
 
 /// **The class-dispatching contact door**: does this face pair hold
 /// the declared contact, and on whose evidence?
@@ -121,19 +122,10 @@ pub fn contact_pair_verdict<T: Decide>(
 ///
 /// An ANGULAR contradiction (axes not parallel, planes not parallel)
 /// gets no steer: no gap makes those two carriers one, so pointing at
-/// `Fit` there would be advice that cannot work.
-pub(super) fn fit_steer(diag: &Indeterminate) -> Option<&'static str> {
-    matches!(
-        diag.predicate,
-        Some(
-            "carrier_sphere_radius"
-                | "carrier_cyl_radius"
-                | "carrier_sphere_center"
-                | "carrier_cyl_axis_offset"
-                | "bool_plane_offset"
-        )
-    )
-    .then_some(FIT_DEFERRAL)
+/// `Fit` there would be advice that cannot work
+/// ([`Contradiction::fits_a_clearance`]).
+pub(super) fn fit_steer(fact: Contradiction) -> Option<&'static str> {
+    fact.fits_a_clearance().then_some(FIT_DEFERRAL)
 }
 
 /// The `Rest` table (C4): carrier non-contradiction through the
@@ -163,9 +155,10 @@ fn rest_pair_verdict<T: Decide>(
         Ok((CarrierRelation::SameOpposite, verdict)) => Ok(verdict),
         Ok((CarrierRelation::SameOriented, _)) => Err(ContactRefusal::Contradicted {
             diag: Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("contact_rest_senses_opposed"),
+                terminal_sliver: false,
             },
             steer: None,
         }),
@@ -174,16 +167,17 @@ fn rest_pair_verdict<T: Decide>(
         // breaking its own contract.
         Ok((CarrierRelation::Distinct, _)) => Err(ContactRefusal::Escalated {
             diag: Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("contact_rest_ladder_invariant"),
+                terminal_sliver: false,
             },
         }),
-        Err(CarrierEqError::Contradicted(diag)) => Err(ContactRefusal::Contradicted {
-            steer: fit_steer(&diag),
+        Err(CarrierEqError::Contradicted { fact, diag }) => Err(ContactRefusal::Contradicted {
+            steer: fit_steer(fact),
             diag,
         }),
-        Err(CarrierEqError::Escalated(diag)) => Err(ContactRefusal::Escalated { diag }),
+        Err(CarrierEqError::Escalated { diag, .. }) => Err(ContactRefusal::Escalated { diag }),
         Err(CarrierEqError::Undeclared { diag, .. }) => Err(ContactRefusal::Undeclared { diag }),
     }
 }
@@ -312,8 +306,7 @@ pub fn tangent_locus_relation<T: Decide>(
     let mut bridged = false;
     for i in 0..CERT_SAMPLES {
         let t = sample_param(t0, t1, i);
-        let p = carrier.eval(t);
-        let tau = carrier.deriv(t);
+        let (p, tau) = carrier.ders1(t);
         // (1) On both surfaces. The sag bound rides the residual so
         // the between-sample interior is covered by the same
         // certificate the edge lane uses.
@@ -324,9 +317,10 @@ pub fn tangent_locus_relation<T: Decide>(
                 Ok(Sign::Positive) => {
                     return Err(ContactRefusal::Contradicted {
                         diag: Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
+                            margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some(name),
+                            terminal_sliver: false,
                         },
                         steer: Some(FIT_DEFERRAL),
                     });
@@ -359,9 +353,10 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Positive) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_opposed"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -372,9 +367,10 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Zero) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_independent"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -407,6 +403,11 @@ pub fn tangent_locus_relation<T: Decide>(
         // to the ordinary angular door: the defect metered at the
         // extent over which the verdict is consumed. Both spellings
         // answer the same question and carry the same predicate name.
+        // `geom_brep::certify`'s tangent arm spells the same fallback
+        // lever; the one deliberate difference is its role there, where
+        // it reads only after the second-order margin has refused and
+        // only a definite defect names that refusal, while here it is
+        // the first-order verdict itself, so an in-band reading escalates.
         let parallel = if second_order_definite == Some(true) {
             Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs())
         } else {
@@ -416,9 +417,10 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_parallel"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -440,9 +442,10 @@ pub fn tangent_locus_relation<T: Decide>(
                 if !declared {
                     return Err(ContactRefusal::Escalated {
                         diag: Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
+                            margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some("contact_tangent_second_order"),
+                            terminal_sliver: false,
                         },
                     });
                 }
@@ -630,20 +633,15 @@ mod tests {
     /// does not, because no gap makes two non-parallel carriers one.
     #[test]
     fn fit_steer_fires_only_where_a_gap_could_help() {
-        let diag = |p| Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band: band(),
-            predicate: Some(p),
-        };
         assert_eq!(
-            fit_steer(&diag("carrier_sphere_radius")),
+            fit_steer(Contradiction::SphereRadiiDiffer),
             Some(FIT_DEFERRAL)
         );
         assert_eq!(
-            fit_steer(&diag("carrier_cyl_axis_offset")),
+            fit_steer(Contradiction::CylinderAxesApart),
             Some(FIT_DEFERRAL)
         );
-        assert_eq!(fit_steer(&diag("carrier_cyl_axis_parallel")), None);
-        assert_eq!(fit_steer(&diag("bool_plane_parallel")), None);
+        assert_eq!(fit_steer(Contradiction::CylinderAxesNotParallel), None);
+        assert_eq!(fit_steer(Contradiction::PlanesNotParallel), None);
     }
 }

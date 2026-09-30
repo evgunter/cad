@@ -4,6 +4,8 @@ kind: issue
 title: topo's suites spell the box wrapper n ways, of which the scaled probe box is five
 status: open
 opened: 2026-09-16
+priority: P3
+cost: E
 ---
 
 ## Finding

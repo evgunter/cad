@@ -17,7 +17,7 @@
 use crate::common;
 
 use common::{annulus, bracket, chain, l_profile, lens, lift, profile, rounded_rect, tol};
-use geom_core::{Affine3, Decide, Dual64, Point2, Real, Sign, Vec3};
+use geom_core::{Affine3, Arc2, Decide, Dual64, Point2, Real, Sign, Vec3};
 use profile::{LoopRole, Profile, RawLoop, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The fixtures, named: every canonical-form fact the door carries has
@@ -32,8 +32,8 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
         (3.0, 1.0, 0.0),
         (3.0, 0.0, 0.0),
     ]);
-    // A rotated start: canonicalization starts each loop at its
-    // lex-min vertex, so the carried start is a decision too.
+    // A rotated start: canonicalization keeps each loop's authored
+    // start, so the carried start is the author's too.
     let rotated = chain(&[
         (2.0, 0.0, 0.0),
         (2.0, 1.0, 0.0),
@@ -104,9 +104,9 @@ fn rounded_hole(x0: f64, y0: f64, w: f64, h: f64, r: f64) -> profile::ProfileLoo
 }
 
 /// Every scalar a validated profile stores, in one fixed order: the
-/// plane's placement, then per loop each vertex's position and bulge,
-/// then each segment's endpoints, bulge and (for an arc) center and
-/// radius. (`editor-core`'s `pinned_lift_validates_once` suite carries
+/// plane's placement, then per loop each vertex's position, then each
+/// segment's endpoints, bulge and (for an arc) center, radius and
+/// sweep. (`editor-core`'s `pinned_lift_validates_once` suite carries
 /// the same walk: `test-utils` is a dependency-free leaf and cannot
 /// host a walk over this crate's types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
@@ -127,12 +127,21 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
     ];
     for lp in vp.loops() {
         for v in lp.vertices() {
-            out.extend([v.pos().x, v.pos().y, v.bulge()]);
+            out.extend([v.x, v.y]);
         }
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
-            if let SegmentKind::Arc { center, radius, .. } = s.kind {
-                out.extend([center.x, center.y, radius]);
+            if let SegmentKind::Arc {
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        sweep,
+                    },
+                ..
+            } = s.kind
+            {
+                out.extend([center.x, center.y, radius, sweep]);
             }
         }
     }
@@ -171,7 +180,8 @@ fn blends<T: Real>(arcs: Vec<profile::BlendArc<T>>) -> Vec<(usize, char)> {
 /// lifted raw profile: every value channel the same bits (`channels`
 /// projects each of them to `f64`), and every canonical-form accessor
 /// answering as the `f64` form does.
-fn lift_equals_revalidation<U: Real + Decide>(scalar: &str, channels: &[Channel<U>]) {
+fn lift_equals_revalidation<U: Real + Decide>(channels: &[Channel<U>]) {
+    let scalar = U::NAME;
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
         let lifted: ValidatedProfile<U> = at_f64.clone().lift_onto(SketchPlane::xy());
@@ -227,7 +237,7 @@ fn lift_equals_revalidation<U: Real + Decide>(scalar: &str, channels: &[Channel<
 /// carriers included.
 #[test]
 fn the_lift_to_f64_is_the_identity() {
-    lift_equals_revalidation::<f64>("f64", &[("value", |x| x)]);
+    lift_equals_revalidation::<f64>(&[("value", |x| x)]);
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
         let bits = |vp: &ValidatedProfile<f64>| {
@@ -249,7 +259,7 @@ fn the_lift_to_f64_is_the_identity() {
 /// constant's derivative being `-0.0`; the door's doc states it).
 #[test]
 fn the_lift_to_dual_equals_validating_at_dual() {
-    lift_equals_revalidation::<Dual64>("Dual64", &[("value", |d| d.value)]);
+    lift_equals_revalidation::<Dual64>(&[("value", |d| d.value)]);
     for (name, raw) in fixtures() {
         let at_f64 = raw.validate(tol()).expect(name);
         let lifted = at_f64.clone().lift_onto::<Dual64>(SketchPlane::xy());
@@ -273,30 +283,26 @@ fn the_lift_to_dual_equals_validating_at_dual() {
     }
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_lift_to_interval_equals_validating_at_interval() {
     use geom_core::Bounds;
-    lift_equals_revalidation::<geom_core::Interval>(
-        "Interval",
-        &[("lo", |i| i.lo()), ("hi", |i| i.hi())],
-    );
+    lift_equals_revalidation::<geom_core::Interval>(&[("lo", |i| i.lo()), ("hi", |i| i.hi())]);
 }
 
 /// The decided facts, read at `Dual64` on the fixtures whose input
 /// contradicts them: the clockwise rectangle comes back
-/// counterclockwise, the rotated one starts at its lex-min vertex, the
+/// counterclockwise, the rotated one keeps its authored start, the
 /// hole listed first comes back behind its outer, the annulus's hole
 /// arcs turn clockwise.
 #[test]
 fn the_carried_decisions_are_the_f64_ones() {
     // Twice the signed area of a polygonal loop (every segment a
     // line); an arc loop's winding is read from its turns instead.
-    let shoelace = |vs: &[profile::ProfileVertex<Dual64>]| -> f64 {
+    let shoelace = |vs: &[geom_core::Point2<Dual64>]| -> f64 {
         let n = vs.len();
         (0..n)
             .map(|i| {
-                let (a, b) = (vs[i].pos(), vs[(i + 1) % n].pos());
+                let (a, b) = (vs[i], vs[(i + 1) % n]);
                 a.x.value * b.y.value - b.x.value * a.y.value
             })
             .sum()
@@ -323,14 +329,14 @@ fn the_carried_decisions_are_the_f64_ones() {
                     LoopRole::Hole => assert!(twice_area < 0.0, "{name} loop {li}: hole runs CW"),
                 }
             }
-            let start = lu.vertices()[0].pos();
-            for v in lu.vertices() {
-                let p = v.pos();
-                assert!(
-                    (start.x.value, start.y.value) <= (p.x.value, p.y.value),
-                    "{name} loop {li}: the canonical start is the lex-min vertex"
-                );
-            }
+            let start = lu.vertices()[0];
+            let authored: Vec<_> = raw.loops.iter().map(|lp| lp.vertices()[0]).collect();
+            assert!(
+                authored
+                    .iter()
+                    .any(|p| (p.x, p.y) == (start.x.value, start.y.value)),
+                "{name} loop {li}: the canonical start is an input loop's authored start"
+            );
         }
     }
     let ring = annulus()

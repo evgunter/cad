@@ -6,6 +6,8 @@ status: deferred
 opened: 2026-08-31
 github: 1379
 refs: [1407]
+priority: P3
+cost: D
 ---
 
 ## From GitHub issue 1379

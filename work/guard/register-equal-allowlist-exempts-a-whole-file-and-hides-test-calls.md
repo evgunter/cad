@@ -4,6 +4,8 @@ kind: issue
 title: register-equal-allowlist's whole-file skip exempts geom-core's sym.rs for DEFINING the method, and hides thirteen test calls of the door with it
 status: open
 opened: 2026-09-14
+priority: P3
+cost: E
 ---
 
 

@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-03
 pr: 1696
 branch: claude/lib-mechanical-clippy-ci-tadd42
-refs: [the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row, pncad-py-python-feature-clippy-lane-is-red, census-points-at-a-deleted-lib-log, stub-check-never-descends-class-attributes, python-refusal-tag-values-pinned-nowhere, pin-mismatch-recourse-emitted-twice, subject-body-drops-the-declared-contacts]
+refs: [the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row, pncad-py-python-feature-clippy-lane-is-red, census-points-at-a-deleted-lib-log, stub-check-never-descends-class-attributes, python-refusal-tag-values-pinned-nowhere]
 closed: 2026-09-03
 ---
 
@@ -132,3 +132,7 @@ is not mechanical), and
 `work/lib/datum-in-plane-reads-back-a-length-pair-bare.md` (the write
 door takes `tuple[Length, Length]` where this read door answers bare
 floats; changing a published Python type is not mechanical either).
+
+## Reference note (FIX's sweep, 2026-09-21)
+
+`pin-mismatch-recourse-emitted-twice` and `subject-body-drops-the-declared-contacts` were dropped from this row's `refs` because the rows closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The findings are unchanged and still readable: `git show 6f0e04ce1534:work/fix/pin-mismatch-recourse-emitted-twice.md`, `git show 6f0e04ce1534:work/fix/subject-body-drops-the-declared-contacts.md`.

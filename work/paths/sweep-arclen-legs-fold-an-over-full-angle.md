@@ -5,6 +5,8 @@ title: the tangent arc legs Sweep and ArcLen gate the angle positive only — θ
 status: open
 opened: 2026-09-16
 refs: [2135]
+priority: P0
+cost: H
 ---
 
 Found by BOOL-10's second review (PR 2135, R2 MINOR-5) on the split-form

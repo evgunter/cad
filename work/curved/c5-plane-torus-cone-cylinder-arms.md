@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-27
 github: 1057
 refs: [VERBS-C5ARMS, 1048]
+priority: P1
+cost: H
 ---
 
 ## From GitHub issue 1057
@@ -53,3 +55,15 @@ wall 1). Two doors now stand between the elbow and its re-authoring:
 the seam re-author (an orchestrator question raised by PR-1a) and the
 props quadrature lane for a spiric-bounded face (the spiric unit's
 PR-2, after PR-1b's pcurve variant and STEP spline).
+
+## A second consumer: lily wall 1 (GERM, 2026-09-28)
+
+With the circle × torus root lane landed, the lily's stem glue
+(`crates/sweep/tests/germ_circle_torus.rs`
+`the_lily_stem_glue_is_past_the_circle_torus_pairs`, and the tour's
+wall 1) is past the crossing layer and refuses
+`GermFrameUnsupported { a_kind: Plane, b_kind: Torus }` at
+`boolean/join.rs` `pair_section_frame`: the germ pair is the stem's weld
+cap against the arch's tube wall. The weld plane contains the arch
+torus's axis, so this is the easy meridian-plane configuration above,
+at the join's frame dispatch rather than at `route`.

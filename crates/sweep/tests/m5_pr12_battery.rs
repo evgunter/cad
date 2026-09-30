@@ -10,23 +10,19 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::operands;
 use geom_brep::SurfaceKind;
-use geom_core::{Affine3, Point2, Vec2, Vec3};
-use geom_core::{MarginDiag, Tol};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use geom_core::Tol;
+use geom_core::{Point2, Vec3};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
-use sweep::test_support::{block, realized};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::{ball_poled_y, block, realized};
+use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 /// An L-shaped (notched) prism: the only planar fixture in this file
 /// with a CONCAVE edge, which is what predicates 5 and 6's
@@ -40,9 +36,9 @@ fn notched() -> Body<f64> {
         (1.0, 2.0),
         (0.0, 2.0),
     ];
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         pts.into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -53,31 +49,16 @@ fn notched() -> Body<f64> {
         .body
 }
 
-/// A radius-`r` ball centred at `c` (the S13 authoring).
-fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
-}
-
 /// A 4 × 4 × 1 slab with ONE spherical pip bitten out of its top face
 /// (S13's live `slab ∖ ball`): the fixture that carries a plane–sphere
 /// rim, which is the pip-rim torus arm's input.
 fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
-    let slab = block(4.0, 4.0, 1.0, Tol::witness());
-    let ball = ball_at(pip_r, Vec3::new(2.0, 2.0, 1.0 + pip_r - pip_h));
+    let slab = operands::slab();
+    let ball = ball_poled_y(
+        pip_r,
+        Vec3::new(2.0, 2.0, 1.0 + pip_r - pip_h),
+        Tol::witness(),
+    );
     realized(BooleanOp::Subtract, &slab, &ball, Tol::witness())
 }
 
@@ -189,7 +170,11 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
         Err(BlendError::RadiusHeadroom { margin, radius, .. }) => {
             assert_eq!(margin.predicate, "fillet3_radius_headroom");
             assert!(
-                margin.value().is_some_and(|m| m < 0.0),
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m < 0.0),
                 "the headroom margin is definitely negative"
             );
             assert!((radius - 0.9).abs() < 1e-12);
@@ -217,8 +202,15 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
     match run_battery(&req, band()) {
         Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
             assert_eq!(margin.predicate, "fillet3_face_clearance");
-            assert!(margin.value().is_some_and(|m| m < 0.0));
-            let MarginDiag::Value(gap) = gap else {
+            assert!(
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m < 0.0)
+            );
+            let geom_core::ErrorTextReading::Value(gap) = gap.diagnostic_f64_for_error_text()
+            else {
                 panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
             };
             assert!((gap - 1.0).abs() < 1e-9, "the gap is the box side");
@@ -267,7 +259,11 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
         Err(BlendError::SpineIrregular { margin, radius }) => {
             assert_eq!(margin.predicate, "fillet3_spine_regularity");
             assert!(
-                margin.value().is_some_and(|m| m <= 0.0),
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m <= 0.0),
                 "the spine margin is definitely non-positive"
             );
             assert!((radius - 0.2).abs() < 1e-12);
@@ -319,10 +315,15 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
             assert_eq!(margin.predicate, "fillet3_chain_g1");
             assert!(
-                margin.value().is_some_and(|m| m > 0.0),
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| m > 0.0),
                 "a 90° kink has a definitely positive margin"
             );
-            let MarginDiag::Value(arm) = arm else {
+            let geom_core::ErrorTextReading::Value(arm) = arm.diagnostic_f64_for_error_text()
+            else {
                 panic!("this lane classifies at f64, so the arm is one number: {arm:?}")
             };
             assert!(arm > 0.0);

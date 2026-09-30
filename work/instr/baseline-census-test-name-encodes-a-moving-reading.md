@@ -4,6 +4,8 @@ kind: issue
 title: A #[test] name states a census reading a re-cut moves, and two sites quote the name
 status: open
 opened: 2026-09-16
+priority: P3
+cost: D
 ---
 
 

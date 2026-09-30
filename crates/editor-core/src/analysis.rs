@@ -396,7 +396,6 @@ impl AxisScalar for geom_core::Probe {
 
 /// The interval scalar carries every axis: this is the door
 /// [`geom_core::Interval::from_bounds`] exists for.
-#[cfg(feature = "interval")]
 impl AxisScalar for geom_core::Interval {
     fn axis(lo: f64, hi: f64) -> Option<Self> {
         Some(geom_core::Interval::from_bounds(lo, hi))
@@ -439,8 +438,9 @@ where
     fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
         // The bracket goes with the value: it is the one value the
         // symbolic tier reads (rule C's sign read, `geom_core::sym`).
-        T::axis(lo, hi)
-            .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::of(&name.0), v, lo, hi))
+        T::axis(lo, hi).map(|v| {
+            geom_core::Sym::param_over(geom_core::ParamSymbol::of(name.as_str()), v, lo, hi)
+        })
     }
 }
 
@@ -504,7 +504,6 @@ impl SeedScalar for geom_core::Probe {
 /// axis is [`AxisScalar`]'s to carry and a seed is not, and the two stay
 /// separate acts on the same environment (the `AxisScalar` dual impl
 /// states the same boundary from the other side).
-#[cfg(feature = "interval")]
 impl SeedScalar for geom_core::Interval {
     fn seed(_lifted: Self) -> Option<Self> {
         None

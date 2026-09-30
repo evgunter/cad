@@ -4,6 +4,8 @@ kind: issue
 title: Focusing and leaving a form's number field writes back the rounded value its text shows
 status: open
 opened: 2026-09-19
+priority: P0
+cost: E
 ---
 
 

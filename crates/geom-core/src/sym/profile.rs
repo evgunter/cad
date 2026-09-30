@@ -9,7 +9,7 @@
 //! CAUSE the ring or the budget refused for, noted at the refusal site
 //! itself ([`FreezeCause`]) rather than re-derived afterwards. Per walk
 //! ([`Walk`]) and per ORIGIN ([`Origin`] — the decision's own discharge,
-//! the contradiction assertion on a definite sign, or the shape
+//! the contradiction check on a definite sign, or the shape
 //! report's rendering): how many forms each built and the wall time it
 //! took. For the coefficient ring: every `Rat` operation, every one
 //! that left the `i128` inline path, and the widest coefficient any
@@ -95,11 +95,15 @@ pub enum Origin {
     /// check of a registered zero against a definite sign
     /// (`door_zero`) counts here too — it is the decision path.
     Decision,
-    /// The contradiction ASSERTION on a definite sign: `Decide for
-    /// Sym<T>` runs `discharge` inside a `debug_assert!` on every
-    /// margin the numeric channel proved non-zero, so under debug
-    /// assertions (dev, test, and this workspace's release profile)
-    /// those forms are built by the assertion and not by the tier.
+    /// The contradiction CHECK on a definite sign: `Decide for Sym<T>`
+    /// runs `discharge` on every margin the numeric channel answered
+    /// definite, so those forms are built by the check and not by the
+    /// tier. At an EXACT witness the check is a `debug_assert!`, so it
+    /// runs under debug assertions only (dev, test, and this
+    /// workspace's release profile); at an INEXACT one it is the
+    /// dispute count (`SymCounts::theorems_disputed`) and runs in
+    /// every profile. Both are charged here, because what the column
+    /// measures is the walk and not the verdict.
     Assertion,
     /// The shape report's rendering of a blocked residual
     /// (`report::render_node`), when the report is installed.
@@ -932,8 +936,13 @@ mod tests {
         assert_eq!(out.frozen(), 0);
 
         // A definite sign: the decision path builds no form; the
-        // contradiction assertion does (dev and test profiles), and the
-        // profile charges every walk it asks to `Assertion`.
+        // contradiction check does — here at `f64`, an INEXACT witness,
+        // where it is the dispute count and runs in every profile, so
+        // the `cfg!(debug_assertions)` guard below is looser than this
+        // arm needs (it is the EXACT arm that stops asking without
+        // them); kept so the row reads the same in every profile the
+        // workspace builds. The profile charges every walk it asks to
+        // `Assertion`.
         let out = profiled(budget(4096, 128), || {
             let (x, y) = (p("x", 1.0), p("y", 2.0));
             ask(x * y + y * x);

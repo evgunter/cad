@@ -16,14 +16,14 @@ use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve};
 
 fn offset_square_prism() -> Body<f64> {
     let square = || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![profile::ProfileLoop::new(vec![
+        let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+        vec![bulge_loop(vec![
             v(-1.0, -1.0),
             v(1.0, -1.0),
             v(1.0, 1.0),
@@ -115,8 +115,14 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             .faces()
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
-        body.set_face_surface(fk, FaceSurface::New(flipped))
-            .expect("the bowed wall's face key resolves")
+        body.set_face_surface(
+            fk,
+            FaceSurface::New {
+                surface: flipped,
+                sense: true,
+            },
+        )
+        .expect("the bowed wall's face key resolves")
     } else {
         bowed
     };
@@ -139,11 +145,14 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     let plane = body
         .set_face_surface(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -1.0, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -1.0, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("the exactly-planar wall restates as a plane");
     let eps = Tol::witness().get().eps;
@@ -176,7 +185,9 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
                 },
         }) => {
             assert!(eps < 1e-9, "only the ε-fine cell refuses: {cause:?}");
-            let geom_core::MarginDiag::Value(sup) = cause.margin else {
+            let geom_core::ErrorTextReading::Value(sup) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("the refusal carries the lane's measured bound: {cause:?}");
             };
             assert!(

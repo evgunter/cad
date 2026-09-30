@@ -28,8 +28,8 @@ use super::common::latitude_seam::{
     collinear_cap_drum, door_cavity, graft_recertify_failures, plane_images, two_arc_sphere,
     void_evidence,
 };
+use super::common::pcurve_rows::rows;
 use super::shell7_common::*;
-use super::shell9_rows::rows;
 
 /// **Drum, stage by stage.** The door's cavity re-certifies edge for
 /// edge, and so does its `revert()`: the two half-circles of the
@@ -98,7 +98,9 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     let reverted = cavity.revert().expect("revert");
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
-        Err(vec![topo::ValidationError::NegativeVolume]),
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "revert() alone leaves every stored loop continuous"
     );
     assert!(

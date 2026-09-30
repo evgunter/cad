@@ -18,18 +18,17 @@
 use crate::revolve_common;
 
 use geom::Surface;
-use geom_core::Tol;
-use profile::RawLoop;
-use profile::{ProfileLoop, ProfileVertex};
+use geom_core::{Point2, Tol};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
 
 /// The half-disc: semicircle from (0, −1) through (1, 0) to (0, 1)
 /// (bulge tan(π/4) = 1), closed by the on-axis diameter. CCW.
 fn half_disc() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ])
 }
 

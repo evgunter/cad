@@ -20,10 +20,7 @@ use crate::common;
 use std::path::{Path, PathBuf};
 
 use common::asm;
-use pncad::document::{
-    Alignment, AxisSense, Doc, DocumentId, MateFrame, MatePrimitive, Node, NodeResult,
-    RecipeNodeId, SlotId,
-};
+use pncad::document::{Doc, DocumentId, Node, NodeResult, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
@@ -31,30 +28,6 @@ use viewer::display::AdmissionFault;
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
-
-/// The seat mate the acceptance authors: the post's top cap under the
-/// shelf's underside, frames in each part's own coordinates.
-fn seat_alignment() -> Alignment {
-    Alignment {
-        a: MateFrame {
-            origin: [
-                asm::POST_SECTION / 2.0,
-                asm::POST_SECTION / 2.0,
-                asm::POST_HEIGHT,
-            ],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
-}
 
 /// A session over a NEW empty document, saved into the bench's
 /// directory — which is what gives it a resolver, and therefore a
@@ -66,31 +39,6 @@ fn authored_session(bench: &asm::Bench, label: &str, tol: Tol) -> (DocSession, P
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     (session, path)
-}
-
-/// Perform one `AddInstance` and answer the node it minted, asserting
-/// the op's own contract: no refusal, exactly one committed edit.
-fn add_instance(session: &mut DocSession, id: DocumentId) -> RecipeNodeId {
-    let before: Vec<RecipeNodeId> = session.doc().order().to_vec();
-    let outcome = session.perform(SessionOp::AddInstance { id });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
-        outcome.committed.len(),
-        1,
-        "an instance is exactly one committed edit"
-    );
-    session.pump();
-    let minted: Vec<RecipeNodeId> = session
-        .doc()
-        .order()
-        .iter()
-        .copied()
-        .filter(|id| !before.contains(id))
-        .collect();
-    match minted.as_slice() {
-        [only] => *only,
-        other => panic!("one insert mints one node, got {other:?}"),
-    }
 }
 
 /// The instance's node, as the document holds it.
@@ -109,8 +57,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let bench = asm::bench("gauth3-author", tol);
     let (mut session, path) = authored_session(&bench, "gauth3-authored", tol);
 
-    let post_i = add_instance(&mut session, bench.post.id);
-    let shelf_i = add_instance(&mut session, bench.shelf.id);
+    let post_i = common::instance_in(&mut session, bench.post.id);
+    let shelf_i = common::instance_in(&mut session, bench.shelf.id);
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
@@ -168,12 +116,13 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(session.display().free_move_of(shelf_i).is_some());
 
     // The shipped mate tool's op takes them from here.
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(post_i, &bench.post_top)),
-        b: common::head(asm::in_part(shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
+    let outcome = session.perform(asm::seat_op_under(
+        &bench,
+        post_i,
+        shelf_i,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     let [superseded] = &outcome.withdrawn.superseded[..] else {
@@ -402,8 +351,8 @@ fn two_instances_of_one_part_insert_and_evaluate() {
     let bench = asm::bench("gauth3-twice", tol);
     let (mut session, _) = authored_session(&bench, "gauth3-twice-asm", tol);
 
-    let first = add_instance(&mut session, bench.post.id);
-    let second = add_instance(&mut session, bench.post.id);
+    let first = common::instance_in(&mut session, bench.post.id);
+    let second = common::instance_in(&mut session, bench.post.id);
     assert_ne!(first, second, "each insert mints its own node");
     assert_eq!(instance_of(&session, first).0, bench.post);
     assert_eq!(
@@ -567,7 +516,7 @@ fn the_chooser_holds_a_snapshot_and_rescan_re_reads_it() {
 fn one_instance(tag: &str, label: &str, tol: Tol) -> (asm::Bench, PathBuf, RecipeNodeId) {
     let bench = asm::bench(tag, tol);
     let (mut session, path) = authored_session(&bench, label, tol);
-    let instance = add_instance(&mut session, bench.post.id);
+    let instance = common::instance_in(&mut session, bench.post.id);
     let saved = session.perform(SessionOp::Save(path.clone()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     (bench, path, instance)
@@ -581,6 +530,58 @@ fn post_file(bench: &asm::Bench) -> PathBuf {
         .get(&bench.post.id)
         .expect("the post is stored")
         .clone()
+}
+
+/// The referenced part gains a feature — A4's Cargo.lock semantics
+/// mean the assembly is NOT retargeted, so its pin no longer holds.
+fn move_the_posts_pin(bench: &asm::Bench, tol: Tol) {
+    let text = std::fs::read_to_string(post_file(bench)).expect("the post reads");
+    let loaded = pncad::document::load(&text, tol).expect("the post loads");
+    let (edited, _) = common::framed_square(&loaded.doc, 0.005, tol);
+    let mut ws = Workspace::open(&bench.dir).expect("the directory scans");
+    ws.resave(&edited, tol).expect("the post rewrites");
+}
+
+/// The post document as a process at a different ε wrote it: one
+/// process, one ε, so the seam refuses at resolution (A2).
+fn record_another_epsilon(bench: &asm::Bench) {
+    // **Editing the saved text is the only door, and this is why.** ε
+    // is a process-global commitment: a document records the ε of the
+    // process that authored it, `Tol` cannot be re-witnessed at a
+    // second value inside one test binary, and neither the save door
+    // nor the workspace's write side takes an ε to write. The kernel's
+    // own ε-seam rows reach this state through a stub resolver, which
+    // this suite cannot use — the resolver under test is the real one
+    // over a real directory.
+    //
+    // The mechanism is `doc_io`'s: find the ε LINE by its field name
+    // (not by a byte offset into the file), and assert there is
+    // exactly one, so a format change fails the row loudly instead of
+    // quietly editing the wrong number.
+    let file = post_file(bench);
+    let text = std::fs::read_to_string(&file).expect("the post reads");
+    let is_epsilon = |line: &&str| line.trim_start().starts_with("\"epsilon\":");
+    assert_eq!(
+        text.lines().filter(is_epsilon).count(),
+        1,
+        "a saved document records exactly one ε"
+    );
+    let line = text.lines().find(is_epsilon).expect("checked above");
+    let recorded: f64 = line
+        .trim_start()
+        .trim_start_matches("\"epsilon\":")
+        .trim()
+        .trim_end_matches(',')
+        .parse()
+        .expect("the ε field is a number");
+    let doubled = format!("  \"epsilon\": {:e},", recorded * 2.0);
+    let mut text: String = text
+        .lines()
+        .map(|l| if is_epsilon(&l) { doubled.as_str() } else { l })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    text.push('\n');
+    std::fs::write(&file, &text).expect("the post rewrites");
 }
 
 /// Open `path` fresh and answer the instance row's FAILED badge
@@ -597,7 +598,7 @@ fn failed_badge(path: &Path, node: RecipeNodeId, tol: Tol) -> String {
         .find(|row| row.id == node)
         .expect("the instance has a row");
     let message = match &row.status {
-        RowStatus::Failed { message } => message.clone(),
+        RowStatus::Failed { message, .. } => message.clone(),
         other => panic!("expected the instance to fail, got {other:?}"),
     };
     assert_eq!(row.status.badge(), "FAILED");
@@ -617,14 +618,7 @@ fn failed_badge(path: &Path, node: RecipeNodeId, tol: Tol) -> String {
 fn an_authored_instance_whose_part_moved_badges_the_pin_mismatch() {
     let tol = Tol::witness();
     let (bench, path, instance) = one_instance("gauth3-pin", "gauth3-pin-asm", tol);
-
-    // The referenced part gains a feature — A4's Cargo.lock semantics
-    // mean the assembly is NOT retargeted, so its pin no longer holds.
-    let text = std::fs::read_to_string(post_file(&bench)).expect("the post reads");
-    let loaded = pncad::document::load(&text, tol).expect("the post loads");
-    let (edited, _) = common::framed_square(&loaded.doc, 0.005, tol);
-    let mut ws = Workspace::open(&bench.dir).expect("the directory scans");
-    ws.resave(&edited, tol).expect("the post rewrites");
+    move_the_posts_pin(&bench, tol);
 
     let message = failed_badge(&path, instance, tol);
     assert!(
@@ -658,51 +652,118 @@ fn an_authored_instance_whose_part_vanished_badges_unresolved() {
 fn an_authored_instance_whose_part_records_another_epsilon_badges_the_seam() {
     let tol = Tol::witness();
     let (bench, path, instance) = one_instance("gauth3-eps", "gauth3-eps-asm", tol);
-
-    // A part document written by a process at a different ε: one
-    // process, one ε, so the seam refuses at resolution (A2).
-    //
-    // **Editing the saved text is the only door, and this is why.** ε
-    // is a process-global commitment: a document records the ε of the
-    // process that authored it, `Tol` cannot be re-witnessed at a
-    // second value inside one test binary, and neither the save door
-    // nor the workspace's write side takes an ε to write. The kernel's
-    // own ε-seam rows reach this state through a stub resolver, which
-    // this suite cannot use — the resolver under test is the real one
-    // over a real directory.
-    //
-    // The mechanism is `doc_io`'s: find the ε LINE by its field name
-    // (not by a byte offset into the file), and assert there is
-    // exactly one, so a format change fails the row loudly instead of
-    // quietly editing the wrong number.
-    let file = post_file(&bench);
-    let text = std::fs::read_to_string(&file).expect("the post reads");
-    let is_epsilon = |line: &&str| line.trim_start().starts_with("\"epsilon\":");
-    assert_eq!(
-        text.lines().filter(is_epsilon).count(),
-        1,
-        "a saved document records exactly one ε"
-    );
-    let line = text.lines().find(is_epsilon).expect("checked above");
-    let recorded: f64 = line
-        .trim_start()
-        .trim_start_matches("\"epsilon\":")
-        .trim()
-        .trim_end_matches(',')
-        .parse()
-        .expect("the ε field is a number");
-    let doubled = format!("  \"epsilon\": {:e},", recorded * 2.0);
-    let mut text: String = text
-        .lines()
-        .map(|l| if is_epsilon(&l) { doubled.as_str() } else { l })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    text.push('\n');
-    std::fs::write(&file, &text).expect("the post rewrites");
+    record_another_epsilon(&bench);
 
     let message = failed_badge(&path, instance, tol);
     assert!(
         message.contains("recorded tolerance disagrees with this process's"),
         "{message}"
     );
+}
+
+/// **Every badge a part that does not resolve wears meets the refusal
+/// standard** (`test_utils::refusal::problems`), on the store's own
+/// sentences through this crate's resolver: the part's file gone, its
+/// pin moved, its ε another process's, and the assembly held in memory
+/// with no file, which `docio::NoFile` refuses. The ids and pins each prints are
+/// admitted span by span, filed with their owner.
+#[test]
+fn every_unresolved_part_badge_meets_the_refusal_standard() {
+    use test_utils::refusal::{Admission, problems_admitting};
+    const HEX: &str = "work/edit/part-refusals-name-documents-by-hex-id.md";
+    let tol = Tol::witness();
+    let mut rows: Vec<(&str, String, Vec<String>)> = Vec::new();
+
+    // Each recourse a door can be seen to honour is followed: the
+    // part's file put back, and the held assembly saved beside its
+    // parts, each resolves.
+    let (bench, path, instance) = one_instance("std-gone", "std-gone-asm", tol);
+    let file = post_file(&bench);
+    let kept = std::fs::read_to_string(&file).expect("the post reads");
+    std::fs::remove_file(&file).expect("the post is removed");
+    rows.push((
+        "Part/Unresolved(Unresolved)",
+        failed_badge(&path, instance, tol),
+        vec![bench.post.id.to_string()],
+    ));
+    std::fs::write(&file, kept).expect("the post is put back");
+    let mut back = DocSession::inline(Doc::empty_derived("std-gone-back", tol), tol);
+    assert!(
+        back.perform(SessionOp::Open(path.clone()))
+            .refusal
+            .is_none()
+    );
+    back.pump();
+    assert_eq!(
+        common::status_of(&back.tree_rows(), instance),
+        RowStatus::Ok,
+        "the part's file put back in the store's directory resolves"
+    );
+
+    let (bench, path, instance) = one_instance("std-pin", "std-pin-asm", tol);
+    move_the_posts_pin(&bench, tol);
+    let moved = Workspace::open(&bench.dir)
+        .expect("the directory scans")
+        .current_pin(bench.post.id, tol)
+        .expect("the moved post pins");
+    rows.push((
+        "Part/Unresolved(PinMismatch)",
+        failed_badge(&path, instance, tol),
+        vec![
+            bench.post.id.to_string(),
+            bench.post.pin.to_string(),
+            moved.to_string(),
+        ],
+    ));
+
+    let (bench, path, instance) = one_instance("std-eps", "std-eps-asm", tol);
+    record_another_epsilon(&bench);
+    rows.push((
+        "Part/Unresolved(EpsilonSeam)",
+        failed_badge(&path, instance, tol),
+        vec![bench.post.id.to_string()],
+    ));
+
+    // Saved over its own file: a second file would claim the same id,
+    // which the store's scan refuses.
+    let (_bench, path, instance) = one_instance("std-none", "std-none-asm", tol);
+    let held = viewer::docio::open(&path, tol).expect("the assembly opens");
+    let mut session = DocSession::inline(held.doc().clone(), tol);
+    session.pump();
+    let none = match &common::status_of(&session.tree_rows(), instance) {
+        RowStatus::Failed { message, .. } => message.clone(),
+        other => panic!("an instance with no file fails, got {other:?}"),
+    };
+    assert!(
+        none.contains("Recourse: save it beside its parts"),
+        "the recourse followed below: {none}"
+    );
+    rows.push(("Part/Unresolved(NoFile)", none, Vec::new()));
+    assert!(
+        session
+            .perform(SessionOp::Save(path.clone()))
+            .refusal
+            .is_none()
+    );
+    session.pump();
+    assert_eq!(
+        common::status_of(&session.tree_rows(), instance),
+        RowStatus::Ok,
+        "saved beside its parts, the assembly evaluates over their store"
+    );
+
+    let mut problems = Vec::new();
+    for (name, text, spans) in &rows {
+        eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
+        let admissions: Vec<Admission<'_>> = spans
+            .iter()
+            .map(|span| Admission {
+                row: name,
+                span,
+                filed: HEX,
+            })
+            .collect();
+        problems.extend(problems_admitting(name, text, &[], false, &admissions));
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

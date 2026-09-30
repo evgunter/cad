@@ -4,6 +4,8 @@ kind: issue
 title: rustfmt does not reach inside a macro_rules! invocation, so eight viewer enums are formatted by hand
 status: open
 opened: 2026-09-06
+priority: P3
+cost: E
 ---
 
 

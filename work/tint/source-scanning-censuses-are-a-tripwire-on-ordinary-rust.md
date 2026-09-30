@@ -4,6 +4,8 @@ kind: issue
 title: the source-scanning censuses hand-parse Rust and fail loud, so an ordinary-but-unusual signature reds another program's test with a byte offset for a message
 status: open
 opened: 2026-09-04
+priority: P3
+cost: D
 ---
 
 

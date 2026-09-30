@@ -4,6 +4,8 @@ kind: issue
 title: RUN_PNCAD_PY survives the axis it keyed: computed on every run, read by no job
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 
@@ -13,16 +15,17 @@ a sentence in one.
 
 ## The state
 
-`python suite (wheel + guide + north-star)` runs on every code-tier run
-of `ci.yml` and unconditionally in `local-scripts/ci-local.sh`. So:
+`ci.yml`'s `python suite (wheel + guide + north-star)` job runs when
+the diff seeds `pncad-py` itself (the filter job's direct-path
+`python` flag, which reads `SEEDS`), and nightly unconditionally. So:
 
 - `scripts/ci-filter.py` still computes `RUN_PNCAD_PY` in `decorate`,
   off `pncad_py_seeds`' `cargo metadata` derivation of the members a
   build of the wheel compiles, with its fail-closed arms and about ten
   `--selftest` cases and a whole fixture graph (`_PY_FIXTURE_PKGS`)
   behind it.
-- **No job reads it.** `ci.yml`'s `filter` no longer publishes a
-  `run_pncad_py` output; `ci-local.sh` never consulted it.
+- **No job reads it.** `ci.yml`'s `filter` publishes no
+  `run_pncad_py` output.
 
 The restoration kept it deliberately and said so at the site: the value
 is echoed with the seeds it came from, so the filter's log answers "did

@@ -340,14 +340,30 @@ impl<'de> serde::Deserialize<'de> for UnitSym {
     /// it is checked where document invariants are, in the shared
     /// save/load validator (`persist::check::first_display_unit_fault`)
     /// — typed, and symmetric across both doors rather than load-only.
+    ///
+    /// The refusal is the SAME fact `persist::wire`'s rebuild raises
+    /// for an off-table symbol on an expression literal, so it leaves
+    /// by the same channel and reaches a caller as the same
+    /// `PersistError::Dimension`. Otherwise one fault would cross one
+    /// door under two classes with contradictory recourse: this route
+    /// used to answer "regenerate the file from its source recipe",
+    /// which is advice that reproduces the refusal.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let symbol = <String as serde::Deserialize>::deserialize(deserializer)?;
         match quantity::unit_by_symbol(&symbol) {
             Some(row) => Ok(Self::from_def(&row)),
-            None => Err(serde::de::Error::custom(format!(
-                "display unit {symbol:?} is not one of the {} rows quantity::UNITS carries",
-                quantity::UNITS.len()
-            ))),
+            None => {
+                // The typed refusal leaves through the frame; the serde
+                // message is the human half of the same fact
+                // (`persist::refusal`, which lists this recorder).
+                crate::persist::refusal::record(&DimensionError::UnknownDisplayUnit {
+                    symbol: symbol.clone(),
+                });
+                Err(serde::de::Error::custom(format!(
+                    "display unit {symbol:?} is not one of the {} rows quantity::UNITS carries",
+                    quantity::UNITS.len()
+                )))
+            }
         }
     }
 }
@@ -1074,6 +1090,23 @@ impl Expr {
         }
     }
 
+    /// Sets every literal's display unit to its dimension's canonical
+    /// one, leaving every value: the expression `PartialEq` and
+    /// [`Expr::bit_eq`] see, as a value that serializes (D6: the display
+    /// unit is never identity).
+    pub(crate) fn erase_display_units(&mut self) {
+        let dim = self.dim;
+        match &mut self.kind {
+            ExprKind::Literal(lit) => lit.display_unit = UnitSym::canonical_for(dim),
+            ExprKind::CountLiteral(_) | ExprKind::Param(_) => {}
+            unary_kind!(a) => a.erase_display_units(),
+            binary_kind!(a, b) => {
+                a.erase_display_units();
+                b.erase_display_units();
+            }
+        }
+    }
+
     /// Bit-semantic equality (M4 PR 1 review non-blocker): structural
     /// equality with float literals compared by BITS — `0.0` and
     /// `-0.0` are DIFFERENT expressions here, unlike `PartialEq`
@@ -1262,10 +1295,10 @@ pub enum EvalError {
     /// caller supplied the expression being evaluated ([`eval`]'s
     /// argument identifies it; PR 2's evaluation service attaches
     /// node/slot when it evaluates document slots). At certified
-    /// scalars this refuses POISON (NaI/empty/`Trv`-decorated
-    /// enclosures); legitimately unbounded-but-valid enclosures pass
-    /// (boundedness is the `Com`-decoration's business, not this
-    /// door's).
+    /// scalars this refuses what may not certify (NaI, empty and
+    /// `Trv`-decorated enclosures); legitimately unbounded-but-valid
+    /// enclosures pass (boundedness is the `Com`-decoration's business,
+    /// not this door's).
     NonFiniteResult,
 }
 
@@ -1334,8 +1367,8 @@ pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
 
 /// **Door 2, as a shared door.** The ruled non-finite check on a
 /// FINAL evaluated value: `value * 0` is EXACTLY zero for every finite
-/// value and poison (NaN / empty / Trv) otherwise, so any valid band
-/// classifies it identically — Zero passes, everything else is a
+/// value and NaN or refused (NaN / empty / Trv) otherwise, so any valid
+/// band classifies it identically — Zero passes, everything else is a
 /// non-finite result.
 ///
 /// It lives apart from [`eval`] because [`eval`] is not the only
@@ -1580,7 +1613,7 @@ fn write_expr(expr: &Expr, out: &mut String) {
     match &expr.kind {
         K::Literal(lit) => out.push_str(&write_literal(lit, expr.dim)),
         K::CountLiteral(n) => out.push_str(&n.to_string()),
-        K::Param(name) => out.push_str(&name.0),
+        K::Param(name) => out.push_str(name.as_str()),
         K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, out),
         K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, out),
         K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, out),

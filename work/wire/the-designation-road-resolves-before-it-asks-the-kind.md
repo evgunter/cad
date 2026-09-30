@@ -4,6 +4,8 @@ kind: issue
 title: named_entity and the measure reference resolve a name before asking what it denotes, so a tied name of the wrong kind refuses Ambiguous
 status: open
 opened: 2026-09-15
+priority: P1
+cost: D
 ---
 
 

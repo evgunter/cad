@@ -65,16 +65,17 @@ const ENGINE_FIT_TARGET: f64 = 1e-6;
 /// tightening that narrows it — including a partial one that would
 /// leave this constant stale in silence behind a ceiling-only guard.
 /// Either way the answer is re-measure and re-state, never loosen.
-const TWISTED_REATTACH_RESIDUAL: f64 = 5.784485397203693e-10;
+const TWISTED_REATTACH_RESIDUAL: f64 = 2.847541864867139e-11;
 
-/// The same quantity for the `d = −D` arm. **It is a different number,
-/// and that is geometry rather than noise**: the pull-back translates
-/// the net along `−d·n₀`, so the two signs put the base on opposite
-/// sides of the saddle and the normal drift `d·(n(u,v) − n₀)` peaks at
-/// a different sample. The rows therefore pin PER SIGN — a single
-/// constant would have to be the max of the two, which would let the
-/// smaller arm drift by the difference in silence.
-const TWISTED_REATTACH_RESIDUAL_NEG: f64 = 5.7844857741573e-10;
+/// The same quantity for the `d = −D` arm. The pull-back translates the
+/// net along `−d·n₀`, so the two signs put the base on opposite sides
+/// of the saddle and the normal drift `d·(n(u,v) − n₀)` CAN peak at a
+/// different sample; on this fixture, twisted by the `0.05` its section
+/// is written at, the two arms measure the same value bit for bit. The
+/// rows pin PER SIGN all the same — a single constant would have to be
+/// the max of the two, which would let the smaller arm drift by the
+/// difference in silence the day they part.
+const TWISTED_REATTACH_RESIDUAL_NEG: f64 = 2.847541864867139e-11;
 
 /// The measured threshold for the sign in play.
 fn residual_for(d: f64) -> f64 {
@@ -226,7 +227,7 @@ fn the_twisted_walls_are_not_planar() {
 /// and the two arms reach it by different routes — below the threshold
 /// from the replica's direct measurement, above it from a bisection
 /// driven by the kernel's own `EdgeCurve::certify`. Both answered
-/// `5.784485397203693e-10` (bits `0x3e03e016506042e7`) for `d = +D` at
+/// `2.847541864867139e-11` (bits `0x3dbf4f1e28342ac2`) for `d = +D` at
 /// ε = 1e-12 and ε = 1e-9, three orders apart, bit for bit. That agreement is
 /// what says the quantity is construction arithmetic — a fixed number
 /// of metres compared against ε — rather than something the band
@@ -355,13 +356,18 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
             description: geom::SurfaceDescription::Offset { base, d: D },
             fit: coarsened,
             window: good.window(),
-            tolerance: good.tolerance(),
         },
-        |_, _, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
+        |_, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
     )
     .unwrap();
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
-        .unwrap();
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(planted)),
+            sense: true,
+        },
+    )
+    .unwrap();
     let _ = topo::mint_pcurves(&mut body, Tol::witness());
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded curved fit must not validate");
@@ -432,8 +438,14 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
 
     let mut a = unit_box();
     let face = top_face(&a);
-    a.set_face_surface(face, FaceSurface::New(approx))
-        .expect("the attach-layer door accepts a live face");
+    a.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: approx,
+            sense: true,
+        },
+    )
+    .expect("the attach-layer door accepts a live face");
     let e = topo::union(&a, &moved_box(), Tol::witness())
         .expect_err("an Approx operand is unsupported-kind for the boolean gate");
     assert!(

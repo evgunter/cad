@@ -10,7 +10,6 @@
 //! scalar), so this file is free of the one-test-per-process funnel
 //! discipline that `geom-core`'s interval band tests observe.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
@@ -123,8 +122,14 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         NetState::Poisoned,
         "the fixture is corrupt DESCRIBED geometry at this scalar, not the placeholder"
     );
-    body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(Arc::new(net))))
-        .unwrap();
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(net)),
+            sense: true,
+        },
+    )
+    .unwrap();
 
     let errs = validate_geometric(&body, Tol::witness())
         .expect_err("corrupt described geometry is refused at the interval scalar too");

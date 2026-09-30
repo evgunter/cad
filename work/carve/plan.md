@@ -1,78 +1,41 @@
-# CARVE — what a sweep verb builds and how it describes it (plan)
+# CARVE — the plan
 
-**STATUS: OPEN (2026-09-17).** Opened in BLEND's cut, on twenty-one
-rows that arrived by `git mv` with their bodies unchanged. Live state
-is `work/carve/log.md`'s tail and the item files beside this plan,
-never this file.
+what a sweep verb builds and how it describes it
 
-Branch prefix (the #396 convention): **`carve/`** — unit branches
-`carve/<unit>-<slug>`, orchestrator branch `carve/orchestrator`.
-Away-channel tag `(CARVE orchestrator)`. A/B ordinal band
-**CARVE = 5600–5699**, claimed in `docs/MODEL-AB-LOG.md`'s banding
-entry in the opening commit, per that entry's rule.
+Re-scoped 2026-09-20 by CARVE's priority-seam cut
+(`work/README.md`, Track size). Nothing dispatched.
 
-## Charter
+## The slate
 
-**Every row here is about a body a sweep verb builds or a description
-it stores for one, and the fix changes what is built, what is stored,
-or the module that builds it.** Read off the rows, the four shapes:
+**27.5 budget points** of dispatchable work against a ceiling of 30.
 
-- **The blend surgery's phases and their records** —
-  `annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance`,
-  `self-closed-link-sharing-its-vertex-records-two-junctions`,
-  `blend-slit-name-collides-when-two-rims-share-a-meridian`,
-  `cylinder-cylinder-cylinder-arm-has-a-body-after-all`,
-  `perp-unit-takes-an-unchecked-unit-axis`,
-  `battery-holds-the-chain-data-model-beside-the-predicates`,
-  `blend-mod-recourse-docs-accumulate`.
-- **The description rule at every minting site** — the must-carry rule
-  is one rule; these are the sites that still decide by something
-  else or store the answer differently:
-  `cap-rim-smooth-arm-decides-by-argument-not-by-the-rule`,
-  `extrude-strut-rule-has-three-homes-and-fixed-context-argument-lists`,
-  `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself`,
-  `sweep-emits-no-contact-record-for-declared-cusps`,
-  `subdivided-profile-side-coplanar-walls-gate`,
-  `every-escalation-carries-the-coincidence-recourse-first` (the blend
-  doors' half of that class; the path door's half is PATHS').
-- **The loft's parameterisation and its section checks** — `loft.rs`
-  and `skin.rs` came to BLEND at S-BOOL's exit and come here with it:
-  `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body`,
-  `interpolate-columns-averaged-knots-could-be-mirror-symmetric`,
-  `skin-coincident-section-check-is-an-unbanded-f64-compare`,
-  `two-section-loft-with-an-inverted-top-normal-builds`,
-  `self-overlapping-spines-build-and-validate`,
-  `segment-curve-takes-a-section-index-only-to-fill-an-error-payload`.
-- **The fixtures the suites build from** —
-  `test-support-has-become-four-modules`,
-  `seed-finder-home-reads-only-the-y-station`.
+| pri | item | cost | title |
+|---|---|---|---|
+| P0 | `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself` | D | EdgeDescription::Intersection's (s1, s2) order is unpinned, and extrude writes it one way on cap rims and another on struts |
+| P0 | `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body` | H | loft_geometry takes the whole surface's v from the first strip, so a section rolled about its own normal builds a different body |
+| P0 | `self-closed-link-sharing-its-vertex-records-two-junctions` | H | walk_chains records two junctions at one vertex and closes the chain when a self-closed link shares its vertex with one other requested link |
+| P0 | `self-overlapping-spines-build-and-validate` | H | A loft or sweep whose spine revisits itself (a planar arc past a full turn) builds a self-overlapping body and every validation tier says Ok |
+| P0 | `skin-coincident-section-check-is-an-unbanded-f64-compare` | H | skin.rs refuses coincident loft sections by a bare f64 strict comparison (params[j-1] < params[j] → DegenerateSection) — per-pair and named, but unbanded |
+| P0 | `two-section-loft-with-an-inverted-top-normal-builds` | H | A two-section loft whose top section's plane normal points DOWN (against the stacking) builds and tier 3 says Ok — nothing checks the last section's normal against the stacking direction |
 
-**The test that separates this program from where BLEND's other rows
-went.** A CARVE row's fix changes a body, a stored description, or the
-module that builds one, in `crates/sweep/src`. That is false of the
-eight rows that went to PATHS (the profile fillet door — a 2-D lattice
-refusal or its sentence, in `crates/profile`), of the row that went to
-SYM (an identity the registration door cannot state), of the row that
-went to TOPO (a query door on the body), and of the row that went to
-META (a naming rule for suites across programs).
+## Order
+
+`self-overlapping-spines-build-and-validate` and
+`two-section-loft-with-an-inverted-top-normal-builds` first, together:
+both are bodies the kernel BUILDS and validates when it should refuse,
+and a shared diagnosis is likely — each is a spine or section
+orientation the loft path never asks about.
+
+Then `loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body`,
+which is the same family seen from the parameterisation side, and
+`skin-coincident-section-check-is-an-unbanded-f64-compare`, which is a
+Q1 violation on its own terms: a bare `f64` strict comparison deciding
+a topological question is the unmargined predicate the design forbids.
 
 ## Review posture
 
-BLEND's, inherited: full v6 dual with a spec for an H unit; an E row
-takes a single style review against
-`docs/prompts/reviewer-style-lane.md`, no A/B row.
-
-## Unit order
-
-Not yet drawn. The opening sitting reads the twenty-five rows, groups
-them into units by dependency (the description-rule sites first, since
-the loft rows and the surgery rows each cite the rule), and writes the
-order here; until then nothing dispatches. BLEND closed at its exit
-walk on 2026-09-17 with every unit but 13 merged; `S90-impl` (unit 13,
-blocked on PROPS' `H5`) came here with the walk and owes the per-read
-classification of the nineteen bracket reads as its first step.
-
-## Exit shape
-
-The rows land or are filed with a reading, one territory stays one
-program's; the walk convention applies.
+OPEN, for this program's first dispatch. CARVE inherits protocol v7
+(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
+only, opus/opus outside it. Nobody has re-asked the triage question for
+this slate, so the first orchestrator answers it here rather than
+inheriting an answer.

@@ -14,11 +14,7 @@
 //! # What guards what
 //!
 //! **The compiler is the primary guard, and these rows do not replace
-//! it, and a production door RENAMED to end in `_at` is exempted by
-//! the signature row (the census is what catches that one). The
-//! declared-reads roster is exact by construction and stale by hand: it
-//! reds when a count moves, and says nothing about whether the sentence
-//! beside the count is still true.** No caller on this chain has a number to pass, and no amount of
+//! it.** No caller on this chain has a number to pass, and no amount of
 //! discipline is needed for that: the signatures refuse one. What the
 //! compiler cannot say is that a LATER edit did not put one back, or
 //! that a second `.eps()` did not appear beside the first, or that a
@@ -41,10 +37,12 @@
 //! call spellings, so a numeric-target routine reached through a
 //! function pointer or a re-export under another name is invisible to
 //! it, and a production door RENAMED to end in `_at` is exempted by
-//! the signature row (the census is what catches that one). The
-//! declared-reads roster is exact by construction and stale by hand: it
-//! reds when a count moves, and says nothing about whether the sentence
-//! beside the count is still true.
+//! the signature row (the census is what catches that one); the
+//! census also exempts the routines' own home file, where every `Tol`
+//! door delegates to its `_at` twin. The declared-reads roster is
+//! exact by construction and stale by hand: it reds when a count
+//! moves, and says nothing about whether the sentence beside the count
+//! is still true.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -67,14 +65,16 @@ struct Stretch {
 
 /// The chain, file by file.
 ///
-/// `shell.rs`, `replace_face.rs` and `offset_axial.rs` are read WHOLE —
-/// every door in each is on this chain (`offset_axial`'s
-/// `offset_charts_together` is the simultaneous arm `shell.rs` takes for
-/// all-planar and axial bodies). `props.rs` and `offset_fit.rs` are
-/// not: each hosts unrelated machinery with ε reads of its own — the
-/// quadrature lane's, and the fit engine's numeric-target instrument —
-/// so each is read through the region its sentinels bracket.
-const CHAIN: [Stretch; 5] = [
+/// `shell.rs`, `replace_face.rs`, `offset_axial.rs` and
+/// `offset_fit_lane.rs` are read WHOLE — every door in each is on this
+/// chain (`offset_axial`'s `offset_charts_together` is the simultaneous
+/// arm `shell.rs` takes for all-planar and axial bodies;
+/// `offset_fit_lane.rs` is the injected door itself). `props.rs` and
+/// `offset_fit.rs` are not: each hosts unrelated machinery with ε reads
+/// of its own — the quadrature lane's, and the fit engine's
+/// numeric-target instrument — so each is read through the region its
+/// sentinels bracket.
+const CHAIN: [Stretch; 6] = [
     Stretch {
         file: "crates/topo/src/shell.rs",
         source: include_str!("../src/shell.rs"),
@@ -112,6 +112,13 @@ const CHAIN: [Stretch; 5] = [
         eps_reads: 1,
         eps_reads_are: "the FIT TARGET, in `precision_target` — the one this chain exists for",
     },
+    Stretch {
+        file: "crates/geom-brep/src/offset_fit_lane.rs",
+        source: include_str!("../../geom-brep/src/offset_fit_lane.rs"),
+        sentinels: None,
+        eps_reads: 0,
+        eps_reads_are: "none — the door hands the witness on to the fit engine",
+    },
 ];
 
 impl Stretch {
@@ -122,17 +129,9 @@ impl Stretch {
         let Some((open, close)) = self.sentinels else {
             return (self.source, 1);
         };
-        let start = self
-            .source
-            .find(open)
-            .unwrap_or_else(|| panic!("{}: the opening sentinel is gone", self.file));
-        let end = self
-            .source
-            .find(close)
-            .unwrap_or_else(|| panic!("{}: the closing sentinel is gone", self.file));
-        assert!(start < end, "{}: the sentinels are inverted", self.file);
-        let first_line = test_utils::source::line(self.source, start);
-        (&self.source[start..end], first_line)
+        let region = test_utils::source::sentinel_region(self.source, self.file, open, close);
+        let first_line = test_utils::source::line(self.source, region.start);
+        (&self.source[region], first_line)
     }
 }
 
@@ -146,7 +145,11 @@ fn reads_as_a_tolerance(name: &str) -> bool {
         .any(|w| n.contains(w))
 }
 
-/// **No `f64` tolerance parameter anywhere on the chain.**
+/// **No signature on the chain takes an `f64` tolerance.**
+///
+/// The chain's rule is that the witness travels and a signature takes
+/// no number. A NEW `f64` tolerance anywhere on the chain reds here and
+/// has to be argued for in this file before it can stay.
 ///
 /// Every `name: type` pair on a line is read, not just the first — a
 /// one-line `fn f(d: f64, tolerance: f64)` is the shape rustfmt keeps
@@ -162,11 +165,11 @@ fn reads_as_a_tolerance(name: &str) -> bool {
 /// is a chosen target (its own docs and the `_at` census below). The
 /// exemption is the name, so renaming a production door to end in `_at`
 /// would walk past this row — and would be caught by the census, which
-/// then has a door in a set it says only the transform lane reaches.
+/// then has a production caller in a set it says has none.
 #[test]
-fn no_signature_on_the_shell_chain_names_an_f64_epsilon() {
-    let mut hits: Vec<String> = Vec::new();
+fn no_signature_on_the_shell_chain_takes_an_f64_tolerance() {
     for stretch in &CHAIN {
+        let mut hits: Vec<String> = Vec::new();
         let (region, first_line) = stretch.region();
         let code = test_utils::source::code_only(region);
         // Which `fn` the current line belongs to, so a numeric-target
@@ -211,13 +214,15 @@ fn no_signature_on_the_shell_chain_names_an_f64_epsilon() {
                 }
             }
         }
+        assert!(
+            hits.is_empty(),
+            "{} takes {} `f64` tolerance parameter(s) on the chain. The Tol witness is the only \
+             tolerance a signature on this chain takes (D4 ¶1).\n{}",
+            stretch.file,
+            hits.len(),
+            hits.join("\n")
+        );
     }
-    assert!(
-        hits.is_empty(),
-        "an f64 epsilon is back on the shell's offset chain, where the Tol witness is the only \
-         tolerance a signature may take (D4 ¶1):\n{}",
-        hits.join("\n")
-    );
 }
 
 /// **Every ε read on the chain is a declared one, and exactly one of
@@ -279,18 +284,22 @@ fn the_chain_reads_epsilon_at_one_site() {
     );
 }
 
-/// **The numeric-target instrument has exactly one production caller**,
-/// and it is named.
+/// **The numeric-target instrument has no production caller.**
 ///
 /// `geom-brep`'s `_at` routines take a chosen target and exist so the
 /// fit engine's own suite can measure it. A production file reaching one
 /// is a caller choosing an epsilon, which is the thing the witness rule
-/// removes — except at the transform lane, which classifies a mapped
-/// pair against the tolerance the SURFACE's claim was made at (a stored
-/// datum, argued at `topo::transform::map_approx`). That exception is
-/// listed here by file, so a second one reds.
+/// removes; every production classification of an offset fit is at the
+/// run's ε, through the `Tol` doors.
+///
+/// **The routines' home file is exempt**: every `Tol` door in
+/// `offset_fit.rs` delegates to its `_at` twin there, so what this row
+/// checks is that no production file OTHER than that one reaches an
+/// `_at` routine. The walk also has to meet every routine by name in
+/// the home file, so a rename or a move reds here rather than leaving
+/// the census counting nothing.
 #[test]
-fn only_the_transform_lane_reaches_the_numeric_target_routines() {
+fn no_production_file_reaches_the_numeric_target_routines() {
     const AT_ROUTINES: [&str; 5] = [
         "fit_offset_at(",
         "certify_offset_at(",
@@ -298,19 +307,15 @@ fn only_the_transform_lane_reaches_the_numeric_target_routines() {
         "approx_offset_surface_at(",
         "recertify_approx_at(",
     ];
-    // The routines' own home, where the `Tol` doors delegate, and the
-    // one ratified exception.
-    const ALLOWED: [&str; 2] = [
-        "crates/geom-brep/src/offset_fit.rs",
-        "crates/geom-brep/src/pcurve_cache.rs",
-    ];
+    // The routines' own home, where the `Tol` doors delegate.
+    const HOME: &str = "crates/geom-brep/src/offset_fit.rs";
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(std::path::Path::parent)
         .expect("the crate sits two levels under the workspace root")
         .join("crates");
     let mut hits: Vec<String> = Vec::new();
-    let mut seen_exception = false;
+    let mut home_names: Vec<&str> = Vec::new();
     let mut stack = vec![root.clone()];
     let mut scanned = 0_usize;
     while let Some(dir) = stack.pop() {
@@ -335,29 +340,36 @@ fn only_the_transform_lane_reaches_the_numeric_target_routines() {
             if !AT_ROUTINES.iter().any(|r| code.contains(r)) {
                 continue;
             }
-            if shown.ends_with(ALLOWED[1]) {
-                seen_exception = true;
-                continue;
-            }
-            if ALLOWED.iter().any(|a| shown.ends_with(a)) {
+            if shown.ends_with(HOME) {
+                home_names = AT_ROUTINES
+                    .iter()
+                    .copied()
+                    .filter(|r| code.contains(r))
+                    .collect();
                 continue;
             }
             hits.push(shown);
         }
     }
-    // A walk that read nothing would pass vacuously.
+    // A walk that read nothing would pass vacuously, and one that never
+    // met the routines' own home is not reading the tree that has them.
     assert!(
         scanned > 100,
         "the production-source walk found only {scanned} files — it is looking in the wrong place"
+    );
+    let missing: Vec<&str> = AT_ROUTINES
+        .iter()
+        .copied()
+        .filter(|r| !home_names.contains(r))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "`{HOME}` does not name {missing:?} — those routines moved or were renamed, and this \
+         census is measuring the wrong set"
     );
     assert!(
         hits.is_empty(),
         "a production file reaches `geom-brep`'s numeric-target fit routines, which means a \
          caller is choosing an epsilon: {hits:?}"
-    );
-    assert!(
-        seen_exception,
-        "the transform lane no longer reaches the numeric-target routine — either it moved (this \
-         census is now measuring the wrong set) or the exception is gone and should be deleted"
     );
 }

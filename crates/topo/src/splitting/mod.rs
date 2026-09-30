@@ -56,7 +56,8 @@
 
 mod classify;
 pub mod containment;
-pub(crate) use classify::conic_plane_crossing_roots;
+pub(crate) use classify::{ConicPlaneMeet, conic_plane_crossing_roots};
+pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
@@ -204,14 +205,13 @@ pub enum SplitReduceError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A conic edge's plane-crossing root landed in the ambiguity band
-    /// of the edge's far end (the crossing grazes a vertex): the
+    /// A rung of a conic edge's plane-crossing root lane escalated: the
     /// operand/plane pair is ill-conditioned at this ε (F6).
     CrossingEscalated {
         /// The crossing edge.
         edge: EdgeKey,
-        /// The escalation diagnostics.
-        diag: Indeterminate,
+        /// Which rung escalated, with its diagnostics.
+        fault: ConicRootFault,
     },
     /// The split plane is tangent to a curved face at an ON vertex
     /// (the local normal is plane-parallel) AND the second-order
@@ -329,74 +329,110 @@ impl From<EulerOpError> for SplitReduceError {
     }
 }
 
+/// The recourse a split's escalations carry: a split takes no
+/// declarations, so its plane is the first lever.
+pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
+
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use geom_core::RANGE_RECOURSE;
         match self {
-            Self::Band(e) => write!(f, "split_reduce: invalid band: {e}"),
-            Self::CurvedBooleanUnsupported { face, kind } => write!(
+            Self::Band(e) => write!(f, "{e}"),
+            // Raised by the operand gate for ANY face of such a kind in
+            // the body, before the plane is consulted, so no placement
+            // of the plane is a way through. The gate also reports a
+            // face whose surface does not resolve under the spline
+            // kind, which is why that arm names both.
+            // The gate reports a face whose surface does not resolve as
+            // `Nurbs` (`classify::gate_operand`), so that arm says both
+            // things it can mean, and names the second as the corrupt
+            // body it is rather than as a feature not built yet.
+            Self::CurvedBooleanUnsupported {
+                kind: geom_brep::SurfaceKind::Nurbs,
+                ..
+            } => write!(
                 f,
-                "split_reduce: face {face:?}: {}",
-                geom_brep::intersect::route(*kind, geom_brep::SurfaceKind::Plane)
-                    .refusal(*kind, geom_brep::SurfaceKind::Plane)
+                "the body has a spline (NURBS) face, which the split cannot cut yet, or a \
+                 face with no surface, which means the body is corrupt. There is no way \
+                 through yet"
             ),
-            Self::CurvedEdgeUnsupported { edge } => write!(
+            Self::CurvedBooleanUnsupported { kind, .. } => write!(
                 f,
-                "split_reduce: edge {edge:?} has a NURBS carrier — a rung-3 carrier in \
-                 an INPUT operand. The general rung itself is implemented (SSI); this \
-                 gate has not retired, and gates retire one arm at a time"
+                "the body has {}, and the split cannot cut a body with such a face \
+                 yet. There is no way through yet",
+                match kind {
+                    geom_brep::SurfaceKind::Approx => "an approximated spline face",
+                    geom_brep::SurfaceKind::Cone => "a cone face",
+                    geom_brep::SurfaceKind::Sphere => "a sphere face",
+                    geom_brep::SurfaceKind::Torus => "a torus face",
+                    geom_brep::SurfaceKind::Plane => "a plane face",
+                    geom_brep::SurfaceKind::Cylinder => "a cylinder face",
+                    geom_brep::SurfaceKind::Nurbs => "a spline (NURBS) face",
+                }
             ),
-            Self::CrossingEscalated { edge, diag } => write!(
+            Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
-                "split_reduce: the plane-crossing root on conic edge {edge:?} grazes the \
-                 edge end — an ill-conditioned operand/plane pair at this tolerance \
-                 (F6): {diag}"
+                "the body has an edge on a spline (NURBS) or spiric curve, which the split \
+                 cannot take yet. There is no way through yet"
             ),
-            Self::TangencyUnsupported { face, vertex } => write!(
+            // The fault's routing is the Boolean's too: a crossing
+            // decision ends as that decision does, and a coincidence
+            // between the plane and the conic takes the split's levers,
+            // since a split takes no declaration.
+            Self::CrossingEscalated { fault, .. } => {
+                let diag = fault.diag();
+                let ending = fault.decision().map_or_else(
+                    || format!("Recourse: {SPLIT_COINCIDENCE_RECOURSE}"),
+                    |decision| decision.ending_of(&diag),
+                );
+                write!(
+                    f,
+                    "{} is undecided: {}. {ending}",
+                    fault.subject(),
+                    diag.payload()
+                )
+            }
+            Self::TangencyUnsupported { .. } => write!(
                 f,
-                "split_reduce: the split plane is tangent to curved face {face:?} at \
-                 vertex {vertex:?} — the transversality margin dies along the contact; \
-                 tangent loci are TangentIntersection (C7) territory, constructed at \
-                 M5 PR 9, never marched into"
+                "the split plane is tangent to a curved face at a vertex, and a tangent \
+                 cut is not supported yet. Recourse: move the split plane off the tangency"
             ),
             Self::ScaffoldingOperand { edge } => write!(
                 f,
-                "split_reduce: operand carries null-edge scaffolding at {edge:?} (mid-surgery \
-                 body, not a splittable operand)"
+                "the body carries null-edge scaffolding at {edge:?}: a mid-surgery body, \
+                 not one a split can take"
             ),
-            Self::SliverVertex { vertex, diag } => write!(
+            Self::SliverVertex { diag, .. } => write!(
                 f,
-                "split_reduce: vertex {vertex:?} lies in the sliver band of the split plane \
-                 ({diag}); the operand/plane pair is ill-conditioned at this tolerance — \
-                 resolve by explicit repair/adoption, never by snapping"
+                "a vertex lies within tolerance of the split plane ({}). Recourse: \
+                 {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
             ),
-            Self::SliverSector { vertex, face, diag } => write!(
+            Self::SliverSector { diag, .. } => write!(
                 f,
-                "split_reduce: sector classification escalated at vertex {vertex:?} \
-                 (face {face:?}): {diag}"
+                "which side of the split plane a face leaves a vertex on is too close to \
+                 call ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
             ),
-            Self::NonFiniteSectorChord { vertex, face } => write!(
+            Self::NonFiniteSectorChord { .. } => write!(
                 f,
-                "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
-                 finite length \u{2014} its components overflow the norm, or one of them \
-                 is not a number; scale the geometry into the session's range"
+                "a chord at a vertex has no finite length (a component overflows the norm \
+                 or is not a number). Recourse: {RANGE_RECOURSE}"
             ),
-            Self::UnderflowedSectorChord { vertex, face } => write!(
+            Self::UnderflowedSectorChord { .. } => write!(
                 f,
-                "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has a \
-                 length that underflowed out of the format \u{2014} its components are too \
-                 small for the norm to hold, so it measures exactly zero while still \
-                 naming a direction; no tolerance reaches this, scale the geometry into \
-                 the session's range"
+                "a chord at a vertex has a length that underflows to zero. Recourse: \
+                 {RANGE_RECOURSE}"
             ),
             Self::ConsecutiveOnSectors { vertex } => write!(
                 f,
-                "split_reduce: consecutive ON entries survived rule (a) at vertex {vertex:?} \
-                 (coplanar sector escaped the gate — invariant violation)"
+                "consecutive on-plane sectors survived at vertex {vertex:?}, which the \
+                 coplanar gate rules out (kernel bug)"
             ),
             Self::CorruptOperand { vertex } => write!(
                 f,
-                "split_reduce: neighborhood of vertex {vertex:?} could not be walked \
-                 (broken orbit or lone vertex)"
+                "the neighborhood of vertex {vertex:?} could not be walked (broken orbit \
+                 or lone vertex)"
             ),
             Self::CrossingInsertion {
                 edge,
@@ -404,10 +440,10 @@ impl core::fmt::Display for SplitReduceError {
                 source,
             } => write!(
                 f,
-                "split_reduce: crossing insertion refused on edge {edge:?} (endpoints \
-                 {u:?}/{v:?} straddle the plane): {source}"
+                "inserting the plane crossing on edge {edge:?} (endpoints {u:?}/{v:?}) \
+                 refused: {source}"
             ),
-            Self::Euler(e) => write!(f, "split_reduce: euler operation refused: {e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
         }
     }
 }
@@ -538,7 +574,7 @@ impl core::fmt::Display for SplitError {
             Self::Reduce(e) => write!(f, "{e}"),
             Self::Join(e) => write!(f, "{e}"),
             Self::Finish(e) => write!(f, "{e}"),
-            Self::Pcurves(e) => write!(f, "split: {e}"),
+            Self::Pcurves(e) => write!(f, "{e}"),
         }
     }
 }
@@ -611,7 +647,8 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// fans ARE the above runs and receive their distinct copies — and
 /// swaps the sides back. Success is therefore
 /// orientation-INDEPENDENT for the single-sided pinch class. A run
-/// whose mirror also refuses surfaces the original typed refusal —
+/// whose mirror also refuses surfaces the direct run's typed refusal
+/// (one exception, below) —
 /// and this is a KNOWN COMPLETENESS FRONTIER, not a proof of
 /// impossibility: a body pinched on BOTH sides of the plane
 /// (`review_m3_pr6::r1_both_sided_pinch` is the pinned witness) has
@@ -626,6 +663,22 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// refusal — loud and typed, but attributed to the direct run (the
 /// mirror's distinct failure is not reported), at the cost of up to
 /// three pipeline runs.
+///
+/// **The rerun also receives one-sided tangencies.** A plane touching
+/// the solid along an edge from the run's above side closes a zero-area
+/// polygon too, and the refusal cannot say which of the two it is, so
+/// the mirrored run is tried for both. A tangency alone refuses again
+/// there. A tangency whose contact meets a real section elsewhere
+/// would, in the mirrored run, join that contact into the real
+/// section's loop as a zero-width spur of positive net area — a
+/// success with a slit in both halves — and the join refuses it
+/// ([`SplitJoinError::SectionSpur`]), so the direct run's
+/// `DegenerateSection` surfaces. A tangency whose mirrored run
+/// completes the join and then refuses
+/// [`SplitFinishError::SectionCusp`] surfaces THAT refusal:
+/// the mirror resolved the direct run's degenerate polygon, so the
+/// knife edge is why the cut cannot be made. A both-sided pinch never
+/// takes this path — it refuses at the join in both directions.
 /// The result's section-face normals still follow THIS
 /// call's plane convention (above face m = −n, below face m = +n)
 /// because the mirrored run's roles are the swap of ours.
@@ -634,8 +687,9 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
-/// (no degenerate body is ever emitted).
-pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+/// (no degenerate body is ever emitted), and
+/// [`SplitFinishError::SectionCusp`] from either run.
+pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -646,7 +700,8 @@ pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
     }
     // D7: the pinch lane — rerun mirrored (the below fans become
     // above runs and mint their copies), swap the sides back. A
-    // double degenerate refusal surfaces the DIRECT run's error.
+    // mirror that also refuses surfaces the DIRECT run's error, save a
+    // `SectionCusp` (the docs above).
     let mirrored = SplitPlane {
         origin: plane.origin,
         normal: -plane.normal,
@@ -683,6 +738,9 @@ pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
                 vertex_pairs: naming.vertex_pairs,
             },
         }),
+        // Reached only past the mirror's join, so the direct run's
+        // degenerate polygon was resolved and the knife edge is why.
+        Err(cusp @ SplitError::Finish(SplitFinishError::SectionCusp { .. })) => Err(cusp),
         Err(_) => split_direct(operand, plane, tol),
     }
 }
@@ -695,7 +753,7 @@ pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
 /// certified (spec §1). Planar sides pick up nothing — planar faces
 /// keep M2's derive-on-demand status — so an all-planar split is
 /// bit-identical to before this pass existed.
-fn split_direct<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

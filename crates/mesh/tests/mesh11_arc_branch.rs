@@ -63,10 +63,42 @@ fn the_pole_crossing_half_cap_refuses_at_the_door() {
 /// the shape door admitted it and the walk mis-read it exactly as it
 /// mis-read the half-cap (a debug build panicked at the issue-897
 /// census at δ = 0.5, `CertificateExceeded` below it).
+///
+/// **The shape door now reaches this body first, and by its own
+/// name.** `require_iso_rectangle` requires every rim to encode the
+/// same material side, and the bow tie's second face states two rims
+/// that do not: its refusal is `props_rim_side`, raised before
+/// `require_one_chart_branch` is asked. What the row pins is unchanged
+/// — no mesh is minted, at every δ, and the refusal is typed and names
+/// a premise rather than a chord budget — but the premise it names is
+/// the shape one. The branch premise's own cone witness is the
+/// props-level row `an_apex_crossing_generator_is_not_one_chart_branch`
+/// (`geom-brep`), on a hand-built bow whose rims do not contradict;
+/// this body no longer reaches the branch door through `tessellate`,
+/// and the row for a body that does is
+/// `work/tess/apex-crossing-branch-premise-has-no-body-level-witness.md`.
 #[test]
-fn the_apex_crossing_bowtie_refuses_at_the_door() {
+fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
     let (body, f0, f1) = apex_crossing_bowtie();
-    refuses_the_branch_premise("bow tie", &body, [f0, f1]);
+    let tol = Tol::witness();
+    for delta in [0.5, 0.3, 0.2, 0.1, 0.05, 0.02] {
+        match mesh::tessellate(&body, delta, tol) {
+            Err(TessellateError::UnsupportedCurvedShape {
+                face,
+                source:
+                    PropsError::NotIsoRectangle {
+                        what: "props_rim_side",
+                    },
+            }) => assert!(
+                [f0, f1].contains(&face),
+                "bow tie at δ={delta}: refused a face that is not one of {:?}",
+                [f0, f1]
+            ),
+            other => {
+                panic!("bow tie at δ={delta}: expected the shape premise refusal, got {other:?}")
+            }
+        }
+    }
 }
 
 /// **The props-side finding is closed by the INTERIOR-SIDE premise,
@@ -134,8 +166,6 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     use geom_core::{Band, Point3, Vec3};
     use topo::Chart;
 
-    let p3 = |x, y, z| Point3::<f64>::new(x, y, z);
-    let v3 = |x, y, z| Vec3::<f64>::new(x, y, z);
     let band = Band::linear(Tol::witness()).unwrap();
     let edge = |c: Curve3<f64>, a: f64, b: f64, s: u32, e: u32| {
         let (t0, t1, fwd) = if a < b { (a, b, true) } else { (b, a, false) };
@@ -145,38 +175,38 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     let pi = core::f64::consts::PI;
 
     let sphere = Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
+        center: Point3::<f64>::new(0.0, 0.0, 0.0),
         radius: 1.0,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let cone = Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        apex: Point3::<f64>::new(0.0, 0.0, 0.0),
+        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
         half_angle: core::f64::consts::FRAC_PI_4,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let cylinder = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        origin: Point3::<f64>::new(0.0, 0.0, 0.0),
+        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
         radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
     let torus = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::<f64>::new(0.0, 0.0, 0.0),
+        axis: Vec3::<f64>::new(0.0, 0.0, 1.0),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
     };
 
     // A great-circle arc from latitude 0.5 OVER the north pole.
     let sphere_face = vec![edge(
         Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, -1.0, 0.0),
+            center: Point3::<f64>::new(0.0, 0.0, 0.0),
+            axis: Vec3::<f64>::new(0.0, -1.0, 0.0),
             radius: 1.0,
-            u_ref: v3(1.0, 0.0, 0.0),
+            u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
         },
         0.5,
         pi - 0.5,
@@ -186,8 +216,8 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     // A generator segment THROUGH the apex.
     let cone_face = vec![edge(
         Curve3::Line {
-            origin: p3(0.0, 0.0, 0.0),
-            dir: v3(s2, 0.0, s2),
+            origin: Point3::<f64>::new(0.0, 0.0, 0.0),
+            dir: Vec3::<f64>::new(s2, 0.0, s2),
         },
         -1.0,
         1.0,
@@ -198,8 +228,8 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     // nearest analogue, and no singularity is there to cross.
     let cylinder_face = vec![edge(
         Curve3::Line {
-            origin: p3(1.0, 0.0, 0.0),
-            dir: v3(0.0, 0.0, 1.0),
+            origin: Point3::<f64>::new(1.0, 0.0, 0.0),
+            dir: Vec3::<f64>::new(0.0, 0.0, 1.0),
         },
         -5.0,
         5.0,
@@ -209,10 +239,10 @@ fn the_branch_doors_arms_mirror_the_charts_own_singularities() {
     // A minor circle wrapping one and a half turns.
     let torus_face = vec![edge(
         Curve3::Circle {
-            center: p3(1.0, 0.0, 0.0),
-            axis: v3(0.0, 1.0, 0.0),
+            center: Point3::<f64>::new(1.0, 0.0, 0.0),
+            axis: Vec3::<f64>::new(0.0, 1.0, 0.0),
             radius: 0.25,
-            u_ref: v3(1.0, 0.0, 0.0),
+            u_ref: Vec3::<f64>::new(1.0, 0.0, 0.0),
         },
         0.0,
         1.5 * core::f64::consts::TAU,

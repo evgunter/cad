@@ -150,16 +150,17 @@ impl core::fmt::Display for UnitVec3Error {
                 "a direction vector decided to zero length, so it names no \
                  direction to normalize",
             ),
-            Self::NonFiniteLength => f.write_str(
-                "a direction vector's length is not a finite number — its \
-                 components overflow the norm, or one of them is not a \
-                 number; scale the geometry into the session's range",
+            Self::NonFiniteLength => write!(
+                f,
+                "a direction vector's length is not a finite number (a component \
+                 overflows the norm or is not a number). Recourse: {}",
+                crate::predicate::RANGE_RECOURSE
             ),
-            Self::UnderflowedLength => f.write_str(
-                "a direction vector's length underflowed to zero — its \
-                 components are too small for their squares to be \
-                 represented, so it has a direction but no measurable \
-                 length; scale the geometry into the session's range",
+            Self::UnderflowedLength => write!(
+                f,
+                "a direction vector's length underflowed to zero, though it still \
+                 names a direction. Recourse: {}",
+                crate::predicate::RANGE_RECOURSE
             ),
             Self::Escalated(source) => {
                 write!(f, "a direction vector's length is indeterminate: {source}")
@@ -495,7 +496,9 @@ mod tests {
         assert_eq!((collapsed.x, collapsed.y, collapsed.z), (0.0, 0.0, 0.0));
         let tripwire = Band::new(1e-9, 2e-9).expect("a well-ordered band");
         assert_eq!(
-            (collapsed.dot(collapsed) - 1.0).sign_within(tripwire),
+            (collapsed.dot(collapsed) - 1.0)
+                .sign_within(tripwire)
+                .map(|d| d.sign),
             Ok(Sign::Negative)
         );
     }
@@ -515,7 +518,7 @@ mod tests {
             "the refusal says what happened to the LENGTH: {said}"
         );
         assert!(
-            said.contains("scale the geometry into the session's range"),
+            said.contains(crate::predicate::RANGE_RECOURSE),
             "and it names the recourse that works: {said}"
         );
         assert!(
@@ -617,7 +620,6 @@ mod tests {
 // the enclosure DECIDES is zero refuses, and an enclosure that merely
 // cannot tell escalates rather than refusing.
 #[cfg(test)]
-#[cfg(feature = "interval")]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod interval_tests {
     use super::{Band, Decide, Real, Sign, UnitVec3, UnitVec3Error, Vec3};
@@ -660,7 +662,7 @@ mod interval_tests {
                 .get();
             let off = u.norm() - Interval::from_f64(1.0);
             assert_eq!(
-                off.sign_within(band()),
+                off.sign_within(band()).map(|d| d.sign),
                 Ok(Sign::Zero),
                 "the normalized enclosure must DECIDE unit length: {off:?}"
             );
@@ -689,7 +691,10 @@ mod interval_tests {
         // side from it.
         let off = u.norm() - Interval::from_f64(1.0);
         assert!(
-            !matches!(off.sign_within(band()), Ok(Sign::Positive | Sign::Negative)),
+            !matches!(
+                off.sign_within(band()).map(|d| d.sign),
+                Ok(Sign::Positive | Sign::Negative)
+            ),
             "an overflowed enclosure must not DECIDE off-unit: {off:?}"
         );
         let poisoned = Vec3::new(

@@ -4,6 +4,8 @@ kind: issue
 title: A full revolve's mouth must be designated as both half-faces: the chart-completion friction, one coat later
 status: open
 opened: 2026-09-06
+priority: P0
+cost: D
 ---
 
 On a FULL revolve every profile segment is emitted as two faces on

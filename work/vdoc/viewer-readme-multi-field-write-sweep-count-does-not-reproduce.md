@@ -2,8 +2,12 @@
 id: viewer-readme-multi-field-write-sweep-count-does-not-reproduce
 kind: issue
 title: the viewer README's 23-hit multi-field-write sweep reads 24 under a re-take of its own rule
-status: open
+status: closed
 opened: 2026-09-14
+priority: P4
+cost: E
+closed: 2026-09-21
+branch: vdoc/readme-counts
 ---
 
 
@@ -92,3 +96,31 @@ The -7 is all `evalseam`: eleven hits there became four, because
 `submit`/`dispatch`/`poll`/`drop` × three seams became one
 `Coalescing`. The README's example phrase was corrected in the same PR;
 the count was not, for this row's original reason.
+
+## Closed — the count retired, the claim kept (#vdoc/readme-counts)
+
+**The repair is the last one this row offers**, and the row's own third
+reading is why: 23, 24 and 28 over trees days apart, with two of the
+three over the SAME tree. Two instruments disagreeing by four on one
+tree is not drift, so the rule as stated does not determine a number.
+
+The README paragraph now reads **"not one of them is a census"** with no
+figure, and says in the section why it carries none: the rule does not
+decide which `fn` a `self.<field>` write belongs to — a closure inside a
+`fn`, a `Drop` body in an `impl` block and a macro expansion are each
+counted or not by the instrument — so three instruments gave three
+answers over four days.
+
+**What was load-bearing survives untouched**, and this row said so
+first: the sentence after the number is *none is a census*, a claim
+about the population and not its size. A reader who re-takes the rule
+with their own instrument can check that against whatever set it hands
+them, which is more than a number they cannot reproduce ever gave them.
+
+**The stale pointer went with it.** The paragraph cited
+`work/view/viewer-readme-multi-field-write-sweep-count-does-not-reproduce`
+— a path that has been `work/vdoc/` since 2026-09-17 and that goes away
+when this program's directory does. The reason is carried inline now
+instead.
+
+Derived and checked on the merged tree at `f45df59dc5`.

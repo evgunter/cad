@@ -437,13 +437,16 @@ fn curved_face_refuses() {
     cube.body
         .set_face_surface(
             cube.seed.face,
-            topo::FaceSurface::New(geom::Surface::Torus {
-                center: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::new(1.0, 0.0, 0.0),
-                major_radius: 2.0,
-                minor_radius: 0.5,
-                u_ref: Vec3::new(0.0, 0.0, 1.0),
-            }),
+            topo::FaceSurface::New {
+                surface: geom::Surface::Torus {
+                    center: Point3::new(0.0, 0.0, 1.0),
+                    axis: Vec3::new(1.0, 0.0, 0.0),
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: Vec3::new(0.0, 0.0, 1.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let plane = plane_y1();
@@ -456,9 +459,17 @@ fn curved_face_refuses() {
         ) => {
             assert_eq!(face, cube.seed.face);
             let msg = e.to_string();
+            // The operand gate refuses a torus face ANYWHERE in the
+            // body, before the plane is read: the sentence must not
+            // claim the plane crosses it, nor offer a plane placement
+            // as the way through.
             assert!(
-                msg.contains("routes to") && msg.contains("general rung"),
+                msg.contains("the body has a torus face") && msg.contains("no way through"),
                 "{msg}"
+            );
+            assert!(
+                !msg.contains("cross") && !msg.contains("Recourse"),
+                "the gate's refusal claims a crossing or a plane recourse: {msg}"
             );
         }
         other => panic!("expected CurvedBooleanUnsupported(Torus), got {other:?}"),
@@ -515,7 +526,6 @@ fn crossing_split_arrangement() {
 /// rule-(b) discriminating fixture is exercised at Interval through the
 /// tip-vertex census (2 null edges, distinct copies), per the F4
 /// requirement.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_lane_notched_and_wedge() {
     use geom_core::Interval;
@@ -573,12 +583,9 @@ fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
         face: topo::FaceKey::default(),
     }
     .to_string();
-    assert!(msg.contains("split_reduce:"), "{msg}");
+    assert!(!msg.contains("split_reduce"), "no stage prefix: {msg}");
     assert!(msg.contains("has no finite length"), "{msg}");
-    assert!(
-        msg.contains("scale the geometry into the session's range"),
-        "{msg}"
-    );
+    assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
     assert!(!msg.contains("zero length"), "{msg}");
     // The coincidence recourse is what a band refusal offers; this is
     // not one, and offering it would name a lever that cannot move.

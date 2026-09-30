@@ -99,7 +99,13 @@
 //! The C5 table is the boundary: an intrinsic description whose pair
 //! `(new kind, neighbour kind)` has no route arm cannot be re-stated,
 //! and the door refuses naming the pair rather than storing a
-//! description nothing can certify. `Approx × anything` has no arm, so a
+//! description nothing can certify. A pair that routes is then asked
+//! about its POSE (`geom_brep::route_pose`): the arms are
+//! configuration-scoped, and an offset can carry the moved surface out
+//! of the configuration its arm serves — a wedge cap through a cone's
+//! apex, moved off it, cuts a hyperbola — so the door refuses that
+//! pose by the arm's own grounds rather than admitting it on the kind
+//! pair's. `Approx × anything` has no arm, so a
 //! fitted face's intrinsically-described boundary is exactly where this
 //! door stops.
 //!
@@ -135,14 +141,16 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfaceKind};
 use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
+};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
+use crate::chart_groups::ChartGroups;
+use crate::entity::{EdgeKey, FaceKey, LoopBoundary, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::SurfaceKey;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
-use crate::props::PropsQuadLane;
 use crate::validate::{ValidationError, validate_closed};
 
 /// Typed refusal of the face-replacement door. Scalar payloads echo the
@@ -150,6 +158,17 @@ use crate::validate::{ValidationError, validate_closed};
 /// door's echo convention, one layer up).
 #[derive(Clone, Debug)]
 pub enum ReplaceFaceError<T: Real> {
+    /// The run's tolerance admits no linear band, so no margined
+    /// predicate on the face-replacement doors has a verdict to give.
+    /// [`replace_faces_offset`] derives its band at the door from the
+    /// tolerance witness alone; this is that derivation's refusal. Both
+    /// of `Band::linear`'s arms reach it from a tolerance the run's
+    /// validator admits (an ε within a factor K of `f64::MAX`, or a
+    /// subnormal ε with K near 1).
+    Band {
+        /// The band constructor's typed refusal.
+        error: BandError,
+    },
     /// `face` does not resolve in the body.
     StaleFace {
         /// The unresolvable face.
@@ -176,23 +195,29 @@ pub enum ReplaceFaceError<T: Real> {
         /// The fit door's typed refusal, verbatim.
         error: geom_brep::OffsetFitError,
     },
-    /// The face carries a NURBS surface but this scalar has no fit
-    /// lane, so the offset cannot be minted at all. Not a pass — the
-    /// same posture tier 3 takes on an unre-derivable certificate.
+    /// The face carries a NURBS surface and the mint was handed no
+    /// fit door, so the offset cannot be minted at all. Not a pass —
+    /// the same posture tier 3 takes on an unre-derivable certificate.
+    ///
+    /// Where `Some` comes from, and what its absence means:
+    /// [`crate::AtRestPolicy::offset_fit_lane`].
     ApproxLaneUnsupported {
-        /// The face whose kind needs the (`f64`-only) fit lane.
+        /// The face whose kind needs the (`f64`-only) fit door.
         face: FaceKey,
+        /// The scalar the mint ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
-    /// **The operand's surface key is SHARED.** Another face carries
-    /// the same surface, so replacing this face would re-point the
-    /// boundary's descriptions at the fresh key while the sharer keeps
-    /// the old chart — the shared seam would name one face's surface
-    /// and lie on the other's. Replacing a shared chart is a
-    /// multi-face operation and this door is one face wide.
+    /// **The operand's surface key is SHARED within its solid.** Another
+    /// face of the same solid carries the same surface, so replacing the
+    /// named faces would re-point their boundary's descriptions at the
+    /// fresh key while the sharer keeps the old chart — a seam between
+    /// them would name one face's surface and lie on the other's.
+    /// Replacing a solid's wearers of a chart is a whole-group
+    /// operation: name every one.
     SharedSurfaceKey {
         /// The face the door was called on.
         face: FaceKey,
-        /// One other face carrying the same surface key.
+        /// A face of the same solid carrying the same surface key.
         other: FaceKey,
     },
     /// No face was named.
@@ -259,6 +284,27 @@ pub enum ReplaceFaceError<T: Real> {
         kind: SurfaceKind,
         /// The untouched neighbour's kind.
         other_kind: SurfaceKind,
+    },
+    /// **The C5 boundary, asked about the POSE.** The pair has a route
+    /// arm, but that arm is configuration-scoped and the moved surface
+    /// stands against its untouched neighbour in a pose the arm does
+    /// not serve — an offset wedge cap no longer through a cone's apex
+    /// or a torus's axis, say — so the edge cannot be re-stated as an
+    /// intersection of the two either.
+    NeighborPoseUnroutable {
+        /// The edge that cannot be re-described.
+        edge: EdgeKey,
+        /// The replaced face's new surface kind.
+        kind: SurfaceKind,
+        /// The untouched neighbour's kind.
+        other_kind: SurfaceKind,
+        /// Why the pose is not served: the arm's own refusal text
+        /// where it gave one (a general-rung routing, an operand guard
+        /// that fired before the pose was classified), and
+        /// `route_pose`'s statement where the arm's refusal carries no
+        /// text (unequal cylinder radii, a torus off its ring
+        /// convention).
+        why: &'static str,
     },
     /// **The bounded-chart boundary.** A fitted chart covers exactly
     /// its own parameter window, so a boundary edge it does not carry
@@ -500,6 +546,16 @@ pub enum ReplaceFaceError<T: Real> {
 impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // The carrier's own repairs (set a positive ε; raise ε or
+            // K) are addressed to a caller choosing a band's
+            // thresholds; a caller here holds a valid tolerance whose
+            // derived band failed anyway, and a less extreme ε forms
+            // a band at any admitted K.
+            Self::Band { .. } => write!(
+                f,
+                "replace_face_offset: the run's tolerance is too extreme for the ambiguity \
+                 band above it to form. Recourse: run at a less extreme tolerance"
+            ),
             Self::StaleFace { face } => {
                 write!(f, "replace_face_offset: {face:?} does not resolve")
             }
@@ -514,16 +570,20 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "replace_face_offset: {face:?}'s approximating-surface fit refused: {error}"
             ),
-            Self::ApproxLaneUnsupported { face } => write!(
+            Self::ApproxLaneUnsupported { face, scalar } => write!(
                 f,
-                "replace_face_offset: {face:?} carries a NURBS surface and this scalar has no \
-                 fit lane, so its offset cannot be minted"
+                "replace_face_offset: {face:?} carries a NURBS surface, and the mint at the \
+                 {scalar} scalar had no offset-fit door to fit its offset with; only {holders} \
+                 holds that door (the fit is derived there alone). Recourse: offset the face at \
+                 {holders}",
+                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::SharedSurfaceKey { face, other } => write!(
                 f,
-                "replace_face_offset: {face:?}'s surface is shared with {other:?}, so replacing \
-                 it would leave the sharer on the old chart while the shared boundary names \
-                 the new one — replacing a shared chart is a multi-face operation"
+                "replace_face_offset: {face:?}'s surface is shared with {other:?} in the same \
+                 solid, so replacing it would leave the sharer on the old chart while a shared \
+                 boundary names the new one — replacing a solid's wearers of a chart is a \
+                 whole-group operation"
             ),
             Self::EmptyGroup => write!(
                 f,
@@ -575,6 +635,19 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "replace_face_offset: {edge:?} cannot be re-described — {}",
                 geom_brep::intersect::route(*kind, *other_kind).refusal(*kind, *other_kind)
+            ),
+            Self::NeighborPoseUnroutable {
+                edge,
+                kind,
+                other_kind,
+                why,
+            } => write!(
+                f,
+                "replace_face_offset: {edge:?} cannot be re-described — the moved {} stands \
+                 against its {} neighbour in a pose the pair's closed form does not cover: \
+                 {why}",
+                kind.name(),
+                other_kind.name()
             ),
             Self::FittedBoundaryUnsupported { edge, what } => write!(
                 f,
@@ -1019,11 +1092,15 @@ struct EdgePlan<T: Real> {
 /// moves along, and the door turns it (`crate::offset_nappe`) before
 /// anything is minted.
 ///
-/// The fit target is the run's ε_precision and reaches the fit door as
-/// the [`Tol`] witness (`geom_brep::approx_offset_surface`); it is
-/// consulted only on the NURBS lane, where the offset is not
-/// closed-form, and the analytic kinds mint exactly without reading a
-/// tolerance at all.
+/// The run's ε arrives as the [`Tol`] witness alone, and the door
+/// derives the run's linear band from it once, so one call classifies
+/// at one ε by construction. The analytic kinds mint in closed form
+/// and read the band only for their margined decisions (the mint's
+/// radius floor and torus ring convention, this door's apex window and
+/// nappe); the NURBS lane hands the witness
+/// to the fit door (`geom_brep::approx_offset_surface`), which fits to
+/// the run's ε_precision and meters at the band it derives from the
+/// same witness. The boundary re-derivation reads the same band.
 ///
 /// The body is **untouched on every `Err`**: the mint, the refusals and
 /// the whole boundary plan are decided read-only, the mutation runs on
@@ -1031,18 +1108,18 @@ struct EdgePlan<T: Real> {
 ///
 /// # Errors
 ///
-/// [`ReplaceFaceError`] — the offset door's own refusals, the fit
-/// door's, the apex-window predicate, the C5 routing boundary, the
+/// [`ReplaceFaceError`] — [`ReplaceFaceError::Band`] when the run's
+/// tolerance forms no linear band, the offset door's own refusals, the
+/// fit door's, the apex-window predicate, the C5 routing boundary, the
 /// carrier lanes' scope, a re-derivation the attach layer's
 /// certification rejects, and a clone that does not validate.
-pub fn replace_face_offset<T: Decide + PropsQuadLane>(
+pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     d: T,
-    band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
-    replace_faces_offset(body, &[face], d, band, tol)
+    replace_faces_offset(body, &[face], d, tol)
 }
 
 /// [`replace_face_offset`] for a CHART: every face carrying one surface
@@ -1059,21 +1136,30 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
 /// capability the refusal points at: name the whole group, and the
 /// chart moves as one.
 ///
-/// `faces` must be exactly the set of faces carrying the chart — not a
-/// subset (the refusal above) and not a mixture of charts
+/// **The whole group is the solid's.** What the door protects is that
+/// no edge joins a re-keyed wearer to one left on the old key. Every
+/// edge lies in one shell and so in one solid, so a wearer on another
+/// solid shares no edge with the group and keeps the old chart: a
+/// chart is body-wide, and the group is its wearers within the solids
+/// `faces` lie on.
+///
+/// `faces` must be exactly those wearers — not a subset (the refusal
+/// above) and not a mixture of charts
 /// ([`ReplaceFaceError::GroupChartsDiffer`]).
 ///
 /// # Errors
 ///
 /// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
 /// gates.
-pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
+pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,
-    band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
+    // The one band every decision below classifies at, derived from the
+    // same witness the fit door reads.
+    let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
     // ---- Decide: the group. ----
     let Some(&face) = faces.first() else {
         return Err(ReplaceFaceError::EmptyGroup);
@@ -1093,12 +1179,26 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
             });
         }
     }
-    // The group must be the WHOLE group: a chart with a face left
-    // behind is the incoherence this door exists to avoid.
-    if let Some((other, _)) = body
-        .faces()
-        .find(|(k, f)| !faces.contains(k) && f.surface == old_key)
-    {
+    // The group must be the WHOLE group within its solids: a wearer
+    // left behind there could share an edge with a re-keyed one.
+    let mut solids: Vec<SolidKey> = Vec::new();
+    for &member in faces {
+        let solid = body
+            .solid_of_face(member)
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        if !solids.contains(&solid) {
+            solids.push(solid);
+        }
+    }
+    let mut scope: Vec<FaceKey> = Vec::new();
+    for &solid in &solids {
+        scope.extend(
+            body.faces_of_solid(solid)
+                .ok_or(ReplaceFaceError::Corrupt)?,
+        );
+    }
+    let charts = ChartGroups::within(body, scope).map_err(|_| ReplaceFaceError::Corrupt)?;
+    if let Some(&other) = charts.of(old_key).iter().find(|k| !faces.contains(k)) {
         return Err(ReplaceFaceError::SharedSurfaceKey { face, other });
     }
     let old_surface = body
@@ -1133,7 +1233,14 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
         _ => Nappe::Opening,
     };
     let d = nappe.turn(d);
-    let new_surface = mint_offset(face, &old_surface, d, band, tol)?;
+    let new_surface = mint_offset(
+        face,
+        &old_surface,
+        d,
+        band,
+        tol,
+        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+    )?;
 
     // ---- Decide: the apex window (cones only). ----
     let shift = apex_shift(&old_surface, d);
@@ -1258,15 +1365,34 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     // description that names the replaced surface is re-pointed at it
     // before it is attached — the same re-description step the stale-key
     // rule forces on any surface replacement.
+    // The offset is a statement about the surface (module docs), so
+    // every face keeps the side its material lies on.
+    let sense = work.get_face(face).ok_or(ReplaceFaceError::Corrupt)?.sense;
     let new_key = work
-        .set_face_surface(face, FaceSurface::New(new_surface))
+        .set_face_surface(
+            face,
+            FaceSurface::New {
+                surface: new_surface,
+                sense,
+            },
+        )
         .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
     // The rest of the chart's faces adopt the SAME key: the group wore
     // one surface before and wears one after, which is what keeps their
     // shared seams describable.
     for &member in &faces[1..] {
-        work.set_face_surface(member, FaceSurface::Shared(new_key))
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+        let sense = work
+            .get_face(member)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .sense;
+        work.set_face_surface(
+            member,
+            FaceSurface::Shared {
+                key: new_key,
+                sense,
+            },
+        )
+        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
     }
     for (vertex, point) in &moved {
         let old_point = work
@@ -1302,27 +1428,38 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     Ok(())
 }
 
-/// The offset surface for `old`: the analytic mint, or the fit lane's
+/// The offset surface for `old`: the analytic mint, or the fit door's
 /// certified `Approx` where the kind is not closed under offset.
-// `band, tol` in that order, matching the public doors above rather
-// than the `tolerance, band` this used to end in: the raw tolerance is
-// gone and the witness takes the trailing position every door on this
-// chain gives it.
-fn mint_offset<T: Decide + PropsQuadLane>(
+///
+/// `offset_fit` is that door ([`geom_brep::OffsetFitLane`]), handed in
+/// as a parameter; what a `None` means is
+/// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. `None` is not a
+/// pass — a caller that cannot mint the offset refuses with
+/// [`ReplaceFaceError::ApproxLaneUnsupported`].
+// `band` is the one [`replace_faces_offset`] derived from `tol`: the
+// analytic arm classifies at it, and the fit door re-derives the same
+// band from the witness it is handed.
+fn mint_offset<T: Decide>(
     face: FaceKey,
     old: &Surface<T>,
     d: T,
     band: Band,
     tol: Tol,
+    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
         if base.is_placeholder() {
             return Err(ReplaceFaceError::PlaceholderSurface { face });
         }
-        return match T::approx_offset_surface(Arc::clone(base), d, tol, band) {
-            None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
-            Some(Ok(s)) => Ok(s),
-            Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),
+        return match offset_fit {
+            None => Err(ReplaceFaceError::ApproxLaneUnsupported {
+                face,
+                scalar: T::NAME,
+            }),
+            Some(lane) => lane
+                .mint(Arc::clone(base), d, tol)
+                .map(Surface::Approx)
+                .map_err(|error| ReplaceFaceError::Fit { face, error }),
         };
     }
     // `d` is `geom_brep::offset_surface`'s own convention here, turned
@@ -1330,6 +1467,60 @@ fn mint_offset<T: Decide + PropsQuadLane>(
     // mint is nappe-blind by contract and this call does not re-read it.
     geom_brep::offset_surface(old, d, band)
         .map_err(|error| ReplaceFaceError::Offset { face, error })
+}
+
+/// **The reach a pose is read over** at the C5 gate: an UPPER bound on
+/// how far the edge's carrier stands from either surface's ANCHOR (a
+/// cone's apex, a sphere's or torus's centre, a cylinder's origin; a
+/// plane has none). An arm's angular trilean meters a tilt `θ` as the
+/// locus displacement `θ·extent`, and about an anchor that displacement
+/// is largest at the carrier point farthest from it, so this is the
+/// extent at which the pose question means something for THIS edge.
+///
+/// The bound is per carrier, and never an underestimate — an
+/// underestimated lever would read a tilted pose as served:
+///
+/// - a **line** segment: its endpoints (distance to a point is convex
+///   along a line, so a segment attains its maximum at an end);
+/// - a **circle** or **ellipse**: centre distance plus the (major)
+///   radius, whatever the parameter span — a closed rim, whose two
+///   endpoints coincide, is exactly the case sampling misses;
+/// - a **spiric** (a curve on a torus): centre distance plus `R + r`;
+/// - a **NURBS** carrier: its control points (the convex-hull property
+///   of positive weights).
+///
+/// A cylinder's origin is any point of its axis, so it can overstate
+/// the reach; an overstated lever reads more poses as definitely off
+/// the served class, which refuses rather than admits.
+fn pose_reach<T: Real>(surfaces: [&Surface<T>; 2], carrier: &Curve3<T>, t0: T, t1: T) -> T {
+    let mut reach = T::zero();
+    for s in surfaces {
+        let anchor = match *s {
+            Surface::Cone { apex, .. } => apex,
+            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
+            Surface::Cylinder { origin, .. } => origin,
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => continue,
+        };
+        let far = match carrier {
+            Curve3::Line { origin, dir } => (*origin + *dir * t0 - anchor)
+                .norm()
+                .max((*origin + *dir * t1 - anchor).norm()),
+            Curve3::Circle { center, radius, .. } => (*center - anchor).norm() + radius.abs(),
+            Curve3::Ellipse { center, major, .. } => (*center - anchor).norm() + major.abs(),
+            Curve3::Spiric {
+                center,
+                major_radius,
+                minor_radius,
+                ..
+            } => (*center - anchor).norm() + major_radius.abs() + minor_radius.abs(),
+            Curve3::Nurbs(n) => n
+                .control()
+                .iter()
+                .fold(T::zero(), |m, &p| m.max((p - anchor).norm())),
+        };
+        reach = reach.max(far);
+    }
+    reach
 }
 
 /// The cone offset's `v` shift `d·cot α`; zero on every other kind (no
@@ -1735,14 +1926,46 @@ fn plan_edge<T: Decide>(
             if s1 == old_key || s2 == old_key =>
         {
             let other = if s1 == old_key { s2 } else { s1 };
-            let other_kind =
-                SurfaceKind::of(body.get_surface(other).ok_or(ReplaceFaceError::Corrupt)?);
+            let other_surface = body.get_surface(other).ok_or(ReplaceFaceError::Corrupt)?;
+            let other_kind = SurfaceKind::of(other_surface);
             let kind = SurfaceKind::of(new_surface);
             if !geom_brep::intersect::route(kind, other_kind).implemented {
                 return Err(ReplaceFaceError::NeighborPairUnroutable {
                     edge,
                     kind,
                     other_kind,
+                });
+            }
+            // The kind pair routes; the arm is asked whether it serves
+            // THIS pose — the moved surface against the untouched one,
+            // read over the edge's own reach.
+            let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
+            let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
+                .map_err(|e| match e {
+                geom_brep::SectionError::Escalated(source) => {
+                    ReplaceFaceError::Escalated { source }
+                }
+                // `route_pose` returns only an escalation or a
+                // dispatch naming the wrong arm or seat — this
+                // kernel's own bug, not the body's (its `# Errors`);
+                // every other variant is answered inside it and
+                // never returned.
+                geom_brep::SectionError::WrongLane { .. }
+                | geom_brep::SectionError::RadiusDeclarationContradicted
+                | geom_brep::SectionError::CoaxialDeclarationContradicted
+                | geom_brep::SectionError::DegenerateOperand { .. }
+                | geom_brep::SectionError::BeyondOperandExtent { .. }
+                | geom_brep::SectionError::CoincidentSurfaces
+                | geom_brep::SectionError::DegenerateTorus
+                | geom_brep::SectionError::RoutesToGeneralRung { .. }
+                | geom_brep::SectionError::Carrier(_) => ReplaceFaceError::Corrupt,
+            })?;
+            if !posed.implemented {
+                return Err(ReplaceFaceError::NeighborPoseUnroutable {
+                    edge,
+                    kind,
+                    other_kind,
+                    why: posed.note,
                 });
             }
             let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
@@ -2102,7 +2325,7 @@ fn plan_reanchors<T: Decide>(
             // what caught it.
             //
             // The refusal is mirrored onto the new home DELIBERATELY,
-            // not by omission: an arc's bulge and a trajectory's
+            // not by omission: an arc's carrier and a trajectory's
             // family are sketch data this door cannot author, and that
             // was a refusal before the collapse. Dropping the
             // declaration instead would silently flip
@@ -2114,7 +2337,7 @@ fn plan_reanchors<T: Decide>(
                     ReplaceFaceError::CarrierLaneUnsupported {
                         edge,
                         what: "a re-anchored mapped description that is not a placed line \
-                               segment (an arc's bulge and a trajectory's family are sketch \
+                               segment (an arc's carrier and a trajectory's family are sketch \
                                data this door does not author)",
                     },
                 )
@@ -2217,4 +2440,81 @@ pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(Face
         body.face_of_half_edge(e.he_plus)?,
         body.face_of_half_edge(e.he_minus)?,
     ))
+}
+
+/// **The offset mint's fit door, as the pass takes it** — the rows that
+/// say what each of its two answers costs.
+///
+/// [`mint_offset`] is called directly because these rows are about the
+/// PARAMETER: the public doors read the scalar's own seam
+/// (`crate::AtRestPolicy::offset_fit_lane`), and a row that could only reach the
+/// door the seam hands it could not tell an absent door from a scalar
+/// that has none.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod offset_fit_door_rows {
+    use geom_brep::OffsetFitLane;
+    use geom_core::{Band, Tol};
+
+    use super::{Arc, ReplaceFaceError, Surface, mint_offset};
+
+    /// The `+0.05` mint on the bowed patch, through whatever door the
+    /// caller names.
+    fn mint(door: Option<OffsetFitLane<f64>>) -> Result<Surface<f64>, ReplaceFaceError<f64>> {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (_, face) = crate::fixtures::approx_faced_body::<f64>();
+        let base = Surface::Nurbs(Arc::new(crate::fixtures::bowed_patch()));
+        mint_offset(face, &base, 0.05, band, tol, door)
+    }
+
+    /// **No door: the mint refuses**, naming the face and the scalar it
+    /// ran at — here `f64`, the door's own scalar, handed none — never
+    /// an analytic fallback and never a pass.
+    #[test]
+    fn no_door_refuses_the_mint_by_name() {
+        let (_, face) = crate::fixtures::approx_faced_body::<f64>();
+        match mint(None) {
+            Err(ReplaceFaceError::ApproxLaneUnsupported { face: f, scalar }) => {
+                assert_eq!((f, scalar), (face, "f64"));
+            }
+            other => panic!("the absence must name the face and the scalar: {other:?}"),
+        }
+    }
+
+    /// **The `f64` door mints what the free function mints**, limb for
+    /// limb, bit for bit — the assertion that the body moved rather
+    /// than being rewritten.
+    #[test]
+    fn the_f64_door_mints_the_free_function_s_surface() {
+        let tol = Tol::witness();
+        let Ok(Surface::Approx(through_door)) = mint(Some(OffsetFitLane::fit())) else {
+            panic!("the bowed patch's offset fits at the witness tolerance");
+        };
+        let Ok(free) =
+            geom_brep::approx_offset_surface(Arc::new(crate::fixtures::bowed_patch()), 0.05, tol)
+        else {
+            panic!("the free function mints the same surface");
+        };
+        let (a, b) = (through_door.certificate(), free.certificate());
+        crate::fixtures::assert_certificates_agree("the mint door", a, b);
+        assert_eq!(a.rounds, b.rounds, "the refinement history moved");
+        // The fit's whole net, as bits: control points, weights and
+        // both knot vectors.
+        let bits = |n: &geom::NurbsSurface<f64>| -> Vec<u64> {
+            n.control()
+                .iter()
+                .flat_map(|p| [p.x, p.y, p.z])
+                .chain(n.weights().iter().copied())
+                .chain(n.knots_u().knots().iter().copied())
+                .chain(n.knots_v().knots().iter().copied())
+                .map(f64::to_bits)
+                .collect()
+        };
+        assert_eq!(
+            bits(through_door.fit()),
+            bits(free.fit()),
+            "the door's fit and the free function's differ in some bit of their nets"
+        );
+    }
 }

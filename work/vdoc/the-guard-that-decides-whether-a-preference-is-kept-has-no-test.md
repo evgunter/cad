@@ -4,7 +4,9 @@ kind: issue
 title: the guard and the badge that decide whether a preference is kept are unreachable from the suite, at any level
 status: open
 opened: 2026-09-10
-refs: [hover-route-for-an-absent-chooser-has-no-test, wasm-theme-choice-is-offered-and-silently-not-kept]
+refs: [hover-route-for-an-absent-chooser-has-no-test]
+priority: P4
+cost: E
 ---
 
 Disclosed by the close of
@@ -63,3 +65,15 @@ crate has no test that builds an `egui` context, so whether one can
 exist here is unmeasured rather than known to be hard. If it cannot,
 the honest outcome is a written reason at both call sites rather than a
 test that looks like coverage, which is `#2148`'s rule.
+
+## Evidence from `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere` (2026-09-28)
+
+Shape (2)'s harness exists, and it predates that unit. `app.rs`'s tests
+build a `ViewerApp` with no render state through `ViewerApp::assemble`,
+and draw the real toolbar headless through the `Toolbar` harness
+(`67837814a`). `a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control`
+now uses the harness to hold the chooser's tooltip, which closes the
+chooser half of the boundary named above. The sentence "`ViewerApp`
+cannot be constructed in the suite" holds for `tests/` only. A row
+inside `app.rs`'s own `#[cfg(test)]` modules can construct it, and can
+reach the private `remember_prefs` too.

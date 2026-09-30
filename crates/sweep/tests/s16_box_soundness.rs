@@ -52,59 +52,25 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::{
+    nested_box, rim_plate, rounded_plate, small_box, three_arc_cylinder, top_rim_plate,
+};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use std::collections::BTreeSet;
 use sweep::test_support::brick;
-use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanError, BooleanResult, ContactRecords, EntityId, FaceKey, SweepStrategy,
     SweepTrace, ValidationError, sweep_traces, validate_pseudomanifold,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-/// The three-arc cylinder: radius 0.5 about the z axis, its base at
-/// `z0`, `height` tall (the rows' cylinder is `cylinder(0.0, 1.0)`; the
-/// blind bore's tool is a raised one). Six vertices; the hull of them
-/// is the inscribed triangular prism, `x ∈ [−0.25, 0.5]`,
-/// `y ∈ [−0.433, 0.433]`.
+/// The corpus cylinder, its base at `z0`, `height` tall (the rows'
+/// cylinder is `cylinder(0.0, 1.0)`; the blind bore's tool is a raised
+/// one): this suite poses it by lifting the sketch plane. The hull of
+/// its six vertices is the inscribed triangular prism,
+/// `x ∈ [−0.25, 0.5]`, `y ∈ [−0.433, 0.433]`.
 fn cylinder(z0: f64, height: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(height), Tol::witness())
-        .unwrap()
-        .body
-}
-
-/// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
-/// spanning `z in [z0, z0 + 0.4]`.
-fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
-    brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
-}
-
-/// The same box at `z in [0.3, 0.7]`. Against section 1's cylinder
-/// (`z in [0, 1]`) that is clear of both caps, so a pair there is
-/// nested or separated in x alone, never touching; section 2 uses the
-/// same box only as a far operand, where the lift carries no claim.
-fn nested_box(cx: f64, h: f64) -> Body<f64> {
-    small_box(cx, h, 0.3)
+    three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, z0, height, 0.0)
 }
 
 /// The nested pair as one two-instance arena.
@@ -158,7 +124,7 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
                     a: EntityId::Face(_),
                     b: EntityId::Face(_),
                     what,
-                } if what.contains("curved carrier or a curved boundary")
+                } if what.contains("a curved face of one is within reach of the other")
             )),
             "probe at {cx}: arm 1 refuses the wall pairs first, got {errors:?}"
         );
@@ -245,7 +211,7 @@ fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
         !arm1.is_empty()
             && arm1.iter().all(|e| match e {
                 ValidationError::CensusUndecidable { what, .. } => {
-                    what.contains("curved carrier or a curved boundary")
+                    what.contains("a curved face of one is within reach of the other")
                 }
                 _ => false,
             })
@@ -271,11 +237,7 @@ fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
         })
         .collect();
     assert_eq!(arm2.len(), 1, "{errors:?}");
-    assert!(
-        arm2[0].contains("not certified crossing-free"),
-        "{}",
-        arm2[0]
-    );
+    assert!(arm2[0].contains("another finding"), "{}", arm2[0]);
     assert!(
         !errors
             .iter()
@@ -295,6 +257,8 @@ fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
 #[test]
 fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
     let outer = cylinder(0.0, 1.0);
+    // The nested box only as a FAR operand: its lift carries no claim
+    // here, so the `z` it shares with section 1 decides nothing.
     let beside = nested_box(3.0, 0.2);
     let body = assembly(&outer, &beside);
     // The whole verdict, not a filtered slice of it. Filtering to
@@ -399,24 +363,13 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
 // 3. The conic edge box as a PRUNE, through the sweep
 // ---------------------------------------------------------------------
 
-/// A plate straddling the cylinder's bottom rim (`z = 0`) about the
-/// rim's x-extremum at 180°, which lies mid-arc between the vertices
-/// at 120° and 240°: `x ∈ [−0.9, x_max]`, thin in `y`, `z ∈ [−0.1, 0.1]`.
-/// The rim reaches `x = −0.5`; whether the plate meets it is decided by
-/// `x_max` alone.
-fn rim_plate(x_max: f64) -> Body<f64> {
-    brick((-0.9, x_max), (-0.15, 0.15), (-0.1, 0.1), Tol::witness())
-}
-
-/// The same about the top rim's y-extremum at 90°, mid-arc between the
-/// vertices at 0° and 120°: the rim reaches `y = 0.5`.
-fn top_rim_plate(y_min: f64) -> Body<f64> {
-    brick((-0.15, 0.15), (y_min, 0.9), (0.9, 1.1), Tol::witness())
-}
-
 /// A plate straddling the TOP rim about its x-extremum — the second
 /// fixture whose loci meet a rim mid-arc, so the through-the-door
 /// soundness pin does not rest on one.
+///
+/// Deliberately NOT `common::operands`'s, though its two siblings are:
+/// this suite is the only one that builds it, and a helper one suite
+/// uses stays in that suite.
 fn top_rim_x_plate(x_max: f64) -> Body<f64> {
     brick((-0.9, x_max), (-0.15, 0.15), (0.9, 1.1), Tol::witness())
 }
@@ -430,31 +383,6 @@ fn cylinder_apart(gap: f64) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap()
-}
-
-/// A rounded plate — bulge arcs on two sides, so its extruded walls
-/// carry rims whose `u_ref` the sweep mints rotated — for the corner
-/// case of #347.
-fn rounded_plate() -> Body<f64> {
-    let pts = [
-        ((-1.0, -0.4), 0.0),
-        ((1.0, -0.4), 0.35),
-        ((1.3, 0.0), 0.0),
-        ((1.0, 0.4), 0.0),
-        ((-1.0, 0.4), 0.35),
-        ((-1.3, 0.0), 0.0),
-    ];
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&((x, y), b)| ProfileVertex::new(p2(x, y), b))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
 }
 
 /// The conic corpus: (name, A, B), every B placed against an arc of A
@@ -482,6 +410,24 @@ fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
         (
             "cylinder × plate across the top rim's x-extreme".to_string(),
             cyl.clone(),
+            top_rim_x_plate(-0.499),
+        ),
+        // The same two crossings against the cylinder authored from its
+        // 240° vertex. The Idealized reference refuses the crossings
+        // above (`CurvedPierceUnsupported`) and accepts these, on the
+        // same point set — the reference's answer depends on the rim
+        // edges' minting order (filed:
+        // `work/issues/idealized-sweep-refuses-a-rim-crossing-by-the-loops-authored-start.md`),
+        // so the pin is held on both authorings and binds where the
+        // reference answers.
+        (
+            "cylinder from 240° × plate across the rim's x-extreme".to_string(),
+            three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0, 240.0),
+            rim_plate(-0.499),
+        ),
+        (
+            "cylinder from 240° × plate across the top rim's x-extreme".to_string(),
+            three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0, 240.0),
             top_rim_x_plate(-0.499),
         ),
         (

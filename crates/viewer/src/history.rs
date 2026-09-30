@@ -41,7 +41,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, EditError, LoggedEdit, ProfileProgram, replay_entry};
+use pncad::document::{Doc, EditError, LoggedEdit, ProfileProgram, apply_logged};
 use pncad::geom_core::Tol;
 
 /// An entry's identity in the history arena.
@@ -117,13 +117,18 @@ pub enum ReplayError {
 }
 
 impl core::fmt::Display for ReplayError {
-    /// The position is this layer's contribution; the refusal itself is
-    /// [`EditError`]'s own sentence.
+    /// The position and the ending are this layer's; the problem is
+    /// [`EditError`]'s own. The edit door's recourse is not: nobody is
+    /// making that edit, and `save` replays every log it writes, so a
+    /// log that refuses here is a damaged file or a kernel defect.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Refused { index, error } => {
-                write!(f, "edit {index} of the saved log was refused: {error}")
-            }
+            Self::Refused { index, error } => write!(
+                f,
+                "edit {index} of the saved log was refused: {}. {}",
+                error.problem(),
+                pncad::geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
         }
     }
 }
@@ -165,15 +170,12 @@ impl History {
         for (index, entry) in edits.iter().enumerate() {
             // Replay re-applies the rows the log recorded; it never
             // solves, so no store is in hand here and none is needed.
-            let applied = replay_entry(history.doc(), entry, tol, None)
+            // Replay performs exactly an entry's rows (`apply_logged`
+            // refuses an empty entry whose edit would perform any), so
+            // the entry itself is what the history commits.
+            let applied = apply_logged(history.doc(), entry, tol)
                 .map_err(|error| ReplayError::Refused { index, error })?;
-            history.commit(
-                LoggedEdit {
-                    edit: entry.edit.clone(),
-                    maintenance: applied.cluster_rows(),
-                },
-                applied.doc,
-            );
+            history.commit(entry.clone(), applied.doc);
         }
         Ok(history)
     }

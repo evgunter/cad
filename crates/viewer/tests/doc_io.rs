@@ -319,29 +319,13 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     let mut doc = pncad::document::Doc::empty_derived("gui-overlap", tol);
     let mut roots = Vec::new();
     for _ in 0..2 {
-        let plane = insert_node(&mut doc, common::xy_frame(), tol);
-        let profile = insert_node(
-            &mut doc,
-            pncad::document::Node::Profile(pncad::document::ProfileProgram {
-                plane,
-                loops: vec![
-                    pncad::prelude::LoopProgram::polygon([
-                        (0.0, 0.0),
-                        (1.0, 0.0),
-                        (1.0, 1.0),
-                        (0.0, 1.0),
-                    ])
-                    .expect("a square"),
-                ],
-            }),
-            tol,
-        );
-        roots.push(insert_node(
+        let plane = common::insert_into(&mut doc, common::xy_frame(), tol);
+        let profile = common::insert_into(&mut doc, common::square(plane, 1.0), tol);
+        roots.push(common::insert_into(
             &mut doc,
             pncad::document::Node::Extrude {
                 profile,
-                distance: pncad::document::Expr::literal(1.0, pncad::document::Dimension::Length)
-                    .expect("a length"),
+                distance: common::len(1.0),
             },
             tol,
         ));
@@ -381,19 +365,45 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     }
 }
 
-/// Insert one node, returning its minted id.
-fn insert_node(
-    doc: &mut pncad::document::Doc<pncad::document::ProfileProgram>,
-    node: pncad::document::Node<pncad::document::ProfileProgram>,
-    tol: Tol,
-) -> pncad::document::RecipeNodeId {
-    let applied = pncad::document::apply(
-        doc,
-        &pncad::document::DocEdit::InsertNode { node },
+/// **A declaration authored in millimetres comes back in
+/// millimetres.** The notation rides on the declaration, so it is
+/// persisted state and not a view setting — the create door mints it
+/// (`props::doc_param`) and the file carries it.
+#[test]
+fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
+    let tol = Tol::witness();
+    let name = pncad::document::ParamName::from_static("base_r");
+    let mut session = DocSession::inline(
+        pncad::document::Doc::<pncad::document::ProfileProgram>::empty_derived(
+            "auth2-round-trip",
+            tol,
+        ),
         tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the edit applies");
-    *doc = applied.doc;
-    applied.record.minted.expect("insert mints an id")
+    );
+    let outcome = session.perform(SessionOp::CreateParam {
+        name: name.clone(),
+        value: viewer::props::doc_param(
+            pncad::document::Dimension::Length,
+            SlotValue::Continuous(0.05),
+            Some(pncad::prelude::MM.def()),
+        ),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+
+    let dir = common::tempdir("auth2-param-notation");
+    let file = dir.join("param.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(file.clone()))
+            .refusal
+            .is_none()
+    );
+    let reopened = docio::open(&file, tol).expect("the saved document opens");
+    let row = viewer::props::param_rows(reopened.doc())
+        .into_iter()
+        .find(|row| row.name == name)
+        .expect("the parameter survived the round trip");
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05));
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }

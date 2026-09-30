@@ -5,6 +5,8 @@ title: the naming rule the split ratified cannot fail for a large enough type, a
 status: open
 opened: 2026-09-06
 refs: [2083]
+priority: P4
+cost: E
 ---
 
 

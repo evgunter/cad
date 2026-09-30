@@ -103,7 +103,10 @@ fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
 
 /// A host with one kept instance of `doc_ref` mated to a local block:
 /// the mate welds nothing before the split (its far end is no member)
-/// and welds the kept instance to the new part instance after it.
+/// and welds the kept instance to the new part instance after it. The
+/// insert door refuses a head that resolves to no member, so the mate
+/// is authored the way such a head arises after insert
+/// (`insert_mate_with_stranded_head`).
 fn kept_instance_mated_to_a_local_block(
     label: &str,
     doc_ref: DocRef,
@@ -111,7 +114,12 @@ fn kept_instance_mated_to_a_local_block(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, kept) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, cut, body) = local_block(doc, 3.0);
-    let (doc, _) = insert(doc, mate(in_part(kept, CapEnd::Start), local_cap(body)));
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
+        doc,
+        mate(in_part(kept, CapEnd::Start), local_cap(body)),
+        editor_core::MateSide::B,
+        kept,
+    );
     assert_eq!(
         clusters(&doc),
         vec![vec![kept]],

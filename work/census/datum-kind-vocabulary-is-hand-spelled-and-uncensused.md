@@ -4,6 +4,8 @@ kind: issue
 title: Datum.kind's five words are struct-field literals in py/value.rs and no roster covers them
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

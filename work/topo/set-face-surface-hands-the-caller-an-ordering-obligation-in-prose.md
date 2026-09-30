@@ -5,6 +5,8 @@ title: set_face_surface's certification note is a prose-held caller obligation: 
 status: open
 opened: 2026-09-14
 refs: [S93, 713, set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left]
+priority: P3
+cost: E
 ---
 
 ## What
@@ -34,8 +36,10 @@ edge's description names the surface (an `Intersection`'s operand, a
 that was there. Nothing re-checks it at the swap — the door says so and
 then tells the caller which order to work in instead. Tier 1 does not
 constrain it, no operator repairs it, tier 3 reports it at rest, and
-`split_edge` and `set_edge_curve` refuse typed on such an edge, which
-is the same failure surface `kev`'s fan merge leaves.
+`split_edge` and `set_edge_curve` refuse typed on such an edge — the
+failure surface `kev`'s fan merge used to leave, before both kill doors
+refused or re-described every merged member
+(`kevs-fan-merge-needs-a-re-describing-kill-door`).
 
 ## Not the pcurve row
 

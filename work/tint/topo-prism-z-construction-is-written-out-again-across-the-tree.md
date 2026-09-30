@@ -4,6 +4,8 @@ kind: issue
 title: prism_z's construction is written out again elsewhere in the tree, including once inside its own file
 status: open
 opened: 2026-09-16
+priority: P3
+cost: E
 ---
 
 

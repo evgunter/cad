@@ -4,6 +4,8 @@ kind: issue
 title: the dimension-mismatch sentence is spelled word for word in two crates while the prose beside it argues the two types are unrelated
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

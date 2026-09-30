@@ -45,7 +45,7 @@
 use std::collections::BTreeSet;
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyDict, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -54,6 +54,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::{Doc, DocEdit, NodeId, name_text};
+use super::step::StepId;
 use super::store::ContentPin;
 
 /// Parse the canonical 32-hex-digit identity spelling — the store
@@ -82,6 +83,9 @@ fn document_id(text: &str) -> PyResult<d::DocumentId> {
 /// Both are FACE names — a crossing is written out of the two heads of
 /// a mate, and each head names a face — so the kind is fixed by the
 /// record's type and neither getter can answer anything else.
+///
+/// Those two and the class are the whole of it: a crossing carries no
+/// provenance, and the kernel's `InterfaceCrossing::Mate` says why.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct InterfaceCrossing(d::InterfaceCrossing);
@@ -96,14 +100,6 @@ impl InterfaceCrossing {
     #[getter]
     fn variant(&self) -> &'static str {
         interface_crossing_tag(&self.0)
-    }
-
-    /// The crossing mate, in the remainder.
-    #[getter]
-    fn mate(&self) -> NodeId {
-        match self.0 {
-            d::InterfaceCrossing::Mate { mate, .. } => NodeId(mate),
-        }
     }
 
     /// The class the crossing declares.
@@ -251,11 +247,11 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             id(kept_node),
             none(),
             none(),
-            text(&p.0),
+            text(p.as_str()),
             none(),
             none(),
         ),
-        E::PartNameReachesRemainder { node: n, name } => (
+        E::PartNameReachesRemainder { node: n, name, .. } => (
             id(n),
             none(),
             none(),
@@ -265,7 +261,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             named(name),
             none(),
         ),
-        E::NameStraddlesCut { name } | E::BodyNameCrossesCut { name } => (
+        E::NameStraddlesCut { name, .. }
+        | E::BodyNameCrossesCut { name }
+        | E::NameOnDroppedStep { name, .. } => (
             none(),
             none(),
             none(),
@@ -275,7 +273,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             named(name),
             none(),
         ),
-        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => (
+        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } | E::StepMapDiverged(_) => (
             none(),
             none(),
             none(),
@@ -307,6 +305,18 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     )
 }
 
+/// A step map as a `dict[StepId, StepId]`.
+fn step_dict<'py>(
+    py: Python<'py>,
+    map: &std::collections::BTreeMap<d::StepId, d::StepId>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    for (from, to) in map {
+        dict.set_item(StepId(*from), StepId(*to))?;
+    }
+    Ok(dict)
+}
+
 /// What a split produced: the two document VALUES and the recorded
 /// edits that make each.
 ///
@@ -323,6 +333,7 @@ pub(crate) struct SplitOutcome {
     part_maintenance: Vec<d::Maintenance>,
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
+    step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
 }
 
 #[pymethods]
@@ -389,6 +400,15 @@ impl SplitOutcome {
         self.node_map.clone()
     }
 
+    /// Each cut profile step's id → the id the part document minted
+    /// for it: a name the caller
+    /// holds on a cut profile's piece is spelled in the part by this
+    /// map, as its node is by `node_map`.
+    #[getter]
+    fn step_map<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        step_dict(py, &self.step_map)
+    }
+
     fn __repr__(&self) -> String {
         format!("SplitOutcome(instance={})", self.instance.0.0)
     }
@@ -443,6 +463,7 @@ pub(crate) fn split(
             .into_iter()
             .map(|(a, b)| (NodeId(a), NodeId(b)))
             .collect(),
+        step_map: out.step_map,
     })
 }
 
@@ -529,7 +550,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&p.0),
+            text(p.as_str()),
             none(),
             none(),
             none(),
@@ -547,7 +568,8 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
-        | E::StrandedPartName { name } => (
+        | E::StrandedPartName { name, .. }
+        | E::NameOnDroppedStep { name, .. } => (
             none(),
             none(),
             named(name),
@@ -557,7 +579,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::Edit { .. } => (
+        E::Edit { .. } | E::StepMapDiverged(_) => (
             none(),
             none(),
             none(),
@@ -597,6 +619,7 @@ pub(crate) struct InlineOutcome {
     edits: Vec<d::DocEdit<d::ProfileProgram>>,
     maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
+    step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
 }
 
 #[pymethods]
@@ -629,6 +652,13 @@ impl InlineOutcome {
     #[getter]
     fn node_map(&self) -> Vec<(NodeId, NodeId)> {
         self.node_map.clone()
+    }
+
+    /// Each part profile step's id → the id the host minted for it on
+    /// the splice, the step half of `node_map`.
+    #[getter]
+    fn step_map<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        step_dict(py, &self.step_map)
     }
 
     fn __repr__(&self) -> String {
@@ -668,6 +698,7 @@ pub(crate) fn inline(
             .into_iter()
             .map(|(a, b)| (NodeId(a), NodeId(b)))
             .collect(),
+        step_map: out.step_map,
     })
 }
 

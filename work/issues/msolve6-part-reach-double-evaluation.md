@@ -4,6 +4,8 @@ kind: issue
 title: A caller that solves and then evaluates resolves each mated part twice: PartReach's own cache beside the evaluation's
 status: open
 opened: 2026-09-12
+priority: P1
+cost: D
 ---
 
 

@@ -3,7 +3,8 @@
 //!
 //! Test-only, and shared rather than copied: a module whose whole
 //! content is assertions needs this, and every such module needs the
-//! same one.
+//! same one. [`mod@crate::own_thread`] is the same capture one level
+//! out, for a row whose subject panics on a thread of its own.
 
 /// The panic message `f` produced, or `None` if it passed.
 ///
@@ -20,7 +21,7 @@
 /// that row's message is printed by the default hook rather than
 /// stashed. Installing once also keeps an unrelated thread's panic
 /// during the window from being swallowed.
-pub(crate) fn caught(f: impl FnOnce() + std::panic::UnwindSafe) -> Option<String> {
+pub fn caught(f: impl FnOnce() + std::panic::UnwindSafe) -> Option<String> {
     thread_local! {
         /// The last panic seen on THIS thread while it was intercepting.
         /// The hook runs on the panicking thread, so a thread-local keeps

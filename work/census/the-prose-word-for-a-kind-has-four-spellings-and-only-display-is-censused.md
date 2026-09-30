@@ -5,6 +5,8 @@ title: the prose word for a kind has four spellings and prose_census can only se
 status: open
 opened: 2026-09-06
 refs: [2053]
+priority: P4
+cost: E
 ---
 
 

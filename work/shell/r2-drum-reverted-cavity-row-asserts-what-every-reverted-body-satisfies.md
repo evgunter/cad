@@ -5,6 +5,8 @@ title: shell9_r2_probes::r2_drum_reverted_cavity_alone_is_the_reason asserts onl
 status: open
 opened: 2026-09-14
 refs: [void-insertion-refuses-a-cavity-with-a-same-surface-latitude-seam]
+priority: P3
+cost: E
 ---
 
 Found by the TOPO lane that closed

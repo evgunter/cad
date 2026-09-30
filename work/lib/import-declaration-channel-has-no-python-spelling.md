@@ -1,10 +1,12 @@
 ---
 id: import-declaration-channel-has-no-python-spelling
 kind: issue
-title: "The STEP import declaration channel has no Python spelling: import_step withholds declared_contacts because ImportContact has no value class"
+title: The STEP import declaration channel has no Python spelling: import_step withholds declared_contacts because ImportContact has no value class
 status: open
 opened: 2026-09-15
 refs: [1495]
+priority: P3
+cost: D
 ---
 
 ## Disclosed by PORT's `python-cannot-set-options-structs` (PR for

@@ -5,20 +5,22 @@ title: decoration_seam.rs's header says the ssi::enclose crossing is pinned by n
 status: open
 opened: 2026-09-04
 track: W
+priority: P3
+cost: E
 ---
 
 
 ## Finding
 
 `crates/geom-core/tests/decoration_seam.rs`'s header enumerates the four
-`crates/*/src` sites that reach `RingInterval::from_certified` and cannot
+`crates/*/src` sites that reach `Interval::from_certified` and cannot
 be called from that suite, naming for each the row elsewhere that pins it.
 The fourth bullet — `geom_brep::ssi::enclose`'s, which **no row named here
 pins** — is stale in substance: `crates/geom-brep/src/ssi/enclose.rs`'s
 own `tests::decoration_seam` module pins that crossing with three rows,
 `every_ring_crossing_refuses_exactly_where_the_decoration_degrades`,
 `no_crossing_may_be_rebounded_to_the_bracket_door` and
-`a_violated_radius_poisons_the_pad`, all three green under
+`a_violated_radius_refuses_the_pad`, all three green under
 `--features interval` (measured 2026-09-04). The bullet should name them
 as the other three bullets name theirs.
 
@@ -102,7 +104,7 @@ carries `mod decoration_seam` under `#[cfg(feature = "interval")]`, doc'd
 finding names:
 `every_ring_crossing_refuses_exactly_where_the_decoration_degrades`,
 `no_crossing_may_be_rebounded_to_the_bracket_door`,
-`a_violated_radius_poisons_the_pad`.
+`a_violated_radius_refuses_the_pad`.
 
 **The roster's population re-derived, since "a roster with a count in it
 is what the finding was about".** `grep -rln 'RingInterval::from_certified'
@@ -110,7 +112,7 @@ is what the finding was about".** `grep -rln 'RingInterval::from_certified'
 own — `spline/hull.rs` (the crossing this suite DOES reach, named
 separately in the header) and `real.rs`, whose single occurrence is
 prose in a comment, not a call. The remaining **four** are exactly the
-header's four: `geom/src/net.rs` (`ring_coords`),
+header's four: `geom/src/net.rs` (`certified_coords`),
 `geom-brep/src/ssi/certify.rs` (3 reads),
 `geom-brep/src/ssi/enclose.rs` (36 reads) and `topo/src/props.rs`.
 **"four other places in `crates/*/src`" is still true.** Only the fourth
