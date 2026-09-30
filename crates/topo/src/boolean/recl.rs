@@ -1213,7 +1213,9 @@ mod tests {
                     .unwrap_or_default(),
                 ..BooleanDeclarations::none()
             };
-            let declared = DeclaredPairs::build(&decls, Default::default());
+            let one = crate::boolean::verify_declared_contacts(a.0, b.0, &decls, band)
+                .expect("the door verifies the declaration");
+            let declared = DeclaredPairs::build(&decls, one);
             resolve_edge_edge(
                 &records,
                 &corner(a.1),
@@ -1466,7 +1468,9 @@ mod tests {
                     .unwrap_or_default(),
                 ..BooleanDeclarations::none()
             };
-            let declared = DeclaredPairs::build(&decls, Default::default());
+            let one = crate::boolean::verify_declared_contacts(&b1, &b2, &decls, band)
+                .expect("the door verifies the declaration");
+            let declared = DeclaredPairs::build(&decls, one);
             require_same(
                 &b1,
                 Operand::A,

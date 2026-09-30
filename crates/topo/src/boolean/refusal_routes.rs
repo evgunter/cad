@@ -563,7 +563,7 @@ impl Coincide {
             Self::EdgeOnCurvedFace | Self::VertexOnCurvedFace => Ending::Sized(CURVED_CLEARANCE),
             Self::VertexOnCoveredFace => Ending::Lever(COVERED_VERTEX_LEVER, LeverPass::ByArm),
             Self::ArcClearsCurvedFace => Ending::Sized(ARC_CLEARANCE),
-            Self::ArcOnCoveredFace => Ending::Sized(COVERED_ARC),
+            Self::ArcOnCoveredFace => Ending::Lever(COVERED_ARC_LEVER, LeverPass::DeclaredAway),
             Self::TangentSide => Ending::Sized(TANGENT_SIDE),
             Self::FlankSense => Ending::Sized(FLANK_SENSE),
             Self::CurvedFlankSense => Ending::Lever(CORNER_EDGES, LeverPass::Frontier),
@@ -663,14 +663,10 @@ const ARC_CLEARANCE: SizedDecision = SizedDecision {
 
 /// A covered arc against the curved face it is declared to touch
 /// ([`Coincide::ArcOnCoveredFace`]): passes on zero (the declared-cover
-/// arm reads its ends) and positive (clear).
-const COVERED_ARC: SizedDecision = SizedDecision {
-    lever: "move the parts so the arc lies clearly on that face or clearly clear of it",
-    size: "clearance",
-    passes: SizedPass::NonNegative,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
+/// arm reads its ends) and positive (clear), the gap its own face's
+/// declared contact says is not there ([`LeverPass::DeclaredAway`]).
+const COVERED_ARC_LEVER: &str =
+    "move the parts so the arc lies clearly on that face or clearly clear of it";
 
 /// The second-order side of a declared-`Tangent` pair
 /// ([`Coincide::TangentSide`]): the faces' relative bend over the
@@ -1173,6 +1169,10 @@ enum LeverPass {
     /// Its escalation carries the band's own enclosure rather than a
     /// measured margin, so there is no value to tighten below.
     Unmeasured,
+    /// It passes on a gap from a face the pair is declared to touch: a
+    /// smaller tolerance that decides the gap decides the declaration
+    /// contradicted at the door, so it offers none.
+    DeclaredAway,
 }
 
 impl LeverPass {
@@ -1835,10 +1835,12 @@ mod tests {
                 "Recourse: move the parts so the arc clearly clears that face",
                 SizedPass::Positive,
             ),
-            Coincide::ArcOnCoveredFace => Ending::Sized(
+            // A clear arc is a gap its face's declared contact says is
+            // not there.
+            Coincide::ArcOnCoveredFace => Ending::Lever(
                 "Recourse: move the parts so the arc lies clearly on that face or clearly clear \
                  of it",
-                SizedPass::NonNegative,
+                LeverPass::DeclaredAway,
             ),
             Coincide::SectorSide => Ending::Sized(MEET, SizedPass::AnySign),
             Coincide::TangentSide => Ending::Sized(

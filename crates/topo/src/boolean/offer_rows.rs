@@ -8,10 +8,17 @@
 //! refusal offered, following a chain of different decisions to a pass
 //! (the module docs there state what is true and false).
 //!
-//! The census is by construction: every decision the table renders a
-//! valued tolerance for, on each side of zero it offers one on, has a
-//! case here, or one `sweep` runs (`OFFERS_EXECUTED_IN_SWEEP`); a case
-//! whose arm has withdrawn its tolerance asserts it stays withdrawn.
+//! The census is by construction: every refusal kind that quotes a
+//! margin of its own is placed by an exhaustive match ([`quoting`]),
+//! every decision among them enumerated as `want()` enumerates them, and
+//! each key and side any of them renders a valued tolerance on has a case
+//! here, or one `sweep` runs (`OFFERS_EXECUTED_IN_SWEEP`). A case whose
+//! arm has withdrawn its tolerance asserts it stays withdrawn, and
+//! executes the offer it withdrew to show what that offer would meet.
+//! A case that declares a pair declares it through the Boolean's
+//! declaration door (`verify_declared_contacts`); the site cases that
+//! hand a declared-`Tangent` question its read directly
+//! (`tangent_side`, `tangent_side_of`, `rims`) say so.
 //!
 //! Each case's margin is a fixed length chosen against the band at
 //! [`test_utils::offer::DESIGN_EPS`], so a re-run at a smaller tolerance
@@ -165,14 +172,12 @@ cases! {
         Withdrawn(Because::Refuses("WallRoots(Discriminant)")) =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
     arc_clear_of_a_wall: "Coincidence(ArcClearsCurvedFace)", true, CURVED_ARM_SITE, Valued =>
-        arc_against_a_wall(1.0 + D, None, false);
-    arc_on_a_covered_wall: "Coincidence(ArcOnCoveredFace)", true, CURVED_ARM_SITE, Valued =>
-        arc_against_a_wall(1.0 + D, Some(ContactClass::Rest), false);
-    arc_on_a_tangent_wall: "Coincidence(ArcOnCoveredFace)", true, CURVED_ARM_SITE, Valued =>
-        arc_against_a_wall(1.0 + D, Some(ContactClass::Tangent), false);
+        arc_against_a_wall(1.0 + D, None);
+    // Declared `Rest` through the door, the walls are one carrier and the
+    // arc's ends are read; a smaller tolerance decides the radii apart.
     arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", true, CURVED_ARM_SITE,
-        Withdrawn(Because::Refuses("CurvedPierceUnsupported")) =>
-        arc_against_a_wall(1.0 + D, Some(ContactClass::Rest), true);
+        Withdrawn(Because::Refuses("ContactContradicted")) =>
+        arc_against_a_wall(1.0 + D, Some(ContactClass::Rest));
     thin_wedge_on_a_block: "Coincidence(Sectors)", true, Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union);
     thin_wedge_cut_from_a_block: "Coincidence(Sectors)", true, Public, Valued =>
@@ -190,8 +195,8 @@ cases! {
          refuses first on a public raise",
     ), Withdrawn(Because::Refuses("CurvedBooleanUnsupported")) => curved_flank_membership();
     pierce_germ_line_in_band: "Coincidence(Sectors)", true, Door::Site(
-        "the germ line is read at a transition sector whose vertices stand off their own face, \
-         which a public raise does not place",
+        "the germ line reads in band at a transition sector whose vertices stand off their own \
+         face by up to the zero band, which a valid body allows and no public raise here builds",
     ), Valued => pierce_germ_line();
     // The rest of the census, one per arm and side.
     vertex_hovering_over_a_face: "Coincidence(VertexOnFace)", true, Public, Valued =>
@@ -344,8 +349,9 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     side_code(dir, Reach::Bisector(0.5), n, 0.5, 1.0, band()).map(|_| ())
 }
 
-/// A declared-`Tangent` ball on a floor: the second-order side at the
-/// arm whose sagitta is `D`, or the arm gate at an arm of `D`.
+/// A ball on a floor, handed the read a declared-`Tangent` door gives:
+/// the second-order side at the arm whose sagitta is `D`, or the arm
+/// gate at an arm of `D`.
 fn tangent_side(arm_gate: bool) -> Result<(), BooleanError> {
     let (p, d) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
@@ -431,13 +437,10 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
 }
 
 /// The rim arcs of a radius-`r` wall sheet against a unit wall sheet
-/// sharing its axis, the pair declared `class` (and read as one carrier
-/// where `one_carrier`): the first arc's raise.
-fn arc_against_a_wall(
-    r: f64,
-    class: Option<ContactClass>,
-    one_carrier: bool,
-) -> Result<(), BooleanError> {
+/// sharing its axis, the pair declared `class` through the Boolean's
+/// declaration door (`verify_declared_contacts`, which also says whether
+/// the two are one carrier): the first arc's raise.
+fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
     let xw = cyl_wall_sheet(
@@ -465,11 +468,7 @@ fn arc_against_a_wall(
             .unwrap_or_default(),
         ..BooleanDeclarations::none()
     };
-    let one = if one_carrier {
-        [(xw, yw)].into_iter().collect()
-    } else {
-        Default::default()
-    };
+    let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
     let declared = DeclaredPairs::build(&decls, one);
     let (edge_key, edge) = x
         .edges()
@@ -968,9 +967,8 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
 
 /// The membership tie on two prisms' shared side plane `x = 1`, each
 /// corner's flanker along `x` (or against it, for the second corner,
-/// where `against`), at an arm of `D`, the pair declared `Rest` where
-/// `rest` (a class the door verifies there:
-/// `recl`'s `an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it`).
+/// where `against`), at an arm of `D`, the pair declared `Rest` through
+/// the Boolean's declaration door where `rest`.
 fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError> {
     use super::super::SideCode::{In, On, Out};
     use super::super::recl::resolve_edge_edge;
@@ -1018,7 +1016,8 @@ fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError
         },
         ..BooleanDeclarations::none()
     };
-    let declared = DeclaredPairs::build(&decls, Default::default());
+    let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
+    let declared = DeclaredPairs::build(&decls, one);
     resolve_edge_edge(
         &records,
         &[sector(z, x, fa), sector(x, z, fa)],
