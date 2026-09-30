@@ -87,6 +87,12 @@ closed; it now reaches `chord_descent`.
 `emit_union_borders::a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`
 pins it, and the chord rule flips its expectation.
 
+A UNION reaches it too: joining the same plate and boss to a bar at
+x 1.4 to 1.6, y 0.5 to 2.5, z 0.8 to 2.0 with a plain pair union
+refuses `MergedChordConstituents { several: 2 }` as well. The bar
+passes through the boss wall on both sides, so each merged wall face
+again holds both boss pieces. Measured on PR 3547's head.
+
 What it adds to the rule: the two constituents lie on ONE curved
 surface, so the pick cannot read carriers. It has to ask which
 constituent's operand face holds the chord as a region, on a cylinder.
