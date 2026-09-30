@@ -79,7 +79,8 @@ use geom_brep::{
     newell_plane,
 };
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Arc2, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol,
+    Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
@@ -89,7 +90,7 @@ use topo::{
 
 use crate::swept;
 use crate::swept::{
-    CosurfaceNames, SweptChord, SweptKind, cap_points, cosurface, decide, face_surface_key,
+    CosurfaceNames, SweptChord, cap_points, cosurface, decide, face_surface_key,
     placed_segment_spec, turn_axis,
 };
 
@@ -433,7 +434,7 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     fn b(&self) -> Point2<T> {
         self.chord.b
     }
-    fn kind(&self) -> SweptKind<T> {
+    fn kind(&self) -> SegmentKind<T> {
         self.chord.kind
     }
 }
@@ -1137,7 +1138,7 @@ fn side_surface<T: Decide>(
         }
     }
     match segs[j].chord.kind {
-        SweptKind::Line => {
+        SegmentKind::Line => {
             // Quad corners in the side loop's next order starting at
             // the swept start vertex: v_j′, v_j, v_{j+1}, v_{j+1}′.
             let corners = [qs[j] + w, qs[j], qs[(j + 1) % n], qs[(j + 1) % n] + w];
@@ -1151,11 +1152,14 @@ fn side_surface<T: Decide>(
                 sense,
             })
         }
-        SweptKind::Arc {
-            center,
-            radius,
+        SegmentKind::Arc {
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    ..
+                },
             turn,
-            ..
         } => {
             // The carrier axis line is the arc's center extruded:
             // `place · (center, 0)` — the same computation the rim

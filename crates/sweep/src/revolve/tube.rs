@@ -59,13 +59,13 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real, Sign,
-    Tol, Vec2,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real,
+    Sign, Tol, Vec2,
 };
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
-use crate::swept::SweptKind;
+use profile::SegmentKind;
 
 /// The traversed window of the spine arc.
 #[derive(Clone, Copy, Debug)]
@@ -522,10 +522,12 @@ fn circle_traversal<T: Real>(
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        kind: SweptKind::Arc {
-            center,
-            radius,
-            sweep,
+        kind: SegmentKind::Arc {
+            arc: Arc2 {
+                centre: center,
+                radius,
+                sweep,
+            },
             turn,
         },
         canonical_vertex,

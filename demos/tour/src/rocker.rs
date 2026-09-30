@@ -31,7 +31,7 @@ use pncad::sweep::{Extrusion, extrude};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::p2;
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Arc2, Tol};
 
 /// Hub circle: centre (0, 0), R = 2.5 — the plate's big bearing boss.
 const HUB: (f64, f64, f64) = (0.0, 0.0, 2.5);
@@ -253,7 +253,15 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
             blends.len()
         )
     };
-    let SegmentKind::Arc { center, radius, .. } = blend.kind else {
+    let SegmentKind::Arc {
+        arc: Arc2 {
+            centre: center,
+            radius,
+            ..
+        },
+        ..
+    } = blend.kind
+    else {
         panic!("a fillet is an arc")
     };
     assert!(

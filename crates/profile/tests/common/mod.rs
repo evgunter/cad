@@ -12,7 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Point2, Real};
+use geom_core::{Arc2, Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
@@ -420,11 +420,11 @@ pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
             },
             "segment {k} is {p}, so segment {arc_at} beside it is that fillet's arc"
         );
-        let Segment::Arc {
+        let Segment::Arc(Arc2 {
             centre: fc,
             sweep: fs,
             ..
-        } = segs[arc_at]
+        }) = segs[arc_at]
         else {
             panic!("segment {arc_at} is {p}'s fillet arc but is straight");
         };
@@ -460,7 +460,7 @@ pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
                     "{what} but runs backward along its ray's line ({ahead:e})"
                 );
             }
-            (Some(spec), Segment::Arc { sweep, .. }) => {
+            (Some(spec), Segment::Arc(Arc2 { sweep, .. })) => {
                 // The side's circle: the one tangent to the fillet arc
                 // at `s` that the spec also pins, with its centre at
                 // `s + λ·left` — its centre, its radius and side, or a

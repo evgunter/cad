@@ -18,7 +18,7 @@ use editor_core::{
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
     evaluate,
 };
-use geom_core::Tol;
+use geom_core::{Arc2, Tol};
 
 /// A quad whose LAST authored corner x is a document parameter: at
 /// x0 = 0.5 that corner (0.5, 1) is the lexicographic minimum; at
@@ -390,11 +390,14 @@ fn hole_circle_anchor_recovers_reversal() {
         );
         // … and its canonical sweep is the program segment's, negated.
         let (
-            profile::SegmentKind::Arc { sweep, .. },
-            profile::Segment::Arc {
-                sweep: program_sweep,
+            profile::SegmentKind::Arc {
+                arc: Arc2 { sweep, .. },
                 ..
             },
+            profile::Segment::Arc(Arc2 {
+                sweep: program_sweep,
+                ..
+            }),
         ) = (canonical.kind, program.segments()[p_seg])
         else {
             panic!("a circle's segments are arcs");

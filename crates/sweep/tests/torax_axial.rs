@@ -46,7 +46,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tol, Vec2};
+use geom_core::{Arc2, Band, Point2, Point3, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
@@ -1087,8 +1087,7 @@ fn torax_re_authored_arcs_put_both_corners_on_the_moved_circle() {
                     geom_brep::SketchSegment::Arc {
                         a,
                         b,
-                        centre,
-                        radius,
+                        arc: Arc2 { centre, radius, .. },
                         ..
                     },
                 ..
