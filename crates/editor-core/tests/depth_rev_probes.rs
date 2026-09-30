@@ -203,11 +203,15 @@ fn p3_the_disclosed_case_a_mate_faulted_instance_below_the_top() {
         let mut store = MapStore::default();
         let part_doc = if broken_healthy {
             // the "healthy" instance's part now itself fails: it instantiates a missing doc
-            instantiating_all("rev-dis-part", &[dref("rev-dis-nowhere")]).0
+            // the "healthy" instance's part is itself a two-level assembly over a block
+            instantiating_all("rev-dis-part", &[dref("rev-dis-inner")]).0
         } else {
             block("rev-dis-part")
         };
         store.0.insert(part_ref, part_doc);
+        let inner = dref("rev-dis-inner");
+        store.0.insert(inner, instantiating_all("rev-dis-inner", &[dref("rev-dis-leaf")]).0);
+        store.0.insert(dref("rev-dis-leaf"), block("rev-dis-leaf"));
         let b_ref = dref("rev-dis-b");
         store.0.insert(b_ref, b.clone());
         let opts = EvalOptions {
