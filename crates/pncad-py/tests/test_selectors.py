@@ -8,7 +8,11 @@ by VALUE — no test reads inside a name text, because that is the
 contract the surface exists to keep.
 """
 
+import json
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 
 from pncad import (
     CapEnd,
@@ -193,6 +197,96 @@ class TestPatternBoundary(unittest.TestCase):
         rims = NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.RimEdge))
         self.assertEqual(len(ev.select(cube, Selector.of(caps))), 2)
         self.assertEqual(len(ev.select(cube, Selector.of(caps).or_(rims))), 10)
+
+
+# A chain of patterns, each over the one before, names its faces one
+# level deeper per pattern; a pattern built by wrapping nests one level
+# per wrap. Both are walked on a `threading.Thread` given the wasm32
+# build's one-mebibyte stack, less than any thread the binding runs on.
+_NESTED = r"""
+import json
+import sys
+import threading
+
+from pncad import Doc, Expr, NamePat, Node, PatternKind, SegPat, evaluate, m
+
+copies, wraps = int(sys.argv[1]), int(sys.argv[2])
+said = {}
+
+
+def nest(pat, levels):
+    for _ in range(levels):
+        pat = NamePat.any().seg(SegPat.any().of([pat]))
+    return pat
+
+
+def run():
+    doc = Doc()
+    zero, one = Expr.length_in(0, m), Expr.length_in(1, m)
+    square = doc.insert(
+        Node.polygon(
+            [(zero, zero), (one, zero), (one, one), (zero, one)],
+            plane=doc.sketch_frame(),
+        )
+    )
+    node = doc.insert(Node.extrude(square, one))
+    step = PatternKind.linear(
+        (Expr.literal(1.0), Expr.literal(0.0), Expr.literal(0.0)),
+        Expr.length_in(2, m),
+    )
+    for _ in range(copies):
+        node = doc.insert(Node.pattern(node, Expr.count(1), step))
+    face = evaluate(doc).all_faces(node)[0]
+    try:
+        said["as_deep"] = nest(NamePat.any(), copies).matches(face)
+        said["one_deeper"] = nest(NamePat.any(), copies + 1).matches(face)
+    except ValueError as refused:
+        said["refused"] = str(refused)[-300:]
+    deep = nest(NamePat.any(), wraps)
+    said["levels_shown"] = repr(deep).count("NamePat {")
+    said["kept"] = deep.matches(face)
+
+
+threading.stack_size(1 << 20)
+thread = threading.Thread(target=run)
+thread.start()
+thread.join()
+print(json.dumps(said))
+"""
+
+
+class TestNestingPastEveryStack(unittest.TestCase):
+    """A name and a pattern nested past every stack are read, matched,
+    printed and dropped on a `threading.Thread`, in a child interpreter:
+    the failure this row guards against is a dead process."""
+
+    COPIES = 50
+    WRAPS = 2_000
+
+    def test_a_deep_name_and_a_deep_pattern_walk_on_a_thread(self):
+        child = subprocess.run(
+            [sys.executable, "-c", _NESTED, str(self.COPIES), str(self.WRAPS)],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+        self.assertEqual(
+            child.returncode,
+            0,
+            f"the interpreter survives the walks: {child.stderr[-2000:]}",
+        )
+        said = json.loads(child.stdout)
+        self.assertNotIn("refused", said, "the name's own text reads back")
+        self.assertTrue(
+            said["as_deep"],
+            "a name as deep as the chain reads back from its text and "
+            "matches a pattern as deep",
+        )
+        self.assertFalse(said["one_deeper"], "and not one a level deeper")
+        self.assertEqual(said["levels_shown"], self.WRAPS + 1, "repr shows every level")
+        self.assertFalse(said["kept"], "a pattern deeper than the name does not match it")
 
 
 if __name__ == "__main__":

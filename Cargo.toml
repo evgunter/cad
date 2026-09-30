@@ -122,8 +122,13 @@ spade = "2.15.1"
 # switchable: editor-core's load door switches it off behind a nesting
 # limit of its own, derived from the values a document nests
 # (`persist::nesting`), which the fixed one sits below.
+# raw_value is load-bearing for the JSON doors' stable names: a name
+# nests one whole name per derivation level, and the doors read and write
+# it one level at a time through a raw slice of its text
+# (`editor-core`'s `names::nest`), so a name of any depth loads on any
+# stack.
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = { version = "1.0.140", features = ["float_roundtrip", "unbounded_depth"] }
+serde_json = { version = "1.0.140", features = ["float_roundtrip", "raw_value", "unbounded_depth"] }
 # ASM-1 (spec D-2): content pins are SHA-256 over the canonical
 # semantic bytes — the pin IS version identity (ASSEMBLY-DESIGN A4),
 # so collision resistance is required; the in-process memo's FNV
