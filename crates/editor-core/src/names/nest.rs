@@ -1251,14 +1251,16 @@ pub(super) mod tests {
                 out.push(named(EntityKind::Edge, 11, vec![seg, rank.clone()]));
             }
         }
-        // One `Arc` held twice, and two handles stamped by one walk in
-        // their structural order.
+        // One `Arc` held twice, beside two handles stamped by one walk
+        // in their structural order and beside two unstamped ones: the
+        // pairs a handle settles itself, ahead of a pair it does not.
         let shared = NameRef::new(a.clone());
         let (low, high) = (NameRef::new(x.clone()), NameRef::new(y.clone()));
         let epoch = super::super::role::next_epoch().expect("an epoch");
         low.stamp(epoch, 0);
         high.stamp(epoch, 1);
-        for other in [&low, &high] {
+        let (x, y) = (NameRef::new(x), NameRef::new(y));
+        for other in [&low, &high, &x, &y] {
             out.push(named(
                 EntityKind::Edge,
                 12,
