@@ -437,7 +437,7 @@ impl ProfileEdit {
 
     /// **Which committed step each held step is** — `SetProgram`'s
     /// `ids`: per loop, per step, the id it was loaded as while it
-    /// still draws that step's pieces ([`draws_as`]), else `None`, so
+    /// still draws that step's pieces (`draws_as`), else `None`, so
     /// a kept id never hands a name a piece of another role.
     pub(crate) fn ids(&self) -> Vec<Vec<Option<StepId>>> {
         self.loops
@@ -1668,12 +1668,12 @@ mod tests {
             Step::LineTo(Target::Start),
         ]);
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        let kept: Vec<Option<_>> = edit.base().ids[0].iter().copied().map(Some).collect();
+        let kept = sketch::kept_in_place(edit.base());
         edit.steps_mut(0)[1] = Step::ArcTo(ArcData::Via {
             q: Point2::new(0.0, 0.01),
             target: Target::Point(Point2::new(0.01, 0.0)),
         });
-        assert_eq!(edit.ids(), vec![kept], "an arc mode moved");
+        assert_eq!(edit.ids(), kept, "an arc mode moved");
 
         let split = |radius, n, phase| Step::CircleSplit {
             centre: Point2::origin(),
@@ -1683,7 +1683,7 @@ mod tests {
         };
         let (doc, mut drafts, profile) = held_path(vec![split(0.01, 3, 0.0)]);
         let edit = drafts.profile_edit(&doc, profile).expect("held");
-        let kept = vec![vec![Some(edit.base().ids[0][0])]];
+        let kept = sketch::kept_in_place(edit.base());
         edit.steps_mut(0)[0] = split(0.02, 3, 0.5);
         assert_eq!(edit.ids(), kept, "a split circle's radius and phase moved");
         edit.steps_mut(0)[0] = split(0.02, 4, 0.5);

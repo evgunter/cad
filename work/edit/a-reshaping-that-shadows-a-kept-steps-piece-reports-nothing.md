@@ -52,3 +52,8 @@ No row pins this at the door yet. The first step is a row in
 before a named, kept leg, and assert what `Applied.maintenance` holds.
 Whether the fix is a new report row, a strand, or a ruling that N1's
 vanish covers it is EDIT's call.
+
+A pure reorder is, by reading, another trigger: moving a kept step so
+that a neighbour's piece takes its segment needs no insert. AUTH-6's
+correctness review found no valid instance, because the lattice pins a
+`fillet` between `toward`/`to` neighbours, but did not rule one out.

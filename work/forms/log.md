@@ -57,8 +57,8 @@ AUTH-6 removed `ShapeEdits` (both arms) and `SHAPE_LOCKED` from
 `DocEdit::SetProgram`, so the edit door has no controls to lock and the
 sentence was false. With one arm left the enum said nothing, and the
 `shape` parameter went from `widgets::path_step_fields`, `arc_fields`
-and `target_fields`, and from `pane::profile::path_steps_ui`. The six
-`shape.free()` gates (arc mode, side, winding, target form, split count)
-now take input in both doors. `path_steps_ui` now returns a
+and `target_fields`, and from `pane::profile::path_steps_ui`. The seven
+`shape.free()` gates (target form, arc mode, three side pickers, winding,
+split count) now take input in both doors. `path_steps_ui` now returns a
 `drafts::RowEdit` for its caller to apply instead of reshaping the list
 itself. (AUTH-6 implementer)
