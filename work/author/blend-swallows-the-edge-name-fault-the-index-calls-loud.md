@@ -2,11 +2,12 @@
 id: blend-swallows-the-edge-name-fault-the-index-calls-loud
 kind: issue
 title: The blend tool swallows every EdgeNameFault, including the arm the index calls loud
-status: review
+status: closed
 opened: 2026-09-22
 priority: P2
 cost: M
 branch: author/edge-name-fault
+closed: 2026-09-30
 ---
 
 
@@ -91,3 +92,15 @@ A body the index does not draw (`NotDrawn`'s case) stays quiet on both
 paths. The face-side twin stays on VGEOM's row with a note, and the
 selection-mark sibling is filed as
 `work/vgeom/a-selected-edge-whose-drawn-edge-lost-its-name-marks-as-vanished`.
+
+## Closed 2026-09-30 — PR 3585 merged (`cd6cc9a0`)
+
+**A blend target whose edges cannot be named says so.**
+- Both readers go through one door, `PickIndex::edge_names_in`. It refuses only with the naming layer's own `UnnamedEntity`, and that is enforced by the type.
+- **Select all edges** refuses the whole load in the index's words, and never says "no edges".
+- The held-edge mark draws what is named and carries the rest to a toolbar badge. A row proves the badge goes away.
+- A window that runs past its entities or names is an `unreachable!` stating the invariant, not an empty body.
+
+Filed from the unit:
+- VGEOM's `a-selected-edge-whose-drawn-edge-lost-its-name-marks-as-vanished`;
+- CHROME's `the-per-frame-badge-reads-are-three-hand-copied-fields`.
