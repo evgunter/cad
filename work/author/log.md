@@ -1340,3 +1340,16 @@ called the update with a stub and replaced the whole body with the word
 editing, and verified by length, the edited sentence, and the footer.
 The saved copy is why it was recoverable: edit a PR body from a file,
 and keep the file until the update is verified.
+
+## 2026-09-30 — AUTH-6 MERGED (`75d074e3`): a committed sketch can be reshaped
+
+Six units closed across these sittings. AUTH-6 ran: implementer; a
+merge of main I resolved myself (built, and found two clashes without
+markers); correctness and style reviews in parallel; a repair pass on a
+fresh lane, since the implementer could not be resumed after a
+container restart. No narrow re-review: the fix pass repaired findings
+rather than adding design, and its one rewrite of the id rule carried
+its own proof (all 1369 pairs of 37 steps agree with the old rule).
+
+Merged over 42 commits of `main` that changed no viewer file; GitHub
+reported a clean merge with nothing to resolve.
