@@ -3536,3 +3536,35 @@ PR 3513 is green at `adcf403f45`. The implementer took 546,186 tokens,
 
 Tier SINGLE, full. The reviewer builds on the lane's warm target. Disk
 is at 4.8 GB free.
+
+## PR 3511's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of `1e1534bb16` took 318,894 tokens, 155 tools
+and 77 min (harness); archived privately.
+
+**Every executed claim held:**
+- All seven rows are red at the true base, in dev and in release.
+- 17 of 17 mutants red, 0 survivors.
+- 0 over-refusals: 81k probe calls, plus a hook over five suites
+  (6,245 tests) whose 398 refusals all come from torn inputs.
+- 40 → 16 is reproduced: all 24 lost kills are graft-laundered torn
+  input.
+- Both tables are reproduced exactly.
+- "(malformed body)" is consistent with D4 as ratified. The reviewer
+  traced (iv)'s rider to PR 3352, and `KERNEL_OR_FILE_DEFECT_ENDING`
+  is a house convention, not DESIGN text.
+
+**Findings, all accepted:**
+- **MINOR-1.** Face, shell, solid and edge removals trust their
+  boundary. Six measured `Ok`-with-dangling cases (`kef`, `kvfs`,
+  `mekr`). To be filed as a class.
+- **MINOR-2.** The `FILED_CELLS` admission is column-wide. Narrow it
+  to the vertex half.
+- **MINOR-3.** `OrbitBroken`'s `Display` misstates the `Lone` proof's
+  causes. Unswept sibling.
+- **Q1.** `kvfs`'s start check is a second spelling of the `Lone`
+  scan.
+- **NOTE-2.** `mekr_chord` departs from `mekr`'s order.
+- **Also:** the docs, and two test-hygiene items.
+
+The fix pass runs on the lane's warm target.
