@@ -2241,13 +2241,7 @@ const PLANAR_BOUNDARY: Unsized = Unsized::LastResort;
 
 /// The ring-torus convention `R − r > 0`: a size the user may intend, and
 /// the stored radii are what the lever edits.
-const RING_TORUS: SizedDecision = SizedDecision {
-    lever: "make the tube radius clearly smaller than the ring radius",
-    size: "difference between the radii",
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
+const RING_TORUS: SizedDecision = geom_brep::TorusConvention::Ring.sized();
 
 /// A hole against its face's outline: the lever of check 9's contact
 /// arms, whose refusals do not carry which of their gaps decided.
@@ -2839,11 +2833,8 @@ impl fmt::Display for ValidationError {
             ),
             Self::DegenerateTorus { verdict, .. } => write!(
                 f,
-                "a torus face's tube radius {}. {}",
-                match verdict {
-                    Refused::Zero(_) => "equals its ring radius at this tolerance (a horn torus)",
-                    Refused::Negative { .. } => "is larger than its ring radius (a spindle torus)",
-                },
+                "{}. {}",
+                geom_brep::TorusConvention::Ring.refused("a torus face's", *verdict),
                 RING_TORUS.recourse(verdict.arm(), Reading::AtRest)
             ),
             Self::DegenerateTorusEscalated { cause, .. } => write!(
