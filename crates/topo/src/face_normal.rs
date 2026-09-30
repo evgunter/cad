@@ -235,8 +235,14 @@ mod tests {
     fn face_on(surface: geom::Surface<f64>) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
         let st = crate::fixtures::mvfs_state();
         let mut body = st.body;
-        body.set_face_surface(st.face, FaceSurface::New(surface))
-            .unwrap();
+        body.set_face_surface(
+            st.face,
+            FaceSurface::New {
+                surface,
+                sense: true,
+            },
+        )
+        .unwrap();
         (body, st.face)
     }
 

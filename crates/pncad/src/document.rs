@@ -284,6 +284,12 @@ pub use editor_core::{
     save,
 };
 
+// A refusal's two renderings: under its stage word (`Display`), and as
+// the sentence a carrier that names the stage renders
+// ([`Staged::sentence`]); the recourse label, and what an API door
+// given no part resolver says to do.
+pub use editor_core::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
+
 // Document identity and content pins.
 // `DocumentId` answers "which part" (authored at construction —
 // `DocumentId::derive` for deterministic callers, this crate's

@@ -94,7 +94,10 @@ fn masqueraded(
     );
     body.set_face_surface(
         wall,
-        FaceSurface::New(Surface::Nurbs(Arc::new(masq.clone()))),
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(masq.clone())),
+            sense: true,
+        },
     )
     .unwrap();
     (body, wall, masq)

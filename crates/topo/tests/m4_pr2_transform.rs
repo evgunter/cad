@@ -187,7 +187,13 @@ fn m7_8_cube() -> Body<f64> {
     let cube = common::geometric_cube::<f64>(Tol::witness());
     let mut body = cube.body;
     let wall = body
-        .set_face_surface(cube.mefs[1].face, topo::FaceSurface::New(nurbs_wall()))
+        .set_face_surface(
+            cube.mefs[1].face,
+            topo::FaceSurface::New {
+                surface: nurbs_wall(),
+                sense: true,
+            },
+        )
         .unwrap();
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = 0;

@@ -96,8 +96,14 @@ fn tilt_raised_cap(
         normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
         u_ref,
     };
-    body.set_face_surface(cap, FaceSurface::New(tilted))
-        .expect("a plane for a planar cap");
+    body.set_face_surface(
+        cap,
+        FaceSurface::New {
+            surface: tilted,
+            sense: true,
+        },
+    )
+    .expect("a plane for a planar cap");
     (body, rim, cap, axis, lever)
 }
 

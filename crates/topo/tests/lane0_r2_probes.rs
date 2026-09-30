@@ -51,10 +51,16 @@ fn bowed_offset_approx<T: Real>() -> ApproxSurface<T> {
 fn seed_with<T: Decide>(surface: Surface<T>) -> (Body<T>, FaceKey) {
     let mut body = Body::<T>::new();
     let created = body
-        .mvfs(Point3::new(T::zero(), T::zero(), T::zero()))
+        .mvfs(Point3::new(T::zero(), T::zero(), T::zero()), true)
         .expect("mvfs has no preconditions");
-    body.set_face_surface(created.face, FaceSurface::New(surface))
-        .expect("the seed face takes a fresh surface");
+    body.set_face_surface(
+        created.face,
+        FaceSurface::New {
+            surface,
+            sense: true,
+        },
+    )
+    .expect("the seed face takes a fresh surface");
     (body, created.face)
 }
 

@@ -442,7 +442,7 @@ fn r2_no_solid_is_only_the_empty_operand() {
 fn r2_solid_order_assertion_on_a_body_with_a_freed_solid_slot() {
     let mut body = block(2.0, 3.0, 4.0, Tol::witness());
     let lone = body
-        .mvfs(Point3::new(50.0, 50.0, 50.0))
+        .mvfs(Point3::new(50.0, 50.0, 50.0), true)
         .expect("a lone-vertex solid");
     let (mut body, third) = beside_raw(
         &body,
@@ -889,7 +889,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
         })
         .collect();
     assert_eq!(rims.len(), 4, "the bottom's four edges");
-    body.set_face_surface_and_sense(bottom, topo::FaceSurface::Shared(key), sense)
+    body.set_face_surface(bottom, topo::FaceSurface::Shared { key, sense })
         .expect("the attach door shares a live key");
     for (edge, wall, p, q) in rims {
         let len = p.distance(q);
