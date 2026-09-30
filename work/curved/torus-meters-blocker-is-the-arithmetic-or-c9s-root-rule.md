@@ -7,6 +7,8 @@ opened: 2026-09-29
 priority: P3
 cost: M
 design: true
+needs_ev: true
+branch: curved/c9-sqrt
 ---
 
 
@@ -52,3 +54,17 @@ RING-3, so the conversation asks the right one.
 
 SCALAR-HYGIENE (`ring-3-residue-outside-its-fence`'s CURVED bullet),
 2026-09-29.
+
+## Weighed (2026-09-30)
+
+Two designers (the design-fork protocol, row 21 of
+`docs/DESIGN-FORK-LOG.md`) and one reconciliation round. Converged:
+neither reading holds — the torus needs no root at all
+(`m = F / (2r·(A + 2Rρ))`, `A ≥ R² − r² > 0`), so its certification is
+ordinary work on CHART's `ssi/` ground, filed as
+`work/chart/torus-certificate-runs-root-free-through-its-quartic.md`.
+What remains for Ev is only C9's operation list: three certification
+files already take private outward-rounded square roots
+(`props/quad.rs:sqrt_enclosure`, `offset_meters.rs:sqrt_up/sqrt_down`,
+`mesh/src/chords.rs`), so the clause and the tree disagree today. The
+`[ev]` PR states the question by editing C9.

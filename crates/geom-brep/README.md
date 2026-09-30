@@ -253,7 +253,8 @@ implemented.
 **C9 — Enclosures run on the in-repo interval backend.** Every enclosure
 certification needs is transcendental-free (implicit residuals are
 polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
-so certification arithmetic is `±`, `×`, `÷` and integer powers over
+so certification arithmetic is IEEE-754's correctly rounded operations —
+`±`, `×`, `÷`, integer powers and `√` — and no transcendental, over
 `geom_core::Interval` — the evaluation scalar itself, a newtype over
 `interval-transcendentals`' `DInterval`, outward-rounded where the
 operation is inexact, always compiled, MIT-clean. Its refusal is the
