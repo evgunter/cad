@@ -884,6 +884,32 @@ const FIXTURES: [(&str, BuildFixture); 3] = [
 /// How a [`FIXTURES`] entry builds its body.
 type BuildFixture = fn(Tol) -> Body<f64>;
 
+/// A segment and a circle, the bodies whose kills empty a loop, each
+/// beside a lone vertex: another loop's `Empty` vertex, for a kill's
+/// `Empty` write to be told apart from, and for a torn start to land on.
+const BESIDE_A_LONE_VERTEX: [(&str, BuildFixture); 2] = [
+    ("segment beside a lone vertex", |tol| {
+        let mut body = Body::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let site = MevSite::Lone {
+            r#loop: seed.r#loop,
+        };
+        body.mev_line(site, p(1.0), tol).unwrap();
+        body.mvfs(p(5.0), true).unwrap();
+        body
+    }),
+    ("circle beside a lone vertex", |tol| {
+        let mut body = Body::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let site = MefSite::Lone {
+            r#loop: seed.r#loop,
+        };
+        body.mef_chord(site, tol).unwrap();
+        body.mvfs(p(5.0), true).unwrap();
+        body
+    }),
+];
+
 /// A [`FIXTURES`] entry's exposure category: a body of that fixture the
 /// sweep actually hammered.
 #[cfg(not(debug_assertions))]
@@ -1310,7 +1336,7 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
 }
 
 /// No over-refusal of the kill operators' anchor proofs: on every valid
-/// body [`FIXTURES`] builds, and on a segment and a circle, `kef`,
+/// body [`FIXTURES`] and [`BESIDE_A_LONE_VERTEX`] build, `kef`,
 /// `kemr` (the mate pair) and `kev` ([`kev_either_door`]) at every
 /// half-edge refuse nothing as `OrbitBroken` or `LoopCycleBroken`. An
 /// enumeration, not a sample.
@@ -1329,24 +1355,8 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
         FIXTURES[0],
         FIXTURES[1],
         FIXTURES[2],
-        ("segment", |tol| {
-            let mut body = Body::new();
-            let seed = body.mvfs(p(0.0), true).unwrap();
-            let site = MevSite::Lone {
-                r#loop: seed.r#loop,
-            };
-            body.mev_line(site, p(1.0), tol).unwrap();
-            body
-        }),
-        ("circle", |tol| {
-            let mut body = Body::new();
-            let seed = body.mvfs(p(0.0), true).unwrap();
-            let site = MefSite::Lone {
-                r#loop: seed.r#loop,
-            };
-            body.mef_chord(site, tol).unwrap();
-            body
-        }),
+        BESIDE_A_LONE_VERTEX[0],
+        BESIDE_A_LONE_VERTEX[1],
     ];
     let ops = ["kef", "kemr", "kev"];
     // Per operator: kills run to `Ok`, and those that emptied a loop.
@@ -1437,9 +1447,8 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 
 /// The kill anchors' tear measurement under one tear kind: for each
 /// seed, one and two tears on every [`FIXTURES`] body, the genus-2 body,
-/// the holed box, and a segment and a circle each beside a lone vertex
-/// (another loop's `Empty` vertex for a torn start to land on), then
-/// at every half-edge `kef`, `kemr` (the
+/// the holed box and [`BESIDE_A_LONE_VERTEX`], then at every half-edge
+/// `kef`, `kemr` (the
 /// mate pair) and `kev` ([`kev_either_door`]), each on a clone. An `Ok`
 /// counts in a fault column where it leaves a [`kill_anchor_faults`]
 /// fault the tear did not plant, which is one the kill wrote. Each kill
@@ -1455,26 +1464,8 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
         FIXTURES[2],
         ("ops_genus2", ops_genus2),
         ("ops_holed_box", |tol| ops_holed_box(tol).body),
-        ("segment beside a lone vertex", |tol| {
-            let mut body = Body::new();
-            let seed = body.mvfs(p(0.0), true).unwrap();
-            let site = MevSite::Lone {
-                r#loop: seed.r#loop,
-            };
-            body.mev_line(site, p(1.0), tol).unwrap();
-            body.mvfs(p(5.0), true).unwrap();
-            body
-        }),
-        ("circle beside a lone vertex", |tol| {
-            let mut body = Body::new();
-            let seed = body.mvfs(p(0.0), true).unwrap();
-            let site = MefSite::Lone {
-                r#loop: seed.r#loop,
-            };
-            body.mef_chord(site, tol).unwrap();
-            body.mvfs(p(5.0), true).unwrap();
-            body
-        }),
+        BESIDE_A_LONE_VERTEX[0],
+        BESIDE_A_LONE_VERTEX[1],
     ];
     let mut table = [[0usize; 5]; 3];
     for &seed in seeds {
