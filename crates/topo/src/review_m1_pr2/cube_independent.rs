@@ -23,7 +23,7 @@ fn independent_cube_full_verification() {
     let mut body = Body::<f64>::new();
 
     // Seed at A'.
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 1.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 1.0), true).unwrap();
     assert_eq!(validate(&body), Ok(()));
 
     // Top chain A'->B'->C'->D' : one segment + two struts.

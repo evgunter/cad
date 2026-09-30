@@ -79,7 +79,7 @@ fn probe_sphere_length_margins_ignore_the_arm() {
         assert!(
             matches!(
                 carrier_eq(&a, &off, declared(), arm, band()),
-                Err(CarrierEqError::Contradicted(_))
+                Err(CarrierEqError::Contradicted { .. })
             ),
             "declared, arm {arm}: contradicted"
         );
@@ -116,7 +116,7 @@ fn probe_cylinder_angular_margin_is_levered_at_the_arm() {
     );
     // Large arm: the same tilt is a definite misalignment there.
     match carrier_eq(&a, &b, declared(), 1e6, band()).unwrap_err() {
-        CarrierEqError::Contradicted(d) => {
+        CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
         }
         other => panic!("expected Contradicted at 1e6 arm, got {other:?}"),
@@ -136,7 +136,7 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     let k2 = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 3001.0, false);
     for (a, b) in [(&m1, &m2), (&k1, &k2)] {
         match carrier_eq(a, b, declared(), 1.0, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(d.predicate, Some("carrier_cyl_radius"));
             }
             other => panic!("expected radius contradiction, got {other:?}"),
@@ -146,7 +146,7 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
     // ladder must walk PAST the in-band margin and name the radius.
     let near = cyl([1e-13, 0.0, 0.0], [0.0, 0.0, 1.0], 3.001, false);
     match carrier_eq(&m1, &near, declared(), 1.0, band()).unwrap_err() {
-        CarrierEqError::Contradicted(d) => {
+        CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_radius"));
         }
         other => panic!("expected radius contradiction, got {other:?}"),
@@ -366,7 +366,7 @@ fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
     let verdict =
         topo::boolean::carrier_pair_relation(&c, c_top, &slot, slot_top, true, band()).unwrap();
     assert!(
-        matches!(verdict, Err(CarrierEqError::Contradicted(_))),
+        matches!(verdict, Err(CarrierEqError::Contradicted { .. })),
         "the declared caps are definitely offset: {verdict:?}"
     );
     // And the op refuses it too, at the door, naming the same margin —
@@ -406,7 +406,7 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
     let off = sphere([0.0, 0.0, 0.0], 2.5, false);
     assert!(matches!(
         carrier_eq(&a, &off, declared(), 1.0, band()),
-        Err(CarrierEqError::Contradicted(_))
+        Err(CarrierEqError::Contradicted { .. })
     ));
 }
 

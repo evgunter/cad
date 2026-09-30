@@ -163,7 +163,9 @@
 //! [`EulerOpError::Certification`] with the body untouched (atomicity
 //! extends over the geometry gate). Face-minting operators take the new
 //! face's surface as a [`FaceSurface`] spec (inherit the split face's
-//! key / mint a new [`Surface`] / share an existing key).
+//! key / mint a new [`Surface`] / share an existing key); the new
+//! face's `sense` is derived on the parent's chart and stated by the
+//! spec on any other ([`Body::resolve_face_surface`]).
 //!
 //! - `mvfs`/`mev` insert the given [`Point3`] as a new point (only
 //!   vertex-creating operators carry coordinates — Mäntylä ch. 11).
@@ -229,7 +231,7 @@
 //! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
 //! // The skeletal body: one face whose outer loop is a lone vertex.
-//! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
+//! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true)?;
 //! // Grow the lone vertex into a segment edge v → w (chord-line sugar;
 //! // a sweep would pass its own EdgeCurveSpec).
 //! let seg = body.mev_line(
@@ -277,9 +279,11 @@ use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
 use crate::test_support_impl::ArenaCounts;
 
-/// How a face-minting operator obtains the new face's surface (M2 PR 3
-/// — the sweep supplies each face's surface explicitly; op parameters,
-/// not post-hoc patching).
+/// How a face-minting operator obtains the new face's surface, and
+/// the material side ([`crate::entity::Face::sense`]) the face carries
+/// on it: the caller states the bit beside the chart, and `Inherit`
+/// states none. Which bit a door writes is
+/// [`Body::resolve_face_surface`]'s rule.
 #[derive(Clone, Debug)]
 pub enum FaceSurface<T: Real> {
     /// Share the *affected* face's surface key: `mef`'s split face (a
@@ -289,11 +293,44 @@ pub enum FaceSurface<T: Real> {
     Inherit,
     /// Mint a new surface for the new face (the sweep's usual case —
     /// e.g. a Newell-certified plane from `geom_brep::newell_plane`).
-    New(Surface<T>),
+    New {
+        /// The surface to mint.
+        surface: Surface<T>,
+        /// The material side against `surface`'s chart normal.
+        sense: bool,
+    },
     /// Share an existing surface key (identical-by-construction
     /// surfaces keep one key — the ratified no-face-merging story's
     /// sharing half). Must resolve, checked as a precondition.
-    Shared(SurfaceKey),
+    Shared {
+        /// The existing surface key.
+        key: SurfaceKey,
+        /// The material side against `key`'s chart normal.
+        sense: bool,
+    },
+}
+
+/// Which way a face on its parent's chart faces relative to the
+/// parent, as the operator's own topology decides it
+/// ([`Body::resolve_face_surface`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ParentSide {
+    /// The parent's material side: a `mef` fragment, or a face
+    /// re-charted in place.
+    With,
+    /// The other side: the ring `mfkrh` promotes.
+    Against,
+}
+
+/// A [`FaceSurface`] resolved in a door's plan phase
+/// ([`Body::resolve_face_surface`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ResolvedFace {
+    /// Whether the spec lands on the parent's chart
+    /// ([`Body::same_chart`]) — the answer the pcurve rows take too.
+    pub(crate) on_parent_chart: bool,
+    /// The bit the face carries.
+    pub(crate) sense: bool,
 }
 
 /// Where [`Body::mev`] acts: the site addressing for "make edge,
@@ -850,6 +887,9 @@ pub enum EulerOpError {
     SplitParamNotInterior {
         /// The edge whose interval excludes the parameter.
         edge: EdgeKey,
+        /// The sub-span's verdict: within the zero band of an end, with
+        /// the margin it classified, or definitely outside the edge.
+        verdict: geom_brep::recourse::Refused,
     },
     /// [`Body::split_edge`]'s interiority test escalated: a sub-span
     /// margin fell in the tolerance band (the split point is
@@ -928,6 +968,20 @@ pub enum EulerOpError {
     SolidWouldEmpty {
         /// The solid that would be left without shells.
         solid: SolidKey,
+    },
+    /// A [`FaceSurface`] spec on `face`'s own chart states a
+    /// [`crate::entity::Face::sense`] other than the one
+    /// [`Body::resolve_face_surface`] derives there. Raised in the plan
+    /// phase of [`Body::mef`], [`Body::mfkrh`] and
+    /// [`Body::set_face_surface`], so the body is untouched.
+    SenseContradictsChart {
+        /// The face whose chart the spec lands on: the parent of a
+        /// minted face, or the face re-charted in place.
+        face: FaceKey,
+        /// The bit the spec stated.
+        stated: bool,
+        /// The bit the operator derives on that chart.
+        derived: bool,
     },
 }
 
@@ -1061,21 +1115,28 @@ impl EulerOpError {
                 "curve {curve:?} is null-edge scaffolding (no carrier by \
                  type); the operation requires a certified carrier"
             ),
-            // Definite at ANY magnitude (a parameter far outside the
-            // interval fires this same arm), so the coincidence levers
-            // are offered conditionally — the unconditional fix is a
-            // strictly interior parameter (S6 review, MINOR-2).
-            Self::SplitParamNotInterior { edge } => format!(
-                "split_edge: the parameter is definitely not interior to \
-                 edge {edge:?}'s certified interval (it coincides with an \
-                 endpoint, or lies outside) — pick a parameter strictly \
-                 inside the interval; if it was meant to land exactly on \
-                 an endpoint, {}",
-                geom_core::COINCIDENCE_RECOURSE
+            // The split's two interiority arms are one decision, so both
+            // end in its one ending; every door that splits an edge at a
+            // crossing (the split, the blend, the Boolean) forwards them
+            // whole.
+            Self::SplitParamNotInterior { verdict, .. } => format!(
+                "{}. {}",
+                match verdict {
+                    geom_brep::recourse::Refused::Zero(_) => {
+                        "a crossing lands on an end of its edge at this tolerance, not \
+                         strictly inside it"
+                    }
+                    geom_brep::recourse::Refused::Negative { .. } => {
+                        "a crossing lands outside its edge"
+                    }
+                },
+                crate::split::split_param_ending(verdict.arm())
             ),
-            Self::SplitParamEscalated { edge, diag } => format!(
-                "split_edge: interiority test on edge {edge:?} escalated \
-                 ({diag})"
+            Self::SplitParamEscalated { diag, .. } => format!(
+                "{} is undecided: {}. {}",
+                crate::split::CROSSING_INTERIOR,
+                diag.payload(),
+                crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(diag))
             ),
             Self::PcurveSplit {
                 edge,
@@ -1108,6 +1169,14 @@ impl EulerOpError {
             Self::SolidWouldEmpty { solid } => format!(
                 "move_shells_to_new_solid: moving every shell of solid {solid:?} \
                  would leave it with none"
+            ),
+            Self::SenseContradictsChart {
+                face,
+                stated,
+                derived,
+            } => format!(
+                "the face-surface spec lands on face {face:?}'s chart and states sense \
+                 {stated}, where the operator derives {derived} on that chart"
             ),
         }
     }
@@ -1194,7 +1263,12 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::NullScaffoldCurve {
             curve: CurveKey::default(),
         },
-        EulerOpError::SplitParamNotInterior { edge: ek },
+        EulerOpError::SplitParamNotInterior {
+            edge: ek,
+            verdict: geom_brep::recourse::Refused::Negative {
+                margin: geom_core::MarginDiag::value(-0.25),
+            },
+        },
         EulerOpError::SplitParamEscalated {
             edge: ek,
             diag: geom_core::Indeterminate {
@@ -1224,6 +1298,11 @@ pub(crate) fn every_euler_op_error_once()
         },
         EulerOpError::SolidWouldEmpty {
             solid: SolidKey::default(),
+        },
+        EulerOpError::SenseContradictsChart {
+            face: fc,
+            stated: true,
+            derived: false,
         },
     ];
     for (i, kind) in EulerOpErrorKind::iter().enumerate() {
@@ -1314,7 +1393,8 @@ impl EulerOpError {
             | Self::NoShellsNamed
             | Self::ShellRepeated { .. }
             | Self::ShellsAcrossSolids { .. }
-            | Self::SolidWouldEmpty { .. } => false,
+            | Self::SolidWouldEmpty { .. }
+            | Self::SenseContradictsChart { .. } => false,
         }
     }
 }
@@ -1413,11 +1493,15 @@ impl<T: Decide> Body<T> {
     /// [`Body::set_face_surface`] once it exists; a body reaching rest
     /// with it fails tier 3.
     ///
+    /// `sense` is the seed face's [`crate::Face::sense`], stated by the
+    /// caller and provisional until it charts the face
+    /// ([`Body::resolve_face_surface`]).
+    ///
     /// # Errors
     ///
     /// None today — `mvfs` has no preconditions (it consumes nothing).
     /// The `Result` keeps the operator signatures uniform.
-    pub fn mvfs(&mut self, point: Point3<T>) -> Result<MvfsCreated, EulerOpError> {
+    pub fn mvfs(&mut self, point: Point3<T>, sense: bool) -> Result<MvfsCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -1449,7 +1533,7 @@ impl<T: Decide> Body<T> {
         );
         let face = self.add_face(
             Face {
-                sense: true,
+                sense,
                 surface,
                 outer: r#loop,
                 rings: vec![],
@@ -1712,6 +1796,10 @@ impl<T: Decide> Body<T> {
     /// (`Inherit` keeps the M1 face-split semantics — two regions of
     /// one surface). Chord-line sugar: [`Body::mef_chord`].
     ///
+    /// **Sense** ([`crate::Face::sense`]): `mef` passes
+    /// [`ParentSide::With`], derived on the old face's chart and stated
+    /// on any other ([`Body::resolve_face_surface`]).
+    ///
     /// **Minting order** (D9, exact): surface (only for
     /// [`FaceSurface::New`]), curve (the certified [`EdgeCurve`]),
     /// edge, loop, face, `he_plus`, `he_minus`.
@@ -1783,8 +1871,10 @@ impl<T: Decide> Body<T> {
     /// the loop resolves; it is empty ([`EulerOpError::LoopNotEmpty`]);
     /// its vertex and point resolve; its face and shell resolve.
     /// Then, for both sites, the geometry gates: a
-    /// [`FaceSurface::Shared`] key resolves (`StaleGeometry`) and
-    /// `curve` certifies ([`EulerOpError::Certification`]). Last, the
+    /// [`FaceSurface::Shared`] key resolves (`StaleGeometry`), a stated
+    /// sense agrees with the derived one on the old face's chart
+    /// ([`EulerOpError::SenseContradictsChart`]), and `curve` certifies
+    /// ([`EulerOpError::Certification`]). Last, the
     /// pcurve rows, as [`Body::mev`] states them: the loop, its face and
     /// the face's surface resolve; then, only where that face's rows
     /// are complete, the old loop's cycle from `he1` walks
@@ -2341,13 +2431,19 @@ impl<T: Decide> Body<T> {
         // certification's end endpoint (he_plus runs u1 → u2).
         let p2 = self.resolve_vertex_point(u2)?;
         // ---- Geometry gates (still no mutation). ----
-        self.check_face_surface(&surface)?;
+        // A fragment is a piece of the parent's region, so on the
+        // parent's chart it takes the parent's bit. The run's rows are
+        // stated in the old face's chart and stand on the new face only
+        // where that is the same chart — decided once, here, for the
+        // bit, the rows the surgery carries and the rows it mints.
+        let resolved = self.resolve_face_surface(
+            &surface,
+            face_key,
+            (inherit_surface, inherit_sense),
+            ParentSide::With,
+        )?;
+        let carried = resolved.on_parent_chart;
         let certified = self.certify_edge_spec(curve, p1, p2, tol)?;
-        // The run's rows are stated in the old face's chart, and stand
-        // on the new face only where that is the same chart — decided
-        // once, here, for the rows the surgery carries and the rows it
-        // mints alike.
-        let carried = self.same_chart_spec(inherit_surface, &surface);
         // ---- The pcurve rows the new halves need (still no mutation).
         // The old loop becomes `he_plus` then he2's side, the new loop
         // `he_minus` then the run; both are re-anchored at the new half.
@@ -2387,11 +2483,11 @@ impl<T: Decide> Body<T> {
         // Minting order (documented on `mef`): surface (for New),
         // curve, edge, loop, face, he_plus, he_minus.
         let provenance = Provenance::Mef { site };
-        let (surface, sense) =
-            self.mint_face_surface_and_sense(surface, inherit_surface, inherit_sense);
+        let surface = self.mint_face_surface(surface, inherit_surface);
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
-        let (new_loop, new_face) = self.mint_loop_and_face(surface, sense, shell_key, &provenance);
+        let (new_loop, new_face) =
+            self.mint_loop_and_face(surface, resolved.sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(
             edge,
             // he_plus: start(he1) → start(he2), in the OLD loop.
@@ -2485,13 +2581,20 @@ impl<T: Decide> Body<T> {
         let (inherit_surface, inherit_sense, shell_key) =
             (face_data.surface, face_data.sense, face_data.shell);
         require_key(&self.shells, shell_key, EntityId::Shell)?;
-        // ---- Geometry gates (still no mutation): the self-loop edge
-        // closes at the lone vertex — both endpoints are its point.
-        self.check_face_surface(&surface)?;
+        // ---- Geometry gates (still no mutation): the new face's bit
+        // and chart as the Chords site decides them, then the self-loop
+        // edge, which closes at the lone vertex — both endpoints are
+        // its point.
+        let resolved = self.resolve_face_surface(
+            &surface,
+            face_key,
+            (inherit_surface, inherit_sense),
+            ParentSide::With,
+        )?;
         let certified = self.certify_edge_spec(curve, anchor, anchor, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // each half is a one-half-edge loop of its own face.
-        let carried = self.same_chart_spec(inherit_surface, &surface);
+        let carried = resolved.on_parent_chart;
         let rows = self.plan_site_rows(
             &[loop_key],
             |body| {
@@ -2508,11 +2611,11 @@ impl<T: Decide> Body<T> {
         // Same minting order as Chords: surface (for New), curve,
         // edge, loop, face, he_plus, he_minus.
         let provenance = Provenance::Mef { site };
-        let (surface, sense) =
-            self.mint_face_surface_and_sense(surface, inherit_surface, inherit_sense);
+        let surface = self.mint_face_surface(surface, inherit_surface);
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
-        let (new_loop, new_face) = self.mint_loop_and_face(surface, sense, shell_key, &provenance);
+        let (new_loop, new_face) =
+            self.mint_loop_and_face(surface, resolved.sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
         crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
         // Both halves are one-half-edge loops at v: the old loop keeps
@@ -2947,29 +3050,77 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// Precondition half of [`FaceSurface`] resolution: a `Shared` key
-    /// must resolve now (so the mutation phase stays infallible);
-    /// `Inherit`/`New` have nothing to check.
-    pub(crate) fn check_face_surface(&self, spec: &FaceSurface<T>) -> Result<(), EulerOpError> {
-        match spec {
-            FaceSurface::Inherit | FaceSurface::New(_) => Ok(()),
-            FaceSurface::Shared(key) => {
-                if self.surfaces.contains_key(*key) {
-                    Ok(())
-                } else {
-                    Err(EulerOpError::StaleGeometry {
-                        key: GeomRef::Surface(*key),
-                    })
-                }
-            }
+    /// Resolves `spec` against `parent` — the face a new face is
+    /// minted from, or the face re-charted in place — in a door's plan
+    /// phase: whether the spec lands on the parent's chart, and the
+    /// [`crate::entity::Face::sense`] the face carries. D1's
+    /// orientation bullet, implemented once:
+    ///
+    /// - **On the parent's chart** ([`Body::same_chart`]: one key, or
+    ///   keys sharing one payload; `Inherit` always), the bit is
+    ///   derived from the operator's topology: the parent's for
+    ///   [`ParentSide::With`], its negation for
+    ///   [`ParentSide::Against`]. A spec that states the other bit is
+    ///   refused.
+    /// - **On any other chart**, the stated bit is written as given.
+    ///   Nothing is defaulted: the chart normal is the caller's, and so
+    ///   is the side the material lies on against it.
+    ///
+    /// Where the parent bounds no region yet (an `mvfs` seed), its bit
+    /// and so the derived one are provisional; the constructor states
+    /// the honest bit when it charts the face.
+    ///
+    /// The chart question is asked here once, before any key is
+    /// minted, and the door takes [`ResolvedFace::on_parent_chart`]
+    /// for its pcurve rows as well as its bit.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleGeometry`] if a `Shared` key does not
+    /// resolve; then [`EulerOpError::SenseContradictsChart`].
+    pub(crate) fn resolve_face_surface(
+        &self,
+        spec: &FaceSurface<T>,
+        parent: FaceKey,
+        (parent_surface, parent_sense): (SurfaceKey, bool),
+        side: ParentSide,
+    ) -> Result<ResolvedFace, EulerOpError> {
+        if let FaceSurface::Shared { key, .. } = spec
+            && !self.surfaces.contains_key(*key)
+        {
+            return Err(EulerOpError::StaleGeometry {
+                key: GeomRef::Surface(*key),
+            });
         }
+        let on_parent_chart = self.same_chart_spec(parent_surface, spec);
+        let derived = match side {
+            ParentSide::With => parent_sense,
+            ParentSide::Against => !parent_sense,
+        };
+        let sense = match *spec {
+            FaceSurface::Inherit => derived,
+            FaceSurface::New { sense, .. } | FaceSurface::Shared { sense, .. } => {
+                if on_parent_chart && sense != derived {
+                    return Err(EulerOpError::SenseContradictsChart {
+                        face: parent,
+                        stated: sense,
+                        derived,
+                    });
+                }
+                sense
+            }
+        };
+        Ok(ResolvedFace {
+            on_parent_chart,
+            sense,
+        })
     }
 
     /// Mutation half of [`FaceSurface`] resolution: the new face's
     /// surface key — `inherit` for `Inherit`, a fresh insertion for
     /// `New` (part of the op's documented minting order), the given key
     /// for `Shared` (pre-validated by
-    /// [`Body::check_face_surface`]).
+    /// [`Body::resolve_face_surface`]).
     pub(crate) fn mint_face_surface(
         &mut self,
         spec: FaceSurface<T>,
@@ -2977,39 +3128,9 @@ impl<T: Decide> Body<T> {
     ) -> SurfaceKey {
         match spec {
             FaceSurface::Inherit => inherit,
-            FaceSurface::New(surface) => self.add_surface(surface),
-            FaceSurface::Shared(key) => key,
+            FaceSurface::New { surface, .. } => self.add_surface(surface),
+            FaceSurface::Shared { key, .. } => key,
         }
-    }
-
-    /// The new face's surface key and material side when an operator
-    /// carves a region off a parent face.
-    ///
-    /// A fragment that lands on the parent's OWN surface is a piece of
-    /// the parent's region — the same surface with the same material
-    /// side — so it takes the parent's [`crate::entity::Face::sense`].
-    /// A `New` (or foreign `Shared`) surface is not this face's region
-    /// at all, and the mint's `true` stands; the caller then attaches
-    /// the honest bit through [`crate::Body::set_face_sense`], as the
-    /// sweep constructors do. Key equality, never a numeric compare.
-    ///
-    /// The bit has teeth: a re-mint that stamped `true` unconditionally
-    /// would silently reset the material side on every fragment of a
-    /// `sense: false` wall, so a boolean split of such a wall would
-    /// hand back correctly shaped faces facing the wrong way.
-    pub(crate) fn mint_face_surface_and_sense(
-        &mut self,
-        spec: FaceSurface<T>,
-        inherit_surface: SurfaceKey,
-        inherit_sense: bool,
-    ) -> (SurfaceKey, bool) {
-        let surface = self.mint_face_surface(spec, inherit_surface);
-        let sense = if surface == inherit_surface {
-            inherit_sense
-        } else {
-            true
-        };
-        (surface, sense)
     }
 
     /// Mints an edge with provisional half-edge slots (the halves are
@@ -3209,8 +3330,8 @@ impl<T: Decide> Body<T> {
         };
         let chart = match surface {
             FaceSurface::Inherit => key_surface(from_surface)?,
-            FaceSurface::Shared(key) => key_surface(*key)?,
-            FaceSurface::New(surface) => surface.clone(),
+            FaceSurface::Shared { key, .. } => key_surface(*key)?,
+            FaceSurface::New { surface, .. } => surface.clone(),
         };
         Ok(SiteFace {
             rows_from: from,
@@ -3233,12 +3354,8 @@ impl<T: Decide> Body<T> {
     /// Mints `mef`'s new loop and face (in that order — part of `mef`'s
     /// documented minting order) and joins the new face to the old
     /// face's shell. The loop's boundary anchor is provisional; the
-    /// caller re-anchors it after the splice.
-    ///
-    /// **`sense` is the caller's inheritance decision**, taken by
-    /// [`Body::mint_face_surface_and_sense`], which owns the rule.
-    /// `mef` has no *material-side* knowledge of its own — it sees two
-    /// chords, not a profile.
+    /// caller re-anchors it after the splice. `surface` and `sense`
+    /// are the plan phase's ([`Body::resolve_face_surface`]).
     fn mint_loop_and_face(
         &mut self,
         surface: SurfaceKey,
@@ -3260,8 +3377,8 @@ impl<T: Decide> Body<T> {
         );
         let new_face = self.add_face(
             Face {
-                sense,   // inherited iff the surface is (fn docs)
-                surface, // shared with the old face (M1 geometry policy)
+                sense,
+                surface,
                 outer: new_loop,
                 rings: vec![],
                 shell,
@@ -3524,7 +3641,7 @@ mod tests {
     #[test]
     fn mvfs_creates_the_skeletal_body() {
         let mut body = Body::<f64>::new();
-        let c = body.mvfs(Point3::new(1.0, 2.0, 3.0)).unwrap();
+        let c = body.mvfs(Point3::new(1.0, 2.0, 3.0), true).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         let vertex = body.get_vertex(c.vertex).unwrap();
@@ -3563,7 +3680,7 @@ mod tests {
     #[test]
     fn lone_mev_grows_a_segment() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let site = MevSite::Lone {
             r#loop: seed.r#loop,
         };
@@ -3620,7 +3737,7 @@ mod tests {
     #[test]
     fn strut_mev_splices_plus_then_minus_before_he1() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -3673,7 +3790,7 @@ mod tests {
     /// the plus half of one spoke, minted in that order).
     fn four_spoke_star() -> (Body<f64>, MvfsCreated, [MevCreated; 4]) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let a = body
             .mev_line(
                 MevSite::Lone {
@@ -3791,7 +3908,7 @@ mod tests {
     /// body that can hold a `Chart` or an `Intersection` description.
     fn described_pillow(tol: Tol) -> (Body<f64>, MevCreated, crate::MefCreated) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -3816,7 +3933,10 @@ mod tests {
                     Point3::new(0.0, 0.0, 0.0),
                     Point3::new(1.0, 0.0, 0.0),
                 ),
-                FaceSurface::New(plane),
+                FaceSurface::New {
+                    surface: plane,
+                    sense: true,
+                },
                 tol,
             )
             .unwrap();
@@ -3908,7 +4028,7 @@ mod tests {
     fn the_gate_carries_and_refuses_a_circle_under_a_scaffold_description() {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let circ = body
             .mef_chord(
                 MefSite::Lone {
@@ -3927,7 +4047,7 @@ mod tests {
     fn null_strut_on_a_segment() -> (Body<f64>, MevCreated, MevCreated) {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -4033,7 +4153,7 @@ mod tests {
         let tol = Tol::witness();
         let here = Point3::new(1.0, 2.0, 3.0);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(here).unwrap();
+        let seed = body.mvfs(here, true).unwrap();
         let nul = body
             .mev_null(
                 MevSite::Lone {
@@ -4607,7 +4727,7 @@ mod tests {
         // doctest): at the seed vertex v the orbit is [p, hp2] with p in
         // the new face's loop and hp2 in the old loop.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -4670,7 +4790,7 @@ mod tests {
     #[test]
     fn self_loop_mef_makes_a_one_edge_circular_face() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -4721,7 +4841,7 @@ mod tests {
         // Mäntylä Fig. 9.8(b): lone dot ⇒ circle through the dot — one
         // self-loop edge, two one-half-edge loops, two faces.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let circ = body
             .mef_chord(
                 MefSite::Lone {
@@ -5157,7 +5277,7 @@ mod tests {
     /// vertex, through `seg+`, which starts at the segment's other end.
     fn torn_strutted_segment() -> (Body<f64>, MevCreated, MevCreated) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -5444,7 +5564,7 @@ mod tests {
         body: &mut Body<f64>,
         with_failures: bool,
     ) -> (MvfsCreated, MevCreated, MefCreated, MevCreated, MefCreated) {
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         if with_failures {
             // Stale loop key.
             let err = body
@@ -5565,35 +5685,63 @@ mod tests {
         }
     }
 
-    /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`
-    /// interiority refusal arms describe one user situation — the
-    /// definite arm composes the shared recourse directly, the
-    /// escalated arm carries it through the `Indeterminate` Display.
+    /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),
+    /// each on a real raise: the crossing within the zero band of an
+    /// end, the one outside the edge, and the one in the band. All three
+    /// end in the one lever every splitting door has, and none offers a
+    /// declaration. The band-decided arms (the zero one and the
+    /// undecided one) of this decision, which passes on a positive
+    /// margin, offer the tolerance their margin gives; the sign-certain
+    /// arm offers none.
     #[test]
-    fn split_param_pair_carries_the_shared_recourse() {
-        let edge = EdgeKey::default();
-        let not_interior = EulerOpError::SplitParamNotInterior { edge };
-        let msg = not_interior.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
-
-        let escalated = EulerOpError::SplitParamEscalated {
-            edge,
-            diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::value(5e-9),
-                band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("split_edge_param_interior"),
-                terminal_sliver: false,
-            },
+    fn split_param_arms_tell_one_story() {
+        use geom_brep::recourse::{Classified, Refused};
+        const LEVER: &str =
+            "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let k = band.escalate() / band.zero();
+        let raise = |t: f64| {
+            let cube = crate::test_support_fixtures::declined_cube::<f64>(tol);
+            let mut body = cube.body;
+            body.split_edge(cube.mevs[0].edge, t, tol).unwrap_err()
         };
-        let msg = escalated.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
+        let offered = |text: &str| {
+            text.split_once(
+                ", or, if this distance from the edge's end is intended, tighten \
+                             the tolerance below ",
+            )
+            .map(|(_, v)| v.strip_suffix(" m").unwrap().parse::<f64>().unwrap())
+        };
+        let value = |m: geom_core::MarginDiag| {
+            m.diagnostic_f64_for_error_text()
+                .value()
+                .expect("a point margin")
+        };
+        let zero = raise(0.5 * band.zero());
+        let outside = raise(1.5);
+        let undecided = raise((band.zero() + band.escalate()) * 0.5);
+        let want = match (&zero, &outside, &undecided) {
+            (
+                EulerOpError::SplitParamNotInterior {
+                    verdict: Refused::Zero(Classified { margin: z, .. }),
+                    ..
+                },
+                EulerOpError::SplitParamNotInterior {
+                    verdict: Refused::Negative { .. },
+                    ..
+                },
+                EulerOpError::SplitParamEscalated { diag, .. },
+            ) => [Some(value(*z) / k), None, Some(value(diag.margin) / k)],
+            other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
+        };
+        for (err, want) in [zero, outside, undecided].iter().zip(want) {
+            let text = err.to_string();
+            assert!(
+                text.contains(LEVER) && !text.contains("declare"),
+                "the one lever, and no declaration: {text}"
+            );
+            assert_eq!(offered(&text), want, "the tolerance its arm gives: {text}");
+        }
     }
 }

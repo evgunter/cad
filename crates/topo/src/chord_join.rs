@@ -2227,14 +2227,9 @@ impl ChordJoiner {
                     start_of(body, h1)?,
                     start_of(body, outside)?,
                 )?;
-                // The fragment INHERITS `oldf`'s orientation bit.
-                // Both arms hand `mef` the parent's surface, and
-                // `mint_face_surface_and_sense` returns the parent's
-                // sense whenever the fragment lands on it: a piece of
-                // a reversed wall is the same surface region with the
-                // same material side, so stamping `true` here would
-                // mint a silently inside-out fragment. Guard: sweep's
-                // `m5_s12_curved_ops.rs`, the row named
+                // Both arms hand `mef` the parent's surface, so the
+                // fragment takes `oldf`'s bit (`Body::resolve_face_surface`).
+                // Guard: sweep's `m5_s12_curved_ops.rs`, the row named
                 // `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
                 let created = match spec {
                     None => body.mef_chord(site, tol)?,
@@ -2564,15 +2559,18 @@ mod tests {
         let p1 = at(0.0);
         let p2 = at(core::f64::consts::FRAC_PI_2);
         let mut body = crate::Body::<f64>::new();
-        let seed = body.mvfs(p1).unwrap();
+        let seed = body.mvfs(p1, true).unwrap();
         body.set_face_surface(
             seed.face,
-            crate::FaceSurface::New(geom::Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            }),
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
         )
         .unwrap();
         let mev = body
@@ -2606,7 +2604,7 @@ mod tests {
         };
         // The seed solid first: `mvfs` asserts tier-1 validity, and a
         // surface nothing references yet is an orphan.
-        let seed = body.mvfs(carrier.eval(t0)).unwrap();
+        let seed = body.mvfs(carrier.eval(t0), true).unwrap();
         let cyl = body.add_surface(geom::Surface::Cylinder {
             origin: Point3::origin(),
             axis: Vec3::unit_z(),

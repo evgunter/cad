@@ -1335,16 +1335,12 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     );
 
     // The message a user reads carries the recourse EXACTLY ONCE, and
-    // this line is what holds that number down. It used to be two —
-    // `WorkspaceError::PinMismatch`'s own `Display` ends on
-    // `PIN_MISMATCH_RECOURSE`, and the `PartResolver` impl appended it
-    // a second time on its way to the kernel — and the demo recorded
-    // that doubling as a gap (#947) until the seam stopped appending.
-    // One is the count with meaning on BOTH sides: zero would mean the
-    // store's `Display` dropped the sentence and the kernel-side
-    // message no longer tells an author what to do, two would mean the
-    // seam started re-appending it. The ZERO case is also held inside
-    // the workspace, by `crates/viewer/tests/instance_authoring.rs`,
+    // this line is what holds that number down: the store's sentence
+    // for a moved pin ends on `PIN_MISMATCH_RECOURSE`, and the resolve
+    // door appends nothing to that arm. Zero would mean the sentence
+    // dropped it and the kernel-side message no longer tells an author
+    // what to do; two would mean the door started appending it. The
+    // ZERO case is also held by `crates/viewer/tests/instance_authoring.rs`,
     // which asserts the recourse on the badge; what only this line and
     // the Python author suite hold is the COUNT, which is what a
     // `contains` assertion cannot see.
@@ -1355,7 +1351,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             .matches(PIN_MISMATCH_RECOURSE)
             .count(),
         1,
-        "the kernel-side message carries the recourse once, from the store's own Display"
+        "the kernel-side message carries the recourse once, from the store's sentence"
     );
     println!("   in full: {}", refused.kind);
 

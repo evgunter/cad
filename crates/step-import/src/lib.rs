@@ -1047,8 +1047,9 @@ mod declaration_tests {
     /// presents to the resolver.
     fn two_coincident_vertices(at: Point3<f64>) -> topo::Body<f64> {
         let mut body = topo::Body::new();
-        body.mvfs(at).expect("mvfs mints a lone vertex");
-        body.mvfs(at).expect("mvfs mints a second lone vertex");
+        body.mvfs(at, true).expect("mvfs mints a lone vertex");
+        body.mvfs(at, true)
+            .expect("mvfs mints a second lone vertex");
         body
     }
 

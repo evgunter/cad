@@ -280,9 +280,15 @@ fn plane_face_with(image: Pcurve<f64>, carrier: Curve3<f64>, t0: f64, t1: f64) -
     };
     let mut body = Body::<f64>::new();
     let (start, end) = (carrier.eval(t0), carrier.eval(t1));
-    let seed = body.mvfs(start).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(plane))
-        .unwrap();
+    let seed = body.mvfs(start, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: plane,
+            sense: true,
+        },
+    )
+    .unwrap();
     let chart = body.get_face(seed.face).unwrap().surface;
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::chart_image(chart, image),

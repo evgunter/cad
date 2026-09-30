@@ -303,7 +303,13 @@ mod tests {
         let mut body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
         let face = crate::query::all_faces(&body)[0];
         let key = body
-            .set_face_surface(face, FaceSurface::New(cyl(radius)))
+            .set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface: cyl(radius),
+                    sense: true,
+                },
+            )
             .expect("a live face takes a new surface");
         (body, face, key)
     }
@@ -499,8 +505,14 @@ mod tests {
             normal: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        body.set_face_surface(face, FaceSurface::New(plane))
-            .expect("a live face takes a new surface");
+        body.set_face_surface(
+            face,
+            FaceSurface::New {
+                surface: plane,
+                sense: true,
+            },
+        )
+        .expect("a live face takes a new surface");
         assert!(
             body.surface_field_source(key, SurfaceField::CylinderRadius)
                 .is_none(),

@@ -100,6 +100,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::BooleanDecision;
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
@@ -1350,7 +1351,10 @@ pub(super) fn volume_backstop<T: Decide>(
         match geom_core::k_stats::decide_invariant("volume_backstop_operand", v / area, band) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Zero | Sign::Negative) => Ok(false),
-            Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated { diag }),
+            Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated {
+                decision: BooleanDecision::VolumeBackstop,
+                diag,
+            }),
             Err(_) => Ok(false),
         }
     };
@@ -1386,7 +1390,10 @@ pub(super) fn volume_backstop<T: Decide>(
             match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
                 Ok(Sign::Negative) => Err(implausible()),
                 Ok(Sign::Zero | Sign::Positive) => Ok(()),
-                Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated { diag }),
+                Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated {
+                    decision: BooleanDecision::VolumeBackstop,
+                    diag,
+                }),
                 Err(_) => Ok(()),
             }
         };
@@ -1676,7 +1683,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     }
                 }
             }
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
+            Err(diag) => return Err(BooleanError::coincidence(diag)),
         }
     }
     Ok(())
@@ -2034,7 +2041,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     b: &Body<T>,
     band: Band,
 ) -> Result<Vec<SphereRecut<T>>, BooleanError> {
-    let esc = |diag| BooleanError::Escalated { diag };
+    let esc = BooleanError::coincidence;
     // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
     // NURBS face refuses before a vertex is probed — the extent test
     // is unwritable for the kind (variant docs).
@@ -2177,9 +2184,10 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 }
                                 let witness = foot + u_ref * rho;
                                 match contfp(y, yf, normal, witness, band).map_err(|e| match e {
-                                    ContainError::Escalated(diag) => {
-                                        BooleanError::Escalated { diag }
-                                    }
+                                    ContainError::Escalated(diag) => BooleanError::Escalated {
+                                        decision: BooleanDecision::Containment,
+                                        diag,
+                                    },
                                     ContainError::RayExhausted => {
                                         BooleanError::ClassificationInvariant {
                                             what: "extent scan: contfp ray schedule exhausted",
@@ -2453,7 +2461,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Margin::levered(sin, r.radius),
                 band,
             )
-            .map_err(|diag| BooleanError::Escalated { diag })?
+            .map_err(BooleanError::coincidence)?
             {
                 Sign::Positive | Sign::Negative => {}
                 Sign::Zero => {

@@ -437,13 +437,16 @@ fn curved_face_refuses() {
     cube.body
         .set_face_surface(
             cube.seed.face,
-            topo::FaceSurface::New(geom::Surface::Torus {
-                center: Point3::new(0.0, 0.0, 1.0),
-                axis: Vec3::new(1.0, 0.0, 0.0),
-                major_radius: 2.0,
-                minor_radius: 0.5,
-                u_ref: Vec3::new(0.0, 0.0, 1.0),
-            }),
+            topo::FaceSurface::New {
+                surface: geom::Surface::Torus {
+                    center: Point3::new(0.0, 0.0, 1.0),
+                    axis: Vec3::new(1.0, 0.0, 0.0),
+                    major_radius: 2.0,
+                    minor_radius: 0.5,
+                    u_ref: Vec3::new(0.0, 0.0, 1.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let plane = plane_y1();

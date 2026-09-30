@@ -311,8 +311,14 @@ fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
         })
         .map(|(k, _)| k)
         .expect("the brick has an x = 3 face");
-    b.set_face_surface(face, topo::FaceSurface::New(surface))
-        .unwrap();
+    b.set_face_surface(
+        face,
+        topo::FaceSurface::New {
+            surface,
+            sense: true,
+        },
+    )
+    .unwrap();
     b
 }
 
@@ -448,7 +454,7 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
                     face,
                     ..
                 } => *face == torus_face,
-                BooleanError::Escalated { diag } => diag
+                BooleanError::Escalated { diag, .. } => diag
                     .predicate
                     .is_some_and(|p| p.starts_with("bool_ray_torus")),
                 _ => false,

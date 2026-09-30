@@ -424,7 +424,7 @@ fn enumerate_segments<T: Decide>(
             });
         }
     }
-    let escalate = |diag| BooleanError::Escalated { diag };
+    let escalate = BooleanError::coincidence;
     let mut segments = Vec::new();
     loop {
         // Globally nearest mutually-facing unused pair (the join's
@@ -995,7 +995,7 @@ fn verify_declared_pairs<T: Decide>(
                     what: "REST lane: declared rung returned Distinct instead of contradicting",
                 });
             }
-            Err(PlaneEqError::Contradicted(diag)) => {
+            Err(PlaneEqError::Contradicted { fact, diag }) => {
                 // C4's verify-at-use: the refusal names the pair, the
                 // CLASS that was claimed and the margin that decided —
                 // and steers to the class that would fit when the
@@ -1006,12 +1006,13 @@ fn verify_declared_pairs<T: Decide>(
                         b: fb,
                         class: ContactClass::Rest,
                     },
-                    steer: super::contact_verify::fit_steer(&diag),
+                    steer: super::contact_verify::fit_steer(fact),
+                    fact: Some(fact),
                     margin: diag,
                 });
             }
             Err(PlaneEqError::Escalated(diag)) => {
-                return Err(BooleanError::Escalated { diag });
+                return Err(BooleanError::coincidence(diag));
             }
             Err(PlaneEqError::Undeclared { diag, relation }) => {
                 // Unreachable with declared=true; refuse loudly anyway.
