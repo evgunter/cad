@@ -473,12 +473,12 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops) =
         match through_the_join(op, a, b, decls, strategy, recut, tol)? {
-            Joined::Answered(result) => return Ok(result),
+            Joined::Answered(result) => return Ok(*result),
             Joined::Connected {
                 red,
                 connected,
                 interior_loops,
-            } => (red, connected, interior_loops),
+            } => (*red, connected, interior_loops),
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
@@ -562,14 +562,14 @@ pub(super) enum Joined<T: Real> {
     /// The pipeline's answer, reached without a join to finish: the
     /// no-crossings path (the re-cut or the containment fallback), or
     /// the declared-REST door taking a refused join.
-    Answered(BooleanResult<T>),
+    Answered(Box<BooleanResult<T>>),
     /// The join, done: the reduction with both operands as it leaves
     /// them, every null edge killed, what it completed (never empty),
     /// and the interior-loop verdict, which the pipeline raises only
     /// where a body is about to be returned.
     Connected {
         /// The reduction, its operands joined.
-        red: BooleanReduction<T>,
+        red: Box<BooleanReduction<T>>,
         /// The completed polygons and the fragments the join made.
         connected: super::join::Connected,
         /// [`interior_loop_verdict`]'s answer, not yet raised.
@@ -638,13 +638,14 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
             let (a2, b2) = apply_recuts(a, b, &recuts, tol)?;
             return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)
-                .map(Joined::Answered);
+                .map(|result| Joined::Answered(Box::new(result)));
         }
         // The curved kinds the extent scan leaves: every torus,
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
         section_extent_pass(a, b, band)?;
-        return fallback(op, &red, a, b, decls, band, tol).map(Joined::Answered);
+        return fallback(op, &red, a, b, decls, band, tol)
+            .map(|result| Joined::Answered(Box::new(result)));
     }
 
     // The declared-REST union door (M5 S1): a declared union whose
@@ -683,7 +684,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 return match super::rest::try_rest_union(red, a, b, decls, band, tol)? {
                     Some(result) => {
                         interior_loops?;
-                        Ok(Joined::Answered(result))
+                        Ok(Joined::Answered(Box::new(result)))
                     }
                     // Not the REST frontier: the original join
                     // refusal stands, verbatim.
@@ -700,7 +701,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         });
     }
     Ok(Joined::Connected {
-        red,
+        red: Box::new(red),
         connected,
         interior_loops,
     })

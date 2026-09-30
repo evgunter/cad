@@ -292,6 +292,10 @@ pub mod test_support {
     pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_samples::validation_error_samples;
 
+    /// The two operand clones as the boolean's join leaves them, A's
+    /// first.
+    pub type JoinedOperands = (Body<f64>, Body<f64>);
+
     /// The boolean pipeline through its join: both operand clones with
     /// every null edge killed, before the finish and the closing mint
     /// (`boolean::through_the_join`). `None` where the pipeline answers
@@ -305,7 +309,7 @@ pub mod test_support {
         a: &Body<f64>,
         b: &Body<f64>,
         tol: geom_core::Tol,
-    ) -> Result<Option<(Body<f64>, Body<f64>)>, crate::BooleanError> {
+    ) -> Result<Option<JoinedOperands>, crate::BooleanError> {
         crate::boolean::through_the_join(op, a, b, tol)
     }
 

@@ -2235,7 +2235,7 @@ pub(crate) fn through_the_join(
     a: &Body<f64>,
     b: &Body<f64>,
     tol: Tol,
-) -> Result<Option<(Body<f64>, Body<f64>)>, BooleanError> {
+) -> Result<Option<crate::test_support::JoinedOperands>, BooleanError> {
     Ok(
         match ops::through_the_join(
             op,
