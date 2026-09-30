@@ -41,7 +41,7 @@ row that now owns the claim (S-TCOST's keep-out).
 
 ## The class, not the instance
 
-Three suites ride the shared `PART_BODY` with nothing that can see it
+Three suites rode the shared `PART_BODY` with nothing that can see it
 move. Under a planted mutation (`PART_BODY` = `RecipeNodeId(3)`) on the
 tree BEFORE the shared store's guard landed, each went **zero rows red**:
 

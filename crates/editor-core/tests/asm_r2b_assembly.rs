@@ -817,15 +817,17 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
 
     // The move: the SAME document id, re-modelled so the declared
     // entity's minting node is no longer the one the crossing names.
-    // A leading datum shifts the extrude off node 1 — the part still
-    // has a product, and the crossing's reference is simply gone.
+    // A leading datum shifts the extrude off the id `body` names — the
+    // part still has a product, and the crossing's reference is simply
+    // gone.
     let (shifted, _) = insert(
         ProfileDoc::empty(part_id, Tol::witness()),
         Node::Datum(editor_core::Datum::Point {
             position: [len(0.0), len(0.0), len(0.0)],
         }),
     );
-    let (shifted, _) = block(shifted, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (shifted, shifted_body) = block(shifted, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    assert_ne!(shifted_body, body, "the move re-mints the extrude");
     let new_pin = content_pin(&shifted, Tol::witness()).expect("the pin computes");
     store.replace_without_repinning(part_id, shifted);
     let moved = editor_core::apply(
@@ -1047,12 +1049,16 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
     // The move: SAME node layout, different geometry — the cube is
     // half as tall, so its top cap is at z = 0.5 while the mate still
     // seats the second instance's bottom at z = 1.
-    let (shorter, _) = block(
+    let (shorter, shorter_body) = block(
         ProfileDoc::empty(part_id, Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
         0.5,
+    );
+    assert_eq!(
+        shorter_body, body,
+        "the same node layout keeps the body's id"
     );
     let new_pin = content_pin(&shorter, Tol::witness()).expect("the pin computes");
     store.replace_without_repinning(part_id, shorter);

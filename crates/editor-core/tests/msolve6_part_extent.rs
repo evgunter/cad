@@ -632,6 +632,11 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     let small = box_part("msolve6-a5-memo-part", 0.005, 0.01);
     let body = body_node(&small);
     let large = box_part("msolve6-a5-memo-part", 5.0, 10.0);
+    assert_eq!(
+        body_node(&large),
+        body,
+        "the re-pinned part keeps its body's id"
+    );
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -1702,6 +1707,11 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     let small = box_part("msolve6-p3c-part", 0.005, 0.01);
     let body = body_node(&small);
     let large = box_part("msolve6-p3c-part", 5.0, 10.0);
+    assert_eq!(
+        body_node(&large),
+        body,
+        "the re-pinned part keeps its body's id"
+    );
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());

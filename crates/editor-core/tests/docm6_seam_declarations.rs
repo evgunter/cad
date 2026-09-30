@@ -176,15 +176,27 @@ fn resting(
 
 /// A part whose only mate is a `Tangent` — a class that solves and
 /// mints NO record at rest, so the part refuses its own gate.
-fn broken_part(store: &mut PartStore, label: &str) -> (DocRef, DocumentId, RecipeNodeId) {
-    let (r, id, _, mate, _) = stand(
+///
+/// Returns the reference, the document id, the mate, and the stand's
+/// cube instances with the cube's body.
+fn broken_part(
+    store: &mut PartStore,
+    label: &str,
+) -> (
+    DocRef,
+    DocumentId,
+    RecipeNodeId,
+    Vec<RecipeNodeId>,
+    RecipeNodeId,
+) {
+    let (r, id, cubes, mate, cube_body) = stand(
         store,
         label,
         ContactClass::Tangent,
         [0.0, 0.0, 5.0],
         [0.0, 0.0, 1.0],
     );
-    (r, id, mate)
+    (r, id, mate, cubes, cube_body)
 }
 
 /// `count` instances of `part` in a row, `spacing` apart along +x and
@@ -683,7 +695,7 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
 #[test]
 fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let mut store = PartStore::default();
-    let (inner_ref, inner_id, inner_mate) = broken_part(&mut store, "docm6-a4-stand");
+    let (inner_ref, inner_id, inner_mate, ..) = broken_part(&mut store, "docm6-a4-stand");
     let (outer, instances) = row_of("docm6-a4-row", inner_ref, 1, 4.0);
 
     // The inner document alone: unchanged, its own class refusal.
@@ -725,7 +737,8 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
 #[test]
 fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     let mut store = PartStore::default();
-    let (broken, broken_id, _) = broken_part(&mut store, "docm6-order-broken");
+    let (broken, broken_id, _, broken_cubes, broken_body) =
+        broken_part(&mut store, "docm6-order-broken");
     let (good, _, good_cubes, _, cube_body) = resting(&mut store, "docm6-order-good");
 
     // The three documents share a shape: two instances a unit apart,
@@ -734,18 +747,20 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // own (its unminted head).
     let build = |label: &str, part: DocRef| row_of(label, part, 2, 1.0);
     // The instances here are of a STAND, so a face of one is named one
-    // wrapper deeper: through the stand's own instance of the cube.
-    let with_own_mate = |doc: ProfileDoc, ids: &[RecipeNodeId]| {
-        insert(
-            doc,
-            mate_node(
-                wrap(ids[0], in_part(good_cubes[1], cube_body, CapEnd::End)),
-                wrap(ids[1], in_part(good_cubes[0], cube_body, CapEnd::Start)),
-                ContactClass::Tangent,
-                frame([0.0, 0.0, 5.0], [0.0, 0.0, 1.0]),
-            ),
-        )
-    };
+    // wrapper deeper: through the stand's own instance of the cube,
+    // `cubes` and `body` being the instantiated stand's.
+    let with_own_mate =
+        |doc: ProfileDoc, ids: &[RecipeNodeId], (cubes, body): (&[RecipeNodeId], RecipeNodeId)| {
+            insert(
+                doc,
+                mate_node(
+                    wrap(ids[0], in_part(cubes[1], body, CapEnd::End)),
+                    wrap(ids[1], in_part(cubes[0], body, CapEnd::Start)),
+                    ContactClass::Tangent,
+                    frame([0.0, 0.0, 5.0], [0.0, 0.0, 1.0]),
+                ),
+            )
+        };
 
     // (a) The at-rest gate alone: good parts, no mate of this
     // document's own — the undeclared contact is what refuses.
@@ -758,7 +773,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
 
     // (b) Add this document's own unminted mate: it preempts the gate.
     let (doc, ids) = build("docm6-order-own", good);
-    let (doc, own_mate) = with_own_mate(doc, &ids);
+    let (doc, own_mate) = with_own_mate(doc, &ids, (&good_cubes, cube_body));
     let ev = run(&doc, &with_resolver(store.clone()));
     assert!(matches!(
         assemble(&doc, &ev, Tol::witness()),
@@ -769,7 +784,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // (c) The same document over a BROKEN part: the carried refusal
     // preempts both, because the file to open is the inner one.
     let (doc, ids) = build("docm6-order-carried", broken);
-    let (doc, _) = with_own_mate(doc, &ids);
+    let (doc, _) = with_own_mate(doc, &ids, (&broken_cubes, broken_body));
     let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     assert!(
@@ -783,7 +798,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
 #[test]
 fn a_refusal_two_levels_down_names_its_route() {
     let mut store = PartStore::default();
-    let (broken, broken_id, broken_mate) = broken_part(&mut store, "docm6-route-stand");
+    let (broken, broken_id, broken_mate, ..) = broken_part(&mut store, "docm6-route-stand");
     let (mid, mid_instances) = row_of("docm6-route-mid", broken, 1, 4.0);
     let mid_ref = store.insert(mid, Tol::witness());
     let (outer, outer_instances) = row_of("docm6-route-outer", mid_ref, 1, 12.0);
@@ -820,8 +835,8 @@ fn a_refusal_two_levels_down_names_its_route() {
 #[test]
 fn every_carried_refusal_is_raised_in_gather_order() {
     let mut store = PartStore::default();
-    let (first, first_id, first_mate) = broken_part(&mut store, "docm6-head-first");
-    let (second, second_id, second_mate) = broken_part(&mut store, "docm6-head-second");
+    let (first, first_id, first_mate, ..) = broken_part(&mut store, "docm6-head-first");
+    let (second, second_id, second_mate, ..) = broken_part(&mut store, "docm6-head-second");
     assert_ne!(first_id, second_id);
 
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-head-row"), Tol::witness());

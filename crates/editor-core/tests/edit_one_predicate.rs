@@ -42,6 +42,7 @@
 use crate::fixture;
 
 use crate::wire::doctored;
+use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocRef, DocumentId,
     EditError, EntityKind, Expr, FaceName, Frame, InterfaceCrossing, InterfaceRecord, MateFrame,
@@ -49,7 +50,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load, save,
 };
 use editor_core::{LoggedEdit, ParamNameReason, parse_expr};
-use fixture::resolver::PartStore;
+use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 use std::collections::BTreeMap;
@@ -280,18 +281,9 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-fn in_part(instance: RecipeNodeId, body: RecipeNodeId) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: part_face(body).into(),
-        }],
-    }
-}
-
-/// The part-local face `in_part` wraps, a cap of the part's `body`: one
-/// spelling, so a crossing built here names the same face on both
+/// The part-local face every head here wears under its instance — the
+/// start cap of the part's `body`, as `in_part(.., body, CapEnd::Start)`
+/// spells it — so a crossing built here names the same face on both
 /// sides of the seam.
 fn part_face(body: RecipeNodeId) -> StableName {
     StableName {
@@ -308,8 +300,8 @@ fn mate(
     origin: [f64; 3],
 ) -> Node<ProfileProgram> {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, body)),
-        b: crate::fixture::head(in_part(b, body)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: MateFrame {
@@ -461,7 +453,7 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(in_part(ids[0], body)),
+            outer: face(in_part(ids[0], body, CapEnd::Start)),
             inner: face(part_face(body)),
         }],
     };

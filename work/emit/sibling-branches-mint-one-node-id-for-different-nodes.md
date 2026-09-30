@@ -86,9 +86,11 @@ and substitute:
 - `refactor.rs`: `proto_scramble(doc.next_id + i as u64)` (inline) and
   `proto_scramble(i as u64)` (split);
 - `mate/member.rs`'s test fixture: `doc.next_id = proto_unscramble(MATE.0) + 1`;
-- `fixture::resolver::PART_BODY` and `pncad`'s `WS_PART_BODY`:
-  `RecipeNodeId(10905525725756348110)`, which is `proto_scramble(2)`;
-  see the row that constant has its own.
+- on a tree before `part-suites-name-every-parts-body-by-one-constant`
+  only, `fixture::resolver::PART_BODY` and `pncad`'s `WS_PART_BODY`:
+  `RecipeNodeId(10905525725756348110)`, which is `proto_scramble(2)`.
+  Those constants are gone since; the suites read each body from its
+  part.
 
 - **Before unit 1:** editor-core failed 519 of 2376 tests.
   - 290 of those came from one fixture constant, `PART_BODY`.

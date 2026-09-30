@@ -14,13 +14,14 @@
 use crate::fixture;
 use crate::wire::doctored;
 
+use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
     EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
     NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
     clusters, load, product, relative_freedom_components, save,
 };
-use fixture::resolver::{PartStore, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
@@ -67,21 +68,6 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
     (doc, ids, store, body)
 }
 
-fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: part_node,
-                path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
-            }
-            .into(),
-        }],
-    }
-}
-
 fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
     MateFrame {
         origin,
@@ -104,8 +90,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: crate::fixture::head(in_part(a, body)),
-        b: crate::fixture::head(in_part(b, body)),
+        a: crate::fixture::head(in_part(a, body, CapEnd::Start)),
+        b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -538,7 +524,7 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
         vec![
             Maintenance::Strand {
                 node: mate_node,
-                name: in_part(ids[0], body),
+                name: in_part(ids[0], body, CapEnd::Start),
             },
             Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
                 from: ids[0],
@@ -1287,8 +1273,8 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
-                from: in_part(ids[1], body),
-                to: in_part(ids[2], body),
+                from: in_part(ids[1], body, CapEnd::Start),
+                to: in_part(ids[2], body, CapEnd::Start),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1341,8 +1327,8 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
             node: Node::Declare {
                 pairs: vec![(
                     (
-                        SitedRef::new(ids[1], in_part(ids[1], body)),
-                        SitedRef::new(ids[0], in_part(ids[0], body)),
+                        SitedRef::new(ids[1], in_part(ids[1], body, CapEnd::Start)),
+                        SitedRef::new(ids[0], in_part(ids[0], body, CapEnd::Start)),
                     ),
                     ContactClass::Rest,
                 )],
@@ -1353,8 +1339,8 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
-                from: in_part(ids[1], body),
-                to: in_part(ids[2], body),
+                from: in_part(ids[1], body, CapEnd::Start),
+                to: in_part(ids[2], body, CapEnd::Start),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -1365,7 +1351,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     };
     assert_eq!(
         pairs[0].0.0.name,
-        in_part(ids[2], body),
+        in_part(ids[2], body, CapEnd::Start),
         "the declaration's NAME was rewritten"
     );
     assert_eq!(

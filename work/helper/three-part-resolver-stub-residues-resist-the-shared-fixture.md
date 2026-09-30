@@ -1,7 +1,7 @@
 ---
 id: three-part-resolver-stub-residues-resist-the-shared-fixture
 kind: issue
-title: Three editor-core stub residues the shared part-resolver fixture cannot absorb as written
+title: asm2a_instantiate's seam-refusing StubStore is the one part-resolver stub left beside the shared fixture
 status: open
 opened: 2026-09-15
 priority: P3
@@ -12,8 +12,8 @@ cost: E
 Disclosed by SUITE's `editor-core-suites-carry-eleven-part-resolver-stubs`
 migration, which collapsed sixteen `editor-core` suites onto
 `crates/editor-core/tests/fixture/resolver.rs`. Three copies were left
-where they are, each for a different reason, and each is a separate
-decision this row owns.
+where they are, each for a different reason; two have since gone
+(below).
 
 1. **`asm2a_instantiate.rs`'s `StubStore` is a SUPERSET.** It carries a
    second map, `eps_seam`, and a third refusal arm returning
@@ -28,18 +28,15 @@ decision this row owns.
    constructor or whether asm2a's store is simply a different
    instrument that should say so in its own prose.
 
-2. **`asm_r2a_mate_solve.rs`'s `in_part` has a different SIGNATURE** —
-   `in_part(instance, part_node)`, taking the body node as an argument
-   and hardcoding `CapEnd::Start`. The fixture's is now
-   `in_part(instance, body, cap)`
-   (`part-suites-name-every-parts-body-by-one-constant`), so this
-   suite's is the fixture's at `CapEnd::Start` and can fold into it.
+Items 2 and 3 are done:
 
-3. **`asm4_split_inline.rs`'s `PART_BODY` is a different TYPE.**
-   `const PART_BODY: usize = 2` is a positional index into
-   `doc.order()`, not a `RecipeNodeId`; the two are numerically equal
-   by coincidence of the same three-node part shape. One name, two
-   types, in the same directory, is the shape that drifts — and
-   `docm6_seam_declarations.rs`'s header already disclosed in prose
-   that *"the suites' `in_part` spellings have already diverged once by
-   a node index"* and nothing read it.
+2. `asm_r2a_mate_solve.rs`'s own `in_part(instance, part_node)` folded
+   into the fixture's `in_part(instance, body, CapEnd::Start)` once the
+   fixture took the body
+   (`part-suites-name-every-parts-body-by-one-constant`), and so did
+   `edit_one_predicate.rs`'s copy of the same shape.
+3. `asm4_split_inline.rs` names its positions `PLANE_POSITION`,
+   `PROFILE_POSITION` and `BODY_POSITION`, and the fixture's
+   `PART_BODY` is gone, so no name spans the two types.
+
+Item 1 is what this row still owns.
