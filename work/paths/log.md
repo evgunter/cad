@@ -244,5 +244,200 @@ Declined, with reasons:
 Also on this PR: main's `topo` stopped compiling (the `RingMeetsOuter`
 `Display` was missing three `RingContact` arms after #3185 met
 `a3d5c47e1`). The fix is ported here and announced on ATREST's log.
+
+## 2026-09-25 — #3231 merged; resequenced; unit 2 dispatched
+
+`fixture-door-takes-canonical-segments` merged as #3231. It also
+carried the fix for main's `topo` compile break (announced on ATREST's
+log).
+
+**Order now.** The review of #3231 showed that re-lowering from
+(chord, kept bulge) turns a one-segment circle's carrier into NaN. So
+the order is:
+1. `geom-brep-sketch-segment-full-turn` (unit 2, dispatched now);
+2. `store-constructed-carriers` (unit 5; moved ahead, because it makes
+   re-lowering carry the stored carrier);
+3. `one-segment-loop-through-builders` (unit 3);
+4. `circle-lowers-to-one-segment` (unit 4);
+5. `pncad-surface-for-canonical-segments` (unit 6).
+
+The rows' `blocked_on` fields are updated to match.
+
+**Unit 2's tier: dual.** It is the shared numeric representation of
+every profile-built edge, and it is expected to move bits in ulps. Its
+spec forbids any decision flip.
+
+## 2026-09-25 — unit 2 (#3254) stops on three moved decisions
+
+The implementer stopped, as the spec requires, on three results:
+- **Recut refusal becomes Ok.** At Interval / 1e-12 the recut now
+  decides. The likely cause is that `restrict` keeps the exact parent
+  carrier.
+- **r1_annulus certifies less.** Its certified fraction fell at
+  eps = 1e-6.
+- **`sym_thin_strip` loses Theorems.** Four decisions went from Theorem
+  to NumericZero, and the cause has not been attributed.
+
+Rulings, sent to the lane:
+1. **The recut flip** is accepted only on a demonstrated soundness
+   check: the restricted enclosure must contain the true sub-arc. The
+   escalation constant is re-pinned against a fixture that still
+   reaches it. If no fixture does, a row goes to the constant's owner.
+2. **The ceiling fall** is attributed by toggling each change. The
+   `abs` span against the sign-by-turn span is my call if that turns
+   out to be the trade. The pinned ceiling is never lowered.
+3. **The lost Theorems** are attributed against main alone first. They
+   are not re-baselined until attributed.
+4. **The `turned_span` conflict** with DECIDE's `props/sign-hull` is
+   announced on DECIDE's log.
+
+Review stays dual, dispatched once these settle.
+
+## 2026-09-26 — local CI while hosted CI queues
+
+Ev (in chat, then #3276's `local-scripts/hosted-ci-guard.sh`): when the
+hosted queue is deeper than a local run is long, a local whole-matrix
+run is allowed. How PATHS uses it:
+- **The command:**
+  `CAD_LOCAL_CI_OVERRIDE=i-certify-this-run-should-not-be-hosted local-scripts/ci-local.sh --full`.
+- **Only on an otherwise idle box.** It takes every build slot, so it
+  never runs beside a reviewer's or implementer's build.
+- **What it answers.** Beside a queued hosted run it is an early answer,
+  and hosted is still the gate. It is the gate itself only while hosted
+  is down. Merging on the early answer before hosted lands is the owner's
+  call. PATHS makes that call per PR, in this log. A hosted red that lands
+  after such a merge is fixed forward on main at once.
+- **Implementer and fix-pass briefs** run the scoped local battery before
+  pushing (`memories/local-battery-scope.md`). They run the override run
+  only when the box is idle and a hosted queue stands in the way.
+
+## 2026-09-26 — unit 2's dual review in; fix pass dispatched
+
+Both reviews of #3254 on 8c275c72 came back APPROVE-WITH-FIXES, with
+no MAJOR.
+- **R1** executed its checks: the recut containment was confirmed
+  independently at 60 digits, and the apex was checked for both turns.
+- **R2** was interrupted twice by forced hand-backs during builds, so
+  its review is inspection-only. The pair probably does not count as
+  fair (method divergence by interruption). The blinded coder is
+  judging that.
+
+The fix pass is given the union. Its main item is the Interval apex
+width: the carrier-built apex takes the centre's radius-scale width,
+3.6e-12 at b = 1e-4. It is to be measured base against head on R2's
+grid, and a chord-scale form that reads Δθ is to be tried. The rest:
+- correct the disclosure table from the tree;
+- re-word C6 from "not possible" to "not chosen" (a blend is
+  bit-exact; filed);
+- sweep the stale `atan|b|` premises;
+- inventory the new hand copies on unit 5;
+- document the redundant fields;
+- measure `offset_axial::reauthor`.
+
+**Ev, 2026-09-26 (in chat): "please merge on local green without waiting
+for ci."** From now on PATHS merges on a green
+`CAD_LOCAL_CI_OVERRIDE=… local-scripts/ci-local.sh --full` run at the
+PR's head, without waiting for hosted CI. A hosted red that lands later
+is fixed forward on main at once.
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/paths/profile-endings-say-lower-the-tolerance-and-route-by-name.md`. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-09-29 — unit 2 merges (#3254, DR-22); unit 5 next
+
+- **Dual review.** Both reviews came back APPROVE-WITH-FIXES with no
+  MAJOR. The pair is excluded under 6(e): R2 was truncated by harness
+  hand-backs that two concurrent builds on this 4-core box caused.
+  Future duals stagger their builds.
+- **Fix pass.** All ten items were taken. The chord-scale apex removes
+  the Interval width regression.
+- **Main merged in.** 1479 commits. Main's check 1 restored the four
+  `sym_thin_strip` theorems.
+- **Friction (orchestration-model's rule):** hosted run 36548745318
+  took about 18 min from the change filter to `gate ok`, and its `test`
+  job alone took 17 min, over the 15-min bar. This is recorded here,
+  not dispatched: CI latency is not PATHS' slate, and the gate itself
+  was cut on 2026-09-28 (d22fab7bc).
+- **Local CI.** The local CI mirror was deleted on main (24fedbfad), so
+  the 2026-09-26 "merge on local green" route no longer exists. PATHS
+  gates on hosted CI plus the scoped local battery.
+- **Next:** `store-constructed-carriers` (unit 5). It moved ahead of
+  unit 3 so that re-lowering carries the stored carrier before any
+  one-segment loop is admitted.
+
+## 2026-09-29 — unit 5 is a design fork; two designers dispatched
+
+`store-constructed-carriers` has to decide three things that #3218's
+ruling leaves open:
+- what "consistency is verified at validate" means for a carrier that
+  is stored, not derived;
+- how the certified lifts (`ValidatedSegment::lift`, `map_scalar`,
+  `lift_onto`) treat a stored carrier;
+- what `profile::lift` writes when no bulge is stored.
+
+These have several viable answers, so the unit is treated as a fork
+(`memories/orchestration-model.md`). Two designers were given the same
+problem statement, with no candidate solutions. The statement's sha256
+is 42ef1359…612c. The labels were drawn by /dev/urandom byte 55; the
+mapping is held for `analysis/design-fork/`. The unit waits for the
+`[ev]` PR that follows. Units 3 and 4 stay blocked behind it.
+
+## 2026-09-29 — the unit 5 fork goes to Ev as #3453
+
+Both designers converged after one reconciliation round. #3453 puts
+q1–q5 to Ev, with each designer's first "For Ev" section verbatim,
+labelled A and B only. The DESIGN-FORK-LOG row is 20 (renumbered at merges; recommendation
+half). Unit 5 stays `needs_ev` until Ev answers. If Ev agrees, it lands
+as 5a (tables carry carriers: the bulge retires, the checks and the
+exactness witness land, carriers still derived) and then 5b
+(constructions store their own carriers).
+
+## 2026-09-29 — Ev on #3453
+
+- **q1 (the three consistency checks, range included):** settled.
+- **q2 (pinned lifts copy, guided constructs):** accepted on condition
+  that it reuses the arc types rather than adding special cases.
+- **q4 (writer emits `Center`):** settled.
+- **q3 → round 2.** Ev asked whether the symbolic tier should operate
+  on the data the user provided, not on a witness.
+- **q5 → round 2.** Ev is not sure of the current state and suggests
+  rethinking `Arc` broadly for harmony.
+
+Round 2 is dispatched to both designers. #3453 is updated in place when
+they report.
+
+New PATHS issues from other programs (queued behind unit 5):
+- `a-short-run-outs-stored-chord-reads-a-declared-fillet-joint-transversal`
+  (EMIT, design);
+- `paths-refusals-short-of-the-shape-guard` (CHROME).
+
+## 2026-09-29 — #3453 rounds 2–4
+
+- **Round 2:** q2 reuses the existing types (both). q5 settles on one
+  shared `geom-core` arc type, keeping `radius` (both). q3 split.
+- **Round 3:** the orchestrator read `sym.rs` (the alias is transitive;
+  nodes are hash-consed per leaf). That settled q3 on construction
+  registration.
+- **Round 4:** Ev clarified that the symbolic tier should operate on the
+  authored shape. Both designers answer the same way:
+  - A2 is kept, and the shape lives in the program.
+  - The lowering doors spell the radius as authored and Δθ as one
+    `4·atan(X)` with X algebraic (never `atan2`), so rule D folds every
+    mode.
+  - Registrations cover only what the algebra doesn't close.
+  - D1 text updated; awaiting Ev's confirmation.
+- **Carried into 5b's spec:** a census row over the modes' minted
+  forms, and re-opening DECIDE's rule-D row for measurement.
+
+## 2026-09-30 — #3453 approved by Ev
+
+Ev: "this looks great". The fork's decision half is recorded in
+DESIGN-FORK-LOG row 20 (decision, match, and A/B = Fable/Opus by byte
+55). No `analysis/design-fork/` branch was pushed; the mapping sits in
+the row. The ruling is on the unit row.
+
+Next: split `store-constructed-carriers` into three:
+1. 5a;
+2. the shared `geom-core` arc type (mechanical);
+3. 5b.
+
+Spec 5a first.

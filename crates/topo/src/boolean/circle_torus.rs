@@ -181,7 +181,6 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
         odd: "bool_circle_torus_odd",
         split: "bool_circle_torus_split",
         split_lead: "bool_circle_torus_split_lead",
-        count: "bool_circle_torus_count",
     },
 };
 
@@ -201,6 +200,9 @@ pub(super) enum CircleTorusRoots<T> {
     /// within `π` of the arc's midpoint, so it compares with the arc
     /// `[t₀, t₁]` the caller passed without wrapping.
     Certified { count: usize, thetas: [T; 4] },
+    /// The quartic's constructed roots disagree in number with its
+    /// certified count ([`TorusRoots::CountDisagrees`]).
+    CountDisagrees,
 }
 
 /// The certified crossings of the circle carrier
@@ -336,6 +338,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             HalfAngleRoots::Certified { count, thetas } => {
                 CircleTorusRoots::Certified { count, thetas }
             }
+            HalfAngleRoots::CountDisagrees => CircleTorusRoots::CountDisagrees,
         },
     )
 }
@@ -397,6 +400,7 @@ pub(super) enum HalfAngleRoots<T> {
     Miss,
     Uncertain,
     Certified { count: usize, thetas: [T; 4] },
+    CountDisagrees,
 }
 
 /// The conditioning floor `κ` (module docs): the pole's `|F|` must be at
@@ -522,6 +526,7 @@ pub(super) fn half_angle_roots<T: Decide>(
             match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band)? {
                 TorusRoots::Miss => HalfAngleRoots::Miss,
                 TorusRoots::Uncertain => HalfAngleRoots::Uncertain,
+                TorusRoots::CountDisagrees => HalfAngleRoots::CountDisagrees,
                 TorusRoots::Certified { count, ts: ys } => {
                     let mut thetas = [T::zero(); 4];
                     for (theta, y) in thetas.iter_mut().zip(ys).take(count) {
@@ -1523,6 +1528,7 @@ mod tests {
                     match got {
                         CircleTorusRoots::Uncertain => {}
                         CircleTorusRoots::Coaxial => panic!("{label}: not coaxial"),
+                        CircleTorusRoots::CountDisagrees => panic!("{label}: counts disagree"),
                         CircleTorusRoots::Miss => {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");
                             answered[i] += 1;

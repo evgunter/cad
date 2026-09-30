@@ -19,11 +19,12 @@
 //! `Bounds` answers (1) and never refuses. [`CertifiedEnclosure`] answers
 //! (2), and at `Interval` — the scalar this suite is about — it refuses
 //! below `Def`. **That threshold is `Interval`'s spelling of the refusal,
-//! not the whole of it**: the door refuses on each type's own poison, which
-//! at `f64` and at `Interval` is read off the value rather than off a
-//! decoration. `certified_door.rs` sweeps all four implementors against
-//! that one postcondition; these rows pin both halves here, and pin that
-//! the crossing into certification arithmetic this crate can reach — `spline::hull`'s, through
+//! not the whole of it**: each door refuses exactly what its scalar cannot
+//! certify — `f64`'s poison, read off the value rather than off a
+//! decoration, and an interval's refusal. `certified_door.rs` sweeps all
+//! four implementors against that one postcondition; these rows pin both
+//! halves here, and pin that the crossing into certification arithmetic
+//! this crate can reach — `spline::hull`'s, through
 //! [`hull::domain_hull`] — follows the second door rather than the first,
 //! which is the actual defect S41 found: it read the bracket, so a `Trv`
 //! enclosure crossed into `Interval` as a healthy bound.
@@ -34,11 +35,11 @@
 //! `crates/*/src`, every one of them inside a crate that depends on this
 //! one, so no test here can call them:
 //!
-//! - `geom`'s `ring_coords`, which lifts a control net channel by channel
-//!   — pinned by `geom/tests/{curves,surfaces}/decoration_ring_coords.rs`;
+//! - `geom`'s `certified_coords`, which lifts a control net channel by channel
+//!   — pinned by `geom/tests/{curves,surfaces}/decoration_certified_coords.rs`;
 //! - `geom_brep::ssi::certify`'s three direct reads of a plane normal —
 //!   pinned by that file's `normal_crossing_tests`, which drives
-//!   `probe_tube_chart` and therefore runs `ring_coords` as well;
+//!   `probe_tube_chart` and therefore runs `certified_coords` as well;
 //! - `topo::props`'s bracket helper — pinned by that file's
 //!   `bracket_seam_tests`;
 //! - `geom_brep::ssi::enclose`'s, which **no row named here pins**.
@@ -46,11 +47,12 @@
 //! The sweeps are **paired**: each walks an operand across the domain
 //! boundary and requires refusal *iff* the decoration degraded, with
 //! non-vacuity assertions on both halves. A laundering implementation
-//! certifies the whole sweep and fails; an implementation that poisons
+//! certifies the whole sweep and fails; an implementation that refuses
 //! indiscriminately refuses the whole sweep and fails too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::interval::certification::Certification;
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
@@ -148,17 +150,18 @@ fn the_certified_door_refuses_a_violated_decoration() {
         Some((1.0, 2.0)),
         "a certified enclosure must hand over its own endpoints unchanged"
     );
-    // The other two lanes read their poison off the value itself rather
-    // than off a decoration, and refuse on it. `certified_door.rs` sweeps
-    // both; these two pairs are here so this row's `Def` threshold is not
-    // mistaken for the only way the door can refuse.
+    // `f64` refuses on its poison, read off the value itself rather than
+    // off a decoration, and `Interval::refused()` is the permanent
+    // refusal. `certified_door.rs` sweeps both; these two pairs are here
+    // so this row's `Def` threshold is not mistaken for the only way the
+    // door can refuse.
     assert_eq!(2.5_f64.certified_bracket(), Some((2.5, 2.5)));
     assert!(f64::NAN.certified_bracket().is_none());
     assert_eq!(
         Interval::from_bounds(-1.0, 1.0).certified_bracket(),
         Some((-1.0, 1.0))
     );
-    assert!(Interval::poison().certified_bracket().is_none());
+    assert!(Interval::refused().certified_bracket().is_none());
 }
 
 /// The C9 hull bound over a two-coefficient degree-1 spline whose first

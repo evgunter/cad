@@ -29,8 +29,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::doc::{NodeId, name_from_text, name_text, piece_from_text};
+use crate::py::doc::{NodeId, name_from_text, name_text};
 use crate::py::expr::Expr;
+use crate::py::step::Piece;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
 use pncad::prelude::SurfaceKind as KSurfaceKind;
@@ -851,6 +852,16 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                  datum (found: {found})"
             )
         }
+        // The standing's own words carry which state and where the
+        // repair is; `datum` is the node they are about.
+        R::DatumHasNoValue(standing) => {
+            let [datum, _] = super::standing_fields(py, *standing);
+            fill(&mut fields, "datum", datum);
+            format!("the node `datum_distance` references has no value: {standing}")
+        }
+        R::NodeHasNoValue(standing) => {
+            format!("a node the flush query reads has no value: {standing}")
+        }
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));
             "the comparand of a distance must be a length".to_string()
@@ -1029,37 +1040,37 @@ mod growth_tripwire {
 // side of the boundary.
 //
 // The text stays opaque either way. A caller composes a name by
-// naming a ROLE — the op's own vocabulary — and the profile PIECE it
-// sweeps, a text `Doc.pieces` answers, never by assembling the
-// serialization, which is the representation-dependence `name_text`'s
-// contract refuses.
+// naming a ROLE — the op's own vocabulary — and the profile `Piece`
+// it sweeps, which `Doc.piece` spells from an authored step's handle,
+// never by assembling the serialization, which is the
+// representation-dependence `name_text`'s contract refuses.
 // ---------------------------------------------------------------
 
 /// **The `[0, pi)` band face swept from the profile piece `piece`** on
 /// the revolve at `node`, as the name TEXT the selections take.
 ///
-/// `piece` is a piece's text, from `Doc.pieces`. The kind is fixed at
+/// `piece` is a `Piece`, from `Doc.piece`. The kind is fixed at
 /// the role's own — a face — which is the field a hand-written name
 /// gets wrong silently until emission refuses it.
 #[pyfunction]
-pub(crate) fn band(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
-    name_text(py, &s::band(node.0, piece_from_text(piece)?))
+pub(crate) fn band(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
+    name_text(py, &s::band(node.0, piece.edge()))
 }
 
 /// **The `[pi, 2pi)` band face swept from the profile piece `piece`**
 /// — [`band`]'s twin, where a full revolve emits a segment as two
 /// faces. A face, as [`band`] is.
 #[pyfunction]
-pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
-    name_text(py, &s::band_pi(node.0, piece_from_text(piece)?))
+pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
+    name_text(py, &s::band_pi(node.0, piece.edge()))
 }
 
 /// **The latitude rim at the vertex the profile piece `piece` starts
 /// at** — the edge between the band of the piece ending there and the
 /// piece's own. An edge.
 #[pyfunction]
-pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
-    name_text(py, &s::band_rim(node.0, piece_from_text(piece)?.start()))
+pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
+    name_text(py, &s::band_rim(node.0, piece.edge().start()))
 }
 
 /// **The meridian vertex at `end`**: the copy of the vertex the
@@ -1072,11 +1083,11 @@ pub(crate) fn meridian_vertex(
     py: Python<'_>,
     end: MeridianEnd,
     node: &NodeId,
-    piece: &str,
+    piece: &Piece,
 ) -> PyResult<String> {
     name_text(
         py,
-        &s::meridian_vertex(end.to_kernel(), node.0, piece_from_text(piece)?.start()),
+        &s::meridian_vertex(end.to_kernel(), node.0, piece.edge().start()),
     )
 }
 

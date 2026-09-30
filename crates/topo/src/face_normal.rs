@@ -108,13 +108,36 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// Why [`face_outward_normal_at`] could not answer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum NormalAtError {
-    /// The margin certifying `p` on the chart landed in the band.
-    Escalated(Indeterminate),
+    /// A margin landed in the band: the torus's own convention, or the
+    /// one certifying `p` on the chart.
+    Escalated {
+        /// Which of the three decisions escalated.
+        decision: NormalDecision,
+        /// Its diagnostics.
+        diag: Indeterminate,
+    },
     /// `p` is definitely NOT on the face's surface, so the surface has
     /// no normal there to fold a sense into. The door's contract is a
     /// point ON the face, so this is the caller's invariant, not a
     /// remainder.
     OffSurface,
+}
+
+/// Which decision [`face_outward_normal_at`] escalated on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NormalDecision {
+    /// Whether a torus's tube radius is positive.
+    TorusTube,
+    /// Whether a torus's tube stays clear of its axis.
+    TorusRing,
+    /// Whether the point lies on the face's surface, so the surface's
+    /// normal can be read there.
+    OnSurface,
+}
+
+/// An escalation of `decision`.
+fn escalated(decision: NormalDecision) -> impl FnOnce(Indeterminate) -> NormalAtError {
+    move |diag| NormalAtError::Escalated { decision, diag }
 }
 
 /// A face's OUTWARD normal **at a point on it** — the same one door,
@@ -187,10 +210,11 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } if geom::torus_tube(*minor_radius, band).map_err(NormalAtError::Escalated)?
+        } if geom::torus_tube(*minor_radius, band)
+            .map_err(escalated(NormalDecision::TorusTube))?
             != Sign::Positive
             || geom::ring_torus(*major_radius, *minor_radius, band)
-                .map_err(NormalAtError::Escalated)?
+                .map_err(escalated(NormalDecision::TorusRing))?
                 .sign
                 != Sign::Positive =>
         {
@@ -207,7 +231,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             match decide("bool_pierce_normal_on_chart", margin, band) {
                 Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense))),
                 Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
-                Err(diag) => Err(NormalAtError::Escalated(diag)),
+                Err(diag) => Err(escalated(NormalDecision::OnSurface)(diag)),
             }
         }
         // Cone, Nurbs, Approx: no arm here. A cone's gradient is `0/0`
@@ -235,8 +259,14 @@ mod tests {
     fn face_on(surface: geom::Surface<f64>) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
         let st = crate::fixtures::mvfs_state();
         let mut body = st.body;
-        body.set_face_surface(st.face, FaceSurface::New(surface))
-            .unwrap();
+        body.set_face_surface(
+            st.face,
+            FaceSurface::New {
+                surface,
+                sense: true,
+            },
+        )
+        .unwrap();
         (body, st.face)
     }
 

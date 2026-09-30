@@ -349,12 +349,15 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
     source
         .set_face_surface(
             cone_face,
-            FaceSurface::New(Surface::Cone {
-                apex,
-                axis: Vec3::new(tilt.sin(), tilt.cos(), 0.0),
-                half_angle,
-                u_ref: Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Cone {
+                    apex,
+                    axis: Vec3::new(tilt.sin(), tilt.cos(), 0.0),
+                    half_angle,
+                    u_ref: Vec3::new(tilt.cos(), -tilt.sin(), 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("planting a surface certifies nothing");
 

@@ -15,8 +15,9 @@
 //! * changing the unit and changing the number are separate operations,
 //!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
 //! * and the ONE value field says the number without the unit, shows a
-//!   driven slot's source, and routes typed text to the door it means
-//!   (`field_text` / `field_edit`).
+//!   driven slot's value and opens its edit on the source, and routes
+//!   typed text to the door it means (`field_text` / `field_source` /
+//!   `field_edit`).
 //!
 //! The pixels are not tested here and are not the claim; what is
 //! claimed is that the panel is drawing from the right numbers.
@@ -503,10 +504,12 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
     assert_eq!(row.source.as_deref(), Some("8 mm"));
 }
 
-/// A DRIVEN slot shows what drives it. Nothing else could be shown:
-/// its number is a consequence, and the text is what an edit revises.
+/// **A DRIVEN slot's field shows the value its expression equals, and
+/// its edit opens on the source.** The value is bounded by its type
+/// and the source by nothing, and the field sits in a row that does
+/// not wrap; the source is what an edit revises.
 #[test]
-fn the_field_shows_a_driven_slots_source() {
+fn the_field_shows_a_driven_slots_value_and_edits_its_source() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -520,7 +523,27 @@ fn the_field_shows_a_driven_slots_source() {
         .into_iter()
         .find(|row| row.slot == SlotId::Distance)
         .expect("the distance row");
-    assert_eq!(props::field_text(&row), "thickness * 2.0 + 1 mm");
+    let value = row
+        .value
+        .as_ref()
+        .expect("the expression evaluates")
+        .as_f64();
+    let shown = props::field_text(&row);
+    assert_eq!(
+        shown,
+        format!(
+            "{} {}",
+            props::DRIVEN,
+            props::computed_text(Dimension::Length, value)
+        ),
+        "the field shows the value, in the canonical notation a driven row is written in"
+    );
+    assert!(shown.ends_with(" m"), "and names that notation: {shown}");
+    assert_eq!(
+        props::field_source(&row).as_deref(),
+        Some("thickness * 2.0 + 1 mm"),
+        "and its edit opens on the source"
+    );
     assert_eq!(row.source.as_deref(), Some("thickness * 2.0 + 1 mm"));
 }
 
@@ -628,7 +651,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
 fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-unit", tol);
-    let name = ParamName::new("base_r");
+    let name = ParamName::from_static("base_r");
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
@@ -681,7 +704,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
 fn a_count_parameter_has_no_written_unit() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-count", tol);
-    let name = ParamName::new("holes");
+    let name = ParamName::from_static("holes");
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
@@ -716,7 +739,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
     let reading = |value: DocParam| {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
-        let name = ParamName::new("thickness");
+        let name = ParamName::from_static("thickness");
         let (doc, _) = common::edited(
             &doc,
             DocEdit::SetDocParam {
@@ -795,7 +818,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("thickness"),
+            name: ParamName::from_static("thickness"),
             value: DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
         },
         tol,
@@ -803,16 +826,16 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("in_metres"),
+            name: ParamName::from_static("in_metres"),
             value: DocParam::continuous(Dimension::Length, 0.008),
         },
         tol,
     );
     let rows = props::param_rows(&doc);
-    let writing = |name: &str| {
+    let writing = |name: &'static str| {
         let row = rows
             .iter()
-            .find(|row| row.name == ParamName::new(name))
+            .find(|row| row.name == ParamName::from_static(name))
             .expect("the parameter row");
         FieldWriting::of(row.dimension, row.unit)
     };
@@ -1003,7 +1026,7 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     );
     let row = props::param_rows(&common::declared(
         "mint-mm",
-        &ParamName::new("base_r"),
+        &ParamName::from_static("base_r"),
         minted,
         Tol::witness(),
     ))
@@ -1023,7 +1046,7 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     assert_eq!(
         props::param_rows(&common::declared(
             "mint-deg",
-            &ParamName::new("sweep"),
+            &ParamName::from_static("sweep"),
             angle,
             Tol::witness()
         ))

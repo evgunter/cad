@@ -44,6 +44,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
+use super::refusal_routes::Contradiction;
 use crate::contact::ContactVerdict;
 use crate::source::GeomSource;
 use crate::validate::decide;
@@ -75,7 +76,7 @@ pub struct PlaneIdentity<'a> {
     /// underneath it: a face's outward normal is the surface
     /// expression's reversal when the face's `sense` is `false`, and
     /// `orient` is the tag that says so, so callers holding faces
-    /// pass `boolean::reduce::face_plane_source`, never the raw
+    /// pass `boolean::reduce::face_oriented_source`, never the raw
     /// surface source (S10).
     pub s1: Option<&'a GeomSource>,
     /// The second description's recipe source, same contract as
@@ -108,6 +109,21 @@ pub struct PlaneDesc<T: geom_core::Real> {
     pub origin: Point3<T>,
     /// The unit outward normal (of the face, not of the chart).
     pub normal: Vec3<T>,
+}
+
+/// A plane description's data, its normal negated when `flip` — rung
+/// 1's walk for its bit assertion. Destructured without `..`, so a
+/// field the description gains is a compile error here.
+#[cfg(debug_assertions)]
+fn plane_data<T: geom_core::Real>(
+    &PlaneDesc { origin, normal }: &PlaneDesc<T>,
+    flip: bool,
+) -> [geom::DatumValue<T>; 2] {
+    let normal = if flip { -normal } else { normal };
+    [
+        geom::DatumValue::Point(origin),
+        geom::DatumValue::Direction(normal),
+    ]
 }
 
 /// **`oriented_plane_eq`** — module docs for the ladder. `id` is the
@@ -156,24 +172,31 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
     let d1 = p1.normal.dot(p1.origin - Point3::origin());
     let d2 = p2.normal.dot(p2.origin - Point3::origin());
 
-    // Rung 1: same source (N6) — syntactic identity, zero numerics.
-    // `orient` carries the DESCRIPTION's reversal, face sense
-    // included (see `PlaneIdentity::s1`): without that composition two
-    // faces of one surface with opposite senses would share a source
-    // bit-for-bit, read `SameOriented`, and blow the assertion below
-    // — their outward normals are exact negations.
-    if let (Some(s1), Some(s2)) = (id.s1, id.s2)
-        && s1.same_base(s2)
-    {
-        let opposite = s1.orient != s2.orient;
+    // Rung 1: same source (N6) — the declared-identity predicate over
+    // the two descriptions' sources, zero numerics. `orient` carries
+    // the DESCRIPTION's reversal, face sense included (see
+    // `PlaneIdentity::s1`), so a mirrored declaration is an opposite
+    // outward normal: without that composition two faces of one
+    // surface with opposite senses would read `SameSource`, then
+    // `SameOriented`, and blow the assertion below — their outward
+    // normals are exact negations.
+    use crate::source::SurfaceDeclaration as D;
+    let opposite = match crate::source::source_declaration(id.s1, id.s2) {
+        D::SameSource => Some(false),
+        D::Mirrored => Some(true),
+        D::SameKey | D::DistinctSources | D::Unsourced => None,
+    };
+    if let Some(opposite) = opposite {
         // Asserted only where the scalar HAS a bit channel: the rung is
         // syntactic (the source decides), the bits are its evidence,
         // and a scalar with no channel (`Dual`, `Sym`) offers none —
         // `None` there is not disagreement.
         #[cfg(debug_assertions)]
-        if let Some(agree) =
-            crate::source::plane_bits_witness(p1.origin, p1.normal, p2.origin, p2.normal, opposite)
-        {
+        if let Some(agree) = crate::source::data_bits_witness(
+            plane_data(p1, false)
+                .into_iter()
+                .zip(plane_data(p2, opposite)),
+        ) {
             debug_assert!(
                 agree,
                 "same-source theorem violated: same-source descriptions disagree bitwise (kernel \
@@ -279,12 +302,15 @@ fn declared_rung<T: Decide>(
     let parallel_margin = Margin::levered(p1.normal.cross(p2.normal).norm(), arm);
     match decide("bool_plane_parallel", parallel_margin, band) {
         Ok(Sign::Positive) => {
-            return Err(PlaneEqError::Contradicted(Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some("bool_plane_parallel"),
-                terminal_sliver: false,
-            }));
+            return Err(PlaneEqError::Contradicted {
+                fact: Contradiction::PlanesNotParallel,
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("bool_plane_parallel"),
+                    terminal_sliver: false,
+                },
+            });
         }
         Ok(Sign::Zero) => {}
         Ok(Sign::Negative) => {
@@ -319,12 +345,15 @@ fn declared_rung<T: Decide>(
     };
     let sigma = if same_orient { T::one() } else { -T::one() };
     match decide("bool_plane_offset", Margin::of(d1 - sigma * d2), band) {
-        Ok(Sign::Positive | Sign::Negative) => Err(PlaneEqError::Contradicted(Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some("bool_plane_offset"),
-            terminal_sliver: false,
-        })),
+        Ok(Sign::Positive | Sign::Negative) => Err(PlaneEqError::Contradicted {
+            fact: Contradiction::PlanesApart,
+            diag: Indeterminate {
+                margin: geom_core::MarginDiag::INVALID,
+                band,
+                predicate: Some("bool_plane_offset"),
+                terminal_sliver: false,
+            },
+        }),
         // Coincident: the geometry stands on its own.
         Ok(Sign::Zero) => Ok((
             if same_orient {
@@ -429,11 +458,11 @@ mod tests {
         // Contradiction, offset flavor: declared but definitely apart.
         let apart = plane([0.0, 0.0, 9.0], [0.0, 0.0, 1.0]);
         let err = oriented_plane_eq(&p1, &apart, declared, 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Contradicted(_)), "{err:?}");
+        assert!(matches!(err, PlaneEqError::Contradicted { .. }), "{err:?}");
         // Contradiction, angle flavor: declared but not parallel.
         let tilted = plane([1.0, 2.0, 5.0], [0.0, 1.0, 0.0]);
         let err = oriented_plane_eq(&p1, &tilted, declared, 1.0, band()).unwrap_err();
-        assert!(matches!(err, PlaneEqError::Contradicted(_)), "{err:?}");
+        assert!(matches!(err, PlaneEqError::Contradicted { .. }), "{err:?}");
     }
 
     /// Definitely different planes: non-parallel, and parallel-offset.

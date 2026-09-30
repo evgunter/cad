@@ -72,12 +72,12 @@ use pncad::topo::Body;
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
-use crate::docio::{self, DirResolver};
+use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
-use crate::parts;
+use crate::parts::{self, PartFiles};
 use crate::pickcache;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::sketch;
@@ -166,9 +166,7 @@ impl GestureTarget {
     /// from the chrome carries neither and has no business asserting
     /// them. So the comparison that decides whether a preview belongs
     /// to the open gesture is over [`ValueGestureName`], and this is
-    /// the one place a target becomes one — exhaustive over the
-    /// target's arms, so a third kind of gesture target cannot skip
-    /// the question.
+    /// the one place a target becomes one.
     fn name(&self) -> ValueGestureName {
         match self {
             Self::Slot { node, slot, .. } => ValueGestureName::Slot {
@@ -283,8 +281,8 @@ pub struct DocSession {
     /// The document seam: the opened file's own directory, consulted
     /// lazily (the directory rule and the scan-at-resolution posture
     /// are [`DirResolver`]'s docs). A session over an in-memory
-    /// document carries no resolver, and its instantiate nodes refuse
-    /// typed. Replaced — never inherited — on every `Open`, so a
+    /// document carries none, and its instantiate nodes refuse through
+    /// [`NoFile`]. Replaced — never inherited — on every `Open`, so a
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
@@ -453,7 +451,7 @@ struct LandedRun {
     /// The gather's refusal for this pair ([`DocSession::product_fault`]).
     fault: Option<ProductError>,
     /// The A5 at-rest verdict for this pair ([`DocSession::at_rest`]);
-    /// `None` for a document that is not assembly-shaped.
+    /// `None` where [`AtRestBadge`] says none is taken.
     at_rest: Option<AtRestBadge>,
     /// The advisory-check report for this pair
     /// ([`DocSession::checks`]); `None` when the registry itself
@@ -504,6 +502,12 @@ struct LandedRun {
     /// changing the shape; do not trust the figures to have stayed
     /// true.
     body: Option<Arc<Body<f64>>>,
+    /// **The part files the run's resolver could name** — one scan of
+    /// the session's directory, taken at landing ([`PartFiles`]'s doc
+    /// says why then): the file names the tree names this pair's
+    /// instances and their carried lines by. Unscanned for a document that
+    /// instantiates nothing, which never asks.
+    files: PartFiles,
 }
 
 /// Exhaustive by destructuring; the shared rule is
@@ -528,11 +532,13 @@ impl core::fmt::Debug for LandedRun {
             at_rest,
             checks,
             body,
+            files,
         } = self;
         let mut out = f.debug_struct("LandedRun");
         out.field("generation", generation)
             .field("fault", fault)
-            .field("at_rest", at_rest);
+            .field("at_rest", at_rest)
+            .field("files", files);
         match checks {
             Some(report) => out.field(
                 "checks",
@@ -560,7 +566,9 @@ impl core::fmt::Debug for LandedRun {
 /// Taken only for assembly-shaped documents (one holding at least one
 /// `InstantiatePart`) — a part document's tiers are not this badge's
 /// subject, and the gate's cost is not spent where it answers nothing
-/// the badges do not already say.
+/// the badges do not already say. Nor for a gather refusal
+/// `ProductErrorKind::means_no_body` reads as an absence: with no
+/// product there is nothing for the gate to judge.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtRestBadge {
     /// The gate certified the assembled product; how many declarations
@@ -570,9 +578,11 @@ pub enum AtRestBadge {
         minted: usize,
     },
     /// The gate refused — its own rendering, never a sentence composed
-    /// here.
+    /// here, except that a gather refusal about a root the feature tree
+    /// draws downstream of another row carries the tree's pointer
+    /// ([`crate::tree::product_refusal_wording`]).
     Refused {
-        /// The typed refusal's `Display`.
+        /// The typed refusal's `Display`, or that pointer.
         message: String,
     },
 }
@@ -693,11 +703,8 @@ impl DocSession {
     /// and has its own control beside the spinner that reports the
     /// run. The census is held from the operation vocabulary's side by
     /// `crates/viewer/tests/gesture_table.rs`'s
-    /// `every_gesture_cancel_has_a_chrome_door`, whose match over
-    /// `SessionOp` is exhaustive — so a third gesture cannot join the
-    /// enum with no door, which is the protection
-    /// [`SessionOp::permitted_during_value_gesture`] gives the
-    /// mid-gesture policy one concept over.
+    /// `every_gesture_cancel_has_a_chrome_door`, which names every
+    /// `SessionOp`.
     ///
     /// Each door reads the state of its OWN gesture: this session's
     /// value drag, and [`crate::display::DisplayState::probing`] for
@@ -743,8 +750,8 @@ impl DocSession {
     /// selection)** — recomputed, never cached, so it cannot be stale
     /// with respect to the state it describes. A face's verdict comes
     /// from the shipped `resolve` door; nothing here re-implements the
-    /// resolution ladder or interprets its answer beyond arranging it
-    /// beside the other two selection kinds.
+    /// resolution ladder, and the one reading made of its answer is the
+    /// feature tree's, of which node an indeterminate verdict waits on.
     pub fn standing(&self) -> Standing {
         match &self.derived.selection {
             Selection::None => Standing::Empty,
@@ -769,10 +776,15 @@ impl DocSession {
 
     /// One picked name's verdict against the landed run — the shipped
     /// `resolve` door, asked once and spelled once for both entity
-    /// kinds.
+    /// kinds, with the node it waits on named as the feature tree
+    /// names it ([`crate::tree::resolution_as_drawn`]).
     fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
-        self.landed_pair()
-            .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, name)))
+        self.landed_pair().map(|(doc, eval)| {
+            Box::new(crate::tree::resolution_as_drawn(
+                resolve(RunCtx { doc, eval }, name),
+                eval,
+            ))
+        })
     }
 
     /// The most recent evaluation that answered the current document.
@@ -796,7 +808,8 @@ impl DocSession {
     }
 
     /// Why the landed evaluation's product does not gather, if it does
-    /// not — the gather-level refusal no per-node badge can carry.
+    /// not — every class, whichever channel reports it
+    /// (`frame::badge_site` decides that).
     ///
     /// `None` both when the product is well formed and when nothing
     /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
@@ -805,8 +818,8 @@ impl DocSession {
     }
 
     /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
-    /// when the landed document is assembly-shaped. `None` for a part
-    /// document, and before anything lands.
+    /// when [`AtRestBadge`] says one is taken. `None` otherwise, and
+    /// before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
         self.derived.landed.as_ref()?.at_rest.as_ref()
     }
@@ -887,18 +900,20 @@ impl DocSession {
     /// way the landed evaluation resolved it.
     pub fn eval_options(&self) -> EvalOptions {
         EvalOptions {
-            resolver: self.resolver_seam(),
+            resolver: Some(self.resolver_seam()),
             ..EvalOptions::default()
         }
     }
 
     /// **The session's resolver as the document seam** — the directory
     /// rule's resolver, widened to the trait every door that resolves
-    /// a part takes; `None` when the session has no directory.
-    fn resolver_seam(&self) -> Option<Arc<dyn PartResolver>> {
-        self.resolver
-            .as_ref()
-            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>)
+    /// a part takes; [`NoFile`] when the session has no directory, so a
+    /// part's refusal states the viewer's way through.
+    fn resolver_seam(&self) -> Arc<dyn PartResolver> {
+        match &self.resolver {
+            Some(dir) => Arc::clone(dir) as Arc<dyn PartResolver>,
+            None => NoFile::seam(),
+        }
     }
 
     /// The generation the session is waiting for a result on.
@@ -978,11 +993,12 @@ impl DocSession {
         // one function away from the fix that introduced it. While a
         // run is outstanding the tree therefore shows the picture's
         // document, which is what the viewport shows too.
-        match self.landed_pair() {
-            Some((doc, eval)) => tree::rows(doc, Some(eval)),
+        match &self.derived.landed {
+            Some(run) => tree::rows(&run.doc, Some(&run.evaluation), &run.files),
             // Nothing has landed: the shown document with no
-            // evaluation, which renders every row `Unevaluated`.
-            None => tree::rows(self.doc(), None),
+            // evaluation, which renders every row `Unevaluated`, and
+            // no scan of the directory, which names a part as unread.
+            None => tree::rows(self.doc(), None, &PartFiles::Unscanned),
         }
     }
 
@@ -1063,9 +1079,9 @@ impl DocSession {
         // for it either: it takes what the gate did not eat.
         let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
-        // The A5 badge is taken for assembly-shaped documents only, and
-        // whether the document is one is a fact about the document
-        // rather than about its product — readable on either arm.
+        // Whether the document is assembly-shaped is a fact about its
+        // nodes, so it is read once here for both arms; the other
+        // condition [`AtRestBadge`] names is read off the gather below.
         let assembly_shaped = assembly_shaped(doc);
         let (fault, checks, at_rest, body) = match product_recorded(doc, &done.evaluation, self.tol)
         {
@@ -1103,29 +1119,35 @@ impl DocSession {
             Err(fault) => {
                 // **The product's own verdict.** The gather is the only
                 // thing that answers "is this document's product well
-                // formed" — a naming collision across roots is not a
-                // node failure, so the feature tree's badges cannot see
-                // it, and a viewport that draws the parts without ever
-                // asking would render a body nothing says is wrong.
+                // formed", so every class of refusal is kept here; which
+                // channel reports which is `frame::badge_site`'s.
                 //
                 // A refusal that `ProductErrorKind::means_no_body`
                 // reads as an absence is the one the registry still
-                // runs over, on the subject that says so. Every other
-                // refusal leaves the report absent, which is "not
-                // checked".
-                let checks = fault
-                    .kind()
-                    .means_no_body()
+                // runs over, on the subject that says so, and the one
+                // no A5 badge is taken for: there is no product for
+                // the gate to judge, which is a part document's `None`
+                // and not a refusal. Every other refusal leaves the
+                // report absent, which is "not checked".
+                let no_body = fault.kind().means_no_body();
+                let checks = no_body
                     .then(|| {
                         run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
                             .ok()
                     })
                     .flatten();
-                let at_rest = assembly_shaped.then(|| AtRestBadge::Refused {
-                    message: AssemblyError::product_refusal(&fault),
+                let at_rest = (assembly_shaped && !no_body).then(|| AtRestBadge::Refused {
+                    message: crate::tree::product_refusal_wording(&fault, &done.evaluation),
                 });
                 (Some(fault), checks, at_rest, None)
             }
+        };
+        // Only a document that instantiates a part has a part to name,
+        // so only it pays the scan.
+        let files = if assembly_shaped {
+            PartFiles::scanned(self.resolver.as_deref())
+        } else {
+            PartFiles::Unscanned
         };
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
@@ -1137,6 +1159,7 @@ impl DocSession {
             at_rest,
             checks,
             body,
+            files,
         });
         Landing::Landed
     }
@@ -1808,7 +1831,7 @@ impl DocSession {
                 // and lazy — a slot gesture moves no gauge, so what a
                 // tick pays for it is the construction and nothing
                 // more.
-                let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
+                let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
                 let applied = apply(&gesture.base, &edit, tol, &reach)
                     .map_err(|error| Refusal::Edit(Box::new(error)))?;
                 // **The display layer's identity, held rather than
@@ -2196,7 +2219,7 @@ impl DocSession {
         // practice; the entry is still the logged one, so the history
         // replays pure over the log.
         let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         match accepted_order(doc, edits, self.tol, &reach) {
             Ok(landing) => self.record_action(landing),
             Err(OrderFault::Refused(error)) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
@@ -2483,11 +2506,7 @@ impl DocSession {
     ///
     /// **Every other edit submits**, and that is the conservative
     /// direction rather than a gap: an insert, a delete or a rename
-    /// has no standing value of its own to be equal to. The match
-    /// below NAMES every one of them rather than wildcarding — a
-    /// `DocEdit` added later has to be answered here, in a compile
-    /// error, instead of quietly inheriting a guard nobody asked
-    /// whether it wanted.
+    /// has no standing value of its own to be equal to.
     fn writes_nothing(&self, edit: &DocEdit<ProfileProgram>) -> bool {
         let doc = self.committed_doc();
         match edit {
@@ -2515,18 +2534,10 @@ impl DocSession {
                 doc.params().get(name),
                 Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
             ),
-            // **Every other edit submits — and the match NAMES them
-            // all**, so a `DocEdit` added later is a compile error at
-            // the one site that has to decide whether it wants this
-            // guard. A wildcard would give the next value-writing
-            // edit no guard and nothing would go red; this is the
-            // same preference `SessionOp::permitted_during_value_gesture`
-            // states for the gesture table.
-            //
-            // The structure of the recipe and the shape of the
-            // product: a node inserted, deleted, re-parented or
-            // re-pointed has no standing value of its own for an
-            // offered one to equal.
+            // Every other edit submits. The structure of the recipe and
+            // the shape of the product: a node inserted, deleted,
+            // re-parented or re-pointed has no standing value of its
+            // own for an offered one to equal.
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
@@ -2661,7 +2672,7 @@ impl DocSession {
         // maintenance asks it only when a cluster's gauge moves, and
         // what it decided rides the logged entry into the history.
         let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         // Threaded rather than cloned up front: the first `apply`
         // reads the history's value in place, and each later one reads
         // its predecessor's output, so a group of one costs exactly
@@ -2754,7 +2765,7 @@ impl DocSession {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: self.resolver_seam(),
+            resolver: Some(self.resolver_seam()),
         });
     }
 }
@@ -2952,14 +2963,48 @@ enum OrderFault {
     },
 }
 
-/// Whether a document is assembly-shaped, which is what decides
-/// whether an A5 badge is taken at all (see [`AtRestBadge`]): a
-/// document that instantiates no part declares no cross-instance rest
-/// and has nothing for the gate to answer about.
+/// Whether a document is assembly-shaped — one of the two conditions
+/// [`AtRestBadge`] names for taking an A5 badge: a document that
+/// instantiates no part declares no cross-instance rest and has
+/// nothing for the gate to answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
     doc.order()
         .iter()
-        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+        .filter_map(|&id| doc.node(id))
+        .any(puts_an_instance)
+}
+
+/// Whether a node puts an instance of another document's part into
+/// this one — what [`assembly_shaped`] asks of every node.
+fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
+    match node {
+        Node::InstantiatePart { .. } => true,
+        // Placements of a prototype drawn in THIS document: the rest
+        // between them is the placement rule's, not a crossing.
+        Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
+        // Relates instances some other node put in the document.
+        Node::Mate { .. } => false,
+        // Declares contacts between faces of a consumer's operands,
+        // and puts no body of its own in.
+        Node::Declare { .. } => false,
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => false,
+    }
 }
 
 /// One A5 verdict as the badge that shows it — the gate's own

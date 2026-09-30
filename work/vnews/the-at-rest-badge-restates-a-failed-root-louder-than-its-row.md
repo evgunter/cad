@@ -19,14 +19,16 @@ the feature tree already shows, drawn at least as loud as that row*).
 `crates/viewer/src/session.rs`, the landing's gather-refusal arm: on an
 assembly-shaped document, **every** gather fault becomes
 `AtRestBadge::Refused { message: AssemblyError::product_refusal(&fault) }`,
-and `frame::at_rest_badge` draws that `Tone::Actionable`. For
-`ProductError::RootFailed` / `RootPoisoned` the message is
-*"assembly: product: root N failed to evaluate (ask
-`Evaluation::node_error` for the typed cause)"* — a restatement of the
+and `frame::at_rest_badge` draws that `Tone::Actionable`. For a root
+with no value, `ProductError::Root` carrying the root's `NodeStanding`,
+the message is the standing's own sentence under the gather's word, as
+`viewer::tree::product_refusal_wording` re-reads it: *"product: root
+node N failed, so it has no value — fix the node's own failure"*, or
+*"product: root node N is poisoned by the failure at node M, so it has
+no value — the repair is upstream, at node M"*. That restates the
 failure the tree already badges `Failed` at the node, louder than the
 row's own words (which the Features pane draws `Tone::Advisory` under
-an `Actionable` tag), and naming the ROOT rather than the row that
-carries the cause when the root is poisoned.
+an `Actionable` tag).
 
 `frame::product_badge` declines exactly these classes
 (`frame::badge_site` sends them to `BadgeSite::FeatureTree`), and

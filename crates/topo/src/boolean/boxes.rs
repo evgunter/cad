@@ -2179,7 +2179,7 @@ mod tests {
         (a, b, c): (Point3<f64>, Point3<f64>, Point3<f64>),
     ) -> (Body<f64>, FaceKey) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let plane = body.add_surface(plane_surface);
         let cyl = body.add_surface(cyl_surface);
         let arc = EdgeCurveSpec {
@@ -2222,7 +2222,10 @@ mod tests {
                     he2: e_ab.he_plus,
                 },
                 EdgeCurveSpec::line_between(c, a),
-                FaceSurface::Shared(plane),
+                FaceSurface::Shared {
+                    key: plane,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap()
@@ -2315,7 +2318,7 @@ mod tests {
     ) -> (Body<f64>, FaceKey) {
         let on = |u: f64, z: f64| Point3::new(rho(z) * u.cos(), rho(z) * u.sin(), z);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(on(u0, z0)).unwrap();
+        let seed = body.mvfs(on(u0, z0), true).unwrap();
         // A rim at height `z`: the cylinder cut by the plane there.
         // The descending rim runs on the reversed axis so its own
         // parameters increase, exactly as the split lane mints them.
@@ -2407,7 +2410,10 @@ mod tests {
                     he2: e_b.he_plus,
                 },
                 EdgeCurveSpec::line_between(on(u0, z1), on(u0, z0)),
-                FaceSurface::Shared(cyl),
+                FaceSurface::Shared {
+                    key: cyl,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap()
@@ -2455,12 +2461,15 @@ mod tests {
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
             body.set_face_surface(
                 face,
-                FaceSurface::New(Surface::Sphere {
-                    center,
-                    radius: r,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
-                }),
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center,
+                        radius: r,
+                        axis: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
             )
             .unwrap();
             let b = face_box(&body, face, pad()).unwrap();
@@ -2502,8 +2511,14 @@ mod tests {
         let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-        body.set_face_surface(face, FaceSurface::New(surface))
-            .unwrap();
+        body.set_face_surface(
+            face,
+            FaceSurface::New {
+                surface,
+                sense: true,
+            },
+        )
+        .unwrap();
         (
             body,
             face,
@@ -2799,12 +2814,15 @@ mod tests {
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
             body.set_face_surface(
                 face,
-                FaceSurface::New(Surface::Sphere {
-                    center: c,
-                    radius: r,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
-                }),
+                FaceSurface::New {
+                    surface: Surface::Sphere {
+                        center: c,
+                        radius: r,
+                        axis: Vec3::unit_z(),
+                        u_ref: Vec3::unit_x(),
+                    },
+                    sense: true,
+                },
             )
             .unwrap();
             let b = face_box(&body, face, pad).unwrap();
@@ -3031,7 +3049,14 @@ mod tests {
         for s in kinds {
             let kind = geom_brep::SurfaceKind::of(&s);
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surface(face, FaceSurface::New(s)).unwrap();
+            body.set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface: s,
+                    sense: true,
+                },
+            )
+            .unwrap();
             let b = face_box(&body, face, pad()).unwrap();
             assert!(
                 !b.min_x.is_nan(),
@@ -3074,7 +3099,7 @@ mod tests {
         // The seed FIRST: a surface added before it has a face is
         // orphan geometry, which `mvfs`'s tier-1 postcondition
         // rejects.
-        let seed = body.mvfs(on(u0, v0)).unwrap();
+        let seed = body.mvfs(on(u0, v0), true).unwrap();
         let torus = body.add_surface(Surface::Torus {
             center,
             axis,
@@ -3215,7 +3240,10 @@ mod tests {
                     he2: e_b.he_plus,
                 },
                 left,
-                FaceSurface::Shared(torus),
+                FaceSurface::Shared {
+                    key: torus,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap()
@@ -3231,12 +3259,15 @@ mod tests {
         let (mut body, face) = revolved_wall(&|z| z * alpha.tan(), u0, u1, z0, z1);
         body.set_face_surface(
             face,
-            FaceSurface::New(Surface::Cone {
-                apex: Point3::origin(),
-                axis: Vec3::unit_z(),
-                half_angle: alpha,
-                u_ref: Vec3::unit_x(),
-            }),
+            FaceSurface::New {
+                surface: Surface::Cone {
+                    apex: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    half_angle: alpha,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
         )
         .unwrap();
         (body, face)
@@ -3366,13 +3397,16 @@ mod tests {
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
                 body.set_face_surface(
                     face,
-                    FaceSurface::New(Surface::Torus {
-                        center,
-                        axis,
-                        major_radius: major,
-                        minor_radius: minor,
-                        u_ref,
-                    }),
+                    FaceSurface::New {
+                        surface: Surface::Torus {
+                            center,
+                            axis,
+                            major_radius: major,
+                            minor_radius: minor,
+                            u_ref,
+                        },
+                        sense: true,
+                    },
                 )
                 .unwrap();
                 let b = face_box(&body, face, pad()).unwrap();
@@ -3426,7 +3460,7 @@ mod tests {
         let on =
             |u: f64, v: f64| center + e(u) * (major + minor * v.cos()) + axis * (minor * v.sin());
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(on(u0, 0.0)).unwrap();
+        let seed = body.mvfs(on(u0, 0.0), true).unwrap();
         let torus = body.add_surface(Surface::Torus {
             center,
             axis,
@@ -3473,7 +3507,10 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 m0,
-                FaceSurface::New(cap0_plane),
+                FaceSurface::New {
+                    surface: cap0_plane,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .expect("mef Lone: the circular edge at u0");
@@ -3516,14 +3553,23 @@ mod tests {
                     he2: strut.he_minus,
                 },
                 m1,
-                FaceSurface::New(cap1_plane),
+                FaceSurface::New {
+                    surface: cap1_plane,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .expect("mef Chords self-loop: the circular edge at u1");
         body.kemr(strut.he_plus, strut.he_minus)
             .expect("kemr: the strut dies and the u1 circle becomes a ring");
-        body.set_face_surface(seed.face, FaceSurface::Shared(torus))
-            .expect("the seed face is the torus annulus");
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::Shared {
+                key: torus,
+                sense: true,
+            },
+        )
+        .expect("the seed face is the torus annulus");
         (body, seed.face)
     }
 
@@ -4039,13 +4085,16 @@ mod tests {
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
                 body.set_face_surface(
                     face,
-                    FaceSurface::New(Surface::Torus {
-                        center: c,
-                        axis,
-                        major_radius: major,
-                        minor_radius: minor,
-                        u_ref,
-                    }),
+                    FaceSurface::New {
+                        surface: Surface::Torus {
+                            center: c,
+                            axis,
+                            major_radius: major,
+                            minor_radius: minor,
+                            u_ref,
+                        },
+                        sense: true,
+                    },
                 )
                 .unwrap();
                 let b = face_box(&body, face, pad).unwrap();
@@ -4163,7 +4212,14 @@ mod tests {
         };
         let relabelled = |s: Surface<f64>| {
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surface(face, FaceSurface::New(s)).unwrap();
+            body.set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface: s,
+                    sense: true,
+                },
+            )
+            .unwrap();
             (body, face)
         };
         let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();

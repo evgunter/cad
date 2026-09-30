@@ -994,3 +994,125 @@ slate at Ev's direction (P0, `needs_ev`, its `[ev]` PR AUTHOR's). The
 tracker contract changed under the sitting: priority bands and cost,
 track budgets, spec notes under `docs/doc-ledger/`.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-09-29 — fifteenth sitting: the new protocols, five merges, two `[ev]` rulings, one design widened
+
+**Protocols.** Ev asked whether the orchestrator had read the protocol changes on main since the 09-23 resume. It had not.
+- **Rules missed:**
+  - Model A/B was suspended on 09-23.
+  - Every phase runs on Opus except the Fable half of the designer pair.
+  - Review tiers are the orchestrator's read, single, or dual under `docs/DUAL-REVIEW-PROTOCOL.md`.
+  - Every `[ev]` design fork first goes to a blinded Opus/Fable designer pair (`docs/DESIGN-FORK-PROTOCOL.md`).
+- **Departures from them:**
+  - An A/B block (EDIT-B3) had its pre-draw fields pushed and a byte drawn. Both are void. The branch `edit/b3-block` is still on origin, because the proxy refuses the delete.
+  - The EDIT-PROGRAM A/B row (sample #243) was recorded on 09-24, after the suspension.
+  - `[ev]` #3158, #3163 and #3437 skipped the designer pair.
+  - The paramname, unnamed-patch and program-fix lanes ran on Fable.
+- **Ev's answer:** "no need to particularly mark these … i just pointed it out so you'd do new work under the new protocols." New work since then follows them.
+
+**Merged.**
+- **Unnamed patch (#3439, E-class, orchestrator's read).** The lookup's refusal is its own type, and the standing ladder is written once. Two rows filed: EDIT and LIB.
+- **Slot tables (#3438).**
+  - One Opus FULL review: APPROVE-WITH-FIXES. Two in-table mutants survived every row.
+  - The fix pass committed a per-shape ordered slot-table golden, which both mutants red.
+  - One `find_row` now serves `node.rs` and `program.rs`.
+  - `ProfilePayload` answers keyed rows.
+  - The dead `TubeWindow` doors are gone.
+- **Paramname (#3164).**
+  - One Opus FULL review: NOT-MERGEABLE. A certified-range query over a profile step argument regressed, because its synthetic name carried `·`.
+  - The fix pass took a fresh, label-free synthetic name; both refusal arms are gone.
+  - The parser is now the name rule's one home, and the equivalence row is two-sided.
+  - `ParamName::literal` is now `ParamName::from_static`.
+  - Filed: NFC names (EDIT) and a lone surrogate (LIB).
+- **`[ev]` #3444 (part-root refusal).**
+  - Designer pair (row 15): they converged on a typed carried refusal and split only on drawing.
+  - Ev ruled (a), the full traceback: one line per document level.
+  - Spec'd a single review; implemented as #3459, now under review.
+- **C6's "no usable value" member ruled (#3456).**
+  - The persisted-format blocker was gone since BOOL-13.
+  - A survey found nine readers and two stringly sites.
+  - One standing type, read by one function. The standing-ladder row rides with it.
+  - The `standing` lane is implementing.
+- **Tour re-gate row: closed by design (#3458).** No kernel door for a demo's measurement.
+- **Load-door program policy (#3460, E-class).** The bowtie probe shows `Validate` loads clean and refuses typed at evaluation (class 2). This is documented and pinned.
+
+**`[ev]` #3441 (placement).**
+- **First designer pair (row 14):** parametric motion over a literal. Ev did not choose. Ev called the recorded literal "a weird side channel through which to keep the source", accepted a jump when the placing source is gone, and floated a gauge attached to several members.
+- **Second pair on the widened problem (row 16), with Ev's comments passed verbatim:** they converged on the gauge as a node holding a parametric placement. Mates place only within a gauge, nothing is recorded at an edit, and extra placements are verified.
+- **Put to Ev:** membership (the instance names its gauge, or attachments plus mates), deleting a gauge in use, and, under the latter, when the contact-only mate and multiple attachments arrive.
+- **MSOLVE row filed with it:** box and seed runs solve mates at the nominal only. The placement unit must not ship into the lanes without that refusal.
+
+**Housekeeping.**
+- The disk filled twice. Finished lanes' target dirs are now deleted at each merge, and live lanes build with `CARGO_INCREMENTAL=0`.
+- D366 is ruled after #3459 merges, since they share `PartFault`/`NodeErrorKind`.
+- 2026-09-29 — Seam note from EMIT: `test_utils::refusal::hex_ids` (f039ebb21a) read a float's fraction and exponent marker as a hex id: at ε = 1e-6 the ambiguity band prints `9.999999999999999e-6`, and `999999999999999e` is a mixed hex word of 16 characters, so both `refusal_concision_chains` budget rows went red on main at that row (the per-PR gate runs it only when editor-core's eps rows are selected). Fixed in PR (emit/hex-id-decimal-exponent): neither shape counts when it is part of a decimal number. (EMIT orchestrator)
+
+## 2026-09-29 — sixteenth sitting: part-root, standing and D366 merged; the placement question narrowed to one
+
+**Merged.** Each had a single Opus FULL review and a fix pass unless noted.
+- **Part-root refusal (#3459).**
+  - The review was NOT-MERGEABLE with two MAJORs in the viewer's traceback: a mate line inside a part named no file, and the file-name prefix pushed 33 roster refusals over budget.
+  - The fix pass added one kernel chain iterator (`carried_chain`), which the viewer, Python and the tests all read, and drew the file name as a label, never as words inside the line.
+  - It also made the placer carry only on the fold path, and narrowed the hex admissions to exact spans with a staleness check.
+- **One node standing (#3463, C6's "no usable value" member).**
+  - The review was APPROVE-WITH-FIXES. The fix pass found the missed `checks.rs` door, made the census see aliased imports, made blend and flush report the standing, and split `NotEvaluated` from `NotInDocument` with every door's tag word kept.
+  - The standing-ladder row closed with it; C6 stays open for `SegTag`.
+- **D366 (#3465 claim, #3469 unit).**
+  - Adds a fieldless `NodeErrorClass` (101 classes over 71 arms) reached through `class()`, following the `ProductErrorKind` precedent with no macro.
+  - `node_error_tag` reads the class, and all 101 words are pinned against main. Each word has one home.
+  - `ALL` and the published-words row are declared from one list, so an omission is a compile error.
+  - The first reviewer was lost to a container restart around 14:20. Its pushed-late probe was resumed by a second reviewer.
+- **Part/product refusals, claimed (#3470).** Three rows filed today are one seam, and the unit is `#3482`, in review.
+
+**`[ev]` #3441 (placement).**
+- Ev leaned (a) with a "copy gauge then mate" shortcut (one compound edit) and ruled that deleting a gauge is not refused.
+- Ev asked whether a group nothing places can be shown without a jump, with the display location never entering the logic.
+- A third designer pair (row 17) agreed on the display side: G3's probe, widened to a group, holds it where it was last shown.
+- The pair crossed on the logic, so the PR puts one question to Ev: a default pose (total evaluation, where the jump reaches the file) or refuse (an unplaced state).
+- The comment Ev posted during the restart was answered late, and the PR says so.
+
+**Housekeeping.**
+- The container restart lost one review; its worktree's unpushed commits were recovered and pushed.
+- Filed today:
+  - `part-unresolved-refusal-draws-the-workspaces-stage-prefix`;
+  - the two LIB tag rows (`mate-frame-tag-says-degenerate-for-every-frame-fault`, `part-unresolved-names-two-facts`);
+  - `binding-drops-a-standings-through-at-three-refusals`.
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `editor-core/src/assembly.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+
+## 2026-09-29 — seventeenth sitting: placement ruled, the refusal recourse halves, part/product merged
+
+**`[ev]` #3441 ruled and merged.** Ev's ruling, which A11 (2)–(5) and A9 now state:
+- **Gauges.** A placement lives on a gauge node holding a parametric `Placement`.
+- **Membership (a).** Each instance names its gauge, and "copy gauge, then mate" is one edit.
+- **Nothing recorded.** No edit records a frame, so maintenance goes.
+- **Deletes.** Deletes are never refused.
+- **Own space.** A group nothing places lives in its own space: nothing outside it is compared with it, and STEP export refuses unplaced parts. "Sounds perfect! STEP can complain about unplaced parts."
+- **Fork log.** Three designer pairs, rows 17–19. They were renumbered at merge because EMIT and TOPO had taken 15 and 16.
+- **The slate** (`docs/EDIT-PLACEMENT-SPEC.md`, #3494): P1, the `Placement` type (implementing, dual review); P2, gauges (dual); P3, the viewer's owner's.
+
+**Merged.** Each unit had a single Opus FULL review and a fix pass.
+- **Part/product refusals (#3482).**
+  - `ProductError::Root(NodeStanding)`, with every tag word frozen.
+  - A poisoned root carries the failure that poisoned it, as `PartRootPoisoned`. The fix pass kept two arms: one `PartRoot` would admit a "not evaluated" standing next to a carried refusal.
+  - One sentence for a root with no value, and no doubled stage word.
+- **The recourse unit's status-line half (#3490).** The review found two MAJORs:
+  - a false "no way through" on the count arms: redeclaring as continuous works;
+  - split and inline forwarding the insert door's recourse.
+
+  The fix pass added:
+  - `EditError::problem()` plus an exhaustive `ReplayTail`;
+  - one lookup for decision words;
+  - a census over a real subtract's logged predicates, a deliberate tripwire when main changes which predicates it logs.
+
+  The row stays open.
+- **The feature-tree half, claimed (#3491).** The unit is #3492, in its fix pass. Its review found:
+  - the `Workspace` door's unknown-id recourse loops, because the store scans only at open;
+  - a chain of about 400 parts segfaults before `DepthExceeded`, filed as a P1 crash.
+
+**Filed today:**
+- `flip-reports-name-no-decision-for-most-predicates`
+- `persist-edit-replay-forwards-the-edit-doors-recourse`
+- `part-refusal-over-a-store-that-will-not-scan-or-load-states-no-recourse`
+- CHROME's `viewer-own-refusals-are-held-to-no-shape-guard`
+
+- 2026-09-30 — Seam note from TOPO: PR 3493 (`topo/route-refusal-subjects`) gives `topo::decision_words` words for the containment walk's predicates, the sector rungs and `split_edge_param_interior`, read from the Boolean's closed decision types, and takes none for `bool_contact_vertex` or `bool_contact_arc`, each raised under two decisions. In your files, `edit_refusal_recourse.rs`'s `WORDLESS` drops the ten predicates that now have words and lists `bool_contact_vertex` under "one name, two decisions"; `refusal_concision_chains.rs` builds `SplitReduceError::CrossingEscalated` with a `topo::ConicRootFault`. The new counts are on `flip-reports-name-no-decision-for-most-predicates`. (TOPO implementer)

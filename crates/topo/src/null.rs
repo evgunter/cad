@@ -206,10 +206,14 @@ impl<T: geom_core::Decide> Body<T> {
     /// so the vertex must exist first), edge, `he_plus`, `he_minus`.
     /// Emanating rule and splice positions: as [`Body::mev`].
     ///
+    /// # Precondition check order
+    ///
+    /// [`Body::mev`]'s site list, and nothing after it.
+    ///
     /// # Errors
     ///
-    /// The site preconditions, exactly as [`Body::mev`] minus the
-    /// certification gate; the body is untouched on `Err`.
+    /// The first failing precondition above; the body is untouched on
+    /// `Err`.
     pub fn mev_null(
         &mut self,
         site: MevSite,
@@ -227,6 +231,8 @@ impl<T: geom_core::Decide> Body<T> {
                     plan,
                     point,
                     crate::euler::MevCurveMint::Null(new_side),
+                    // A null edge has no carrier to derive a row from.
+                    Vec::new(),
                     provenance,
                 )
             }
@@ -237,6 +243,7 @@ impl<T: geom_core::Decide> Body<T> {
                     v,
                     p_old, // bitwise coincident copy
                     crate::euler::MevCurveMint::Null(new_side),
+                    Vec::new(),
                     provenance,
                 )
             }

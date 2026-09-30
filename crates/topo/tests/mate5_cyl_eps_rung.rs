@@ -8,7 +8,7 @@
 //! [`topo::declared_pair_overlap`] directly with Door 1's verdict in
 //! hand, on pairs of independently authored cylinder-wall sheets whose
 //! descriptions genuinely diverge — different `u_ref`, different
-//! origin station, opposed axis directions — so `same_chart` refuses
+//! origin station, opposed axis directions — so `declared_chart` refuses
 //! and the cylinder enclosure arm is the only authority in play.
 //!
 //! **ε posture.** As the #1063 suite (`census_g2_carrier.rs`): the
@@ -469,10 +469,22 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
         );
         let (mut a_body, mut b_body) = (a.body, b.body);
         a_body
-            .set_face_surface(a.top_face, FaceSurface::New(surface.clone()))
+            .set_face_surface(
+                a.top_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
         b_body
-            .set_face_surface(b.bottom_face, FaceSurface::New(surface.clone()))
+            .set_face_surface(
+                b.bottom_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
         match declared_pair_overlap(
             &a_body,

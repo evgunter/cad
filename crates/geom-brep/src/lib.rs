@@ -58,6 +58,7 @@ pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
 pub mod enters;
+pub mod fitted_lane;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -92,6 +93,7 @@ pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
+pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
 /// the spiric carrier's constructor reads it too); re-exported so the
 /// doors above read it by the name they already use.
@@ -121,14 +123,14 @@ pub use offset_fit::{
     approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
-pub use offset_fit_lane::OffsetFitLane;
+pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
     ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve,
-    chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, chart_pcurve, chart_stretch_inf,
+    chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

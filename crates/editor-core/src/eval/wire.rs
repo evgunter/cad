@@ -197,8 +197,7 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
-        + crate::lane::Lane,
+        + super::SectionScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
@@ -380,8 +379,7 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
-        + crate::lane::Lane,
+        + super::SectionScalar,
 {
     let part = env
         .parts
@@ -596,7 +594,7 @@ fn compose_placed<T: Decide>(input: &Body<T>, placed: &mut Body<T>, at: Placing)
 ///
 /// The kernel's own [`topo::transform::TransformError`] as
 /// [`NodeErrorKind::Transform`].
-fn place<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn place<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
     map: Option<&Affine3<T>>,
     at: Placing,
@@ -612,7 +610,7 @@ fn place<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
 
 /// Every body of `bodies` placed by node `by`'s map number `j`, in
 /// order: one placement of a pattern's master.
-fn place_each<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn place_each<T: Decide + topo::AtRestPolicy>(
     bodies: &[Arc<Body<T>>],
     map: &Affine3<T>,
     by: RecipeNodeId,
@@ -634,12 +632,13 @@ fn value_of<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<&super::NodeValue<T>, NodeErrorKind> {
-    match results.get(&input) {
-        Some(NodeResult::Ok(v)) => Ok(v),
-        // Failed/Poisoned inputs never reach run_op; an absent entry
-        // is a dangling reference.
-        _ => Err(NodeErrorKind::MissingInput { input }),
-    }
+    // Failed/Poisoned inputs never reach run_op (the node is poisoned
+    // first), so the one standing that arrives is an absent entry: a
+    // dangling reference.
+    super::usable_in(results, input, || super::NodeStanding::NotInDocument {
+        node: input,
+    })
+    .map_err(|_| NodeErrorKind::MissingInput { input })
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's
@@ -834,6 +833,17 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// constant, so the telemetry and an escalation report the same name.
 pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 
+/// What one of this layer's decisions decides, in words
+/// (`crate::decision::words` reads them). `None` for a predicate this
+/// layer does not own.
+pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        EVAL_DIRECTION_NORM => "whether a direction has any length",
+        "revolve_full_vs_partial" => "whether the revolve makes a full turn",
+        _ => return None,
+    })
+}
+
 /// Normalizes a direction-valued vector; a non-finite length refuses,
 /// an underflowed one refuses, a decided-zero length refuses, in-band
 /// indeterminacy escalates.
@@ -943,8 +953,11 @@ impl DirectionRefusal {
     /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
     /// spelling** from a carried or raised refusal to a
-    /// [`NodeErrorKind`]; `pub` because [`NodeErrorKind::FrameDirection`]'s
-    /// `Display` and tag spell through it too.
+    /// [`NodeErrorKind`]: [`NodeErrorKind::FrameDirection`]'s `Display`
+    /// and its class ([`NodeErrorKind::class`]) read through it, so the
+    /// carried refusal says and is what the frame's own raise says and
+    /// is. `pub` because the carried refusal is: a consumer holding one
+    /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
         refusal(self.error, self.role, DATUM_UNIT_NORM)
     }
@@ -1554,14 +1567,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// provenance stamp on everything the sweep minted, and the per-edge
 /// parameter sources the verb's flow declares.
 #[allow(clippy::too_many_arguments)] // `verb` is the correspondence, as in `wire_blend`
-fn wire_swept<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
-    A,
->(
+fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
     id: RecipeNodeId,
@@ -1606,13 +1612,7 @@ fn wire_swept<
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
-fn wire_extrude<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -1655,13 +1655,7 @@ fn written_against(
 /// rule, the full-vs-partial classification), and the generic lowering
 /// from there.
 #[allow(clippy::too_many_arguments)] // the doc and the env are read for the frame rule and the tokens' scope
-fn wire_revolve<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
@@ -1805,7 +1799,7 @@ fn tube_args<T: Decide>(
 /// the tube doors return a `Revolved<T>` from the same machinery. So a
 /// tube is named with NO new `RoleSeg` variants, spelled with the
 /// section's structural locators ([`tube_pieces`]).
-fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
+fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     spine: RecipeNodeId,
     window: &crate::node::TubeWindow,
@@ -1846,7 +1840,7 @@ fn tube_pieces<T: Decide>(
 ///
 /// Naming is [`wire_tube`]'s: the cavity shell is the revolve's own
 /// hole-loop vocabulary.
-fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
+fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     spine: RecipeNodeId,
     window: &crate::node::TubeWindow,
@@ -1876,7 +1870,7 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
 /// refusal shape breaks here. The boolean's undeclared-coincidence
 /// refusal is intercepted first by [`refusal_menu`], which needs the
 /// operands' naming context.
-fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
+fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
@@ -1921,13 +1915,7 @@ fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeError
 /// verbs; which node minted a strip tells a chamfer from a fillet
 /// (RECIPE-DOORS D3).
 #[allow(clippy::too_many_arguments)] // `verb` is the correspondence that makes this one function
-fn wire_blend<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -1996,13 +1984,7 @@ fn wire_blend<
 /// The record is written by the doors as they act, so it is not an
 /// `Option`; the emitter translates every row.
 #[allow(clippy::too_many_arguments)] // the blend lowering's arguments, as `wire_blend`
-fn wire_shell<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -2022,10 +2004,8 @@ fn wire_shell<
     let flow = built.param_flow();
     // A scalar that may not certify has no shell door and refuses here
     // rather than at an unvalidated hollow.
-    let door =
-        <T as topo::AtRestPolicy>::shell_door().ok_or(NodeErrorKind::ShellLaneUnsupported {
-            lane: <T as crate::lane::Lane>::NAME,
-        })?;
+    let door = <T as topo::AtRestPolicy>::shell_door()
+        .ok_or(NodeErrorKind::ShellLaneUnsupported { scalar: T::NAME })?;
     let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
@@ -2446,7 +2426,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
                     ValuePayload::MeasureUnavailable {
                         reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
                             verb: prim.verb(),
-                            scalar: <T as crate::lane::Lane>::NAME,
+                            scalar: T::NAME,
                             door: "clearance::min_separation",
                         },
                         dim: expr.dim(),
@@ -2565,13 +2545,7 @@ fn wire_assertion<T: Decide>(
 /// any verb exists. Failure of the op itself is
 /// [`NodeErrorKind::Split`] through [`verb_refused`]. The D7 pinch lane
 /// lives inside the kernel door; nothing here re-derives the plane.
-fn wire_split<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -2708,13 +2682,7 @@ fn wire_part<T: Decide>(
 // carry and the typed empty success would otherwise become runtime
 // arity.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
-fn wire_boolean<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     op: BooleanOp,
@@ -2822,13 +2790,7 @@ fn wire_boolean<
 /// every step including the last: it refuses
 /// [`UNION_STEP_EMPTY`] and names no member, since each one is fine.
 #[allow(clippy::too_many_arguments)] // one parameter per named input, as `wire_boolean`
-fn wire_union<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -3513,7 +3475,7 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// A name that will not collapse is the fold's own table being
 /// malformed, and is raised as an emission bug rather than as a contact
 /// refusal that would send a caller to edit their model.
-fn union_refusal<T: crate::lane::Lane>(
+fn union_refusal<T: geom_core::Bounds>(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
     a_table: &crate::names::NameTable,
@@ -3681,7 +3643,7 @@ const UNION_REFUSAL_FOREIGN: &str =
 ///
 /// The operands are given as name TABLES because the union folds the
 /// same verb over an ACCUMULATION that is no node's result.
-fn refusal_menu<T: crate::lane::Lane>(
+fn refusal_menu<T: geom_core::Bounds>(
     a: (RecipeNodeId, &crate::names::NameTable),
     b: (RecipeNodeId, &crate::names::NameTable),
     err: verbs::VerbError<T>,
@@ -4081,7 +4043,7 @@ pub(crate) fn transform_map<T: Decide>(
 /// so the input's table holds verbatim — a name still points at the
 /// MINTING node (N1), and output-body indices are instance indices.
 /// Stamps: [`compose_placed`].
-fn wire_transform<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn wire_transform<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     results: &Results<T>,
@@ -4200,7 +4162,7 @@ fn stepped_map<T: Decide>(
 /// ([`names::flat_body_index`], which the name table is keyed by too).
 /// Placement 0 is the master's own bodies verbatim; every master name
 /// wraps `Instance(j)` per placement (A8/N1).
-fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -4255,9 +4217,7 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
 ///
 /// Every placement is MAPPED, including index 0: an explicit rule need
 /// not make it the identity.
-fn wire_placed_union<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy,
->(
+fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -4419,7 +4379,7 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 }
 
 /// The Loft node: the §10.3 walls and their solid assembly.
-fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super::SectionScalar>(
+fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -5346,13 +5306,14 @@ mod place_tests {
         let tol = Tol::witness();
         let mut b = topo::test_support::brick::<f64>((0.0, 1.0), (dy, dy + 1.0), (0.0, 1.0), tol);
         let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
-        let cylinder = |r: f64| {
-            FaceSurface::New(geom::Surface::Cylinder {
+        let cylinder = |r: f64| FaceSurface::New {
+            surface: geom::Surface::Cylinder {
                 origin: Point3::new(0.5, dy + 0.5, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 radius: r,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
-            })
+            },
+            sense: true,
         };
         let stamped = b.set_face_surface(faces[0], cylinder(0.25)).unwrap();
         let pending = b.set_face_surface(faces[1], cylinder(0.3)).unwrap();

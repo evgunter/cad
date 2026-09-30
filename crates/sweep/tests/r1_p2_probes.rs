@@ -30,9 +30,9 @@
 //!   foot.
 //! - `r1_general_image_is_operand_order_blind`: the deriver must not
 //!   see the description's operand order.
-//! - `r1_dual_scalar_still_reaches_the_mint`: the lane bound is
-//!   signature churn, not capability loss — `Dual64` still names the
-//!   mint entry points.
+//! - `r1_dual_scalar_still_reaches_the_mint`: the fitted door's
+//!   absence at `Dual64` is its policy's answer, not a missing bound —
+//!   `Dual64` still names the mint entry points.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
@@ -146,11 +146,14 @@ fn intrinsic_seam_at(
     let plane = body
         .set_face_surface(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -scale, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -scale, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("the exactly-planar wall restates as a plane");
     let (s1, s2) = if swap { (bowed, plane) } else { (plane, bowed) };
@@ -184,8 +187,14 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .faces()
         .find(|(_, f)| f.surface == old)
         .expect("the bowed wall has a face");
-    body.set_face_surface(fk, FaceSurface::New(new))
-        .expect("the wall takes its restated chart")
+    body.set_face_surface(
+        fk,
+        FaceSurface::New {
+            surface: new,
+            sense: true,
+        },
+    )
+    .expect("the wall takes its restated chart")
 }
 
 /// The unit's scale lever, reused at its own value.
@@ -357,6 +366,7 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
         Some(&mate),
         window,
         band(),
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
     );
     assert!(
         verdict.is_err(),
@@ -537,11 +547,12 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
 }
 
 /// **No lane fabricates a foot.** At `Dual64` — a scalar with no
-/// certified projection (`PcurveFittedLane`'s statically-refusing
-/// impl) — the wall–seam arm on the same widened chart refuses typed,
-/// naming the missing lane rather than a boundary it never measured. The dual body is the same loft at the same
-/// scale, its bowed wall re-charted with the same widened net lifted
-/// constant.
+/// certified projection (its policy holds no fitted door,
+/// `topo::AtRestPolicy::fitted_lane`) — the wall–seam arm on the same
+/// widened chart refuses typed, naming the missing lane rather than a
+/// boundary it never measured. The dual body is the same loft at the
+/// same scale, its bowed wall re-charted with the same widened net
+/// lifted constant.
 #[test]
 fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
     use geom_core::{Bounds, Dual, Dual64};
@@ -598,7 +609,13 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         .find(|(_, f)| f.surface == bowed)
         .expect("the bowed wall has a face");
     let key = body
-        .set_face_surface(fk, FaceSurface::New(widened))
+        .set_face_surface(
+            fk,
+            FaceSurface::New {
+                surface: widened,
+                sense: true,
+            },
+        )
         .expect("the wall takes its widened chart");
     let hes: Vec<_> = body
         .edges()
@@ -638,10 +655,11 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
     assert!(seams >= 1, "the wall face has its seams: found {seams}");
 }
 
-/// **The lane bound is signature churn, not capability loss.** The
-/// statically-refusing `Dual` impl must leave every mint entry point
-/// nameable at `Dual64` — this row is a COMPILE fact, pinned as code
-/// so a future where-clause change reds it.
+/// **A scalar without the fitted door still reaches the mint.** Every
+/// mint entry point is bounded on `topo::AtRestPolicy`, whose `Dual`
+/// arm answers `None` for the fitted door, so each stays nameable at
+/// `Dual64` — this row is a COMPILE fact, pinned as code so a future
+/// where-clause change reds it.
 #[test]
 fn r1_dual_scalar_still_reaches_the_mint() {
     let _mint: fn(&mut Body<geom_core::Dual64>, Tol) -> Result<(), PcurveMintError> =
@@ -813,6 +831,7 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         Some(&mate),
         window,
         band(),
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
     .expect("General certifies a partial column against its operand pair");
     let cert = cache.certificate();

@@ -143,9 +143,11 @@ pub const FIT_DEFERRAL_FOR_USERS: &str = "a designed gap between the faces canno
 pub const CONTRADICTION_RECOURSE: &str =
     "Recourse: correct or remove the declaration, or move the geometry so it holds";
 
-/// A contradiction's reason, as the message states it. One sentence
-/// for every contradiction site, because it is the one that is true at
-/// all of them: the sites carry different margins (a definite relation
+/// A contradiction's reason, as the message states it where the site
+/// carries no fact of its own (a site that does, the Boolean's `Rest`
+/// verification, states its `boolean::Contradiction`). One sentence for
+/// every such site, because it is the one that is true at all of them:
+/// the sites carry different margins (a definite relation
 /// at the carrier and tangent tables, an in-band coincidence margin at
 /// the Boolean's conformal screen), and the same carrier predicate
 /// means "apart" at one and "one surface" at another, so no reading of

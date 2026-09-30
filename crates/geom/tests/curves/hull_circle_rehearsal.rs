@@ -46,7 +46,8 @@
 
 use geom::{Curve3, NurbsCurve3};
 use geom_core::Bounds;
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
+use geom_core::interval::certification::Certification;
+use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
 use geom_core::{Interval, Point3, Vec3};
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
@@ -135,8 +136,8 @@ struct ArcBound {
 fn arc_bounds(curve: &NurbsCurve3<f64>) -> Vec<ArcBound> {
     let c = center();
     let n = axis();
-    let coords = curve.ring_coords();
-    let data = CurveRingData::new(curve.knots(), curve.weights(), &coords).unwrap();
+    let coords = curve.certified_coords();
+    let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
 
     let sphere = compose::implicit_composite(
         &data,
@@ -185,10 +186,7 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
     let (mut worst_sphere, mut worst_plane) = (0.0f64, 0.0f64);
     let (mut max_sampled_sphere, mut max_sampled_plane) = (0.0f64, 0.0f64);
     for (arc, b) in bounds.iter().enumerate() {
-        assert!(
-            b.sphere.is_finite() && b.plane.is_finite(),
-            "poisoned bound"
-        );
+        assert!(b.sphere.is_finite() && b.plane.is_finite(), "refused bound");
         worst_sphere = worst_sphere.max(b.sphere);
         worst_plane = worst_plane.max(b.plane);
         // Soundness by falsification: dense sampling inside the arc.

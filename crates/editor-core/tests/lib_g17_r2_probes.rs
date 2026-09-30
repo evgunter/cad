@@ -296,7 +296,7 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
         let doc = apply(
             &d.doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new("t"),
+                name: ParamName::from_static("t"),
                 value: DocParam::Continuous {
                     dim: Dimension::Length,
                     value: nominal,
@@ -313,14 +313,14 @@ fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
             doc,
             Node::shell(
                 blank,
-                Expr::param(ParamName::new("t"), Dimension::Length),
+                Expr::param(ParamName::from_static("t"), Dimension::Length),
                 vec![cup::top(blank)],
             ),
         )
     };
     let widened = || EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(BTreeMap::from([(
-            ParamName::new("t"),
+            ParamName::from_static("t"),
             BoxAxis::Varying {
                 lo: -width,
                 hi: width,

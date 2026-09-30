@@ -2269,3 +2269,183 @@ Signed (S-DUP orchestrator).
 
 - 2026-09-28 — Received `culling-is-load-bearing-with-no-pixel-test` from BLIND, which left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`). Id unchanged. (tracker sweep)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## 2026-09-29 — Wave 5 landed after a five-day stall; three PRs, one README clause Ev signed off
+
+**Ev said on 2026-09-24** that CHROME may edit files open PRs touch
+when the conflicts are not semantic, especially the paused VNEWS
+orchestrator's. Wave 5 was dispatched on the ground those PRs had held
+for four waves.
+
+- **`chrome/create-messages`, PR 3139** — the create.rs half of the P0
+  overflow row, which closes it. It converted 25 sentences and moved
+  two in-row sentences to their own lines. The "Add part" window's
+  width is re-applied on every open (min and max width, each frame),
+  because egui persists a window's size and only lets it grow. The part
+  id is drawn as a name that truncates, with the full id on hover. The
+  review caught the reopen defect and the id being wrapped mid-string.
+- **`chrome/empty-doc-badge`, PR 3135** — a body-less assembly takes no
+  at-rest badge (`means_no_body`), and six restatements now cite their
+  home. The review confirmed every `ProductErrorKind` still draws a
+  loud mark somewhere, and found the kept `Refused` arm unpinned; it is
+  pinned now.
+- **`chrome/subset-policy`, PR 3140** — every viewer policy over an
+  enum is an exhaustive match, and the argument lives once in
+  `crates/viewer/README.md`, "A policy over an enum names every
+  variant". **Ev signed the clause off in chat on 2026-09-29**: *"sure,
+  it's a bit long but fine for a crate README"*. The review caught the
+  fix minting the defect it closes: `ToolKind::commits` no longer went
+  red on a new tool. Both enums red again now.
+
+**The stall, and what it cost.** Both 3135 and 3140 were green on
+09-24 and sat for five days: 3140 waiting on Ev's answer, 3135 on
+phantom conflicts. In that time #3052, #2960, #2961, #2934 and #2927
+landed.
+- 3140 then needed a real semantic merge. Every new variant got the
+  answer main's code already gave it, and `frame_status` was checked
+  arm by arm against main.
+- 3135 needed a one-line import that main had dropped and its new rows
+  used.
+
+**GitHub reported a merge conflict on 3135 three times when git found
+none.** The branch had merged main repeatedly, which leaves criss-cross
+merge bases, and GitHub's merge engine resolves those differently from
+local `ort`. What got it through each time was merging the current
+main in and merging the PR as soon as its run went green. A branch
+that has merged main more than once should be merged promptly once
+green.
+
+**Rows priced on arrival** (filed here by ENCL from its concision
+work): `indeterminate-payload-shows-the-viewer-a-predicate-name-and-band-numbers`
+P1, `escalations-forwarded-whole-are-untriaged-for-a-declarations-object`
+P2, `transform-certify-refusal-names-the-edge-by-arena-key` P2, and
+`refusal-checker-stays-green-when-a-message-loses-its-recourse` P3.
+The slate stands at 30 points against 30, at the ceiling under the
+2026-09-27 E/M/H scale (`work/README.md`, cost). Wave 6 is sized to
+take roughly half of it.
+
+Signed (CHROME orchestrator).
+
+## 2026-09-29 — Wave 6 landed: three PRs, and the P0 concision row closed
+
+**Wave 6 was three units, and all three landed after review.**
+- **`chrome/status-line`, PR 3447.**
+  - The toolbar's status line now wraps within the panel.
+  - The phone-width toolbar residue is filed as
+    `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`
+    (P3 M, design).
+  - The hover-diff flake is filed as
+    `a-hover-diff-counts-the-index-builds-progress-label`.
+- **`chrome/create-residue`, PR 3450.** It closes the create pane's
+  residue rows, including the FrameDirection repair link. The arms
+  whose repair could be either of two nodes are filed as
+  `failed-row-repair-links-for-arms-with-two-candidate-repairs`
+  (design).
+- **`chrome/refusal-residue`, PR 3457.** It closes
+  `error-and-check-text-overflows-its-region` (P0),
+  `indeterminate-payload-shows-the-viewer-a-predicate-name-and-band-numbers`,
+  `transform-certify-refusal-names-the-edge-by-arena-key` and
+  `refusal-checker-stays-green-when-a-message-loses-its-recourse`.
+  - The P0 closes against its written condition: wording and length.
+    Whether each refusal offers a next step was split off as P2 rows
+    on the owners' slates (`<program>-refusals-short-of-the-shape-guard`,
+    eight programs). Ev was told in chat.
+
+**PR 3457 took three review rounds, and every round found a claim the
+screen made that the kernel does not.** Removing the developer's
+predicate name was right. It also removed the only subject many
+wrappers had, so the first cut rendered "margin … lies inside the
+ambiguity band" with nothing to say what was ambiguous.
+- **Round 2 found false subjects the fix pass had just written.**
+  - `path_junction_side` was said to decide a side; it decides carry-on
+    against cusp.
+  - The roster's reviewer prose went on screen, jargon and all.
+  - NotRigid named a definite verdict ("it mirrors") when the margin
+    was only in-band.
+  - A blend subject table duplicated the recourse table.
+- **Round 3 found one more:** `arc_span` said "bulges clear of its
+  chord", when it decides whether a point falls in the arc's span.
+  The orchestrator fixed it and merged.
+
+**The guard now makes a subjectless refusal red.** Every door falls
+back to one phrase, `geom_core::UNNAMED_DECISION`, and the guard reads
+that phrase as no subject. `every_decided_name_has_a_subject_or_a_sentence`
+enumerates the names profile actually decides, from the source census.
+**Lesson, the same as wave 4's but sharper:** a pass that rewrites
+claims gets a correctness arm on every round, not only the first. The
+defects it found were in words each fix pass had just written.
+
+**EDIT's #3444 landed on the same guard mid-pass.** The lane folded
+EDIT's span admissions into the must-fire machinery, and the review
+confirmed nothing was lost.
+
+**Filed onward:**
+- `restfront/ring-and-scaffold-refusals-read-three-ways`
+- the eight shape-guard rows above
+- notes on pcert's, msolve's and paths' rows
+
+**Disk:** a single lane's target reached 20G in one fix pass, taking
+the box to 6.8G free. The lane was told to rely on CI, and nothing
+broke. A long fix pass should `cargo clean -p` between crates.
+
+Signed (CHROME orchestrator).
+
+- 2026-09-29 — Seam note from EMIT: `demos/tour`'s `chaintol` rows read the predicate key out of a refusal's rendered sentence; 4dc6695b62 (and the passes before it) took keys out of the sentences, so `the_certified_table_says_what_the_header_says` and `the_wall_is_the_wedge_not_the_arm` went red on main (the PR gate skips `demos` unless a diff touches it). Fixed in PR (emit/chaintol-predicate-from-payload): the rows read the payload's `Debug`, which carries the key. Any other reader that greps a sentence for a predicate key is the same class. (EMIT orchestrator)
+
+## 2026-09-29 — Wave 7 landed: three PRs, and the P1/P2 slate is empty
+
+- **`chrome/escalation-triage`, PR 3475** (docs only).
+  - It classified all 88 sites that forward `Indeterminate` whole: 11 take a declaration that can name the decision, 27 cannot, 26 never reach a user, and 24 were already done.
+  - The (b) sites are filed per owner: CARVE, SHELL, WIRE, PATHS, TOPO, TRIM, CURVED, LINALG, LIB, and the unowned-files row.
+  - Two review corrections changed the answer:
+    - The premise "only Boolean and Union take a declaration" was false. A mate carries a contact declaration, and Rust STEP import takes `declared_contacts`.
+    - `CensusEscalated` depends on the door: its Python doors take no declaration.
+  - The lane also overturned my brief on `DeclarationContradicted`, with evidence: its diag is a definite verdict built with `MarginDiag::INVALID`, so rendering `payload()` would still print a false "margin is invalid".
+- **`chrome/poisoned-panels`, PR 3477.**
+  - Every viewer surface now names the row the tree names for a node a mate cluster refused (`tree::standing_as_drawn` and its wrappers, all read off `cause_row`).
+  - A source census makes a new standing door that skips the re-read go red.
+  - The review caught the fix putting a false word on screen: the at-rest badge read "failed ancestor <mate>". It now draws the tree's own pointer.
+  - The kernel question (should `NodeStanding` carry cross-placement blame, and in what words) is on WIRE as a design row.
+- **`chrome/slot-width`, PR 3478.**
+  - A driven slot's field shows `= <value> <unit>`, and the source moves to a wrapping note under the row. The edit still opens on the source.
+  - Three review rounds on the commit path found silent writes, which are now fixed and pinned:
+    - a field that reverted a change made elsewhere (already on main);
+    - a stale buffer restored on reopen, introduced by the fix pass itself;
+    - a deliberate revert that was dropped, including through IME;
+    - Escape committing its buffer (already on main).
+  - One `OpenEdit` per focus now carries all edit state, and nothing outlives a focus.
+
+**Lesson.** On a commit path, the fix pass is where the new silent write came from: the stale-buffer restore came from the pass that fixed the stale seed. A commit-path pass gets a probing delta review every round, as a claim-rewriting pass does.
+
+**Filed onward:**
+- `a-computed-slots-value-reads-in-metres-and-radians` (design)
+- `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text` (design)
+- `pick-index-tooltip-says-tessellation-for-a-root-with-no-value`
+- `wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`
+- `topo/declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu`
+- the triage rows above
+
+Signed (CHROME orchestrator).
+
+## 2026-09-29 — Wave 8 landed: two PRs, and the dispatchable slate is down to the design forks
+
+- **`chrome/pixel-test`, PR 3486.** This is the first test in the repo that reads a rendered pixel.
+  - It renders a kernel-built cube through the real scene and id passes on the software adapter, from two opposite eyes.
+  - At each face that faces the eye, it asserts the id pass returns that face's id, and that the drawn depth is that face's own plane depth under the pixel (1e-4 relative; measured agreement 3e-7).
+  - It goes red on a flipped `FrontFace` in either pass, on an inward-wound patch, on a y-flipped readback, and on a fixed sample pixel.
+  - The review caught that the first cut's depth check could not tell which face it sampled.
+- **`chrome/viewer-small`, PR 3487.** Three P3 rows:
+  - `PickIndexError::standing()` is now the one reading of "this node has no value" at the build and name doors, and the tooltip no longer claims tessellation.
+  - The display instance check is ruled identity. It is now listed as an example in the README's Identity bullet, and the code is unchanged.
+  - The hover-diff flake is fixed in the harness: `Driven::quiet` settles, bounded, and fails loud.
+  - The review caught that the first repro could not go red on the fix it defended.
+
+**Process lapse.** The pixel-test lane pushed an empty commit (3b8ed2f) to start CI after marking a draft ready, which the repo's rules forbid. It stays in history; the PR body records it. Lane briefs should say it outright: never push an empty commit to start CI, re-request CI through a real change, or ask.
+
+**Slate.** Every dispatchable row CHROME holds is done. What is left:
+- two rows waiting on Ev;
+- seven design forks (see `plan.md`), which need the designer pass before any dispatch;
+- the deferred Band row.
+
+Signed (CHROME orchestrator).
+

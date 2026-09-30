@@ -25,36 +25,20 @@
 //! typed refusal naming its kind, not a silent first-element pick.
 
 use editor_core::{
-    BooleanValue, Evaluation, NodeResult, ProductError, ProfileDoc, RecipeNodeId, ValuePayload,
+    BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, ValuePayload,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
 
 /// Why [`step_for_node`] refused. Fail-loud and typed, D2-style; the
-/// evaluation-side arms carry the ids to ask the caller's own
-/// [`Evaluation`] for the payload (`NodeFailed`/`Poisoned` root causes
-/// are one [`Evaluation::node_error`] call away — the error type does
-/// not clone the kernel's non-`Clone` refusals to repeat them here).
+/// standing carries the ids to ask the caller's own [`Evaluation`] for
+/// the payload (a failure's root cause is one
+/// [`Evaluation::node_error`] call away — the error type does not
+/// clone the kernel's non-`Clone` refusals to repeat them here).
 #[derive(Debug)]
 pub enum ExportError {
-    /// The id has no entry in this evaluation (never scheduled, or
-    /// past a cancelation's completed prefix).
-    UnknownNode {
-        /// The id that was asked for.
-        node: RecipeNodeId,
-    },
-    /// The node itself failed to evaluate.
-    NodeFailed {
-        /// The failed node.
-        node: RecipeNodeId,
-    },
-    /// The node never ran: an ancestor failed.
-    Poisoned {
-        /// The poisoned node.
-        node: RecipeNodeId,
-        /// Its nearest failed ancestor.
-        through: RecipeNodeId,
-    },
+    /// The node has no value in this evaluation.
+    Standing(NodeStanding),
     /// The node's value is not a single body (`profile`, `datum`,
     /// `split`, `instances`, ...).
     NotABody {
@@ -84,21 +68,7 @@ pub enum ExportError {
 impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { node } => {
-                write!(f, "export: node {} has no entry in this evaluation", node.0)
-            }
-            Self::NodeFailed { node } => write!(
-                f,
-                "export: node {} failed to evaluate (ask \
-                 `Evaluation::node_error` for the typed cause)",
-                node.0
-            ),
-            Self::Poisoned { node, through } => write!(
-                f,
-                "export: node {} never ran — poisoned through failed \
-                 ancestor {}",
-                node.0, through.0
-            ),
+            Self::Standing(standing) => write!(f, "export: {standing}"),
             Self::NotABody { node, kind } => {
                 write!(
                     f,
@@ -137,19 +107,7 @@ pub fn step_for_node(
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    let result = evaluation
-        .result(node)
-        .ok_or(ExportError::UnknownNode { node })?;
-    let value = match result {
-        NodeResult::Ok(value) => value,
-        NodeResult::Failed(_) => return Err(ExportError::NodeFailed { node }),
-        NodeResult::Poisoned { through } => {
-            return Err(ExportError::Poisoned {
-                node,
-                through: *through,
-            });
-        }
-    };
+    let value = evaluation.usable(node).map_err(ExportError::Standing)?;
     let body = match &value.payload {
         ValuePayload::Body(body) => body,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,

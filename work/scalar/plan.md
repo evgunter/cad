@@ -92,6 +92,7 @@ the programs named. Full v6 dual on every unit; Fable specs on RING-2
 | RING-2 | `RingInterval` = newtype over `DInterval`, poison = `dec < Def`, surface kept as inherent methods; every certificate re-pinned with the cause named; INSTR's `tess-budget-data` re-taken | **H** | PROPS (`ring_interval.rs`, `props/*`, `offset_fit.rs`, `patch_bound.rs`, `spline/*`, `geom/src/*`), TRIM (`pcurve_cache.rs`), MESH (`chords.rs`, `nurbs_cert.rs`), SHELL (`offset_meters.rs`), INSTR, the unowned `topo/src/props.rs` and `ssi/*`; TCOST/TINT for the 36 test files | **yes** — Fable spec |
 | RING-3 | the newtype dissolves into `Interval`: the ring's refusal surface lands on `Interval` as named doors with the ring's bodies, `!is_certified()` the predicate, `from_certified` to a sole `CertifiedBounds` bound so `crossing_bracket` goes; `Enclosure`, its blanket impl and DL4's `Enclosure` plants deleted; the endpoint census re-keyed; C9 and DL4 re-written (Ev's text — `[ev]` PR); 829 `src` refs in 25 files (survey 2026-09-24) | M | PROPS, SSI, ENCL/OFFSET/SHELL, CHORD+TESS, GUARD, TCOST/TINT, the unowned `topo/src/props.rs`, Ev | no (bit-preserving, refusal-preserving) |
 | RING-4 | the `interval` feature deleted (fail-loud): ~69 code cfg sites, ~251 gated test files, 16 manifests; CI's lane axis collapsed onto the interval lane, backend and oracle jobs kept; Q1, `DESIGN.md:266`, C9's feature sentence, `GUI-DESIGN.md` re-worded (Ev's text — `[ev]` PR); a cost gate first (split from RING-3's row by the orchestrator, 2026-09-24) | M | CIW, TCOST/TINT, MIRROR, GUARD, LIB/BIND, CLEAR/PROPS/EDIT/STACK/WIRE, CHROME, Ev | no |
+| RING-5 | the certification doors → a sealed extension trait `geom_core::interval::certification::Certification` imported by path; `poison` → `refused`; `from_certified`/`is_certified` stay inherent; gate `certification-doors.sh` on the importers (no `Real`, globs, evaluation hull, `.is_poison(`); `quad_lane` and `probe_tube_chart`'s certification tail separated by pure moves; census re-keyed; C9 re-worded (Ev's text) | M | PROPS, SSI, QUAD, ENCL/OFFSET/SHELL, CHORD+TESS, TCOST/TINT, GUARD, unowned `topo/src/props.rs`, `geom-brep/README.md` | no (bit-preserving) |
 | LANE-1 | `PropsQuadLane` deleted: `mass_properties`/`classify_shells*` at `Decide + CertifiedBounds` naming `quad_lane::cut_face`, `mass_properties_closed_form` public, the `_structural` twins take the hook's `None`; `datum_lo` → `Bounds::lo`; the identity test deleted | M | TOPO, unowned `props.rs`, LIB (`pncad-py`, prelude), demos, TINT | no |
 | LANE-2 | `ChartRegionLane` → `Option<RegionLane>` on `census_and_certify` … `pair_region_verified`; the certified twins supply the door | M | CURVED (`census.rs`), TOPO, unowned `chart_region.rs` | no |
 | LANE-3 | `ShellLane` folded into `AtRestPolicy`; DL3's wording moves (a re-wording, not a decision) | E | WIRE, PROPS | no |
@@ -106,6 +107,29 @@ LANE-3, LANE-4 last (it collides with every open lane on the booleans,
 blend and wire ground). The editor-core six (`Lane`, `MinClearanceLane`,
 `SectionScalar`, `AxisScalar`, `SeedScalar`, `ChartCoherenceLane`) are a
 census row on WIRE's and PROPS' slates, not SCALAR units.
+
+## The residue slate (2026-09-29)
+
+H5 is closed: every unit of its plan is on main. What remains is
+residue the units filed, triaged against main at `09f4b2c8c3`, where
+`ring-2-red-rows-…` and `ring-nan-poison-…` closed as moot (RING-2,
+PR 3032). The units below are ordered by what each unblocks, and none
+collides with another on a file.
+
+| unit | rows it carries | class · review tier | ground |
+| --- | --- | --- | --- |
+| SCALAR-HYGIENE | `door-wiring-rows-justification-written-four-times`, `quad-lane-formation-sites-in-its-own-module-are-unpinned`, `rustc-suggests-importing-real-in-a-certification-file`, `certification-gate-gaps-3-and-5-have-no-follow-up` (GAP 5 guarded; GAP 3 recorded as the consequence of Ev's RING-3 choice of no certification newtype), `fitted-lane-refusal-text-omits-symbolic-and-cites-a-retired-hull`, `ring-3-residue-outside-its-fence` (every bullet but the CURVED spiric one and the "C9-ring class" meaning, which go to their owners), `tracker-rows-cite-the-deleted-pcurve-fitted-lane-trait` | E · orchestrator's read (mechanical: prose, a guard row, a source-literal row) | GUARD, PCERT, CHART, GERM/REACH/TANG, RESTFRONT, CONTACT, CIW, unowned `props.rs`/`fitted_lane.rs`/`offset_fit_lane.rs`, six programs' tracker rows |
+| CERT-NAMES | `public-ring-names-spell-the-retired-type`, `certification-refusal-still-called-poison-outside-the-importers` | M · single review (≈300 sites; the classification certification-refusal vs evaluation-poison is judgement per hit, and a pinned message may move) | NURBS, PROPS, SSI, ENCL, EXCH, CHORD, TCOST/TINT |
+| CERT-DIFF | `certification-doors-have-no-differential` | M · single review (an independent reference per door is the whole content) | TCOST/TINT (`crates/geom-core/tests/`) |
+
+Held:
+- **`fitted-door-and-scalar-name-travel-as-a-pair-by-convention`**
+  (M, design: true). The bundle's shape is a design question, weighed
+  by the designer pair before a lane builds it. It is P4, so it
+  follows the three units.
+- **`ab-sample-230-claimed-twice-on-main-and-branch-side`** is Ev's.
+  The numbering rule binds a suspended protocol, and parking it until
+  reinstatement is one answer.
 
 ## Order
 

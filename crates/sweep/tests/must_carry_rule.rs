@@ -644,7 +644,7 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
 /// fixtures and not a theorem about the verbs: a door that minted a
 /// `Nurbs` wall on some OTHER profile would reach the rule out of lane
 /// and leave this row green. Making that mechanical needs a hook into
-/// the `FaceSurface::New(Surface::…)` mint sites that no test has.
+/// the `FaceSurface::New { surface: Surface::…, .. }` mint sites that no test has.
 #[test]
 fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
     for (name, body) in [

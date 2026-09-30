@@ -99,6 +99,7 @@ use pncad::select::{
     ContactClass, InterrogateError, Resolution, RoleSeg, RunCtx, face_frame, resolve,
 };
 
+use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
 
 /// One contact class and how far the vocabulary carries it — the
@@ -264,7 +265,13 @@ pub enum MateToolError {
     },
     /// A picked face's frame could not be derived — the interrogation
     /// door's own refusal (an unresolved name, an N2 tie, a NURBS
-    /// face with no canonical frame), unaltered.
+    /// face with no canonical frame), with a node that has no value
+    /// named as the feature tree names it
+    /// ([`crate::tree::interrogation_as_drawn`]).
+    ///
+    /// Its `through` may be a mate, which is not the DAG ancestor
+    /// `NodeStanding` documents
+    /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
     Frame {
         /// Which pick.
         side: MateSide,
@@ -425,8 +432,13 @@ pub enum MateToolEvent {
         side: MateSide,
         /// The pick that was held.
         pick: FaceSelection,
-        /// The resolution machinery's own verdict (boxed for the same
-        /// width reason `Standing` boxes it).
+        /// The resolution machinery's own verdict, read as the feature
+        /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
+        /// for the same width reason `Standing` boxes it.
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         resolution: Box<Resolution>,
     },
 }
@@ -533,8 +545,9 @@ impl MateTool {
     ) -> Vec<MateToolEvent> {
         let mut events = Vec::new();
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
-            let verdict = resolve(RunCtx { doc, eval }, &pick.name);
-            if matches!(verdict, Resolution::Resolved(_)) {
+            let verdict =
+                crate::tree::resolution_as_drawn(resolve(RunCtx { doc, eval }, &pick.name), eval);
+            if resolves(&verdict) {
                 false
             } else {
                 events.push(MateToolEvent::PickLost {
@@ -599,10 +612,16 @@ impl MateTool {
         // refuses before any geometry is read, with the kernel's own
         // sentence.
         let admission = class_admission(choice.class);
-        if admission == ClassAdmission::NotAdmitted {
-            return Err(MateToolError::ClassRefused {
-                class: choice.class,
-            });
+        match admission {
+            ClassAdmission::NotAdmitted => {
+                return Err(MateToolError::ClassRefused {
+                    class: choice.class,
+                });
+            }
+            // The solve door takes both; a missing at-rest record is
+            // the mint door's refusal and the tree's caveat, not this
+            // door's.
+            ClassAdmission::Mints | ClassAdmission::NoAtRestRecord { .. } => {}
         }
         // The table door SECOND, still before any geometry: a
         // primitive-and-rider pair the table has no row for is a fact
@@ -633,8 +652,11 @@ impl MateTool {
             // node `read` is headed at and the node whose placement
             // pulls the pose back, so the pose and the placement
             // cannot come from different nodes.
-            let pose = face_frame(eval, member.instance, read)
-                .map_err(|error| MateToolError::Frame { side, error })?;
+            let pose =
+                face_frame(eval, member.instance, read).map_err(|error| MateToolError::Frame {
+                    side,
+                    error: crate::tree::interrogation_as_drawn(error, eval),
+                })?;
             let u_ref = pose.u_ref.ok_or(MateToolError::NoReference { side })?;
             let placement: Frame = poses
                 .placement(doc, member.instance)

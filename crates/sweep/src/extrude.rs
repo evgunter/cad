@@ -23,8 +23,8 @@
 //!    then one side-quad `mef` per segment (the new edge is the **top
 //!    rim**, `PlacedSegment` at the translated placement; the new face
 //!    is the side wall, plane or cylinder — a CONCAVE arc's wall is
-//!    attached `sense: false`, M5 S11: its material lies outside the
-//!    carrier, against the chart normal), the last `mef` closing
+//!    minted `sense: false`: its material lies outside the carrier,
+//!    against the chart normal), the last `mef` closing
 //!    against the first top rim. The original loop survives
 //!    translated by `w` — the swept face becomes the top cap.
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
@@ -373,7 +373,7 @@ impl From<EulerOpError> for ExtrudeError {
 /// reaching any of them.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct WallSeg<T: Real> {
-    /// The swept traversal record: endpoints, bulge, carrier class and
+    /// The swept traversal record: endpoints, carrier class and
     /// canonical indices, all in swept traversal order.
     pub(crate) chord: swept::SweptSeg<T>,
     /// The wall face's orientation sense (M5 S11): `false` iff the
@@ -432,9 +432,6 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     }
     fn b(&self) -> Point2<T> {
         self.chord.b
-    }
-    fn bulge(&self) -> T {
-        self.chord.bulge
     }
     fn kind(&self) -> SweptKind<T> {
         self.chord.kind
@@ -582,7 +579,7 @@ pub fn extrude<T: Decide>(
     // check below is what the door pays, and it subsumes tier 1.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0])?;
+    let seed = body.mvfs(qs[0], true)?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
         MevSite::Lone {
@@ -627,7 +624,12 @@ pub fn extrude<T: Decide>(
             he2: first.he_plus,
         },
         placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
-        FaceSurface::New(bottom_plane),
+        // Newell over the loop the cap runs: its normal is the cap's
+        // outward normal, so the material agrees with the chart.
+        FaceSurface::New {
+            surface: bottom_plane,
+            sense: true,
+        },
         tol,
     )?;
     hes.push(close.he_plus);
@@ -679,13 +681,17 @@ pub fn extrude<T: Decide>(
         }
         // Close the hole cycle: the ring keeps the forward chain; the
         // new face is the transient disc, on the bottom cap's plane.
+        // `kfmrh` kills it at once, and nothing reads its bit.
         let close = body.mef(
             MefSite::Chords {
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
             placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
-            FaceSurface::Shared(bottom_surface),
+            FaceSurface::Shared {
+                key: bottom_surface,
+                sense: false,
+            },
             tol,
         )?;
         hole_hes.push(close.he_plus);
@@ -719,7 +725,13 @@ pub fn extrude<T: Decide>(
         .collect();
     let top_plane =
         newell_plane(&far_loop, band).map_err(|source| ExtrudeError::CapPlane { source })?;
-    let top_surface = body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+    let top_surface = body.set_face_surface(
+        top_face,
+        FaceSurface::New {
+            surface: top_plane,
+            sense: true,
+        },
+    )?;
 
     // ---- Phase 6: rim upgrades (module docs — the ratified rim
     // decision). Both cap planes now exist, so every cap–wall rim edge
@@ -877,17 +889,6 @@ fn sweep_loop<T: Decide>(
         )?;
         if j == 0 {
             first_top = Some(mef.he_plus);
-        }
-        // The honest orientation bit (M5 S11): a concave arc's wall
-        // has its material OUTSIDE the carrier cylinder, so the chart
-        // normal (unconditionally the outward radial) points into the
-        // solid and the face's sense is `false`. Decided at
-        // classification time from the profile's stored winding
-        // ([`WallSeg::wall_sense`]); attached here because `mef`
-        // cannot know the material side (it sees chords, not the
-        // profile).
-        if !segs[j].wall_sense {
-            body.set_face_sense(mef.face, false)?;
         }
         faces.push(mef.face);
         top_rims.push(mef.edge);
@@ -1098,7 +1099,10 @@ struct LoopSwept {
 /// `u_ref` comes from segment 0, the run's first segment in sweep
 /// order; otherwise a freshly built plane (Newell over the quad corners
 /// in loop order — outward by the orientation contract) or cylinder
-/// (turn-signed axis, crate docs).
+/// (turn-signed axis, crate docs). Every arm states the segment's
+/// [`WallSeg::wall_sense`]: a concave arc's wall has its material
+/// outside the carrier cylinder, against the outward-radial chart
+/// normal.
 #[allow(clippy::too_many_arguments)] // one internal call site (see sweep_loop).
 fn side_surface<T: Decide>(
     body: &Body<T>,
@@ -1115,11 +1119,12 @@ fn side_surface<T: Decide>(
     tol: Tol,
 ) -> Result<FaceSurface<T>, ExtrudeError> {
     let n = segs.len();
+    let sense = segs[j].wall_sense;
     if j > 0 {
         // The prev join: segment j continues segment j − 1's carrier.
         if pair[j] {
             let key = face_surface_key(body, faces[j - 1])?;
-            return Ok(FaceSurface::Shared(key));
+            return Ok(FaceSurface::Shared { key, sense });
         }
         // The wrap run: segments j, j+1, …, n−1 chain onto segment 0
         // through the wrap join (`pair[0]`), so segment j belongs to
@@ -1128,7 +1133,7 @@ fn side_surface<T: Decide>(
         // the plain wrap join.)
         if pair[0] && ((j + 1)..n).all(|k| pair[k]) {
             let key = face_surface_key(body, faces[0])?;
-            return Ok(FaceSurface::Shared(key));
+            return Ok(FaceSurface::Shared { key, sense });
         }
     }
     match segs[j].chord.kind {
@@ -1141,12 +1146,16 @@ fn side_surface<T: Decide>(
                 segment_index: segs[j].chord.canonical_segment,
                 source,
             })?;
-            Ok(FaceSurface::New(plane))
+            Ok(FaceSurface::New {
+                surface: plane,
+                sense,
+            })
         }
         SweptKind::Arc {
             center,
             radius,
             turn,
+            ..
         } => {
             // The carrier axis line is the arc's center extruded:
             // `place · (center, 0)` — the same computation the rim
@@ -1164,12 +1173,15 @@ fn side_surface<T: Decide>(
             // wall's `u_ref` is built from the same lamina vertex and
             // the same extruded center (`swept::register_rim_identity`).
             crate::swept::register_rim_identity(rim, radius, tol);
-            Ok(FaceSurface::New(Surface::Cylinder {
-                origin: c_world,
-                axis: turn_axis(turn, normal),
-                radius,
-                u_ref: rim.normalize(),
-            }))
+            Ok(FaceSurface::New {
+                surface: Surface::Cylinder {
+                    origin: c_world,
+                    axis: turn_axis(turn, normal),
+                    radius,
+                    u_ref: rim.normalize(),
+                },
+                sense,
+            })
         }
     }
 }
@@ -1178,7 +1190,7 @@ fn side_surface<T: Decide>(
 /// witness }` (module docs, step 6 — the ratified rim decision). The
 /// witness is minted as the **carrier's mid-parameter point** — the S2
 /// witness contract (`WitnessMidpoint`): for arc rims the chord
-/// midpoint lies off the carrier by the bulge height, so `carrier(mid)`
+/// midpoint lies off the carrier by the sagitta, so `carrier(mid)`
 /// is the only honest mint (for line rims it coincides with the chord
 /// midpoint to rounding). The certified carrier and parameter interval
 /// are kept verbatim; the re-description goes through `topo`'s

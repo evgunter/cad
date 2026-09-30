@@ -30,7 +30,7 @@ neither door.
 
 **The bound cannot simply be raised.** `graft_solids_with` is
 `T: geom_core::Decide` and sits under `boolean_op_with`, which
-`verbs::Verb`'s `impl<T: Decide + Bounds + geom_brep::PcurveFittedLane>`
+`verbs::Verb`'s `impl<T: Decide + Bounds + topo::AtRestPolicy>`
 block runs and the dual corpus instantiates at `Dual64`
 (`crates/editor-core/tests/r1_dual_probes.rs`). No `Dual` implements
 `geom_core::CertifiedEnclosure`, so tightening this chain to

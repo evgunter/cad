@@ -415,8 +415,12 @@ pub enum MergeCoplanarError {
     /// declaration contradicts the geometry; refused loudly, never
     /// glued (M4 PR 5; `plane_eq` rung 2's verification direction).
     DeclarationContradicted {
-        /// The contradicting predicate's diagnostics.
-        diag: Indeterminate,
+        /// The fact that contradicted the declaration: `PlanesNotParallel`
+        /// or `PlanesApart`, the two the declared plane rung raises. The
+        /// field keeps the rung's own type (`PlaneEqError` is
+        /// `CarrierEqError`), which a narrower one would convert from
+        /// fallibly at the one raise site.
+        fact: crate::boolean::Contradiction,
     },
     /// A declared face pair meets with OPPOSITE orientations at a
     /// shared edge — no valid closed solid merges such a pair; the
@@ -557,10 +561,12 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: invalid declared pair at surface {surface:?}: {what}"
             ),
-            Self::DeclarationContradicted { diag } => write!(
+            Self::DeclarationContradicted { fact } => write!(
                 f,
-                "merge_coplanar_faces: declared coincidence contradicts the geometry ({diag}) \
-                 — fix the declaration or the geometry, the op never glues a lie"
+                "a declared coincidence contradicts the geometry: {}, and the merge never \
+                 glues a lie. {}",
+                fact.fact(),
+                crate::contact::CONTRADICTION_RECOURSE
             ),
             Self::DeclaredOppositeOrientation { f1, f2 } => write!(
                 f,
@@ -855,10 +861,10 @@ impl EstablishedFact {
 /// | `strut_tip` | `OrbitBroken` |
 /// | `loop_winding`, through `merged_outline_ring` | `StaleKey` |
 /// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
-/// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
-/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `SelfLoopEdge` (C) |
+/// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `OrbitBroken`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
+/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `StaleKey`, `StaleGeometry`, `LoopNotCycle`, `LoopNotEmpty`, `LoopCycleBroken`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
-/// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
+/// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `OrbitBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
 ///
 /// The `mekr_chord` row and the `kev` after it run only on a planar
 /// survivor, which refuses the call whatever it raises, so where those
@@ -927,6 +933,9 @@ impl OpPlacement {
             | E::Certification { .. }
             | E::RebasedCarrier { .. }
             | E::RebasedNullEdge { .. }
+            | E::MergeRebasesCarriers { .. }
+            | E::NotMergedMember { .. }
+            | E::DuplicateRedescription { .. }
             | E::DescriptionNotAdjacent { .. }
             | E::FanStartMismatch { .. }
             | E::FanOrbitBroken { .. }
@@ -938,11 +947,13 @@ impl OpPlacement {
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
             | E::PcurveSplit { .. }
+            | E::PcurveMint { .. }
             | E::CrossSolid { .. }
             | E::NoShellsNamed
             | E::ShellRepeated { .. }
             | E::ShellsAcrossSolids { .. }
-            | E::SolidWouldEmpty { .. } => Self::TheEnumsVerdict,
+            | E::SolidWouldEmpty { .. }
+            | E::SenseContradictsChart { .. } => Self::TheEnumsVerdict,
         }
     }
 }
@@ -1068,7 +1079,7 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
-        T: geom_brep::PcurveFittedLane,
+        T: crate::props::AtRestPolicy,
     {
         self.merge_coplanar_faces_declared(&[], tol)
     }
@@ -1193,7 +1204,7 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
-        T: geom_brep::PcurveFittedLane,
+        T: crate::props::AtRestPolicy,
     {
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
@@ -1425,9 +1436,9 @@ impl<T: Decide> Body<T> {
         // refusal keeps the untouched-on-error contract.
         //
         // LATENT (named, not reachable by any current path): the mint
-        // pass carries the `PcurveFittedLane` bound since PCURVE P-2
-        // (#498) and mints U2's `General` arm through it, but the
-        // FITTED variant itself still has no mint site, so a `Fitted`
+        // pass holds the fitted door (`AtRestPolicy::fitted_lane`) and
+        // mints U2's `General` arm through it, but the FITTED variant
+        // itself still has no mint site, so a `Fitted`
         // cache (at rest since M6-2) on a merged body would still come
         // back as the mint pass's honest-skip — the face legally
         // UNCACHED, its fitted certificate silently dropped. What is
@@ -1734,12 +1745,12 @@ impl<T: Decide> Body<T> {
         ))
     }
 
-    /// The F6 ladder's merge test (M4 PR 5, the N6 retirement): same
-    /// surface key (structural), same [`crate::GeomSource`] including
-    /// orient (declared — shared recipe source, syntactic identity,
-    /// zero numerics), or the pair's surfaces are declared-equivalent
-    /// by this call's face pairs (verified through `plane_eq`'s
-    /// declared rung at the meeting edge; contradiction refuses).
+    /// The F6 ladder's merge test: the recipe declared the two faces'
+    /// surfaces one ([`crate::source::surface_declaration`] — same key
+    /// or same [`crate::GeomSource`], zero numerics) and the faces share
+    /// a `sense`, or the pair's planes are declared-equivalent by this
+    /// call's face pairs (verified through `plane_eq`'s declared rung
+    /// at the meeting edge; contradiction refuses).
     ///
     /// The M3-era rung — bit-identical nine-scalar descriptions — is
     /// RETIRED from production: equal bits without shared source stay
@@ -1749,8 +1760,8 @@ impl<T: Decide> Body<T> {
     /// here by design* — the declared-pair verification only checks
     /// the declaration is not a lie; the INTENT does the gluing.
     ///
-    /// Non-plane surfaces never merge, same-key included (curved
-    /// maximality is M5's).
+    /// The declared hard rungs merge any kind; the declared-pair rung
+    /// is planar.
     ///
     /// **Shared sense is a precondition of every rung** (S10). Two
     /// faces on one surface whose `sense` bits differ have OPPOSITE
@@ -1787,46 +1798,21 @@ impl<T: Decide> Body<T> {
         // conclude the faces are one region. Falling through leaves
         // the declared rung to refuse loudly if the pair was declared.
         let same_sense = face1.sense == face2.sense;
-        // The hard rungs are KIND-AGNOSTIC since M5 PR 9 (C12.5, the
-        // cosurface generalization): the same-key and same-source
-        // tests never touch a numeric coordinate, so nothing about
-        // them was planar — the M3-era "curved same-key neighbors
-        // stay unmerged" note flips here, with the same ladder, the
-        // same never-numeric rule, and N3 naming semantics unchanged.
-        // The named consumer: the boolean zip's re-merge of a
-        // cylinder wall split by a through cut.
-        if k1 == k2 && same_sense {
-            return Ok(true); // structural
-        }
-        // Declared rung, N6 form: same recipe source INCLUDING orient
-        // — a provenance lookup, no numerics (M4's GeomSource
-        // retirement consumed, NOT bit_identity). The debug assertion
-        // is DESIGN.md's "records agree with bits", stated for the
-        // planar kind where the bit predicate exists.
-        if same_sense
-            && let (Some(g1), Some(g2)) = (self.surface_source(k1), self.surface_source(k2))
-            && g1 == g2
-        {
-            // Asserted only where the scalar HAS a bit channel: the rung
-            // is the provenance lookup, the bits are its evidence, and a
-            // scalar with no channel (`Dual`, `Sym`) offers none —
-            // `None` there is not disagreement.
+        // The hard rungs are the declared-identity predicate
+        // (`crate::source`'s module docs): kind-agnostic, never numeric.
+        let declaration = crate::source::surface_declaration(self, k1, self, k2);
+        if same_sense && declaration.one_surface() {
+            // Asserted where the grouping's kind split will not refuse
+            // the pair typed, and only where the scalar HAS a bit
+            // channel: a scalar with no channel (`Dual`, `Sym`) offers
+            // no evidence, and `None` there is not disagreement.
             #[cfg(debug_assertions)]
-            if let (
-                Surface::Plane {
-                    origin: o1,
-                    normal: n1,
-                    u_ref: u1,
-                },
-                Surface::Plane {
-                    origin: o2,
-                    normal: n2,
-                    u_ref: u2,
-                },
-            ) = (s1.clone(), s2.clone())
-                && let Some(agree) = crate::source::plane_bits_witness(o1, n1, o2, n2, false)
-                    .zip(crate::source::vec3_bits_witness(u1, u2))
-                    .map(|(plane, u_ref)| plane && u_ref)
+            if declaration == crate::source::SurfaceDeclaration::SameSource
+                && matches!(
+                    (MergeKind::of(s1), MergeKind::of(s2)),
+                    (Ok(a), Ok(b)) if a == b
+                )
+                && let Some(agree) = crate::source::surface_bits_witness(s1, s2)
             {
                 debug_assert!(
                     agree,
@@ -1885,8 +1871,8 @@ impl<T: Decide> Body<T> {
                 }
                 // Unreachable through the declared rung; kept typed.
                 Ok(PlaneRelation::Distinct) => Ok(false),
-                Err(PlaneEqError::Contradicted(diag)) => {
-                    Err(MergeCoplanarError::DeclarationContradicted { diag })
+                Err(PlaneEqError::Contradicted { fact, .. }) => {
+                    Err(MergeCoplanarError::DeclarationContradicted { fact })
                 }
                 Err(PlaneEqError::Escalated(diag) | PlaneEqError::Undeclared { diag, .. }) => {
                     Err(MergeCoplanarError::Escalated { diag })
@@ -2561,8 +2547,14 @@ mod tests {
             .filter(|&k| k != top && k != half)
             .collect();
         for f in others {
-            body.set_face_surface(f, crate::euler::FaceSurface::New(flat_plane()))
-                .expect("a live face takes a surface");
+            body.set_face_surface(
+                f,
+                crate::euler::FaceSurface::New {
+                    surface: flat_plane(),
+                    sense: true,
+                },
+            )
+            .expect("a live face takes a surface");
         }
         assert_eq!(
             validate_closed(&body),
@@ -3262,8 +3254,14 @@ mod tests {
         assert_eq!(MergeKind::of(&poisoned_net()), Err(PoisonedNet));
         let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
-        body.set_face_surface(face, crate::euler::FaceSurface::New(poisoned_net()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            face,
+            crate::euler::FaceSurface::New {
+                surface: poisoned_net(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         assert_eq!(
             body.merge_kind(face),
             Err(MergeCoplanarError::PoisonedSurfaceDescription { face })
@@ -3292,11 +3290,20 @@ mod tests {
         let tol = Tol::witness();
         let mut body = declined_cube::<f64>(tol).body;
         let (first, second) = adjacent_pair(&body);
-        body.set_face_surface(first, crate::euler::FaceSurface::New(poisoned_net()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            first,
+            crate::euler::FaceSurface::New {
+                surface: poisoned_net(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         body.set_face_surface(
             second,
-            crate::euler::FaceSurface::Shared(surface_of(&body, first)),
+            crate::euler::FaceSurface::Shared {
+                key: surface_of(&body, first),
+                sense: true,
+            },
         )
         .expect("a live face takes a shared key");
         let named = body
@@ -3378,7 +3385,10 @@ mod tests {
             .expect("a cube has faces");
         body.set_face_surface(
             side,
-            crate::euler::FaceSurface::New(Surface::nurbs_placeholder()),
+            crate::euler::FaceSurface::New {
+                surface: Surface::nurbs_placeholder(),
+                sense: true,
+            },
         )
         .expect("a live face takes a surface");
         let outcome = body
@@ -3404,8 +3414,14 @@ mod tests {
     fn cube_with_one_described_face(tol: Tol) -> (Body<f64>, FaceKey) {
         let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
-        body.set_face_surface(face, crate::euler::FaceSurface::New(flat_plane()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            face,
+            crate::euler::FaceSurface::New {
+                surface: flat_plane(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         (body, face)
     }
 
@@ -3508,7 +3524,7 @@ mod tests {
     fn pillow_with_a_placeholder_cap(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
         let seed = body
-            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs has no preconditions");
         let seg = body
             .mev_line(
@@ -3528,8 +3544,14 @@ mod tests {
                 tol,
             )
             .expect("the chord closes a second face");
-        body.set_face_surface(split.face, crate::euler::FaceSurface::New(flat_plane()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            split.face,
+            crate::euler::FaceSurface::New {
+                surface: flat_plane(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         (body, seed.face, split.face)
     }
 
@@ -3586,17 +3608,16 @@ mod tests {
             group.contains("unmerged") && group.contains("run continues"),
             "a group's own gate says the run survives it: {group}"
         );
+        let contradicted = rendered(&MergeCoplanarError::DeclarationContradicted {
+            fact: crate::boolean::Contradiction::PlanesApart,
+        });
         assert!(
-            rendered(&MergeCoplanarError::DeclarationContradicted {
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::value(0.0),
-                    band: Band::linear(Tol::witness()).expect("the witness band"),
-                    predicate: Some("merge_declared_plane_eq"),
-                    terminal_sliver: false,
-                },
-            })
-            .contains("fix the declaration or the geometry"),
-            "the declared-pair contradiction carries its recourse"
+            contradicted.contains("the declared planes are parallel but apart")
+                && contradicted.ends_with(
+                    "Recourse: correct or remove the declaration, or move the geometry so it holds"
+                ),
+            "the declared-pair contradiction names its fact and ends on its recourse: \
+             {contradicted}"
         );
         let split = |other_kind| {
             rendered(&MergeCoplanarError::GroupKindSplit {
@@ -3703,9 +3724,15 @@ mod winding_arm_tests {
 
     fn tri(a: Point3<f64>, b: Point3<f64>, d: Point3<f64>, tol: Tol) -> Tri {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let surface = body
-            .set_face_surface(seed.face, FaceSurface::New(plane()))
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: plane(),
+                    sense: true,
+                },
+            )
             .unwrap();
         let e_ab = body
             .mev_line(
@@ -3735,8 +3762,14 @@ mod winding_arm_tests {
                 tol,
             )
             .unwrap();
-        body.set_face_surface(new.face, FaceSurface::New(plane()))
-            .unwrap();
+        body.set_face_surface(
+            new.face,
+            FaceSurface::New {
+                surface: plane(),
+                sense: true,
+            },
+        )
+        .unwrap();
         let r#loop = body.get_face(seed.face).unwrap().outer;
         let ab = body_edge(&body, e_ab.he_plus);
         Tri {
@@ -3795,9 +3828,15 @@ mod winding_arm_tests {
         let tol = Tol::witness();
         let (a, b) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let surface = body
-            .set_face_surface(seed.face, FaceSurface::New(plane()))
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: plane(),
+                    sense: true,
+                },
+            )
             .unwrap();
         let arc = |axis: Vec3<f64>| EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(surface),
@@ -3831,7 +3870,10 @@ mod winding_arm_tests {
                     he2: e1.he_minus,
                 },
                 arc(-Vec3::unit_z()),
-                FaceSurface::New(plane()),
+                FaceSurface::New {
+                    surface: plane(),
+                    sense: true,
+                },
                 tol,
             )
             .unwrap();

@@ -2,11 +2,14 @@
 id: surface-field-census-is-hand-kept-beside-the-walk
 kind: issue
 title: param_source.rs's SurfaceField is a hand-kept census of fields the surface walk now enumerates
-status: open
+status: closed
 opened: 2026-09-29
 priority: P4
 cost: E
 refs: [surface-field-walks-and-source-theorem-checks-have-no-one-home]
+branch: origin/curve-walk
+closed: 2026-09-29
+pr: 3442
 ---
 
 
@@ -15,3 +18,10 @@ From PR 3429's sweep. `crates/topo/src/param_source.rs`'s
 beside `Surface::analytic_data` which now enumerates them from one
 destructure. Derive it from the walk (or state at the enum why it is a
 deliberate subset), so a new field cannot be missed there.
+
+## Closed (2026-09-29, PR 3442)
+
+Kept as a deliberate subset: `SurfaceField` keys the per-surface record,
+so it stays a named enum; its doc states it is the walk's scalar data
+per kind (points and directions excluded: placement data rigid motion
+moves), and a row compares `(kind, datum)` pairs against the walk.

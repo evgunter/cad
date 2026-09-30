@@ -226,10 +226,10 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind,
-    RecipeNodeId, SlotId,
+    ChecksReport, Evaluation, Maintenance, NodeStanding, ParamName, ParseError, ProductError,
+    ProductErrorKind, RecipeNodeId, SlotId,
 };
-use pncad::select::{HitTestError, NodePickError};
+use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
 use crate::camera::CameraError;
@@ -665,15 +665,10 @@ pub enum RankedVerdict {
 /// changing, where a door chosen by reading the callee's arms would
 /// have become a writer the ranking never saw.
 ///
-/// **Every arm is written out**, and a wildcard for the two
-/// non-`Show` ones would defeat the whole door: it would route a
-/// variant added later to the field by default, which is exactly the
-/// defect this exists to stop, and it would be added at a diff where
-/// nothing looked wrong. The variant that most wants that treatment is
-/// the one it would be most wrong for — a future `Show`-shaped arm is
-/// news by construction. So the compiler carries the rule, and the
-/// arms below say which side each of today's is on rather than
-/// leaving it to be read off a binding's name.
+/// **The variant that would most want the field by default is the one
+/// it would be most wrong for**: a future `Show`-shaped arm is news by
+/// construction. So the arms below say which side each of today's is
+/// on rather than leaving it to be read off a binding's name.
 ///
 /// A policy's verdict cannot be handed to the other door — this does
 /// not build:
@@ -749,7 +744,54 @@ pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
 /// expression-driven affordance off the screen the instant the mouse
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
-    !matches!(op, SessionOp::Hover(_))
+    match op {
+        SessionOp::Hover(_) => false,
+        SessionOp::Select(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::CancelGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Open(_)
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove { .. }
+        | SessionOp::CancelFreeMove
+        | SessionOp::AddMate { .. }
+        | SessionOp::NewDocument { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
+        | SessionOp::AddBoolean { .. }
+        | SessionOp::AddSplit { .. }
+        | SessionOp::AddTransform { .. }
+        | SessionOp::AddPattern { .. }
+        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFillet { .. }
+        | SessionOp::AddChamfer { .. }
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
+        | SessionOp::AddInstance { .. } => true,
+    }
 }
 
 /// The status line after a batch: the refusal worth showing, or the
@@ -856,8 +898,7 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// ([`Message::new`] has no default), not of the pair: the ranking
 /// reads it without asking what refused. **Which kinds ride is not
 /// listed here**, on purpose: each door that makes a notice answers
-/// for its own arms, where a new arm is a compile error until its
-/// author answers, and gives its reasons there — [`Withdrawal::notice`],
+/// for its own arms and gives its reasons there — [`Withdrawal::notice`],
 /// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
 /// every typed refusal door with its own one-line reason. A census here
 /// would be a second copy that nothing checks against the first.
@@ -916,8 +957,13 @@ pub fn frame_status(
                 .collect();
             RankedVerdict::Show(Message::joined(joined_subject(&line), &line))
         }
-        verdict if notices.is_empty() => verdict,
-        _ => RankedVerdict::Show(Message::joined(joined_subject(notices), notices)),
+        verdict @ (RankedVerdict::Keep | RankedVerdict::Clear) => {
+            if notices.is_empty() {
+                verdict
+            } else {
+                RankedVerdict::Show(Message::joined(joined_subject(notices), notices))
+            }
+        }
     }
 }
 
@@ -1275,12 +1321,11 @@ impl<'a> Withdrawal<'a> {
 
     /// This withdrawal as a notice for [`frame_status`]'s rank 2.
     ///
-    /// **Every kind answers [`Retold`] for itself**, so a fourth kind
-    /// is a compile error here rather than inheriting its siblings'
-    /// answer. All three are [`Retold::Never`] today, each over its own
-    /// symptom — the part drawn at its mated pose; the geometry drawn
-    /// again, or the instance gone; the part no longer following the
-    /// hand, and a later drag refused as having none in flight. None of
+    /// **Every kind answers [`Retold`] for itself.** All three are
+    /// [`Retold::Never`] today, each over its own symptom — the part
+    /// drawn at its mated pose; the geometry drawn again, or the
+    /// instance gone; the part no longer following the hand, and a
+    /// later drag refused as having none in flight. None of
     /// those says that an edit took the placement, the hide or the drag,
     /// or which fault took it; only this sentence does.
     pub fn notice(&self) -> Message {
@@ -1367,10 +1412,6 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 ///   row that names the ancestor, not the strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
-///
-/// The match names every arm, so a fifth is a compile error here
-/// rather than a row that reaches the outcome and is never worded —
-/// or is worded and silently given its siblings' answer.
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } => Retold::Never,
@@ -1390,7 +1431,12 @@ impl core::fmt::Display for Withdrawal<'_> {
             kind: which,
             withdrawn,
         } = self;
-        let fused = |w: &Withdrawn| matches!(w.cause, AdmissionFault::FusedGeometry { .. });
+        let fused = |w: &Withdrawn| match w.cause {
+            AdmissionFault::FusedGeometry { .. } => true,
+            AdmissionFault::NoSuchNode { .. }
+            | AdmissionFault::NotAnInstance { .. }
+            | AdmissionFault::MateConstrained { .. } => false,
+        };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
         // in flight, so it has no plural and is NOT given one: a
@@ -2013,10 +2059,6 @@ pub fn pick_refusal(error: &PickError) -> Message {
 /// and rides beside a refusal ([`frame_status`]). A **declined pick**
 /// took nothing: the held picks are untouched and the same pick says
 /// the same sentence again, so it is [`Retold::Again`].
-///
-/// Every arm of every tool's event vocabulary is named, each with its
-/// own answer, so an event added to one is a compile error here and its
-/// author decides which side it is on.
 pub fn tool_notice(notice: &ToolNotice) -> Message {
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
@@ -2027,7 +2069,9 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
         ToolNotice::Blend(BlendEvent::TargetLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
-        ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { .. }) => Retold::Again,
+        ToolNotice::Blend(
+            BlendEvent::NoEdgesOnTarget { .. } | BlendEvent::TargetHasNoValue { .. },
+        ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.to_string(), retold)
 }
@@ -2062,9 +2106,8 @@ pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
-/// for a part document and before anything lands — which is
-/// [`crate::session::DocSession::at_rest`]'s own `None`, passed
-/// through.
+/// exactly when [`crate::session::DocSession::at_rest`] is — its own
+/// `None`, passed through; that doc says when.
 ///
 /// A certified assembly is [`Tone::Advisory`]: the verdict is good
 /// news and there is nothing to act on. A refusal is
@@ -2183,22 +2226,18 @@ enum BadgeSite {
 
 /// Which channel reports a refusal of this class, if any.
 ///
-/// A `match` rather than a predicate, and that is the point: it is
-/// exhaustive over [`ProductErrorKind`], so an eleventh class reds
-/// this crate — where a reader sees the consequence — instead of being
-/// silently badged or silently declined by whichever way an expression
-/// happened to be written.
-///
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
 /// `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
-/// [`ProductError::UnknownNode`] are those same three states seen from
-/// the gather. That count is a MEASUREMENT of another module's enum,
+/// [`ProductErrorKind::RootFailed`], [`ProductErrorKind::RootPoisoned`]
+/// and [`ProductErrorKind::UnknownNode`] — the classes of
+/// [`ProductError::Root`], by the root's standing — are those same three
+/// states seen from the gather. That count is a MEASUREMENT of another module's enum,
 /// so it does not stand on this `match` being exhaustive:
 /// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
-/// is its guard, and a fourth non-`Ok` state reds there. The tree badges each AT the node and carries the typed
-/// cause with it, so a frame badge would say strictly less, in a
+/// is its guard, and a fourth non-`Ok` state reds there. The tree
+/// badges each AT the node and carries the typed cause with it, so a
+/// frame badge would say strictly less, in a
 /// louder colour, one row above a status line already reporting the
 /// same root's tessellation refusal. The tree's own tone goes further:
 /// [`crate::tree::RowStatus::tone`] makes a poisoned row
@@ -2220,11 +2259,10 @@ enum BadgeSite {
 /// `false` does and does not appoint: a class the tree already badges
 /// is the tree's, whichever way the cited rule answers it.
 ///
-/// **What the compiler buys here is exhaustiveness over the classes,
-/// not liveness of the citation.** A new class cannot dodge this
-/// `match`. Moving [`ProductErrorKind::NoBodyRoots`] into the first
-/// arm would instead leave a call that can never answer `true` — a
-/// dead citation, which nothing reds on and only
+/// **The match does not hold the citation live.** Moving
+/// [`ProductErrorKind::NoBodyRoots`] into the first arm would leave a
+/// call that can never answer `true` — a dead citation, which nothing
+/// reds on and only
 /// `the_gather_verdict_badges_only_the_faults_nothing_else_carries`
 /// catches.
 fn badge_site(kind: ProductErrorKind) -> BadgeSite {
@@ -2277,7 +2315,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 ///
 /// # The arms that stay silent, and why
 ///
-/// [`badge_site`] decides it, exhaustively over the error class: a
+/// [`badge_site`] decides it: a
 /// refusal another channel already carries, and a class that is no
 /// fault at all, are both `None` here, and the argument for each is
 /// there. What is left is what this channel is FOR — the
@@ -2357,14 +2395,11 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// not reached; the label says the index waits on this row and does
 /// not promise it builds once the row is fixed.
 ///
-/// **The tooltip may name a different node from the label, on
-/// purpose.** The tooltip is the index's own words, which name the
-/// root the build refused on and, for a poisoned root, the kernel's
-/// nearest failed ancestor. The label names the tree's row, which for
-/// a root a mate refusal reached is the mate the fault blames rather
-/// than the root. The label is the one that matches the row a reader
-/// can act on, and the tooltip is kept unaltered because it is another
-/// layer's refusal ([`PickIndexError`]'s `Display`).
+/// **The tooltip is the index's own words with the tree's row in
+/// them.** It names the root the build refused on, and the standing it
+/// carries is read as the tree reads it ([`index_refusal_as_drawn`]),
+/// so for a root a mate refusal reached it names the mate the label
+/// names rather than the root or the root's DAG ancestor.
 ///
 /// Every other refusal is the index's own and stays
 /// [`Tone::Actionable`] in its own words — and so does a standing
@@ -2379,6 +2414,10 @@ pub fn index_badge(
     let cause = downstream_root(error)
         .zip(evaluation)
         .and_then(|(root, evaluation)| crate::tree::cause_row(root, evaluation));
+    let said = match evaluation {
+        Some(evaluation) => format!("pick index: {}", index_refusal_as_drawn(error, evaluation)),
+        None => format!("pick index: {error}"),
+    };
     Some(match cause {
         Some(cause) => Badge::read(
             PickIndexError::SUBJECT,
@@ -2389,41 +2428,28 @@ pub fn index_badge(
             ),
             Tone::Advisory,
         )
-        .detailed(format!("pick index: {error}")),
-        None => Badge::read(
-            PickIndexError::SUBJECT,
-            format!("pick index: {error}"),
-            Tone::Actionable,
-        ),
+        .detailed(said),
+        None => Badge::read(PickIndexError::SUBJECT, said, Tone::Actionable),
     })
 }
 
-/// **The root a pick-index refusal is a consequence of**, when the
-/// refusal is the one a root with no value produces — `None` for a
-/// refusal that is the index's own.
-///
-/// Only [`NodePickError::Standing`] is that: it is how the index says
-/// the root has no `Ok` value in the evaluation. Whether that is
-/// because the root failed, was poisoned, or never ran is the tree's
-/// to read, and [`index_badge`] asks it rather than reading the
-/// standing arm here. A tessellation or indexing refusal of a root
-/// that DID evaluate is news no other surface carries.
-///
-/// Exhaustive over both enums, so a new way for the build to refuse
-/// has to decide here whether it follows from a node's failure.
+/// A pick-index refusal, its standing ([`PickIndexError::standing`])
+/// re-read by [`crate::tree::standing_as_drawn`]; every other refusal
+/// is the index's, unchanged.
+fn index_refusal_as_drawn(error: &PickIndexError, evaluation: &Evaluation<f64>) -> PickIndexError {
+    error
+        .restated(|standing| crate::tree::standing_as_drawn(standing, evaluation))
+        .map_or_else(|| error.clone(), |(_, drawn)| drawn)
+}
+
+/// **The node a pick-index refusal is a consequence of**, when the
+/// refusal is one a node with no value produces
+/// ([`PickIndexError::standing`]) — `None` for a refusal that is the
+/// index's own. Whether the node failed, was poisoned, or never ran
+/// is the tree's to read, and [`index_badge`] asks it rather than
+/// reading the standing here.
 fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
-    match error {
-        PickIndexError::Node { node, error } => match error {
-            NodePickError::Standing(_) => Some(*node),
-            NodePickError::NotABody { .. }
-            | NodePickError::NoSuchBody { .. }
-            | NodePickError::Tessellate(_)
-            | NodePickError::Index(_) => None,
-        },
-        PickIndexError::Ids(_) | PickIndexError::DrawnTwice { .. } | PickIndexError::Names(_) => {
-            None
-        }
-    }
+    error.standing().map(NodeStanding::node)
 }
 
 /// **What the chrome badges about a camera that cannot be
@@ -2639,15 +2665,23 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 /// DIMENSION, so that stays the user's explicit pick there). `None`
 /// for every other refusal and for a clean batch.
 pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
-    match refusal {
-        Some(Refusal::Parse(error)) => match error.as_ref() {
-            // The parse error carries the identifier as text (it is a
-            // fact about the SOURCE); the offer mints the name the
-            // create door would declare.
-            ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
-            _ => None,
-        },
-        _ => None,
+    match refusal.and_then(Refusal::parse_error)? {
+        // The parse error carries the identifier as text (it is a
+        // fact about the SOURCE); the offer mints the name the create
+        // door would declare. The text is a token the lexer read, so
+        // the constructor admits it; its answer is folded rather than
+        // trusted.
+        ParseError::UnknownParam { name, .. } => ParamName::new(name.as_str()).ok(),
+        ParseError::UnexpectedChar { .. }
+        | ParseError::UnexpectedEnd { .. }
+        | ParseError::UnexpectedToken { .. }
+        | ParseError::TrailingInput { .. }
+        | ParseError::MalformedNumber { .. }
+        | ParseError::IntegerOverflow { .. }
+        | ParseError::UnknownUnit { .. }
+        | ParseError::UnknownFunction { .. }
+        | ParseError::WrongArity { .. }
+        | ParseError::Dimension { .. } => None,
     }
 }
 
@@ -2665,9 +2699,7 @@ pub fn retype_draft(
     ops: &[SessionOp],
     refusal: Option<&Refusal>,
 ) -> Option<(RecipeNodeId, SlotId, String)> {
-    if !matches!(refusal, Some(Refusal::Parse(_))) {
-        return None;
-    }
+    refusal.and_then(Refusal::parse_error)?;
     ops.iter().rev().find_map(|op| match op {
         SessionOp::SetSlotExpression { node, slot, text } => Some((*node, *slot, text.clone())),
         _ => None,
@@ -2721,7 +2753,7 @@ mod tests {
     use super::*;
 
     use bvh::Aabb;
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{NodeStanding, RecipeNodeId};
     use pncad::prelude::{EntityKind, StableName};
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
@@ -3021,15 +3053,21 @@ mod tests {
         // nothing, so it must not wear the spelling rustdoc gates.)
         for (quiet, site) in [
             (ProductError::NoBodyRoots, BadgeSite::NotAFault),
-            (ProductError::RootFailed { node }, BadgeSite::FeatureTree),
             (
-                ProductError::RootPoisoned {
-                    node,
-                    through: RecipeNodeId(1),
-                },
+                ProductError::Root(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,
             ),
-            (ProductError::UnknownNode { node }, BadgeSite::FeatureTree),
+            (
+                ProductError::Root(NodeStanding::Poisoned {
+                    node,
+                    through: RecipeNodeId(1),
+                }),
+                BadgeSite::FeatureTree,
+            ),
+            (
+                ProductError::Root(NodeStanding::NotEvaluated { node }),
+                BadgeSite::FeatureTree,
+            ),
         ] {
             assert_eq!(
                 badge_site(quiet.kind()),
@@ -3083,6 +3121,7 @@ mod tests {
             RowStatus::Ok,
             RowStatus::Failed {
                 message: String::new(),
+                carried: Vec::new(),
             },
             RowStatus::Poisoned {
                 through: RecipeNodeId(1),

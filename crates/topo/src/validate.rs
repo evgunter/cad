@@ -813,8 +813,10 @@ pub enum ValidationError {
     /// face whose certificate nothing re-derived would make it exactly
     /// that.
     ApproxLaneUnsupported {
-        /// The face whose approximating surface has no lane.
+        /// The face whose approximating surface has no door.
         face: FaceKey,
+        /// The scalar the check ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// Tier 3: a face's torus violates D3's ring convention `R > r > 0`
     /// — a horn (`R == r`) or spindle (`R < r`) torus, whose axis
@@ -2827,11 +2829,13 @@ impl fmt::Display for ValidationError {
                      it approximates: {why}. {recourse}"
                 )
             }
-            Self::ApproxLaneUnsupported { .. } => write!(
+            Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,
-                "a face carries a fitted offset surface, and this scalar has no \
-                 re-derivation lane for its certificate. Recourse: check the body at f64, \
-                 the one scalar that re-derives it"
+                "a face carries a fitted offset surface, and the check at the {scalar} scalar \
+                 had no offset-fit door to re-derive its certificate with; only {holders} holds \
+                 that door (the fit is derived there alone). Recourse: check the body at \
+                 {holders}",
+                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::DegenerateTorus { verdict, .. } => write!(
                 f,
@@ -4961,9 +4965,10 @@ fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 ///
 /// Asked through the value channel ([`geom_core::is_finite_length`]),
 /// with no bracket read and no threshold: whether a stored number is a
-/// number is not a decision about geometry. The fields are destructured
-/// without `..`, so a datum a variant gains is a compile error here
-/// rather than a field this read silently skips.
+/// number is not a decision about geometry. The fields are
+/// [`geom::Surface::data`]'s, the one walk every field-by-field
+/// reader of a surface folds, so a datum a variant gains is read here
+/// the day the walk names it.
 ///
 /// **A zero direction is poison, the same argument for every one of
 /// them**: a zero `normal` collapses a plane's `v_ref = normal × u_ref`;
@@ -4983,71 +4988,12 @@ fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 /// at interval type; filed as
 /// `work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo`.
 pub(crate) fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
-    use geom::SurfaceDatum as D;
-    use geom_core::is_finite_length as finite;
-    let point = is_finite_point::<T>;
-    let direction = is_direction::<T>;
-    let fields: Vec<(D, bool)> = match surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => vec![
-            (D::Origin, point(origin)),
-            (D::Normal, direction(normal)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => vec![
-            (D::Origin, point(origin)),
-            (D::Axis, direction(axis)),
-            (D::Radius, finite(*radius)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => vec![
-            (D::Apex, point(apex)),
-            (D::Axis, direction(axis)),
-            (D::HalfAngle, finite(*half_angle)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Sphere {
-            center,
-            radius,
-            axis,
-            u_ref,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Radius, finite(*radius)),
-            (D::Axis, direction(axis)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            u_ref,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Axis, direction(axis)),
-            (D::MajorRadius, finite(*major_radius)),
-            (D::MinorRadius, finite(*minor_radius)),
-            (D::URef, direction(u_ref)),
-        ],
-        Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
+    let data = match surface.data() {
+        geom::SurfaceData::Analytic(data) => data,
+        geom::SurfaceData::Nurbs(_) | geom::SurfaceData::Approx(_) => return Vec::new(),
     };
-    fields
-        .into_iter()
-        .filter_map(|(datum, is_number)| (!is_number).then_some(datum))
+    data.into_iter()
+        .filter_map(|(datum, value)| (!datum_is_number(value)).then_some(datum))
         .collect()
 }
 
@@ -5063,60 +5009,32 @@ pub(crate) fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::Surfac
 /// is no placeholder state to tell apart here — no certified carrier
 /// can be one, because certification evaluates it.
 ///
-/// Fields destructured without `..`, as on the surface half.
+/// The fields are [`geom::Curve3::data`]'s, as the surface half's are
+/// [`geom::Surface::data`]'s.
 pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geom::CurveDatum> {
-    use geom::Curve3 as C;
-    use geom::CurveDatum as D;
-    use geom_core::is_finite_length as finite;
-    let point = is_finite_point::<T>;
-    let direction = is_direction::<T>;
-    let fields: Vec<(D, bool)> = match curve {
-        C::Line { origin, dir } => vec![(D::Origin, point(origin)), (D::Dir, direction(dir))],
-        C::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Axis, direction(axis)),
-            (D::Radius, finite(*radius)),
-            (D::URef, direction(u_ref)),
-        ],
-        C::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            u_ref,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Axis, direction(axis)),
-            (D::Major, finite(*major)),
-            (D::Minor, finite(*minor)),
-            (D::URef, direction(u_ref)),
-        ],
-        C::Spiric {
-            center,
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius,
-            offset,
-        } => vec![
-            (D::Center, point(center)),
-            (D::Axis, direction(axis)),
-            (D::URef, direction(u_ref)),
-            (D::MajorRadius, finite(*major_radius)),
-            (D::MinorRadius, finite(*minor_radius)),
-            (D::Offset, finite(*offset)),
-        ],
-        C::Nurbs(net) => vec![(D::Control, net_is_finite(net.control()))],
+    let data = match curve.data() {
+        geom::CurveData::Analytic(data) => data,
+        geom::CurveData::Nurbs(net) => {
+            return if net_is_finite(net.control()) {
+                Vec::new()
+            } else {
+                vec![geom::CurveDatum::Control]
+            };
+        }
     };
-    fields
-        .into_iter()
-        .filter_map(|(datum, is_number)| (!is_number).then_some(datum))
+    data.into_iter()
+        .filter_map(|(datum, value)| (!datum_is_number(value)).then_some(datum))
         .collect()
+}
+
+/// Check 1's reading of one analytic datum, surface or carrier: a point
+/// finite, a direction a direction ([`is_direction`]), a number finite.
+fn datum_is_number<T: Real>(value: geom::DatumValue<T>) -> bool {
+    match value {
+        geom::DatumValue::Point(p) => is_finite_point(&p),
+        geom::DatumValue::Direction(v) => is_direction(&v),
+        geom::DatumValue::Scalar(x) => geom_core::is_finite_length(x),
+    }
 }
 
 /// **Is every control point of a net a finite number?** — check 1's
@@ -5330,7 +5248,10 @@ pub(crate) fn tier3_local_checks_marked<
                     }
                 }
                 None => {
-                    errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
+                    errors.push(ValidationError::ApproxLaneUnsupported {
+                        face: face_key,
+                        scalar: T::NAME,
+                    });
                 }
             },
             // Every analytic kind: its datums first, then its
@@ -5422,8 +5343,9 @@ pub(crate) fn tier3_local_checks_marked<
         };
         // Re-certification takes the lane the CALLER handed in, not one
         // read off the scalar. The bound that admits a scalar to this
-        // battery says nothing about the C9 ring the plane × NURBS
-        // certificate lives in, which is a right of its own. So a
+        // battery says nothing about the certification arithmetic (C9)
+        // the plane × NURBS certificate lives in, which is a right of
+        // its own. So a
         // caller that can name the certified lane supplies it and this
         // check runs whole; a caller that cannot makes no claim about
         // an M7-8 edge at all.
@@ -10479,7 +10401,7 @@ mod tests {
     ) -> (Body<f64>, FaceKey) {
         assert!(outer.len() >= 3 && ring.len() >= 3);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(outer[0]).unwrap();
+        let seed = body.mvfs(outer[0], true).unwrap();
         let e0 = body
             .mev_line(
                 MevSite::Lone {
@@ -10814,9 +10736,13 @@ mod tests {
         );
         for (name, b) in [("nested", &body), ("inverted", &inverted)] {
             let mut c = b.clone();
+            let sense = c.get_face(face).unwrap().sense;
             c.set_face_surface(
                 face,
-                crate::FaceSurface::New(geom::Surface::nurbs_placeholder()),
+                crate::FaceSurface::New {
+                    surface: geom::Surface::nurbs_placeholder(),
+                    sense,
+                },
             )
             .unwrap();
             let got = nesting_words(&c, band, tol);
@@ -12053,10 +11979,9 @@ mod tests {
     /// battery can see the defect.
     ///
     /// Bit-identity: the honest body's report is unchanged by the S10
-    /// threading (planar sweeps mint `sense: true` throughout — S11
-    /// reverses only material-against-chart walls, none here — so the
-    /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
-    /// before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
+    /// threading (`plane_every_face` states `sense: true` on each plane
+    /// it grafts, so the multiply is `· +1`) — pinned here as
+    /// "no `LoopRoleInverted` before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
     /// grafted on; its twelve chords stay conventional, so the honest
     /// report is about those chords and nothing else. (The all-green
     /// variant of this row, on the fully certified cube, lives in
@@ -12143,7 +12068,7 @@ mod tests {
     #[test]
     fn tier_two_rejects_the_skeletal_mvfs_state() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         assert_eq!(validate(&body), Ok(()), "tier 1 accepts the seed state");
         // The lone vertex has valence 0, not 1, and the dartless
         // empty-outer face is one component — the empty loop is the
@@ -12161,7 +12086,7 @@ mod tests {
         // The segment body: BOTH endpoints have valence 1 (vertex-arena
         // order).
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12185,7 +12110,7 @@ mod tests {
         // A strut hanging off a CLOSED pillow: exactly the tip (the
         // base has valence 3).
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12228,7 +12153,7 @@ mod tests {
         // an empty ring's lone vertex (valence 0 — no strut report),
         // and the ring keeps the shell connected. One defect.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12274,7 +12199,7 @@ mod tests {
     /// tier-2 rule. Returns (body, shell).
     fn detached_digon_body() -> (Body<f64>, crate::entity::ShellKey) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12314,7 +12239,7 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        body.mfkrh_plug(kill.ring).unwrap();
+        body.mfkrh_plug(kill.ring, true).unwrap();
         (body, seed.shell)
     }
 
@@ -12778,15 +12703,17 @@ mod offset_fit_door_rows {
         (errors, face)
     }
 
-    /// **No door: the face is REPORTED, not skipped**, with the variant
-    /// and the payload the absence has always had.
+    /// **No door: the face is REPORTED, not skipped**, naming the face
+    /// and the scalar the check ran at — here `f64`, the door's own
+    /// scalar, handed none.
     #[test]
     fn no_door_refuses_the_approx_face_by_name() {
         let (errors, face) = check1::<f64>(None);
         assert!(
-            errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
-            ),
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ApproxLaneUnsupported { face: f, scalar: "f64" } if *f == face
+            )),
             "check 1 must report the face it could not re-derive: {errors:?}"
         );
     }
@@ -12822,10 +12749,13 @@ mod offset_fit_door_rows {
             <geom_core::Probe as crate::props::AtRestPolicy>::offset_fit_lane(),
         );
         assert!(
-            errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
-            ),
-            "the probe scalar has no fit, so its face must report the absence: {errors:?}"
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ApproxLaneUnsupported { face: f, scalar: "telemetry probe" }
+                    if *f == face
+            )),
+            "the probe scalar has no fit, so its face must report the absence, naming the \
+             probe: {errors:?}"
         );
     }
 
@@ -12848,7 +12778,7 @@ mod offset_fit_door_rows {
         );
         assert!(
             !errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f, .. } if *f == face)
             ),
             "the `f64` seam answers the door, so check 1 must re-derive rather than refuse: \
              {errors:?}"

@@ -145,12 +145,12 @@ fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// The leaf box: one axis at [`half`] around the nominal.
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(axis: &'static str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
         name(axis),
@@ -164,7 +164,7 @@ fn box_of(axis: &str) -> ParamBox {
 
 /// Declares one continuous parameter with a uniform distribution of
 /// half-width [`half`].
-fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
+fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
         value: DocParam::Continuous {
@@ -944,7 +944,7 @@ fn the_cost_curve_is_measured_at_both_ends() {
     // 1.155 m apart where the faces are 2 m apart. Every cell of it is
     // classified, so this is what a budget actually buys.
     let (hex, minted, _at) = hexagon();
-    let sel = opposite_flats(&doc, minted);
+    let sel = opposite_flats(&hex, minted);
     let leaf = box_of("place");
     let held = clearance(&hex, &leaf, &sel, &sel, 1.5, Tol::witness());
     let hr = held.receipt();

@@ -9,7 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::deep_snapshot;
+use crate::fixtures::assert_err_deep_unchanged;
 use crate::{
     Body, EntityId, EulerOpError, FaceKey, GeomRef, HalfEdgeKey, LoopKey, MefSite, MevSite,
     PointKey, VertexKey, validate,
@@ -32,7 +32,7 @@ fn pillow(
     crate::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -55,18 +55,6 @@ fn pillow(
     (body, seed, seg, split)
 }
 
-fn assert_err_deep_unchanged(
-    body: &mut Body<f64>,
-    expected: EulerOpError,
-    op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
-) {
-    let before = deep_snapshot(body);
-    let err = op(body);
-    assert_eq!(err, expected);
-    let after = deep_snapshot(body);
-    assert_eq!(before, after, "body mutated on Err ({err:?})");
-}
-
 #[test]
 fn stale_argument_keys_leave_the_body_deep_equal() {
     let tol = Tol::witness();
@@ -76,7 +64,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
 
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::HalfEdge(null_he),
         },
         |b| {
@@ -94,7 +82,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
     // he2 stale (he1 fine).
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::HalfEdge(null_he),
         },
         |b| {
@@ -111,7 +99,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
     );
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::Loop(null_loop),
         },
         |b| {
@@ -121,7 +109,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
     );
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::HalfEdge(null_he),
         },
         |b| {
@@ -137,7 +125,7 @@ fn stale_argument_keys_leave_the_body_deep_equal() {
     );
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::Loop(null_loop),
         },
         |b| {
@@ -156,7 +144,7 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
     // FanStartMismatch: seg.he_plus starts at A, seg.he_minus at B.
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::FanStartMismatch {
+        &EulerOpError::FanStartMismatch {
             he1: seg.he_plus,
             he2: seg.he_minus,
         },
@@ -175,7 +163,7 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
     // NotSameLoop: the two pillow loops.
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::NotSameLoop {
+        &EulerOpError::NotSameLoop {
             he1: seg.he_plus,
             he2: split.he_plus,
         },
@@ -192,13 +180,19 @@ fn semantic_precondition_failures_leave_the_body_deep_equal() {
     );
     // LoopNotEmpty on both Lone sites (the loops are cycles now).
     let cyc = seed.r#loop;
-    assert_err_deep_unchanged(&mut body, EulerOpError::LoopNotEmpty { r#loop: cyc }, |b| {
-        b.mev_line(MevSite::Lone { r#loop: cyc }, p(9.0), tol)
-            .unwrap_err()
-    });
-    assert_err_deep_unchanged(&mut body, EulerOpError::LoopNotEmpty { r#loop: cyc }, |b| {
-        b.mef_chord(MefSite::Lone { r#loop: cyc }, tol).unwrap_err()
-    });
+    assert_err_deep_unchanged(
+        &mut body,
+        &EulerOpError::LoopNotEmpty { r#loop: cyc },
+        |b| {
+            b.mev_line(MevSite::Lone { r#loop: cyc }, p(9.0), tol)
+                .unwrap_err()
+        },
+    );
+    assert_err_deep_unchanged(
+        &mut body,
+        &EulerOpError::LoopNotEmpty { r#loop: cyc },
+        |b| b.mef_chord(MefSite::Lone { r#loop: cyc }, tol).unwrap_err(),
+    );
 }
 
 #[test]
@@ -213,7 +207,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
     body.get_half_edge_mut(seg.he_minus).unwrap().start = VertexKey::default();
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::Vertex(VertexKey::default()),
         },
         |b| {
@@ -234,7 +228,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
     body.get_half_edge_mut(seg.he_plus).unwrap().prev = HalfEdgeKey::default();
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::HalfEdge(HalfEdgeKey::default()),
         },
         |b| {
@@ -255,7 +249,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
     body.get_vertex_mut(seed.vertex).unwrap().point = PointKey::default();
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleGeometry {
+        &EulerOpError::StaleGeometry {
             key: GeomRef::Point(PointKey::default()),
         },
         |b| {
@@ -280,7 +274,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
     // seg.he_plus and split.he_plus both start at the seed vertex.
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::FanOrbitBroken {
+        &EulerOpError::FanOrbitBroken {
             he1: seg.he_plus,
             he2: split.he_plus,
         },
@@ -305,7 +299,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
     body.get_half_edge_mut(seg.he_plus).unwrap().next = split.he_plus;
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::LoopCycleBroken {
+        &EulerOpError::LoopCycleBroken {
             r#loop: split.r#loop,
         },
         |b| {
@@ -322,12 +316,12 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
 
     // LoopNotCycle: halves claiming an EMPTY loop as parent.
     let (mut body, _, seg, split) = pillow(tol);
-    let seed2 = body.mvfs(p(50.0)).unwrap(); // a second, disjoint skeletal body
+    let seed2 = body.mvfs(p(50.0), true).unwrap(); // a second, disjoint skeletal body
     body.get_half_edge_mut(seg.he_plus).unwrap().parent_loop = seed2.r#loop;
     body.get_half_edge_mut(split.he_minus).unwrap().parent_loop = seed2.r#loop;
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::LoopNotCycle {
+        &EulerOpError::LoopNotCycle {
             r#loop: seed2.r#loop,
         },
         |b| {
@@ -347,7 +341,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
     body.get_loop_mut(split.r#loop).unwrap().face = FaceKey::default();
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::Face(FaceKey::default()),
         },
         |b| {
@@ -367,7 +361,7 @@ fn raw_corruption_paths_leave_the_body_deep_equal() {
     body.get_face_mut(split.face).unwrap().shell = crate::ShellKey::default();
     assert_err_deep_unchanged(
         &mut body,
-        EulerOpError::StaleKey {
+        &EulerOpError::StaleKey {
             key: EntityId::Shell(crate::ShellKey::default()),
         },
         |b| {

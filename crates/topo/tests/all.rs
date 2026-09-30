@@ -99,6 +99,8 @@ mod cube_by_hand;
 mod cube_doors_agree;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "euler_site_pcurve_rows.rs"]
+mod euler_site_pcurve_rows;
 #[path = "geom_origin_rows.rs"]
 mod geom_origin_rows;
 #[path = "geometric_cube.rs"]
@@ -257,6 +259,8 @@ mod shell_winding;
 mod solid_separation;
 #[path = "split_edge_pcurve_rows.rs"]
 mod split_edge_pcurve_rows;
+#[path = "stated_general_image_mint.rs"]
+mod stated_general_image_mint;
 #[path = "trim_3_chart_bound.rs"]
 mod trim_3_chart_bound;
 #[path = "void_door.rs"]

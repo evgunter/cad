@@ -1363,7 +1363,7 @@ macro_rules! nurbs_curve {
                     return poison;
                 }
                 // `w′`'s coefficient enclosures, once for the curve:
-                // index `i` holds `q_i`, poison for a bad knot
+                // index `i` holds `q_i`, refused for a bad knot
                 // difference (which then poisons this bound).
                 let Some(weight_spline) = self.knots.with_coeffs(&self.weights) else {
                     // Unreachable by construction: `new` relates the
@@ -1610,20 +1610,20 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     /// The control coordinates lifted to enclosure points — the data-in
     /// shape of `geom_core::spline::compose`: channel `d`, point `i`,
     /// as `[x, y, z]` channels of certification enclosures. Pair with
-    /// [`Self::knots`] and [`Self::weights`] to build a `CurveRingData`
+    /// [`Self::knots`] and [`Self::weights`] to build a `CurveCertData`
     /// for composite bounds. The bracket seam this reads the net
-    /// through is the shared one (`net::ring_coords`).
-    pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
-        net::ring_coords(&self.control)
+    /// through is the shared one (`net::certified_coords`).
+    pub fn certified_coords(&self) -> Vec<Vec<Interval>> {
+        net::certified_coords(&self.control)
     }
 }
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
-    /// [`NurbsCurve3::ring_coords`] at two channels: `[x, y]` channels
+    /// [`NurbsCurve3::certified_coords`] at two channels: `[x, y]` channels
     /// of certification enclosures, through the same bracket seam and the same
     /// body.
-    pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
-        net::ring_coords(&self.control)
+    pub fn certified_coords(&self) -> Vec<Vec<Interval>> {
+        net::certified_coords(&self.control)
     }
 }
 
