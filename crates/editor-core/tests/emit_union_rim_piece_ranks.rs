@@ -369,35 +369,34 @@ pub(crate) fn runs(
 }
 
 /// **The cases that refuse in some member orders and publish in others**,
-/// pinned: `(label, union, orders refusing, refusal variants)`. Each is a
-/// real order dependence, owned by
+/// pinned: `(label, union, orders refusing, each refusal variant with its
+/// count of orders)`. Each is a real order dependence, owned by
 /// `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`
-/// (and, for `DeclareResolve`, by the gather row it cites); a change here
-/// is a change to that row, measured.
+/// and the rows it cites; a change here is a change to that row, measured.
 const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
-    ("abg", "U", 2, "DeclareResolve"),
-    ("abgids", "U", 2, "DeclareResolve"),
-    ("abglow", "U", 2, "DeclareResolve"),
-    ("abgg2", "U", 16, "DeclareResolve"),
-    ("fam000", "U", 2, "DeclareResolve"),
-    ("fam001", "U", 2, "DeclareResolve"),
-    ("fam002", "U", 2, "DeclareResolve"),
-    ("fam012", "U", 2, "DeclareResolve"),
-    ("fam022", "U", 2, "DeclareResolve"),
-    ("fam100", "U", 4, "DeclareResolve"),
-    ("fam101", "U", 4, "DeclareResolve"),
-    ("fam102", "U", 4, "DeclareResolve"),
-    ("fam112", "U", 4, "DeclareResolve"),
-    ("fam122", "U", 4, "DeclareResolve"),
-    ("fam200", "U", 2, "DeclareResolve"),
-    ("fam201", "U", 2, "DeclareResolve"),
-    ("fam202", "U", 2, "DeclareResolve"),
-    ("fam212", "U", 2, "DeclareResolve"),
-    ("fam222", "U", 2, "DeclareResolve"),
-    ("r1flush", "U", 18, "DeclareResolve"),
-    ("r2endsg", "U", 12, "DeclareResolve"),
-    ("r4tri", "U", 2, "Boolean"),
-    ("r4trig", "U", 14, "Boolean/DeclareResolve"),
+    ("abg", "U", 2, "DeclareResolve:2"),
+    ("abgids", "U", 2, "DeclareResolve:2"),
+    ("abglow", "U", 2, "DeclareResolve:2"),
+    ("abgg2", "U", 16, "DeclareResolve:16"),
+    ("fam000", "U", 2, "DeclareResolve:2"),
+    ("fam001", "U", 2, "DeclareResolve:2"),
+    ("fam002", "U", 2, "DeclareResolve:2"),
+    ("fam012", "U", 2, "DeclareResolve:2"),
+    ("fam022", "U", 2, "DeclareResolve:2"),
+    ("fam100", "U", 4, "DeclareResolve:4"),
+    ("fam101", "U", 4, "DeclareResolve:4"),
+    ("fam102", "U", 4, "DeclareResolve:4"),
+    ("fam112", "U", 4, "DeclareResolve:4"),
+    ("fam122", "U", 4, "DeclareResolve:4"),
+    ("fam200", "U", 2, "DeclareResolve:2"),
+    ("fam201", "U", 2, "DeclareResolve:2"),
+    ("fam202", "U", 2, "DeclareResolve:2"),
+    ("fam212", "U", 2, "DeclareResolve:2"),
+    ("fam222", "U", 2, "DeclareResolve:2"),
+    ("r1flush", "U", 18, "DeclareResolve:18"),
+    ("r2endsg", "U", 12, "DeclareResolve:12"),
+    ("r4tri", "U", 2, "Boolean:2"),
+    ("r4trig", "U", 14, "Boolean:2/DeclareResolve:12"),
 ];
 
 /// **No name rebinds across member orders, and no order refuses what
@@ -476,8 +475,10 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                 .filter_map(|(at, r, _)| Some((at, r.as_ref()?)))
                 .collect();
             if !refusals.is_empty() && refusals.len() < runs.len() {
-                let kinds: std::collections::BTreeSet<&str> =
-                    refusals.iter().map(|(_, k)| k.as_str()).collect();
+                let mut kinds: std::collections::BTreeMap<&str, usize> = Default::default();
+                for (_, k) in &refusals {
+                    *kinds.entry(k.as_str()).or_default() += 1;
+                }
                 eprintln!(
                     "{} {tag}: {} of {} orders refuse {refusals:?}",
                     case.label,
@@ -488,7 +489,11 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                     "{} {tag}: {} {}",
                     case.label,
                     refusals.len(),
-                    kinds.into_iter().collect::<Vec<_>>().join("/")
+                    kinds
+                        .into_iter()
+                        .map(|(k, c)| format!("{k}:{c}"))
+                        .collect::<Vec<_>>()
+                        .join("/")
                 ));
             }
             let published: Vec<_> = runs.iter().filter(|(_, r, _)| r.is_none()).collect();

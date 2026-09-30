@@ -8,6 +8,7 @@ cost: D
 opened: 2026-09-25
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
 branch: emit/cut-and-merged-pair
+pr: 3526
 closed: 2026-09-30
 ---
 
@@ -34,13 +35,25 @@ parent in the finished body, so the order-free question that half served
 closed with `declared-flush-union-edge-and-vertex-names-follow-member-order`.
 
 The fold's declaration door (`look_through_fold`) had relied on the bare
-piece. It now reads a name held both in a merge and as a fragment of its
-own as a split (`ConsumedByFold { by: Split }`). Before, it looked through
-to the merged face, which is a different face from the one the author
-declared. So 4 orders of `r2endsg` and 2 of `r4trig` that published now
-refuse like their sibling orders, and 2 more of `r4trig` refuse there
-before reaching `RayExhausted`. `union-refuses-in-some-member-orders-and-publishes-in-others`
-carries the new counts.
+piece. A name that is both a constituent of a bare merged row and the
+parent of its own fragment now refuses `ConsumedByFold { by: Split }`.
+That costs correct tables:
+- `r2endsg`'s orders `[1,3,0,2]`, `[2,3,0,1]`, `[3,1,0,2]` and
+  `[3,2,0,1]` bound the bare piece, and it was the geometrically correct
+  face: the `ALONG`~`CEND` contact at x 0..1 lies on the x 0..1.4 piece.
+  They published correct tables and are now lost to totality.
+- `r4trig`'s orders `[1,3,0,2]` and `[3,1,0,2]` bound the bare piece,
+  and it was the wrong face: their contact at x 0.8..1 lies in the
+  merged face. They were silently wrong and now refuse.
+- `r4trig`'s `[2,3,0,1]` and `[3,2,0,1]` now refuse there, before they
+  reach `RayExhausted`.
+
+Which face is right depends on where the partner's contact lies. No rule
+that reads names alone recovers both cases, so refusing is the fail-loud
+choice for now. The lost orders are owned by
+`a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
+`union-refuses-in-some-member-orders-and-publishes-in-others` carries
+the new counts.
 
 ## The finding
 

@@ -5070,6 +5070,14 @@ mod route_tests {
                 FoldConsumption::Split,
             ),
             (
+                "split and partly merged in one step",
+                table_of(vec![
+                    fragment(named.clone(), 0),
+                    merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]),
+                ]),
+                FoldConsumption::Split,
+            ),
+            (
                 "a merge fragmented after it",
                 table_of(vec![
                     fragment(merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]), 0),
