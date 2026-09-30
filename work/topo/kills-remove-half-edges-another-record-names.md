@@ -24,7 +24,7 @@ half-edge removals are the ones with no such proof:
   (`prev`/`next` of both halves, the re-anchored loops' `first`, the
   endpoints' `emanating`, `Body::require_kill_anchors`), and PR 3570
   proves the edge claims exactly the two
-  (`Body::require_edge_pair`). Nothing proves that no OTHER record
+  (`require_halves`, `Body::require_edge_unnamed`). Nothing proves that no OTHER record
   names a killed half: a third half-edge whose `next` or `prev` is
   torn onto one, a loop the kill does not re-anchor whose `first` is
   one, a vertex the kill does not rewrite whose `emanating` is one, or

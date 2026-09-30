@@ -39,7 +39,7 @@ loop, and no half-edge outside the walk does), as
 The receipt of TOPO's kill-proofs unit (PR 3570) re-derived every
 production `.remove(` on a topology arena in `crates/topo/src`; the
 Euler kills now prove that no record they keep names one they remove
-(`Body::require_vertex_unnamed`, `Body::require_edge_pair`,
+(`Body::require_vertex_unnamed`, `Body::require_edge_unnamed`,
 `Body::require_loop_unlisted`, `Body::require_face_unnamed`,
 `Body::require_shell_unnamed`, `Body::require_solid_unnamed`,
 `crates/topo/src/euler.rs`). `carve` has the same shape past its

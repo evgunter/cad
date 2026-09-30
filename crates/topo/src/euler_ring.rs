@@ -243,7 +243,8 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
 use crate::euler::{
-    Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, RunExtent, shared_loop,
+    Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, RunExtent, Spine,
+    require_halves, shared_loop,
 };
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Live, require_key};
@@ -436,13 +437,11 @@ impl<T: Decide> Body<T> {
     ///
     /// # Precondition check order
     ///
-    /// `he1` resolves, `he2` resolves ([`EulerOpError::StaleKey`]); they
-    /// are distinct and name one edge ([`EulerOpError::NotSameEdge`]); the
-    /// edge resolves (`StaleKey`); it claims them both, each with the
-    /// other as its mate (`NotSameEdge`), and no other half-edge names it
-    /// ([`EulerOpError::UnclaimedHalfEdge`] naming the first that does in
-    /// arena order — tier-1-invalid input: a torn bijection would leave
-    /// it naming a dead edge); same parent loop ([`EulerOpError::NotSameLoop`]); the loop
+    /// `he1` resolves, `he2` resolves ([`EulerOpError::StaleKey`]);
+    /// `he1`'s edge resolves (`StaleKey`); `he1` and `he2` are its two
+    /// halves: distinct, the edge claims `he1` with `he2` as its mate, and
+    /// `he2` names the edge ([`EulerOpError::NotSameEdge`]); same parent
+    /// loop ([`EulerOpError::NotSameLoop`]); the loop
     /// resolves (`StaleKey`) and is a cycle
     /// ([`EulerOpError::LoopNotCycle`]); the loop's face resolves
     /// (`StaleKey`); the cycle walk from `he1` reaches `he2`
@@ -466,7 +465,11 @@ impl<T: Decide> Body<T> {
     /// or empty the side of a loop that keeps members outside the walk);
     /// the two empty
     /// components (if both sides are empty) anchor at
-    /// distinct vertices ([`EulerOpError::EmptyAnchorsCollide`]).
+    /// distinct vertices ([`EulerOpError::EmptyAnchorsCollide`]); no
+    /// half-edge but `he1` and `he2` names the edge
+    /// ([`EulerOpError::UnclaimedHalfEdge`] naming the first in arena
+    /// order — tier-1-invalid input the kill would leave naming a dead
+    /// edge).
     ///
     /// # Errors
     ///
@@ -480,15 +483,10 @@ impl<T: Decide> Body<T> {
         let he1_data = self.resolve_half_edge(he1)?;
         let he2_data = self.resolve_half_edge(he2)?;
         let edge = he1_data.edge;
-        if he1 == he2 || he2_data.edge != edge {
-            return Err(EulerOpError::NotSameEdge { he1, he2 });
-        }
         let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
         })?;
-        // Same `edge` field but the edge does not claim them, or a third
-        // half-edge names it: a corrupt bijection — tier-1-invalid input.
-        self.require_edge_pair(edge, &edge_data, [he1, he2])?;
+        require_halves(edge, &edge_data, he1, (he2, he2_data.edge))?;
         let loop_key =
             shared_loop(&he1_data, &he2_data).ok_or(EulerOpError::NotSameLoop { he1, he2 })?;
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
@@ -554,6 +552,7 @@ impl<T: Decide> Body<T> {
         if ring_side.is_empty() && old_side.is_empty() && u == w {
             return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
         }
+        self.require_edge_unnamed(edge, [he1, he2])?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): the ring loop only.
@@ -1508,19 +1507,7 @@ impl<T: Decide> Body<T> {
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        self.require_run_of(
-            ring_members.iter().map(|m| m.key()),
-            ring_loop,
-            RunExtent::Whole,
-            &[],
-        )?;
-        self.require_loop_unlisted(
-            ring_loop,
-            Clearing {
-                faces: &[face_key],
-                ..Clearing::default()
-            },
-        )?;
+        self.require_ring_unnamed(ring_loop, ring_members.iter().map(|m| m.key()), face_key)?;
         let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let w = ring_data.start;
@@ -1616,7 +1603,7 @@ impl<T: Decide> Body<T> {
             });
         }
         self.check_ring_not_outer(face_key, ring)?;
-        self.require_empty_ring_unnamed(ring, face_key)?;
+        self.require_ring_unnamed(ring, [], face_key)?;
         let target_prev = self.require_live(target_data.prev)?;
         let u = target_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
@@ -1700,19 +1687,7 @@ impl<T: Decide> Body<T> {
             .last()
             .copied()
             .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        self.require_run_of(
-            ring_members.iter().map(|m| m.key()),
-            ring_loop,
-            RunExtent::Whole,
-            &[],
-        )?;
-        self.require_loop_unlisted(
-            ring_loop,
-            Clearing {
-                faces: &[face_key],
-                ..Clearing::default()
-            },
-        )?;
+        self.require_ring_unnamed(ring_loop, ring_members.iter().map(|m| m.key()), face_key)?;
         let w = ring_data.start;
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
@@ -1790,7 +1765,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::NotSameFace { target, ring });
         }
         self.check_ring_not_outer(face_key, ring)?;
-        self.require_empty_ring_unnamed(ring, face_key)?;
+        self.require_ring_unnamed(ring, [], face_key)?;
         if u == w {
             // Two empty loops holding one lone vertex — tier-1-invalid
             // input (see the module docs), checked defensively.
@@ -1845,18 +1820,27 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// The `Empty` ring the `EmptyRing` and `BothEmpty` sites remove is
-    /// named by nothing the kill keeps: no half-edge claims it
-    /// ([`EulerOpError::LoopCycleBroken`], [`Body::require_run_of`] over
-    /// the empty run), and no face but `face`, which drops it, lists it
-    /// ([`EulerOpError::KillLeavesDangling`],
+    /// The ring every site removes is named by nothing the kill keeps:
+    /// no half-edge but `members`, the ring's cycle walk (none for an
+    /// `Empty` ring), claims it ([`EulerOpError::LoopCycleBroken`],
+    /// [`Body::require_run_of`]), and no face but `face`, which drops it,
+    /// lists it ([`EulerOpError::KillLeavesDangling`],
     /// [`Body::require_loop_unlisted`]).
-    fn require_empty_ring_unnamed(&self, ring: LoopKey, face: FaceKey) -> Result<(), EulerOpError> {
-        self.require_run_of([], ring, RunExtent::Whole, &[])?;
+    fn require_ring_unnamed(
+        &self,
+        ring: LoopKey,
+        members: impl IntoIterator<Item = HalfEdgeKey>,
+        face: FaceKey,
+    ) -> Result<(), EulerOpError> {
+        self.require_run_of(members, ring, RunExtent::Whole, &[])?;
+        let edited = Spine {
+            faces: &[face],
+            ..Spine::default()
+        };
         self.require_loop_unlisted(
             ring,
             Clearing {
-                faces: &[face],
+                edited,
                 ..Clearing::default()
             },
         )

@@ -31,9 +31,11 @@
 //!
 //!   **The driven set is not the whole class**, and this file claims
 //!   only the driven set. `mekr` reaches `link_half_edges` too, at every
-//!   one of its four site variants, and nothing here drives it; the site
-//!   tally and the grep it came from are on the row that owns the gap,
-//!   `work/topo/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`.
+//!   one of its four site variants, and the sweep does not drive it (the
+//!   kill-anchor rows below do, for their own proofs, and assert nothing
+//!   about row 4); the site tally and the grep it came from are on the
+//!   row that owns the gap,
+//!   `work/probe/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`.
 //!
 //!   **Calling is not reaching, and the two rows say which they did.**
 //!   Both print an exposure per operator and both ASSERT it, per
@@ -47,6 +49,18 @@
 //!   rim bridged back into the top face's outer loop, which reaches the
 //!   two-splice arm) and [`crate::fixtures::ops_strut_cube`] (a pendant
 //!   strut, which reaches the one-splice arm) beside the cube.
+//! - The **kill-anchor** rows prove that no kill, and no make that moves
+//!   a walked run, writes an anchor its torn input put elsewhere or
+//!   leaves a record naming one it removed:
+//!   [`valid_fixtures_never_refuse_a_kill_anchor`] enumerates valid
+//!   bodies for over-refusal, [`kill_anchors_on_a_few_torn_bodies`] is a
+//!   counterexample search over the tear kinds, and
+//!   `kill_anchors_on_torn_bodies` is its by-hand evidence run.
+//! - The **revert** rows do the same for `revert`'s start and anchor
+//!   writes.
+//! - The **removal** rows are deterministic witnesses: each kill refuses,
+//!   typed and with the body unchanged, a record it keeps naming one it
+//!   removes, through every door of its operator.
 //!
 //! # Why the sweep is release-only
 //!
@@ -75,8 +89,8 @@
 //! [`torn_bodies_never_reach_a_row_four_unreachable`], or the sweep
 //! ships without ever running. The profile-independent rows above need
 //! nothing: they run on every job that runs this suite at all — which
-//! is not every job, since the whole module is `gated_to!` the six
-//! files named below and a PR touching none of them does not run it.
+//! is not every job, since the whole module is `gated_to!` the files
+//! named below and a PR touching none of them does not run it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -702,6 +716,8 @@ enum Tear {
     LoopFaceForeign,
     /// A live loop appended to a face's `rings`.
     RingForeign,
+    /// A face's `outer` set to another live loop.
+    OuterForeign,
     /// A face's `shell` set to another live shell.
     FaceShellForeign,
     /// A live face appended to a shell's `faces`.
@@ -749,6 +765,7 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead
         Tear::EmptyVertexForeign
         | Tear::LoopFaceForeign
         | Tear::RingForeign
+        | Tear::OuterForeign
         | Tear::FaceShellForeign
         | Tear::ShellFacesForeign
         | Tear::ShellSolidForeign
@@ -796,7 +813,7 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead
 }
 
 /// Plants a tear of the spine records (a loop's boundary or face, a
-/// face's rings or shell, a shell's faces or solid, a solid's shells),
+/// face's rings, outer or shell, a shell's faces or solid, a solid's shells),
 /// each drawn over the live keys of its arenas; `false` for a tear of
 /// the half-edge records, which [`plant`] draws itself.
 fn plant_spine(body: &mut Body<f64>, tear: Tear, pick: &mut impl FnMut(usize) -> usize) -> bool {
@@ -817,6 +834,10 @@ fn plant_spine(body: &mut Body<f64>, tear: Tear, pick: &mut impl FnMut(usize) ->
         Tear::RingForeign => {
             let (f, l) = (faces[pick(faces.len())], loops[pick(loops.len())]);
             body.get_face_mut(f).unwrap().rings.push(l);
+        }
+        Tear::OuterForeign => {
+            let (f, l) = (faces[pick(faces.len())], loops[pick(loops.len())]);
+            body.get_face_mut(f).unwrap().outer = l;
         }
         Tear::FaceShellForeign => {
             let (f, s) = (faces[pick(faces.len())], shells[pick(shells.len())]);
@@ -857,7 +878,7 @@ fn plant_spine(body: &mut Body<f64>, tear: Tear, pick: &mut impl FnMut(usize) ->
 ///
 /// **Nor is it the whole class**: `mekr` reaches the arms and this pass
 /// does not drive it (module docs, and
-/// `work/topo/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`).
+/// `work/probe/review-d18-drives-no-mekr-though-it-reaches-link-half-edges`).
 /// Adding it here without driving it would floor over a category that
 /// can never be nonzero.
 #[cfg(not(debug_assertions))]
@@ -1777,9 +1798,9 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
 /// `parent_loop`, which puts a member a plan anchors at or walks in
 /// another loop; and a foreign reference of every other kind a record
 /// a kill removes is named by: a half-edge's `edge`, a loop's `Empty`
-/// vertex and its `face`, a face's `rings` and `shell`, a shell's
-/// `faces` and `solid`, and a solid's `shells`.
-const ANCHOR_TEARS: [Tear; 12] = [
+/// vertex and its `face`, a face's `rings`, `outer` and `shell`, a
+/// shell's `faces` and `solid`, and a solid's `shells`.
+const ANCHOR_TEARS: [Tear; 13] = [
     Tear::NextForeign,
     Tear::EdgeBijection,
     Tear::StartForeign,
@@ -1788,6 +1809,7 @@ const ANCHOR_TEARS: [Tear; 12] = [
     Tear::EmptyVertexForeign,
     Tear::LoopFaceForeign,
     Tear::RingForeign,
+    Tear::OuterForeign,
     Tear::FaceShellForeign,
     Tear::ShellFacesForeign,
     Tear::ShellSolidForeign,
@@ -2480,6 +2502,23 @@ fn kef_refuses_a_mate_whose_own_edge_is_another() {
 }
 
 #[test]
+fn kef_and_kev_refuse_an_edge_claiming_one_half_in_both_slots() {
+    // Adopted from the kill-proof review's torn-slot probe: an edge of
+    // the declined cube torn to claim `he` in both slots, so the mate the
+    // kill reads from them is `he` itself. The pair check refuses the
+    // torn bijection before the plan reads that mate's loop or start.
+    let mut body = declined_cube::<f64>(Tol::witness()).body;
+    let he = arena_halves(&body)[6];
+    let edge = body.get_half_edge(he).unwrap().edge;
+    let torn = body.get_edge_mut(edge).unwrap();
+    (torn.he_plus, torn.he_minus) = (he, he);
+    let refusal = EulerOpError::NotSameEdge { he1: he, he2: he };
+    assert!(refusal.reports_tier1_corruption());
+    assert_kef_refuses(&mut body, he, &refusal);
+    assert_kev_refuses(&mut body, he, &refusal);
+}
+
+#[test]
 fn kef_and_kev_refuse_a_third_half_edge_naming_the_killed_edge() {
     // A half-edge of the declined cube whose `edge` is torn to the edge
     // the kill removes. Unchecked, the kill leaves it naming the dead
@@ -2517,8 +2556,8 @@ fn kemr_refuses_a_third_half_edge_naming_the_killed_edge() {
 #[test]
 fn kef_refuses_a_dying_face_or_loop_another_record_names() {
     // The declined cube: a third loop's `face` torn to the dying face,
-    // then a third face's `rings` torn to list the dying loop, then
-    // another shell torn to list the dying face.
+    // then a third face's `rings`, then its `outer`, torn to name the
+    // dying loop, then another shell torn to list the dying face.
     let tol = Tol::witness();
     let build = || {
         let body = declined_cube::<f64>(tol).body;
@@ -2540,14 +2579,18 @@ fn kef_refuses_a_dying_face_or_loop_another_record_names() {
     };
     assert_kef_refuses(&mut body, he, &torn);
 
-    let (mut body, he, l1, _, third) = build();
-    let face = body.get_loop(third).unwrap().face;
-    body.get_face_mut(face).unwrap().rings.push(l1);
-    let torn = EulerOpError::KillLeavesDangling {
-        from: EntityId::Face(face),
-        to: EntityId::Loop(l1),
-    };
-    assert_kef_refuses(&mut body, he, &torn);
+    type Tear = fn(&mut crate::entity::Face, crate::entity::LoopKey);
+    let tears: [Tear; 2] = [|f, l1| f.rings.push(l1), |f, l1| f.outer = l1];
+    for tear in tears {
+        let (mut body, he, l1, _, third) = build();
+        let face = body.get_loop(third).unwrap().face;
+        tear(body.get_face_mut(face).unwrap(), l1);
+        let torn = EulerOpError::KillLeavesDangling {
+            from: EntityId::Face(face),
+            to: EntityId::Loop(l1),
+        };
+        assert_kef_refuses(&mut body, he, &torn);
+    }
 
     let (mut body, he, _, f1, _) = build();
     let other = body.mvfs(p(9.0), true).unwrap();
@@ -2585,13 +2628,14 @@ fn dangling(from: EntityId, to: EntityId) -> EulerOpError {
 fn kvfs_refuses_a_lone_record_another_record_names() {
     // A segment's solid beside a lone solid, one tear at a time: the
     // segment's loop, face or shell torn to name the lone face, shell or
-    // solid, the segment's face torn to list the lone loop, its shell to
-    // list the lone face, its solid to list the lone shell, and a third
+    // solid, the segment's face torn to list the lone loop as a ring and
+    // as its outer, its shell to list the lone face, its solid to list
+    // the lone shell, and a third
     // solid's loop torn `Empty` at the lone vertex. Unchecked, each kill
     // leaves the torn record naming a dead one.
     use crate::euler::MvfsCreated;
     type Tear = fn(&mut Body<f64>, &MvfsCreated, &MvfsCreated) -> EulerOpError;
-    let tears: [Tear; 7] = [
+    let tears: [Tear; 8] = [
         |b, seg, lone| {
             b.get_loop_mut(seg.r#loop).unwrap().face = lone.face;
             dangling(EntityId::Loop(seg.r#loop), EntityId::Face(lone.face))
@@ -2606,6 +2650,10 @@ fn kvfs_refuses_a_lone_record_another_record_names() {
         },
         |b, seg, lone| {
             b.get_face_mut(seg.face).unwrap().rings.push(lone.r#loop);
+            dangling(EntityId::Face(seg.face), EntityId::Loop(lone.r#loop))
+        },
+        |b, seg, lone| {
+            b.get_face_mut(seg.face).unwrap().outer = lone.r#loop;
             dangling(EntityId::Face(seg.face), EntityId::Loop(lone.r#loop))
         },
         |b, seg, lone| {
@@ -2674,31 +2722,79 @@ fn mekr_refuses_an_empty_ring_a_torn_half_edge_claims() {
     }
 }
 
-#[test]
-fn mekr_refuses_a_cycle_ring_another_face_lists() {
-    // The holed box: a side face's `rings` torn to list the top face's
-    // hole ring. Unchecked, the ring's own face drops it and the side
-    // face is left listing a dead loop.
-    let hb = ops_holed_box(Tol::witness());
-    let mut body = hb.body;
-    let ring = hb.plug.ring;
-    let top = body.get_loop(ring).unwrap().face;
-    let outer = body.get_face(top).unwrap().outer;
-    let member = |l| {
+/// Each `mekr` site on the valid body that offers it, with the ring
+/// loop the site removes: `Cycles` on the holed box, `EmptyTarget` on
+/// [`RING_ABOUT_AN_EMPTY_OUTER`], `EmptyRing` on
+/// [`EMPTY_RING_BESIDE_A_CYCLE`] and `BothEmpty` on [`TWO_EMPTY_LOOPS`].
+fn every_mekr_site(tol: Tol) -> [(Body<f64>, MekrSite, crate::entity::LoopKey); 4] {
+    let member = |body: &Body<f64>, l| {
         body.half_edges()
             .find(|(_, h)| h.parent_loop == l)
             .map(|(k, _)| k)
             .unwrap()
     };
-    let site = MekrSite::Cycles {
-        target: member(outer),
-        ring: member(ring),
+    let is_empty = |body: &Body<f64>, l| {
+        matches!(
+            body.get_loop(l).unwrap().boundary,
+            LoopBoundary::Empty { .. }
+        )
     };
-    let (side, _) = body
-        .faces()
-        .find(|&(f, data)| f != top && data.rings.is_empty())
-        .unwrap();
-    body.get_face_mut(side).unwrap().rings.push(ring);
-    let torn = dangling(EntityId::Face(side), EntityId::Loop(ring));
-    assert_mekr_refuses(&mut body, site, &torn);
+    // The face with a ring, its outer loop and its first ring.
+    let ringed = |body: &Body<f64>| {
+        let (_, face) = body.faces().find(|(_, f)| !f.rings.is_empty()).unwrap();
+        (face.outer, face.rings[0])
+    };
+    let hb = ops_holed_box(tol);
+    let ring = hb.plug.ring;
+    let top = hb.body.get_loop(ring).unwrap().face;
+    let outer = hb.body.get_face(top).unwrap().outer;
+    let cycles = MekrSite::Cycles {
+        target: member(&hb.body, outer),
+        ring: member(&hb.body, ring),
+    };
+    let sites = [
+        RING_ABOUT_AN_EMPTY_OUTER,
+        EMPTY_RING_BESIDE_A_CYCLE,
+        TWO_EMPTY_LOOPS,
+    ]
+    .map(|(name, build)| {
+        let body = build(tol);
+        let (outer, ring) = ringed(&body);
+        let site = match (is_empty(&body, outer), is_empty(&body, ring)) {
+            (true, false) => MekrSite::EmptyTarget {
+                target: outer,
+                ring: member(&body, ring),
+            },
+            (false, true) => MekrSite::EmptyRing {
+                target: member(&body, outer),
+                ring,
+            },
+            (true, true) => MekrSite::BothEmpty {
+                target: outer,
+                ring,
+            },
+            (false, false) => unreachable!("{name}: an `Empty` loop beside the ring"),
+        };
+        (body, site, ring)
+    });
+    let [a, b, c] = sites;
+    [(hb.body, cycles, ring), a, b, c]
+}
+
+#[test]
+fn mekr_refuses_a_ring_another_face_lists() {
+    // At each site, a bystander face's `rings`, then its `outer`, torn
+    // to name the ring. Unchecked, the ring's own face drops it and the
+    // bystander is left naming a dead loop.
+    let tol = Tol::witness();
+    type Tear = fn(&mut crate::entity::Face, crate::entity::LoopKey);
+    let tears: [Tear; 2] = [|f, ring| f.rings.push(ring), |f, ring| f.outer = ring];
+    for tear in tears {
+        for (mut body, site, ring) in every_mekr_site(tol) {
+            let bystander = body.mvfs(p(9.0), true).unwrap();
+            tear(body.get_face_mut(bystander.face).unwrap(), ring);
+            let torn = dangling(EntityId::Face(bystander.face), EntityId::Loop(ring));
+            assert_mekr_refuses(&mut body, site, &torn);
+        }
+    }
 }

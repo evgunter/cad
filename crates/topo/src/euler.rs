@@ -774,8 +774,8 @@ pub enum EulerOpError {
     /// are equal or name two edges, or, a corrupt bijection —
     /// tier-1-invalid input — the edge does not claim exactly them in
     /// its two slots, or the mate [`Body::kef`] or [`Body::kev`] reads
-    /// from the edge's slots names another edge (the crate-internal
-    /// `Body::require_edge_pair`).
+    /// from the edge's slots is the argument itself or names another
+    /// edge (the crate-internal `require_halves`).
     NotSameEdge {
         /// The first half-edge.
         he1: HalfEdgeKey,
@@ -789,7 +789,7 @@ pub enum EulerOpError {
     /// mate is computed rather than passed, and by them and
     /// [`Body::kemr`] for a half-edge outside the removed pair that
     /// names the edge the kill removes (the crate-internal
-    /// `Body::require_edge_pair`).
+    /// `Body::require_edge_unnamed`).
     UnclaimedHalfEdge {
         /// The half-edge its own edge does not claim.
         he: HalfEdgeKey,
@@ -2810,22 +2810,41 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// The first half-edge in arena order, other than `killed`, that
-    /// starts at `v`: the incidence scan that proves a kill leaves `v`
-    /// lone ([`Body::require_kill_anchors`]'s `Lone` proof; a vertex a
-    /// kill removes is [`Body::require_vertex_unnamed`]'s). It reads the
-    /// whole arena, since
-    /// no walk from a killed half reaches a stranger a torn start put
-    /// at `v`; a plan refuses [`EulerOpError::OrbitBroken`] on a hit.
+    /// The first half-edge in arena order, other than `besides`, that
+    /// starts at `v`: the incidence scan behind a kill's proof that it
+    /// leaves `v` lone ([`Body::require_kill_anchors`]'s `Lone` proof) or
+    /// that nothing it keeps starts at a vertex it removes
+    /// ([`Body::require_vertex_unnamed`]). It reads the whole arena,
+    /// since no walk from a killed half reaches a stranger a torn start
+    /// put at `v`; a plan refuses [`EulerOpError::OrbitBroken`] on a hit.
     pub(crate) fn starts_at_besides(
         &self,
         v: VertexKey,
-        killed: &[HalfEdgeKey],
+        besides: &[HalfEdgeKey],
     ) -> Option<HalfEdgeKey> {
+        let mut skip: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
+        for &he in besides {
+            skip.insert(he, ());
+        }
         self.half_edges
             .iter()
-            .find(|(he, data)| data.start == v && !killed.contains(he))
+            .find(|&(he, data)| data.start == v && !skip.contains_key(he))
             .map(|(he, _)| he)
+    }
+
+    /// The first loop in arena order, other than `besides`, that is
+    /// `Empty` at `v`: the scan behind a kill's proof that the loop it
+    /// empties at `v` is the only one there
+    /// ([`Body::require_kill_anchors`]) and that no loop it keeps holds a
+    /// vertex it removes ([`Body::require_vertex_unnamed`]). It reads the
+    /// whole loop arena.
+    pub(crate) fn empty_at_besides(&self, v: VertexKey, besides: &[LoopKey]) -> Option<LoopKey> {
+        self.loops
+            .iter()
+            .find(|&(l, data)| {
+                data.boundary == LoopBoundary::Empty { vertex: v } && !besides.contains(&l)
+            })
+            .map(|(l, _)| l)
     }
 
     /// Proves the anchor writes of a kill that removes the half-edges
@@ -2941,10 +2960,7 @@ impl<T: Decide> Body<T> {
                             .half_edges
                             .iter()
                             .any(|(he, data)| stays_in(he, data, target))
-                        && !self
-                            .loops
-                            .iter()
-                            .any(|(other, data)| Some(other) != target && data.boundary == boundary)
+                        && self.empty_at_besides(vertex, target.as_slice()).is_none()
                 }
             };
             if !holds {
@@ -3014,57 +3030,31 @@ impl<T: Decide> Body<T> {
         moved: &[HalfEdgeKey],
         killed: &[LoopKey],
     ) -> Result<(), EulerOpError> {
-        let mut leaving: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
-        for &he in moved {
-            leaving.insert(he, ());
-        }
-        if let Some((he, _)) = self
-            .half_edges
-            .iter()
-            .find(|&(he, data)| data.start == v && !leaving.contains_key(he))
-        {
+        if let Some(he) = self.starts_at_besides(v, moved) {
             return Err(EulerOpError::OrbitBroken { he });
         }
-        match self.loops.iter().find(|&(l, data)| {
-            data.boundary == LoopBoundary::Empty { vertex: v } && !killed.contains(&l)
-        }) {
-            Some((r#loop, _)) => Err(EulerOpError::LoopCycleBroken { r#loop }),
+        match self.empty_at_besides(v, killed) {
+            Some(r#loop) => Err(EulerOpError::LoopCycleBroken { r#loop }),
             None => Ok(()),
         }
     }
 
-    /// Proves that `he1` and `he2` are the two halves of `edge`, and that
-    /// no other half-edge names it, before a kill removes all three: the
-    /// halves are distinct, each names `edge`, and `edge` claims each
-    /// with the other as its mate ([`Edge::claim`]), refusing
-    /// [`EulerOpError::NotSameEdge`]; then no half-edge but the two names
-    /// `edge`, refusing [`EulerOpError::UnclaimedHalfEdge`] naming the
-    /// first that does in arena order.
-    ///
-    /// A kill reads the mate from the edge's slots, and a torn bijection
-    /// hands it a half whose own edge is another, or leaves a half the
-    /// edge no longer claims still naming it; either is left naming a
-    /// dead record. The second proof reads the whole half-edge arena,
-    /// bounded as [`Body::require_run_of`]'s `Whole` proof is. The
-    /// validator reports what these refuse as `HalfEdgeUnclaimed` and,
-    /// once the edge is gone, `DanglingTopology`.
-    pub(crate) fn require_edge_pair(
+    /// Proves that no half-edge but `halves`, the two a kill removes with
+    /// it, names the edge `edge`, refusing
+    /// [`EulerOpError::UnclaimedHalfEdge`] naming the first that does in
+    /// arena order: a torn `edge` field the edge's slots do not reach.
+    /// [`require_halves`] proves the two are the edge's; this reads the
+    /// whole half-edge arena, bounded as [`Body::require_run_of`]'s
+    /// `Whole` proof is, so a kill runs it after every cheaper check.
+    pub(crate) fn require_edge_unnamed(
         &self,
         edge: EdgeKey,
-        edge_data: &Edge,
-        [he1, he2]: [HalfEdgeKey; 2],
+        halves: [HalfEdgeKey; 2],
     ) -> Result<(), EulerOpError> {
-        let names = |he: HalfEdgeKey| self.half_edges.get(he).map(|data| data.edge) == Some(edge);
-        let claims = |he: HalfEdgeKey, mate: HalfEdgeKey| {
-            edge_data.claim(he).map(|claim| claim.mate) == Some(mate)
-        };
-        if he1 == he2 || !names(he1) || !names(he2) || !claims(he1, he2) || !claims(he2, he1) {
-            return Err(EulerOpError::NotSameEdge { he1, he2 });
-        }
         match self
             .half_edges
             .iter()
-            .find(|&(he, data)| data.edge == edge && he != he1 && he != he2)
+            .find(|&(he, data)| data.edge == edge && !halves.contains(&he))
         {
             Some((he, _)) => Err(EulerOpError::UnclaimedHalfEdge { he, edge }),
             None => Ok(()),
@@ -3087,7 +3077,7 @@ impl<T: Decide> Body<T> {
         clearing: Clearing<'_>,
     ) -> Result<(), EulerOpError> {
         let stray = self.faces.iter().find(|&(face, data)| {
-            (data.outer == l || data.rings.contains(&l)) && !clearing.faces.contains(&face)
+            (data.outer == l || data.rings.contains(&l)) && !clearing.clears_face(face)
         });
         match stray {
             Some((face, _)) => Err(EulerOpError::KillLeavesDangling {
@@ -3116,12 +3106,12 @@ impl<T: Decide> Body<T> {
         let by_loop = self
             .loops
             .iter()
-            .find(|&(l, data)| data.face == f && !clearing.loops.contains(&l))
+            .find(|&(l, data)| data.face == f && !clearing.clears_loop(l))
             .map(|(l, _)| EntityId::Loop(l));
         let by_shell = || {
             self.shells
                 .iter()
-                .find(|&(s, data)| data.faces.contains(&f) && !clearing.shells.contains(&s))
+                .find(|&(s, data)| data.faces.contains(&f) && !clearing.clears_shell(s))
                 .map(|(s, _)| EntityId::Shell(s))
         };
         match by_loop.or_else(by_shell) {
@@ -3146,12 +3136,12 @@ impl<T: Decide> Body<T> {
         let by_face = self
             .faces
             .iter()
-            .find(|&(f, data)| data.shell == s && !clearing.faces.contains(&f))
+            .find(|&(f, data)| data.shell == s && !clearing.clears_face(f))
             .map(|(f, _)| EntityId::Face(f));
         let by_solid = || {
             self.solids
                 .iter()
-                .find(|&(so, data)| data.shells.contains(&s) && !clearing.solids.contains(&so))
+                .find(|&(so, data)| data.shells.contains(&s) && !clearing.clears_solid(so))
                 .map(|(so, _)| EntityId::Solid(so))
         };
         match by_face.or_else(by_solid) {
@@ -3176,7 +3166,7 @@ impl<T: Decide> Body<T> {
         match self
             .shells
             .iter()
-            .find(|&(s, data)| data.solid == solid && !clearing.shells.contains(&s))
+            .find(|&(s, data)| data.solid == solid && !clearing.clears_shell(s))
         {
             Some((s, _)) => Err(EulerOpError::KillLeavesDangling {
                 from: EntityId::Shell(s),
@@ -3947,17 +3937,46 @@ pub(crate) struct KillRun<'a> {
     pub(crate) into: KillInto,
 }
 
-/// The spine records a kill removes, or keeps and edits so they stop
-/// naming the record it removes: what its removal proofs
+/// The spine records a kill's removal proofs
 /// ([`Body::require_loop_unlisted`], [`Body::require_face_unnamed`],
 /// [`Body::require_shell_unnamed`], [`Body::require_solid_unnamed`])
-/// read as leaving no name behind.
+/// pass over, since the kill leaves none of them naming the record it
+/// removes: those it removes beside it, and those it keeps and edits to
+/// drop the name.
 #[derive(Clone, Copy, Default)]
 pub(crate) struct Clearing<'a> {
+    /// The records the kill removes.
+    pub(crate) removed: Spine<'a>,
+    /// The records the kill keeps and edits: `kef`'s shell, which drops
+    /// the dying face, and `mekr`'s face, which drops the ring.
+    pub(crate) edited: Spine<'a>,
+}
+
+/// One list per spine arena: a [`Clearing`]'s half.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Spine<'a> {
     pub(crate) loops: &'a [LoopKey],
     pub(crate) faces: &'a [FaceKey],
     pub(crate) shells: &'a [ShellKey],
     pub(crate) solids: &'a [SolidKey],
+}
+
+impl Clearing<'_> {
+    fn clears_loop(&self, l: LoopKey) -> bool {
+        self.removed.loops.contains(&l) || self.edited.loops.contains(&l)
+    }
+
+    fn clears_face(&self, f: FaceKey) -> bool {
+        self.removed.faces.contains(&f) || self.edited.faces.contains(&f)
+    }
+
+    fn clears_shell(&self, s: ShellKey) -> bool {
+        self.removed.shells.contains(&s) || self.edited.shells.contains(&s)
+    }
+
+    fn clears_solid(&self, s: SolidKey) -> bool {
+        self.removed.solids.contains(&s) || self.edited.solids.contains(&s)
+    }
 }
 
 /// How much of the loop it was walked from a moved run is
@@ -4016,6 +4035,27 @@ impl KillAnchor {
 /// torn `next` that reads two loops' halves as adjacent).
 pub(crate) fn shared_loop(a: &HalfEdge, b: &HalfEdge) -> Option<LoopKey> {
     (a.parent_loop == b.parent_loop).then_some(a.parent_loop)
+}
+
+/// Proves that `he1` and `he2` are the two halves of `edge`, the edge
+/// `he1` names, refusing [`EulerOpError::NotSameEdge`] otherwise: they
+/// are distinct, `edge` claims `he1` with `he2` as its mate
+/// ([`Edge::claim`]), and `he2` names `edge` (`he2_edge`). The one
+/// decision a kill takes on its pair, before any other check that reads
+/// the mate: a torn bijection can claim one half in both slots, or hand
+/// the kill a mate whose own edge is another, which the kill would leave
+/// naming a dead edge. Reads the edge's slots and one field, O(1);
+/// [`Body::require_edge_unnamed`] proves the rest of the arena.
+pub(crate) fn require_halves(
+    edge: EdgeKey,
+    edge_data: &Edge,
+    he1: HalfEdgeKey,
+    (he2, he2_edge): (HalfEdgeKey, EdgeKey),
+) -> Result<(), EulerOpError> {
+    if he1 == he2 || he2_edge != edge || edge_data.claim(he1).map(|c| c.mate) != Some(he2) {
+        return Err(EulerOpError::NotSameEdge { he1, he2 });
+    }
+    Ok(())
 }
 
 /// The **plane × NURBS attach door** (M7-8).
@@ -6323,5 +6363,262 @@ mod tests {
         crate::fixtures::assert_make_refuses(&mut body, &torn, |b| {
             b.mef_chord(site, Tol::witness())
         });
+    }
+}
+
+/// **Every naming relation the validator's tier-1 reference passes
+/// check, and what a kill that removes the named record does about it.**
+///
+/// The relations are DERIVED from `validate.rs`: every
+/// `ValidationError::Dangling*` or `ValidationError::Stale*` that
+/// `tier1` constructs is one relation, keyed by the variant and the
+/// kinds its fields wrap (`EntityId::Face(..)` reads `Face`), or by its
+/// field names where it wraps none. `RELATIONS` gives each one a
+/// disposition: the helper whose scan reads the naming field before a
+/// kill removes the record it names, checked against that helper's
+/// body, or the tracker row that files the gap, checked to exist. A
+/// relation `tier1` gains, or a variant of either prefix the enum gains
+/// that `tier1` does not construct and `NOT_BODY_RELATIONS` does not
+/// place, reds here until it is given one.
+///
+/// What this cannot see: a relation the validator checks without a
+/// `Dangling*` or `Stale*` variant, and a second field of one kind pair
+/// checked at a site the key already names (a face's `outer` and
+/// `rings` are one site, so one key; its reads name both fields).
+/// Whether each kill calls the helper is the operators' rows' to show,
+/// not this one's.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod removal_census {
+    use std::collections::BTreeSet;
+    use test_utils::source::{
+        ItemBody, balanced_end, code_only, ident, item_body, top_level_split,
+    };
+
+    const VALIDATE: &str = include_str!("validate.rs");
+    const HELPER_SOURCES: [&str; 2] = [include_str!("euler.rs"), include_str!("body.rs")];
+
+    /// What a kill does about a relation's naming field.
+    enum Disposition {
+        /// The helper whose scan reads the field, and the code
+        /// fragments its body reads it through.
+        Read(&'static str, &'static [&'static str]),
+        /// The row that files the gap, repo-relative.
+        Filed(&'static str),
+    }
+    use Disposition::{Filed, Read};
+
+    const HALF_EDGES: &str = "work/topo/kills-remove-half-edges-another-record-names.md";
+    const NULL_FACES: &str =
+        "work/topo/kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove.md";
+
+    /// One disposition per relation `tier1` checks, in its pass order.
+    const RELATIONS: [(&str, Disposition); 19] = [
+        (
+            "DanglingTopology: Solid -> Shell",
+            Read("require_shell_unnamed", &["data.shells.contains"]),
+        ),
+        (
+            "DanglingTopology: Shell -> Face",
+            Read("require_face_unnamed", &["data.faces.contains"]),
+        ),
+        (
+            "DanglingTopology: Shell -> Solid",
+            Read("require_solid_unnamed", &["data.solid =="]),
+        ),
+        (
+            "DanglingGeometry: Face -> Surface",
+            Read("remove_surface_if_orphaned", &["face.surface =="]),
+        ),
+        (
+            "DanglingTopology: Face -> Loop",
+            Read(
+                "require_loop_unlisted",
+                &["data.outer ==", "data.rings.contains"],
+            ),
+        ),
+        (
+            "DanglingTopology: Face -> Shell",
+            Read("require_shell_unnamed", &["data.shell =="]),
+        ),
+        (
+            "DanglingTopology: Loop -> Vertex",
+            Read("empty_at_besides", &["data.boundary =="]),
+        ),
+        ("DanglingTopology: Loop -> HalfEdge", Filed(HALF_EDGES)),
+        (
+            "DanglingTopology: Loop -> Face",
+            Read("require_face_unnamed", &["data.face =="]),
+        ),
+        (
+            "DanglingTopology: HalfEdge -> Edge",
+            Read("require_edge_unnamed", &["data.edge =="]),
+        ),
+        (
+            "DanglingTopology: HalfEdge -> Vertex",
+            Read("starts_at_besides", &["data.start =="]),
+        ),
+        (
+            "DanglingTopology: HalfEdge -> Loop",
+            Read("require_run_of", &["data.parent_loop =="]),
+        ),
+        ("DanglingTopology: HalfEdge -> HalfEdge", Filed(HALF_EDGES)),
+        ("DanglingTopology: Edge -> HalfEdge", Filed(HALF_EDGES)),
+        (
+            "DanglingGeometry: Edge -> Curve",
+            Read("remove_curve_if_orphaned", &["edge.curve =="]),
+        ),
+        (
+            "DanglingDescription: Curve -> Surface",
+            Read("remove_surface_if_orphaned", &["description_surfaces("]),
+        ),
+        (
+            "DanglingGeometry: Vertex -> Point",
+            Read("remove_point_if_orphaned", &["vertex.point =="]),
+        ),
+        ("DanglingTopology: Vertex -> HalfEdge", Filed(HALF_EDGES)),
+        ("StaleNullFaceLoop: face, named_loop", Filed(NULL_FACES)),
+    ];
+
+    /// Variants of either prefix that name no record of a `Body`, so no
+    /// kill can leave one naming a record it removes.
+    const NOT_BODY_RELATIONS: [(&str, &str); 1] = [(
+        "StaleContactDeclaration",
+        "tier 3': a contact declaration is the caller's, not the body's",
+    )];
+
+    fn is_reference_variant(name: &str) -> bool {
+        name.starts_with("Dangling") || name.starts_with("Stale")
+    }
+
+    /// The body of the one item whose head `head` names, in `code`.
+    fn body_of<'a>(code: &'a str, head: &str) -> &'a str {
+        let mut found = code
+            .match_indices(head)
+            .map(|(at, _)| match item_body(code, at) {
+                ItemBody::Body(range) => &code[range],
+                other => panic!("`{head}` has a body, not {other:?}"),
+            });
+        let body = found
+            .next()
+            .unwrap_or_else(|| panic!("`{head}` is in the source"));
+        assert!(found.next().is_none(), "`{head}` is one item");
+        body
+    }
+
+    /// Every `Dangling*` / `Stale*` construction in `tier1`: its
+    /// variant, and its key.
+    fn tier1_relations() -> Vec<(String, String)> {
+        let code = code_only(VALIDATE);
+        let tier1 = body_of(&code, "fn tier1<");
+        let mut out = Vec::new();
+        for (at, needle) in tier1.match_indices("ValidationError::") {
+            let name = ident(tier1, at + needle.len());
+            if !is_reference_variant(name) {
+                continue;
+            }
+            let after = at + needle.len() + name.len();
+            let open = after + tier1[after..].find('{').expect("a struct variant");
+            assert!(
+                tier1[after..open].trim().is_empty(),
+                "`{name}` is constructed with its fields"
+            );
+            let close = balanced_end(tier1, open).expect("the fields close");
+            let fields = &tier1[open + 1..close];
+            let mut kinds: Vec<(usize, &str)> = ["EntityId::", "GeomRef::"]
+                .iter()
+                .flat_map(|wrap| {
+                    fields
+                        .match_indices(wrap)
+                        .map(move |(k, _)| (k, ident(fields, k + wrap.len())))
+                })
+                .collect();
+            kinds.sort_unstable();
+            let key = if kinds.is_empty() {
+                top_level_split(fields, ',')
+                    .into_iter()
+                    .map(|range| fields[range].trim())
+                    .filter(|field| !field.is_empty())
+                    .map(|field| ident(field, 0))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            } else {
+                kinds
+                    .iter()
+                    .map(|&(_, kind)| kind)
+                    .collect::<Vec<_>>()
+                    .join(" -> ")
+            };
+            out.push((name.to_string(), format!("{name}: {key}")));
+        }
+        out
+    }
+
+    /// The enum's `Dangling*` / `Stale*` variants.
+    fn reference_variants() -> BTreeSet<String> {
+        let code = code_only(VALIDATE);
+        let body = body_of(&code, "pub enum ValidationError ");
+        let inner = &body[1..body.len() - 1];
+        top_level_split(inner, ',')
+            .into_iter()
+            .map(|range| {
+                let mut item = inner[range].trim_start();
+                while item.starts_with("#[") {
+                    let end = balanced_end(item, 1).expect("an attribute closes");
+                    item = item[end + 1..].trim_start();
+                }
+                ident(item, 0).to_string()
+            })
+            .filter(|name| is_reference_variant(name))
+            .collect()
+    }
+
+    #[test]
+    fn every_relation_validate_checks_is_read_by_a_kill_helper_or_filed() {
+        let found = tier1_relations();
+        let keys: Vec<&str> = found.iter().map(|(_, key)| key.as_str()).collect();
+        let listed: Vec<&str> = RELATIONS.iter().map(|&(key, _)| key).collect();
+        assert_eq!(
+            keys, listed,
+            "the relations `tier1` checks, in pass order, against `RELATIONS`: a relation \
+             it gained is owed a disposition here"
+        );
+        let constructed: BTreeSet<String> = found.into_iter().map(|(name, _)| name).collect();
+        let placed: BTreeSet<String> = NOT_BODY_RELATIONS
+            .iter()
+            .map(|&(name, _)| name.to_string())
+            .collect();
+        assert!(
+            constructed.is_disjoint(&placed),
+            "a variant `tier1` constructs is a body relation: {constructed:?} / {placed:?}"
+        );
+        assert_eq!(
+            reference_variants(),
+            &constructed | &placed,
+            "every `Dangling*` / `Stale*` variant is a relation `tier1` checks or is placed \
+             in `NOT_BODY_RELATIONS`"
+        );
+        let helpers: Vec<String> = HELPER_SOURCES.iter().map(|s| code_only(s)).collect();
+        let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
+        for (key, disposition) in &RELATIONS {
+            match disposition {
+                Read(helper, reads) => {
+                    let head = format!("fn {helper}(");
+                    let sources: Vec<&String> =
+                        helpers.iter().filter(|code| code.contains(&head)).collect();
+                    let [source] = sources[..] else {
+                        panic!("`{key}`: `{helper}` is defined once among the helper sources");
+                    };
+                    let body = body_of(source, &head);
+                    for read in *reads {
+                        assert!(body.contains(read), "`{key}`: `{helper}` reads `{read}`");
+                    }
+                }
+                Filed(row) => assert!(
+                    root.join(row).is_file(),
+                    "`{key}` is filed at `{row}`, which no longer exists: give it a disposition"
+                ),
+            }
+        }
     }
 }
