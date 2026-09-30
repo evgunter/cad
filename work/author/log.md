@@ -1458,3 +1458,13 @@ Review tier: correctness + style, as before. The unit changes what an existing p
 Still not taken:
 - `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
 - `no-row-holds-that-the-create-pane-offers-the-tools-it-has` wants its own sitting. AUTH-10's `Composed` shows a type-level hold is sometimes cheaper than a harness, which may bear on its shape.
+
+## 2026-09-30 — AUTH-11 MERGED (`ede1dc1d`): an unclosable chain draws its prefix
+
+Eleven units closed. **The duplication trap fired an eleventh time, in tests:** the tip-state census and the per-state fixture were copied from `profile`'s `arc_spec_census.rs`. The style review caught it, and the fix pass hosted both in `profile::test_support`.
+
+**My spec's premise was loose.** I called `OpenChain`'s "target the start" false for a binder-awaiting tip. The correctness review noted that the chosen `Transition` sentence also ends "…the last verb has to target the start". That clause is true of the loop as a whole, and the sentence names the tip state first, which is the gain. No change. Also, "the kernel's `Display`" was the viewer's own `PreviewError` `Display`; the lane said so.
+
+**Before merging I ran main's new gate** (`bit-identity-debug-only.sh`, from #3531, which landed after the head) on a trial merge: OK. No code overlap.
+
+Filed from the unit: `a-close-refused-on-its-geometry-draws-nothing` (P2, M). Its measured members are the zero-length close, the straight-on close (`JunctionTangent`) and the pending-fillet family (`NoCornerForFillet`). A collinear back-track was run and is *not* a member.

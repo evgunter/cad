@@ -2,13 +2,14 @@
 id: an-unfinished-chain-awaiting-a-binder-draws-nothing
 kind: issue
 title: viewer: an unfinished path whose tip awaits a binder (a radius arrival, a bound direction, the arrival after arc_fillet) draws nothing, though the steps before it replay
-status: review
+status: closed
 priority: P1
 cost: M
 refs: [path-preview-draws-nothing-for-a-refused-step]
 opened: 2026-09-29
 branch: author/binder-prefix
 pr: 3563
+closed: 2026-09-30
 ---
 
 
@@ -33,3 +34,9 @@ A close refused on its **geometry** is still `Err`. That class is filed as `a-cl
 The ways into each state are the kernel's own. `profile::test_support::way_in` now serves both censuses; `arc_spec_census.rs`'s `prefix` is rebuilt from it, and every program is byte-identical.
 
 The `Angle` row (`an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written`) is `at, angle`. Its tip is `DirectedPlain`, not `Angle`, and nothing before it can be drawn, so it stays `Err`. The row now pins that state.
+
+## Closed 2026-09-30 — PR 3563 merged (`ede1dc1d`)
+
+**A chain whose tip is unclosable draws its prefix** and keeps the sentence that names its tip. An unclosable tip is one no `line_to` leaves: ten states from the lattice table, nine of them reachable after a leg. The walk-back is AUTH-5's `prefix_loop`, called once. The drawn loop ends `LoopEnd::Unfinished(Some(Cut))`, and the form shows that refusal's own sentence, advisory. A close refused on its *geometry* still draws nothing; that class is its own row, `a-close-refused-on-its-geometry-draws-nothing`.
+
+Both reviews said mergeable. The fix pass moved the tip-state census and the per-state ways in into `profile::test_support`, so a new lattice state needs one way in, not two in two crates. It also made the `Unfinished` pair unrepresentable when illegal, and renamed "awaiting a binder" to the predicate it tests ("unclosable"), since two of the states await a leg, not a binder.
