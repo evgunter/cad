@@ -844,5 +844,6 @@ mod tests {
         );
     }
 
+    #[cfg(test)]
     mod tears;
 }
