@@ -2,12 +2,13 @@
 id: loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide
 kind: issue
 title: kfmrh, mfkrh, ring_move, mef's run and kef drop a moved loop's rows onto a minted analytic face where the Decide mint-site walk could now re-mint that face
-status: review
+status: closed
 opened: 2026-09-24
 priority: P2
 cost: M
 pr: 3531
 branch: topo/reparent-remint
+closed: 2026-09-30
 ---
 
 
