@@ -62,6 +62,8 @@ use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
 
+use super::nesting::Child;
+
 /// The persisted expression tree (spec D1: the recipe is the save; an
 /// expression is its constructor calls).
 #[derive(Debug, Serialize, Deserialize)]
@@ -92,34 +94,77 @@ pub(crate) enum WireExpr {
         dim: Dimension,
     },
     /// Same-dimension addition.
-    Add(Box<WireExpr>, Box<WireExpr>),
+    Add(Child<WireExpr>, Child<WireExpr>),
     /// Same-dimension subtraction.
-    Sub(Box<WireExpr>, Box<WireExpr>),
+    Sub(Child<WireExpr>, Child<WireExpr>),
     /// Negation.
-    Neg(Box<WireExpr>),
+    Neg(Child<WireExpr>),
     /// Product.
-    Mul(Box<WireExpr>, Box<WireExpr>),
+    Mul(Child<WireExpr>, Child<WireExpr>),
     /// Quotient.
-    Div(Box<WireExpr>, Box<WireExpr>),
+    Div(Child<WireExpr>, Child<WireExpr>),
     /// Sine.
-    Sin(Box<WireExpr>),
+    Sin(Child<WireExpr>),
     /// Cosine.
-    Cos(Box<WireExpr>),
+    Cos(Child<WireExpr>),
     /// Tangent.
-    Tan(Box<WireExpr>),
+    Tan(Child<WireExpr>),
     /// Four-quadrant arctangent (y, x).
-    Atan2(Box<WireExpr>, Box<WireExpr>),
+    Atan2(Child<WireExpr>, Child<WireExpr>),
     /// Lattice minimum.
-    Min(Box<WireExpr>, Box<WireExpr>),
+    Min(Child<WireExpr>, Child<WireExpr>),
     /// Lattice maximum.
-    Max(Box<WireExpr>, Box<WireExpr>),
+    Max(Child<WireExpr>, Child<WireExpr>),
     /// Explicit Count→Scalar promotion.
-    CountToScalar(Box<WireExpr>),
+    CountToScalar(Child<WireExpr>),
+}
+
+impl Default for WireExpr {
+    /// A leaf, what a node's children are left as while it is freed.
+    fn default() -> Self {
+        WireExpr::Count(0)
+    }
+}
+
+impl Drop for WireExpr {
+    /// Frees the tree from an explicit stack, as [`Expr`]'s drop does.
+    fn drop(&mut self) {
+        let mut stack = Vec::new();
+        self.detach_children(&mut stack);
+        while let Some(mut child) = stack.pop() {
+            child.detach_children(&mut stack);
+        }
+    }
+}
+
+impl WireExpr {
+    /// Moves this node's children onto `out`, leaving leaves in their
+    /// place.
+    fn detach_children(&mut self, out: &mut Vec<Box<WireExpr>>) {
+        match self {
+            WireExpr::Add(a, b)
+            | WireExpr::Sub(a, b)
+            | WireExpr::Mul(a, b)
+            | WireExpr::Div(a, b)
+            | WireExpr::Atan2(a, b)
+            | WireExpr::Min(a, b)
+            | WireExpr::Max(a, b) => {
+                out.push(core::mem::take(&mut a.0));
+                out.push(core::mem::take(&mut b.0));
+            }
+            WireExpr::Neg(a)
+            | WireExpr::Sin(a)
+            | WireExpr::Cos(a)
+            | WireExpr::Tan(a)
+            | WireExpr::CountToScalar(a) => out.push(core::mem::take(&mut a.0)),
+            WireExpr::Literal { .. } | WireExpr::Count(_) | WireExpr::Param { .. } => {}
+        }
+    }
 }
 
 impl From<&Expr> for WireExpr {
     fn from(e: &Expr) -> Self {
-        let b = |x: &Expr| Box::new(WireExpr::from(x));
+        let b = |x: &Expr| Child::new(WireExpr::from(x));
         match e.kind() {
             ExprKind::Literal(lit) => WireExpr::Literal {
                 value: lit.value,
@@ -167,7 +212,7 @@ impl WireExpr {
             WireExpr::Param { name, dim } => Ok(Expr::param(name.clone(), *dim)),
             WireExpr::Add(x, y) => Expr::add(b(x)?, b(y)?),
             WireExpr::Sub(x, y) => Expr::sub(b(x)?, b(y)?),
-            WireExpr::Neg(x) => Ok(Expr::neg(b(x)?)),
+            WireExpr::Neg(x) => Expr::neg(b(x)?),
             WireExpr::Mul(x, y) => Expr::mul(b(x)?, b(y)?),
             WireExpr::Div(x, y) => Expr::div(b(x)?, b(y)?),
             WireExpr::Sin(x) => Expr::sin(b(x)?),
@@ -327,24 +372,64 @@ pub(crate) enum WireMeasureExpr {
     /// An ordinary document expression leaf.
     Value(Box<WireExpr>),
     /// Same-dimension addition.
-    Add(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Add(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Same-dimension subtraction.
-    Sub(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Sub(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Negation.
-    Neg(Box<WireMeasureExpr>),
+    Neg(Child<WireMeasureExpr>),
     /// Product (at least one Scalar operand).
-    Mul(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Mul(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Quotient (Scalar divisor).
-    Div(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Div(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Same-dimension minimum.
-    Min(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Min(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Same-dimension maximum.
-    Max(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    Max(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
+}
+
+impl Default for WireMeasureExpr {
+    /// A leaf, what a node's children are left as while it is freed.
+    fn default() -> Self {
+        WireMeasureExpr::Value(Box::default())
+    }
+}
+
+impl Drop for WireMeasureExpr {
+    /// Frees the tree from an explicit stack, as [`MeasureExpr`]'s drop
+    /// does.
+    fn drop(&mut self) {
+        let mut stack = Vec::new();
+        self.detach_children(&mut stack);
+        while let Some(mut child) = stack.pop() {
+            child.detach_children(&mut stack);
+        }
+    }
+}
+
+impl WireMeasureExpr {
+    /// Moves this node's children onto `out`, leaving leaves in their
+    /// place. A value leaf's expression frees through [`WireExpr`]'s
+    /// own drop.
+    fn detach_children(&mut self, out: &mut Vec<Box<WireMeasureExpr>>) {
+        match self {
+            WireMeasureExpr::Add(a, b)
+            | WireMeasureExpr::Sub(a, b)
+            | WireMeasureExpr::Mul(a, b)
+            | WireMeasureExpr::Div(a, b)
+            | WireMeasureExpr::Min(a, b)
+            | WireMeasureExpr::Max(a, b) => {
+                out.push(core::mem::take(&mut a.0));
+                out.push(core::mem::take(&mut b.0));
+            }
+            WireMeasureExpr::Neg(a) => out.push(core::mem::take(&mut a.0)),
+            WireMeasureExpr::Primitive(_) | WireMeasureExpr::Value(_) => {}
+        }
+    }
 }
 
 impl From<&MeasureExpr> for WireMeasureExpr {
     fn from(e: &MeasureExpr) -> Self {
-        let b = |x: &MeasureExpr| Box::new(WireMeasureExpr::from(x));
+        let b = |x: &MeasureExpr| Child::new(WireMeasureExpr::from(x));
         match e.kind() {
             MeasureKind::Primitive(p) => WireMeasureExpr::Primitive(*p),
             MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(WireExpr::from(v))),
@@ -370,7 +455,7 @@ impl WireMeasureExpr {
             WireMeasureExpr::Value(v) => Ok(MeasureExpr::value(v.rebuild()?)),
             WireMeasureExpr::Add(x, y) => MeasureExpr::add(b(x)?, b(y)?),
             WireMeasureExpr::Sub(x, y) => MeasureExpr::sub(b(x)?, b(y)?),
-            WireMeasureExpr::Neg(x) => Ok(MeasureExpr::neg(b(x)?)),
+            WireMeasureExpr::Neg(x) => MeasureExpr::neg(b(x)?),
             WireMeasureExpr::Mul(x, y) => MeasureExpr::mul(b(x)?, b(y)?),
             WireMeasureExpr::Div(x, y) => MeasureExpr::div(b(x)?, b(y)?),
             WireMeasureExpr::Min(x, y) => MeasureExpr::min(b(x)?, b(y)?),

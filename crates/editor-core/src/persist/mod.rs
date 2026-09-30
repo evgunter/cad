@@ -141,6 +141,8 @@
 mod canon;
 mod check;
 pub mod hexbytes;
+/// The load door's nesting limit and the reader that holds a body to it.
+pub(crate) mod nesting;
 /// The bytes of kernel types, described from above the layering
 /// boundary — see the module's own docs for the rules a new one
 /// follows.
@@ -663,9 +665,18 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
     // any other path — so nothing this one leaves can be read as the
     // next one's (`refusal`).
     let frame = refusal::Parse::open();
-    let parsed = serde_json::from_str(body_text);
+    let parsed = nesting::read(body_text);
     let refused = frame.finish();
-    parsed.map_err(|e| parse_err(e, refused))
+    parsed.map_err(|e| match e {
+        nesting::Refused::Json(e) => parse_err(e, refused),
+        // The reader's class: the body is refused before any type is
+        // consulted, as serde_json's own recursion limit refuses one.
+        nesting::Refused::TooDeep(at) => PersistError::Parse {
+            line: at.line,
+            column: at.column,
+            message: at.to_string(),
+        },
+    })
 }
 
 /// THE seam, stated once (the variant docs and the module header point

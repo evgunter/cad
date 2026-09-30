@@ -51,7 +51,7 @@ use std::collections::BTreeMap;
 use quantity::{UnitDef, unit_by_symbol};
 
 use crate::doc::ParamName;
-use crate::expr::{Dimension, DimensionError, Expr, UnitSym};
+use crate::expr::{Dimension, DimensionError, Expr, MAX_NESTING, UnitSym};
 
 /// Typed refusal from the text door. Positions are byte offsets into
 /// the source string.
@@ -145,7 +145,10 @@ pub enum ParseError {
     },
     /// A reduction the dimension checker refused — the smart
     /// constructors are the only door, so the text door surfaces
-    /// their refusal verbatim.
+    /// their refusal verbatim. Text nested deeper than the
+    /// constructors' nesting bound refuses here too, with
+    /// [`DimensionError::NestedTooDeep`], at the bracket the parser
+    /// declines to descend into.
     Dimension {
         /// Byte offset of the token whose reduction was refused (the
         /// operator, function name, or literal).
@@ -524,20 +527,13 @@ fn param_name_reason(text: &str) -> ParamNameReason {
 /// dimensional rather than syntactic.
 pub fn parse_expr(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Result<Expr, ParseError> {
     let toks = lex(src).map_err(|(pos, ch)| ParseError::UnexpectedChar { pos, ch })?;
-    let mut p = Parser {
+    Parser {
         toks,
         i: 0,
         end: src.len(),
         params,
-    };
-    let expr = p.sum()?;
-    match p.peek() {
-        None => Ok(expr),
-        Some((pos, tok)) => Err(ParseError::TrailingInput {
-            pos: *pos,
-            found: tok.describe(),
-        }),
     }
+    .expr()
 }
 
 struct Parser<'a> {
@@ -545,6 +541,60 @@ struct Parser<'a> {
     i: usize,
     end: usize,
     params: &'a BTreeMap<ParamName, Dimension>,
+}
+
+/// A binary smart constructor, as the grammar's operators name them.
+type Make = fn(Expr, Expr) -> Result<Expr, DimensionError>;
+
+/// What closes a bracket level.
+enum Close {
+    /// The whole text: the end of input.
+    End,
+    /// A parenthesis: its `)`.
+    Paren,
+    /// A call's argument: `,` for the next one or `)`, and then the
+    /// function (`canonical`, named at `pos`) applies to `args`.
+    Call {
+        pos: usize,
+        canonical: &'static str,
+        arity: usize,
+        args: Vec<Expr>,
+    },
+}
+
+/// One bracket level's `expr` in progress: the grammar's recursion
+/// (`sum` → `term` → `unary` → `primary` → a bracket → `sum`) kept on
+/// an explicit stack of these, so how deep the text nests costs the
+/// thread's stack nothing.
+struct Level {
+    close: Close,
+    /// The sum so far, with the `+`/`-` (and its offset) that waits for
+    /// the next term.
+    sum: Option<(Expr, usize, Make)>,
+    /// The term so far, with the `*`/`/` that waits for the next unary.
+    term: Option<(Expr, usize, Make)>,
+    /// The tokens of the minus signs before the operand in progress.
+    signs: core::ops::Range<usize>,
+}
+
+impl Level {
+    fn new(close: Close) -> Self {
+        Self {
+            close,
+            sum: None,
+            term: None,
+            signs: 0..0,
+        }
+    }
+}
+
+/// Folds a pending operator's left side into `rhs`, refusing at the
+/// operator's offset.
+fn fold(pending: Option<(Expr, usize, Make)>, rhs: Expr) -> Result<Expr, ParseError> {
+    match pending {
+        None => Ok(rhs),
+        Some((lhs, pos, make)) => make(lhs, rhs).map_err(|error| ParseError::Dimension { pos, error }),
+    }
 }
 
 impl Parser<'_> {
@@ -559,7 +609,6 @@ impl Parser<'_> {
         }
         t
     }
-
     fn expect(&mut self, want: &Tok, expected: &'static str) -> Result<usize, ParseError> {
         match self.next() {
             Some((pos, tok)) if tok == *want => Ok(pos),
@@ -575,55 +624,147 @@ impl Parser<'_> {
         }
     }
 
-    /// `expr := term (('+' | '-') term)*` — left-associative, so the
-    /// running tree is always the LEFT child (Expr::child index 0).
-    fn sum(&mut self) -> Result<Expr, ParseError> {
-        let mut acc = self.product()?;
-        while let Some(&(pos, ref tok)) = self.peek() {
-            let make = match tok {
-                Tok::Plus => Expr::add,
-                Tok::Minus => Expr::sub,
-                _ => break,
+    /// Opens a bracket level at `pos`. Text nested past [`MAX_NESTING`]
+    /// brackets refuses at the bracket, so the levels are bounded as
+    /// every expression is.
+    fn open(&self, levels: &mut Vec<Level>, pos: usize, close: Close) -> Result<(), ParseError> {
+        if levels.len() > MAX_NESTING {
+            return Err(ParseError::Dimension {
+                pos,
+                error: DimensionError::NestedTooDeep { bound: MAX_NESTING },
+            });
+        }
+        levels.push(Level::new(close));
+        Ok(())
+    }
+
+    /// The whole text, by the module docs' grammar:
+    ///
+    /// ```text
+    /// expr    := term (('+' | '-') term)*     left-assoc
+    /// term    := unary (('*' | '/') unary)*   left-assoc
+    /// unary   := '-' unary | primary
+    /// ```
+    ///
+    /// Each operator reduces through its smart constructor the moment
+    /// its right side is complete, in the order a recursive descent
+    /// reduces them, so every refusal is the one it would raise, at the
+    /// same offset. Minus signs apply innermost first, after their
+    /// operand and before any `*` or `/` takes it.
+    fn expr(&mut self) -> Result<Expr, ParseError> {
+        let mut levels = vec![Level::new(Close::End)];
+        loop {
+            let first = self.i;
+            while let Some((_, Tok::Minus)) = self.peek() {
+                self.i += 1;
+            }
+            let Some(level) = levels.last_mut() else {
+                unreachable!("the text's own level stays open until the text is read")
             };
-            self.i += 1;
-            let rhs = self.product()?;
-            acc = make(acc, rhs).map_err(|error| ParseError::Dimension { pos, error })?;
-        }
-        Ok(acc)
-    }
-
-    /// `term := unary (('*' | '/') unary)*` — left-associative.
-    fn product(&mut self) -> Result<Expr, ParseError> {
-        let mut acc = self.unary()?;
-        while let Some(&(pos, ref tok)) = self.peek() {
-            let make = match tok {
-                Tok::Star => Expr::mul,
-                Tok::Slash => Expr::div,
-                _ => break,
+            level.signs = first..self.i;
+            let mut value = match self.primary(&mut levels)? {
+                Some(value) => value,
+                // A bracket opened: its first operand comes next.
+                None => continue,
             };
-            self.i += 1;
-            let rhs = self.unary()?;
-            acc = make(acc, rhs).map_err(|error| ParseError::Dimension { pos, error })?;
+            // A complete operand folds into the level holding it, and a
+            // complete level into the one below, until an operator
+            // continues a level or the text is read.
+            loop {
+                let Some(level) = levels.last_mut() else {
+                    unreachable!("the text's own level stays open until the text is read")
+                };
+                for at in level.signs.clone().rev() {
+                    let pos = self.toks[at].0;
+                    value = Expr::neg(value).map_err(|error| ParseError::Dimension { pos, error })?;
+                }
+                level.signs = 0..0;
+                value = fold(level.term.take(), value)?;
+                let make: Option<Make> = match self.peek() {
+                    Some((_, Tok::Star)) => Some(Expr::mul),
+                    Some((_, Tok::Slash)) => Some(Expr::div),
+                    _ => None,
+                };
+                if let Some(make) = make {
+                    level.term = Some((value, self.toks[self.i].0, make));
+                    self.i += 1;
+                    break;
+                }
+                value = fold(level.sum.take(), value)?;
+                let make: Option<Make> = match self.peek() {
+                    Some((_, Tok::Plus)) => Some(Expr::add),
+                    Some((_, Tok::Minus)) => Some(Expr::sub),
+                    _ => None,
+                };
+                if let Some(make) = make {
+                    level.sum = Some((value, self.toks[self.i].0, make));
+                    self.i += 1;
+                    break;
+                }
+                let Some(level) = levels.pop() else {
+                    unreachable!("the level just read is open")
+                };
+                match level.close {
+                    Close::End => {
+                        return match self.peek() {
+                            None => Ok(value),
+                            Some((pos, tok)) => Err(ParseError::TrailingInput {
+                                pos: *pos,
+                                found: tok.describe(),
+                            }),
+                        };
+                    }
+                    Close::Paren => {
+                        self.expect(&Tok::RParen, "`)`")?;
+                    }
+                    Close::Call {
+                        pos,
+                        canonical,
+                        arity,
+                        mut args,
+                    } => {
+                        args.push(value);
+                        if let Some((_, Tok::Comma)) = self.peek() {
+                            self.i += 1;
+                            levels.push(Level::new(Close::Call {
+                                pos,
+                                canonical,
+                                arity,
+                                args,
+                            }));
+                            break;
+                        }
+                        self.expect(&Tok::RParen, "`)` or `,`")?;
+                        value = Self::apply(pos, canonical, arity, args)?;
+                    }
+                }
+            }
         }
-        Ok(acc)
     }
 
-    /// `unary := '-' unary | primary` (`Expr::neg` is infallible —
-    /// negation is total over every dimension, Count included).
-    fn unary(&mut self) -> Result<Expr, ParseError> {
-        if let Some((_, Tok::Minus)) = self.peek() {
-            self.i += 1;
-            return Ok(Expr::neg(self.unary()?));
-        }
-        self.primary()
-    }
-
-    fn primary(&mut self) -> Result<Expr, ParseError> {
+    /// `primary := NUMBER [UNIT] | IDENT '(' expr (',' expr)* ')' |
+    /// IDENT | '(' expr ')'`: the operand at the cursor, or `None` once
+    /// a bracket opens (its contents are the next operands read).
+    fn primary(&mut self, levels: &mut Vec<Level>) -> Result<Option<Expr>, ParseError> {
         match self.next() {
-            Some((pos, Tok::Number { text, integral })) => self.literal(pos, &text, integral),
+            Some((pos, Tok::Number { text, integral })) => {
+                self.literal(pos, &text, integral).map(Some)
+            }
             Some((pos, Tok::Ident(name))) => {
                 if let Some((_, Tok::LParen)) = self.peek() {
-                    self.call(pos, &name)
+                    let (canonical, arity) = function(pos, &name)?;
+                    let open = self.expect(&Tok::LParen, "`(`")?;
+                    self.open(
+                        levels,
+                        open,
+                        Close::Call {
+                            pos,
+                            canonical,
+                            arity,
+                            args: Vec::new(),
+                        },
+                    )?;
+                    Ok(None)
                 } else {
                     // Looked up by the lexed text (`ParamName:
                     // Borrow<str>`), so the parser never mints a name
@@ -631,15 +772,14 @@ impl Parser<'_> {
                     // table's key, and an identifier the table lacks
                     // is echoed as the bytes read.
                     match self.params.get_key_value(name.as_str()) {
-                        Some((key, &dim)) => Ok(Expr::param(key.clone(), dim)),
+                        Some((key, &dim)) => Ok(Some(Expr::param(key.clone(), dim))),
                         None => Err(ParseError::UnknownParam { pos, name }),
                     }
                 }
             }
-            Some((_, Tok::LParen)) => {
-                let inner = self.sum()?;
-                self.expect(&Tok::RParen, "`)`")?;
-                Ok(inner)
+            Some((pos, Tok::LParen)) => {
+                self.open(levels, pos, Close::Paren)?;
+                Ok(None)
             }
             Some((pos, tok)) => Err(ParseError::UnexpectedToken {
                 pos,
@@ -685,7 +825,6 @@ impl Parser<'_> {
         }
         unit_by_symbol(&first).map(|unit| (unit, 1))
     }
-
     /// `NUMBER [UNIT]` (module docs' literal semantics): suffixed →
     /// continuous literal in canonical units (one f64 multiply); bare
     /// integral → exact Count; bare real → Scalar.
@@ -742,32 +881,14 @@ impl Parser<'_> {
             .map_err(|error| ParseError::Dimension { pos, error })
     }
 
-    /// `IDENT '(' expr (',' expr)* ')'` — the AST's closed function
-    /// vocabulary; every application goes through the corresponding
-    /// fallible constructor.
-    fn call(&mut self, pos: usize, name: &str) -> Result<Expr, ParseError> {
-        let (canonical, arity): (&'static str, usize) = match name {
-            "sin" => ("sin", 1),
-            "cos" => ("cos", 1),
-            "tan" => ("tan", 1),
-            "scalar" => ("scalar", 1),
-            "atan2" => ("atan2", 2),
-            "min" => ("min", 2),
-            "max" => ("max", 2),
-            _ => {
-                return Err(ParseError::UnknownFunction {
-                    pos,
-                    name: name.to_string(),
-                });
-            }
-        };
-        self.expect(&Tok::LParen, "`(`")?;
-        let mut args = vec![self.sum()?];
-        while let Some((_, Tok::Comma)) = self.peek() {
-            self.i += 1;
-            args.push(self.sum()?);
-        }
-        self.expect(&Tok::RParen, "`)` or `,`")?;
+    /// A call's function applied to the arguments read inside its
+    /// brackets, each through the corresponding fallible constructor.
+    fn apply(
+        pos: usize,
+        canonical: &'static str,
+        arity: usize,
+        args: Vec<Expr>,
+    ) -> Result<Expr, ParseError> {
         if args.len() != arity {
             return Err(ParseError::WrongArity {
                 pos,
@@ -807,4 +928,24 @@ impl Parser<'_> {
         };
         built.map_err(|error| ParseError::Dimension { pos, error })
     }
+}
+
+/// The AST's closed function vocabulary: the canonical name and arity
+/// of the function `name` calls.
+fn function(pos: usize, name: &str) -> Result<(&'static str, usize), ParseError> {
+    Ok(match name {
+        "sin" => ("sin", 1),
+        "cos" => ("cos", 1),
+        "tan" => ("tan", 1),
+        "scalar" => ("scalar", 1),
+        "atan2" => ("atan2", 2),
+        "min" => ("min", 2),
+        "max" => ("max", 2),
+        _ => {
+            return Err(ParseError::UnknownFunction {
+                pos,
+                name: name.to_string(),
+            });
+        }
+    })
 }
