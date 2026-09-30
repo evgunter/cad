@@ -28,7 +28,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, LoopKey, Shell, ShellKey, Solid, SolidKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::{EulerOpError, RunExtent};
+use crate::euler::{EulerOpError, RunExtent, require_halves};
 use crate::live::require_key;
 use crate::provenance::Provenance;
 
@@ -64,10 +64,16 @@ impl<T: Decide> Body<T> {
     ///
     /// [`EulerOpError::StaleKey`] if `shell`, its solid, or a
     /// face/loop/half-edge/edge reached by the walk does not resolve;
+    /// [`EulerOpError::NotOwned`] if a face the walk reaches is not the
+    /// shell's (its `shell` is another, or the shell does not list it),
+    /// or a loop a face lists names another face;
     /// [`EulerOpError::LoopCycleBroken`] naming the loop if a cycle walk
     /// fails to close or is not the loop's whole cycle: a member claims
-    /// another loop, or a half-edge that claims the loop is not walked.
-    /// All checks precede any mutation (atomic).
+    /// another loop, or a half-edge that claims the loop is not walked;
+    /// [`EulerOpError::UnclaimedHalfEdge`] if a member's edge does not
+    /// claim it, and [`EulerOpError::NotSameEdge`] if the mate that edge
+    /// gives names another edge. All checks precede any mutation
+    /// (atomic).
     pub fn movefac(&mut self, shell: ShellKey) -> Result<Vec<ShellKey>, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
@@ -94,6 +100,10 @@ impl<T: Decide> Body<T> {
                 }
             }
         }
+        let mut listed: slotmap::SecondaryMap<FaceKey, ()> = slotmap::SecondaryMap::new();
+        for &face in &shell_data.faces {
+            listed.insert(face, ());
+        }
         let mut component: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
         let mut count = 0_usize;
         for &seed in &shell_data.faces {
@@ -111,10 +121,26 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleKey {
                         key: EntityId::Face(face_key),
                     })?;
+                // Every face labelled is the shell's, in both directions:
+                // the move builds its lists from the shell's, so a face
+                // the walk glued on from outside them would join two
+                // components through a face it does not move.
+                if face.shell != shell || !listed.contains_key(face_key) {
+                    return Err(EulerOpError::NotOwned {
+                        child: EntityId::Face(face_key),
+                        owner: EntityId::Shell(shell),
+                    });
+                }
                 for loop_key in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
                     let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
                         key: EntityId::Loop(loop_key),
                     })?;
+                    if loop_data.face != face_key {
+                        return Err(EulerOpError::NotOwned {
+                            child: EntityId::Loop(loop_key),
+                            owner: EntityId::Face(face_key),
+                        });
+                    }
                     let LoopBoundary::Cycle { first } = loop_data.boundary else {
                         continue; // empty loop: glues only its vertex
                     };
@@ -126,10 +152,16 @@ impl<T: Decide> Body<T> {
                         return Err(broken());
                     }
                     for member in cycle {
-                        let mate = self.mate(member).ok_or(EulerOpError::StaleKey {
-                            key: EntityId::HalfEdge(member),
+                        let edge = self.resolve_half_edge(member)?.edge;
+                        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+                            key: EntityId::Edge(edge),
                         })?;
+                        let mate = edge_data
+                            .claim(member)
+                            .ok_or(EulerOpError::UnclaimedHalfEdge { he: member, edge })?
+                            .mate;
                         let mate_data = self.resolve_half_edge(mate)?;
+                        require_halves(edge, edge_data, member, (mate, mate_data.edge))?;
                         let mate_loop =
                             self.get_loop(mate_data.parent_loop)
                                 .ok_or(EulerOpError::StaleKey {
@@ -340,8 +372,7 @@ mod tests {
 
     use super::*;
     use crate::entity::{EdgeKey, LoopKey};
-    use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{deep_snapshot, ops_strut_cube};
+    use crate::fixtures::{deep_snapshot, detached_digons, ops_strut_cube};
     use crate::test_support_fixtures::declined_cube;
     use crate::validate::{ValidationError, validate, validate_closed};
     use slotmap::SecondaryMap;
@@ -357,65 +388,6 @@ mod tests {
     fn detached_digon() -> (Body<f64>, ShellKey, FaceKey, FaceKey) {
         let (body, shell, seed_face, promoted) = detached_digons(1);
         (body, shell, seed_face, promoted[0])
-    }
-
-    /// [`detached_digon`] with `n` digons, each grown on its own ring
-    /// of the pillow's seed face and promoted: one shell of `n + 1`
-    /// components. Returns (body, shell, seed face, the promoted faces
-    /// in order). The seed face is the shell's first face.
-    pub(super) fn detached_digons(n: usize) -> (Body<f64>, ShellKey, FaceKey, Vec<FaceKey>) {
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0), true).unwrap();
-        let seg = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p(1.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        body.mef_chord(
-            MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-        let mut promoted = Vec::new();
-        for i in 0..n {
-            let x = 2.0 * (i as f64) + 2.0;
-            let strut = body
-                .mev_line(
-                    MevSite::Fan {
-                        he1: seg.he_plus,
-                        he2: seg.he_plus,
-                    },
-                    p(x),
-                    Tol::witness(),
-                )
-                .unwrap();
-            let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
-            let grow = body
-                .mev_line(
-                    MevSite::Lone { r#loop: kill.ring },
-                    p(x + 1.0),
-                    Tol::witness(),
-                )
-                .unwrap();
-            body.mef_chord(
-                MefSite::Chords {
-                    he1: grow.he_plus,
-                    he2: grow.he_minus,
-                },
-                Tol::witness(),
-            )
-            .unwrap();
-            promoted.push(body.mfkrh_plug(kill.ring, true).unwrap().face);
-        }
-        assert_eq!(body.get_shell(seed.shell).unwrap().faces[0], seed.face);
-        (body, seed.shell, seed.face, promoted)
     }
 
     /// The distribution primitive: the two-component shell splits into
