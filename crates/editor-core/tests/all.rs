@@ -293,6 +293,8 @@ mod rv_payloadrefs_probes;
 
 #[path = "expr_nesting_bound.rs"]
 mod expr_nesting_bound;
+#[path = "review_exprdepth_probes.rs"]
+mod review_exprdepth_probes;
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
 #[path = "m10_4_stackup_interval.rs"]
