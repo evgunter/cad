@@ -2,12 +2,13 @@
 id: an-unfinished-chain-awaiting-a-binder-draws-nothing
 kind: issue
 title: viewer: an unfinished path whose tip awaits a binder (a radius arrival, a bound direction, the arrival after arc_fillet) draws nothing, though the steps before it replay
-status: open
+status: dispatched
 priority: P1
 cost: M
 design: true
 refs: [path-preview-draws-nothing-for-a-refused-step]
 opened: 2026-09-29
+branch: author/binder-prefix
 ---
 
 
@@ -18,3 +19,5 @@ Found by AUTH-5 (`author/path-preview-prefix`).
 **Why it was not fixed with AUTH-5.** A refused step now walks back to the longest prefix whose drawing its own steps fix (`sketch::prefix_loop`), and the same walk would draw these chains too. But it changes what an existing case says: the form now shows the specific end-of-program sentence ("loop 0 never closes — it ends with the tip a radius arrival still awaiting both binders…"), and a drawn open chain would show `PreviewHold::OpenChain`'s "its last step has to target the start", which is wrong for a tip whose next step has to be a binder. So the fix needs a decision on the sentence: keep the tip-state sentence beside a drawn prefix (a `PreviewHold` arm that carries the state), or say something else. AUTH-5's spec asked for existing cases to keep saying what they say.
 
 **Owed:** decide the sentence, then draw the walked-back prefix for an unfinished chain as `LoopEnd::Unfinished`, and re-pin the `Angle` row.
+
+Dispatched 2026-09-30 as **AUTH-11** (`docs/AUTH-11-SPEC.md`, branch `author/binder-prefix`). **The design call is decided in the spec:** keep the tip-state sentence beside the drawn prefix, carried typed and rendered through the kernel's `Display`. `OpenChain`'s "target the start" is false for a tip whose next step must be a binder. This is not a fork: one sentence is true and the other is not.
