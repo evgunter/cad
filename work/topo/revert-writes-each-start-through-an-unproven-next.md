@@ -2,10 +2,12 @@
 id: revert-writes-each-start-through-an-unproven-next
 kind: issue
 title: revert writes every half-edge's new start as start(next(he)), so a live-but-foreign next or a foreign start moves onto another half-edge's start through Ok
-status: open
+status: review
 opened: 2026-09-30
 priority: P3
 cost: E
+branch: topo/revert-starts
+pr: 3562
 refs: [revert-anchors-trust-a-torn-next-or-prev]
 ---
 
