@@ -3111,3 +3111,45 @@ base that was 43k / 922 / 84k.
   segment rule carried by an empty slice.
 
 The fix pass runs on the warm target.
+
+## PR 3500's review: APPROVE-WITH-FIXES, one MAJOR; fix pass out (2026-09-30)
+
+The single full review of `223c63054e` took 335,557 tokens, 127 tools
+and 43 min (harness); archived privately.
+
+**Confirmed by execution:**
+- The re-mint gives the closing pass's rows byte for byte, and the
+  refusal leaves the body untouched on two faces.
+- The four mutants and four of the reviewer's own are killed.
+- The production residue is confirmed, with corrected counts: 532
+  truly-complete calls; `vtxfac`'s own `mev` plan also reads the
+  face; 100 closing tests, not 97.
+
+**MAJOR (accepted).** The re-mint misses any face with a second gap,
+and the docs claim otherwise. `complete_except` covers only this
+edge's halves:
+- P1: two null edges on one wall, both described, leave it
+  half-minted forever;
+- P2: a `mev_line` on the half-minted face before the description
+  does the same.
+
+The ruled fix: on a null edge's first description, when no null edge
+remains on the face and the face already holds rows, re-mint the
+whole face through `site_rows`, as the closing pass would. That is
+the "a half-minted face becomes a state no door can produce" reading
+of the PR 2527 ruling. The `is_null` gate stays for the carrier-swap
+posture.
+
+**Also accepted:**
+- `set_edge_curve` is still declared `Neither` although it now writes
+  rows;
+- two mutants survive: the gate removed (m8), and the halves swapped
+  at apply (m6b, invisible on a spur; P3's two-faced edge catches it);
+- the titles overclaim;
+- the receipt misses seven sites;
+- the site-mint vocabulary docs are stale;
+- `null_description_rows` re-spells `plan_site_rows`'s loop, and the
+  spline check is duplicated;
+- the two filed rows get priorities (P2 M, P3 E).
+
+The fix pass runs on the reviewer's warm target.
