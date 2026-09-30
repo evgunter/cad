@@ -2,8 +2,12 @@
 id: split-param-not-interior-offers-the-declare-menu
 kind: issue
 title: topo: split_edge's definite not-interior refusal still offers the declare menu its escalated sibling dropped
-status: open
+status: review
 opened: 2026-09-29
+priority: P2
+cost: E
+pr: 3493
+branch: topo/route-refusal-subjects
 ---
 
 (TOPO, the §5 second pass of PR 3493, which routed the escalated
@@ -36,6 +40,14 @@ tolerance".
 - It opens with the stage label `split_edge:` and names an arena key.
 
 ## Repair shape
+
+PR 3493 repairs it this way, with the decision's words and its
+`SizedDecision` in `crates/topo/src/split.rs` (`CROSSING_INTERIOR`,
+`SPLIT_PARAM_INTERIOR`, `split_param_ending`) rather than in
+`boolean::refusal_routes`, since `split_edge` decides it; the Zero arm
+of this positive-pass decision offers the valued tolerance and the
+Negative arm the lever alone; the pairing row is
+`euler::tests::split_param_arms_tell_one_story`.
 
 Decide through `k_stats::decide_reported` in `split.rs` and carry the
 verdict on the arm as a `geom_brep::recourse::Refused`

@@ -90,7 +90,7 @@ mod r2_probes;
 pub(crate) mod recl;
 pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
-pub use refusal_routes::{BooleanDecision, Contradiction, SectorRung};
+pub use refusal_routes::{BooleanDecision, Contradiction, CrossingDecision, SectorRung};
 mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
@@ -147,11 +147,21 @@ pub use voids::{
     VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, insert_void, insert_voids,
 };
 
-/// What one of this crate's decisions decides, in the words a refusal
-/// or a flip report states in place of the predicate's name (which is
-/// routing, kept to `Debug`): a clause with no colon or dash of its
-/// own. `None` for a predicate this crate has no words for yet, or
-/// does not own.
+/// What one of this crate's decisions decides, in the words a flip
+/// report states in place of the predicate's name (which is routing,
+/// kept to `Debug`): a clause with no colon or dash of its own. `None`
+/// for a predicate this crate has no words for yet, or does not own.
+///
+/// A flip report has only the name, so this lookup is by name; a
+/// refusal carries its decision and reads the words there
+/// ([`BooleanDecision::subject`]). Each row is the words of the one
+/// decision every raise of that name is routed to, read from that
+/// decision's closed type where it has one. A name raised under two
+/// decisions has no words here, since neither decision's words are
+/// true of it: `bool_contact_vertex` (the contact sweep's
+/// [`BooleanDecision::VertexOnVertex`], and containment's boundary
+/// pre-pass) and `bool_contact_arc` (the split point on its circle, and
+/// the same pre-pass).
 #[must_use]
 pub fn decision_words(predicate: &str) -> Option<&'static str> {
     if let Some(words) = crate::sector_shape::rung_words(predicate) {
@@ -168,14 +178,12 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "torus_tube_positive" => BooleanDecision::TorusTube.subject(),
         "ring_torus_convention" => BooleanDecision::TorusRing.subject(),
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
-            BooleanDecision::CrossingOnEdge.subject()
+            CrossingDecision::OnEdge.subject()
         }
-        "split_conic_root_order" => BooleanDecision::CrossingOrder.subject(),
+        "split_conic_root_order" => CrossingDecision::Order.subject(),
         "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_face_disc_carrier"
-        | "bool_contact_vertex"
         | "bool_contact_arc_end_vertex"
-        | "bool_contact_arc"
         | "bool_curved_contain_carrier"
         | "bool_curved_contain_period"
         | "bool_wall_trim"
@@ -980,6 +988,11 @@ pub enum BooleanError {
     ContactContradicted {
         /// The face pair and class that were declared.
         declaration: crate::contact::DeclaredContact,
+        /// The fact that contradicted it, where the carrier ladder found
+        /// the two carriers distinct (a `Rest` declaration); `None` where
+        /// the counter-evidence is the tangent lane's, which the
+        /// margin's predicate labels.
+        fact: Option<Contradiction>,
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
         /// Extra recourse steering when the counter-evidence has a
@@ -1513,7 +1526,9 @@ pub enum BooleanErrorKind {
 
 impl BooleanError {
     /// An escalation of a coincidence between parts of the two solids
-    /// ([`BooleanDecision::Coincidence`]).
+    /// ([`BooleanDecision::Coincidence`]). Most wrap sites use it without
+    /// naming their decision; that each should is
+    /// `work/topo/boolean-coincidence-wrap-sites-name-no-decision.md`.
     pub(crate) fn coincidence(diag: Indeterminate) -> Self {
         Self::Escalated {
             decision: BooleanDecision::Coincidence,
@@ -1803,21 +1818,7 @@ impl core::fmt::Display for BooleanError {
                  tolerance reaches this. Recourse: {}",
                 geom_core::RANGE_RECOURSE
             ),
-            Self::Escalated { decision, diag } => match decision.ending_of(diag) {
-                None => write!(
-                    f,
-                    "parts of the two solids are too close to call at this tolerance ({}), \
-                     and the Boolean never snaps them together. Recourse: \
-                     {COINCIDENCE_RECOURSE}",
-                    diag.payload()
-                ),
-                Some(ending) => write!(
-                    f,
-                    "{} is undecided: {}. {ending}",
-                    decision.subject(),
-                    diag.payload()
-                ),
-            },
+            Self::Escalated { decision, diag } => f.write_str(&decision.render(diag)),
             Self::UndeclaredCoincidence { diag, pair, .. } => {
                 if pair[0].0 == pair[1].0 {
                     write!(f, "two faces of the {} operand", operand_word(pair[0].0))?;
@@ -1844,18 +1845,21 @@ impl core::fmt::Display for BooleanError {
                      face. Recourse: {COINCIDENCE_RECOURSE}"
                 )
             }
-            // The one reason true at every site, never the margin
-            // payload (`contact::CONTRADICTION_REASON`). The faces are
-            // the first and second operands' (the declaration's own
-            // order).
+            // The fact, where the carrier ladder found one; otherwise
+            // the one reason true at every site. Never the margin
+            // payload. The faces are the first and second operands'
+            // (the declaration's own order).
             Self::ContactContradicted {
-                declaration, steer, ..
+                declaration,
+                steer,
+                fact,
+                ..
             } => write!(
                 f,
                 "the declared {} contact between the operands' faces is contradicted: {}. \
                  {}{}",
                 declaration.class.name(),
-                crate::contact::CONTRADICTION_REASON,
+                fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 crate::contact::CONTRADICTION_RECOURSE,
                 crate::contact::steer_clause(*steer),
             ),
@@ -1864,7 +1868,7 @@ impl core::fmt::Display for BooleanError {
                 "a declared coincidence contradicts the geometry: {}, and the Boolean never \
                  glues a lie. {}",
                 fact.fact(),
-                refusal_routes::CONTRADICTION_RECOURSE
+                crate::contact::CONTRADICTION_RECOURSE
             ),
             Self::UnsupportedDeclarationClass { class } => write!(
                 f,
@@ -2366,6 +2370,7 @@ fn verify_rest_declaration<T: Decide>(
                     class: ContactClass::Rest,
                 },
                 steer: contact_verify::fit_steer(fact),
+                fact: Some(fact),
                 margin: diag,
             })
         }
@@ -2422,6 +2427,7 @@ fn verify_tangent_declaration<T: Decide>(
                 return Err(BooleanError::ContactContradicted {
                     declaration,
                     steer: None,
+                    fact: None,
                     margin: Indeterminate {
                         margin: MarginDiag::INVALID,
                         band,
@@ -2441,6 +2447,7 @@ fn verify_tangent_declaration<T: Decide>(
                 return Err(BooleanError::ContactContradicted {
                     declaration,
                     steer: None,
+                    fact: None,
                     margin: diag,
                 });
             }
@@ -2489,6 +2496,7 @@ fn verify_tangent_declaration<T: Decide>(
             return Err(BooleanError::ContactContradicted {
                 declaration,
                 steer: None,
+                fact: None,
                 margin: Indeterminate {
                     margin: MarginDiag::INVALID,
                     band,
@@ -2550,6 +2558,7 @@ fn verify_tangent_declaration<T: Decide>(
                         return Err(BooleanError::ContactContradicted {
                             declaration,
                             steer: None,
+                            fact: None,
                             margin: Indeterminate {
                                 margin: MarginDiag::INVALID,
                                 band,
@@ -2609,6 +2618,7 @@ fn verify_tangent_declaration<T: Decide>(
             Err(BooleanError::ContactContradicted {
                 declaration,
                 steer,
+                fact: None,
                 margin: diag,
             })
         }
@@ -3014,6 +3024,7 @@ mod tests {
                 declaration,
                 margin: diag,
                 steer: None,
+                fact: None,
             },
             BooleanError::UnsupportedDeclarationClass {
                 class: ContactClass::Tangent,

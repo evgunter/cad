@@ -415,7 +415,11 @@ pub enum MergeCoplanarError {
     /// declaration contradicts the geometry; refused loudly, never
     /// glued (M4 PR 5; `plane_eq` rung 2's verification direction).
     DeclarationContradicted {
-        /// The fact that contradicted the declaration.
+        /// The fact that contradicted the declaration: `PlanesNotParallel`
+        /// or `PlanesApart`, the two the declared plane rung raises. The
+        /// field keeps the rung's own type (`PlaneEqError` is
+        /// `CarrierEqError`), which a narrower one would convert from
+        /// fallibly at the one raise site.
         fact: crate::boolean::Contradiction,
     },
     /// A declared face pair meets with OPPOSITE orientations at a
@@ -562,7 +566,7 @@ impl core::fmt::Display for MergeCoplanarError {
                 "a declared coincidence contradicts the geometry: {}, and the merge never \
                  glues a lie. {}",
                 fact.fact(),
-                crate::boolean::refusal_routes::CONTRADICTION_RECOURSE
+                crate::contact::CONTRADICTION_RECOURSE
             ),
             Self::DeclaredOppositeOrientation { f1, f2 } => write!(
                 f,
@@ -3609,7 +3613,9 @@ mod tests {
         });
         assert!(
             contradicted.contains("the declared planes are parallel but apart")
-                && contradicted.ends_with("Recourse: fix the declaration or move the geometry"),
+                && contradicted.ends_with(
+                    "Recourse: correct or remove the declaration, or move the geometry so it holds"
+                ),
             "the declared-pair contradiction names its fact and ends on its recourse: \
              {contradicted}"
         );

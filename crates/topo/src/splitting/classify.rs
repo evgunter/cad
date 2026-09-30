@@ -4,6 +4,7 @@
 //! `split_edge` lane — with the conic crossing-root lane for
 //! circle/ellipse carriers.
 
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 use geom_core::{Band, Decide, Margin, Sign, Tol};
 use slotmap::SecondaryMap;
 
@@ -168,10 +169,65 @@ pub(crate) enum ConicPlaneMeet<T> {
     Roots(Result<Vec<T>, ConicRootFault>),
 }
 
+/// A decision on where a crossing lands along its edge, where every
+/// definite answer passes and only an undecided one refuses: the conic
+/// root lane's and the Boolean's wall-root lane's. Its ending is the one
+/// every door that splits an edge at a crossing states.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(strum::EnumIter))]
+pub enum CrossingDecision {
+    /// Whether a crossing lands strictly inside its edge (inside, at an
+    /// end, and outside all pass).
+    OnEdge,
+    /// Which of two crossings on an edge comes first (either order, or
+    /// one crossing, all pass).
+    Order,
+}
+
+impl CrossingDecision {
+    /// What the decision decides, as a clause with no colon or dash of
+    /// its own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::OnEdge => crate::split::CROSSING_INTERIOR,
+            Self::Order => "which of two crossings on an edge comes first",
+        }
+    }
+
+    /// The decision's table row: a size the user may intend, passing on
+    /// every definite sign.
+    pub(crate) const fn sized(self) -> SizedDecision {
+        let (lever, size) = match self {
+            Self::OnEdge => (crate::split::CROSSING_LEVER, crate::split::CROSSING_SIZE),
+            Self::Order => (
+                "move the geometry so the two crossings on that edge lie clearly apart",
+                "distance between the crossings",
+            ),
+        };
+        SizedDecision {
+            lever,
+            size,
+            passes: SizedPass::AnySign,
+            stored: StoredDefinite::Lever,
+            at_zero: None,
+        }
+    }
+
+    /// The one ending `diag`'s escalation carries, at the operation that
+    /// placed the crossing.
+    #[must_use]
+    pub(crate) fn ending_of(self, diag: &geom_core::Indeterminate) -> String {
+        self.sized()
+            .recourse(RefusedArm::Undecided(diag), Reading::Build)
+    }
+}
+
 /// Which rung of [`conic_plane_crossing_roots`] escalated, with its
-/// diagnostics.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum ConicRootFault {
+/// diagnostics. The first two ask whether the plane coincides with the
+/// conic; the other two are [`CrossingDecision`]s.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ConicRootFault {
     /// Whether the conic's plane is parallel to the query plane.
     PlaneParallel(geom_core::Indeterminate),
     /// Whether the conic reaches the plane, grazes it, or misses it.
@@ -184,12 +240,39 @@ pub(crate) enum ConicRootFault {
 
 impl ConicRootFault {
     /// The escalation's diagnostics, whichever rung raised it.
-    pub(crate) fn diag(self) -> geom_core::Indeterminate {
+    #[must_use]
+    pub fn diag(self) -> geom_core::Indeterminate {
         match self {
             Self::PlaneParallel(diag)
             | Self::BellyGraze(diag)
             | Self::CrossingInterior(diag)
             | Self::RootOrder(diag) => diag,
+        }
+    }
+
+    /// The crossing decision the rung decides, or `None` for the two
+    /// rungs that ask whether the plane coincides with the conic: every
+    /// door that meets this fault routes it through here.
+    #[must_use]
+    pub fn decision(self) -> Option<CrossingDecision> {
+        match self {
+            Self::PlaneParallel(_) | Self::BellyGraze(_) => None,
+            Self::CrossingInterior(_) => Some(CrossingDecision::OnEdge),
+            Self::RootOrder(_) => Some(CrossingDecision::Order),
+        }
+    }
+
+    /// What the rung decides, as a clause with no colon or dash of its
+    /// own.
+    #[must_use]
+    pub fn subject(self) -> &'static str {
+        match self {
+            Self::PlaneParallel(_) => {
+                "whether a curved edge's plane is parallel to the plane that cuts it"
+            }
+            Self::BellyGraze(_) => "whether a plane cuts a curved edge, grazes it or misses it",
+            Self::CrossingInterior(_) => CrossingDecision::OnEdge.subject(),
+            Self::RootOrder(_) => CrossingDecision::Order.subject(),
         }
     }
 }
@@ -442,7 +525,7 @@ pub(super) fn insert_crossings<T: Decide>(
             Ok(ConicPlaneMeet::Roots(Err(fault))) => {
                 return Err(SplitReduceError::CrossingEscalated {
                     edge: edge_key,
-                    diag: fault.diag(),
+                    fault,
                 });
             }
             Err(()) => {

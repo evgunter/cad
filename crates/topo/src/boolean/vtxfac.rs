@@ -56,8 +56,8 @@ use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
 use super::tables::eq15_3_lump;
 use super::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
-    PierceRingRecord, SideCode, VfContact,
+    BoolNullEdgeRecord, BooleanDecision, BooleanError, BooleanOp, NullEdgePairRecord, Operand,
+    PairSite, PierceRingRecord, SideCode, VfContact,
 };
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
@@ -143,7 +143,10 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 });
             }
             Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
-                return Err(BooleanError::Escalated { decision, diag });
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::of_normal(decision),
+                    diag,
+                });
             }
             Err(crate::face_normal::NormalAtError::OffSurface) => {
                 return Err(BooleanError::ClassificationInvariant {

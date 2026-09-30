@@ -16,8 +16,9 @@ set at the site that wraps each escalation. Following the triage in
 `work/chrome/escalations-forwarded-whole-are-untriaged-for-a-declarations-object.md`,
 every wrap site except the sector rung, the pierce normal and the
 torus convention, face containment, where a crossing lands on an edge
-and in what order, the split point on its circle, the arc span and the
-volume backstop sets `BooleanDecision::Coincidence`, which keeps the
+and in what order, a vertex against a vertex of the other solid, the
+split point on its circle, the arc span and the volume backstop sets
+`BooleanDecision::Coincidence`, which keeps the
 coincidence story and its declare lever. Some decisions those sites
 wrap are ones a face-pair declaration cannot name:
 
@@ -59,6 +60,7 @@ D4 ¶1 (i): the decision is a closed type at its site; never route by
   `solid_contain::line_wall_roots` / `line_torus_roots` need one on
   theirs, so `reduce`'s wrap sites can set the variant.
 - `refusal_routes::tests::every_escalation_ends_as_its_decision_and_verdict_give`
-  takes one row per variant through its `DECISIONS` list and `want`.
+  takes one row per variant through `every_decision` (compiler-derived)
+  and `want`, which must name each variant's subject and ending.
 - The three definite arms want the same question asked of their
   recourse.

@@ -21,16 +21,35 @@ PR 3493 gives `topo::BooleanError` two closed decision types (D4 ¶1
   and by `MergeCoplanarError::DeclarationContradicted`.
 
 The prelude carries `BooleanError` (`crates/pncad/src/prelude.rs`,
-section 4) but neither payload. The non-carriage and its falsifier are
-argued beside `Contradiction`'s declaration, and
-`scripts/payload-rung-sweep.py`'s `DISPOSITIONS` cites that paragraph.
+section 4) but neither payload; `scripts/payload-rung-sweep.py`'s
+`DISPOSITIONS` files both here.
+
+Two more types ride one rung further down, where the sweep does not
+look (it reads the types a curated carrier's own declaration names,
+and these are named by `BooleanDecision`'s): `SectorRung`, under
+`BooleanDecision::Corner`, and `CrossingDecision`, under
+`BooleanDecision::Crossing`. The carry below owes them too.
+
+## Why they are not carried yet
+
+A Rust caller can already name and match all four types, since `pncad`
+re-exports `topo` whole. What the prelude list would add is the CUR3
+property row `carried_refusal_payloads_are_matchable_through_the_prelude`
+extended to the new published payloads, and a Python word for each, so
+the binding's callers could branch on the decision instead of reading it
+out of the sentence. Both are the façade crate's to write.
+
+**The falsifier is a caller who must act on which decision refused**: a
+viewer that highlights a corner for `Corner` and a face boundary for
+`Containment`, or a Python caller that retries at a smaller tolerance
+only where the ending offers one.
 
 ## Repair shape
 
-Carry `BooleanDecision`, `Contradiction` and `SectorRung` in the
-prelude's section 4 beside `BooleanError`, as `SurfaceKind` rides for
-`CurvedBooleanUnsupported`. Extend
+Carry `BooleanDecision`, `Contradiction`, `SectorRung` and
+`CrossingDecision` in the prelude's section 4 beside `BooleanError`, as
+`SurfaceKind` rides for `CurvedBooleanUnsupported`. Extend
 `carried_refusal_payloads_are_matchable_through_the_prelude` to them,
 and give each a Python word or a `NOT_BOUND` family in
-`crates/pncad-py/tests/test_binding_census.py`. Then delete the argument
-paragraph in `refusal_routes.rs` and the two disposition rows.
+`crates/pncad-py/tests/test_binding_census.py`. Then delete the pointer
+in `Contradiction`'s doc and the two disposition rows.

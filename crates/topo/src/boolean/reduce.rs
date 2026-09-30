@@ -50,10 +50,10 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
-use super::BooleanDecision;
 use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::PlaneDesc;
+use super::{BooleanDecision, CrossingDecision};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -872,15 +872,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         continue;
                     }
                     Ok(ConicPlaneMeet::Roots(Err(fault))) => {
-                        use crate::splitting::ConicRootFault as F;
-                        let (decision, diag) = match fault {
-                            F::PlaneParallel(diag) | F::BellyGraze(diag) => {
-                                (BooleanDecision::Coincidence, diag)
-                            }
-                            F::CrossingInterior(diag) => (BooleanDecision::CrossingOnEdge, diag),
-                            F::RootOrder(diag) => (BooleanDecision::CrossingOrder, diag),
-                        };
-                        return Err(BooleanError::Escalated { decision, diag });
+                        return Err(BooleanError::Escalated {
+                            decision: BooleanDecision::of_conic_root(fault),
+                            diag: fault.diag(),
+                        });
                     }
                     Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
                         for &t in &roots {
@@ -1953,7 +1948,7 @@ fn wall_crossing<T: Decide>(
                 Ok(Sign::Negative) => interior = false,
                 Err(diag) => {
                     return Err(BooleanError::Escalated {
-                        decision: BooleanDecision::CrossingOnEdge,
+                        decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
                         diag,
                     });
                 }
@@ -2279,7 +2274,7 @@ fn vertex_on_curved_face<T: Decide>(
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Coincidence,
+                    decision: BooleanDecision::VertexOnVertex,
                     diag: geom_core::Indeterminate {
                         margin: geom_core::MarginDiag::INVALID,
                         band,
@@ -2288,7 +2283,12 @@ fn vertex_on_curved_face<T: Decide>(
                     },
                 });
             }
-            Err(diag) => return Err(BooleanError::coincidence(diag)),
+            Err(diag) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::VertexOnVertex,
+                    diag,
+                });
+            }
         }
     }
     // Only an ON-carrier `Out` is a certified absence. Every caller

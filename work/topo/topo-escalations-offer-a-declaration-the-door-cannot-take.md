@@ -43,6 +43,19 @@ whole:
 
 ## Repair shape
 
+**PR 3493 does not route by `diag.predicate`**, as the paragraph below
+prescribes. D4 ¶1
+(i), ratified in PR 3352, makes the decision a closed type at its site,
+so its recourse is an exhaustive match, never a lookup by predicate
+name. `BooleanError::Escalated` carries a `boolean::BooleanDecision`,
+set where each escalation is wrapped (`SectorFault::Rung` carries its
+`SectorRung`, `NormalAtError::Escalated` and
+`splitting::ConicRootFault` carry which rung escalated), and its
+ending follows from the decision and the verdict through
+`geom_brep::recourse` (`boolean/refusal_routes.rs`).
+`split_edge`'s two interiority arms end through
+`split::SPLIT_PARAM_INTERIOR`, beside the decision.
+
 Render `diag.payload()` with a subject in plain words ("whether the
 crossing lands strictly inside the edge") and a routed recourse. The
 lever that reaches the split's case is the split plane or the geometry.
@@ -69,17 +82,3 @@ A subject routed by `diag.predicate`, as blend does, would let the
 recourse follow the decision. `boolean/mod.rs` has no owner by
 `work.py territory`, and the sector, normal and containment files are
 TOPO's, so the row is here.
-
-## How PR 3493 routes it
-
-Not by `diag.predicate`, as the repair shape above prescribes: D4 ¶1
-(i), ratified in PR 3352, makes the decision a closed type at its site,
-so its recourse is an exhaustive match, never a lookup by predicate
-name. `BooleanError::Escalated` carries a `boolean::BooleanDecision`,
-set where each escalation is wrapped (`SectorFault::Rung` carries its
-`SectorRung`, `NormalAtError::Escalated` and
-`splitting::ConicRootFault` carry which rung escalated), and its
-ending follows from the decision and the verdict through
-`geom_brep::recourse` (`boolean/refusal_routes.rs`).
-`SplitParamEscalated` ends through the same table's
-`SPLIT_PARAM_INTERIOR`.

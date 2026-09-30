@@ -1007,6 +1007,7 @@ fn verify_declared_pairs<T: Decide>(
                         class: ContactClass::Rest,
                     },
                     steer: super::contact_verify::fit_steer(fact),
+                    fact: Some(fact),
                     margin: diag,
                 });
             }

@@ -261,6 +261,14 @@ const WORDLESS: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        // Raised under two decisions — the Boolean contact sweep's
+        // vertex-to-vertex coincidence and containment's boundary
+        // pre-pass — so no one decision's words are true of it
+        // (`topo::decision_words`).
+        "one name, two decisions",
+        &["bool_contact_vertex"],
+    ),
+    (
         // Filed: work/edit/flip-reports-name-no-decision-for-most-predicates.md.
         "no words yet",
         &[

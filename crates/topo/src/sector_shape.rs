@@ -191,6 +191,11 @@ pub(crate) fn rung_words(predicate: &str) -> Option<&'static str> {
 /// the rung passes on. Rung 2 (convexity) never refuses, since an
 /// undecided reading of it falls through to rung 3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(name(SectorRungKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum SectorRung {
     /// Rung 1: the metering arm is a positive length.
     Arm,

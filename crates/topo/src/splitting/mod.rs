@@ -56,7 +56,8 @@
 
 mod classify;
 pub mod containment;
-pub(crate) use classify::{ConicPlaneMeet, ConicRootFault, conic_plane_crossing_roots};
+pub(crate) use classify::{ConicPlaneMeet, conic_plane_crossing_roots};
+pub use classify::{ConicRootFault, CrossingDecision};
 pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
@@ -204,14 +205,13 @@ pub enum SplitReduceError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A conic edge's plane-crossing root landed in the ambiguity band
-    /// of the edge's far end (the crossing grazes a vertex): the
+    /// A rung of a conic edge's plane-crossing root lane escalated: the
     /// operand/plane pair is ill-conditioned at this ε (F6).
     CrossingEscalated {
         /// The crossing edge.
         edge: EdgeKey,
-        /// The escalation diagnostics.
-        diag: Indeterminate,
+        /// Which rung escalated, with its diagnostics.
+        fault: ConicRootFault,
     },
     /// The split plane is tangent to a curved face at an ON vertex
     /// (the local normal is plane-parallel) AND the second-order
@@ -375,12 +375,23 @@ impl core::fmt::Display for SplitReduceError {
                 "the body has an edge on a spline (NURBS) or spiric curve, which the split \
                  cannot take yet. There is no way through yet"
             ),
-            Self::CrossingEscalated { diag, .. } => write!(
-                f,
-                "the split plane grazes the end of a curved edge ({}). Recourse: \
-                 {SPLIT_COINCIDENCE_RECOURSE}",
-                diag.payload()
-            ),
+            // The fault's routing is the Boolean's too: a crossing
+            // decision ends as that decision does, and a coincidence
+            // between the plane and the conic takes the split's levers,
+            // since a split takes no declaration.
+            Self::CrossingEscalated { fault, .. } => {
+                let diag = fault.diag();
+                let ending = fault.decision().map_or_else(
+                    || format!("Recourse: {SPLIT_COINCIDENCE_RECOURSE}"),
+                    |decision| decision.ending_of(&diag),
+                );
+                write!(
+                    f,
+                    "{} is undecided: {}. {ending}",
+                    fault.subject(),
+                    diag.payload()
+                )
+            }
             Self::TangencyUnsupported { .. } => write!(
                 f,
                 "the split plane is tangent to a curved face at a vertex, and a tangent \

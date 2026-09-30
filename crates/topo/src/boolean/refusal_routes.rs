@@ -1,52 +1,39 @@
 //! **What a Boolean refusal says for the decision that raised it**
 //! (D4 ¶1 (i)): each decision is a closed type set where the refusal is
-//! raised or wrapped, so its sentence is an exhaustive match.
+//! raised or wrapped, so its sentence is an exhaustive match, composed
+//! here.
 //!
 //! - [`Contradiction`]: which fact contradicted a declared face pair
 //!   (`BooleanError::DeclarationContradicted`,
 //!   `MergeCoplanarError::DeclarationContradicted`), set by the rung
 //!   that decided it (`plane_eq`'s declared rung, `carrier_eq`'s kind
-//!   and data rungs). The verdict is definite, so its one lever is the
-//!   declaration or the geometry, with no tolerance arm.
+//!   and data rungs). The verdict is definite, so it ends in
+//!   `contact::CONTRADICTION_RECOURSE`, with no tolerance arm.
 //! - [`BooleanDecision`]: which decision `BooleanError::Escalated`
-//!   escalated on, set at the site that wraps the escalation. The
-//!   ending follows from the decision and its verdict: a coincidence
-//!   between the two solids composes `COINCIDENCE_RECOURSE`; a decision
-//!   on a size the user may intend ends in its own lever, and on an
-//!   in-band margin the tolerance that decides it
+//!   escalated on, set at the site that wraps the escalation.
+//!   [`BooleanDecision::render`] composes the whole sentence from the
+//!   decision and its verdict: a coincidence between the two solids its
+//!   own sentence and `COINCIDENCE_RECOURSE`; a decision on a size the
+//!   user may intend its subject, its own lever and, on an in-band
+//!   margin, the tolerance that decides it
 //!   (`geom_brep::recourse::SizedDecision`); a residual or a kernel
-//!   self-check ends as a defect (`geom_brep::recourse::Unsized`).
+//!   self-check its subject and the defect ending
+//!   (`geom_brep::recourse::Unsized`).
 
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
-use geom_core::Indeterminate;
+use geom_core::{COINCIDENCE_RECOURSE, Indeterminate, UNREADABLE_MARGIN_NOTE};
 
+use crate::face_normal::NormalDecision;
 pub use crate::sector_shape::SectorRung;
-
-/// The one lever a contradicted declaration leaves: the declaration
-/// is wrong, or the geometry is.
-pub(crate) const CONTRADICTION_RECOURSE: &str =
-    "Recourse: fix the declaration or move the geometry";
+use crate::splitting::ConicRootFault;
+pub use crate::splitting::CrossingDecision;
 
 /// Which fact contradicted a declared pair: the rung that found the
 /// two carriers definitely distinct.
 ///
-/// **NOT carried to the façade's curated list, and that is a decision
-/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
-/// rung and [`BooleanDecision`] beside it; the disposition table cites
-/// this paragraph as the home of both). A Rust caller can already name
-/// and match both types, since `pncad` re-exports `topo` whole. What the
-/// prelude list would add is the CUR3 property row
-/// `carried_refusal_payloads_are_matchable_through_the_prelude` extended
-/// to two new published payloads, and a Python word for each, so the
-/// binding's callers could branch on the decision instead of reading it
-/// out of the sentence. Both are the façade crate's to write
-/// (`work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error.md`).
-///
-/// **The falsifier is a caller who must act on which decision refused**:
-/// a viewer that highlights a corner for `Corner` and a face boundary
-/// for `Containment`, or a Python caller that retries at a smaller
-/// tolerance only where the ending offers one. When the façade carries
-/// them, delete this paragraph and the two disposition rows with it.
+/// The façade's curated list carries neither this nor
+/// [`BooleanDecision`]; why, and what would change that, is
+/// `work/lib/boolean-decision-and-contradiction-are-rungs-under-boolean-error.md`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Contradiction {
     /// The declared planes' normals are not parallel.
@@ -122,6 +109,11 @@ impl Contradiction {
 /// Which decision a Boolean escalation came from, set at the site that
 /// wraps the escalation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(name(BooleanDecisionKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum BooleanDecision {
     /// Whether parts of the two solids coincide: the plane and carrier
     /// identity rungs, the tangent locus and its verification, the
@@ -132,21 +124,23 @@ pub enum BooleanDecision {
     /// A corner's own shape (`sector_shape`'s rungs).
     Corner(SectorRung),
     /// Whether a pierce point lies on the curved face it pierces, so
-    /// the face's normal can be read there: a residual on a point the
-    /// kernel computed.
+    /// the face's normal can be read there. The point is a vertex of
+    /// the piercing solid that the contact sweep already placed on that
+    /// face, so this is a residual re-asking a decision taken upstream.
     PierceOnFace,
     /// Whether a pierced torus's tube radius is positive.
     TorusTube,
     /// Whether a pierced torus's tube stays clear of its axis.
     TorusRing,
     /// Whether a point lies inside a face, on its boundary, or outside
-    /// it (`ContainError::Escalated`).
+    /// it (`ContainError::Escalated`), from any rung of the walk.
     Containment,
-    /// Whether a crossing the Boolean found on an edge lands inside it:
-    /// every definite answer passes (inside, at an end, outside).
-    CrossingOnEdge,
-    /// Which of two crossings on an edge comes first.
-    CrossingOrder,
+    /// Where a crossing lands along its edge.
+    Crossing(CrossingDecision),
+    /// Whether a vertex of one solid coincides with a vertex of the
+    /// other, asked of an edge end on a curved face: a coincidence both
+    /// verdicts of which pass, and which no face-pair declaration names.
+    VertexOnVertex,
     /// Whether a split point lies on the circle it was placed on: a
     /// residual on a point the kernel placed.
     SplitPointOnCircle,
@@ -160,41 +154,21 @@ pub enum BooleanDecision {
 /// How one decision's escalation ends.
 enum Ending {
     /// A coincidence between the two solids: the declaration, the
-    /// geometry and the tolerance (`COINCIDENCE_RECOURSE`).
+    /// geometry and the tolerance (`COINCIDENCE_RECOURSE`), in the
+    /// coincidence's own sentence.
     Coincidence,
     /// A decision on a size the user may intend.
     Sized(SizedDecision),
+    /// A family of decisions the escalation does not tell apart: the
+    /// family's lever alone, since no one member's margin gives a
+    /// tolerance to tighten below.
+    Lever(&'static str),
     /// A decision with no size the user chose.
     Unsized(Unsized),
 }
 
-/// Where a crossing lands along its edge, in words.
-pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside its edge";
-
-/// The lever every door that splits an edge at a crossing has (the
-/// split, the blend, the Boolean): the geometry.
-const CROSSING_LEVER: &str =
-    "move the geometry so the crossing lands clearly away from the edge's ends";
-
-/// What a crossing's interiority margin measures.
-const CROSSING_SIZE: &str = "distance from the edge's end";
-
-/// `Body::split_edge`'s interiority decision: it passes only on a
-/// crossing definitely inside its edge.
-pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
-    lever: CROSSING_LEVER,
-    size: CROSSING_SIZE,
-    passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
-
 /// A corner's own shape.
 const CORNER_LEVER: &str = "reshape that corner so its edges are clearly longer than the tolerance and clearly not in line";
-
-/// Whether a point lies inside a face.
-const CONTAINMENT_LEVER: &str =
-    "move the parts so they meet clearly inside or clearly outside that face's boundary";
 
 /// A sized decision's table row at a build, where the stored arm is
 /// never read.
@@ -209,6 +183,22 @@ const fn sized(lever: &'static str, size: &'static str, passes: SizedPass) -> En
 }
 
 impl BooleanDecision {
+    /// The decision a pierce point's face normal escalated on.
+    pub(crate) const fn of_normal(decision: NormalDecision) -> Self {
+        match decision {
+            NormalDecision::TorusTube => Self::TorusTube,
+            NormalDecision::TorusRing => Self::TorusRing,
+            NormalDecision::OnSurface => Self::PierceOnFace,
+        }
+    }
+
+    /// The decision a conic root lane's escalation came from: a
+    /// crossing decision as the fault routes it, and otherwise a
+    /// coincidence between the plane and the conic.
+    pub(crate) fn of_conic_root(fault: ConicRootFault) -> Self {
+        fault.decision().map_or(Self::Coincidence, Self::Crossing)
+    }
+
     /// What the decision decides, as a clause with no colon or dash of
     /// its own; the coincidence has its own sentence and no subject.
     #[must_use]
@@ -224,8 +214,8 @@ impl BooleanDecision {
             Self::Containment => {
                 "whether a point lies inside a face, on its boundary, or outside it"
             }
-            Self::CrossingOnEdge => CROSSING_INTERIOR,
-            Self::CrossingOrder => "which of two crossings on an edge comes first",
+            Self::Crossing(decision) => decision.subject(),
+            Self::VertexOnVertex => "whether a vertex of one solid coincides with one of the other",
             Self::SplitPointOnCircle => "whether a split point lies on the circle it was placed on",
             Self::ArcSpan => "whether an arc stays short of a full turn",
             Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
@@ -240,19 +230,21 @@ impl BooleanDecision {
             Self::Corner(SectorRung::Arm) => {
                 sized(CORNER_LEVER, "edge length", SizedPass::Positive)
             }
-            // A straight corner passes on a negative cosine; a sector
-            // bounded twice by one edge passes on any definite one.
+            // The margin is cos θ levered by the shorter edge: that
+            // edge's projection onto the other, a length. A straight
+            // corner passes on a negative one; a sector bounded twice by
+            // one edge passes on any definite one.
             Self::Corner(SectorRung::Straight { full_circle }) => sized(
                 CORNER_LEVER,
-                "angle",
+                "projection of one of the corner's edges onto the other",
                 if full_circle {
-                    SizedPass::NonZero
+                    SizedPass::AnySign
                 } else {
                     SizedPass::Negative
                 },
             ),
-            // It passes only at zero, and its definite sibling (a point
-            // definitely off the face) is a broken classification
+            // Each passes only at zero, and its definite sibling (a
+            // point definitely off) is a broken classification
             // invariant.
             Self::PierceOnFace | Self::SplitPointOnCircle => Ending::Unsized(Unsized::Defect),
             Self::TorusTube => sized(
@@ -265,40 +257,61 @@ impl BooleanDecision {
                 "clearance between the tube and the axis",
                 SizedPass::Positive,
             ),
-            Self::Containment => sized(
-                CONTAINMENT_LEVER,
-                "distance from the face's boundary",
-                SizedPass::NonZero,
+            // The escalation does not carry which rung of the walk
+            // refused, and the rungs pass on different sets (the carrier
+            // rung is a residual where the caller placed the point on
+            // the surface; the period rung refuses a negative margin),
+            // so no one margin gives a tolerance to tighten below.
+            Self::Containment => Ending::Lever(
+                "move the parts so they meet clearly inside or clearly outside that face's \
+                 boundary",
             ),
-            Self::CrossingOnEdge => sized(CROSSING_LEVER, CROSSING_SIZE, SizedPass::NonZero),
-            Self::CrossingOrder => sized(
-                "move the geometry so the two crossings on that edge lie clearly apart",
-                "distance between the crossings",
-                SizedPass::NonZero,
-            ),
-            // A span of at most one turn passes; a longer one is a broken
-            // classification invariant.
-            Self::ArcSpan => sized(
-                "reshape the arc so it clearly stays short of a full turn",
-                "arc",
+            Self::Crossing(decision) => Ending::Sized(decision.sized()),
+            // Both definite verdicts pass (the vertices meet, or lie
+            // apart); a negative distance is not a verdict.
+            Self::VertexOnVertex => sized(
+                "move the parts so their vertices clearly meet or lie clearly apart",
+                "distance between the vertices",
                 SizedPass::NonNegative,
             ),
+            // The edge's certification decided this same margin (its
+            // headroom to a full turn, metred at the radius) at this
+            // band, so neither arm is one the user reaches: an arc
+            // certified short of a full turn that now reads longer, or
+            // undecided, is the kernel's. It ends as its definite
+            // sibling, a broken classification invariant, does.
+            Self::ArcSpan => Ending::Unsized(Unsized::Defect),
             Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
         }
     }
 
-    /// The one ending this decision's escalation `diag` carries, at the
-    /// Boolean that built the geometry, where the decision has no
-    /// sentence of its own; `None` for the coincidence, whose sentence
-    /// composes `COINCIDENCE_RECOURSE`.
+    /// The whole sentence an escalation of this decision renders, at the
+    /// Boolean that built the geometry: the coincidence's own, or the
+    /// subject, the payload and the one ending the verdict gives.
     #[must_use]
-    pub(crate) fn ending_of(self, diag: &Indeterminate) -> Option<String> {
+    pub(crate) fn render(self, diag: &Indeterminate) -> String {
         let arm = RefusedArm::Undecided(diag);
-        match self.ending() {
-            Ending::Coincidence => None,
-            Ending::Sized(decision) => Some(decision.recourse(arm, Reading::Build)),
-            Ending::Unsized(decision) => Some(decision.recourse(arm, Reading::Build)),
-        }
+        let ending = match self.ending() {
+            Ending::Coincidence => {
+                return format!(
+                    "parts of the two solids are too close to call at this tolerance ({}), \
+                     and the Boolean never snaps them together. Recourse: \
+                     {COINCIDENCE_RECOURSE}",
+                    diag.payload()
+                );
+            }
+            Ending::Sized(decision) => decision.recourse(arm, Reading::Build),
+            Ending::Lever(lever) if diag.margin.is_invalid() => {
+                format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}")
+            }
+            Ending::Lever(lever) => format!("Recourse: {lever}"),
+            Ending::Unsized(decision) => decision.recourse(arm, Reading::Build),
+        };
+        format!(
+            "{} is undecided: {}. {ending}",
+            self.subject(),
+            diag.payload()
+        )
     }
 }
 
@@ -310,11 +323,10 @@ mod tests {
     use crate::entity::{EdgeKey, VertexKey};
     use crate::euler::EulerOpError;
     use crate::merge_faces::MergeCoplanarError;
+    use crate::sector_shape::SectorRungKind;
     use crate::splitting::SplitReduceError;
-    use geom_core::{
-        Band, COINCIDENCE_RECOURSE, KERNEL_DEFECT_ENDING, MarginDiag, Point3, Tol,
-        UNREADABLE_MARGIN_NOTE, Vec3,
-    };
+    use geom_core::{Band, KERNEL_DEFECT_ENDING, MarginDiag, Point3, Tol, Vec3};
+    use strum::IntoEnumIterator as _;
     use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
 
     fn band() -> Band {
@@ -446,148 +458,362 @@ mod tests {
         }
     }
 
-    /// Every decision, spelled once per variant: `Corner` once per rung
-    /// and pass set.
-    const DECISIONS: &[BooleanDecision] = &[
-        BooleanDecision::Coincidence,
-        BooleanDecision::Corner(SectorRung::Arm),
-        BooleanDecision::Corner(SectorRung::Straight { full_circle: false }),
-        BooleanDecision::Corner(SectorRung::Straight { full_circle: true }),
-        BooleanDecision::PierceOnFace,
-        BooleanDecision::TorusTube,
-        BooleanDecision::TorusRing,
-        BooleanDecision::Containment,
-        BooleanDecision::CrossingOnEdge,
-        BooleanDecision::CrossingOrder,
-        BooleanDecision::SplitPointOnCircle,
-        BooleanDecision::ArcSpan,
-        BooleanDecision::VolumeBackstop,
-    ];
+    /// **Every decision, by construction.** The top-level variants come
+    /// from the compiler (`BooleanDecisionKind::iter`), and each kind's
+    /// concrete decisions from a match that must name every kind, over
+    /// the nested rungs' own compiler-derived lists: a new decision, or
+    /// a new rung under one, is a compile error or a new row here, never
+    /// a silent pass.
+    fn every_decision() -> Vec<BooleanDecision> {
+        BooleanDecisionKind::iter()
+            .flat_map(|kind| match kind {
+                BooleanDecisionKind::Coincidence => vec![BooleanDecision::Coincidence],
+                BooleanDecisionKind::Corner => SectorRungKind::iter()
+                    .flat_map(|rung| match rung {
+                        SectorRungKind::Arm => vec![SectorRung::Arm],
+                        SectorRungKind::Straight => [false, true]
+                            .map(|full_circle| SectorRung::Straight { full_circle })
+                            .to_vec(),
+                    })
+                    .map(BooleanDecision::Corner)
+                    .collect(),
+                BooleanDecisionKind::PierceOnFace => vec![BooleanDecision::PierceOnFace],
+                BooleanDecisionKind::TorusTube => vec![BooleanDecision::TorusTube],
+                BooleanDecisionKind::TorusRing => vec![BooleanDecision::TorusRing],
+                BooleanDecisionKind::Containment => vec![BooleanDecision::Containment],
+                BooleanDecisionKind::Crossing => CrossingDecision::iter()
+                    .map(BooleanDecision::Crossing)
+                    .collect(),
+                BooleanDecisionKind::VertexOnVertex => vec![BooleanDecision::VertexOnVertex],
+                BooleanDecisionKind::SplitPointOnCircle => {
+                    vec![BooleanDecision::SplitPointOnCircle]
+                }
+                BooleanDecisionKind::ArcSpan => vec![BooleanDecision::ArcSpan],
+                BooleanDecisionKind::VolumeBackstop => vec![BooleanDecision::VolumeBackstop],
+            })
+            .collect()
+    }
 
     /// How a decision's escalation must end, written independently of
-    /// the table: the coincidence sentence; a lever and the sign of the
-    /// margins a smaller tolerance decides passing (`Some(true)` the
-    /// positive ones, `Some(false)` the negative, `None` either); or the
-    /// defect ending. The match is exhaustive, so a new decision is a
-    /// compile error here until its ending is written down.
-    enum Want {
+    /// the table.
+    enum Ending {
+        /// The coincidence's own sentence.
         Coincidence,
+        /// The lever, and the sign of the margins a smaller tolerance
+        /// decides passing: `Some(true)` the positive ones, `Some(false)`
+        /// the negative, `None` either.
         Sized(&'static str, Option<bool>),
+        /// The lever alone, on every margin.
+        Lever(&'static str),
+        /// The defect ending.
         Defect,
     }
 
-    fn want(decision: BooleanDecision) -> Want {
+    /// Each decision's subject and ending, as literals: an independent
+    /// statement of the words `subject` and `ending` must produce.
+    fn want(decision: BooleanDecision) -> (&'static str, Ending) {
         const CORNER: &str = "Recourse: reshape that corner so its edges are clearly longer than \
                               the tolerance and clearly not in line";
-        const CONTAIN: &str = "Recourse: move the parts so they meet clearly inside or clearly \
-                               outside that face's boundary";
+        const STRAIGHT: &str = "whether a corner is straight or folds back on itself";
         match decision {
-            BooleanDecision::Coincidence => Want::Coincidence,
-            BooleanDecision::Corner(SectorRung::Arm) => Want::Sized(CORNER, Some(true)),
+            BooleanDecision::Coincidence => (
+                "whether parts of the two solids coincide",
+                Ending::Coincidence,
+            ),
+            BooleanDecision::Corner(SectorRung::Arm) => (
+                "whether a corner's edges are long enough to measure its angle over",
+                Ending::Sized(CORNER, Some(true)),
+            ),
             BooleanDecision::Corner(SectorRung::Straight { full_circle: false }) => {
-                Want::Sized(CORNER, Some(false))
+                (STRAIGHT, Ending::Sized(CORNER, Some(false)))
             }
             BooleanDecision::Corner(SectorRung::Straight { full_circle: true }) => {
-                Want::Sized(CORNER, None)
+                (STRAIGHT, Ending::Sized(CORNER, None))
             }
-            BooleanDecision::PierceOnFace
-            | BooleanDecision::SplitPointOnCircle
-            | BooleanDecision::VolumeBackstop => Want::Defect,
-            BooleanDecision::TorusTube => Want::Sized(
-                "Recourse: reshape the torus so its tube is clearly thicker than the tolerance",
-                Some(true),
+            BooleanDecision::PierceOnFace => (
+                "whether a point lies on a curved face, so the face's normal can be read there",
+                Ending::Defect,
             ),
-            BooleanDecision::TorusRing => Want::Sized(
-                "Recourse: reshape the torus so its tube stays clearly off its axis",
-                Some(true),
+            BooleanDecision::TorusTube => (
+                "whether a torus's tube radius is positive",
+                Ending::Sized(
+                    "Recourse: reshape the torus so its tube is clearly thicker than the \
+                     tolerance",
+                    Some(true),
+                ),
             ),
-            BooleanDecision::Containment => Want::Sized(CONTAIN, None),
-            BooleanDecision::CrossingOnEdge => Want::Sized(CROSSING_LEVER_ENDING, None),
-            BooleanDecision::CrossingOrder => Want::Sized(
-                "Recourse: move the geometry so the two crossings on that edge lie clearly apart",
-                None,
+            BooleanDecision::TorusRing => (
+                "whether a torus's tube stays clear of its axis",
+                Ending::Sized(
+                    "Recourse: reshape the torus so its tube stays clearly off its axis",
+                    Some(true),
+                ),
             ),
-            BooleanDecision::ArcSpan => Want::Sized(
-                "Recourse: reshape the arc so it clearly stays short of a full turn",
-                Some(true),
+            BooleanDecision::Containment => (
+                "whether a point lies inside a face, on its boundary, or outside it",
+                Ending::Lever(
+                    "Recourse: move the parts so they meet clearly inside or clearly outside \
+                     that face's boundary",
+                ),
+            ),
+            BooleanDecision::Crossing(CrossingDecision::OnEdge) => (
+                "whether a crossing lands strictly inside its edge",
+                Ending::Sized(CROSSING_LEVER_ENDING, None),
+            ),
+            BooleanDecision::Crossing(CrossingDecision::Order) => (
+                "which of two crossings on an edge comes first",
+                Ending::Sized(
+                    "Recourse: move the geometry so the two crossings on that edge lie clearly \
+                     apart",
+                    None,
+                ),
+            ),
+            BooleanDecision::VertexOnVertex => (
+                "whether a vertex of one solid coincides with one of the other",
+                Ending::Sized(
+                    "Recourse: move the parts so their vertices clearly meet or lie clearly \
+                     apart",
+                    Some(true),
+                ),
+            ),
+            BooleanDecision::SplitPointOnCircle => (
+                "whether a split point lies on the circle it was placed on",
+                Ending::Defect,
+            ),
+            BooleanDecision::ArcSpan => {
+                ("whether an arc stays short of a full turn", Ending::Defect)
+            }
+            BooleanDecision::VolumeBackstop => (
+                "whether the result's volume agrees with its operands'",
+                Ending::Defect,
             ),
         }
     }
 
+    /// The tolerance a smaller one than which decides `margin` on the
+    /// side(s) `passing` names: a point margin at `|m|/K`, an enclosure
+    /// with both ends on one such side at its nearer end's.
+    fn expected_offer(margin: MarginDiag, passing: Option<bool>) -> Option<f64> {
+        let on = |v: f64| v != 0.0 && passing.is_none_or(|positive| (v > 0.0) == positive);
+        match margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(m) => on(m).then(|| m.abs() / k()),
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => {
+                (on(lo) && on(hi) && (lo > 0.0) == (hi > 0.0)).then(|| lo.abs().min(hi.abs()) / k())
+            }
+            geom_core::ErrorTextReading::Invalid => None,
+        }
+    }
+
     /// **`BooleanError::Escalated` ends as its decision and verdict
-    /// give**, for every decision, on an in-band margin of each sign and
-    /// on an `INVALID` one:
+    /// give**, for every decision, on in-band margins of each sign (a
+    /// point and an enclosure), an enclosure across zero, a signed zero,
+    /// and an `INVALID` margin (the enclosure and zero rows are the
+    /// review's `probe_c7_shape_guard_enclosures`):
     ///
+    /// - every sentence opens on its decision's own subject, written
+    ///   here as a literal, and passes the refusal-shape guard;
     /// - a coincidence composes the coincidence sentence, and only it
     ///   offers a declaration;
     /// - a decision on a size names its lever and, on an in-band margin
-    ///   on a side it passes on, the tolerance `|m|/K` below which that
-    ///   margin is decided passing; on the other side, or on an
-    ///   `INVALID` margin, no tolerance, and an `INVALID` one adds the
-    ///   unreadable-margin note;
+    ///   on a side it passes on, the tolerance below which that margin is
+    ///   decided passing; elsewhere no tolerance, and an `INVALID` margin
+    ///   adds the unreadable-margin note;
+    /// - a family the escalation does not tell apart names its lever
+    ///   alone;
     /// - a residual or a kernel self-check ends as a defect and never
     ///   names the tolerance.
     #[test]
     fn every_escalation_ends_as_its_decision_and_verdict_give() {
         let b = band();
-        let mid = (b.zero() + b.escalate()) / 2.0;
-        for &decision in DECISIONS {
+        let (z, e) = (b.zero(), b.escalate());
+        let mid = (z + e) / 2.0;
+        for decision in every_decision() {
             for margin in [
                 MarginDiag::value(mid),
                 MarginDiag::value(-mid),
+                MarginDiag::enclosure(2.0 * z, 0.5 * e),
+                MarginDiag::enclosure(-0.5 * e, -2.0 * z),
+                MarginDiag::enclosure(-2.0 * z, 3.0 * z),
+                MarginDiag::value(0.0),
+                MarginDiag::value(-0.0),
                 MarginDiag::INVALID,
             ] {
                 let diag = diag_of(margin);
                 let text = BooleanError::Escalated { decision, diag }.to_string();
+                let label = format!("{decision:?} at {margin}");
                 let problems = short_of_the_guard(&text, &[]);
-                assert!(problems.is_empty(), "{decision:?}: {problems:?}: {text}");
+                assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
                 assert!(
                     !text.contains("routing_probe"),
-                    "{decision:?}: the routing name stays out: {text}"
+                    "{label}: the routing name stays out: {text}"
                 );
                 assert_eq!(
                     text.contains("declare"),
                     decision == BooleanDecision::Coincidence,
-                    "{decision:?}: only the coincidence offers a declaration: {text}"
+                    "{label}: only the coincidence offers a declaration: {text}"
                 );
-                let label = format!("{decision:?} at {margin}");
-                match want(decision) {
-                    Want::Coincidence => assert_eq!(
+                let (subject, ending) = want(decision);
+                let head = format!("{subject} is undecided: {}. ", diag.payload());
+                let tail = text.strip_prefix(&head);
+                match ending {
+                    Ending::Coincidence => assert_eq!(
                         text,
                         format!(
                             "parts of the two solids are too close to call at this tolerance \
                              ({}), and the Boolean never snaps them together. Recourse: \
-                             {COINCIDENCE_RECOURSE}",
+                             declare the coincidence, move the geometry, or lower the tolerance",
                             diag.payload()
                         ),
                         "{label}"
                     ),
-                    Want::Sized(lever, passing_sign) => {
-                        let head =
-                            format!("{} is undecided: {}. ", decision.subject(), diag.payload());
+                    Ending::Sized(lever, passing) => {
                         assert!(
-                            text.starts_with(&head) && text[head.len()..].starts_with(lever),
+                            tail.is_some_and(|t| t.starts_with(lever)),
                             "{label}: its subject, then its lever: {text}"
                         );
-                        let offer = if margin.is_invalid() {
-                            assert!(text.ends_with(UNREADABLE_MARGIN_NOTE), "{label}: {text}");
-                            None
-                        } else {
-                            let m = point_margin(&diag);
-                            passing_sign
-                                .is_none_or(|positive| (m > 0.0) == positive)
-                                .then(|| Some(m.abs() / k()))
-                        };
-                        assert_eq!(offered_below(&text), offer, "{label}: {text}");
+                        assert_eq!(
+                            text.ends_with(UNREADABLE_MARGIN_NOTE),
+                            margin.is_invalid(),
+                            "{label}: {text}"
+                        );
+                        assert_eq!(
+                            offered_below(&text),
+                            expected_offer(margin, passing).map(Some),
+                            "{label}: {text}"
+                        );
                     }
-                    Want::Defect => assert!(
-                        text.ends_with(KERNEL_DEFECT_ENDING) && offered_below(&text).is_none(),
-                        "{label}: the defect ending, and no tolerance: {text}"
+                    Ending::Lever(lever) => {
+                        let want = if margin.is_invalid() {
+                            format!("{lever}; {UNREADABLE_MARGIN_NOTE}")
+                        } else {
+                            lever.to_owned()
+                        };
+                        assert_eq!(tail, Some(want.as_str()), "{label}: {text}");
+                    }
+                    Ending::Defect => assert_eq!(
+                        tail,
+                        Some(KERNEL_DEFECT_ENDING),
+                        "{label}: its subject, then the defect ending: {text}"
                     ),
                 }
             }
         }
     }
+
+    /// **A containment escalation on a residual rung names no
+    /// tolerance**, on a real raise: a point off a cylinder wall by an
+    /// in-band distance escalates the carrier rung, which passes only
+    /// on the surface where the crossing layer placed the point there,
+    /// so its margin is a miss, not a size. The containment family ends
+    /// on its lever alone. (The review's
+    /// `probe_c1_containment_residual_rung_constructed` rendered "tighten
+    /// the tolerance below …" here.)
+    #[test]
+    fn a_containment_escalation_on_a_residual_rung_names_its_lever_alone() {
+        use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let b = band();
+        let mut body: crate::body::Body<f64> = brick((10.0, 11.0), (10.0, 11.0), (0.0, 1.0), tol);
+        let wall = cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            None,
+            (0.5, 2.0),
+            (0.0, 1.0),
+            tol,
+        );
+        let r = 1.0 + (b.zero() + b.escalate()) / 2.0;
+        let p = Point3::new(r * 1.2_f64.cos(), r * 1.2_f64.sin(), 0.5);
+        let diag = match crate::boolean::contain::curved_face_placement(&body, wall, p, b) {
+            Err(crate::boolean::ContainError::Escalated(diag)) => diag,
+            other => panic!("an in-band point off the wall escalates: {other:?}"),
+        };
+        assert_eq!(diag.predicate, Some("bool_curved_contain_carrier"));
+        let text = BooleanError::Escalated {
+            decision: BooleanDecision::Containment,
+            diag,
+        }
+        .to_string();
+        assert!(
+            text.ends_with(
+                "Recourse: move the parts so they meet clearly inside or clearly outside that \
+                 face's boundary"
+            ) && !text.contains("tolerance below"),
+            "{text}"
+        );
+    }
+
+    /// **The conic root lane ends alike at the split and the Boolean**,
+    /// rung by rung, through the one routing ([`ConicRootFault::decision`]):
+    /// a crossing rung renders the same sentence at both doors, its
+    /// subject and its decision's ending; a rung that asks whether the
+    /// plane coincides with the conic states its own subject at the split,
+    /// with the split's levers and no declaration, and is the
+    /// coincidence at the Boolean.
+    #[test]
+    fn the_conic_root_lane_ends_alike_at_the_split_and_the_boolean() {
+        let b = band();
+        let diag = diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0));
+        let faults = [
+            (
+                ConicRootFault::PlaneParallel(diag),
+                "whether a curved edge's plane is parallel to the plane that cuts it",
+            ),
+            (
+                ConicRootFault::BellyGraze(diag),
+                "whether a plane cuts a curved edge, grazes it or misses it",
+            ),
+            (
+                ConicRootFault::CrossingInterior(diag),
+                "whether a crossing lands strictly inside its edge",
+            ),
+            (
+                ConicRootFault::RootOrder(diag),
+                "which of two crossings on an edge comes first",
+            ),
+        ];
+        for (fault, subject) in faults {
+            let split = SplitReduceError::CrossingEscalated {
+                edge: EdgeKey::default(),
+                fault,
+            }
+            .to_string();
+            let boolean = BooleanError::Escalated {
+                decision: BooleanDecision::of_conic_root(fault),
+                diag,
+            }
+            .to_string();
+            for text in [&split, &boolean] {
+                let problems = short_of_the_guard(text, &[]);
+                assert!(problems.is_empty(), "{fault:?}: {problems:?}: {text}");
+            }
+            assert!(
+                split.starts_with(&format!("{subject} is undecided: {}. ", diag.payload())),
+                "{fault:?}: {split}"
+            );
+            match fault.decision() {
+                Some(_) => assert_eq!(split, boolean, "{fault:?}"),
+                None => {
+                    assert!(
+                        split.ends_with(
+                            "Recourse: move the split plane or the geometry, or lower the \
+                             tolerance"
+                        ) && !split.contains("declare"),
+                        "{fault:?}: {split}"
+                    );
+                    assert!(
+                        boolean.contains("declare the coincidence"),
+                        "{fault:?}: {boolean}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The recourse of a contradicted declaration, as `contact` states
+    /// it for every contradiction.
+    const CONTRADICTED: &str =
+        "Recourse: correct or remove the declaration, or move the geometry so it holds";
 
     /// Each contradiction's clause, and the predicate whose definite
     /// verdict raises it, written independently of the enum.
@@ -740,7 +966,7 @@ mod tests {
                     text,
                     format!(
                         "a declared coincidence contradicts the geometry: {clause}, and {who} \
-                         never glues a lie. Recourse: fix the declaration or move the geometry"
+                         never glues a lie. {CONTRADICTED}"
                     ),
                     "{who}, {name}"
                 );
@@ -786,9 +1012,10 @@ mod tests {
         let text = err.to_string();
         assert_eq!(
             text,
-            "a declared coincidence contradicts the geometry: the declared planes are not \
-             parallel, and the merge never glues a lie. Recourse: fix the declaration or move \
-             the geometry"
+            format!(
+                "a declared coincidence contradicts the geometry: the declared planes are not \
+                 parallel, and the merge never glues a lie. {CONTRADICTED}"
+            )
         );
         let wrapped = BooleanError::Merge(err).to_string();
         let problems = short_of_the_guard(&wrapped, &[]);

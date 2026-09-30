@@ -69,7 +69,6 @@ use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
-use crate::boolean::BooleanDecision;
 use crate::entity::{Face, FaceKey};
 use crate::validate::decide;
 
@@ -113,7 +112,7 @@ pub(crate) enum NormalAtError {
     /// one certifying `p` on the chart.
     Escalated {
         /// Which of the three decisions escalated.
-        decision: BooleanDecision,
+        decision: NormalDecision,
         /// Its diagnostics.
         diag: Indeterminate,
     },
@@ -124,8 +123,20 @@ pub(crate) enum NormalAtError {
     OffSurface,
 }
 
+/// Which decision [`face_outward_normal_at`] escalated on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NormalDecision {
+    /// Whether a torus's tube radius is positive.
+    TorusTube,
+    /// Whether a torus's tube stays clear of its axis.
+    TorusRing,
+    /// Whether the point lies on the face's surface, so the surface's
+    /// normal can be read there.
+    OnSurface,
+}
+
 /// An escalation of `decision`.
-fn escalated(decision: BooleanDecision) -> impl FnOnce(Indeterminate) -> NormalAtError {
+fn escalated(decision: NormalDecision) -> impl FnOnce(Indeterminate) -> NormalAtError {
     move |diag| NormalAtError::Escalated { decision, diag }
 }
 
@@ -200,10 +211,10 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             minor_radius,
             ..
         } if geom::torus_tube(*minor_radius, band)
-            .map_err(escalated(BooleanDecision::TorusTube))?
+            .map_err(escalated(NormalDecision::TorusTube))?
             != Sign::Positive
             || geom::ring_torus(*major_radius, *minor_radius, band)
-                .map_err(escalated(BooleanDecision::TorusRing))?
+                .map_err(escalated(NormalDecision::TorusRing))?
                 .sign
                 != Sign::Positive =>
         {
@@ -220,10 +231,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             match decide("bool_pierce_normal_on_chart", margin, band) {
                 Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense))),
                 Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
-                Err(diag) => Err(NormalAtError::Escalated {
-                    decision: BooleanDecision::PierceOnFace,
-                    diag,
-                }),
+                Err(diag) => Err(escalated(NormalDecision::OnSurface)(diag)),
             }
         }
         // Cone, Nurbs, Approx: no arm here. A cone's gradient is `0/0`

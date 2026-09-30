@@ -56,3 +56,30 @@ faces. PR 3493 gives the Boolean's face-containment escalations
 own closed decision, `boolean::BooleanDecision::Containment`, ending in
 a `SizedDecision` (`SizedPass::NonZero`) in `boolean::refusal_routes`.
 These three arms want the same change when the decision is carried.
+
+## The Boolean's containment ending, and what carrying the rung needs (TOPO, PR 3493's fix pass)
+
+PR 3493 first ended `boolean::BooleanDecision::Containment` in a
+`SizedDecision` passing on either nonzero sign. That offered a valued
+tolerance on rungs where D4 ¶1 (i) forbids one: at
+`boolean::reduce::wall_crossing` the point is a certified root on the
+wall, so `bool_curved_contain_carrier` (`contain.rs`,
+`curved_face_placement`) is a residual there (it passes only at Zero),
+and `bool_curved_contain_period` refuses a negative margin. The fix
+pass ends `Containment` on its lever alone at every wrap site
+(`reduce.rs` ×2, `ops.rs` ×1), as `validate::classify_contain` does;
+`refusal_routes::tests::a_containment_escalation_on_a_residual_rung_names_its_lever_alone`
+pins it on a real raise.
+
+Carrying the rung is more than a closed type on
+`ContainError::Escalated`. The walk's rungs are `bool_face_disc_carrier`,
+`bool_contact_vertex`, `bool_contact_arc` and its end-vertex row, the
+carrier and period rungs, the ray cast's rungs through `solid_err`, and
+every `PointInLoopError` rung. Their pass sets depend on the caller:
+the carrier rung passes on any definite sign at `curved_face_containment`
+(off the carrier is a definite `Out`), and only at Zero where the caller
+placed the point on the surface. So the carry has to say which caller's
+question the rung answered, or each caller has to map the rung to its
+own decision, as `BooleanDecision::of_normal` does for the face normal.
+Then the Boolean's `Containment` arm splits into those decisions, each
+ending as its pass set gives.
