@@ -45,3 +45,16 @@ blocked_on: [one-arc-carrier-type-in-geom-core]
 - **Bits.** Disclose every moved bit with its cause. A flipped decision
   is shown sound or stops the unit.
 - **Review tier: dual.**
+
+**From #3504's review, carried here:**
+- **Swept vs canonical orientation (S1/S2).** Collapsing `SweptKind`
+  into `SegmentKind` means one type now carries both the swept and the
+  canonical orientation. `impl SweptChord for ValidatedSegment` lets
+  every `SweptChord` consumer accept a canonical segment. If 5a touches
+  `SegmentKind`, restore the distinction as a type (a traversal newtype),
+  not a comment.
+- **`centre` vs `center` (S3).** About ten destructures rename
+  `centre: center`; sweep the class to one spelling.
+- **Sweep negation spellings (S4).** `arc_span` and
+  `tube::circle_traversal` each negate the sweep by hand; spell it
+  `Arc2::reversed` where it is the same operation.

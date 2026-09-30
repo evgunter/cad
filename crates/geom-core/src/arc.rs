@@ -26,8 +26,8 @@ pub struct Arc2<T: Real> {
     /// The carrier circle's radius (positive).
     pub radius: T,
     /// The signed sweep Δθ from the start to the end about `centre`,
-    /// positive counterclockwise; the arc's parameter span is
-    /// `|sweep|`.
+    /// positive counterclockwise, with 0 < |Δθ| ≤ 2π (D1; a full turn
+    /// is |Δθ| = 2π); the arc's parameter span is `|sweep|`.
     pub sweep: T,
 }
 

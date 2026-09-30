@@ -225,12 +225,14 @@ pub(crate) fn swept_segments<T: Real>(
             let s = &segs[j];
             (s, s.start, s.end, j, j)
         };
+        // Every variant answered by name, so a new sweep-bearing kind
+        // stops this compiling until its reversal is written here.
         let kind = match s.kind {
             SegmentKind::Arc { arc, turn } if reverse => SegmentKind::Arc {
                 arc: arc.reversed(),
                 turn: turn.flip(),
             },
-            kind => kind,
+            kind @ (SegmentKind::Arc { .. } | SegmentKind::Line) => kind,
         };
         out.push(SweptSeg {
             a,
