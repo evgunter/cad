@@ -469,7 +469,7 @@ BOUNDS_ALLOWLIST=(
   # pre-existing seams the count is 14. `section_cert.rs` itself, the
   # classifier and the per-pair rule, reads no box and carries no
   # compound bound.
-  'crates/topo/src/boolean/ops.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boolean/ops.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
