@@ -4857,3 +4857,25 @@ Re-dispatched with `coinc-fix4b-brief.md`.
 
 The body reports the composer dump identical, 1,041 sections. I closed
 both rows on the branch (`0707c8ae10`) and merge after CI.
+
+## PR 3580 merged; the off-boundary swap row ruled and dispatched (2026-09-30)
+
+PR 3580 merged at `43fd61cc85` after CI run 36787154070 went green on
+`0707c8ae10`, where both its rows are closed.
+
+The row PR 3580 filed, `set-face-surface-passes-a-swap-off-the-faces-own-boundary`,
+asked whether to refuse such a swap or keep accepting it. It is ruled
+refuse, keys-only. S93 (`325a4daadc`) calls "keep it and document it"
+a defect, and Ev's PR 2527 kill-family pattern (the keys-only door
+refuses what it cannot vouch for; the describing twin certifies) is the
+ratified shape. No `[ev]` question, since the reading keeps both as
+they stand. A measurement guard stops the lane if a production caller
+needs a swap neither door serves.
+
+Dispatched on the walk target, branch
+`topo/set-face-surface-vouches-its-boundary`. The brief is
+`offbound-impl-brief.md`.
+
+The null-face row, the corruption-ending row and the mef/mfkrh row all
+wait for PR 3592, whose kill-proofs lane holds `euler.rs` and the kill
+files.
