@@ -2646,7 +2646,7 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 #[allow(clippy::expect_used)]
 mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     use super::{NodeMap, StepMap, remap_name};
-    use crate::names::{NameRef, Qualifier, RoleSeg, SideVerdict, StableName};
+    use crate::names::{NameRef, Qualifier, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
 
@@ -2734,7 +2734,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     }
 
     #[test]
-    fn a_pair_booleans_sets_side_of_and_junction_are_resorted_and_its_seams_stay_sided() {
+    fn a_pair_booleans_sets_borders_and_junction_are_resorted_and_its_seams_stay_sided() {
         // Boolean 5 over operands 1 and 2, with 3 a third name.
         let face = |n| cap(EntityKind::Face, n);
         let was = name(
@@ -2742,10 +2742,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             5,
             vec![
                 RoleSeg::Merged(vec![face(1), face(2)]),
-                RoleSeg::Fragment(Qualifier::SideOf(vec![
-                    (face(1), SideVerdict::Positive),
-                    (face(2), SideVerdict::Negative),
-                ])),
+                RoleSeg::Fragment(Qualifier::Borders(vec![face(1), face(2)])),
             ],
         );
         let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
@@ -2753,10 +2750,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             out.path,
             vec![
                 RoleSeg::Merged(vec![face(30), face(31)]),
-                RoleSeg::Fragment(Qualifier::SideOf(vec![
-                    (face(30), SideVerdict::Negative),
-                    (face(31), SideVerdict::Positive),
-                ])),
+                RoleSeg::Fragment(Qualifier::Borders(vec![face(30), face(31)])),
             ]
         );
         let junction = name(

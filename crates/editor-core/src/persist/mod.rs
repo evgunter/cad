@@ -145,6 +145,7 @@ pub mod hexbytes;
 /// boundary — see the module's own docs for the rules a new one
 /// follows.
 pub(crate) mod kernel_wire;
+pub(crate) mod nesting;
 pub(crate) mod pairs;
 /// The refusal channel. `pub(crate)` for its `record` alone: the
 /// display-unit door that records into it is `crate::expr`'s, outside
@@ -663,9 +664,18 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
     // any other path — so nothing this one leaves can be read as the
     // next one's (`refusal`).
     let frame = refusal::Parse::open();
-    let parsed = serde_json::from_str(body_text);
+    let parsed = nesting::read(body_text);
     let refused = frame.finish();
-    parsed.map_err(|e| parse_err(e, refused))
+    parsed.map_err(|e| match e {
+        nesting::Refused::Json(e) => parse_err(e, refused),
+        // The reader's class (`parse_err`): the body is refused before
+        // any type is consulted.
+        nesting::Refused::TooDeep(at) => PersistError::Parse {
+            line: at.line,
+            column: at.column,
+            message: at.to_string(),
+        },
+    })
 }
 
 /// THE seam, stated once (the variant docs and the module header point
@@ -693,12 +703,15 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
 /// (`tests/bool13_r1_probes.rs`, `tests/bool13r2_probes.rs`):
 /// unknown variant, unknown field, missing field, duplicate field, a
 /// wrong type at any depth, a body that is `null` / `5` / `[]` / a
-/// string, a nesting bomb (the typed visitor fails at depth three
-/// before the reader's recursion limit), and the crate's own rebuild
+/// string, a nesting bomb within the door's nesting limit (the typed
+/// visitor fails at depth three), and the crate's own rebuild
 /// refusals (duplicate strict-map key, ill-dimensioned expression,
 /// unknown display unit) are all `Data` → `Unreadable`. A syntax error,
-/// truncation, an empty body, trailing bytes after the value, a `NaN`
-/// or `Infinity` token, and a decimal literal outside `f64` (`1e999`,
+/// truncation, an empty body, trailing bytes after the value, a body
+/// nested past the door's nesting limit (`nesting`, refused by the
+/// door's own scan before the reader runs, so it never reaches this
+/// function), a `NaN` or `Infinity` token, and a decimal literal
+/// outside `f64` (`1e999`,
 /// "number out of range" — serde_json rejects it at the TOKEN, so it is
 /// `Syntax` although the bytes are grammatical JSON) are all
 /// → `Parse`. That last edge is the one place the two descriptions
