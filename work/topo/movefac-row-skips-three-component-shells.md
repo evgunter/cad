@@ -2,7 +2,7 @@
 id: movefac-row-skips-three-component-shells
 kind: issue
 title: the movefac catalog row offers only two-component shells, so a three-component shell is never partitioned
-status: review
+status: closed
 pr: 3574
 branch: topo/movefac-proofs
 opened: 2026-09-06
@@ -10,6 +10,7 @@ track: P
 refs: [S69, 2014]
 priority: P3
 cost: E
+closed: 2026-09-30
 ---
 
 ## What
