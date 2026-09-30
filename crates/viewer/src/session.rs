@@ -1611,7 +1611,7 @@ impl DocSession {
         if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
             return OpOutcome::refused(refusal);
         }
-        let pin = match self.from_store(|ws| ws.current_pin(id, self.tol)) {
+        let pin = match self.read_store(|ws| ws.current_pin(id, self.tol)) {
             Ok(pin) => pin,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
@@ -1625,7 +1625,7 @@ impl DocSession {
     /// ([`pncad::workspace::update_to_store`]), applied whole.
     fn accept_part_version(&mut self, id: DocumentId) -> OpOutcome {
         let doc = self.committed_doc();
-        match self.from_store(|ws| pncad::workspace::update_to_store(doc, id, ws, self.tol)) {
+        match self.read_store(|ws| pncad::workspace::update_to_store(doc, id, ws, self.tol)) {
             Ok(edits) => self.commit_action(edits),
             Err(refusal) => OpOutcome::refused(refusal),
         }
@@ -1636,7 +1636,7 @@ impl DocSession {
     /// ([`DirResolver::workspace`]) — [`Refusal::NoDocumentDirectory`]
     /// for a session with no backing file, and the store's own
     /// refusal, scan or read, as [`Refusal::Workspace`].
-    fn from_store<T>(
+    fn read_store<T>(
         &self,
         read: impl FnOnce(&pncad::workspace::Workspace) -> Result<T, pncad::workspace::WorkspaceError>,
     ) -> Result<T, Refusal> {
