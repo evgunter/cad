@@ -225,6 +225,15 @@ fn carry<E>(
             .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
         node_map.insert(old, new);
         if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc.node(new)) {
+            let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
+            if shape(&from.ids) != shape(&to.ids) {
+                unreachable!(
+                    "the insert door mints one id per authored step, so a carried profile's step \
+                     ids have its source's shape: carried {:?}, source {:?}",
+                    shape(&to.ids),
+                    shape(&from.ids)
+                );
+            }
             step_map.extend(
                 from.ids
                     .iter()
