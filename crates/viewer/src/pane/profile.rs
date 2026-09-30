@@ -438,8 +438,8 @@ mod tests {
     use crate::pane::headless::{
         Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
     };
-    use crate::sketch::{self, PreviewError, PreviewLoop, ProfilePreview, ProfileShape};
-    use crate::test_support::{inserted, try_inserted, xy_frame};
+    use crate::sketch::{self, LoopEnd, PreviewError, PreviewLoop, ProfilePreview, ProfileShape};
+    use crate::test_support::{inserted, try_inserted, two_legs, xy_frame};
     use crate::theme::Theme;
 
     /// **Drawing the editor never rewrites a document value.** A
@@ -767,9 +767,9 @@ mod tests {
     /// hold the commit.
     #[test]
     fn an_unfinished_chain_is_quiet_and_holds_the_commit() {
-        let open = path(vec![at(0.0, 0.0), line_to(0.01, 0.0), line_to(0.01, 0.01)]);
+        let open = path(two_legs(0.0, 0.0));
         assert!(
-            matches!(&open, Ok(drawn) if drawn.has_open_chain()),
+            matches!(&open, Ok(drawn) if drawn.has_unfinished_chain()),
             "a fixture that draws an open chain: {open:?}"
         );
         let (painted, voices, held) = drawn(&open);
@@ -826,6 +826,45 @@ mod tests {
         }
     }
 
+    /// **A refused step's loop draws, and the form says the refusal
+    /// loud.** The `arc_fillet_arc` the form hands an author who picks
+    /// it after two legs is refused on arrival; what is said under the
+    /// step list is that refusal in the unresolved voice, holding the
+    /// commit — never the unfinished chain's quiet sentence, though the
+    /// loop drawn does not close.
+    ///
+    /// Red if `ProfilePreview::hold` asks the unfinished chain before
+    /// the refusal, or if the refusal's hold takes the advisory tone.
+    #[test]
+    fn a_refused_step_draws_and_is_said_loud() {
+        let mut steps = two_legs(0.0, 0.0);
+        let state = sketch::tip_state_at(&steps, steps.len(), Tol::witness());
+        steps.push(sketch::fresh_step_at(Verb::ArcFilletArc, state));
+        steps.push(Step::LineTo(Target::Start));
+        let cut = path(steps);
+        let Ok(cut_short) = &cut else {
+            panic!("the steps before the refused one draw: {cut:?}")
+        };
+        let refused = cut_short.loops[0]
+            .end
+            .refusal()
+            .expect("the loop carries its refusal");
+        let (painted, voices, held) = drawn(&cut);
+        assert_eq!(
+            find(&painted, &refused.to_string()).ink,
+            Some(voices.unresolved),
+            "{refused}"
+        );
+        assert!(
+            !painted
+                .iter()
+                .any(|landed| landed.text.starts_with("the chain does not close yet")),
+            "{:?}",
+            painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+        assert!(held, "a refused step holds the commit");
+    }
+
     /// **A drawn preview that does not validate is loud**, and a valid
     /// one is a quiet count that holds nothing.
     #[test]
@@ -877,7 +916,7 @@ mod tests {
             loops: vec![PreviewLoop {
                 points: vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]],
                 vertices: vec![0, 1, 2],
-                closed: false,
+                end: LoopEnd::Unfinished,
             }],
             invalid: Some(ProfileError::EmptyProfile),
         });

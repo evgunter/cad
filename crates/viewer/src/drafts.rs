@@ -663,19 +663,21 @@ impl Drafts {
     }
 
     /// **The committed profile the edit door is drawing in place of
-    /// its committed loops** — the draft's node, when the edit door's
-    /// preview this frame REPLAYED (`edit_preview`, taken from
+    /// its committed loops** — the draft's node, whenever the edit
+    /// door took a preview this frame (`edit_preview`, taken from
     /// [`Self::door_loops`]'s `edit`). The committed-profile pass
     /// leaves it out (`sketch::committed`'s `except`), so the node
-    /// shows only its live preview; a preview that refused draws
-    /// nothing, and then the committed drawing stays up.
+    /// shows only the edit: what its preview draws, which for a
+    /// refused step is the prefix before it and may be nothing, beside
+    /// the form's sentence. Whether the committed shape shows does not
+    /// turn on whether a prefix happened to replay.
     pub(crate) fn edited_in_place(
         &self,
         edit_preview: Option<&Result<sketch::ProfilePreview, sketch::PreviewError>>,
     ) -> Option<RecipeNodeId> {
         self.profile_edit
             .as_ref()
-            .filter(|_| matches!(edit_preview, Some(Ok(_))))
+            .filter(|_| edit_preview.is_some())
             .map(|edit| edit.node)
     }
 
@@ -1375,9 +1377,12 @@ mod tests {
     }
 
     /// **The profile being edited shows only its live preview.** The
-    /// edit door's replayed preview stands in for the node, which the
-    /// committed-profile pass then leaves out; a preview that refused
-    /// stands in for nothing, and the committed drawing stays.
+    /// edit door's preview stands in for the node, which the
+    /// committed-profile pass then leaves out; with no preview taken,
+    /// nothing stands in and the committed drawing stays. A refused
+    /// preview's rows are the viewport's
+    /// (`a_refused_edit_hides_the_committed_profile_with_or_without_a_prefix`),
+    /// where the lanes it paints can be read.
     #[test]
     fn the_edited_profile_is_drawn_only_as_its_preview() {
         let tol = Tol::witness();
@@ -1416,14 +1421,6 @@ mod tests {
         let except = drafts.edited_in_place(Some(&preview));
         assert_eq!(except, Some(profile));
         assert!(drawn(except).is_empty(), "the committed loops are left out");
-        // A preview that refuses stands in for nothing.
-        if let Some(edit) = drafts.profile_edit.as_mut() {
-            edit.loops[0] = vec![Step::At(Point2::origin())];
-        }
-        let held = drafts.door_loops().edit.expect("held");
-        let refused = sketch::preview(placement, &held.loops, tol, chord);
-        assert!(refused.is_err(), "a one-point chain does not replay");
-        assert_eq!(drafts.edited_in_place(Some(&refused)), None);
         assert_eq!(drafts.edited_in_place(None), None, "no preview taken");
     }
 }
