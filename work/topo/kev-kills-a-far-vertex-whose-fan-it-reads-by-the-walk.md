@@ -5,6 +5,8 @@ title: kev removes its far vertex on the strength of its orbit walk: a half-edge
 status: open
 opened: 2026-09-30
 refs: [kef-and-mekr-kill-a-loop-whose-members-they-read-by-the-walk, kef-and-kev-take-a-mate-whose-own-edge-is-another]
+priority: P3
+cost: E
 ---
 
 ## What

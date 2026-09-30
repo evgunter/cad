@@ -4,6 +4,8 @@ kind: issue
 title: topo: the declared-pair orientation rung is levered at the shared edge's chord, which is 0 on a closed edge, so it refuses a legitimate merge (and F7 reads the same chord)
 status: open
 opened: 2026-09-30
+priority: P2
+cost: M
 ---
 
 
