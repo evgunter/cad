@@ -647,7 +647,17 @@ pub enum LoopEnd {
     /// **Not finished**: the chain replayed to its last step and has
     /// no closing verb yet. What is missing is a step nobody has
     /// written.
-    Unfinished,
+    Unfinished {
+        /// `None` when the whole chain is drawn, under the provisional
+        /// close. Otherwise its tip is one no `line_to` leaves — an
+        /// arrival or a direction still awaiting its binder — and this
+        /// is the end-of-program refusal that names it; what is drawn
+        /// is the prefix [`Self::Refused`] would draw ([`prefix_loop`]).
+        awaiting: Option<PreviewError>,
+        /// As [`Self::Refused`]'s. Only a walked-back prefix can close,
+        /// so it is `false` while `awaiting` is `None`.
+        closes: bool,
+    },
     /// **Refused**: replay refused a step the author wrote, and
     /// `refusal` names it. What is drawn is the longest prefix before
     /// that step whose drawing is fixed by authored steps alone, so the
@@ -675,8 +685,7 @@ impl LoopEnd {
     pub fn closes(&self) -> bool {
         match self {
             Self::Closed => true,
-            Self::Unfinished => false,
-            Self::Refused { closes, .. } => *closes,
+            Self::Unfinished { closes, .. } | Self::Refused { closes, .. } => *closes,
         }
     }
 
@@ -685,7 +694,17 @@ impl LoopEnd {
     pub fn refusal(&self) -> Option<&PreviewError> {
         match self {
             Self::Refused { refusal, .. } => Some(refusal),
-            Self::Closed | Self::Unfinished => None,
+            Self::Closed | Self::Unfinished { .. } => None,
+        }
+    }
+
+    /// The end-of-program refusal naming an unfinished chain's tip,
+    /// when that tip is one no `line_to` leaves.
+    #[must_use]
+    pub fn awaiting(&self) -> Option<&PreviewError> {
+        match self {
+            Self::Unfinished { awaiting, .. } => awaiting.as_ref(),
+            Self::Closed | Self::Refused { .. } => None,
         }
     }
 
@@ -693,7 +712,7 @@ impl LoopEnd {
     #[must_use]
     pub fn is_unfinished(&self) -> bool {
         match self {
-            Self::Unfinished => true,
+            Self::Unfinished { .. } => true,
             Self::Closed | Self::Refused { .. } => false,
         }
     }
@@ -704,7 +723,7 @@ impl LoopEnd {
     pub fn is_whole(&self) -> bool {
         match self {
             Self::Closed => true,
-            Self::Unfinished | Self::Refused { .. } => false,
+            Self::Unfinished { .. } | Self::Refused { .. } => false,
         }
     }
 }
@@ -769,10 +788,11 @@ impl ProfilePreview {
     ///
     /// A refused loop is asked FIRST, the first one in authoring
     /// order: a step somebody wrote does not work, which outranks a
-    /// chain that is merely unfinished. An unfinished chain is asked
-    /// next and answers whatever [`Self::invalid`] says. [`preview`]
-    /// never validates while a chain is unfinished, so a value it built
-    /// is never both; a value built otherwise that is both still gets
+    /// chain that is merely unfinished. The first unfinished chain is
+    /// asked next — its tip's own refusal when it awaits a binder,
+    /// else the open chain — and answers whatever [`Self::invalid`]
+    /// says. [`preview`] never validates while a chain is unfinished,
+    /// so a value it built is never both; a value built otherwise that is both still gets
     /// the unfinished chain's answer, because a verdict on loops that
     /// have not closed is not one.
     ///
@@ -783,8 +803,12 @@ impl ProfilePreview {
     pub fn hold(&self) -> Option<PreviewHold<'_>> {
         if let Some(refused) = self.loops.iter().find_map(|drawn| drawn.end.refusal()) {
             Some(PreviewHold::Refused(refused))
-        } else if self.has_unfinished_chain() {
-            Some(PreviewHold::OpenChain)
+        } else if let Some(open) = self.loops.iter().find(|drawn| drawn.end.is_unfinished()) {
+            Some(
+                open.end
+                    .awaiting()
+                    .map_or(PreviewHold::OpenChain, PreviewHold::Awaiting),
+            )
         } else {
             self.invalid.as_ref().map(PreviewHold::Invalid)
         }
@@ -802,6 +826,13 @@ pub enum PreviewHold<'a> {
     /// of the two this is, rather than leaving a disabled button with
     /// a lattice refusal beside it.
     OpenChain,
+    /// A chain has not closed and its tip is one no `line_to` leaves,
+    /// so what is drawn is the prefix before it
+    /// ([`LoopEnd::Unfinished`]'s `awaiting`). The sentence is that
+    /// end-of-program refusal's own, which names what the tip awaits:
+    /// [`Self::OpenChain`]'s "target the start" is not the step such a
+    /// tip needs next.
+    Awaiting(&'a PreviewError),
     /// Replay refused a step, and what is drawn of its loop is the
     /// prefix before it ([`LoopEnd::Refused`]). The sentence is the
     /// refusal's own, as [`preview`]'s `Err` would say it.
@@ -818,8 +849,9 @@ impl PreviewHold<'_> {
     /// [`Self::OpenChain`] is [`Tone::Advisory`]: it is unfinished,
     /// not wrong ([`PreviewError::is_unfinished`] states why), the
     /// same voice [`PreviewError::tone`] gives an unfinished chain
-    /// that could not be drawn. [`Self::Refused`] is the refusal's own
-    /// tone, the one it has undrawn. [`Self::Invalid`] is
+    /// that could not be drawn. [`Self::Awaiting`] and [`Self::Refused`]
+    /// are the refusal's own tone, the one it has undrawn — advisory
+    /// for the first, which is unfinished. [`Self::Invalid`] is
     /// [`Tone::Actionable`]: the loops cross, or a hole is not inside
     /// its outer, and the commit door refuses the profile until the
     /// reader moves a step they wrote.
@@ -827,7 +859,7 @@ impl PreviewHold<'_> {
     pub fn tone(&self) -> Tone {
         match self {
             Self::OpenChain => Tone::Advisory,
-            Self::Refused(refused) => refused.tone(),
+            Self::Awaiting(refused) | Self::Refused(refused) => refused.tone(),
             Self::Invalid(_) => Tone::Actionable,
         }
     }
@@ -839,7 +871,7 @@ impl core::fmt::Display for PreviewHold<'_> {
             Self::OpenChain => {
                 f.write_str("the chain does not close yet — its last step has to target the start")
             }
-            Self::Refused(refused) => write!(f, "{refused}"),
+            Self::Awaiting(refused) | Self::Refused(refused) => write!(f, "{refused}"),
             Self::Invalid(invalid) => write!(f, "does not validate: {invalid}"),
         }
     }
@@ -988,15 +1020,13 @@ impl PreviewError {
     /// as [`PreviewHold::tone`] reads a drawn preview's.
     ///
     /// An unfinished chain ([`Self::is_unfinished`]) is
-    /// [`Tone::Advisory`]. It reaches a surface as a refusal rather
-    /// than as a drawn [`PreviewHold::OpenChain`] whenever the
-    /// provisional close [`preview`] retries it under is itself
-    /// refused, for whatever reason — a close that would enclose
-    /// nothing, as a one- or two-point chain's does; a tip with a
-    /// direction and no position; an arc arrival still waiting for a
-    /// binder — and it is the same state either
-    /// way, so it is the same voice. Every other refusal is
-    /// [`Tone::Actionable`].
+    /// [`Tone::Advisory`], whether it reaches a surface as a drawn
+    /// [`PreviewHold::OpenChain`], as the sentence of a drawn
+    /// [`PreviewHold::Awaiting`] (a tip no `line_to` leaves, with a
+    /// prefix to draw), or as [`preview`]'s `Err` (nothing before the
+    /// tip draws, or the close would enclose nothing, as a one- or
+    /// two-point chain's does): it is the same state each way, so it is
+    /// the same voice. Every other refusal is [`Tone::Actionable`].
     #[must_use]
     pub fn tone(&self) -> Tone {
         if self.is_unfinished() {
@@ -1036,7 +1066,10 @@ impl PreviewError {
 ///   replayed whole under the provisional close and ends
 ///   [`LoopEnd::Unfinished`]. What the close resolves on the way — a
 ///   pending fillet against its leg — is what closing there would
-///   draw, and no step written says otherwise.
+///   draw, and no step written says otherwise. When its tip is one no
+///   `line_to` leaves, the close is ill-typed there, so it is drawn
+///   as the prefix a refused step would be ([`prefix_loop`]) and
+///   carries its end-of-program refusal as what it awaits.
 /// - A chain **refused** at step `k` is drawn as the longest prefix
 ///   whose drawing its own steps fix ([`prefix_loop`]) and ends
 ///   [`LoopEnd::Refused`] carrying the refusal.
@@ -1093,20 +1126,35 @@ pub fn preview(
             Err(error) => error,
         };
         let refused = refusal(index, &error);
-        let drawn = if refused.is_unfinished() {
-            replay(&provisionally_closed(steps), tol)
-                .ok()
-                .map(|replayed| (replayed, LoopEnd::Unfinished))
-        } else {
-            prefix_loop(steps, error.step, tol).map(|(replayed, closes)| {
-                (
-                    replayed,
-                    LoopEnd::Refused {
-                        refusal: refused.clone(),
+        let unfinished = refused.is_unfinished();
+        let drawn = match unfinished.then(|| replay(&provisionally_closed(steps), tol)) {
+            Some(Ok(replayed)) => Some((
+                replayed,
+                LoopEnd::Unfinished {
+                    awaiting: None,
+                    closes: false,
+                },
+            )),
+            // Every authored step of an unfinished chain was taken, so a
+            // lattice refusal is the close's own: the tip admits no
+            // `line_to`, and the chain walks back as a refused one does.
+            Some(Err(ReplayError {
+                kind: ReplayErrorKind::Transition { .. },
+                ..
+            }))
+            | None => prefix_loop(steps, error.step, tol).map(|(replayed, closes)| {
+                let refusal = refused.clone();
+                let end = if unfinished {
+                    LoopEnd::Unfinished {
+                        awaiting: Some(refusal),
                         closes,
-                    },
-                )
-            })
+                    }
+                } else {
+                    LoopEnd::Refused { refusal, closes }
+                };
+                (replayed, end)
+            }),
+            Some(Err(_)) => None,
         };
         match drawn {
             Some((replayed, end)) => {
@@ -1173,8 +1221,9 @@ fn provisionally_closed(steps: &[Step<f64>]) -> Vec<Step<f64>> {
     closed
 }
 
-/// **The loop drawn for a chain refused at step `stop`**, and whether
-/// the author's own steps close it: the replay of the longest prefix
+/// **The loop drawn for a chain refused at step `stop`**, or ending
+/// there on a tip no `line_to` leaves, and whether the author's own
+/// steps close it: the replay of the longest prefix
 /// `steps[..j]`, `j <= stop`, whose drawing those steps alone fix.
 ///
 /// Each prefix is read three ways, and the first that replays is the
@@ -1792,7 +1841,7 @@ mod tests {
         LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, ProfileShape, arc_points,
     };
     use crate::frame::Tone;
-    use crate::test_support::two_legs;
+    use crate::test_support::{two_legs, two_legs_awaiting};
 
     /// **A count the arithmetic could not compute is not a count.**
     ///
@@ -1861,7 +1910,10 @@ mod tests {
             loops: vec![drawn_loop(if closed {
                 LoopEnd::Closed
             } else {
-                LoopEnd::Unfinished
+                LoopEnd::Unfinished {
+                    awaiting: None,
+                    closes: false,
+                }
             })],
             invalid,
         }
@@ -2188,7 +2240,7 @@ mod tests {
             .iter()
             .map(|drawn| match drawn.end {
                 LoopEnd::Closed => "closed",
-                LoopEnd::Unfinished => "unfinished",
+                LoopEnd::Unfinished { .. } => "unfinished",
                 LoopEnd::Refused { .. } => "refused",
             })
             .collect();
@@ -2201,6 +2253,37 @@ mod tests {
         let hold = drawn.hold().expect("held");
         assert_eq!(hold.to_string(), refused.to_string());
         assert_eq!(hold.tone(), Tone::Actionable);
+    }
+
+    /// **The first unfinished chain says the hold, whether its tip
+    /// awaits a binder or not.** An open chain and a chain awaiting a
+    /// binder, in both orders: the sentence is the first loop's.
+    ///
+    /// Red if [`ProfilePreview::hold`] asks every awaiting tip before an
+    /// open chain, or every open chain before an awaiting tip.
+    #[test]
+    fn the_first_unfinished_chain_says_the_hold() {
+        let awaiting = two_legs_awaiting(TipState::RadiusArrival).expect("a way in");
+        let said = |loops| {
+            previewed(loops)
+                .expect("both draw")
+                .hold()
+                .map(|hold| hold.to_string())
+        };
+        assert_eq!(
+            said(vec![two_legs(0.0, 0.1), awaiting.clone()]),
+            Some(PreviewHold::OpenChain.to_string())
+        );
+        let named = PreviewError::Transition {
+            loop_: 0,
+            step: awaiting.len(),
+            state: TipState::RadiusArrival,
+            verb: None,
+        };
+        assert_eq!(
+            said(vec![awaiting, two_legs(0.0, 0.1)]),
+            Some(named.to_string())
+        );
     }
 
     /// **A loop with nothing to draw does not outrank a refused step

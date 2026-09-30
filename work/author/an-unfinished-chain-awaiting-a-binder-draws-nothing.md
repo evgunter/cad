@@ -2,7 +2,7 @@
 id: an-unfinished-chain-awaiting-a-binder-draws-nothing
 kind: issue
 title: viewer: an unfinished path whose tip awaits a binder (a radius arrival, a bound direction, the arrival after arc_fillet) draws nothing, though the steps before it replay
-status: dispatched
+status: review
 priority: P1
 cost: M
 design: true
@@ -21,3 +21,9 @@ Found by AUTH-5 (`author/path-preview-prefix`).
 **Owed:** decide the sentence, then draw the walked-back prefix for an unfinished chain as `LoopEnd::Unfinished`, and re-pin the `Angle` row.
 
 Dispatched 2026-09-30 as **AUTH-11** (`docs/AUTH-11-SPEC.md`, branch `author/binder-prefix`). **The design call is decided in the spec:** keep the tip-state sentence beside the drawn prefix, carried typed and rendered through the kernel's `Display`. `OpenChain`'s "target the start" is false for a tip whose next step must be a binder. This is not a fork: one sentence is true and the other is not.
+
+## Built (AUTH-11, `author/binder-prefix`)
+
+The census comes from `sketch::admits_at`, over every state some verb has a row at. Ten tip states refuse `line_to`: `Entry`, `Open`, `Angle`, `DirectedPlain`, `DirectedIncoming`, `RadiusArrival`, `RadiusArrivalAt`, `RadiusArrivalDir`, `ViaArrival` and `ViaArrivalStart`. The row had measured five of them. Every one except `Entry` (which no step precedes) now draws the prefix `sketch::prefix_loop` walks back to, the same walk a refused step takes. That prefix is `LoopEnd::Unfinished { awaiting: Some(refusal), closes }`. The form shows that refusal's own sentence through `PreviewHold::Awaiting`, in the refusal's own tone, which is advisory. A merely open chain still shows `PreviewHold::OpenChain`. The walk-back happens only when the close is ill-typed at the tip. A close refused on its geometry is still `Err`; that case is filed as evidence on `a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at`.
+
+The `Angle` row (`an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written`) is `at, angle`. Its tip is `DirectedPlain`, not `Angle`, and nothing before it can be drawn, so it stays `Err`. The row now pins that state, and its doc no longer calls the chain a direction with no position.

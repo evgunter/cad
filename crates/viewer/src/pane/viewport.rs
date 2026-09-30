@@ -114,7 +114,7 @@ fn push_preview(
         let refused_tip = match &polyline.end {
             sketch::LoopEnd::Refused { closes: true, .. } => polyline.vertices.first().copied(),
             sketch::LoopEnd::Refused { closes: false, .. } => polyline.vertices.last().copied(),
-            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished => None,
+            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished { .. } => None,
         };
         for &at in &polyline.vertices {
             let here = points[at];
@@ -2441,6 +2441,71 @@ mod tests {
         assert_eq!(centred.len(), 1, "one tick through the tip: {centred:?}");
         assert!(centred[0] < 1.0e-3, "square to the path: {centred:?}");
         assert_eq!(arrow, 2, "an arrowhead ahead of it");
+    }
+
+    /// **A chain whose tip no `line_to` leaves is painted as the legs
+    /// before it, going on** — at every such state the lattice table
+    /// lists. The step that put the tip there is not a leg anybody can
+    /// draw yet, so what is painted is the two legs, not the provisional
+    /// close, and the tip keeps its arrowhead: the chain is unfinished,
+    /// not refused.
+    ///
+    /// Red if such a chain draws nothing (the `expect` panics), if its
+    /// provisional close is painted, or if its tip is crossed.
+    #[test]
+    fn a_tip_awaiting_a_binder_is_painted_as_the_legs_before_it_going_on() {
+        for state in crate::test_support::tips_no_line_to_leaves() {
+            let Some(steps) = crate::test_support::two_legs_awaiting(state) else {
+                continue;
+            };
+            let drawn = chain(steps[3..].to_vec());
+            assert!(
+                drawn.loops[0].end.awaiting().is_some(),
+                "{state:?}: a fixture whose tip awaits a binder: {drawn:?}"
+            );
+            let painted = painted_preview(&drawn);
+            assert!(joins(&painted, [0.0, 0.0], [0.01, 0.0]), "{state:?}");
+            assert!(joins(&painted, [0.01, 0.0], TIP), "{state:?}");
+            assert!(
+                !joins(&painted, TIP, [0.0, 0.0]),
+                "{state:?}: the provisional close is not painted"
+            );
+            let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+            assert_eq!(centred.len(), 1, "{state:?}: one tick: {centred:?}");
+            assert_eq!(arrow, 2, "{state:?}: an arrowhead ahead of it");
+        }
+    }
+
+    /// **A chain awaiting a binder whose last leg lands on its start is
+    /// painted closed.** The walked-back prefix is the square the
+    /// author's own legs close; its last leg is authored, not the
+    /// provisional close, so it is painted.
+    ///
+    /// Red if an unfinished loop is read as never closing.
+    #[test]
+    fn a_prefix_awaiting_a_binder_that_lands_on_its_start_is_painted_closed() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let drawn = chain(vec![
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.0))),
+            Step::Turn(0.5),
+        ]);
+        assert!(
+            matches!(
+                drawn.loops[0].end,
+                sketch::LoopEnd::Unfinished {
+                    awaiting: Some(_),
+                    closes: true,
+                }
+            ),
+            "a fixture whose drawn prefix closes: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(
+            joins(&painted, [0.0, 0.01], [0.0, 0.0]),
+            "the authored last leg is painted: {painted:?}"
+        );
     }
 
     /// **A chain that closed and then went on is painted closed, with

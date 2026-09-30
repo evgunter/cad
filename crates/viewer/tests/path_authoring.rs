@@ -262,7 +262,10 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     assert_eq!(drawn.loops.len(), 1);
     assert_eq!(
         drawn.loops[0].end,
-        LoopEnd::Unfinished,
+        LoopEnd::Unfinished {
+            awaiting: None,
+            closes: false,
+        },
         "the chain has no closing verb, and the preview says so",
     );
     assert!(drawn.has_unfinished_chain());
@@ -296,14 +299,17 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     );
 }
 
-/// **A chain whose provisional close is itself ill-typed reports the
-/// ORIGINAL refusal.**
+/// **A chain whose provisional close is ill-typed, with nothing
+/// before its tip to draw, reports the ORIGINAL refusal.**
 ///
-/// `angle` binds a direction and leaves the position pending, and no
-/// `line_to` is well-typed there — so the close this module appends to
-/// draw an unfinished chain cannot be walked either. The refusal a
-/// reader gets is the end-of-program one, about the program they
-/// wrote, never one about a step nobody authored.
+/// `at` then `angle` binds a position and a direction over a plain
+/// point, and no `line_to` is well-typed there — so the close the
+/// preview appends to draw an unfinished chain cannot be walked, and no
+/// shorter prefix draws either: a lone `at` encloses nothing. The
+/// refusal a reader gets is the end-of-program one naming that tip,
+/// about the program they wrote, never one about a step nobody
+/// authored. With legs before such a tip, the legs are drawn and the
+/// same refusal is said beside them (the profile pane's rows).
 #[test]
 fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
     let tol = Tol::witness();
@@ -316,15 +322,15 @@ fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
         tol,
         CHORD,
     )
-    .expect_err("a bound direction with no position cannot be closed");
+    .expect_err("nothing before the tip draws");
     assert!(
         matches!(
             refusal,
             PreviewError::Transition {
                 loop_: 0,
                 step: 2,
+                state: TipState::DirectedPlain,
                 verb: None,
-                ..
             }
         ),
         "{refusal}",
