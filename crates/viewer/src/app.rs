@@ -4310,17 +4310,20 @@ mod properties_pane_tests {
         );
     }
 
-    /// **Every tool the chrome has opens from it**: for each kind, the
-    /// startup app with the Properties section that hosts the kind's
-    /// activation button clicked open paints that button once, in
+    /// **Every tool the chrome has opens from it**: for each kind, with
+    /// the Properties section that hosts the kind's activation button
+    /// clicked open, the app paints that button once, in
     /// `ToolKind::button`'s words, and clicking it opens that kind.
     ///
     /// Which section hosts a kind is an exhaustive match, so a new kind
     /// does not compile here until it is placed, and the sweep over
-    /// `ToolKind::ALL` then clicks it.
+    /// `ToolKind::ALL` then clicks it. One app serves the sweep: each
+    /// kind's tool is closed and its section collapsed again before the
+    /// next, so every kind is found on the startup layout.
     #[test]
     fn every_tool_opens_from_its_activation_button() {
         use crate::tools::ToolKind;
+        let mut driven = Driven::with(Vec::new());
         let opened: Vec<Option<ToolKind>> = ToolKind::ALL
             .into_iter()
             .map(|kind| {
@@ -4335,13 +4338,17 @@ mod properties_pane_tests {
                     | ToolKind::Duplicate => Some("Combine bodies"),
                     ToolKind::Blend => Some("Blend edges"),
                 };
-                let mut driven = Driven::with(Vec::new());
-                assert_eq!(driven.app.tools.open_kind(), None, "the startup app");
+                assert_eq!(driven.app.tools.open_kind(), None, "before {kind:?}");
                 if let Some(section) = section {
                     driven.click(section);
                 }
                 driven.click(&kind.button());
-                driven.app.tools.open_kind()
+                let opened = driven.app.tools.open_kind();
+                driven.app.tools.close();
+                if let Some(section) = section {
+                    driven.click(section);
+                }
+                opened
             })
             .collect();
         assert_eq!(
