@@ -4310,6 +4310,66 @@ mod properties_pane_tests {
         );
     }
 
+    /// **Every tool the chrome has opens from it**: for each kind, the
+    /// startup app with the Properties section that hosts the kind's
+    /// activation button clicked open paints that button once, in
+    /// `ToolKind::button`'s words, and clicking it opens that kind.
+    ///
+    /// Which section hosts a kind is an exhaustive match, so a new kind
+    /// does not compile here until it is placed, and the sweep over
+    /// `ToolKind::ALL` then clicks it.
+    #[test]
+    fn every_tool_opens_from_its_activation_button() {
+        use crate::tools::ToolKind;
+        let opened: Vec<Option<ToolKind>> = ToolKind::ALL
+            .into_iter()
+            .map(|kind| {
+                let section = match kind {
+                    ToolKind::Mate => None,
+                    ToolKind::Revolve => Some("Add feature"),
+                    ToolKind::Boolean
+                    | ToolKind::Split
+                    | ToolKind::Transform
+                    | ToolKind::Pattern
+                    | ToolKind::Part
+                    | ToolKind::Duplicate => Some("Combine bodies"),
+                    ToolKind::Blend => Some("Blend edges"),
+                };
+                let mut driven = Driven::with(Vec::new());
+                assert_eq!(driven.app.tools.open_kind(), None, "the startup app");
+                if let Some(section) = section {
+                    driven.click(section);
+                }
+                driven.click(&kind.button());
+                driven.app.tools.open_kind()
+            })
+            .collect();
+        assert_eq!(
+            opened,
+            ToolKind::ALL.map(Some),
+            "what each kind's button opened, one entry per kind visited"
+        );
+    }
+
+    /// **The creation doors that are not tools are reachable too**: the
+    /// extrude form, under "Add feature", paints its button (withheld,
+    /// with nothing selected), and the `Add part…` button opens the part
+    /// chooser. The add-datum and add-profile forms are the subject of
+    /// rows of their own above, which open the section and read them.
+    #[test]
+    fn the_extrude_form_and_the_part_chooser_are_reachable() {
+        use crate::pane::create::{ADD_PART, EXTRUDE};
+        let mut driven = Driven::with(Vec::new());
+        driven.click("Add feature");
+        Driven::only(&driven.frame(Vec::new()), EXTRUDE);
+        assert!(driven.app.part_chooser.is_none(), "the startup app");
+        driven.click(ADD_PART);
+        assert!(
+            driven.app.part_chooser.is_some(),
+            "{ADD_PART:?} opens the chooser"
+        );
+    }
+
     /// A cap of `node`'s one body, as a face pick on it.
     fn cap_of(node: RecipeNodeId, end: pncad::prelude::CapEnd) -> crate::session::FaceSelection {
         crate::session::FaceSelection {

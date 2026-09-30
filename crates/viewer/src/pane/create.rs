@@ -323,6 +323,13 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
 /// What [`part_entry`]'s pick button says.
 const PICK_PART: &str = "add";
 
+/// What the button that opens the part chooser says.
+pub(crate) const ADD_PART: &str = "Add part…";
+
+/// What the extrude form's commit button says, before the profile's
+/// number once one is selected.
+pub(crate) const EXTRUDE: &str = "Extrude";
+
 /// **What the add-profile form calls the frame it offers to mint.**
 ///
 /// A choice in the same combo as the document's own frames, because
@@ -544,13 +551,13 @@ fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
 }
 
 impl ViewerBehavior<'_> {
-    /// The creation section (GAUTH-1): the add-datum, add-profile and
-    /// extrude forms plus the modal revolve tool. Each form is
-    /// minimal — its few required fields with sensible defaults — and
-    /// emits exactly one creation op; the property panel is the
-    /// editor for everything after the insert — for a profile, through
-    /// this section's own path editor opened on the node
-    /// ([`Self::edit_profile_ui`]).
+    /// The creation sections: the add-datum, add-profile and extrude
+    /// forms and the revolve tool, then the combining tools, then the
+    /// blend tool. Each form is minimal — its few required fields with
+    /// sensible defaults — and emits exactly one creation op; the
+    /// property panel is the editor for everything after the insert —
+    /// for a profile, through this section's own path editor opened on
+    /// the node ([`Self::edit_profile_ui`]).
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
         ui.collapsing("Add feature", |ui| {
             self.add_datum_ui(ui);
@@ -600,7 +607,7 @@ impl ViewerBehavior<'_> {
         // copy stays in the application and is only ever REPLACED
         // whole (activation, deactivation), never edited here.
         let Some(tool) = self.tools.mate().cloned() else {
-            if ui.button("Mate tool…").clicked() {
+            if ui.button(ToolKind::Mate.button()).clicked() {
                 // ONE modal tool at a time — `Tools::open` closes
                 // whatever was open, the rule and its argument living
                 // in that value rather than at each activation.
@@ -722,7 +729,7 @@ impl ViewerBehavior<'_> {
     pub(crate) fn add_part_ui(&mut self, ui: &mut egui::Ui) {
         if self.part_chooser.is_none() {
             if ui
-                .button("Add part…")
+                .button(ADD_PART)
                 .on_hover_text("insert an instance of another document in this one's directory")
                 .clicked()
             {
@@ -1240,7 +1247,7 @@ impl ViewerBehavior<'_> {
         match self.session.selection().node() {
             Some(node) => {
                 if ui
-                    .button(format!("Extrude {}", tree::node_number(node)))
+                    .button(format!("{EXTRUDE} {}", tree::node_number(node)))
                     .clicked()
                 {
                     match self.drafts.length(self.drafts.extrude_distance) {
@@ -1258,7 +1265,7 @@ impl ViewerBehavior<'_> {
                 }
             }
             None => {
-                ui.add_enabled(false, egui::Button::new("Extrude"))
+                ui.add_enabled(false, egui::Button::new(EXTRUDE))
                     .on_disabled_hover_text("select the profile to extrude first");
             }
         }
@@ -1273,7 +1280,7 @@ impl ViewerBehavior<'_> {
         // closing the tool; the authoritative copy is only ever
         // replaced whole.
         let Some(tool) = self.tools.revolve() else {
-            if ui.button("Revolve tool…").clicked() {
+            if ui.button(ToolKind::Revolve.button()).clicked() {
                 // ONE modal tool at a time — `Tools::open` closes
                 // whatever was open, the rule and its argument living
                 // in that value rather than at each activation.
@@ -1309,7 +1316,7 @@ impl ViewerBehavior<'_> {
     /// is which cannot author the operation they mean.
     pub(crate) fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.boolean() else {
-            if ui.button("Boolean tool…").clicked() {
+            if ui.button(ToolKind::Boolean.button()).clicked() {
                 self.tools.open(ToolKind::Boolean);
             }
             return;
@@ -1351,7 +1358,7 @@ impl ViewerBehavior<'_> {
     /// the one committed edit.
     pub(crate) fn split_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.split() else {
-            if ui.button("Split tool…").clicked() {
+            if ui.button(ToolKind::Split.button()).clicked() {
                 self.tools.open(ToolKind::Split);
             }
             return;
@@ -1368,7 +1375,7 @@ impl ViewerBehavior<'_> {
     /// fields, and the one committed edit.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.transform() else {
-            if ui.button("Transform tool…").clicked() {
+            if ui.button(ToolKind::Transform.button()).clicked() {
                 self.tools.open(ToolKind::Transform);
             }
             return;
@@ -1420,7 +1427,7 @@ impl ViewerBehavior<'_> {
     /// boolean seat refuses.
     pub(crate) fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.pattern() else {
-            if ui.button("Pattern tool…").clicked() {
+            if ui.button(ToolKind::Pattern.button()).clicked() {
                 self.tools.open(ToolKind::Pattern);
             }
             return;
@@ -1522,7 +1529,7 @@ impl ViewerBehavior<'_> {
     /// rather than having one silently substituted.
     pub(crate) fn projection_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.part() else {
-            if ui.button("Projection tool…").clicked() {
+            if ui.button(ToolKind::Part.button()).clicked() {
                 self.tools.open(ToolKind::Part);
             }
             return;
@@ -1560,7 +1567,7 @@ impl ViewerBehavior<'_> {
     /// which [`duplicate_note`] states.
     pub(crate) fn duplicate_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.duplicate() else {
-            if ui.button("Duplicate tool…").clicked() {
+            if ui.button(ToolKind::Duplicate.button()).clicked() {
                 self.tools.open(ToolKind::Duplicate);
             }
             return;
@@ -1590,7 +1597,7 @@ impl ViewerBehavior<'_> {
         // door is re-borrowed at the click.
         let Some((target, count)) = self.tools.blend().map(|tool| (tool.target(), tool.count()))
         else {
-            if ui.button("Blend tool…").clicked() {
+            if ui.button(ToolKind::Blend.button()).clicked() {
                 self.tools.open(ToolKind::Blend);
             }
             return;

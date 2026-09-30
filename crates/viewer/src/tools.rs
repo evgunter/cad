@@ -86,7 +86,8 @@ vocabulary! {
 }
 
 impl ToolKind {
-    /// The tool's name, for sentences and buttons.
+    /// The tool's name, for its sentences ([`Self::says`]) and its
+    /// activation button ([`Self::button`]).
     pub fn label(self) -> &'static str {
         match self {
             Self::Mate => "mate tool",
@@ -107,6 +108,15 @@ impl ToolKind {
     /// pick). Two spellings of this prefix is how the two drift.
     pub fn says(self, what: &impl core::fmt::Display) -> String {
         format!("{}: {what}", self.label())
+    }
+
+    /// **The words on the button that opens this tool**: its name,
+    /// capitalised, with the ellipsis of a button that opens a panel
+    /// rather than acting.
+    pub fn button(self) -> String {
+        let name = self.label();
+        let (first, rest) = name.split_at(name.chars().next().map_or(0, char::len_utf8));
+        format!("{}{rest}…", first.to_uppercase())
     }
 
     /// **What the cursor may pick while this tool is open** — an open
