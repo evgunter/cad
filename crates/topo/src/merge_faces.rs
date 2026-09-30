@@ -1782,7 +1782,11 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`MergeCoplanarError::Op`] carrying an unresolved reference.
+    /// [`MergeCoplanarError::Op`] carrying an unresolved reference, or
+    /// a ring half-edge its own edge does not claim
+    /// ([`EulerOpError::UnclaimedHalfEdge`]): the scan runs on the
+    /// staged body after earlier groups' surgery, which the entry
+    /// gate's proof does not reach.
     fn outermost_survivor(
         &self,
         seed: FaceKey,
@@ -1817,8 +1821,10 @@ impl<T: Decide> Body<T> {
                         .ok_or(DanglingRef::Entity(EntityId::Edge(edge)))?;
                     let mate = if e.he_plus == he {
                         e.he_minus
-                    } else {
+                    } else if e.he_minus == he {
                         e.he_plus
+                    } else {
+                        return Err(EulerOpError::UnclaimedHalfEdge { he, edge }.into());
                     };
                     let (_, facts) = self.edge_halves(he, mate)?;
                     if facts.face != f && in_group(facts.face) {
@@ -3211,6 +3217,37 @@ mod tests {
         assert_eq!(
             body.get_face(top).expect("live").surface,
             body.get_face(membrane).expect("live").surface
+        );
+    }
+
+    /// **A ring half-edge its own edge does not claim refuses the
+    /// survivor search**, naming both, rather than reading the edge's
+    /// plus half as its mate and asking about the wrong face.
+    #[test]
+    fn an_unclaimed_ring_half_edge_refuses_the_survivor_search() {
+        let tol = Tol::witness();
+        let (mut body, top, membrane) = cube_with_membrane(tol);
+        let ring = body.get_face(top).expect("live").rings[0];
+        let crate::entity::LoopBoundary::Cycle { first } =
+            body.get_loop(ring).expect("live").boundary
+        else {
+            panic!("the ring is a cycle")
+        };
+        let own = body.get_half_edge(first).expect("live").edge;
+        let other = body
+            .edges()
+            .map(|(k, _)| k)
+            .find(|&k| k != own)
+            .expect("another edge");
+        body.half_edges.get_mut(first).expect("live").edge = other;
+        assert_eq!(
+            body.outermost_survivor(top, vec![membrane]),
+            Err(MergeCoplanarError::Op {
+                error: EulerOpError::UnclaimedHalfEdge {
+                    he: first,
+                    edge: other,
+                },
+            })
         );
     }
 
