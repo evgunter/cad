@@ -17,9 +17,8 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, DocRef, DocumentId, EvalOptions, MateReach, Node, NodeError, NodeErrorKind,
-    NodeResult, PartFault, PartResolver, ProfileDoc, ReachRefusal, RecipeNodeId, mate_reach,
-    product,
+    BooleanOp, DocRef, DocumentId, EvalOptions, MateReach, Node, NodeErrorKind, NodeResult,
+    PartFault, PartResolver, ProfileDoc, ReachRefusal, RecipeNodeId, mate_reach, product,
 };
 use fixture::resolver::PartStore;
 use fixture::{insert, len, on_frame, run, square};
@@ -116,22 +115,22 @@ fn resolving(store: PartStore) -> EvalOptions {
     }
 }
 
-/// The refusal a failed node raised.
-fn refusal(result: Option<&NodeResult<f64>>) -> NodeErrorKind {
+/// The refusal a failed node raised. A value is not printed: its
+/// names nest as deep as the chain, and this runs on a small stack.
+fn failed(result: Option<&NodeResult<f64>>) -> &NodeErrorKind {
     match result {
-        Some(NodeResult::Failed(e)) => e.kind.clone(),
-        other => panic!("expected a failed node, got {other:?}"),
+        Some(NodeResult::Failed(e)) => &e.kind,
+        Some(NodeResult::Ok(_)) => panic!("expected a failed node, got a value"),
+        _ => panic!("expected a failed node, got none"),
     }
 }
 
-/// The last refusal a part refusal carries down its chain, and how many
-/// documents down it was raised.
-fn deepest(kind: &NodeErrorKind) -> (usize, NodeErrorKind) {
+/// The deepest level a part refusal carries: how many documents down
+/// it was raised, its refusal, and its line as a surface draws it.
+fn deepest(kind: &NodeErrorKind) -> (usize, &NodeErrorKind, String) {
     let levels: Vec<_> = kind.carried_chain().collect();
-    let last = levels
-        .last()
-        .map_or_else(|| kind.clone(), |level| level.refusal.kind().clone());
-    (levels.len(), last)
+    let last = levels.last().expect("a part refusal carries its chain");
+    (levels.len(), last.refusal.kind(), last.line())
 }
 
 /// **One past the bound refuses typed, at every door that descends**:
@@ -149,30 +148,28 @@ fn a_chain_one_past_the_bound_refuses_depth_exceeded_on_the_smallest_stack() {
         let (top, instance) = instantiating("part-depth-past-top", top_ref);
         let opts = resolving(store);
 
-        let (levels, last) = deepest(&refusal(run(&top, &opts).result(instance)));
+        let ev = run(&top, &opts);
+        let (levels, last, line) = deepest(failed(ev.result(instance)));
         assert_eq!(
             levels, BOUND,
             "the refusal is raised by the document at the bound, carried up through every \
              document above it"
         );
-        let NodeErrorKind::Part {
-            fault: PartFault::DepthExceeded,
-            ..
-        } = last
-        else {
-            panic!("the chain ends in DepthExceeded, not {last:?}");
-        };
-        let sentence = NodeError {
-            node: RecipeNodeId(0),
-            kind: last,
-            escalations: Arc::new(Vec::new()),
-        }
-        .to_string();
         assert!(
-            sentence.contains(&format!("deeper than {BOUND} documents")),
-            "the sentence states the bound this suite tests: {sentence}"
+            matches!(
+                last,
+                NodeErrorKind::Part {
+                    fault: PartFault::DepthExceeded,
+                    ..
+                }
+            ),
+            "the chain ends in DepthExceeded: {line}"
         );
-        let problems = test_utils::refusal::problems("DepthExceeded", &sentence, &[], false);
+        assert!(
+            line.contains(&format!("deeper than {BOUND} documents")),
+            "the sentence states the bound this suite tests: {line}"
+        );
+        let problems = test_utils::refusal::problems("DepthExceeded", &line, &[], false);
         assert!(problems.is_empty(), "{problems:#?}");
 
         // The mate solve's reach descends through the same cache from
@@ -181,10 +178,11 @@ fn a_chain_one_past_the_bound_refuses_depth_exceeded_on_the_smallest_stack() {
         let Err(ReachRefusal::PartUnresolved { fault }) = reach.reach(&top_ref) else {
             panic!("the reach refuses the part that nests too deep");
         };
-        let (levels, last) = deepest(&NodeErrorKind::Part {
+        let refused = NodeErrorKind::Part {
             doc_ref: top_ref,
             fault,
-        });
+        };
+        let (levels, last, line) = deepest(&refused);
         assert_eq!(
             levels, BOUND,
             "the reach's refusal is raised at the bound too"
@@ -197,7 +195,7 @@ fn a_chain_one_past_the_bound_refuses_depth_exceeded_on_the_smallest_stack() {
                     ..
                 }
             ),
-            "the reach's chain ends in DepthExceeded, not {last:?}"
+            "the reach's chain ends in DepthExceeded: {line}"
         );
     });
 }
@@ -216,8 +214,7 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         let ev = run(&top, &resolving(store));
         assert!(
             matches!(ev.result(instance), Some(NodeResult::Ok(_))),
-            "a chain at the bound evaluates, got {:?}",
-            ev.result(instance).map(|r| matches!(r, NodeResult::Ok(_)))
+            "a chain at the bound evaluates"
         );
 
         let body = product(&top, &ev, Tol::witness()).expect("the chain's product gathers");
