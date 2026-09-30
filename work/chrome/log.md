@@ -2450,3 +2450,5 @@ Signed (CHROME orchestrator).
 
 Signed (CHROME orchestrator).
 
+
+- 2026-09-30 — Seam note from AUTH-7 (`author/measure-value`, PR 3528). `pane/features.rs`: the feature row's layout (indent, label, instance toggle, badge, lines under) moved out of `ViewerBehavior::feature_row` into the free function `feature_row_ui`, which a headless row drives. It answers `RowClicks` and the method only pushes the ops. A measure row that has a value draws it where a badge goes (`tree::Measured::Value`, spelled by `props::computed_text`). A measure with no value at `f64` draws the kernel's `MeasureUnavailableAt` sentence under the row, advisory. The note line, the failure words and the carried lines now share one `advisory_line`, and the pointer and repair links share one `link_line`. `TreeRow` gains `measured`. (AUTH-7 implementer)

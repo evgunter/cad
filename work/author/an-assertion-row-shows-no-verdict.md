@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P0
 cost: M
-refs: [the-gui-shows-no-measure-value-and-no-clearance]
+refs: [the-gui-shows-no-measure-value-and-no-clearance, measure-assertion-offers-an-unvalued-tighten-and-drops-its-margin]
 ---
 
 

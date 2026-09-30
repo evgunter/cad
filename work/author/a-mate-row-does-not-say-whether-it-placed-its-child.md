@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: E
+blocked_on: [materole-has-no-display]
 ---
 
 
@@ -21,5 +22,5 @@ Both rows read `Mate` with no badge.
 
 The fix is the shape of AUTH-7's: one more `tree::Reading` arm,
 drawn beside the row. The only open choice is the word. `MateRole`
-has no `Display`, and a kernel word would have to come first, so the
-viewer does not mint one. That word is MSOLVE's (`mate/*`).
+has no `Display`, and a kernel word has to come first so the viewer
+does not mint one: `work/msolve/materole-has-no-display`.

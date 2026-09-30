@@ -29,13 +29,13 @@
 //! and they are sited here because the tree and the creation forms'
 //! pickers have to name a node the same way.
 //!
-//! It also carries one thing a run said that is no failure: what a
-//! measure measured ([`Reading`]), spelled as the chrome spells any
-//! computed value, or the kernel's own words for why it has none.
-//!
 //! Because that is the other thing this module owns: the *shape* —
 //! which rows exist, in which order, at what indentation, which of
 //! them the selection is on, and which row a failure sends the eye to.
+//!
+//! One thing a run said that is no failure rides the row as well: what
+//! a measure measured ([`Measured`]) — its value, spelled as the chrome
+//! spells any computed value, or the kernel's typed reason it has none.
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -173,8 +173,9 @@ use std::collections::BTreeMap;
 
 use pncad::document::AssemblyError;
 use pncad::document::{
-    CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProductError, ProfileProgram, RecipeNodeId, ValuePayload,
+    CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, MeasureUnavailableAt, Node, NodeError,
+    NodeErrorKind, NodeResult, NodeStanding, ProductError, ProfileProgram, RecipeNodeId,
+    ValuePayload,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
@@ -346,24 +347,25 @@ pub struct TreeRow {
     /// link is its own `through`, and an `Ok` or `Unevaluated` row has
     /// no words to link from.
     pub repair_at: Option<RecipeNodeId>,
-    /// **What a measure node measured**, when its row is `Ok`
-    /// (`reading_of`). `None` on every other row.
-    pub reading: Option<Reading>,
+    /// **What a measure node measured**, on a row that is `Ok`;
+    /// `None` on every other row, whose status says why there is none.
+    pub measured: Option<Measured>,
 }
 
 /// **What a measure's row says it measured**: the landed run's value,
 /// or the kernel's reason it has none.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Reading {
-    /// The value, as the chrome says any computed value
-    /// ([`computed_text`]): canonical notation, width-bounded, with its
-    /// unit's symbol.
+pub enum Measured {
+    /// The value, already spelled ([`computed_text`]: canonical
+    /// notation, width-bounded, with its unit's symbol) — which keeps
+    /// the row `Eq`, and keeps the notation choice here with the rest
+    /// of what the tree writes about a node rather than at each
+    /// surface that draws it.
     Value(String),
     /// No value at this build's scalar — a value of the node, not a
-    /// failure — in the kernel's own words
-    /// ([`pncad::document::MeasureUnavailableAt`]'s `Display`), which
-    /// name the door that can answer.
-    Unavailable(String),
+    /// failure. Its `Display` is the kernel's sentence, which names
+    /// the door that can answer.
+    Unavailable(MeasureUnavailableAt),
 }
 
 /// The kind name of a recipe node — the node vocabulary's own
@@ -607,9 +609,10 @@ pub fn rows(
         let depth = depth_of(&node.inputs(), &depths);
         depths.insert(id, depth);
         let status = status_of(id, evaluation, files);
-        let repair_at = match status {
-            RowStatus::Failed { .. } => evaluation.and_then(|ev| repair_of(id, ev)),
-            RowStatus::Ok | RowStatus::Poisoned { .. } | RowStatus::Unevaluated => None,
+        let (repair_at, measured) = match status {
+            RowStatus::Failed { .. } => (evaluation.and_then(|ev| repair_of(id, ev)), None),
+            RowStatus::Ok => (None, evaluation.and_then(|ev| measured_of(id, ev))),
+            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None),
         };
         rows.push(TreeRow {
             id,
@@ -620,7 +623,7 @@ pub fn rows(
             status,
             note: node_note(node),
             repair_at,
-            reading: reading_of(id, evaluation),
+            measured,
         });
     }
     rows
@@ -681,15 +684,13 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
     }
 }
 
-/// **What `id` measured in `evaluation`**, when it is a measure whose
-/// node evaluated; `None` for every other payload and every row that
-/// is not `Ok`, whose status already says why there is no value.
-fn reading_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> Option<Reading> {
-    match &evaluation?.result(id)?.value()?.payload {
-        ValuePayload::Measure { value, dim } => Some(Reading::Value(computed_text(*dim, *value))),
-        ValuePayload::MeasureUnavailable { reason, .. } => {
-            Some(Reading::Unavailable(reason.to_string()))
-        }
+/// **What `id` measured in `evaluation`** — asked only of a row
+/// [`rows`] has read `Ok`, so this decides which payload, never
+/// whether there is one. `None` for every payload but a measure's.
+fn measured_of(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Measured> {
+    match &evaluation.result(id)?.value()?.payload {
+        ValuePayload::Measure { value, dim } => Some(Measured::Value(computed_text(*dim, *value))),
+        ValuePayload::MeasureUnavailable { reason, .. } => Some(Measured::Unavailable(*reason)),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(_)
         | ValuePayload::Datum(_)

@@ -7,7 +7,8 @@ opened: 2026-09-30
 priority: P1
 cost: H
 design: true
-refs: [the-gui-shows-no-measure-value-and-no-clearance]
+parent: the-gui-shows-no-measure-value-and-no-clearance
+blocked_on: [clearance-refusal-names-one-face-twice-across-bodies]
 ---
 
 
@@ -23,7 +24,8 @@ What a consumer would show, and what it would have to decide first:
   enclosure (`crates/editor-core/src/clearance.rs`) and a `Holds`
   verdict that carries its certificate. It also has eleven typed
   refusal arms (`ClearanceRefusal`), and none of them has a `Display`
-  yet (see `work/clear/`, whose rows cover that).
+  yet. CLEAR's `clearance-refusal-names-one-face-twice-across-bodies`
+  covers that, and a consumer that shows the refusals waits on it.
 * **Which scalar the app evaluates at.** The viewer is an `f64` build
   (`Evaluation<f64>` throughout `session.rs`). An enclosure needs the
   interval lane over a parameter box, so this is a second evaluation

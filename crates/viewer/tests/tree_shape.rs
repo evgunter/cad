@@ -177,7 +177,7 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     use pncad::document::{Dimension, DocParam, Expr, MeasureExpr, ParamName};
     use viewer::props::SlotValue;
     use viewer::session::{DocSession, SessionOp};
-    use viewer::tree::Reading;
+    use viewer::tree::Measured;
 
     let tol = Tol::witness();
     let gap = ParamName::from_static("gap");
@@ -198,15 +198,15 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     );
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let reading = |session: &DocSession| {
+    let measured = |session: &DocSession| {
         session
             .tree_rows()
             .into_iter()
             .find(|row| row.id == measure)
-            .and_then(|row| row.reading)
+            .and_then(|row| row.measured)
     };
-    let landed = Some(Reading::Value("0.01 m".to_owned()));
-    assert_eq!(reading(&session), landed);
+    let landed = Some(Measured::Value("0.01 m".to_owned()));
+    assert_eq!(measured(&session), landed);
 
     session.perform(SessionOp::SetParam {
         name: gap,
@@ -214,13 +214,13 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     });
     assert!(session.busy(), "the premise: the document has moved on");
     assert_eq!(
-        reading(&session),
+        measured(&session),
         landed,
         "the row is the landed picture's until the next one lands"
     );
     session.pump();
     assert_eq!(
-        reading(&session),
-        Some(Reading::Value("0.012 m".to_owned()))
+        measured(&session),
+        Some(Measured::Value("0.012 m".to_owned()))
     );
 }
