@@ -389,7 +389,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
             .get_half_edge(half_b)
             .map(|h| h.parent_loop)
             .ok_or_else(|| not_intact(EntityId::HalfEdge(half_b), "a carved strip's half"))?;
-        sources.kef_minted(body, half_a, "edge-strip kef")?;
+        sources.kef_minted(body, half_a, "edge-strip kef", tol)?;
         hexagon.push((e, survivor_loop));
     }
     let hex_face = |body: &Body<T>, e: EdgeKey| -> Option<FaceKey> {
@@ -496,7 +496,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
                 }
                 continue;
             }
-            sources.kef_minted(body, hp, "corner-strut kef")?;
+            sources.kef_minted(body, hp, "corner-strut kef", tol)?;
         }
         // Row 0 (`D96`): NO, for both spur arms — the premise is a
         // COUNT this call checked immediately above, but WHICH strut

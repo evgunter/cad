@@ -47,3 +47,11 @@ Derive the start from the loop entry's first `At` rather than only
 `far_end_to` (their end point is known after replay, not from the step);
 and decide whether a collinear last leg should be kept with no close
 drawn. The cross must stay on the step that actually refused.
+
+## The unfinished arm has the same gap
+
+An unfinished chain whose last leg lands on the start draws nothing at
+all: its provisional close is zero-length and refused on its geometry.
+That is one member of `work/author/a-close-refused-on-its-geometry-draws-nothing.md`,
+filed by AUTH-11; the two want one answer to what a last leg onto the
+start means.

@@ -1,5 +1,7 @@
 //! Ring/genus Euler operators — [`Body::kemr`], [`Body::mekr`],
-//! [`Body::kfmrh`] — plus the [`Body::ring_move`] helper (M1 PR 3).
+//! [`Body::kfmrh`] (with its band twin [`Body::kfmrh_minting`]) — plus
+//! the [`Body::ring_move`] helper (with [`Body::ring_move_minting`])
+//! (M1 PR 3).
 //!
 //! These are the operators that create and consume **rings** (interior
 //! loops of faces) and, through `kfmrh`, **genus** — the connected sum
@@ -243,7 +245,7 @@ use crate::euler::FaceSurface;
 use crate::euler::{EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, RunExtent, shared_loop};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Live, require_key};
-use crate::pcurves::{SiteHalf, SiteRows};
+use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 use geom_core::Tol;
 
@@ -378,6 +380,38 @@ pub struct KfmrhResult {
     /// PR 1): `f2`'s shell, whose surviving faces were re-homed into
     /// `f1`'s shell before it died. `None` in the same-shell form.
     pub killed_shell: Option<ShellKey>,
+}
+
+/// What [`Body::kfmrh`]'s precondition phase proved and decided, for
+/// its surgery to write.
+struct KfmrhPlan<T: geom_core::Real> {
+    f1: FaceKey,
+    f2: FaceKey,
+    f1_shell: ShellKey,
+    f1_surface: SurfaceKey,
+    f2_data: crate::entity::Face,
+    s2_data: crate::entity::Shell,
+    /// The form: the fusion across two shells, or the handle within
+    /// one.
+    cross_shell: bool,
+    ring: LoopKey,
+    rows: Vec<SiteRows<T>>,
+}
+
+impl<T: geom_core::Real> KfmrhPlan<T> {
+    /// The arena shift this plan's form declares. It is read from the
+    /// plan, taken before any mutation, and never from the surgery's
+    /// effect (`killed_shell`): a shift read back out of the mutation
+    /// being checked follows the code down whichever branch it took, so
+    /// a fusion that ran when it should not have could not fail it.
+    #[cfg(debug_assertions)]
+    fn delta(&self) -> ArenaDelta {
+        ArenaDelta {
+            shells: if self.cross_shell { -1 } else { 0 },
+            faces: -1,
+            ..ArenaDelta::ZERO
+        }
+    }
 }
 
 impl<T: Decide> Body<T> {
@@ -764,15 +798,17 @@ impl<T: Decide> Body<T> {
     /// **Pcurve rows** ([`crate::pcurves`]): the demoted loop's stored
     /// rows are a curve stated in `f2`'s chart, so they survive this op
     /// only when `f1` is on the same CHART ([`Body::same_chart`]: one
-    /// key, or two keys sharing one payload). When it
-    /// is not, they are DROPPED — [`Body::drop_rows_on_chart_change`]
-    /// carries why this door cannot re-state them and what the drop
-    /// leaves behind (a target face that carries rows of its own is
-    /// left incomplete and tier 3 says so; a rowless CURVED target
-    /// reads as unminted, which is the loud-to-silent trade that
-    /// helper's docs scope). `f1`'s own rows are never touched. A
-    /// caller that wants the merged face minted runs
-    /// [`crate::pcurves::mint_pcurves`].
+    /// key, or two keys sharing one payload). When it is not, they are
+    /// DROPPED ([`Body::drop_rows`]). Where they do not stand on `f1`
+    /// — dropped, or missing — and `f1`'s rows were complete on an
+    /// analytic chart, `f1` is owed a re-mint this keys-only kill takes
+    /// no band for, so it refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves rather than leave `f1` half-minted — the shape of
+    /// [`Body::kev`]'s refusal where a carrier would go stale.
+    /// [`Body::kfmrh_minting`] is the same kill with a band, and makes
+    /// that move whole. On a spline chart, or an `f1` that was unminted
+    /// or half-minted, the drop is the whole answer at either door.
     ///
     /// **Minting order**: nothing is minted (the loop survives with its
     /// D5 birth record — no provenance changes for survivors; re-homed
@@ -793,7 +829,11 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::FaceHasRings`]); `f2`'s outer loop resolves
     /// (`StaleKey`); cross-shell only: every surviving face of `f2`'s
     /// shell and the shared solid resolve (`StaleKey`) — the fusion
-    /// writes through both.
+    /// writes through both; the demoted loop walks
+    /// ([`EulerOpError::LoopCycleBroken`]); then, where `f1` would be
+    /// re-minted, the site mint's plan ([`Body::plan_moved_rows`]'s
+    /// errors, [`EulerOpError::PcurveMint`] naming `f1` among them —
+    /// `KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -802,7 +842,50 @@ impl<T: Decide> Body<T> {
     pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let plan = self.kfmrh_plan(f1, f2, None)?;
+        #[cfg(debug_assertions)]
+        let declared = plan.delta();
+        let fused = self.kfmrh_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, declared, "kfmrh");
+        Ok(fused)
+    }
 
+    /// [`Body::kfmrh`] with a band: where `kfmrh` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the demoted
+    /// loop's rows do not stand on a complete `f1` — this door re-mints
+    /// `f1` at `tol`'s band, the demoted loop walked in its chart
+    /// ([`Body::plan_moved_rows`]); everywhere else it is `kfmrh`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::kfmrh`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
+    pub fn kfmrh_minting(
+        &mut self,
+        f1: FaceKey,
+        f2: FaceKey,
+        tol: Tol,
+    ) -> Result<KfmrhResult, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.kfmrh_plan(f1, f2, Some(tol))?;
+        #[cfg(debug_assertions)]
+        let declared = plan.delta();
+        let fused = self.kfmrh_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, declared, "kfmrh_minting");
+        Ok(fused)
+    }
+
+    /// [`Body::kfmrh`]'s preconditions and site mint plan, with the band
+    /// the site mint runs at, or none for the keys-only door.
+    fn kfmrh_plan(
+        &self,
+        f1: FaceKey,
+        f2: FaceKey,
+        tol: Option<Tol>,
+    ) -> Result<KfmrhPlan<T>, EulerOpError> {
         // ---- Preconditions. ----
         let f1_data = self.get_face(f1).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(f1),
@@ -849,8 +932,41 @@ impl<T: Decide> Body<T> {
             }
             require_key(&self.solids, s2_data.solid, EntityId::Solid)?;
         }
+        let ring_halves = self.site_cycle(ring)?;
+        let rows = self.plan_moved_rows(
+            &ring_halves,
+            self.same_chart(f2_data.surface, f1_surface),
+            f1,
+            |body| body.site_face_receiving(f1, &ring_halves),
+            tol,
+        )?;
+        Ok(KfmrhPlan {
+            f1,
+            f2,
+            f1_shell,
+            f1_surface,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            rows,
+        })
+    }
 
-        // ---- Mutation (infallible from here on). ----
+    /// [`Body::kfmrh`]'s surgery, from its proved plan. Infallible.
+    fn kfmrh_execute(&mut self, plan: KfmrhPlan<T>) -> KfmrhResult {
+        let KfmrhPlan {
+            f1,
+            f2,
+            f1_shell,
+            f1_surface,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            rows,
+        } = plan;
+        let f2_shell = f2_data.shell;
         // The surviving loop is repointed and demoted; nothing else at
         // the half-edge/vertex/edge level is touched.
         let Some(l) = self.get_loop_mut(ring) else {
@@ -862,6 +978,7 @@ impl<T: Decide> Body<T> {
         };
         face.rings.push(ring);
         self.drop_rows_on_chart_change(ring, f2_data.surface, f1_surface);
+        crate::pcurves::apply_site_rows(self, rows, None);
         let killed_shell = if cross_shell {
             // Shell fusion: f2's surviving faces re-home into f1's
             // shell — appended in their surviving f2-shell list order
@@ -899,39 +1016,12 @@ impl<T: Decide> Body<T> {
         let killed_surface = self
             .remove_surface_if_orphaned(f2_data.surface)
             .then_some(f2_data.surface);
-
-        #[cfg(debug_assertions)]
-        {
-            // The declared arena shift is chosen by `cross_shell` —
-            // the PLAN phase's own form decision, taken before any
-            // mutation and never written again. Choosing it on
-            // `killed_shell.is_some()` instead would read the shift
-            // back out of the mutation being checked, so the
-            // postcondition would follow the code down whichever
-            // branch it took and a fusion that ran when it should not
-            // have could not fail it. `ArenaDelta` is one operator's
-            // signed shift (`crate::euler`), and a shift a site
-            // computes from its own effect is not one.
-            let declared = if cross_shell {
-                ArenaDelta {
-                    shells: -1,
-                    faces: -1,
-                    ..ArenaDelta::ZERO
-                }
-            } else {
-                ArenaDelta {
-                    faces: -1,
-                    ..ArenaDelta::ZERO
-                }
-            };
-            self.assert_euler_postcondition(before, declared, "kfmrh");
-        }
-        Ok(KfmrhResult {
+        KfmrhResult {
             ring,
             killed_face: f2,
             killed_surface,
             killed_shell,
-        })
+        }
     }
 
     /// Reparents a ring from its face to `to_face` (same shell).
@@ -967,10 +1057,15 @@ impl<T: Decide> Body<T> {
     /// pure of the ARENAS, not of the pcurve map. A row is a curve
     /// stated in a FACE's chart, so the ring's rows survive the move
     /// only when `to_face` is on the same CHART as the ring's old face
-    /// ([`Body::same_chart`]); when it is not they are DROPPED, for
-    /// the reasons and with the consequences
-    /// [`Body::drop_rows_on_chart_change`] states. Neither face's other
-    /// loops are touched, and the same-face no-op moves nothing.
+    /// ([`Body::same_chart`]); when it is not they are DROPPED
+    /// ([`Body::drop_rows`]). Where they do not stand on `to_face` —
+    /// dropped, or missing — and `to_face`'s rows were complete on an
+    /// analytic chart, this keys-only door refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves, as [`Body::kfmrh`] does; [`Body::ring_move_minting`]
+    /// takes a band and re-mints `to_face` with the ring walked in its
+    /// chart. Neither face's other loops are touched, the face the ring
+    /// leaves needs nothing, and the same-face no-op moves nothing.
     ///
     /// # Tier-1 preservation (the demotion claim's least obvious case)
     ///
@@ -997,7 +1092,10 @@ impl<T: Decide> Body<T> {
     /// The ring resolves ([`EulerOpError::StaleKey`]); its face
     /// resolves (`StaleKey`); it is not that face's outer loop
     /// ([`EulerOpError::RingIsOuter`]); `to_face` resolves (`StaleKey`);
-    /// both faces lie in one shell ([`EulerOpError::CrossShell`]).
+    /// both faces lie in one shell ([`EulerOpError::CrossShell`]); the
+    /// ring walks ([`EulerOpError::LoopCycleBroken`]); then, where
+    /// `to_face` would be re-minted, the site mint's plan
+    /// ([`Body::plan_moved_rows`]'s errors — `KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -1006,7 +1104,46 @@ impl<T: Decide> Body<T> {
     pub fn ring_move(&mut self, ring: LoopKey, to_face: FaceKey) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        self.ring_move_with(ring, to_face, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
+        Ok(())
+    }
 
+    /// [`Body::ring_move`] with a band: where `ring_move` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the ring's rows
+    /// do not stand on a complete `to_face` — this door re-mints
+    /// `to_face` at `tol`'s band, the ring walked in its chart
+    /// ([`Body::plan_moved_rows`]); everywhere else it is `ring_move`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::ring_move`], except the `KeysOnly` refusal, and the
+    /// site mint's plan in its place ([`Body::plan_moved_rows`]'s
+    /// errors).
+    pub fn ring_move_minting(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+        tol: Tol,
+    ) -> Result<(), EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        self.ring_move_with(ring, to_face, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move_minting");
+        Ok(())
+    }
+
+    /// [`Body::ring_move`]'s plan and surgery, with the band its site
+    /// mint runs at, or none for the keys-only door. The door that
+    /// calls it declares the postcondition.
+    fn ring_move_with(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+        tol: Option<Tol>,
+    ) -> Result<(), EulerOpError> {
         // ---- Preconditions. ----
         let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(ring),
@@ -1030,6 +1167,18 @@ impl<T: Decide> Body<T> {
                 f2: to_face,
             });
         }
+        let rows = if from_face == to_face {
+            Vec::new()
+        } else {
+            let ring_halves = self.site_cycle(ring)?;
+            self.plan_moved_rows(
+                &ring_halves,
+                self.same_chart(from_surface, to_surface),
+                to_face,
+                |body| body.site_face_receiving(to_face, &ring_halves),
+                tol,
+            )?
+        };
 
         // ---- Mutation (infallible; no-op when the faces coincide). ----
         if from_face != to_face {
@@ -1047,9 +1196,7 @@ impl<T: Decide> Body<T> {
             l.face = to_face;
         }
         self.drop_rows_on_chart_change(ring, from_surface, to_surface);
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
+        crate::pcurves::apply_site_rows(self, rows, None);
         Ok(())
     }
 
@@ -1067,7 +1214,8 @@ impl<T: Decide> Body<T> {
     /// the chart decides which. Same chart: every row still says what
     /// it said, and the door carries them all untouched. A different
     /// chart: none of them does, and the door drops them —
-    /// [`Body::drop_rows`] states why dropping and what it costs;
+    /// [`Body::drop_rows`] states what the drop removes and what a
+    /// `_minting` door's site mint puts back ([`Body::plan_moved_rows`]);
     /// [`Body::same_chart`] states which charts count as one. The
     /// decision is taken here once, for the two doors that move a
     /// whole loop between existing faces ([`Body::kfmrh`],
@@ -1112,6 +1260,72 @@ impl<T: Decide> Body<T> {
         self.drop_rows(cycle);
     }
 
+    /// **The site mint of a door that moves a loop or run onto a
+    /// face**, planned before the door mutates. `moved` is the loop's
+    /// or run's half-edges, and `same_chart` whether the face it lands
+    /// on is on the chart it leaves ([`Body::same_chart`]).
+    ///
+    /// Where every moved half carries a row and the chart is one, the
+    /// rows move with their keys: nothing is derived, and there is
+    /// nothing to plan. Otherwise the moved rows do not stand on the
+    /// destination — they are about another chart, which the door drops
+    /// them for ([`Body::drop_rows`]), or missing — and the destination
+    /// is re-minted exactly as an Euler operator's rewired face is
+    /// ([`Body::plan_site_mint_of`]): the rows of `rows_from` as found
+    /// decide ([`crate::pcurves::StoredRows::remints`]), and `site`
+    /// describes the destination as the door leaves it, with the moved
+    /// loop rewired and [`crate::pcurves::SiteFace::moved`] set. A
+    /// complete destination on an analytic chart leaves complete, the
+    /// moved loop walked in its chart, or storing nothing where that
+    /// walk does not certify; any other destination is left as found,
+    /// its moved rows dropped. An empty `moved` moves nothing and plans
+    /// nothing.
+    ///
+    /// `tol` is the band door's. `None` is the keys-only door, which
+    /// derives nothing and refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] where
+    /// [`crate::pcurves::site_rows_owed`] holds: where the band door's
+    /// plan writes the destination.
+    ///
+    /// The face a loop LEAVES needs nothing: it loses that loop's
+    /// half-edges and their rows together, its other loops and its
+    /// chart are untouched, so it is left as complete as it was, or
+    /// more.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::plan_site_mint_of`]'s, and what `site` raises.
+    pub(crate) fn plan_moved_rows(
+        &self,
+        moved: &[HalfEdgeKey],
+        same_chart: bool,
+        rows_from: FaceKey,
+        site: impl FnOnce(&Self) -> Result<SiteFace<T>, EulerOpError>,
+        tol: Option<Tol>,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        let stand = same_chart && moved.iter().all(|&he| self.pcurve(he).is_some());
+        if moved.is_empty() || stand {
+            return Ok(Vec::new());
+        }
+        self.plan_site_mint_of([Ok(rows_from)], |body, _| Ok(vec![site(body)?]), None, tol)
+    }
+
+    /// `face` as a door leaves it that moves the loop `halves` walk onto
+    /// it as a new ring ([`Body::kfmrh`], [`Body::ring_move`]): its own
+    /// loops kept, the moved loop rewired after them.
+    fn site_face_receiving(
+        &self,
+        face: FaceKey,
+        halves: &[HalfEdgeKey],
+    ) -> Result<SiteFace<T>, EulerOpError> {
+        let mut site = self.site_face(face, &[], None)?;
+        site.moved = true;
+        site.loops.push(SiteLoop::Rewired(
+            halves.iter().copied().map(SiteHalf::Existing).collect(),
+        ));
+        Ok(site)
+    }
+
     /// Removes the stored pcurve row of every half-edge in
     /// `half_edges`, deriving nothing. This is the one removal every
     /// door that changes the chart a row is stated in calls once
@@ -1119,37 +1333,26 @@ impl<T: Decide> Body<T> {
     /// is each door's, taken once at its own site, and this takes none.
     ///
     /// **Why dropping rather than re-stating.** An image on another
-    /// chart is DERIVED, not restated — unlike
-    /// [`Body::split_edge`]'s restriction of one image to a
-    /// sub-interval of its own carrier. A SPLINE chart's derivation
-    /// reads its fitted door through the [`crate::AtRestPolicy`]
-    /// bound, which the `Decide` doors that call this do not have and
-    /// cannot take without rippling it through every caller. An
-    /// ANALYTIC chart's is stated under `Decide` — the Euler
-    /// operators' mint-site walk, `crate::pcurves::site_rows` — but
-    /// these doors do not run it
-    /// (`work/topo/loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`).
-    /// Dropping is the honest remainder: absence is never a claim, and
-    /// a caller that wants the target face's rows runs
-    /// [`crate::pcurves::mint_pcurves`].
+    /// chart is DERIVED, not restated — unlike [`Body::split_edge`]'s
+    /// restriction of one image to a sub-interval of its own carrier —
+    /// so the moved rows go. What replaces them on a complete analytic
+    /// destination is the `_minting` door's site mint
+    /// ([`Body::plan_moved_rows`]); a SPLINE chart derives through the
+    /// fitted lane, which these `Decide` doors do not hold, and there
+    /// the drop stands.
     ///
-    /// **What the drop costs, and its scope.** Where the target face
-    /// carries rows of its own, the drop leaves it INCOMPLETE and
-    /// tier 3 reports that (`MissingCache` per rowless half-edge).
-    /// Where it does not — a target whose whole boundary is the moved
-    /// loop or run, or one that was never minted — the face reads as
-    /// one the minting pass has not run on, and that pass says nothing
-    /// about such a face by design. So EVERY rowless CURVED target,
-    /// through every door that calls this, trades a loud reading for
-    /// a silent one: before the drop those rows were re-certified
-    /// against the target's chart and refused
-    /// (`PcurveMintError::Certify` per row), and after it there is
-    /// nothing to refuse. The trade is not one direction of one door;
-    /// it is the whole rowless-curved-target class, and what buys it
-    /// is that the body no longer HOLDS the wrong row for `props`, the
-    /// tessellator or `chart_boundary` to read. That the pass cannot
-    /// tell a never-minted face from one a door emptied is
-    /// `work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+    /// **What the drop costs.** Where the site mint leaves the
+    /// destination as found, the drop is the whole answer. A
+    /// destination that carries rows of its own is then INCOMPLETE,
+    /// and tier 3 reports it (`MissingCache` per rowless half-edge). A
+    /// CURVED one that stores none — never minted, its whole boundary
+    /// the moved loop or run, or emptied by the site mint — reads as a
+    /// face the minting pass has not run on, about which that pass says
+    /// nothing, where before the drop its moved rows were re-certified
+    /// against its chart and refused (`PcurveMintError::Certify`). That
+    /// trade buys a body that no longer HOLDS the wrong row for
+    /// `props`, the tessellator or `chart_boundary` to read
+    /// (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
     ///
     /// A key with no row is a no-op, so a caller hands over every key
     /// it moved and none of them has to be checked first.
@@ -3432,5 +3635,98 @@ mod tests {
             b.mekr(site, spec, Tol::witness())
         });
         assert_make_refuses(&mut body, &torn, |b| b.mekr_chord(site, Tol::witness()));
+    }
+
+    /// **A band door's re-mint refuses before the door moves
+    /// anything.** The minted cylinder-wall sheet: the wall face and
+    /// the seed face bound one another on one cylinder key, so every
+    /// loop moved below lands on a complete face on its own chart, and
+    /// one row taken off the moved loop is what sends the door to the
+    /// site mint. With the curve of that half's edge torn out, the
+    /// mint's walk of the moved loop cannot read it, and
+    /// `kfmrh_minting`, `kef_minting` and `mfkrh_minting` each refuse
+    /// `PcurveMint { Corrupt }` naming the wall, with the arenas and the
+    /// pcurve map as found.
+    #[test]
+    fn a_torn_half_on_a_moved_loop_refuses_before_the_door_moves_it() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let sheet = || {
+            let mut body = Body::<f64>::new();
+            let wall = cyl_wall_sheet(
+                &mut body,
+                CylFrame::canonical(1.0),
+                None,
+                (0.2, 1.4),
+                (0.0, 1.0),
+                tol,
+            );
+            let seed = body
+                .faces()
+                .map(|(k, _)| k)
+                .find(|&k| k != wall)
+                .expect("the sheet has a second face");
+            (body, wall, seed)
+        };
+        let outer_cycle = |body: &Body<f64>, face: FaceKey| {
+            let outer = body.get_face(face).unwrap().outer;
+            let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+                panic!("the sheet's faces are bounded by cycles")
+            };
+            body.loop_cycle(first).unwrap()
+        };
+        let tear = |body: &mut Body<f64>, gap: HalfEdgeKey| {
+            body.pcurves.remove(gap).expect("the sheet is minted");
+            let torn = body
+                .get_edge(body.get_half_edge(gap).unwrap().edge)
+                .unwrap()
+                .curve;
+            body.curves.remove(torn).unwrap();
+        };
+        let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
+        let refuses = |body: &mut Body<f64>,
+                       wall: FaceKey,
+                       door: &str,
+                       op: &dyn Fn(&mut Body<f64>) -> EulerOpError| {
+            let (before, rows_before) = (deep_snapshot(body), rows(body));
+            assert_eq!(
+                op(body),
+                EulerOpError::PcurveMint {
+                    face: wall,
+                    refusal: crate::pcurves::SiteRowRefusal::Corrupt,
+                },
+                "{door}"
+            );
+            assert_eq!(deep_snapshot(body), before, "{door}: the body is untouched");
+            assert_eq!(rows(body), rows_before, "{door}: every row is where it was");
+        };
+
+        // `kfmrh`: the seed's outer loop demotes into the wall.
+        let (mut body, wall, seed) = sheet();
+        let gap = outer_cycle(&body, seed)[0];
+        tear(&mut body, gap);
+        refuses(&mut body, wall, "kfmrh", &|b| {
+            b.kfmrh_minting(wall, seed, tol).unwrap_err()
+        });
+
+        // `kef`: the seed dies and its remnant joins the wall's loop.
+        let (mut body, wall, seed) = sheet();
+        let cycle = outer_cycle(&body, seed);
+        tear(&mut body, cycle[1]);
+        refuses(&mut body, wall, "kef", &|b| {
+            b.kef_minting(cycle[0], tol).unwrap_err()
+        });
+
+        // `mfkrh`: the demoted ring is promoted back out of the wall.
+        let (mut body, wall, seed) = sheet();
+        let ring = body.kfmrh(wall, seed).unwrap().ring;
+        let LoopBoundary::Cycle { first } = body.get_loop(ring).unwrap().boundary else {
+            panic!("the demoted ring is a cycle")
+        };
+        tear(&mut body, first);
+        refuses(&mut body, wall, "mfkrh", &|b| {
+            b.mfkrh_minting(ring, FaceSurface::Inherit, tol)
+                .unwrap_err()
+        });
     }
 }

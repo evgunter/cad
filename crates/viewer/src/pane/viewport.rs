@@ -112,9 +112,9 @@ fn push_preview(
         let points = &polyline.points;
         push_loop(lane, &plane, polyline);
         let refused_tip = match &polyline.end {
-            sketch::LoopEnd::Refused { closes: true, .. } => polyline.vertices.first().copied(),
-            sketch::LoopEnd::Refused { closes: false, .. } => polyline.vertices.last().copied(),
-            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished => None,
+            sketch::LoopEnd::Refused(cut) if cut.closes => polyline.vertices.first().copied(),
+            sketch::LoopEnd::Refused(_) => polyline.vertices.last().copied(),
+            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished(_) => None,
         };
         for &at in &polyline.vertices {
             let here = points[at];
@@ -2441,6 +2441,76 @@ mod tests {
         assert_eq!(centred.len(), 1, "one tick through the tip: {centred:?}");
         assert!(centred[0] < 1.0e-3, "square to the path: {centred:?}");
         assert_eq!(arrow, 2, "an arrowhead ahead of it");
+    }
+
+    /// **A chain with an unclosable tip is painted as the legs before
+    /// it, going on** — at every state no `line_to` leaves, as the
+    /// lattice table lists them. The steps that put the tip there are
+    /// not a leg anybody can draw yet, so what is painted is the two
+    /// legs, not the provisional close, and the tip keeps its
+    /// arrowhead: the chain is unfinished, not refused.
+    ///
+    /// Red if such a chain draws nothing (the `expect` panics), if its
+    /// provisional close is painted, or if its tip is crossed.
+    #[test]
+    fn an_unclosable_tip_is_painted_as_the_legs_before_it_going_on() {
+        let mut walked = Vec::new();
+        for state in crate::test_support::unclosable_tips() {
+            let Some(way_in) = ::profile::test_support::way_in(state) else {
+                assert_eq!(
+                    state,
+                    pncad::profile::TipState::Entry,
+                    "only the entry has no way in"
+                );
+                continue;
+            };
+            let drawn = chain(way_in);
+            assert!(
+                drawn.loops[0].end.unclosable().is_some(),
+                "{state:?}: a fixture whose tip is unclosable: {drawn:?}"
+            );
+            let painted = painted_preview(&drawn);
+            assert!(joins(&painted, [0.0, 0.0], [0.01, 0.0]), "{state:?}");
+            assert!(joins(&painted, [0.01, 0.0], TIP), "{state:?}");
+            assert!(
+                !joins(&painted, TIP, [0.0, 0.0]),
+                "{state:?}: the provisional close is not painted"
+            );
+            let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+            assert_eq!(centred.len(), 1, "{state:?}: one tick: {centred:?}");
+            assert_eq!(arrow, 2, "{state:?}: an arrowhead ahead of it");
+            walked.push(state);
+        }
+        assert!(
+            walked.contains(&pncad::profile::TipState::RadiusArrival),
+            "the census reads the table: {walked:?}"
+        );
+    }
+
+    /// **A chain cut at an unclosable tip whose last leg lands on its
+    /// start is painted closed.** The walked-back prefix is the square
+    /// the author's own legs close; its last leg is authored, not the
+    /// provisional close, so it is painted.
+    ///
+    /// Red if an unfinished loop is read as never closing.
+    #[test]
+    fn a_prefix_cut_at_an_unclosable_tip_that_lands_on_its_start_is_painted_closed() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let drawn = chain(vec![
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.0))),
+            Step::Turn(0.5),
+        ]);
+        assert!(
+            matches!(&drawn.loops[0].end, sketch::LoopEnd::Unfinished(Some(cut)) if cut.closes),
+            "a fixture whose drawn prefix closes: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(
+            joins(&painted, [0.0, 0.01], [0.0, 0.0]),
+            "the authored last leg is painted: {painted:?}"
+        );
     }
 
     /// **A chain that closed and then went on is painted closed, with

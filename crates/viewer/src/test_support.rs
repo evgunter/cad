@@ -28,6 +28,8 @@ use pncad::document::{
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 use pncad::profile::{Step, Target};
+#[cfg(test)]
+use pncad::profile::{TipState, Verb};
 
 use crate::scene::DisplayTolerance;
 
@@ -384,4 +386,20 @@ pub fn two_legs(x: f64, y: f64) -> Vec<Step<f64>> {
         Step::LineTo(Target::Point(Point2::new(x + 0.01, y))),
         Step::LineTo(Target::Point(Point2::new(x + 0.01, y + 0.01))),
     ]
+}
+
+/// **Every unclosable tip state** — one an unfinished chain can end on
+/// that no `line_to` leaves, so the provisional close is ill-typed
+/// there — read off the lattice table over the kernel's census of
+/// states (`profile::test_support`). `Closed` refuses `line_to` too,
+/// and is finished.
+#[cfg(test)]
+pub fn unclosable_tips() -> Vec<TipState> {
+    ::profile::test_support::every_state()
+        .into_iter()
+        .filter(|&state| {
+            state != TipState::Closed
+                && crate::sketch::admits_at(Some(state), Verb::LineTo).is_err()
+        })
+        .collect()
 }
