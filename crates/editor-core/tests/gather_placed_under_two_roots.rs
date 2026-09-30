@@ -343,13 +343,13 @@ fn legal_placements_still_gather() {
 
 const BASE_HEIGHT: f64 = 1.0;
 
-fn part_block(label: &str, w: f64, h: f64) -> ProfileDoc {
+/// A `w x w x h` block, as a whole part document, and its body.
+fn part_block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     block(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         w,
         h,
     )
-    .0
 }
 
 /// A `Rest` seat of `b`'s bottom cap onto `a`'s top cap.
@@ -383,11 +383,12 @@ fn seat(a: editor_core::SitedFace, b: editor_core::SitedFace) -> Node<editor_cor
 #[test]
 fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() {
     let mut store = PartStore::default();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         part_block("gather-two-roots-base", 3.0, BASE_HEIGHT),
         Tol::witness(),
     );
-    let top_ref = store.insert(part_block("gather-two-roots-top", 1.0, 3.0), Tol::witness());
+    let (top_ref, top_body) =
+        store.insert_part(part_block("gather-two-roots-top", 1.0, 3.0), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("gather-two-roots-mated"), Tol::witness());
     let (doc, base1) = insert(doc, Node::instantiate_part(base_ref));
@@ -400,8 +401,8 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
             doc,
             DocEdit::InsertNode {
                 node: seat(
-                    head_at(base, in_part(base, CapEnd::End)),
-                    head_at(at, in_part(top, CapEnd::Start)),
+                    head_at(base, in_part(base, base_body, CapEnd::End)),
+                    head_at(at, in_part(top, top_body, CapEnd::Start)),
                 ),
             },
         );
