@@ -455,3 +455,12 @@ spelling of the rim and landing, and the type unit is what provides
 it. Doing the type move first removes the "land its methods inside 5a"
 coupling both designers flagged. This is a sequencing call, not a
 design change.
+
+## 2026-09-30 — #3504 merged (shared arc type)
+
+`geom_core::Arc2` is now the one arc carrier for profile and geom-brep,
+and `SweptKind` is gone. The single FULL review was APPROVE, with no
+MAJOR. Two small fixes went in (the reversal names every kind; `Arc2`
+states D1's range). The review's S1–S4 go to 5a. Next is 5a
+(`retire-the-stored-bulge`), with a dual review whose builds are
+staggered.

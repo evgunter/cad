@@ -2,12 +2,14 @@
 id: one-arc-carrier-type-in-geom-core
 kind: unit
 title: One arc carrier type in geom-core, shared by profile's segments and geom-brep's SketchSegment; sweep's copy goes (byte-identical)
-status: dispatched
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: M
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 branch: claude/clever-bardeen-4itqb3
+closed: 2026-09-30
+pr: 3504
 ---
 
 
@@ -75,3 +77,11 @@ crosses five crates and claims byte identity.
 - (C3) No field-by-field copy between arc types remains.
 - (C4) The crate layering holds: `geom-core` knows no loop, program or
   sweep.
+
+## Closed (2026-09-30, #3504)
+
+The move merged byte-identical. The reviewer re-ran the Sym and
+thread-count suites at both ε (218/218 each) and the sweep, export and
+mesh suites (2211/2211), and diffed the tour output at base against
+head: all 157 files are identical. Review verdict: APPROVE (single FULL).
+Orientation and spelling follow-ups moved to `retire-the-stored-bulge`.

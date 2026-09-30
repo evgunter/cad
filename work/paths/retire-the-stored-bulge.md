@@ -2,12 +2,11 @@
 id: retire-the-stored-bulge
 kind: unit
 title: 5a: the stored bulge retires; validate checks carrier consistency; lifts copy the stored carrier; the writer emits Center
-status: parked
+status: open
 opened: 2026-09-30
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [one-arc-carrier-type-in-geom-core]
 ---
 
 
