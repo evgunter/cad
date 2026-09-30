@@ -509,6 +509,17 @@ impl SegPat {
     /// Whether `seg` matches.
     #[must_use]
     pub fn matches(&self, seg: &RoleSeg) -> bool {
+        let mut pending = Vec::new();
+        self.level_matches(seg, &mut pending) && all_match(pending)
+    }
+
+    /// Whether `seg` matches this pattern's own axes, its argument
+    /// patterns set aside in `pending` with the names they must match.
+    fn level_matches<'a>(
+        &'a self,
+        seg: &'a RoleSeg,
+        pending: &mut Vec<(&'a NamePat, &'a StableName)>,
+    ) -> bool {
         let tag = SegTag::of(seg);
         let tag_ok = match self.tag {
             TagPat::Any => true,
@@ -519,18 +530,34 @@ impl SegPat {
             return false;
         }
         let args = name_args(seg);
-        self.args.len() <= args.len()
-            && self
-                .args
-                .iter()
-                .zip(args)
-                .all(|(pat, name)| pat.matches(name))
+        if self.args.len() > args.len() {
+            return false;
+        }
+        pending.extend(self.args.iter().zip(args));
+        true
     }
+}
+
+/// Whether every pattern in `pending` matches its name, and every
+/// pattern those set aside, as deep as they nest — from this walk's own
+/// stack.
+fn all_match<'a>(mut pending: Vec<(&'a NamePat, &'a StableName)>) -> bool {
+    while let Some((pat, name)) = pending.pop() {
+        if !pat.level_matches(name, &mut pending) {
+            return false;
+        }
+    }
+    true
 }
 
 /// A pattern over a whole [`StableName`]: kind, minting node, and the
 /// exact shape of the role path.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// A pattern nests one whole pattern per argument it constrains, as
+/// deep as its author builds it, so its `Drop`, `Clone`, `PartialEq`,
+/// `Debug` and [`NamePat::matches`] are written one level at a time
+/// and none recurses on the nesting (`names::nest`).
+#[derive(Default)]
 pub struct NamePat {
     /// If set, the name's entity kind must be exactly this.
     pub kind: Option<EntityKind>,
@@ -555,7 +582,8 @@ impl NamePat {
     pub fn of_kind(kind: EntityKind) -> Self {
         Self {
             kind: Some(kind),
-            ..Self::default()
+            node: None,
+            path: None,
         }
     }
 
@@ -582,6 +610,16 @@ impl NamePat {
     /// Whether `name` matches.
     #[must_use]
     pub fn matches(&self, name: &StableName) -> bool {
+        all_match(vec![(self, name)])
+    }
+
+    /// Whether `name` matches this pattern's own level, its segment
+    /// patterns' argument patterns set aside in `pending`.
+    fn level_matches<'a>(
+        &'a self,
+        name: &'a StableName,
+        pending: &mut Vec<(&'a NamePat, &'a StableName)>,
+    ) -> bool {
         if self.kind.is_some_and(|k| k != name.kind) || self.node.is_some_and(|n| n != name.node) {
             return false;
         }
@@ -589,9 +627,132 @@ impl NamePat {
             None => true,
             Some(pats) => {
                 pats.len() == name.path.len()
-                    && pats.iter().zip(&name.path).all(|(p, s)| p.matches(s))
+                    && pats
+                        .iter()
+                        .zip(&name.path)
+                        .all(|(p, s)| p.level_matches(s, pending))
             }
         }
+    }
+
+    /// The patterns this one holds, one level down, in declaration
+    /// order.
+    fn held(&self) -> Vec<&NamePat> {
+        self.path.iter().flatten().flat_map(|s| &s.args).collect()
+    }
+}
+
+impl Drop for NamePat {
+    fn drop(&mut self) {
+        // Every pattern below this one is moved here before it goes, so
+        // each dropped in the loop holds none.
+        fn take(pat: &mut NamePat, into: &mut Vec<NamePat>) {
+            for seg in pat.path.iter_mut().flatten() {
+                into.append(&mut seg.args);
+            }
+        }
+        let mut pats = Vec::new();
+        take(self, &mut pats);
+        while let Some(mut pat) = pats.pop() {
+            take(&mut pat, &mut pats);
+        }
+    }
+}
+
+impl Clone for NamePat {
+    fn clone(&self) -> Self {
+        use super::nest::{Family, Shallow, Walk, shallow};
+        if shallow(Walk::Clone, Family::Pattern) {
+            return NamePat::default();
+        }
+        let _shallow = Shallow::enter(Walk::Clone, Family::Pattern);
+        // Level order, as `StableName`'s clone: each source's held
+        // patterns follow it as one run, whose first index `runs` keeps.
+        let mut sources: Vec<&NamePat> = vec![self];
+        let mut copies: Vec<Option<NamePat>> = Vec::new();
+        let mut runs: Vec<usize> = Vec::new();
+        let mut i = 0;
+        while let Some(&source) = sources.get(i) {
+            runs.push(sources.len());
+            copies.push(Some(NamePat {
+                kind: source.kind,
+                node: source.node,
+                path: source.path.clone(),
+            }));
+            sources.extend(source.held());
+            i += 1;
+        }
+        for i in (0..copies.len()).rev() {
+            let Some(mut copy) = copies.get_mut(i).and_then(Option::take) else {
+                continue;
+            };
+            let mut next = runs.get(i).copied().unwrap_or(usize::MAX);
+            for slot in copy.path.iter_mut().flatten().flat_map(|s| &mut s.args) {
+                if let Some(done) = copies.get_mut(next).and_then(Option::take) {
+                    *slot = done;
+                }
+                next += 1;
+            }
+            if let Some(cell) = copies.get_mut(i) {
+                *cell = Some(copy);
+            }
+        }
+        copies.into_iter().next().flatten().unwrap_or_default()
+    }
+}
+
+impl PartialEq for NamePat {
+    fn eq(&self, other: &Self) -> bool {
+        use super::nest::{Family, Shallow, Walk, shallow};
+        if shallow(Walk::Eq, Family::Pattern) {
+            return true;
+        }
+        let _shallow = Shallow::enter(Walk::Eq, Family::Pattern);
+        let mut pairs = vec![(self, other)];
+        while let Some((a, b)) = pairs.pop() {
+            if a.kind != b.kind || a.node != b.node || a.path != b.path {
+                return false;
+            }
+            pairs.extend(a.held().into_iter().zip(b.held()));
+        }
+        true
+    }
+}
+
+impl Eq for NamePat {}
+
+/// One level of a pattern as the derived impl renders it.
+struct PatLevel<'a>(&'a NamePat);
+
+impl core::fmt::Debug for PatLevel<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("NamePat")
+            .field("kind", &self.0.kind)
+            .field("node", &self.0.node)
+            .field("path", &self.0.path)
+            .finish()
+    }
+}
+
+impl core::fmt::Debug for NamePat {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use super::nest::{Family, Walk, render_nested, shallow};
+        if shallow(Walk::Debug, Family::Pattern) {
+            return core::fmt::Write::write_char(f, super::nest::HOLE);
+        }
+        render_nested(
+            self,
+            f,
+            Family::Pattern,
+            |p, alternate| {
+                if alternate {
+                    format!("{:#?}", PatLevel(p))
+                } else {
+                    format!("{:?}", PatLevel(p))
+                }
+            },
+            NamePat::held,
+        )
     }
 }
 

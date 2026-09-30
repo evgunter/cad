@@ -74,7 +74,7 @@ pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
     face_frame, vertex_position,
 };
-pub(crate) use nest::{Held, json_door};
+pub(crate) use nest::json_door;
 pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
 pub use role::{

@@ -397,7 +397,7 @@ impl Clone for StableName {
 /// What a held name renders as while its holder's level is rendered.
 /// A NUL is never written by a derived rendering (a string or char
 /// renders one escaped), so it cannot be mistaken for text.
-const HOLE: char = '\0';
+pub(super) const HOLE: char = '\0';
 
 /// One level of a name as the derived impl renders it.
 struct Level<'a>(&'a StableName);
