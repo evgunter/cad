@@ -3603,3 +3603,45 @@ Filed P3 on topo, naming TANG and ZIP.
 
 The item closes on the branch. Merge after CI on `a7810682f0`. Single
 tier, no DR row.
+
+## PR 3513's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of PR 3513 at `adcf403f45` took 403,247 tokens,
+178 tools and 2,868 s. It found 1 MAJOR, 8 MINOR and 6 NOTE.
+
+**MAJOR.** Some in-band escalations fire before any declaration is
+read, yet still offer "declare". The reviewer executed two:
+- `reduce::curved_face_arm`'s line-clearance arm raises identically
+  with and without a declaration.
+- The curved `on_face` escalation runs ahead of the covered rungs, and
+  raises even on a declared pair whose door says `Definite`.
+
+That is D4 ¶1 (i) (PR 3352) unmet at those sites. By code order,
+`vtxfac`'s coplanar sector and `sectors::pair_search` share the shape.
+
+**Ruled for the fix pass:**
+- Each site marked "yes" reads its declaration first, or routes to its
+  own decision; the per-site table is corrected; any residue is filed
+  as one class row.
+- m-2: the filed curved-pierce row's premise is corrected. A
+  declaration does settle its `(Zero, ·)` arms.
+- m-3: the `WallRoots(AxisParallel)` lever becomes reachable.
+- m-4: the lever-arm raisers carry the decided margin, as PR 3506 did,
+  so a Zero arm stops rendering a kernel-bug story.
+- m-5 and m-7: `CoplanarNeighbours` carries its verdict in the type,
+  so `NEIGHBOUR_OFFSET` is live and the text is true in band.
+- m-6: `Coincide` gets an observable effect; the reviewer's M7 and M7b
+  mutants survive today.
+- m-8: `RestZipUnsupported` routes its lever per `what`.
+- The table's claims (m-9, n-10, n-11), the root lanes' link to F2 debt
+  #214 (n-12), the seam notes (n-13) and the style items.
+
+**Also ruled:** DESIGN.md ~:973 says a value-kind indeterminate
+"reaches the user through `COINCIDENCE_RECOURSE`". It comes from
+7c997576f9, merged in #1347 as the D9 addendum. D4 ¶1 (i) superseded
+the channel it names, not what the clause decides. The phrase is
+re-worded to name the decision's recourse. That is a description that
+moved, so it lands with the change and does not wait for Ev.
+
+The brief names D4 ¶1 (i)–(iv) and PR 3352, per the lesson logged
+earlier. The fix pass is out on the loop-anchor target.
