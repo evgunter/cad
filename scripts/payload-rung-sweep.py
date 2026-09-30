@@ -144,6 +144,14 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
+    # decision types. The row also holds the two types nested one rung
+    # further down (`SectorRung`, `CrossingDecision`), which this sweep
+    # does not reach.
+    "BooleanDecision": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
+    "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                      "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
                         "declaration under the alias `PlaneRelation` "
                         "(crates/topo/src/boolean/plane_eq.rs)"),

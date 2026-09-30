@@ -80,7 +80,7 @@ fn in_band_clearance_escalates_through_the_funnel() {
     let err =
         union(&a, &b, SweepStrategy::Realized).expect_err("an in-band clearance cannot classify");
     match &err {
-        BooleanError::Escalated { diag } => {
+        BooleanError::Escalated { diag, .. } => {
             assert_eq!(
                 diag.predicate,
                 Some("bool_circle_curved_clearance"),

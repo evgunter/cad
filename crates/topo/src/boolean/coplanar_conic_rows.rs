@@ -165,7 +165,7 @@ fn a_rim_arc_at_an_undecided_offset_refuses_typed() {
     let b_ = band();
     let (b, _) = brick_under(1.0 + 0.5 * (b_.zero() + b_.escalate()));
     match sweep(&a, &b) {
-        Err(BooleanError::Escalated { diag }) => assert_eq!(
+        Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
             diag.predicate,
             Some("bool_conic_face_plane_offset"),
             "the refusal names the offset: {diag:?}"

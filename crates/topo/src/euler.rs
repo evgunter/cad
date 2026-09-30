@@ -883,6 +883,9 @@ pub enum EulerOpError {
     SplitParamNotInterior {
         /// The edge whose interval excludes the parameter.
         edge: EdgeKey,
+        /// The sub-span's verdict: within the zero band of an end, with
+        /// the margin it classified, or definitely outside the edge.
+        verdict: geom_brep::recourse::Refused,
     },
     /// [`Body::split_edge`]'s interiority test escalated: a sub-span
     /// margin fell in the tolerance band (the split point is
@@ -1108,21 +1111,28 @@ impl EulerOpError {
                 "curve {curve:?} is null-edge scaffolding (no carrier by \
                  type); the operation requires a certified carrier"
             ),
-            // Definite at ANY magnitude (a parameter far outside the
-            // interval fires this same arm), so the coincidence levers
-            // are offered conditionally — the unconditional fix is a
-            // strictly interior parameter (S6 review, MINOR-2).
-            Self::SplitParamNotInterior { edge } => format!(
-                "split_edge: the parameter is definitely not interior to \
-                 edge {edge:?}'s certified interval (it coincides with an \
-                 endpoint, or lies outside) — pick a parameter strictly \
-                 inside the interval; if it was meant to land exactly on \
-                 an endpoint, {}",
-                geom_core::COINCIDENCE_RECOURSE
+            // The split's two interiority arms are one decision, so both
+            // end in its one ending; every door that splits an edge at a
+            // crossing (the split, the blend, the Boolean) forwards them
+            // whole.
+            Self::SplitParamNotInterior { verdict, .. } => format!(
+                "{}. {}",
+                match verdict {
+                    geom_brep::recourse::Refused::Zero(_) => {
+                        "a crossing lands on an end of its edge at this tolerance, not \
+                         strictly inside it"
+                    }
+                    geom_brep::recourse::Refused::Negative { .. } => {
+                        "a crossing lands outside its edge"
+                    }
+                },
+                crate::split::split_param_ending(verdict.arm())
             ),
-            Self::SplitParamEscalated { edge, diag } => format!(
-                "split_edge: interiority test on edge {edge:?} escalated \
-                 ({diag})"
+            Self::SplitParamEscalated { diag, .. } => format!(
+                "{} is undecided: {}. {}",
+                crate::split::CROSSING_INTERIOR,
+                diag.payload(),
+                crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(diag))
             ),
             Self::PcurveSplit {
                 edge,
@@ -1249,7 +1259,12 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::NullScaffoldCurve {
             curve: CurveKey::default(),
         },
-        EulerOpError::SplitParamNotInterior { edge: ek },
+        EulerOpError::SplitParamNotInterior {
+            edge: ek,
+            verdict: geom_brep::recourse::Refused::Negative {
+                margin: geom_core::MarginDiag::value(-0.25),
+            },
+        },
         EulerOpError::SplitParamEscalated {
             edge: ek,
             diag: geom_core::Indeterminate {
@@ -5580,35 +5595,63 @@ mod tests {
         }
     }
 
-    /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`
-    /// interiority refusal arms describe one user situation — the
-    /// definite arm composes the shared recourse directly, the
-    /// escalated arm carries it through the `Indeterminate` Display.
+    /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),
+    /// each on a real raise: the crossing within the zero band of an
+    /// end, the one outside the edge, and the one in the band. All three
+    /// end in the one lever every splitting door has, and none offers a
+    /// declaration. The band-decided arms (the zero one and the
+    /// undecided one) of this decision, which passes on a positive
+    /// margin, offer the tolerance their margin gives; the sign-certain
+    /// arm offers none.
     #[test]
-    fn split_param_pair_carries_the_shared_recourse() {
-        let edge = EdgeKey::default();
-        let not_interior = EulerOpError::SplitParamNotInterior { edge };
-        let msg = not_interior.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
-
-        let escalated = EulerOpError::SplitParamEscalated {
-            edge,
-            diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::value(5e-9),
-                band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("split_edge_param_interior"),
-                terminal_sliver: false,
-            },
+    fn split_param_arms_tell_one_story() {
+        use geom_brep::recourse::{Classified, Refused};
+        const LEVER: &str =
+            "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let k = band.escalate() / band.zero();
+        let raise = |t: f64| {
+            let cube = crate::test_support_fixtures::declined_cube::<f64>(tol);
+            let mut body = cube.body;
+            body.split_edge(cube.mevs[0].edge, t, tol).unwrap_err()
         };
-        let msg = escalated.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
+        let offered = |text: &str| {
+            text.split_once(
+                ", or, if this distance from the edge's end is intended, tighten \
+                             the tolerance below ",
+            )
+            .map(|(_, v)| v.strip_suffix(" m").unwrap().parse::<f64>().unwrap())
+        };
+        let value = |m: geom_core::MarginDiag| {
+            m.diagnostic_f64_for_error_text()
+                .value()
+                .expect("a point margin")
+        };
+        let zero = raise(0.5 * band.zero());
+        let outside = raise(1.5);
+        let undecided = raise((band.zero() + band.escalate()) * 0.5);
+        let want = match (&zero, &outside, &undecided) {
+            (
+                EulerOpError::SplitParamNotInterior {
+                    verdict: Refused::Zero(Classified { margin: z, .. }),
+                    ..
+                },
+                EulerOpError::SplitParamNotInterior {
+                    verdict: Refused::Negative { .. },
+                    ..
+                },
+                EulerOpError::SplitParamEscalated { diag, .. },
+            ) => [Some(value(*z) / k), None, Some(value(diag.margin) / k)],
+            other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
+        };
+        for (err, want) in [zero, outside, undecided].iter().zip(want) {
+            let text = err.to_string();
+            assert!(
+                text.contains(LEVER) && !text.contains("declare"),
+                "the one lever, and no declaration: {text}"
+            );
+            assert_eq!(offered(&text), want, "the tolerance its arm gives: {text}");
+        }
     }
 }
