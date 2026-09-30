@@ -3,6 +3,8 @@ id: movefac-reads-a-mate-and-a-neighbour-it-never-proves
 kind: issue
 title: "movefac's labelling takes a mate from the edge's slots and a neighbour face from the mate's loop, and proves neither is the shell's"
 status: open
+pr: 3592
+branch: topo/kill-proves-half-edges
 opened: 2026-09-30
 refs: [movefac-labels-components-by-an-unproven-cycle-walk, kef-and-kev-take-a-mate-whose-own-edge-is-another]
 priority: P3
