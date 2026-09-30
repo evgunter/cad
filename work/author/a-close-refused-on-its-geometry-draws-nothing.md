@@ -26,7 +26,7 @@ Found by AUTH-11's sweep and its two reviews (`author/binder-prefix`, PR 3563).
 
 Dispatched 2026-09-30 with its sibling as **AUTH-13** (`docs/AUTH-13-SPEC.md`, branch `author/geometry-close`). Both rows say they want one answer to what a last leg onto the start means, so they are one unit.
 
-## Built (AUTH-13, `author/geometry-close`)
+## Built (AUTH-13, `author/geometry-close`, PR 3579)
 
 An unfinished chain whose close is refused on its geometry now walks back through `sketch::prefix_loop`, the same call a refused step and an unclosable tip take. It ends `LoopEnd::Unfinished(Some(Cut))`. The cut carries the close's own refusal as a new `PreviewError::Close { loop_, step, rendered }`: the driver's words, rendered through the `Display` it shares with `Geometry` (`loop N step M: …`), where `step` is one past the last, the row the close would go in. It is advisory (`PreviewError::is_unfinished`): nothing the author wrote is refused, and the close it names is one nobody has written.
 

@@ -59,7 +59,7 @@ start means.
 
 Dispatched 2026-09-30 with its sibling as **AUTH-13** (`docs/AUTH-13-SPEC.md`, branch `author/geometry-close`). Both rows say they want one answer to what a last leg onto the start means, so they are one unit.
 
-## Built (AUTH-13, `author/geometry-close`)
+## Built (AUTH-13, `author/geometry-close`, PR 3579)
 
 **The start** is the position the loop entry binds, its first `at` (`prefix_loop`), so an entry that opens with a direction closes onto its last leg too. **A last leg onto the start is the close** when its own step names the point it ends on and that point is the start. That is the same rule in both arms: the refused-step walk-back and the unfinished arm, which now walks back through the same `prefix_loop` call when its close is refused on its geometry.
 

@@ -10,7 +10,7 @@ refs: [a-close-refused-on-its-geometry-draws-nothing, a-last-leg-onto-the-start-
 ---
 
 
-Found by AUTH-13 (`author/geometry-close`), by running probes through `profile::replay`.
+Found by AUTH-13 (`author/geometry-close`, PR 3579), by running probes through `profile::replay`.
 
 ## What
 
