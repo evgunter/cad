@@ -39,6 +39,10 @@ pub(crate) mod merged;
 mod nest;
 mod role;
 mod seam_pair;
+#[cfg(test)]
+mod zz_probe;
+#[cfg(test)]
+mod zz_probe2;
 mod select;
 mod table;
 

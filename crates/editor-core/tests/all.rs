@@ -656,3 +656,7 @@ mod emit_split_duplicate;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "zz_r2_bytes.rs"]
+mod zz_r2_bytes;
+#[path = "zz_r2_head.rs"]
+mod zz_r2_head;
