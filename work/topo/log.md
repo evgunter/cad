@@ -4375,3 +4375,26 @@ unit, "every kill proves nothing else names what it removes", branch
 - The probe loses its `FILED_CELLS` admission, so every cell must
   reach 0.
 - Lanes use the GitHub MCP tools, never raw API calls.
+
+## The key-slot unit delivered as PR 3566; row closed on the branch (2026-09-30)
+
+The implementer took 168,774 tokens, 103 tools and 2,738 s. Head
+`a311ec4383` is green on CI run 36736280511.
+
+**What changed.** `deep_snapshot` gains a next-key line per arena,
+read through slotmap's `try_insert_with_key(Err)` on a clone: the next
+key comes back, and nothing is inserted.
+
+**What it exposed.**
+- **No refusal row reds**, so no D1 slot defect exists in today's rows.
+- Two make-then-kill round-trip rows in `review_m1_pr4` moved. A
+  successful make and kill consumes slots, and D1 allows that. They
+  now compare with `deep_rows` (the same walk without the next-key
+  lines), which is exactly what they claimed.
+- The two count-only refusal rows now read the snapshot.
+- The lineage rows are kept, since they pin the construction
+  interleaving and caller-visible key identity.
+
+The orchestrator read and accepted it. The key-slot row closes at
+`d3bb73c03b`. `refusal-rows-that-count-instead-of-snapshot` stays
+open for its `null.rs` part. Merge after CI.
