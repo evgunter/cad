@@ -372,7 +372,10 @@ pub enum Diagnosis {
 pub enum FoldConsumption {
     /// A later member SPLIT it: the accumulation holds fragments of
     /// it (the name with `Fragment` qualifiers after it), bare or as
-    /// constituents of later merges, and never the name itself.
+    /// constituents of later merges, and never the name itself as a
+    /// face. The step that split it may also have merged part of it:
+    /// the name is then a constituent of a bare merged row beside its
+    /// own fragment, and that row holds only part of the face.
     Split,
     /// A declared MERGE consumed it and a later member split the
     /// merged face: the accumulation holds fragments of a merged row
@@ -388,7 +391,8 @@ impl core::fmt::Display for FoldConsumption {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::Split => {
-                "a later member split it into fragments, and which fragment the \
+                "a later member split it into fragments, some perhaps merged with \
+                 another member's face in the same step, and which piece the \
                  reference means is not decidable from the names, so none is offered"
             }
             Self::FragmentedMerge => {

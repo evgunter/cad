@@ -874,21 +874,16 @@ pub(crate) fn name_boolean<T: Decide>(
                 .collect(),
             d.map(EntityKey::Face).parent(),
         );
-        match members.as_slice() {
-            [] => {}
-            [one] => put(
-                &mut t,
-                &mut tie,
-                from_tie,
-                base,
-                ent(0, EntityKey::Face(*one)),
-            )?,
-            _ => {
-                let split =
-                    obstacles.split(body, &BTreeSet::from([d]), &members, &in_merged, &wall)?;
-                name_split_group(&mut t, &mut tie, from_tie, &base, split)?;
-            }
-        }
+        name_parent_faces(
+            &mut t,
+            &mut tie,
+            from_tie,
+            base,
+            &members,
+            &in_merged,
+            (&obstacles, body, &BTreeSet::from([d])),
+            &wall,
+        )?;
     }
     tie.flush(&mut t)?;
 
@@ -930,24 +925,39 @@ pub(crate) fn name_boolean<T: Decide>(
     Ok(Emitted::new(t, rec))
 }
 
-/// Mints a split face's pieces (N2): `base` + `Fragment(Borders)` over
-/// each set of divider walls [`Obstacles::split`] found; the pieces one
-/// set does not tell apart are the tie. The union's end pass mints its
-/// split parents through here too.
-pub(super) fn name_split_group(
+/// Names the faces one parent is held as (N2/N3): a lone face whose
+/// parent no merge shares is the parent, `base`; otherwise each of
+/// `pieces` is `base` + `Fragment(Borders)` over the divider walls
+/// [`Obstacles::split`] finds, reading `merged` as the parent's faces a
+/// merge holds, and the pieces one set does not tell apart are the tie.
+/// A merge lists the parent as a constituent, so with any `merged` the
+/// bare `base` has retired and no piece takes it. The pair boolean and
+/// the union's end pass both name their parents here.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,
-    base: &StableName,
-    split: BTreeMap<Vec<StableName>, Vec<FaceKey>>,
+    base: StableName,
+    pieces: &[FaceKey],
+    merged: &[FaceKey],
+    split: (&Obstacles<K>, &Body<T>, &BTreeSet<K>),
+    wall: impl FnMut(FaceKey) -> Result<StableName, NamingError>,
 ) -> Result<(), NamingError> {
-    for (walls, faces) in split {
-        let mut name = base.clone();
-        name.path.push(RoleSeg::Fragment(Qualifier::Borders(walls)));
-        let ents = faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect();
-        mint_candidates(t, tie, from_tie, canonical::minted(name), ents)?;
+    match (pieces, merged) {
+        ([], _) => Ok(()),
+        ([one], []) => Ok(put(t, tie, from_tie, base, ent(0, EntityKey::Face(*one)))?),
+        _ => {
+            let (obstacles, body, parent) = split;
+            for (walls, faces) in obstacles.split(body, parent, pieces, merged, wall)? {
+                let mut name = base.clone();
+                name.path.push(RoleSeg::Fragment(Qualifier::Borders(walls)));
+                let ents = faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect();
+                mint_candidates(t, tie, from_tie, canonical::minted(name), ents)?;
+            }
+            Ok(())
+        }
     }
-    Ok(())
 }
 
 /// Boolean edges: `Seam` for zip-minted edges, `FromA`/`FromB` (with
@@ -2165,7 +2175,8 @@ mod tests {
     /// **The result-body stand-in every row here descends from**: a
     /// unit-cube extrusion, whose table names a top, a bottom and four
     /// laterals. Written once — the rows below differ in the synthetic
-    /// `BooleanNaming` they hand the emitter, never in the body.
+    /// `BooleanNaming` they hand the emitter, and a row that merges
+    /// faces hands it the body [`absorbed_into`] leaves.
     fn unit_cube() -> sweep::Extruded<f64> {
         let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
@@ -2184,6 +2195,20 @@ mod tests {
             Tol::witness(),
         )
         .unwrap()
+    }
+
+    /// `body` with `absorbed` killed into `kept` across the edge they
+    /// share: topologically what a merge of the two leaves, one face
+    /// where there were two, though the faces are not coplanar.
+    fn absorbed_into(body: &Body<f64>, kept: FaceKey, absorbed: FaceKey) -> Body<f64> {
+        let mut out = body.clone();
+        let he = face_half_edges(body, absorbed)
+            .unwrap()
+            .into_iter()
+            .find(|&he| body.mate(he).and_then(|m| body.face_of_half_edge(m)) == Some(kept))
+            .unwrap();
+        assert_eq!(out.kef(he).unwrap().killed_face, absorbed);
+        out
     }
 
     #[test]
@@ -2219,6 +2244,7 @@ mod tests {
             merge_groups: vec![(built.top, vec![lateral, lateral])],
             ..topo::BooleanNaming::default()
         };
+        let result = absorbed_into(&built.body, built.top, lateral);
         let empty = NameTable::new();
         let bool_node = RecipeNodeId(9);
         let a = OperandCtx {
@@ -2231,7 +2257,7 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness())
+        let t = name_boolean(bool_node, &result, &naming, &a, &b, Tol::witness())
             .unwrap()
             .table;
 
@@ -2252,11 +2278,73 @@ mod tests {
             Entry::Unique(r) => assert_eq!(r.key, EntityKey::Face(built.top)),
             other => panic!("merged entry not unique: {other:?}"),
         }
-        // The (synthetically still-live) absorbed lateral keeps its
-        // own FromA row; the table stays total over the body.
+        // Both constituents retired into the merge (N3).
         assert!(
-            t.name_of(&ent(0, EntityKey::Face(lateral))).is_some(),
-            "absorbed-but-live lateral must still be covered"
+            cs.iter().all(|c| t.lookup(c).is_none()),
+            "a constituent is published: {cs:?}"
+        );
+    }
+
+    /// **A face a merge absorbed that the body still holds refuses.**
+    /// The merge holds part of the parent, so its live face is a piece
+    /// of a face held as several, and it borders no recorded discard:
+    /// `Obstacles::split` refuses rather than mint `Borders([])`.
+    #[test]
+    fn an_absorbed_face_still_live_beside_its_merge_refuses() {
+        let built = unit_cube();
+        let ext_node = RecipeNodeId(1);
+        let a_table = name_extrude(
+            ext_node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
+        let lateral = a_table
+            .iter()
+            .find_map(|(n, e)| match (n.path.first(), e) {
+                (Some(RoleSeg::Lateral(_)), Entry::Unique(r)) => match r.key {
+                    EntityKey::Face(f) => Some(f),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .unwrap();
+        let naming = topo::BooleanNaming {
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Absent,
+            merge_groups: vec![(built.top, vec![lateral])],
+            ..topo::BooleanNaming::default()
+        };
+        let empty = NameTable::new();
+        let a = OperandCtx {
+            node: ext_node,
+            table: &a_table,
+            body: &built.body,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId(2),
+            table: &empty,
+            body: &built.body,
+        };
+        let err = name_boolean(
+            RecipeNodeId(9),
+            &built.body,
+            &naming,
+            &a,
+            &b,
+            Tol::witness(),
+        )
+        .expect_err("a live absorbed face beside its merge must refuse");
+        assert!(
+            matches!(
+                err,
+                NamingError::Emission {
+                    what: "a piece of a face held as several borders no recorded discard between them"
+                }
+            ),
+            "{err:?}"
         );
     }
 
@@ -2465,7 +2553,14 @@ mod tests {
             Tol::witness(),
         )
         .expect_err("same-constituent merge groups must refuse loudly");
-        let _ = err; // typed NamingError, never a silent alias
+        assert!(
+            matches!(
+                &err,
+                NamingError::Duplicate { name }
+                    if matches!(name.path.as_slice(), [RoleSeg::Merged(_)])
+            ),
+            "{err:?}"
+        );
     }
 
     /// The flat mint: an operand face that is itself a merged face
@@ -2524,6 +2619,7 @@ mod tests {
             merge_groups: vec![(built.top, vec![absorbed])],
             ..topo::BooleanNaming::default()
         };
+        let result = absorbed_into(&built.body, built.top, absorbed);
         let empty = NameTable::new();
         let bool_node = RecipeNodeId(9);
         let a = OperandCtx {
@@ -2536,7 +2632,7 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness())
+        let t = name_boolean(bool_node, &result, &naming, &a, &b, Tol::witness())
             .unwrap()
             .table;
         let wrap = |inner: &StableName| {
