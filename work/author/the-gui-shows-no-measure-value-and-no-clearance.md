@@ -2,7 +2,7 @@
 id: the-gui-shows-no-measure-value-and-no-clearance
 kind: issue
 title: the GUI shows a measure's existence and never its value
-status: open
+status: dispatched
 opened: 2026-09-11
 priority: P0
 cost: D
@@ -70,3 +70,5 @@ distance, and it is not what the planned cell was for.
 **Scope note.** This is a VIEW finding, not a kernel one. Nothing above
 says the kernel is wrong; `min_clearance`'s f64 absence is deliberate
 and documented. What is missing is a consumer.
+
+Dispatched 2026-09-30 as **AUTH-7** (`docs/AUTH-7-SPEC.md`, branch `author/measure-value`): tiers 1 and 2, meaning the value, or the typed absence and its door. Tier 3, the clearance consumer, is split out as its own design row by the lane. Checked against the tree first: the label is at `tree.rs:385`; the value and the typed absence are `ValuePayload::Measure` / `MeasureUnavailable`, both reachable through `pncad::document`. The two `clearance` hits now in `crates/viewer/src/` are a comment and a parameter name, so no consumer exists.

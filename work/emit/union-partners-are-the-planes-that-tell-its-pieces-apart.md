@@ -2,10 +2,12 @@
 id: union-partners-are-the-planes-that-tell-its-pieces-apart
 kind: issue
 title: Which bordering parents a union (and the pair boolean) cites in a split face's SideOf
-status: open
+status: closed
 opened: 2026-09-29
 priority: P1
 cost: H
+branch: emit/union-face-names
+closed: 2026-09-30
 ---
 
 
@@ -93,3 +95,15 @@ Ev leans toward the kernel-record mechanism, with low confidence.
 
 The row is now the build, after that prototype. #3241 is rebuilt on
 `Borders`.
+
+## Closed: PR 3241
+
+Built as ruled. `SideOf` is retired for boolean and union face pieces.
+Each piece is now named by `Borders`: the divider walls it borders.
+
+The obstacles come from topo's discard record (`BooleanNaming::discards`),
+which the measurement on `emit/borders-mechanism-probe` chose. On that
+probe it matched a rasterized planar truth in all 703 groups, in every
+order.
+
+Diagnosis moves to the border delta, and the shadow-exec rung is gone.

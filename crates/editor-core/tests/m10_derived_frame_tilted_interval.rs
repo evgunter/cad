@@ -127,7 +127,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
     ));
     let w = Expr::param(ParamName::from_static("w"), Dimension::Length);
-    let neg_w = Expr::neg(w.clone());
+    let neg_w = Expr::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon_expr([
@@ -580,7 +580,11 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         ),
         Base::Spin => (
             [scl(1.0), t.clone(), scl(0.0)],
-            [Expr::neg(t.clone()), scl(1.0), scl(0.0)],
+            [
+                Expr::neg(t.clone()).expect("a shallow negation"),
+                scl(1.0),
+                scl(0.0),
+            ],
         ),
         Base::HalfSpin => (
             [scl(1.0), t.clone(), scl(0.0)],
@@ -604,7 +608,11 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         ),
         Base::FlipV => (
             [scl(1.0), scl(0.0), scl(0.0)],
-            [scl(0.0), scl(-1.0), Expr::neg(t.clone())],
+            [
+                scl(0.0),
+                scl(-1.0),
+                Expr::neg(t.clone()).expect("a shallow negation"),
+            ],
         ),
         Base::FlipX => (
             [scl(-1.0), scl(0.0), t.clone()],

@@ -332,6 +332,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
                 ids: Vec::new(),
             },
             loops: vec![],
+            ids: vec![],
         },
     ]
 }

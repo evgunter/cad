@@ -276,7 +276,7 @@ pub(super) fn mint_into(
 /// What this does NOT cover, on purpose: a lone member that its
 /// discriminator would answer trivially keeps the base name at the
 /// call site, before any discriminator runs — an `OrderAlong { 0 of 1 }`
-/// or a one-partner `SideOf` says nothing. That is a decision about
+/// says nothing. That is a decision about
 /// the call site's own discriminator, not a minting rule. Where the
 /// several-member branch ends in a tie, it ends here.
 ///

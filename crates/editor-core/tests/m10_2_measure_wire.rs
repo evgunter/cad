@@ -107,7 +107,8 @@ fn every_form() -> ProfileDoc {
                         MeasureExpr::neg(MeasureExpr::value(Expr::param(
                             ParamName::from_static("pad"),
                             Dimension::Length,
-                        ))),
+                        )))
+                        .expect("a shallow negation"),
                     )
                     .expect("Length + Length"),
                     scalar(2.0),

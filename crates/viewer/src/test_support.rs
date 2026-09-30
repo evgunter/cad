@@ -23,7 +23,8 @@ use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, EditError, Expr, LoopProgram, Node, ParamName,
     ProfileProgram, RecipeNodeId, RefusingReach, apply,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Point2, Tol};
+use pncad::profile::{Step, Target};
 
 use crate::scene::DisplayTolerance;
 
@@ -258,4 +259,16 @@ pub fn corpus_delta() -> DisplayTolerance {
 /// not the facet count.
 pub fn ring_delta() -> DisplayTolerance {
     DisplayTolerance::new(2.0e-3).expect("a positive delta")
+}
+
+/// **Two legs of a path from `(x, y)`**: `at`, a leg along `+x`, then
+/// one along `+y`, ending at `(x + 0.01, y + 0.01)` on a leg end that
+/// arrives heading `+y` — the chain the path-preview rows leave
+/// unfinished or cut short.
+pub fn two_legs(x: f64, y: f64) -> Vec<Step<f64>> {
+    vec![
+        Step::At(Point2::new(x, y)),
+        Step::LineTo(Target::Point(Point2::new(x + 0.01, y))),
+        Step::LineTo(Target::Point(Point2::new(x + 0.01, y + 0.01))),
+    ]
 }
