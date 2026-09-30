@@ -3426,3 +3426,26 @@ PR 3506 merged (`ef24e691de`), closing
 a single-tier review, so there is no DR row. The orchestration
 branch's `dispatched` status lines conflicted with main's closed
 items; main's versions were taken.
+
+## The coincidence-routing unit out (2026-09-30)
+
+Dispatched three rows as one unit (P2, M; tier SINGLE, full):
+- `boolean-coincidence-route-holds-decisions-no-face-pair-names`
+- `boolean-coincidence-wrap-sites-name-no-decision`
+- `f7-same-operand-coincidence-offers-a-declaration-no-door-takes`
+
+**What the unit does.** Every Boolean escalation site states its
+decision:
+- The one-word `BooleanError::coincidence` default goes.
+- Decisions no face-pair declaration can settle (the lever-arm gates,
+  the operand-radius guards, the wall and torus root lanes) get their
+  own variants, carried as typed rungs from their raisers.
+- The three definite "unsupported" arms get their doors' recourse.
+- F7's same-operand arm ends in `NEIGHBOUR_LEVER`.
+
+The brief names D4 (i)/(iv) and PR 3352. It runs on the loop-anchor
+target, which PR 3506 freed.
+
+**Process note.** The orchestration branch no longer sets
+`status: dispatched` on items whose PR branch will set `review`. The
+two edits conflict at every merge-forward.
