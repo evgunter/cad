@@ -975,10 +975,11 @@ pub enum ProfileError {
         check: ArcCheck,
         /// What that check classified.
         margin: MarginDiag,
-        /// What `arc_carrier_resolution` classified: K·ε/2⁻⁵² less the
-        /// check's magnitude, meters — how far the magnitude sits below
-        /// the one where `f64` rounding reaches the escalation band
-        /// (not positive here).
+        /// What `arc_carrier_resolution` classified: K·ε/(n·2⁻⁵²) less
+        /// the check's magnitude, meters, for the check's stated
+        /// rounding bound of n ulps — how far the magnitude sits below
+        /// the one where that rounding reaches the escalation band (not
+        /// positive here).
         headroom: MarginDiag,
     },
     /// Two segments meet where they may not (any contact other than

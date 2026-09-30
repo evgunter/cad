@@ -364,16 +364,37 @@ pub(crate) fn build_seg<T: Decide>(
     })
 }
 
+/// The rounding a lowered f64 arc carries into `arc_start_on_carrier`'s
+/// difference ‖a − c‖ − r, in ulps of the check's scale (`2⁻⁵²·scale`),
+/// to first order with every rounding at most half an ulp of a
+/// magnitude at most twice the scale: the lowered centre 4 (the chord,
+/// its midpoint, its unit normal, the apothem's product and the sum
+/// onto the midpoint), the lowered radius 2 (the quotient
+/// L(1 + b²)/(4b)), and the check's own subtraction, norm and
+/// difference 2.
+const ON_CARRIER_ULPS: f64 = 8.0;
+
+/// The rounding a lowered f64 arc carries into `arc_landing`'s
+/// difference ‖landing(a) − b‖, in ulps of the check's scale, counted
+/// as [`ON_CARRIER_ULPS`] is: the lowered centre 4, the sweep 4·atan(b)
+/// turned through the radius 4 (the arctangent's rounding over
+/// |Δθ| ≤ 2π), the rotation's sine, cosine, products and sums 4, and
+/// the landing's sum onto `a` and its distance to `b` 2 — 14, stated
+/// as 16.
+const LANDING_ULPS: f64 = 16.0;
+
 /// **`arc_carrier_resolution`** — whether a difference a consistency
 /// check read at magnitude `scale` is one the scene can read at all.
-/// Margin: K·ε/2⁻⁵² − scale (meters): how far the check's magnitude
-/// sits below the one at which an `f64`'s rounding, scale·2⁻⁵², reaches
-/// the escalation band K·ε. Written on magnitudes rather than on the
-/// two resolutions so the margin is at the scene's scale, where the
-/// band is no lever on it. Positive ⇒ the check's definite answer
-/// stands; Zero or Negative ⇒ the answer is the representation's
-/// rounding, and the refusal is [`SegIssue::BelowSceneResolution`], not
-/// an inconsistency.
+/// Margin: K·ε/(ulps·2⁻⁵²) − scale (meters): how far the check's
+/// magnitude sits below the one at which `ulps` of an `f64`'s rounding
+/// there, ulps·scale·2⁻⁵², reaches the escalation band K·ε. `ulps` is
+/// the check's own rounding bound ([`ON_CARRIER_ULPS`],
+/// [`LANDING_ULPS`]). Written on magnitudes rather than on the two
+/// resolutions so the margin is at the scene's scale, where the band is
+/// no lever on it. Positive ⇒ the check's definite answer stands; Zero
+/// or Negative ⇒ the answer may be the representation's rounding, and
+/// the refusal is [`SegIssue::BelowSceneResolution`], not an
+/// inconsistency.
 ///
 /// `2⁻⁵²` (`f64::EPSILON`) at every scalar, for the reason the path
 /// door's `FilletCarrierBelowSceneResolution` gives: every scalar this
@@ -383,9 +404,10 @@ fn resolves<T: Decide>(
     value: T,
     margin: MarginDiag,
     scale: T,
+    ulps: f64,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
-    let headroom = T::from_f64(band.escalate() / f64::EPSILON) - scale;
+    let headroom = T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale;
     let gate = decide_reported("arc_carrier_resolution", Margin::of(headroom), band)
         .map_err(SegIssue::Escalated)?;
     match gate.sign {
@@ -426,6 +448,7 @@ fn check_carrier<T: Decide>(
                 on_carrier,
                 read.margin,
                 scale.max(reach(a)),
+                ON_CARRIER_ULPS,
                 band,
             )?;
             return refuse(ArcCheck::OnCarrier, on_carrier);
@@ -441,7 +464,8 @@ fn check_carrier<T: Decide>(
                 ArcCheck::Landing,
                 landing,
                 read.margin,
-                scale.max(reach(b)),
+                scale.max(reach(a)).max(reach(b)),
+                LANDING_ULPS,
                 band,
             )?;
             return refuse(ArcCheck::Landing, landing);
