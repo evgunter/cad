@@ -2,7 +2,7 @@
 id: kills-remove-half-edges-another-record-names
 kind: issue
 title: kef, kev and kemr remove their two half-edges proving only the links they rewrite: a third half-edge's next or prev, a loop's first, a vertex's emanating or another edge's slot naming one is left dangling through Ok
-status: open
+status: review
 pr: 3592
 branch: topo/kill-proves-half-edges
 opened: 2026-09-30

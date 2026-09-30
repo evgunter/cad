@@ -2,7 +2,7 @@
 id: kfmrh-removes-a-face-or-shell-another-record-names
 kind: issue
 title: kfmrh removes f2, and in its fusion form f2's shell, proving no other record names them: DanglingTopology through Ok
-status: open
+status: review
 pr: 3592
 branch: topo/kill-proves-half-edges
 opened: 2026-09-30
