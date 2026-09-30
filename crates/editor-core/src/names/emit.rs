@@ -537,10 +537,13 @@ impl core::fmt::Display for NamingError {
                  threshold {escalate} is under twice its coincidence threshold {zero} (an \
                  ambiguity K below 2), so two coincidences in a row could be decided apart"
             ),
-            Self::Escalated { predicate, source } => write!(
-                f,
-                "the discriminator {predicate} escalated (in-band indeterminacy): {source}"
-            ),
+            Self::Escalated { predicate, source } => {
+                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+                write!(
+                    f,
+                    "no name can be decided because {what} is too close to call: {source}"
+                )
+            }
         }
     }
 }
@@ -1425,7 +1428,7 @@ mod display_tests {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {
             let born = body
-                .mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex");
             body.mev_line(
                 topo::MevSite::Lone {
@@ -1449,7 +1452,7 @@ mod display_tests {
     fn two_faces() -> (FaceKey, FaceKey) {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {
-            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex")
                 .face
         };
@@ -1462,7 +1465,7 @@ mod display_tests {
     fn two_vertices() -> (VertexKey, VertexKey) {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {
-            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+            body.mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a solid, shell, face and lone vertex")
                 .vertex
         };
@@ -1648,10 +1651,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: "side_of_plane",
+                    predicate: crate::names::discriminate::SIDE_OF,
                     source: escalation(),
                 },
-                vec!["side_of_plane"],
+                vec!["the side of a cut"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {

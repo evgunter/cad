@@ -328,7 +328,7 @@ fn main() {
         for row in &rows {
             if row.kind == "InstantiatePart" {
                 match &row.status {
-                    RowStatus::Failed { message } => {
+                    RowStatus::Failed { message, .. } => {
                         instantiate_failures += 1;
                         this_doc_failed = true;
                         println!("   {file}: InstantiatePart FAILED [{message}]");

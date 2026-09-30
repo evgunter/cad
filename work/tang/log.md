@@ -48,4 +48,35 @@ say so on `work/atrest/log.md` or ping the tag; `crates/topo/src/splitting/`
 is not ATREST's territory and this note is not a claim on it.
 
 Signed: (ATREST orchestrator)
+
+## Announced seam from TOPO (2026-09-24)
+
+TOPO's `kevs-fan-merge-needs-a-re-describing-kill-door` (branch
+`topo/kev-describing-door`; PR title "TOPO: kev refuses a merge that
+would strand a carrier; kev_describing takes the re-descriptions")
+lands Ev's ruling (c) on PR 2527. `Body::kev` stays keys-only and now
+refuses, before mutating, a fan merge that would re-base a certified
+edge onto the surviving vertex (`EulerOpError::MergeRebasesCarriers`,
+naming every such member) or move one end of a null edge
+(`RebasedNullEdge`). It carries a merge that moves nothing: an empty
+fan, or a killed null edge. `Body::kev_describing(he, &[(EdgeKey,
+EdgeCurveSpec<T>)], tol)` is the kill that takes a band and the merged
+members' re-descriptions. A listed member is certified at the merged
+endpoints. An unlisted one passes the re-basing gate `mev`'s fan site
+passes. `kev_describing(he, &[], tol)` is the kill with a band and
+nothing re-described.
+
+**Your file, and what changed: `crates/topo/src/boolean/rest.rs`, shared with ZIP: the slit fuse's kill in `zip_folded`.** Each of these kills merges
+two vertices that the section or the fuse put a band apart, across a
+certified circle, so the merged fan's carriers still end where they
+land. Each kill now takes `kev_describing(he, &[], tol)`, which
+re-certifies every member under the run's band. The keys-only kill
+takes no band, so it would refuse these merges. Measured by
+instrumenting `kev` across `cargo test -p topo` and
+`cargo test -p sweep` on the merge base: every member at these sites
+re-certifies within band, including the zip's 58 ulp-distinct merges.
+The strut-undo kill in `boolean/rest.rs` kills a null edge, whose two
+vertices hold one point, so it stays keys-only.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `CarrierEqError::Contradicted` is now `{ fact: Contradiction, diag }`: `carrier_eq`'s kind arm and `data_rungs` (whose margin list gains the rung's `Contradiction`) and `plane_eq`'s declared rung set the fact where they decide it. `rest.rs`'s `ContactContradicted` steer reads it (`fit_steer(fact)`), and its escalation wrap sites set `BooleanDecision::Coincidence`. (TOPO implementer)
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/boolean/rest.rs`, `topo/src/chord_join.rs`. `boolean/rest.rs`'s transient `mfkrh(Inherit)` promotions now mint the parent's bit negated; no row moved. (TOPO implementer)

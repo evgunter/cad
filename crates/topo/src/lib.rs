@@ -89,7 +89,7 @@
 //! let mut body = Body::<f64>::new();
 //!
 //! // The seed: solid + shell + one face holding lone vertex A.
-//! let seed = body.mvfs(pt(0.0, 0.0, 0.0))?;
+//! let seed = body.mvfs(pt(0.0, 0.0, 0.0), true)?;
 //! // The bottom rim A → B → C → D, grown by three mev …
 //! let e_ab = body.mev_line(MevSite::Lone { r#loop: seed.r#loop }, pt(1.0, 0.0, 0.0), tol)?;
 //! let strut = |he| MevSite::Fan { he1: he, he2: he };
@@ -392,19 +392,19 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
-    BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
-    CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
-    ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
-    NullEdgePairRecord, Operand, OperandKeys, PairRefusalSite, PairSite, PatchContact,
-    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
-    SideCode, SolidContainment, SolidFaces, SweepStrategy, SweepTrace, TangentLocus,
-    TangentLocusError, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
-    VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, face_carrier, flush_pair_relation, insert_void, insert_voids,
-    intersect, intersect_with, oriented_plane_eq, point_in_solid, point_in_solid_faces,
-    point_in_solid_of, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
-    union_with,
+    BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
+    BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
+    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation,
+    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact,
+    FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
+    PairRefusalSite, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneIdentity, PlaneRelation, PointInSolidError, SectorRung, SideCode, SolidContainment,
+    SolidFaces, SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with,
+    boolean_reduce, boolean_reduce_declared, carrier_eq, contfp, curved_face_containment,
+    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    intersect_with, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
+    subtract, subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -425,7 +425,7 @@ pub use entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 pub use euler::{EulerOpError, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-pub use euler_kill::{KefResult, KevResult, KvfsResult, MfkrhCreated};
+pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
@@ -459,7 +459,9 @@ pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
-pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
+pub use pcurves::{
+    PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
+};
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
     ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate,
@@ -488,10 +490,11 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,
-    SectionPolygon, SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError,
-    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ArcWindowCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord, PlaneSide,
+    PointInLoopError, Section, SectionPolygon, SectorEntry, SectorEntryKind, SplitError,
+    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
+    SplitResult, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
+    vertex_sides,
 };
 pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{

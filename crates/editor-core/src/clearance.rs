@@ -164,7 +164,7 @@ use topo::{Body, MetredBound, MetredRect, chart_boundary};
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::{Doc, ParamName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts, sliver};
-use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeResult, evaluate};
+use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
 use crate::names::{EntityKey, Entry, StableName};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -714,10 +714,10 @@ pub enum CellBudget {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SelectionRefusal {
     /// The node did not build in the leaf's replay.
-    NodeDidNotBuild {
-        /// The node.
-        node: RecipeNodeId,
-    },
+    NodeDidNotBuild(
+        /// The node's standing in that replay.
+        NodeStanding,
+    ),
     /// The node's payload carries no body at that index.
     NoSuchBody {
         /// The node.
@@ -741,11 +741,10 @@ pub enum SelectionRefusal {
 impl core::fmt::Display for SelectionRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeDidNotBuild { node } => write!(
+            Self::NodeDidNotBuild(standing) => write!(
                 f,
-                "node {} did not build in this leaf's replay, so it has no faces to \
-                 measure a clearance between",
-                node.0
+                "the selection has no faces to measure a clearance between in this leaf's \
+                 replay: {standing}"
             ),
             Self::NoSuchBody { node, index } => write!(
                 f,
@@ -2244,9 +2243,9 @@ fn windows_of(
     band: Option<Band>,
 ) -> Result<Vec<Window>, ClearanceRefusal> {
     let refuse = ClearanceRefusal::Selection;
-    let Some(NodeResult::Ok(value)) = ev.nodes.get(&sel.at) else {
-        return Err(refuse(SelectionRefusal::NodeDidNotBuild { node: sel.at }));
-    };
+    let value = ev
+        .usable(sel.at)
+        .map_err(|standing| refuse(SelectionRefusal::NodeDidNotBuild(standing)))?;
     let body = crate::names::interrogate::output_body(&value.payload, sel.body).map_err(|_| {
         refuse(SelectionRefusal::NoSuchBody {
             node: sel.at,
@@ -3245,10 +3244,15 @@ fn verify_witness(
     // from the axis that pass chose: a witness's `(u, v)` are
     // coordinates in that chart, and reading them in the stored one
     // would name a different point.
+    for w in [x, y] {
+        if let Err(standing) = ev.usable(w.at) {
+            return Err(format!(
+                "the f64 rebuild has no value for a face of the violating pair: {standing}"
+            ));
+        }
+    }
     let surface_at = |w: &Window| -> Option<Surface<f64>> {
-        let NodeResult::Ok(value) = ev.nodes.get(&w.at)? else {
-            return None;
-        };
+        let value = ev.value(w.at)?;
         let body = crate::names::interrogate::output_body(&value.payload, w.body).ok()?;
         let f = body.get_face(w.face)?;
         let stored = body.get_surface(f.surface)?;

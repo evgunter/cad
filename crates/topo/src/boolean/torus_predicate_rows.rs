@@ -81,6 +81,7 @@ fn every_quartic_outcome_is_reached_by_a_real_pose() {
             Ok(TorusRoots::Certified { count, .. }) => {
                 panic!("a certified count is 2 or 4, never {count}")
             }
+            Ok(TorusRoots::CountDisagrees) => panic!("the constructed roots disagree"),
             Err(_) => uncertain += 1,
         }
     }
@@ -179,7 +180,7 @@ fn the_period_guards_zero_arm_is_what_serves_a_wrapping_face() {
     assert_eq!(count, 4, "a diameter of the ring crosses four walls");
 }
 
-/// **`bool_ray_torus_count` is not reached by anything**, and this row
+/// **`TorusRoots::CountDisagrees` is not reached by anything**, and this row
 /// is the record of that rather than an exercise of it.
 ///
 /// Rung 5 compares the CONSTRUCTED root count against the CERTIFIED one.

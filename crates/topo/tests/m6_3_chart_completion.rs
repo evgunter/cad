@@ -154,13 +154,25 @@ where
     let image = Arc::new(lift2::<T>(&fit_image()));
 
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph_key = body
-        .set_face_surface(seed.face, topo::FaceSurface::New(sphere::<T>()))
+        .set_face_surface(
+            seed.face,
+            topo::FaceSurface::New {
+                surface: sphere::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let pl_key = body
-        .set_face_surface(anchor.face, topo::FaceSurface::New(tilted_plane::<T>()))
+        .set_face_surface(
+            anchor.face,
+            topo::FaceSurface::New {
+                surface: tilted_plane::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
     let mid = T::from_f64(0.5 * (f0 + f1));
     let made = body

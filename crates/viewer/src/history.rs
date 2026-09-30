@@ -117,13 +117,18 @@ pub enum ReplayError {
 }
 
 impl core::fmt::Display for ReplayError {
-    /// The position is this layer's contribution; the refusal itself is
-    /// [`EditError`]'s own sentence.
+    /// The position and the ending are this layer's; the problem is
+    /// [`EditError`]'s own. The edit door's recourse is not: nobody is
+    /// making that edit, and `save` replays every log it writes, so a
+    /// log that refuses here is a damaged file or a kernel defect.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Refused { index, error } => {
-                write!(f, "edit {index} of the saved log was refused: {error}")
-            }
+            Self::Refused { index, error } => write!(
+                f,
+                "edit {index} of the saved log was refused: {}. {}",
+                error.problem(),
+                pncad::geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
         }
     }
 }

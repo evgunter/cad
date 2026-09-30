@@ -17,6 +17,7 @@ use crate::fixture;
 
 use std::sync::Arc;
 
+use editor_core::NodeStanding;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
@@ -707,12 +708,19 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     assert_eq!(
         resolve(ctx, &cap_a),
-        Resolution::Indeterminate(ResolveIndeterminate::TargetFailed { node: a })
+        Resolution::Indeterminate(ResolveIndeterminate {
+            standing: NodeStanding::Failed { node: a }
+        })
     );
     let union_body = minted(EntityKind::Body, u, RoleSeg::OutputBody);
     assert_eq!(
         resolve(ctx, &union_body),
-        Resolution::Indeterminate(ResolveIndeterminate::TargetPoisoned { through: a })
+        Resolution::Indeterminate(ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
+                node: u,
+                through: a
+            }
+        })
     );
 }
 

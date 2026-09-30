@@ -308,7 +308,7 @@ fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
         "and the gather refuses this pair too, so the two arms compete"
     );
     match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("refuses") {
-        ChecksError::Root { node } => assert_eq!(node, root),
+        ChecksError::Root(standing) => assert_eq!(standing.node(), root),
         other => panic!("expected the registry's own precondition, got {other}"),
     }
 }

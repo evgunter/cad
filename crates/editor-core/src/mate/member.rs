@@ -17,7 +17,7 @@
 use geom_core::linalg::{Affine3, Point3};
 use geom_core::predicate::Band;
 
-use super::{MateFault, MateSide};
+use super::{MateFault, MateSide, PlacerRow};
 use crate::doc::Doc;
 use crate::eval::slots::{SlotValues, eval_slots};
 use crate::eval::{NodeErrorKind, NodeRefusal, Seated, SteppedOperands, need_scalar, need_vec3};
@@ -381,15 +381,19 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
         n: u32,
         part: Option<RecipeNodeId>,
     }
-    let refused = |node: RecipeNodeId, kind: NodeErrorKind| MateFault::PlacerRefused {
+    // This fault reaches the mate alone, so a placer is never poisoned
+    // by it: `States` where the placer's own evaluation raises the same
+    // refusal, `Silent` where its row would read otherwise.
+    let refused = |node: RecipeNodeId, kind: NodeErrorKind, placer_row| MateFault::PlacerRefused {
         mate,
         side,
         placer: node,
         error: NodeRefusal::from(kind),
+        placer_row,
     };
-    let count_of = |node: RecipeNodeId, expr: &crate::expr::Expr, slot: SlotId| {
+    let count_of = |node: RecipeNodeId, expr: &crate::expr::Expr, slot: SlotId, row| {
         crate::expr::eval_count(expr, env)
-            .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }))
+            .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }, row))
     };
     // The copy exists: the name's index against the evaluated count.
     let mut levels: Vec<Level> = Vec::new();
@@ -398,9 +402,13 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
             continue;
         };
         let Some(Node::Pattern { count, .. }) = doc.node(node) else {
-            return Err(refused(node, NodeErrorKind::MissingInput { input: node }));
+            return Err(refused(
+                node,
+                NodeErrorKind::MissingInput { input: node },
+                PlacerRow::Silent,
+            ));
         };
-        let n = count_of(node, count, SlotId::Count)?;
+        let n = count_of(node, count, SlotId::Count, PlacerRow::States)?;
         if i64::from(i) >= n {
             return Err(MateFault::DanglingHead {
                 mate,
@@ -420,6 +428,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
                     NodeErrorKind::Naming(crate::names::NamingError::Emission {
                         what: "a pattern's count exceeds the table's u32 row width",
                     }),
+                    PlacerRow::States,
                 )
             })?;
         levels.push(Level { node, i, n, part });
@@ -439,7 +448,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
                 break;
             }
             flat = crate::names::flat_body_index(flat, below.n, below.i)
-                .map_err(|e| refused(below.node, NodeErrorKind::Naming(e)))?;
+                .map_err(|e| refused(below.node, NodeErrorKind::Naming(e), PlacerRow::Silent))?;
         }
         let Some(Node::Part {
             select: PartSelect::Instance(index),
@@ -449,9 +458,12 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
             return Err(refused(
                 level.node,
                 NodeErrorKind::MissingInput { input: part },
+                PlacerRow::Silent,
             ));
         };
-        let selected = count_of(level.node, index, SlotId::Instance)?;
+        // The `Part`'s index, seated at the pattern, whose own row reads
+        // `Ok`.
+        let selected = count_of(level.node, index, SlotId::Instance, PlacerRow::Silent)?;
         if selected != i64::from(flat) {
             return Err(MateFault::PartSelectsAnotherCopy {
                 mate,
@@ -559,7 +571,7 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
         // ONE wrapping, at the arm's edge: the derivation answers with
         // the node that raised and the kind it raised, and this is
         // where those become the mate vocabulary.
-        let Some(map) = derived.map_err(|refused| refuse(mate, side, *refused))? else {
+        let Some(map) = derived.map_err(|refused| refuse(mate, side, node, *refused))? else {
             continue;
         };
         composed = Some(match composed {
@@ -574,9 +586,16 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
 /// no relabelling: an escalation is the SOLVE's own indeterminacy and
 /// says so, and everything else is carried exactly as the layer that
 /// raised it typed it, under the id of the node that raised it.
+///
+/// `on_chain` is the placer being derived. The fault reaches the
+/// instance under it, so a refusal seated there is one its poisoned row
+/// never states and the fault carries; one seated off the chain (an
+/// axis datum, a transform on the way to it) is its node's own, stated
+/// on that node's row.
 fn refuse(
     mate: RecipeNodeId,
     side: MateSide,
+    on_chain: RecipeNodeId,
     (at, kind): (RecipeNodeId, NodeErrorKind),
 ) -> Box<MateFault> {
     match kind {
@@ -589,6 +608,11 @@ fn refuse(
             side,
             placer: at,
             error: NodeRefusal::from(carried),
+            placer_row: if at == on_chain {
+                PlacerRow::Silent
+            } else {
+                PlacerRow::States
+            },
         }),
     }
 }
@@ -904,8 +928,18 @@ mod tests {
                 side,
                 placer,
                 error,
+                placer_row,
             } => {
                 assert_eq!((mate, side), (MATE, MateSide::A));
+                // The pattern is the chain's placer, poisoned through the
+                // instance the fault reaches; any other seat is off the
+                // chain and states the refusal on its own row.
+                let silent = if placer == PATTERN {
+                    PlacerRow::Silent
+                } else {
+                    PlacerRow::States
+                };
+                assert_eq!(placer_row, silent, "{placer:?}'s row");
                 (placer, error)
             }
             other => panic!("expected PlacerRefused, got {other:?}"),

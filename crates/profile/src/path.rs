@@ -1992,30 +1992,42 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // NAMED here, because the label is a claim about the
                     // two of them and about nothing else the funnel
                     // decides.
-                    Some("path_junction_turn" | "path_junction_side") => {
-                        write!(f, "path junction classification: {source}")
-                    }
+                    Some("path_junction_turn" | "path_junction_side") => write!(
+                        f,
+                        "{} is too close to call: {source}",
+                        source
+                            .predicate
+                            .and_then(crate::validate::decision_subject)
+                            .unwrap_or(crate::validate::UNNAMED_DECISION)
+                    ),
                     // A name no arm above claims. If the crate has
                     // decided it needs nothing beyond the shared clause
                     // `{source}` already ends in, it is in
                     // `validate::SHARED_CLAUSE_ONLY` and the refusal
                     // stops there; otherwise the refusal names the hole,
                     // through the one home every recourse table's
-                    // fall-through composes. The door names ITSELF where
-                    // `BlendError::Escalated` names a site: this variant
-                    // carries no site field, and adding one would move a
-                    // `PathError` shape.
-                    _ => match source
-                        .predicate
-                        .and_then(crate::validate::shared_clause_only)
-                    {
-                        Some(_) => write!(f, "escalated at the path door: {source}"),
-                        None => write!(
-                            f,
-                            "escalated at the path door: {source} — {}",
-                            geom_core::MissingRecourse(source.predicate)
-                        ),
-                    },
+                    // fall-through composes. Either way the sentence
+                    // opens with what the decision was deciding, in the
+                    // words `validate::decision_subject` holds.
+                    _ => {
+                        let what = source
+                            .predicate
+                            .and_then(crate::validate::decision_subject)
+                            .unwrap_or(crate::validate::UNNAMED_DECISION);
+                        let listed = source
+                            .predicate
+                            .and_then(crate::validate::shared_clause_only)
+                            .is_some();
+                        if listed {
+                            write!(f, "{what} is too close to call: {source}")
+                        } else {
+                            write!(
+                                f,
+                                "{what} is too close to call: {source} — {}",
+                                geom_core::MissingRecourse(source.predicate)
+                            )
+                        }
+                    }
                 }
             }
             Self::Band(e) => write!(f, "the path's tolerance could not form a band: {e}"),
@@ -2206,36 +2218,66 @@ struct PosData<T: Real> {
     incoming: Option<Incoming<T>>,
 }
 
-/// **The carrier a fillet's run out rides** — its arrival side's: a
-/// ray for a straight arrival, a circle for a fused verb's authored
-/// arrival arc. A run out is a segment ON that carrier (N1's "two
-/// pieces on one carrier"), so only an emission of the same kind can
-/// be it; [`Core::run_out`] says why the kind is the whole test.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ArrivalCarrier {
-    /// A straight arrival: the run out is a straight segment.
-    Ray,
-    /// An authored arrival arc: the run out is an arc segment.
-    Circle,
+/// **What follows a fillet arc on its arrival side.**
+///
+/// A straight arrival's run out is drawn by whichever later step
+/// continues along the arrival ray, so it waits as a
+/// [`PendingRunOut`] and [`PendingRunOut::rides`] decides each
+/// candidate emission from its geometry (N1's "two pieces on one
+/// carrier"). A fused verb's authored arrival arc IS its run out, and
+/// the site that emits it claims it so ([`Core::claim`]) — a later
+/// binder step can be the one lowering it, and a geometric reading
+/// would stand between the arc and its name.
+#[derive(Clone, Copy, Debug)]
+enum ArrivalCarrier<T: Real> {
+    /// A straight arrival: the line through the arrival anchor along
+    /// the arrival direction — the tip's own departing ray, so a
+    /// straight continuation's miss is measured from the same point
+    /// along the same direction here as where it was accepted.
+    Ray { anchor: Point2<T>, dir: Dir<T> },
+    /// A fused verb's authored arrival arc, claimed at its emission.
+    AuthoredArc,
 }
 
 /// A fillet whose run out may be the next emission: the step that
-/// authored its radius, and the carrier the run rides.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct PendingRunOut {
+/// authored its radius, the arrival ray the run rides, and the
+/// tolerance witness the riding is decided under.
+#[derive(Clone, Copy, Debug)]
+struct PendingRunOut<T: Real> {
     /// The step the fillet's pieces are credited to.
     step: usize,
-    /// The arrival carrier.
-    carrier: ArrivalCarrier,
+    /// The arrival ray's anchor.
+    anchor: Point2<T>,
+    /// The arrival ray's direction.
+    dir: Dir<T>,
+    /// The witness of the resolution that emitted the fillet arc.
+    tol: Tol,
 }
 
-impl PendingRunOut {
-    /// Whether a segment of `kind` lies on this run's carrier.
-    fn rides(&self, kind: FirstSeg) -> bool {
-        matches!(
-            (self.carrier, kind),
-            (ArrivalCarrier::Ray, FirstSeg::Line) | (ArrivalCarrier::Circle, FirstSeg::Arc)
-        )
+impl<T: Decide> PendingRunOut<T> {
+    /// Whether the segment of `kind` from `from` to `to` lies on this
+    /// run's arrival ray, continuing it from the chain head `from`: a
+    /// straight segment whose end is on the ray's line (the lateral
+    /// miss `on_ray_extent` classifies, from the same anchor) and whose
+    /// advance from the head is definitely positive. An arc never
+    /// rides a ray.
+    ///
+    /// Every margin is decided under `path_run_out_carrier` and an
+    /// undecidable one escalates: a name is a durable locator, so a
+    /// guess would silently move it to another step's segment.
+    fn rides(&self, kind: FirstSeg, from: Point2<T>, to: Point2<T>) -> Result<bool, PathError<T>> {
+        if kind != FirstSeg::Line {
+            return Ok(false);
+        }
+        let band = linear_band(self.tol)?;
+        let on = |margin: Margin<T>| match decide("path_run_out_carrier", margin, band) {
+            Ok(sign) => Ok(sign),
+            Err(source) => Err(PathError::Escalated { source }),
+        };
+        if on(Margin::of(self.dir.unit.perp_dot(to - self.anchor)))? != Sign::Zero {
+            return Ok(false);
+        }
+        Ok(on(Margin::of(self.dir.unit.dot(to - from)))? == Sign::Positive)
     }
 }
 
@@ -2337,29 +2379,20 @@ pub struct Core<T: Real> {
     /// beside the spans ([`Core::finish`]).
     pieces: Vec<Option<crate::structure::Piece>>,
     /// The role the NEXT emission draws, where a fillet names it: its
-    /// run in or its arc. `None` is the default, the current step's
-    /// leg.
+    /// run in, its arc, or a fused verb's authored arrival arc as its
+    /// run out. `None` is the default, the current step's leg.
     claim: Option<crate::structure::Piece>,
     /// **A fillet whose run out may be the next segment**: set when a
-    /// fillet arc is emitted with something tangent following it, and
+    /// fillet arc is emitted with a straight arrival following it, and
     /// taken by the next emission, which is that run exactly when it
-    /// lies on the fillet's arrival carrier ([`PendingRunOut::rides`]).
+    /// lies on the fillet's arrival ray ([`PendingRunOut::rides`]). An
+    /// emission off that ray is not the run out, whatever its kind, and
+    /// is the piece of the step that draws it.
     ///
-    /// The segment's kind decides that, and only the kind, because of
-    /// where a run out can be emitted. A circle run out is emitted by
-    /// the same fused-verb resolution that emits the arc, immediately
-    /// after it, so the next emission is that run. A ray run out whose
-    /// arrival verb draws the next segment itself (`line_to`, the
-    /// far-end anchor, the straight close) is the same. One whose
-    /// arrival only binds the tip (`at`, `toward`, `angle`) leaves the
-    /// tip directed along the arrival ray, and every straight segment
-    /// the chain emits from a directed tip departs along that ray: a
-    /// leg, a `to` continuation, the continuation close, or the next
-    /// fillet's run in. Whatever else can follow it draws an arc on
-    /// another carrier — `tangent_arc_to`, a fused verb's incoming
-    /// arc, a fillet arc sprung off the tip — and that segment is its
-    /// own step's piece, never this fillet's.
-    run_out: Option<PendingRunOut>,
+    /// The lattice decides which emissions can follow; the naming reads
+    /// each candidate's geometry, so a verb the lattice admits later
+    /// names its segment correctly without this field changing.
+    run_out: Option<PendingRunOut<T>>,
     /// How this lowering treats the discrete decisions inside it:
     /// selecting freely and recording what it selected, or consuming a
     /// prior elaboration's selections and re-verifying each at this
@@ -2459,34 +2492,68 @@ impl<T: Real> Core<T> {
         self.start_pos = Some(p);
     }
 
-    /// Sets the bulge of the segment leaving the current last vertex —
-    /// exactly the raw builder's `set_leaving_bulge`, plus the
-    /// structural first-segment kind pin.
-    fn set_leaving(&mut self, bulge: T, kind: FirstSeg) -> Result<(), PathError<T>> {
+    /// Claims the next emission as `role` of the fillet bound at
+    /// `step`.
+    fn claim(&mut self, step: usize, role: crate::structure::PieceRole) {
+        self.claim = Some(crate::structure::Piece { step, role });
+    }
+
+    /// The chain's entry vertex — where a closing segment ends.
+    fn entry(&self) -> Result<Point2<T>, PathError<T>> {
+        self.verts
+            .first()
+            .map(|&(pos, _)| pos)
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "entry of an empty chain",
+            })
+    }
+}
+
+impl<T: Decide> Core<T> {
+    /// Sets the bulge of the segment leaving the current last vertex
+    /// for `to` — exactly the raw builder's `set_leaving_bulge`, plus
+    /// the structural first-segment kind pin. `to` is where the
+    /// segment ends: the vertex a push is about to append, or the
+    /// entry vertex a close returns to.
+    fn set_leaving(&mut self, bulge: T, kind: FirstSeg, to: Point2<T>) -> Result<(), PathError<T>> {
         if self.verts.len() == 1 && self.first_seg == FirstSeg::NotYet {
             self.first_seg = kind;
         }
-        match self.verts.last_mut() {
-            Some((_, leaving)) => {
+        let from = match self.verts.last_mut() {
+            Some((from, leaving)) => {
                 *leaving = bulge;
+                *from
             }
             None => {
                 return Err(PathError::UnderdeterminedLeg {
                     site: "set_leaving on an empty chain",
                 });
             }
-        }
-        self.attribute(self.verts.len() - 1, kind)
+        };
+        self.attribute(self.verts.len() - 1, kind, from, to)
+    }
+
+    /// Sets the bulge of the CLOSING segment, the one leaving the last
+    /// vertex for the entry vertex.
+    fn close_leaving(&mut self, bulge: T, kind: FirstSeg) -> Result<(), PathError<T>> {
+        let to = self.entry()?;
+        self.set_leaving(bulge, kind, to)
     }
 
     /// **Names the segment leaving vertex `segment`** as the piece it
     /// is (`crate::structure::Piece`): the fillet role a site claimed
     /// for it, or else the current step's leg — and a pending run out
     /// competes for it when the segment rides the fillet's arrival
-    /// carrier, since that segment is the fillet's run out whichever
-    /// step draws it. A segment named before (a closing segment re-set)
+    /// ray, since that segment is the fillet's run out whichever step
+    /// draws it. A segment named before (a closing segment re-set)
     /// keeps its earlier name where that one outranks.
-    fn attribute(&mut self, segment: usize, kind: FirstSeg) -> Result<(), PathError<T>> {
+    fn attribute(
+        &mut self,
+        segment: usize,
+        kind: FirstSeg,
+        from: Point2<T>,
+        to: Point2<T>,
+    ) -> Result<(), PathError<T>> {
         use crate::structure::{Piece, PieceRole};
         let claimed = self.claim.take();
         let mut best = match claimed {
@@ -2499,7 +2566,7 @@ impl<T: Real> Core<T> {
         let run_out = self.run_out.take();
         if best.role != PieceRole::Arc
             && let Some(run) = run_out
-            && run.rides(kind)
+            && run.rides(kind, from, to)?
         {
             let candidate = Piece {
                 step: run.step,
@@ -2521,15 +2588,9 @@ impl<T: Real> Core<T> {
         Ok(())
     }
 
-    /// Claims the next emission as `role` of the fillet bound at
-    /// `step`.
-    fn claim(&mut self, step: usize, role: crate::structure::PieceRole) {
-        self.claim = Some(crate::structure::Piece { step, role });
-    }
-
     /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
-        self.set_leaving(T::zero(), FirstSeg::Line)?;
+        self.set_leaving(T::zero(), FirstSeg::Line, p)?;
         self.verts.push((p, T::zero()));
         Ok(())
     }
@@ -2538,11 +2599,13 @@ impl<T: Real> Core<T> {
     /// `arc_to`). The carrier is not kept: the chain remembers nothing
     /// about an emitted arc beyond the tip's own incoming data.
     fn push_arc(&mut self, p: Point2<T>, bulge: T) -> Result<(), PathError<T>> {
-        self.set_leaving(bulge, FirstSeg::Arc)?;
+        self.set_leaving(bulge, FirstSeg::Arc, p)?;
         self.verts.push((p, T::zero()));
         Ok(())
     }
+}
 
+impl<T: Real> Core<T> {
     /// The current chain end.
     fn head(&self) -> Result<Point2<T>, PathError<T>> {
         self.verts
@@ -2650,10 +2713,12 @@ impl<T: Real> Core<T> {
         let radii = core::mem::take(&mut self.radii);
         let pieces = self.segment_pieces();
         let structure = self.take_structure();
+        let structure = structure.into_record(spans, radii, pieces);
+        structure.check_role_lists(&self.program);
         ClosedLoop {
             loop_: ProfileLoop::lower(&self.verts, self.tangent),
             program: self.program,
-            structure: structure.into_record(spans, radii, pieces),
+            structure,
         }
     }
 
@@ -2874,6 +2939,11 @@ fn seam_arrival_check<T: Decide>(
 /// a new tangent carrier constructed at the tip. Both outcomes are
 /// legal spellings, which is what deletes the old mismatched-r hole
 /// structurally: every authored `r` names a sound construction.
+///
+/// It compares two WHOLE circles. [`PendingRunOut::rides`] asks
+/// whether a segment lies on a circle, and measures its points'
+/// deviations instead: a circle rebuilt from a short chord carries
+/// ~ε·R²/chord in its centre.
 fn carriers_are_identical<T: Decide>(
     a: &ArcData<T>,
     b: &ArcData<T>,
@@ -2904,7 +2974,7 @@ fn arc_arm<T: Real>(carrier: &ArcData<T>, chord: T) -> T {
 /// and whose lever arm is the emitted segment's own length, measured
 /// head-to-end so a side squeezed between two trims measures from the
 /// trim point rather than from an authored anchor.
-fn emit_straight_leg<T: Real>(
+fn emit_straight_leg<T: Decide>(
     core: &mut Core<T>,
     at: Point2<T>,
     ang: Dir<T>,
@@ -2943,7 +3013,7 @@ fn emit_straight_leg<T: Real>(
 /// Tightening the per-leg band would not change the shape of this — any
 /// per-step tolerance composes — so the answer is the gate, which is
 /// already the design's answer for run-level facts.
-fn emit_straight_leg_at<T: Real>(
+fn emit_straight_leg_at<T: Decide>(
     core: &mut Core<T>,
     end: Point2<T>,
     ang: Dir<T>,
@@ -3228,13 +3298,17 @@ impl<T: Decide> Core<T> {
         };
         let trims = (arc.resolver)(self.guide_mut(), incoming, arrival, arc.radius, tol)?;
         self.emit_fillet_in(&trims, meta.extends_carrier, &meta)?;
+        let ray = ArrivalCarrier::Ray {
+            anchor: arr_pos,
+            dir: arr_ang,
+        };
         match kind {
             ArrivalKind::Seam => {
                 // The fillet arc IS the closing segment; the entry
                 // vertex retrims to its end and joint 0 is the
                 // constructed seam tangency (the straight seam's rule).
                 let leaving = self.record_fillet_arc(arc.radius, meta.bound_at)?;
-                self.set_leaving(trims.bulge, FirstSeg::Arc)?;
+                self.set_leaving(trims.bulge, FirstSeg::Arc, trims.t2)?;
                 debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
                     Some((v0, _)) => *v0 = trims.t2,
@@ -3247,11 +3321,11 @@ impl<T: Decide> Core<T> {
                 self.tangent.push(0);
             }
             ArrivalKind::Continues => {
-                self.emit_fillet_arc(&trims, Some(ArrivalCarrier::Ray), meta.bound_at)?;
+                self.emit_fillet_arc(&trims, Some(ray), meta.bound_at, tol)?;
             }
             ArrivalKind::EndsAtAnchor => {
-                let follows = (trims.fit_out == Sign::Positive).then_some(ArrivalCarrier::Ray);
-                self.emit_fillet_arc(&trims, follows, meta.bound_at)?;
+                let follows = (trims.fit_out == Sign::Positive).then_some(ray);
+                self.emit_fillet_arc(&trims, follows, meta.bound_at, tol)?;
             }
         }
         Ok((trims.arc, trims.fit_out))
@@ -3389,7 +3463,7 @@ impl<T: Decide> Core<T> {
         // the constructed seam tangency.
         let leaving = self.record_fillet_arc(pending.radius, meta.bound_at)?;
         if kind == ArrivalKind::Seam {
-            self.set_leaving(trims.bulge, FirstSeg::Arc)?;
+            self.set_leaving(trims.bulge, FirstSeg::Arc, trims.t2)?;
             match self.verts.first_mut() {
                 Some((v0, _)) => *v0 = trims.t2,
                 None => {
@@ -3414,7 +3488,9 @@ impl<T: Decide> Core<T> {
                 self.declare_last();
                 self.run_out = Some(PendingRunOut {
                     step: meta.bound_at,
-                    carrier: ArrivalCarrier::Ray,
+                    anchor: arr_pos,
+                    dir: arr_ang,
+                    tol,
                 });
             }
         }
@@ -3523,24 +3599,30 @@ impl<T: Decide> Core<T> {
 
     /// **G2**: emits the fillet arc itself as a chain segment, declaring
     /// its outgoing joint when something tangent actually follows it
-    /// (see [`ArrivalKind`]): `follows` is that something's carrier, the
-    /// arrival side's, and the next emission on it is the fillet's run
-    /// out ([`Core::run_out`]).
+    /// (see [`ArrivalKind`]): `follows` is that something. A ray's run
+    /// out is the next emission that rides it ([`Core::run_out`]),
+    /// decided under `tol`; an authored arrival arc is claimed by the
+    /// site that emits it.
     fn emit_fillet_arc(
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
-        follows: Option<ArrivalCarrier>,
+        follows: Option<ArrivalCarrier<T>>,
         bound_at: usize,
+        tol: Tol,
     ) -> Result<(), PathError<T>> {
         let leaving = self.record_fillet_arc(t.arc.radius, bound_at)?;
         self.push_arc(t.t2, t.bulge)?;
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if let Some(carrier) = follows {
             self.declare_last();
-            self.run_out = Some(PendingRunOut {
-                step: bound_at,
-                carrier,
-            });
+            if let ArrivalCarrier::Ray { anchor, dir } = carrier {
+                self.run_out = Some(PendingRunOut {
+                    step: bound_at,
+                    anchor,
+                    dir,
+                    tol,
+                });
+            }
         }
         Ok(())
     }
@@ -3715,13 +3797,13 @@ fn circle_kernel<T: Decide>(
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    Ok(ProfileLoop::lower(
-        &[
-            (Point2::new(center.x + radius, center.y), T::one()),
-            (Point2::new(center.x - radius, center.y), T::one()),
-        ],
-        Vec::new(),
-    ))
+    // One vertex per piece the role list admits a `circle`: the table
+    // is typed at `CIRCLE_PIECES`, so the two cannot disagree.
+    let semicircles: [(Point2<T>, T); crate::structure::CIRCLE_PIECES as usize] = [
+        (Point2::new(center.x + radius, center.y), T::one()),
+        (Point2::new(center.x - radius, center.y), T::one()),
+    ];
+    Ok(ProfileLoop::lower(&semicircles, Vec::new()))
 }
 
 /// The kernel behind the table's split-circle row: the lowered loop
@@ -3964,21 +4046,24 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// same fact `line(len)` gates on its authored length: a target
     /// behind the departure, or on top of it, is a leg of non-positive
     /// length ([`PathError::NonpositiveLeg`]), not a target that misses.
-    /// **Sibling measurement, cross-declared** (R1 S1): this and
-    /// [`tangent_arc_geom`](Self::tangent_arc_geom) compute the SAME
-    /// four lines — `d = target − at`, `along = û·d`, `across = û⊥·d`,
-    /// then a banded decision — under two different predicate keys, and
-    /// neither used to admit the other existed.
+    /// **Sibling measurement, cross-declared** (R1 S1): this,
+    /// [`tangent_arc_geom`](Self::tangent_arc_geom) and
+    /// [`PendingRunOut::rides`]'s ray arm compute the SAME displacement
+    /// — `d = target − at`, `across = û⊥·d` (and `along = û·d` here
+    /// and in the tangent arc; `rides` measures its advance from the
+    /// chain head instead, `û·(to − head)`), then a banded decision —
+    /// under three different predicate keys.
     ///
     /// They are kept separate deliberately rather than shared, because
     /// the keys are the point: this site classifies `across` as a
     /// declared target's MISS (`path_continuation_target_offset`, an
-    /// authored-data disagreement), while the tangent-arc site
-    /// classifies the same number as a degenerate-arc condition. The
-    /// funnel key is what tells a margin telemetry reader which question
-    /// was being answered, so collapsing them would lose the
-    /// distinction that makes the funnel worth having. What was missing
-    /// was the cross-reference, not the sharing.
+    /// authored-data disagreement), the tangent-arc site classifies the
+    /// same number as a degenerate-arc condition, and the run-out site
+    /// as which step an emitted segment is named for
+    /// (`path_run_out_carrier`). The funnel key is what tells a margin
+    /// telemetry reader which question was being answered, so
+    /// collapsing them would lose the distinction that makes the funnel
+    /// worth having.
     fn on_ray_extent(
         at: Point2<T>,
         ang: Dir<T>,
@@ -4144,7 +4229,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // construction — declaration BY construction, exactly as
         // `.tangent()` is, and the verify layer re-checks the flag.
         self.core.declare_last();
-        self.core.set_leaving(T::zero(), FirstSeg::Line)?;
+        self.core.close_leaving(T::zero(), FirstSeg::Line)?;
         self.core.build(tol)
     }
 }
@@ -4231,10 +4316,11 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// carrier is the incoming circle itself.
     ///
     /// **Sibling measurement, cross-declared** (R1 S1): the
-    /// `d`/`along`/`across`/decide opening here is the same four lines
-    /// [`on_ray_extent`](Self::on_ray_extent) computes, under a
-    /// different predicate key. See that function for why the two are
-    /// kept apart rather than shared.
+    /// `d`/`along`/`across`/decide opening here is the same
+    /// displacement [`on_ray_extent`](Self::on_ray_extent) and
+    /// [`PendingRunOut::rides`]'s ray arm compute, each under its own
+    /// predicate key. See `on_ray_extent` for why the three are kept
+    /// apart rather than shared.
     fn tangent_arc_geom(&self, p: Point2<T>, tol: Tol) -> Result<TangentArcGeom<T>, PathError<T>> {
         let (at, ang) = self.dep()?;
         let d = p - at;
@@ -4323,7 +4409,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 tol,
             )?;
         }
-        self.core.set_leaving(g.bulge, FirstSeg::Arc)?;
+        self.core.close_leaving(g.bulge, FirstSeg::Arc)?;
         self.core.build(tol)
     }
 }
@@ -4406,7 +4492,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 tol,
             )?;
         }
-        self.core.set_leaving(T::zero(), FirstSeg::Line)?;
+        self.core.close_leaving(T::zero(), FirstSeg::Line)?;
         self.core.build(tol)
     }
 
@@ -4578,7 +4664,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
                 tol,
             )?;
         }
-        self.core.set_leaving(bulge, FirstSeg::Arc)?;
+        self.core.close_leaving(bulge, FirstSeg::Arc)?;
         self.core.build(tol)
     }
 }
@@ -5417,6 +5503,59 @@ mod tests {
         // The ladder ran: a `while` whose first test failed would pass
         // every assertion above vacuously.
         assert!(rungs >= 30, "the magnitude ladder covered {rungs} rungs");
+    }
+
+    /// **A pending run out claims only an emission on its ray.** Step 0
+    /// is the fillet's, with its run out pending; step 1 draws one
+    /// segment from the fillet arc's end. On the ray that segment is
+    /// step 0's run out, since the earlier step outranks; off it — a
+    /// line elsewhere, a line backward, or an arc — it is step 1's own
+    /// leg.
+    ///
+    /// The lattice cannot reach the off-ray rows: it refuses every
+    /// straight emission from a directed tip that leaves the arrival
+    /// ray. So the state is built directly, which is the only way to
+    /// show the naming reads the geometry rather than the kind.
+    #[test]
+    fn a_pending_run_out_claims_only_an_emission_on_its_ray() {
+        use crate::structure::{Piece, PieceRole};
+        let tol = Tol::witness();
+        let head = Point2::new(1.0, 0.0);
+        let named = |to: Point2<f64>, bulge: f64| -> Piece {
+            let mut core = Core::<f64>::empty();
+            core.seed(Point2::new(0.0, -1.0));
+            core.record(Step::LineTo(Target::Point(head)));
+            core.push_line(head).expect("step 0's segment");
+            // The arrival ray: along +x through (0.5, 0).
+            core.run_out = Some(PendingRunOut {
+                step: 0,
+                anchor: Point2::new(0.5, 0.0),
+                dir: Dir::from_unit(Vec2::new(1.0, 0.0)),
+                tol,
+            });
+            core.record(Step::LineTo(Target::Point(to)));
+            if bulge == 0.0 {
+                core.push_line(to).expect("step 1's line");
+            } else {
+                core.push_arc(to, bulge).expect("step 1's arc");
+            }
+            core.pieces[1].expect("step 1's segment is named")
+        };
+        let run_out = Piece {
+            step: 0,
+            role: PieceRole::RunOut,
+        };
+        let own_leg = Piece {
+            step: 1,
+            role: PieceRole::Leg,
+        };
+        assert_eq!(named(Point2::new(3.0, 0.0), 0.0), run_out);
+        assert_eq!(named(Point2::new(3.0, 1.0), 0.0), own_leg);
+        // On the ray's line but behind the chain head: the ray is a
+        // half-line, and a segment leaving backward along it is not on it.
+        assert_eq!(named(Point2::new(0.0, 0.0), 0.0), own_leg);
+        // An arc never rides a ray, whatever its ends.
+        assert_eq!(named(Point2::new(3.0, 0.0), 0.3), own_leg);
     }
 }
 

@@ -25,7 +25,7 @@ Track H.
 
 ### S90. The blend seam's three doors still admit a dual
 
-- **Where**: `crates/sweep/src/blend/{build,battery,surgery}.rs` — `fillet_edges`, `run_battery` and `ring_clearance`, each still `T: Decide + Bounds` (`fillet_edges` with `+ PcurveFittedLane`). **The module was `sweep/src/fillet/` when this finding was raised**, and every citation below, #883's included, spells it that way.
+- **Where**: `crates/sweep/src/blend/{build,battery,surgery}.rs` — `fillet_edges`, `run_battery` and `ring_clearance`, each still `T: Decide + Bounds` (`fillet_edges` with `+ topo::AtRestPolicy`, where the fitted door is read). **The module was `sweep/src/fillet/` when this finding was raised**, and every citation below, #883's included, spells it that way.
 - **Confidence**: sure
 
 `Bounds` has a `Dual` impl since D1 and these are `pub` doors on an API-first kernel, so the seam is instantiable at a dual. What made that a finding was that the D1 ruling's three *smaller* residues each got a number (`ContentBits for Dual` → #687, the census box duplication → #700, the `Enclosure` gate gap → #701) and the one seam it left unguarded got prose. **Both halves of that premise have since moved**: the seam's written reason for needing no lane exists in one home — `real.rs`'s delegation rule (DUAL-DESIGN DL5), which `scripts/gates/bounds-allowlist.sh` points at rather than restating — and the ruled tightening is rowed as **`S90-impl` on Track M**, which carries #883. What stays open is the tightening itself, at these three doors.
@@ -38,7 +38,7 @@ Track H.
 
 **The choice this row turns on, kept because the ruling reads against it.** *"Harden this seam"* and *"keep duals out of this seam"* are the **same edit**: at plain `Interval` a caller hardens a `Decide + Bounds` seam by adding `CertifiedEnclosure`, but at `Dual<Interval>` that same upgrade **evicts**. So tightening is a decision, taken at the API, that the blend battery is not a differentiable surface. That is what *"at least for now"* hedges, and it is written out at S44's *"What this does NOT settle"* (carried at `H5`).
 
-**Building a `PropsQuadLane`-style refusing lane is very likely the wrong shape here**: #643 already ships the type-level mechanism (`CertifiedEnclosure` is implemented for exactly `f64`, `Interval`, `RingInterval` and `Probe`, never for `Dual`, with `CertifiedBounds` as the sole-bound spelling), so a seam that wants duals out needs **a bound that does not type-check**, not a runtime refusal. Two of the three remaining lane traits are already redundant for the guarantee and only their typed refusals are load-bearing — see `C7`/`H5`.
+**Building a `PropsQuadLane`-style refusing lane is very likely the wrong shape here**: #643 already ships the type-level mechanism (`CertifiedEnclosure` is implemented for exactly `f64`, `Interval` and `Probe`, never for `Dual`, with `CertifiedBounds` as the sole-bound spelling), so a seam that wants duals out needs **a bound that does not type-check**, not a runtime refusal. Two of the three remaining lane traits are already redundant for the guarantee and only their typed refusals are load-bearing — see `C7`/`H5`.
 
 ## Fence
 
@@ -56,3 +56,13 @@ three doors are `crates/sweep/src/blend/*`, CARVE's ground. What BLEND
 owed and did not deliver, now this row's first step: the per-read
 classification of the nineteen bracket reads, so that the day `H5`
 lands the tightening to `CertifiedBounds` is one PR.
+
+## Note from SCALAR (2026-09-29)
+
+The 2026-09-02 CERT-M3 re-read's reason (`fillet_edges` is `T: Decide + Bounds + PcurveFittedLane`, the lane trait that does not split) is moot: LANE-4 (PR #3194) folded that trait into the door value `FittedLane<T>`, which `AtRestPolicy::fitted_lane()` answers, so the bound is now `T: Decide + Bounds + topo::AtRestPolicy`; `Dual` implements all three, so the `E0277` blocker it records stands.
+
+The Finding's `CertifiedEnclosure` roster lost `RingInterval` when
+RING-3 (#3153) dissolved it into `Interval`. The roster's *"exactly"*
+also misses `Sym<T>` (`crates/geom-core/src/sym.rs`), which implements it
+only over a `T` that does, so `Sym<Dual>` is excluded too and the
+conclusion stands.

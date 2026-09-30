@@ -265,10 +265,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          surgery scope",
     ),
     (
-        "set_face_surface_and_sense",
-        "calls `set_face_surface`, which declares the postcondition, then writes one `bool`",
-    ),
-    (
         "set_edge_curve",
         "declares the tier-1 postcondition directly (a curve swap can orphan a key), on \
          `set_face_surface`'s terms",

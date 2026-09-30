@@ -21,6 +21,7 @@ pub mod appearance;
 pub mod assembly;
 pub mod checks;
 pub mod clearance;
+mod decision;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
@@ -33,7 +34,6 @@ pub mod eval;
 pub mod expr;
 mod finding;
 pub mod ident;
-pub(crate) mod lane;
 pub mod mate;
 /// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
 /// replay over samples drawn from the document's own distributions.
@@ -67,12 +67,15 @@ pub mod refactor;
 pub mod report;
 pub mod resolve;
 pub mod roots;
+pub mod sentence;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
 /// derivative and report services over [`mod@drive`]'s leaves. Every
 /// sensitivity carries a chamber mark whose certified variant IS an E6
 /// leaf identity, and the gating `worst_case` is a certified interval
 /// enclosure.
 pub mod stackup;
+pub mod step_handle;
+pub mod step_mint;
 // Test fixtures (the literals and the pick door); see the module's
 // docs. The gate is this crate's `test-support` feature, on only
 // through dev-dependency edges. `doc(hidden)` because the rustdoc gate
@@ -119,12 +122,14 @@ pub use edit::{
     MaintenanceNet, apply, apply_logged, cascade_delete_order,
 };
 pub use eval::{
-    Arity, BooleanValue, CancelToken, CanonicalSegment, ContentBits, ContentKey, DatumValue,
-    DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement,
-    NamingKey, NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, PartReach,
-    PiecesFault, ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind,
-    evaluate, mate_reach,
+    Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
+    EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault,
+    ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate,
+    mate_reach,
 };
+pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
 // than through the module path.
@@ -134,11 +139,10 @@ pub use expr::{
     eval_count, unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
-pub use lane::{BracketEnd, Lane};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission,
     ClusterMaintenance, Coset, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
-    MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, ReachRefusal, RefusingReach,
+    MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, PlacerRow, ReachRefusal, RefusingReach,
     SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of,
     reading_edges, relative_freedom_components, solve_document, table_gap,
 };
@@ -212,12 +216,17 @@ pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
+pub use step_handle::{
+    ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
+};
+pub use step_mint::StepMint;
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
 pub use bvh::Ray;
 pub use resolve::{
-    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
+    MeshPick, MeshPickError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo,
+    PickTarget, pick_face,
 };
 pub use roots::RootFault;
 pub use stackup::{

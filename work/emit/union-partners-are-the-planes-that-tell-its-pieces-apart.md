@@ -58,3 +58,24 @@ Related:
 - `work/emit/the-pair-boolean-sides-a-split-face-against-every-seam-neighbour.md`
   (on #3241's branch)
 - `work/emit/a-split-that-de-ties-tied-faces-swaps-their-names-under-an-edit-that-moves-the-split.md`
+
+## Reframed (2026-09-30)
+
+Ev read the aligned-feature case and questioned the semantics
+themselves: a feature should not influence geometry it doesn't touch,
+and "the whole system seems kind of fragile".
+
+A second designer pair took the underlying question: what should
+distinguish the pieces of a split face? Both designers independently
+recommended the same change. Replace `SideOf` for face pieces with the
+set of divider walls each piece actually borders (`Borders`). A divider
+is an obstacle that borders two or more pieces. The rule reads no plane
+and records no side.
+
+The only open difference between them is mechanism, not semantics:
+- one derives the obstacles from the boolean's discarded fragments,
+  recorded by the kernel;
+- the other walks piece loops and member-edge cells, with margined
+  geometry only for islands and pinch vertices.
+
+The `[ev]` PR carries both.

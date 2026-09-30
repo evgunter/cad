@@ -114,7 +114,10 @@ fn the_f64_seam_answers_every_public_door() {
     fresh
         .set_face_surface(
             cap,
-            FaceSurface::New(Surface::Nurbs(Arc::new(planar_patch(1.0)))),
+            FaceSurface::New {
+                surface: Surface::Nurbs(Arc::new(planar_patch(1.0))),
+                sense: true,
+            },
         )
         .expect("the cap takes a NURBS surface");
     match topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness()) {
@@ -126,7 +129,10 @@ fn the_f64_seam_answers_every_public_door() {
     single
         .set_face_surface(
             scap,
-            FaceSurface::New(Surface::Nurbs(Arc::new(planar_patch(1.0)))),
+            FaceSurface::New {
+                surface: Surface::Nurbs(Arc::new(planar_patch(1.0))),
+                sense: true,
+            },
         )
         .expect("the cap takes a NURBS surface");
     match topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness()) {
@@ -180,8 +186,14 @@ fn the_interval_seam_refuses_at_every_public_door() {
         })
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(lifted))))
-        .expect("the attach-layer door accepts a live face");
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(lifted)),
+            sense: true,
+        },
+    )
+    .expect("the attach-layer door accepts a live face");
 
     let contacts = topo::boolean::ContactRecords::default();
     for (door, r) in [
@@ -198,12 +210,13 @@ fn the_interval_seam_refuses_at_every_public_door() {
             panic!("{door}: the interval scalar has no fit, so the Approx face must be reported");
         };
         let found = errors.iter().find(
-            |e| matches!(e, topo::ValidationError::ApproxLaneUnsupported { face: f } if *f == face),
+            |e| matches!(e, topo::ValidationError::ApproxLaneUnsupported { face: f, scalar: "interval" } if *f == face),
         );
-        let found =
-            found.unwrap_or_else(|| panic!("{door}: the face must be reported: {errors:?}"));
+        let found = found.unwrap_or_else(|| {
+            panic!("{door}: the face must be reported, naming the interval scalar: {errors:?}")
+        });
         assert!(
-            found.to_string().contains("no re-derivation lane"),
+            found.to_string().contains("no offset-fit door"),
             "{door}: the text says which absence this is; got {found}"
         );
     }
@@ -213,8 +226,11 @@ fn the_interval_seam_refuses_at_every_public_door() {
         &Affine3::translation(v3(1.0, 0.0, 0.0)),
         Tol::witness(),
     ) {
-        Err(topo::TransformError::ApproxLaneUnsupported { lane }) => {
-            assert_eq!(lane, "interval", "the refusal names the scalar's own lane");
+        Err(topo::TransformError::ApproxLaneUnsupported { scalar }) => {
+            assert_eq!(
+                scalar, "interval",
+                "the refusal names the scalar the map ran at"
+            );
         }
         other => panic!("the map must refuse rather than carry the certificate: {other:?}"),
     }
@@ -253,11 +269,21 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
     let nurbs = planar_patch(1.0).map_scalar(Interval::from_f64);
-    body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(Arc::new(nurbs))))
-        .expect("the attach-layer door accepts a live face");
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(nurbs)),
+            sense: true,
+        },
+    )
+    .expect("the attach-layer door accepts a live face");
     match topo::replace_faces_offset(&mut body, &[face], iv(0.05), Tol::witness()) {
-        Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f }) => {
-            assert_eq!(f, face, "the refusal names the face it could not mint");
+        Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f, scalar }) => {
+            assert_eq!(
+                (f, scalar),
+                (face, "interval"),
+                "the refusal names the face it could not mint and the scalar"
+            );
         }
         other => panic!("the mint must refuse rather than fall back: {other:?}"),
     }
@@ -285,14 +311,19 @@ fn the_probe_seam_refuses_at_the_map_and_the_mint() {
 
     let mut body = topo::Body::<Probe>::new();
     let c = body
-        .mvfs(geom_core::Point3::new(
-            Probe::zero(),
-            Probe::zero(),
-            Probe::zero(),
-        ))
+        .mvfs(
+            geom_core::Point3::new(Probe::zero(), Probe::zero(), Probe::zero()),
+            true,
+        )
         .unwrap();
-    body.set_face_surface(c.face, FaceSurface::New(Surface::Approx(Arc::new(lifted))))
-        .unwrap();
+    body.set_face_surface(
+        c.face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(lifted)),
+            sense: true,
+        },
+    )
+    .unwrap();
 
     match topo::transform_rigid(
         &body,
@@ -303,8 +334,8 @@ fn the_probe_seam_refuses_at_the_map_and_the_mint() {
         )),
         Tol::witness(),
     ) {
-        Err(topo::TransformError::ApproxLaneUnsupported { lane }) => {
-            assert_eq!(lane, "telemetry probe");
+        Err(topo::TransformError::ApproxLaneUnsupported { scalar }) => {
+            assert_eq!(scalar, "telemetry probe");
         }
         other => panic!("the map must refuse at the probe: {other:?}"),
     }
@@ -312,17 +343,22 @@ fn the_probe_seam_refuses_at_the_map_and_the_mint() {
     let nurbs = planar_patch(1.0).map_scalar(Probe::from_f64);
     let mut b2 = topo::Body::<Probe>::new();
     let c2 = b2
-        .mvfs(geom_core::Point3::new(
-            Probe::zero(),
-            Probe::zero(),
-            Probe::zero(),
-        ))
+        .mvfs(
+            geom_core::Point3::new(Probe::zero(), Probe::zero(), Probe::zero()),
+            true,
+        )
         .unwrap();
-    b2.set_face_surface(c2.face, FaceSurface::New(Surface::Nurbs(Arc::new(nurbs))))
-        .unwrap();
+    b2.set_face_surface(
+        c2.face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(Arc::new(nurbs)),
+            sense: true,
+        },
+    )
+    .unwrap();
     match topo::replace_faces_offset(&mut b2, &[c2.face], Probe::from_f64(0.05), Tol::witness()) {
-        Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face }) => {
-            assert_eq!(face, c2.face);
+        Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face, scalar }) => {
+            assert_eq!((face, scalar), (c2.face, "telemetry probe"));
         }
         other => panic!("the mint must refuse at the probe: {other:?}"),
     }

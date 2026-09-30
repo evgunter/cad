@@ -813,8 +813,10 @@ pub enum ValidationError {
     /// face whose certificate nothing re-derived would make it exactly
     /// that.
     ApproxLaneUnsupported {
-        /// The face whose approximating surface has no lane.
+        /// The face whose approximating surface has no door.
         face: FaceKey,
+        /// The scalar the check ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
     },
     /// Tier 3: a face's torus violates D3's ring convention `R > r > 0`
     /// — a horn (`R == r`) or spindle (`R < r`) torus, whose axis
@@ -2827,11 +2829,13 @@ impl fmt::Display for ValidationError {
                      it approximates: {why}. {recourse}"
                 )
             }
-            Self::ApproxLaneUnsupported { .. } => write!(
+            Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,
-                "a face carries a fitted offset surface, and this scalar has no \
-                 re-derivation lane for its certificate. Recourse: check the body at f64, \
-                 the one scalar that re-derives it"
+                "a face carries a fitted offset surface, and the check at the {scalar} scalar \
+                 had no offset-fit door to re-derive its certificate with; only {holders} holds \
+                 that door (the fit is derived there alone). Recourse: check the body at \
+                 {holders}",
+                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::DegenerateTorus { verdict, .. } => write!(
                 f,
@@ -5244,7 +5248,10 @@ pub(crate) fn tier3_local_checks_marked<
                     }
                 }
                 None => {
-                    errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
+                    errors.push(ValidationError::ApproxLaneUnsupported {
+                        face: face_key,
+                        scalar: T::NAME,
+                    });
                 }
             },
             // Every analytic kind: its datums first, then its
@@ -5336,8 +5343,9 @@ pub(crate) fn tier3_local_checks_marked<
         };
         // Re-certification takes the lane the CALLER handed in, not one
         // read off the scalar. The bound that admits a scalar to this
-        // battery says nothing about the C9 ring the plane × NURBS
-        // certificate lives in, which is a right of its own. So a
+        // battery says nothing about the certification arithmetic (C9)
+        // the plane × NURBS certificate lives in, which is a right of
+        // its own. So a
         // caller that can name the certified lane supplies it and this
         // check runs whole; a caller that cannot makes no claim about
         // an M7-8 edge at all.
@@ -10393,7 +10401,7 @@ mod tests {
     ) -> (Body<f64>, FaceKey) {
         assert!(outer.len() >= 3 && ring.len() >= 3);
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(outer[0]).unwrap();
+        let seed = body.mvfs(outer[0], true).unwrap();
         let e0 = body
             .mev_line(
                 MevSite::Lone {
@@ -10728,9 +10736,13 @@ mod tests {
         );
         for (name, b) in [("nested", &body), ("inverted", &inverted)] {
             let mut c = b.clone();
+            let sense = c.get_face(face).unwrap().sense;
             c.set_face_surface(
                 face,
-                crate::FaceSurface::New(geom::Surface::nurbs_placeholder()),
+                crate::FaceSurface::New {
+                    surface: geom::Surface::nurbs_placeholder(),
+                    sense,
+                },
             )
             .unwrap();
             let got = nesting_words(&c, band, tol);
@@ -11967,10 +11979,9 @@ mod tests {
     /// battery can see the defect.
     ///
     /// Bit-identity: the honest body's report is unchanged by the S10
-    /// threading (planar sweeps mint `sense: true` throughout — S11
-    /// reverses only material-against-chart walls, none here — so the
-    /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
-    /// before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
+    /// threading (`plane_every_face` states `sense: true` on each plane
+    /// it grafts, so the multiply is `· +1`) — pinned here as
+    /// "no `LoopRoleInverted` before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
     /// grafted on; its twelve chords stay conventional, so the honest
     /// report is about those chords and nothing else. (The all-green
     /// variant of this row, on the fully certified cube, lives in
@@ -12057,7 +12068,7 @@ mod tests {
     #[test]
     fn tier_two_rejects_the_skeletal_mvfs_state() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         assert_eq!(validate(&body), Ok(()), "tier 1 accepts the seed state");
         // The lone vertex has valence 0, not 1, and the dartless
         // empty-outer face is one component — the empty loop is the
@@ -12075,7 +12086,7 @@ mod tests {
         // The segment body: BOTH endpoints have valence 1 (vertex-arena
         // order).
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12099,7 +12110,7 @@ mod tests {
         // A strut hanging off a CLOSED pillow: exactly the tip (the
         // base has valence 3).
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12142,7 +12153,7 @@ mod tests {
         // an empty ring's lone vertex (valence 0 — no strut report),
         // and the ring keeps the shell connected. One defect.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12188,7 +12199,7 @@ mod tests {
     /// tier-2 rule. Returns (body, shell).
     fn detached_digon_body() -> (Body<f64>, crate::entity::ShellKey) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -12228,7 +12239,7 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        body.mfkrh_plug(kill.ring).unwrap();
+        body.mfkrh_plug(kill.ring, true).unwrap();
         (body, seed.shell)
     }
 
@@ -12692,15 +12703,17 @@ mod offset_fit_door_rows {
         (errors, face)
     }
 
-    /// **No door: the face is REPORTED, not skipped**, with the variant
-    /// and the payload the absence has always had.
+    /// **No door: the face is REPORTED, not skipped**, naming the face
+    /// and the scalar the check ran at — here `f64`, the door's own
+    /// scalar, handed none.
     #[test]
     fn no_door_refuses_the_approx_face_by_name() {
         let (errors, face) = check1::<f64>(None);
         assert!(
-            errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
-            ),
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ApproxLaneUnsupported { face: f, scalar: "f64" } if *f == face
+            )),
             "check 1 must report the face it could not re-derive: {errors:?}"
         );
     }
@@ -12736,10 +12749,13 @@ mod offset_fit_door_rows {
             <geom_core::Probe as crate::props::AtRestPolicy>::offset_fit_lane(),
         );
         assert!(
-            errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
-            ),
-            "the probe scalar has no fit, so its face must report the absence: {errors:?}"
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::ApproxLaneUnsupported { face: f, scalar: "telemetry probe" }
+                    if *f == face
+            )),
+            "the probe scalar has no fit, so its face must report the absence, naming the \
+             probe: {errors:?}"
         );
     }
 
@@ -12762,7 +12778,7 @@ mod offset_fit_door_rows {
         );
         assert!(
             !errors.iter().any(
-                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f, .. } if *f == face)
             ),
             "the `f64` seam answers the door, so check 1 must re-derive rather than refuse: \
              {errors:?}"

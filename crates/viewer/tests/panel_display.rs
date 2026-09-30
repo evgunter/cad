@@ -15,8 +15,9 @@
 //! * changing the unit and changing the number are separate operations,
 //!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
 //! * and the ONE value field says the number without the unit, shows a
-//!   driven slot's source, and routes typed text to the door it means
-//!   (`field_text` / `field_edit`).
+//!   driven slot's value and opens its edit on the source, and routes
+//!   typed text to the door it means (`field_text` / `field_source` /
+//!   `field_edit`).
 //!
 //! The pixels are not tested here and are not the claim; what is
 //! claimed is that the panel is drawing from the right numbers.
@@ -503,10 +504,12 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
     assert_eq!(row.source.as_deref(), Some("8 mm"));
 }
 
-/// A DRIVEN slot shows what drives it. Nothing else could be shown:
-/// its number is a consequence, and the text is what an edit revises.
+/// **A DRIVEN slot's field shows the value its expression equals, and
+/// its edit opens on the source.** The value is bounded by its type
+/// and the source by nothing, and the field sits in a row that does
+/// not wrap; the source is what an edit revises.
 #[test]
-fn the_field_shows_a_driven_slots_source() {
+fn the_field_shows_a_driven_slots_value_and_edits_its_source() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -520,7 +523,27 @@ fn the_field_shows_a_driven_slots_source() {
         .into_iter()
         .find(|row| row.slot == SlotId::Distance)
         .expect("the distance row");
-    assert_eq!(props::field_text(&row), "thickness * 2.0 + 1 mm");
+    let value = row
+        .value
+        .as_ref()
+        .expect("the expression evaluates")
+        .as_f64();
+    let shown = props::field_text(&row);
+    assert_eq!(
+        shown,
+        format!(
+            "{} {}",
+            props::DRIVEN,
+            props::computed_text(Dimension::Length, value)
+        ),
+        "the field shows the value, in the canonical notation a driven row is written in"
+    );
+    assert!(shown.ends_with(" m"), "and names that notation: {shown}");
+    assert_eq!(
+        props::field_source(&row).as_deref(),
+        Some("thickness * 2.0 + 1 mm"),
+        "and its edit opens on the source"
+    );
     assert_eq!(row.source.as_deref(), Some("thickness * 2.0 + 1 mm"));
 }
 

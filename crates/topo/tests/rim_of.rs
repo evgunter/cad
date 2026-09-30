@@ -72,9 +72,15 @@ fn half_built() -> (Body<f64>, EdgeKey) {
     let tol = Tol::witness();
     let r = rim_r();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(r, 0.0, RIM_Z)).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let seed = body.mvfs(Point3::new(r, 0.0, RIM_Z), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let made = body
         .mev(
             MevSite::Lone {
@@ -106,7 +112,10 @@ fn capped() -> (Body<f64>, EdgeKey, EdgeKey) {
                 core::f64::consts::TAU,
             )
             .unwrap(),
-            FaceSurface::New(rim_plane()),
+            FaceSurface::New {
+                surface: rim_plane(),
+                sense: true,
+            },
             tol,
         )
         .unwrap();
@@ -197,9 +206,15 @@ fn a_chain_that_closes_leaving_matched_arcs_unused_refuses() {
         core::f64::consts::FRAC_PI_4,
         5.0 * core::f64::consts::FRAC_PI_4,
     );
-    let seed = body.mvfs(point_at(t2)).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::Shared(sphere))
-        .unwrap();
+    let seed = body.mvfs(point_at(t2), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::Shared {
+            key: sphere,
+            sense: true,
+        },
+    )
+    .unwrap();
     let c = body
         .mev(
             MevSite::Lone {
@@ -217,7 +232,10 @@ fn a_chain_that_closes_leaving_matched_arcs_unused_refuses() {
         .mef(
             MefSite::Chords { he1, he2 },
             EdgeCurveSpec::arc_of_circle(rim_circle(), t3, t2 + core::f64::consts::TAU).unwrap(),
-            FaceSurface::Shared(plane),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
             tol,
         )
         .unwrap()

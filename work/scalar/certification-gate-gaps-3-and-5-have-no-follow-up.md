@@ -2,10 +2,13 @@
 id: certification-gate-gaps-3-and-5-have-no-follow-up
 kind: issue
 title: the certification-doors gate's KNOWN GAPs 3 (a value handed to an unlisted helper) and 5 (macros, include!) are disclosed and unscheduled
-status: open
+status: closed
+branch: scalar/hygiene
+pr: 3449
 opened: 2026-09-24
+closed: 2026-09-29
 priority: P3
-cost: H
+cost: E
 ---
 
 ## Finding
@@ -34,3 +37,7 @@ nothing scheduled behind them (R2 style S8):
 
 Both are latent: no instance exists at `crates/*/src` today. The row is
 here so the gate's header is not the only place they are written.
+
+## Closed (2026-09-29) — PR 3449 (SCALAR-HYGIENE)
+
+Landed with the unit; the PR body says what was done for this row.

@@ -251,22 +251,26 @@ the 30-point ceiling, in two families and the class behind the second.
 **Wave 4 LANDED 2026-09-23** — PRs 3100, 3101 and 3108;
 `work/chrome/log.md` has the record.
 
-**After Wave 4 (19 points).** Next, in order:
-- `messages-in-the-creation-and-properties-panes-still-draw-past-their-row`
-  (P0), `create.rs` half. It waits only on AUTH-4 (#3052) leaving
-  `pane/create.rs`. `add_part_ui`'s window owes a `default_width`.
-- The concision row (P0) closes when its named check can be made: the
-  unowned `props.rs` and `certify.rs` residue.
-- `at-rest-badge-reports-an-empty-document-as-a-refusal` and the
-  subset-policy class, once `session.rs` and `session/refuse.rs` leave
-  the live PRs.
+**Waves 5 and 6 LANDED 2026-09-29**: PRs 3135, 3140, 3447, 3450 and
+3457. Both P0 rows are closed, and `work/chrome/log.md` has the
+record.
 
-**Held back, and why.**
-`at-rest-badge-reports-an-empty-document-as-a-refusal` is the next row
-and did not go this wave: its whole subject is `session.rs`, which is
-live in two open PRs. That is the same reason it was held last wave, and
-it is a scheduling fact, not a fence — it goes the moment 3052 and 2960
-land.
+**Waves 7 and 8 LANDED 2026-09-29**: PRs 3475, 3477, 3478, 3486 and 3487. No non-design row is dispatchable, and `work/chrome/log.md` has the record.
+
+**Next is the designer pass on the design forks below.** Nothing else is dispatchable.
+
+**On Ev:**
+- `a-long-cascades-maintenance-crowds-the-status-line`: options (a)–(d) were asked in chat.
+- `cluster-maintenance-acts-reach-the-outcome-but-not-the-line`: worded or silent.
+
+**Design forks, each needing the designer pass (`docs/prompts/designer.md`) before dispatch:**
+- `kernel-refusals-say-node-where-the-tree-says-feature`
+- `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`
+- `failed-row-repair-links-for-arms-with-two-candidate-repairs`
+- `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`
+- `a-computed-slots-value-reads-in-metres-and-radians`
+- `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text`
+- `chrome-weight-is-outside-the-palette` (its first decision is a theme-contract question)
 
 **The board's in-flight column is a claim, not a fact** — see
 `work/chrome/log.md`, 2026-09-22. A row is marked `dispatched` here only

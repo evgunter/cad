@@ -234,10 +234,16 @@ fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Surfac
         u_ref,
     };
     let key = body
-        .set_face_surface(group[0], topo::FaceSurface::New(surface.clone()))
+        .set_face_surface(
+            group[0],
+            topo::FaceSurface::New {
+                surface: surface.clone(),
+                sense: true,
+            },
+        )
         .expect("re-anchor");
     for &f in &group[1..] {
-        body.set_face_surface(f, topo::FaceSurface::Shared(key))
+        body.set_face_surface(f, topo::FaceSurface::Shared { key, sense: true })
             .expect("share");
     }
     surface

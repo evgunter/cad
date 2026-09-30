@@ -25,8 +25,8 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
-    GeomPred, NamePat, Node, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal,
-    Selector, SurfaceKindSet, evaluate, select, select_where,
+    GeomPred, NamePat, Node, NodeStanding, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
+    SelectRefusal, Selector, SurfaceKindSet, evaluate, select, select_where,
 };
 use geom_brep::SurfaceKind;
 
@@ -440,7 +440,8 @@ fn a_non_datum_reference_refuses() {
         }
         other => panic!("expected NotADatum, got {other:?}"),
     }
-    // An unevaluated node id, same door.
+    // An unevaluated node id, same door: a node with no value is its
+    // own refusal, carrying the standing rather than a word for it.
     let ghost = at(RecipeNodeId(9999), Cmp::Approx, 0.0);
     assert!(matches!(
         select_where(
@@ -451,7 +452,11 @@ fn a_non_datum_reference_refuses() {
             &no_params(),
             Tol::witness()
         ),
-        Err(SelectRefusal::NotADatum { .. })
+        Err(SelectRefusal::DatumHasNoValue(
+            NodeStanding::NotInDocument {
+                node: RecipeNodeId(9999)
+            }
+        ))
     ));
 }
 

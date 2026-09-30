@@ -158,11 +158,14 @@ fn intrinsic_seam_at(
     let plane = body
         .set_face_surface(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -scale, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -scale, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("the exactly-planar wall restates as a plane");
     let (s1, s2) = if swap { (bowed, plane) } else { (plane, bowed) };
@@ -409,8 +412,14 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .faces()
         .find(|(_, f)| f.surface == old)
         .expect("the bowed wall has a face");
-    body.set_face_surface(fk, FaceSurface::New(new))
-        .expect("the wall takes its restated chart")
+    body.set_face_surface(
+        fk,
+        FaceSurface::New {
+            surface: new,
+            sense: true,
+        },
+    )
+    .expect("the wall takes its restated chart")
 }
 
 /// The scale this row's prism is built at, and why it is not 1.
@@ -528,7 +537,6 @@ fn an_interior_column_intersection_mints_a_general_image() {
         window,
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
-        <f64 as topo::AtRestPolicy>::scalar_name(),
     )
     .expect("the interior column's image certifies against its operand pair");
     let cert = cache.certificate();

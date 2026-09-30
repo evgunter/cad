@@ -135,10 +135,11 @@ pub struct EvalRequest {
     pub tol: Tol,
     /// The document seam this run resolves `InstantiatePart` nodes
     /// through — the session's workspace over the opened file's own
-    /// directory, or `None` for a document with no backing file, in
-    /// which case every instantiate node refuses typed (the shipped
-    /// no-resolver semantics, rendered as the tree's badges). Shared
-    /// by `Arc` so the worker holds a handle, not a copy of the store.
+    /// directory, or [`crate::docio::NoFile`] for a document with no
+    /// backing file, whose refusal renders as the tree's badges. `None`
+    /// refuses every instantiate node with the kernel's no-resolver
+    /// semantics. Shared by `Arc` so the worker holds a handle, not a
+    /// copy of the store.
     pub resolver: Option<Arc<dyn PartResolver>>,
 }
 

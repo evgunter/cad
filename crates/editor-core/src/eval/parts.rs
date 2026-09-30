@@ -41,6 +41,7 @@ use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
+use crate::sentence::{PASS_A_RESOLVER, Recourse, Staged};
 use geom_core::Tol;
 
 /// Pure runaway insurance: the depth at which instantiation gives up,
@@ -118,23 +119,52 @@ pub enum PartFault {
     /// failed — the ordinary "my part is broken, why?" path.
     ///
     /// The nested [`super::Evaluation`] dies with the resolution that
-    /// produced it, so a caller can never be sent to look at it. The
-    /// cause therefore travels: `cause` when the failing root was
-    /// itself an instantiate node (the fault CHAINS, typed, however
-    /// many documents deep the real reason lies — a nesting-depth
-    /// refusal at the bottom of a cycle arrives here intact), and
-    /// `message` otherwise, carrying that node error's own rendering.
+    /// produced it, so a caller can never be sent to look at it: the
+    /// root's own refusal travels here instead, typed and unaltered. A
+    /// root that is itself an instantiate node carries
+    /// [`super::NodeErrorKind::Part`] in turn, so a part inside a part
+    /// is a chain of these however many documents deep, and every
+    /// level keeps the reference it crossed.
+    ///
+    /// The sentence is the instance's own and never renders `refusal`:
+    /// that is another node's refusal, in another document, with its
+    /// own recourse, and it is drawn as its own line (the exception
+    /// written over [`super::NodeErrorKind`]'s `Display`).
     PartRootFailed {
         /// The failing root, in the REFERENCED document's id space.
         node: RecipeNodeId,
-        /// The seam fault that root reported, when it had one.
-        cause: Option<Box<PartFault>>,
-        /// Otherwise the failing node error's rendering, kind included.
-        message: String,
+        /// That root's own refusal.
+        refusal: super::NodeRefusal,
+    },
+    /// The referenced document evaluated, but one of its PRODUCT ROOTS
+    /// never ran: a node upstream of it inside the part failed. The
+    /// part's typical broken shape — a transform or a boolean over the
+    /// node that failed.
+    ///
+    /// `through` is the node the author repairs, so its refusal is the
+    /// one carried, as [`Self::PartRootFailed`] carries a failed
+    /// root's; `root` says which of the part's roots it cost.
+    PartRootPoisoned {
+        /// The poisoned root, in the REFERENCED document's id space.
+        root: RecipeNodeId,
+        /// Its nearest failed ancestor, in the same id space.
+        through: RecipeNodeId,
+        /// That ancestor's own refusal.
+        refusal: super::NodeRefusal,
+    },
+    /// The product door named a node as failed — a failed root, or a
+    /// poisoned root's failed ancestor — and the evaluation it read
+    /// holds no failure there. The two disagree about one node, so this
+    /// is a kernel bug, reported typed rather than as a failure with no
+    /// cause.
+    RootFailureUnrecorded {
+        /// The node the product door named as failed, in the
+        /// REFERENCED document's id space.
+        node: RecipeNodeId,
     },
     /// The referenced document has no product for a reason that is not
-    /// a failing root (no body-denoting root, an invalid gather, a
-    /// name collision).
+    /// a failed or poisoned root (no body-denoting root, an invalid
+    /// gather, a name collision).
     ///
     /// The refusal crosses in both halves, the
     /// [`crate::checks::ChecksError::Product`] shape: `kind` is the
@@ -145,7 +175,9 @@ pub enum PartFault {
     PartProduct {
         /// Which arm of the product door refused.
         kind: crate::product::ProductErrorKind,
-        /// The product door's diagnosis.
+        /// The product door's diagnosis without the gather's labels
+        /// (its stage word, and the `root N output M` subject of a
+        /// listed finding): this sentence names the stage itself.
         message: String,
     },
     /// The reference CHAIN returned to a document it had already
@@ -154,7 +186,8 @@ pub enum PartFault {
     ///
     /// A4 makes this unconstructible through an honest store (a
     /// document would have to contain its own hash), so the fault names
-    /// a broken RESOLVER or a hand-built cycle. It carries the loop
+    /// a resolver that checks no pins. Every shipped resolver checks
+    /// them, so it renders as a kernel defect. It carries the loop
     /// itself, first repeated reference through last, because the loop
     /// is the diagnosis.
     ReferenceCycle {
@@ -166,14 +199,44 @@ pub enum PartFault {
     DepthExceeded,
 }
 
+impl PartFault {
+    /// **The refusal this fault carries, when it carries one**: a
+    /// failed root, or a poisoned root's failed ancestor, and that
+    /// node's own refusal, in the referenced document's id space ([`super::NodeErrorKind::carried`]). Exhaustive, for the
+    /// reason [`crate::MateFault::carried`] states.
+    #[must_use]
+    pub fn carried(&self) -> Option<(RecipeNodeId, &super::NodeRefusal)> {
+        match self {
+            Self::PartRootFailed { node, refusal } => Some((*node, refusal)),
+            Self::PartRootPoisoned {
+                through, refusal, ..
+            } => Some((*through, refusal)),
+            Self::NoResolver
+            | Self::Unresolved { .. }
+            | Self::RootFailureUnrecorded { .. }
+            | Self::PartProduct { .. }
+            | Self::ReferenceCycle { .. }
+            | Self::DepthExceeded => None,
+        }
+    }
+}
+
 impl core::fmt::Display for PartFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // Raised only at an API door, each of which takes a
+            // resolver; the viewer always carries one of its own.
             Self::NoResolver => write!(
                 f,
-                "this evaluation carries no part resolver, so a referenced document cannot be \
-                 reached"
+                "no part resolver was given, so a referenced document cannot be reached. {}",
+                Recourse(PASS_A_RESOLVER)
             ),
+            // The resolver knows what went wrong in its store, so its
+            // message states the recourse of a pin or a lookup. The ε
+            // seam's is the same whatever the store: a document keeps
+            // the ε it was written at, a process holds one, and the
+            // recorded-ε edit moves a part onto another while it keeps
+            // its id, whether that was minted or derived.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
                     write!(f, "the reference's pin does not hold: {message}")
@@ -181,27 +244,48 @@ impl core::fmt::Display for PartFault {
                 ResolveFault::EpsilonSeam => write!(
                     f,
                     "the referenced document's recorded tolerance disagrees with this process's: \
-                     {message}"
+                     {message}. {}",
+                    Recourse(
+                        "open the part in a process at its own tolerance, record the edit that \
+                         sets this process's tolerance, save it over its file, then accept its \
+                         updated version here"
+                    )
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
-            Self::PartRootFailed {
-                node,
-                cause,
-                message,
-            } => {
-                write!(
-                    f,
-                    "the referenced document's product root {} failed: ",
+            Self::PartRootFailed { node, .. } => write!(
+                f,
+                "the part's node {} failed, so the part has no body. {}",
+                node.0,
+                InThePart(format_args!("repair node {}", node.0)),
+            ),
+            Self::PartRootPoisoned { root, through, .. } => write!(
+                f,
+                "the part's node {} failed and poisoned its root, node {}, so the part has \
+                 no body. {}",
+                through.0,
+                root.0,
+                InThePart(format_args!("repair node {}", through.0)),
+            ),
+            Self::RootFailureUnrecorded { node } => write!(
+                f,
+                "the part's product names its node {} as failed and the part's evaluation holds \
+                 no failure there; the two disagree, so this is a kernel bug. {}",
+                node.0,
+                InThePart(format_args!(
+                    "see node {} as it evaluates, then report it with the part's file",
                     node.0
-                )?;
-                match cause {
-                    Some(cause) => write!(f, "{cause}"),
-                    None => write!(f, "{message}"),
+                )),
+            ),
+            Self::PartProduct { kind, message } => {
+                write!(f, "the part has no product: {message}")?;
+                match product_recourse(*kind) {
+                    ProductRecourse::InThePart(action) => write!(f, ". {}", InThePart(action)),
+                    ProductRecourse::KernelDefect => {
+                        write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
+                    }
+                    ProductRecourse::Carried => Ok(()),
                 }
-            }
-            Self::PartProduct { message, .. } => {
-                write!(f, "the referenced document has no product: {message}")
             }
             Self::ReferenceCycle { cycle } => {
                 write!(
@@ -214,14 +298,64 @@ impl core::fmt::Display for PartFault {
                     }
                     write!(f, "{r}")?;
                 }
-                Ok(())
+                // A pin is its document's hash, so a store that checks
+                // pins cannot hold a loop: every door resolves through
+                // one, and a loop is a resolver's defect.
+                write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::DepthExceeded => write!(
                 f,
                 "instantiation nested deeper than {MAX_DEPTH} documents without repeating a \
-                 reference"
+                 reference. {}",
+                Recourse("flatten the assembly so its parts nest fewer documents deep")
             ),
         }
+    }
+}
+
+/// The recourse of a repair the author makes inside the part: open it,
+/// and act there.
+struct InThePart<A>(A);
+
+impl<A: core::fmt::Display> core::fmt::Display for InThePart<A> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}",
+            Recourse(format_args!("open the part and {}", self.0))
+        )
+    }
+}
+
+/// What a part with no product states after the gather's own sentence.
+enum ProductRecourse {
+    /// The repair is in the part, and the gather's sentence does not
+    /// say what it is.
+    InThePart(&'static str),
+    /// The gather's sentence already states the one recourse: its own,
+    /// or the kernel refusal it forwards.
+    Carried,
+    /// A class a nested evaluation cannot reach.
+    KernelDefect,
+}
+
+/// [`ProductRecourse`] by the gather's class. A nested evaluation runs
+/// its own document to completion, and the failed and poisoned roots
+/// cross as their own arms, so the classes it cannot reach end in the
+/// kernel-defect recourse.
+fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
+    use crate::product::ProductErrorKind as K;
+    match kind {
+        K::NoBodyRoots => ProductRecourse::InThePart("give it a root that denotes a body"),
+        K::Naming => ProductRecourse::InThePart("repair it there"),
+        K::PlacedUnderTwoRoots | K::Graft | K::RootInvalid | K::ProductInvalid => {
+            ProductRecourse::Carried
+        }
+        K::ContactLineage
+        | K::EvaluationOfAnotherDocument
+        | K::UnknownNode
+        | K::RootFailed
+        | K::RootPoisoned => ProductRecourse::KernelDefect,
     }
 }
 
@@ -385,16 +519,18 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             .fetch_add(evaluation.part_evaluations, Ordering::Relaxed);
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
-        // through the product door's own typed refusal — and its cause
-        // travels with it, because the evaluation holding that cause
+        // through the product door's own typed refusal — and its
+        // refusal travels with it, because the evaluation holding it
         // does not outlive this call.
         // A part is its PRODUCT, however many solids that product
         // holds. The count is not consulted here at all — the
         // placing path maps all N as one body and the gather grafts
         // them as N, so a narrower rule at this door would be a second
         // truth about what instantiating a document means.
-        let product = crate::product::product_recorded(&doc, &evaluation, tol)
-            .map_err(|e| product_fault(&e, &evaluation))?;
+        let product = match crate::product::product_recorded(&doc, &evaluation, tol) {
+            Ok(product) => product,
+            Err(e) => return Err(product_fault(&e, evaluation)),
+        };
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
@@ -413,44 +549,42 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
 }
 
 /// Turns the referenced document's product refusal into a fault that
-/// still NAMES its cause (review MAJOR-1).
+/// still NAMES its cause.
 ///
-/// A `RootFailed` refusal's own text points at
-/// `Evaluation::node_error` — an object the caller cannot reach, since
-/// the nested evaluation is local to the resolution. So the cause is
-/// read here, while it still exists: typed and chained when the
-/// failing root was itself an instantiate node, rendered otherwise.
+/// A failed root, and a poisoned root's failed ancestor, hold their
+/// refusal in the nested evaluation, which is local to the resolution
+/// and cannot be reached from the caller. So the evaluation is taken
+/// here by value and the failure is moved out of it: the fault carries
+/// the very refusal the part's evaluation raised, a seam fault any
+/// number of documents down included.
 ///
 /// Every OTHER refusal crosses as its class beside its sentence, both
 /// read off the one error — the pairing
 /// [`PartFault::PartProduct`] states.
 fn product_fault<T: Decide>(
     error: &crate::product::ProductError,
-    evaluation: &super::Evaluation<T>,
+    mut evaluation: super::Evaluation<T>,
 ) -> PartFault {
-    let crate::product::ProductError::RootFailed { node } = error else {
-        return PartFault::PartProduct {
+    use super::NodeStanding;
+    let mut refusal_at = |failed: RecipeNodeId| match evaluation.nodes.remove(&failed) {
+        Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
+        _ => Err(PartFault::RootFailureUnrecorded { node: failed }),
+    };
+    let carried = match *error {
+        crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
+            refusal_at(node).map(|refusal| PartFault::PartRootFailed { node, refusal })
+        }
+        crate::product::ProductError::Root(NodeStanding::Poisoned { node, through }) => {
+            refusal_at(through).map(|refusal| PartFault::PartRootPoisoned {
+                root: node,
+                through,
+                refusal,
+            })
+        }
+        _ => Ok(PartFault::PartProduct {
             kind: error.kind(),
-            message: error.to_string(),
-        };
+            message: error.sentence().to_string(),
+        }),
     };
-    let Some(failure) = evaluation.node_error(*node) else {
-        return PartFault::PartRootFailed {
-            node: *node,
-            cause: None,
-            message: "the evaluation records no cause for it".to_string(),
-        };
-    };
-    // A nested seam fault chains VERBATIM: a depth refusal, a pin
-    // mismatch or an ε disagreement any number of documents down
-    // arrives at the top typed, not as prose about prose.
-    let cause = match &failure.kind {
-        super::NodeErrorKind::Part { fault, .. } => Some(Box::new(fault.clone())),
-        _ => None,
-    };
-    PartFault::PartRootFailed {
-        node: *node,
-        cause,
-        message: failure.kind.to_string(),
-    }
+    carried.unwrap_or_else(|unrecorded| unrecorded)
 }

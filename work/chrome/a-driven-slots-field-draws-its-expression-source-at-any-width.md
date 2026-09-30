@@ -2,10 +2,13 @@
 id: a-driven-slots-field-draws-its-expression-source-at-any-width
 kind: issue
 title: viewer: a driven slot's value field shows the expression's source as its text, which nothing bounds, inside a non-wrapping row
-status: open
+status: closed
 opened: 2026-09-23
+closed: 2026-09-29
+pr: 3478
+branch: chrome/slot-width
 priority: P2
-cost: D
+cost: M
 refs: [messages-in-the-creation-and-properties-panes-still-draw-past-their-row]
 ---
 
@@ -50,3 +53,12 @@ row — the ruling's second half (Ev, 2026-09-22, carried on
 a sentence-length text in a row is a finding about the layout. The
 affordance under the row (`slot_notes`) already quotes the parameters
 the expression reads.
+
+## Closed
+
+PR 3478: a driven slot's field shows `= value` (`props::field_text`),
+its source is said whole under the row as `label = source`
+(`slot_notes`), and the field's keyboard edit opens on the source
+(`props::field_source`, `widgets::seed_edit`). The open edit and a
+held draft are still as wide as their text:
+`a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text`.

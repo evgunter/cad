@@ -99,7 +99,7 @@ fn near_collapse_weights_never_escape_the_hull() {
             let domain = pair.domain_hull_rational();
             assert!(
                 domain.is_certified(),
-                "positive weights must not poison — {}",
+                "positive weights must not refuse — {}",
                 fuzz::replay()
             );
             for index in kv.first_span()..=kv.last_span() {
@@ -185,7 +185,7 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
             for (i, q) in qs.iter().enumerate() {
                 assert!(
                     q.is_certified(),
-                    "degree {degree}, i {i}: poisoned — {}",
+                    "degree {degree}, i {i}: refused — {}",
                     fuzz::replay()
                 );
                 let du = u64ths[i + degree + 1] - u64ths[i + 1];
