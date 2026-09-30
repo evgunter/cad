@@ -4634,3 +4634,43 @@ target. It tests:
 - whether the bypass door leaks outside test builds, and whether its
   fixtures could be coherent;
 - whether the callers' output bodies are unchanged.
+
+## PR 3570's fix pass delivered; main's latent ε-row red fixed as PR 3590 (2026-09-30)
+
+The fix pass took 401,679 tokens, 176 tools and 6,078 s.
+
+**What it did:**
+- **MAJOR.** Filed as `kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove`
+  (P2, `design: true`), with the three witnesses and both shapes. The
+  title and claim are scoped.
+- **The census row.** It reads `validate::tier1`'s `Dangling*` and
+  `Stale*` constructions (19 relations), and each is either read by a
+  kill helper or filed. A new relation or variant reds it.
+- **One pair check.** `require_halves` is O(1) and runs first; the
+  stray scan runs last, `kemr` included. A torn slot is now
+  `NotSameEdge`.
+  - Two rows were re-baselined, `OrbitBroken` and `LoopCycleBroken` →
+    `NotSameEdge`.
+  - The segment-merges-a-fan arm is now unreachable and unpinned. It
+    is kept as a contract, and the lane says so.
+- **Claims and rows.** The over-refusal claim is corrected (20,883
+  torn mate `edge` fields refused), and the ending row's text updated.
+- **Mutants.** R03, R05 and R06 have deterministic rows; all 20 red.
+- **Style.** One home each for `starts_at_besides` and
+  `empty_at_besides`; `Clearing` is now `{removed, edited}`; one ring
+  helper for all four `mekr` sites.
+
+**The orchestrator read** the fix commit `7b32f0a20f` and accepted it.
+The four rows close on the branch at `605fa59524`.
+
+**CI was red, and not this PR's.**
+`viewer::sketch::tests::a_last_leg_no_close_can_follow_is_walked_back`,
+from AUTH-13 on main, fails at ε 1e-6 and 1e-12.
+- Its `banded` and `banded_short` legs place in-band offsets at
+  literals (1e-9, 4e-10) that sit in the band only at the default ε,
+  while `previewed` reads `Tol::witness()`. Each leg reds on its own.
+- No fix existed. I opened PR 3590: both offsets read
+  `Tol::witness().eps()` (1ε, 0.4ε). It passes locally at all three ε,
+  fmt and gates are clean, and the seam note is on author's log.
+- I ported it into PR 3570 by merging the branch (`08e65af424`). Merge
+  both after CI.
