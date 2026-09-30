@@ -3074,3 +3074,40 @@ The refusal rows it left get their priority and cost:
 
 The last two overlap, and they could go out as one unit when their
 turn comes.
+
+## PR 3495's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of `984122b9d8` took 326,224 tokens, 158 tools
+and 1 h 59 m (harness); archived privately.
+
+**Every claim held, by execution:**
+- red-first at the real base (seven counterexamples, `Ok` with the
+  anchor off, or the dev panic);
+- 558k anchor-proof calls across five crates' suites, whose only
+  refusals came from the new rows;
+- 3,510 valid kills with a byte-identical `Debug` at base and head;
+- 6k two-fault plants, all in the documented order and deep-unchanged;
+- the probe columns reproduced exactly.
+
+The PR also closes a `ParentLoopForeign` class it never measured: at
+base that was 43k / 922 / 84k.
+
+**Findings, all accepted:**
+- **MINOR-1/2:** two mutants survive, M12 (a killed `first`) and M14
+  (the one-loop check restricted to Mirror). Each hides a case the
+  reviewer constructed: 751 `kev` `Ok`s, and a strut case through the
+  public `kev_describing` with chords.
+- **Brief correction:** the corrupting public door at base is
+  `kev_describing` with chord re-descriptions, and the rows do not
+  drive it.
+- **MINOR-3:** a class the unit left open, the `Empty`/`None` pairing.
+  An `Empty` vertex can already be another `Empty` loop's, and a
+  `None` write can orphan its vertex. The reviewer built S8, S9 and
+  S11; S11 belongs to the mate-edge row.
+- **NOTE-3:** the probe's zero-assertion sits in an `#[ignore]` row CI
+  never runs. A cheap non-ignored slice replaces it.
+- **Also:** stale docs, three PR-body claims, `kef`'s twice-matched
+  splice arm, `KevPlan`'s two fields for one decision, and the
+  segment rule carried by an empty slice.
+
+The fix pass runs on the warm target.
