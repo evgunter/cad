@@ -1436,8 +1436,10 @@ type AnchorRows = [[usize; 5]; 3];
 type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 
 /// The kill anchors' tear measurement under one tear kind: for each
-/// seed, one and two tears on every [`FIXTURES`] body and the genus-2
-/// body and the holed box, then at every half-edge `kef`, `kemr` (the
+/// seed, one and two tears on every [`FIXTURES`] body, the genus-2 body,
+/// the holed box, and a segment and a circle each beside a lone vertex
+/// (another loop's `Empty` vertex for a torn start to land on), then
+/// at every half-edge `kef`, `kemr` (the
 /// mate pair) and `kev` ([`kev_either_door`]), each on a clone. An `Ok`
 /// counts in a fault column where it leaves a [`kill_anchor_faults`]
 /// fault the tear did not plant, which is one the kill wrote. Each kill
@@ -1447,12 +1449,32 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
     use test_utils::fuzz::Rng;
     let tol = Tol::witness();
-    let bodies: [(&str, BuildFixture); 5] = [
+    let bodies: [(&str, BuildFixture); 7] = [
         FIXTURES[0],
         FIXTURES[1],
         FIXTURES[2],
         ("ops_genus2", ops_genus2),
         ("ops_holed_box", |tol| ops_holed_box(tol).body),
+        ("segment beside a lone vertex", |tol| {
+            let mut body = Body::new();
+            let seed = body.mvfs(p(0.0), true).unwrap();
+            let site = MevSite::Lone {
+                r#loop: seed.r#loop,
+            };
+            body.mev_line(site, p(1.0), tol).unwrap();
+            body.mvfs(p(5.0), true).unwrap();
+            body
+        }),
+        ("circle beside a lone vertex", |tol| {
+            let mut body = Body::new();
+            let seed = body.mvfs(p(0.0), true).unwrap();
+            let site = MefSite::Lone {
+                r#loop: seed.r#loop,
+            };
+            body.mef_chord(site, tol).unwrap();
+            body.mvfs(p(5.0), true).unwrap();
+            body
+        }),
     ];
     let mut table = [[0usize; 5]; 3];
     for &seed in seeds {
