@@ -203,7 +203,8 @@
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
 //! store that keeps no preferences ([`prefs_badge`]), the datums this
 //! view draws nothing of ([`datums_badge`]), the profiles it draws
-//! nothing of ([`profiles_badge`]), and the three display seams that
+//! nothing of ([`profiles_badge`]), the held edges the index cannot
+//! name ([`held_edges_badge`]), and the three display seams that
 //! hold a refusal — the scene ([`scene_badge`]), the pick index
 //! ([`index_badge`]) and the projection ([`projection_badge`]).
 //! The population is every function here returning `Option<Badge>`,
@@ -238,7 +239,7 @@ use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
 use crate::pickcache::NotIndexed;
-use crate::pickindex::{PickError, PickIndexError};
+use crate::pickindex::{EdgeNamesRefused, PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
@@ -1773,10 +1774,12 @@ trait SeamSubject {
 }
 
 /// **The pick-index seam's subject**, named by both of the types its
-/// refusals arrive as. One edit here moves both channels; that is the
-/// "by construction" the trait's argument rests on, and it is written
+/// build refusals arrive as. One edit here moves both channels; that is
+/// the "by construction" the trait's argument rests on, and it is written
 /// as a constant because a seam whose two impls each spelled a literal
-/// would be back to the convention.
+/// would be back to the convention. A built index's refusal to NAME an
+/// edge ([`EdgeNamesRefused`]) is not one of them: its subject is the
+/// document's, and its impl says why.
 const PICK_INDEX_SEAM: Subject = Subject::Display;
 
 /// **The scene seam's subject**, named by the rebuild's refusal and by
@@ -1806,6 +1809,16 @@ impl SeamSubject for PickIndexError {
 /// door.
 impl SeamSubject for NotIndexed {
     const SUBJECT: Subject = PICK_INDEX_SEAM;
+}
+
+/// **The document, not the pick-index seam.** The index reads the
+/// names off the evaluation's tables, so an index rebuilt over the same
+/// evaluation refuses the same edge again; what can change the answer is
+/// an edit the document accepts. The refused load says it on the line
+/// through [`tool_notice`], which is [`Subject::Document`] too, so the
+/// one fault wears one subject on both channels.
+impl SeamSubject for EdgeNamesRefused {
+    const SUBJECT: Subject = Subject::Document;
 }
 
 // # The subject-assigning doors
@@ -2070,7 +2083,9 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
         ToolNotice::Blend(
-            BlendEvent::NoEdgesOnTarget { .. } | BlendEvent::TargetHasNoValue { .. },
+            BlendEvent::NoEdgesOnTarget { .. }
+            | BlendEvent::EdgesUnnamed { .. }
+            | BlendEvent::TargetHasNoValue { .. },
         ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.to_string(), retold)
@@ -2557,6 +2572,28 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
         Badge::read(
             Subject::Document,
             format!("profiles: {undrawn} {noun} with an arc the viewport cannot draw"),
+            Tone::Advisory,
+        )
+    })
+}
+
+/// **What the chrome badges about a held edge set whose body the index
+/// cannot wholly name**, and `None` while it can, or while nothing is
+/// held.
+///
+/// The held mark lights the drawn edges whose names a tool holds
+/// ([`crate::marks::HeldEdges::mark`]), and a drawn edge with no name
+/// cannot be told held or not, so the mark may be short by it. This is
+/// what says so. Per-frame and unlatched, for [`datums_badge`]'s
+/// reasons: the viewport writes it from the marks it composes. The
+/// refusal is the naming layer's bug report, which no reader can act
+/// on, so [`Tone::Advisory`]; its subject is the document's
+/// (`SeamSubject for EdgeNamesRefused` says why).
+pub fn held_edges_badge(refused: Option<&EdgeNamesRefused>) -> Option<Badge> {
+    refused.map(|refused| {
+        Badge::read(
+            EdgeNamesRefused::SUBJECT,
+            format!("held edges: the mark may leave some out — {refused}"),
             Tone::Advisory,
         )
     })

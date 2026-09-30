@@ -165,8 +165,8 @@ pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};
 pub use pickcache::{NotIndexed, unindexed};
 pub use pickindex::{
-    EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgePick, IdMap, IdMapError, PatchId, PickError,
-    PickIndex, PickIndexError, PickKinds,
+    EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeNames, EdgeNamesRefused, EdgePick, IdMap,
+    IdMapError, PatchId, PickError, PickIndex, PickIndexError, PickKinds,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
