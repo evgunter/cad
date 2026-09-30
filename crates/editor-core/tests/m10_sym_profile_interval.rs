@@ -313,15 +313,23 @@ const PLATE_MAX_TERMS: usize = 288;
 /// tan(|Δθ|/4)`) rather than the bulge: plain and early decision forms
 /// +16 each, door forms −20, one fewer assertion form. Calls, frozen
 /// counts and every decision count are unchanged.
+///
+/// Re-captured again when validation gained an arc's three consistency
+/// checks and the arc's registrations moved to its construction (PATHS
+/// 5a): decision calls +16 in the plain and early walks and +32 at the
+/// door, assertion calls +8 and door assertions +24 — the new checks'
+/// residuals and the lowering's endpoint registrations, with the
+/// sweep's rim and span become rigidity's rim and landing. Frozen
+/// counts are unchanged, and the three ε rows capture one ledger.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15046 frozen 672 digest 9d9520907ea00bbbc140a06fb59883de\n\
-     Plain/Assertion calls 462 forms 2593 frozen 372 digest a65c6becddcd3c0c854d538a57a53cc3\n\
+     Plain/Decision calls 967 forms 15131 frozen 672 digest dcf491a8cf38e20321a95fcf65c1f6c4\n\
+     Plain/Assertion calls 470 forms 2564 frozen 372 digest deef154eedd1e4b0ae26af2fd2648a25\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7995 frozen 8 digest d67eacf3f05307284a8d82b7ee794b41\n\
-     Early/Assertion calls 462 forms 3405 frozen 104 digest ed303ef94076429a1258d6382e297b72\n\
+     Early/Decision calls 336 forms 8079 frozen 8 digest 65ffb0b4b49c111cd561760b5a2447c3\n\
+     Early/Assertion calls 470 forms 3377 frozen 104 digest 56ea4824998f2022a64bdf80a188008b\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 330 forms 11864 frozen 104 digest 3a2220ee7df89a020b305363b74a0efc\n\
-     Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Door/Decision calls 362 forms 11972 frozen 104 digest 1a674ac0ea5e826f7b5f2fac2d591688\n\
+     Door/Assertion calls 214 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

@@ -55,11 +55,13 @@
 #     caller is the profile's bulge-mode lowering (`profile::lower_arc`,
 #     whose doc carries the proof), so the lowering needs no entry of
 #     its own (Ev, #3453: the allowlist gains the shared type's site).
-#   * `crates/sweep/src/swept.rs` — `register_rigidity` (a placed arc's
-#     `‖q_from − c‖` is its sketch rim: the placement is rigid) and
-#     `register_rim_identity` (a revolve latitude carrier's
-#     `‖q − c‖ = r`). These two functions are the only bodies that call
-#     the method; `crates/sweep/src/extrude.rs` reaches rigidity
+#   * `crates/sweep/src/swept.rs` — rigidity for a placed profile arc,
+#     both facts it places: `register_rigidity` (the placed rim
+#     `‖q_from − c‖` is the sketch rim) and `register_placed_landing`
+#     (the carrier at its span is the placed sketch landing, per
+#     component); and `register_rim_identity` (a revolve latitude
+#     carrier's `‖q − c‖ = r`). These three functions are the only
+#     bodies that call the method; `crates/sweep/src/extrude.rs` reaches rigidity
 #     THROUGH `register_rigidity` and therefore needs no entry.
 #   * `crates/sweep/src/revolve/surfaces.rs` and
 #     `crates/sweep/src/revolve/full.rs` — the latitude carriers, which

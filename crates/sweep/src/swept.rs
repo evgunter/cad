@@ -472,6 +472,59 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
     );
 }
 
+/// **A placed arc's far end IS its sketch landing, placed** — the
+/// second fact of rigidity the sweep registers about a profile arc
+/// ([`geom_core::Real::register_equal`]), per component.
+///
+/// **The proof.** The carrier is the circle about `place(centre)` with
+/// radius `radius`, reference direction `u_ref = rim/‖rim‖` for
+/// `rim = place(start) − place(centre)`, and axis the turn-signed plane
+/// normal, evaluated at the span `|Δθ|`. A rigid placement maps the
+/// sketch plane's rotation about `centre` by the signed sweep onto the
+/// 3-space rotation about that axis by `|Δθ|`, so the carrier at its
+/// span is `place` of the sketch start turned by the sweep about the
+/// centre — [`Arc2::landing`] placed. Where the placement is not rigid,
+/// the door's own witness refuses typed, as at [`register_rigidity`].
+///
+/// **What it chains through.** The construction registers the sketch
+/// landing against the arc's far vertex (`Arc2::register_endpoints`);
+/// the tier's alias applies inside the early walk, so the placed
+/// landing's form is the placed far vertex's, and the carrier's far
+/// end reaches `q_to` without a registration of the whole point
+/// against it. A carrier the construction did not register claims
+/// nothing past this line.
+///
+/// **What it touches: nothing.** `Curve3::circle_at` over the spec's
+/// own carrier and span is the node the certifier evaluates; the
+/// placed landing is built here and thrown away.
+fn register_placed_landing<T: Real>(
+    carrier: &Curve3<T>,
+    param_end: T,
+    place: Affine3<T>,
+    arc: Arc2<T>,
+    start: Point2<T>,
+    tol: Tol,
+) {
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = *carrier
+    else {
+        return;
+    };
+    let end = Curve3::circle_at(center, axis, radius, u_ref, param_end);
+    let landing = arc.landing(start);
+    let placed = place.transform_point(Point3::new(landing.x, landing.y, T::zero()));
+    for (built, held) in [(end.x, placed.x), (end.y, placed.y), (end.z, placed.z)] {
+        handle_registration(
+            built.register_equal(held, tol),
+            "a placed arc's far end from its placed sketch landing",
+        );
+    }
+}
+
 /// The edge spec of a profile segment carried into 3-space by one
 /// placement: `PlacedSegment` description, line or circle carrier per
 /// the crate docs' carrier conventions (arc axis = turn-signed plane
@@ -482,7 +535,8 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 /// through and its plane normal — the sketch placement for a base
 /// lamina, the translated or rotated one for the swept copy. `tol` is
 /// the run's ε, carried through to the rigidity the arc arm states
-/// ([`register_rigidity`]) and used for nothing else here.
+/// ([`register_rigidity`], [`register_placed_landing`]) and used for
+/// nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Affine3<T>,
@@ -513,16 +567,22 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             // expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
             register_rigidity(rim, arc, seg.a(), tol);
+            let carrier = Curve3::Circle {
+                center: c_world,
+                axis: turn_axis(turn, normal),
+                radius: arc.radius,
+                u_ref: rim.normalize(),
+            };
+            let param_end = arc_span(turn, arc);
+            // The landing, stated where it is guaranteed
+            // (`register_placed_landing` carries the proof), about the
+            // very carrier and span the spec carries.
+            register_placed_landing(&carrier, param_end, place, arc, seg.a(), tol);
             EdgeCurveSpec {
                 description,
-                carrier: Curve3::Circle {
-                    center: c_world,
-                    axis: turn_axis(turn, normal),
-                    radius: arc.radius,
-                    u_ref: rim.normalize(),
-                },
+                carrier,
                 param_start: T::zero(),
-                param_end: arc_span(turn, arc),
+                param_end,
             }
         }
     }
@@ -811,7 +871,8 @@ mod tests {
         })
     }
 
-    /// **The placed rim chains through the sketch rim to the radius.**
+    /// **The placed rim chains through the sketch rim to the radius, and
+    /// the placed far end through the sketch landing to the far vertex.**
     /// The lowering registers the arc's 2-D rims against its radius
     /// (`Arc2::register_endpoints`) and the sweep registers only
     /// rigidity (`register_rigidity`): the placed rim against the
@@ -829,13 +890,18 @@ mod tests {
             geom_core::Mat3::from_cols(v(0.0, 1.0, 0.0), v(-1.0, 0.0, 0.0), v(0.0, 0.0, 1.0)),
             v(2.0, 3.0, 5.0),
         );
-        let ([rim, inside, ..], counts) = placed_arc_readings(place);
+        let ([rim, inside, end @ ..], counts) = placed_arc_readings(place);
         assert_eq!(rim, Some(Sign::Zero), "the placed rim: {counts:?}");
         assert_eq!(
             inside,
             Some(Sign::Zero),
             "inside a larger expression: {counts:?}"
         );
+        // The far end chains the same way: the carrier at its span to
+        // the placed sketch landing (the sweep), the sketch landing to
+        // the far vertex (the lowering), and `q_to` is `place` of that
+        // vertex — one node, minted by the same op on the same operand.
+        assert_eq!(end, [Some(Sign::Zero); 3], "the far end: {counts:?}");
         assert!(counts.registered > 0, "decided as registered: {counts:?}");
         assert_eq!(counts.registrations_refused, 0, "no refusal: {counts:?}");
     }
