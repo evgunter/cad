@@ -486,3 +486,21 @@ The 5a work in progress is on the branch at 5a6f2ebf; no PR is open.
      only numeric" and which leaves refuse.
    - This is a DECIDE/SYM seam, and goes to Ev if the rule is ratified.
    - The PR waits on this.
+
+## 2026-09-30 — 5a round 2 rulings
+
+- **d_tab.** The loss is not stacked reversals. It comes from the
+  bulge-2/parameter residue: frozen nodes and `abs(signed_radius)`.
+  - Ruling: add the landing half of the sweep's rigidity registration
+    (#3453 round 3). `circle_at(param_end) ≡ place(landing(a))` then
+    chains through the lowering's `landing(a) ≡ b` to `q_to`.
+- **sym11 far stadium (fixture-built).** Ruling: accept the typed
+  refusal as a disclosed decision move (a table claims nothing, per
+  #3453).
+  - The path algebra at `Sym<Interval>` refuses the stadium at the
+    junction over the row's r box.
+  - Filed `fixture-built-sym-rows-lose-registered-discharges`.
+- **The door-off invariant is agent-written** (M10-9's commits).
+  Ruling: restate it to Ev's ratified E12 property (no registration
+  turns a proved non-zero margin into Zero), with counts compared over
+  common decisions only. Announced on DECIDE's log.
