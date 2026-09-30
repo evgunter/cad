@@ -80,7 +80,8 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
 /// row" is one gesture away rather than an id to hunt for. A failed
 /// row whose words name ANOTHER node to repair
 /// ([`TreeRow::repair_at`]) keeps its words as they are and gets a
-/// second line that is that click.
+/// line that is that click, under the refusals its words carry
+/// ([`crate::tree::carried_lines`]), one line per level.
 ///
 /// A free function over the `Ui` for the reason [`row_label`] is one.
 pub(crate) fn failure_lines(
@@ -109,6 +110,23 @@ pub(crate) fn failure_lines(
             }
         }
     });
+    // The refusals the row's words point at, each one step further in:
+    // the traceback reads down the way the failure reaches in. Each is
+    // headed by the document its node is in, a label of its own, so
+    // the refusal is drawn as its own tree draws it.
+    if let RowStatus::Failed { carried, .. } = &row.status {
+        for (level, carried) in carried.iter().enumerate() {
+            let indent = message_indent(ui, row.depth + 1 + level);
+            ui.horizontal(|ui| {
+                ui.add_space(indent);
+                ui.weak(&carried.document);
+            });
+            ui.horizontal(|ui| {
+                ui.add_space(indent);
+                crate::widgets::message_toned(ui, &carried.line, theme, frame::Tone::Advisory);
+            });
+        }
+    }
     if let Some(to) = row.repair_at {
         ui.horizontal(|ui| {
             ui.add_space(message_indent(ui, row.depth));
@@ -160,10 +178,8 @@ impl ViewerBehavior<'_> {
                     });
                 }
             }
-            // **Exhaustive on purpose**: whether a row draws a badge
-            // at all is this pane's decision, so a status the kernel
-            // grows has to answer it here rather than fall into a
-            // wildcard and draw.
+            // Whether a row draws a badge at all is this pane's
+            // decision.
             //
             // How LOUD a drawn badge is, is not decided here — that is
             // `RowStatus::tone()`, read below.
@@ -217,7 +233,7 @@ mod tests {
     };
     use crate::theme::Theme;
     use crate::tree;
-    use crate::tree::{RowStatus, TreeRow};
+    use crate::tree::{CarriedLine, RowStatus, TreeRow};
     use crate::widgets::{message, message_floor};
 
     /// A failure line of the length and shape a refusal has, quoting a
@@ -393,10 +409,63 @@ mod tests {
             root: false,
             status: RowStatus::Failed {
                 message: FAILURE.to_owned(),
+                carried: Vec::new(),
             },
             note: None,
             repair_at,
         }
+    }
+
+    /// **A failed row draws each refusal it carries on a line of its
+    /// own**, headed by the document it is in, under its own words and
+    /// one step further in per level: the traceback a part inside a
+    /// part reads as.
+    #[test]
+    fn a_failed_rows_carried_refusals_draw_under_it_one_step_in_per_level() {
+        let carried = [
+            ("bracket.pncad", "node 7 failed: the first level"),
+            ("boss.pncad", "node 3 failed: the second level"),
+        ];
+        let row = TreeRow {
+            status: RowStatus::Failed {
+                message: FAILURE.to_owned(),
+                carried: carried
+                    .map(|(document, line)| CarriedLine {
+                        document: document.to_owned(),
+                        line: line.to_owned(),
+                    })
+                    .to_vec(),
+            },
+            ..placer_refused_row(None)
+        };
+        let painted = landed(|ui| {
+            failure_lines(ui, &row, &Theme::DEFAULT);
+        });
+        let at = |text: &str| {
+            painted
+                .iter()
+                .find(|landed| landed.text == text)
+                .and_then(|landed| landed.rows.first().copied())
+                .unwrap_or_else(|| panic!("{text:?} was not painted"))
+        };
+        let own = at(FAILURE);
+        let (first_doc, first) = (at(carried[0].0), at(carried[0].1));
+        let (second_doc, second) = (at(carried[1].0), at(carried[1].1));
+        assert!(
+            own.bottom() <= first_doc.top()
+                && first_doc.bottom() <= first.top()
+                && first.bottom() <= second_doc.top()
+                && second_doc.bottom() <= second.top(),
+            "each level's document heads its line, under the level before:              {own:?} {first_doc:?} {first:?} {second_doc:?} {second:?}"
+        );
+        assert!(
+            own.left() < first.left() && first.left() < second.left(),
+            "each level is one step further in: {own:?} {first:?} {second:?}"
+        );
+        assert!(
+            first_doc.left() == first.left() && second_doc.left() == second.left(),
+            "a level's document label stands at its line's indent"
+        );
     }
 
     /// **What [`failure_lines`] answers when the text `target` is

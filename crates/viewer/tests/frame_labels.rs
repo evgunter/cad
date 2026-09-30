@@ -108,7 +108,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
         origin: [
             common::len(0.0),
             common::len(0.0),
-            Expr::param(ParamName::new("height"), Dimension::Length),
+            Expr::param(ParamName::from_static("height"), Dimension::Length),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
@@ -164,7 +164,7 @@ fn the_tree_rows_tell_two_frames_apart() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-labels", tol);
     let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.0]), tol);
     let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.01]), tol);
-    let poses: Vec<Option<String>> = tree::rows(&doc, None)
+    let poses: Vec<Option<String>> = tree::rows(&doc, None, &viewer::parts::PartFiles::default())
         .into_iter()
         .map(|row| row.pose)
         .collect();
@@ -185,7 +185,7 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("unused"),
+            name: ParamName::from_static("unused"),
             value: DocParam::continuous(Dimension::Length, 0.001),
         },
         tol,
@@ -197,7 +197,7 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
         }),
         tol,
     );
-    let rows = tree::rows(&doc, None);
+    let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
     let point = rows.last().expect("the point's row");
     assert_eq!(point.kind, "Datum point");
     assert_eq!(point.pose, None);

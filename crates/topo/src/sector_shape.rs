@@ -176,6 +176,49 @@ const SECTOR_REFLEX: &str = "sector_reflex";
 /// at the arm), reached only when rung 2 is not definitely signed.
 const SECTOR_STRAIGHT: &str = "sector_straight";
 
+/// What each rung decides, in the words a flip report states
+/// (`boolean::decision_words`).
+pub(crate) fn rung_words(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        SECTOR_ARM => SectorRung::Arm.subject(),
+        SECTOR_REFLEX => "whether a corner is convex or reflex",
+        SECTOR_STRAIGHT => SectorRung::Straight { full_circle: false }.subject(),
+        _ => return None,
+    })
+}
+
+/// Which rung of [`sector_shape`] refused: the refusal's words and what
+/// the rung passes on. Rung 2 (convexity) never refuses, since an
+/// undecided reading of it falls through to rung 3.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(name(SectorRungKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
+pub enum SectorRung {
+    /// Rung 1: the metering arm is a positive length.
+    Arm,
+    /// Rung 3: the corner is straight, not a spike.
+    Straight {
+        /// The two bounds are one orbit half-edge (a strut vertex),
+        /// where a reading of θ ≈ 0 or ≈ 2π is legitimate too.
+        full_circle: bool,
+    },
+}
+
+impl SectorRung {
+    /// What the rung decides, as a clause with no colon or dash of its
+    /// own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::Arm => "whether a corner's edges are long enough to measure its angle over",
+            Self::Straight { .. } => "whether a corner is straight or folds back on itself",
+        }
+    }
+}
+
 /// Why [`sector_shape`] refused.
 ///
 /// Two causes, kept apart because their recourses are different
@@ -203,8 +246,13 @@ pub(crate) enum SectorFault {
     /// (non-positive) arm. That is true of the arithmetic and false of
     /// the input, whose recourse is the overflow end's — scale.
     UnderflowedChord,
-    /// A rung refused or escalated, named by the rung inside.
-    Rung(Indeterminate),
+    /// A rung refused or escalated.
+    Rung {
+        /// Which rung.
+        rung: SectorRung,
+        /// The rung's diagnostics, named by the rung.
+        diag: Indeterminate,
+    },
 }
 
 /// What the sector-shape rungs decided about one corner.
@@ -327,8 +375,13 @@ pub(crate) fn sector_shape<T: Decide>(
     let arm = norm_own.min(norm_next);
     match decide(SECTOR_ARM, Margin::of(arm), band) {
         Ok(Sign::Positive) => {}
-        Ok(_) => return Err(invalid(band, SECTOR_ARM)),
-        Err(diag) => return Err(SectorFault::Rung(diag)),
+        Ok(_) => return Err(invalid(band, SECTOR_ARM, SectorRung::Arm)),
+        Err(diag) => {
+            return Err(SectorFault::Rung {
+                rung: SectorRung::Arm,
+                diag,
+            });
+        }
     }
     let (unit_own, unit_next) = (dir_own.normalize(), dir_next.normalize());
     // Wideness: sin θ = (b̂ × â)·n metered at the arm. Positive ⇒
@@ -354,6 +407,7 @@ pub(crate) fn sector_shape<T: Decide>(
             // summation order — bit-identical under the same scalar
             // scope as above, not for every `T: Real` unconditionally.
             let straight_margin = Margin::levered(unit_own.dot(unit_next), arm);
+            let rung = SectorRung::Straight { full_circle };
             match decide(SECTOR_STRAIGHT, straight_margin, band) {
                 // θ ≈ π: 90° into the interior is valid throughout the
                 // band.
@@ -363,8 +417,10 @@ pub(crate) fn sector_shape<T: Decide>(
                 Ok(Sign::Positive | Sign::Zero) if full_circle => Some(n.cross(unit_next)),
                 // A spike corner between two distinct edges: refuse,
                 // never guess an interior direction.
-                Ok(Sign::Positive | Sign::Zero) => return Err(invalid(band, SECTOR_STRAIGHT)),
-                Err(diag) => return Err(SectorFault::Rung(diag)),
+                Ok(Sign::Positive | Sign::Zero) => {
+                    return Err(invalid(band, SECTOR_STRAIGHT, rung));
+                }
+                Err(diag) => return Err(SectorFault::Rung { rung, diag }),
             }
         }
     };
@@ -384,13 +440,16 @@ pub(crate) fn sector_shape<T: Decide>(
 /// addition plus a four-crate sweep — deliberately not folded into the
 /// unit that shared these rungs, and recorded here so the next pass
 /// finds the home rather than the method.
-fn invalid(band: Band, predicate: &'static str) -> SectorFault {
-    SectorFault::Rung(Indeterminate {
-        margin: MarginDiag::INVALID,
-        band,
-        predicate: Some(predicate),
-        terminal_sliver: false,
-    })
+fn invalid(band: Band, predicate: &'static str, rung: SectorRung) -> SectorFault {
+    SectorFault::Rung {
+        rung,
+        diag: Indeterminate {
+            margin: MarginDiag::INVALID,
+            band,
+            predicate: Some(predicate),
+            terminal_sliver: false,
+        },
+    }
 }
 
 /// **A point's signed distance from a plane, in metres**: `q` against
@@ -490,7 +549,7 @@ mod tests {
         // lines up, so that form compares the thing under test against
         // itself and stays green if it starts emitting a different
         // `MarginDiag`.
-        let SectorFault::Rung(e) = e else {
+        let SectorFault::Rung { diag: e, .. } = e else {
             panic!("a spike is a rung refusal, not a chord-length one: {e:?}");
         };
         assert_eq!(e.predicate, Some("sector_straight"));
@@ -553,14 +612,14 @@ mod tests {
         // which the format holds.
         assert_eq!(
             shape(Vec3::new(0.0, 1e-12, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err(),
-            Some(invalid(band(), SECTOR_ARM))
+            Some(invalid(band(), SECTOR_ARM, SectorRung::Arm))
         );
         // And the zero chord is not an underflowed one: it has no
         // direction to recover, so its witness is zero too and the
         // predicate's two ratios are both poison.
         assert_eq!(
             shape(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err(),
-            Some(invalid(band(), SECTOR_ARM))
+            Some(invalid(band(), SECTOR_ARM, SectorRung::Arm))
         );
     }
 
@@ -661,7 +720,7 @@ mod tests {
         let e = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), false)
             .expect_err("a collapsed chord cannot meter the corner");
         // Literal pins, for the reason spelled out on the spike row.
-        let SectorFault::Rung(e) = e else {
+        let SectorFault::Rung { diag: e, .. } = e else {
             panic!("a collapsed chord has a finite length: {e:?}");
         };
         assert_eq!(e.predicate, Some("sector_arm"));

@@ -469,7 +469,7 @@ pub enum MeasureUnavailableAt {
         /// Which primitive.
         verb: &'static str,
         /// The scalar this build ran at, in its own name
-        /// ([`crate::lane::Lane::NAME`]).
+        /// ([`geom_core::Real::NAME`]).
         scalar: &'static str,
         /// The door that answers it, named so the recourse is in the
         /// refusal rather than in a reader's memory.
@@ -492,11 +492,12 @@ impl core::fmt::Display for MeasureUnavailableAt {
         match self {
             Self::NeedsEnclosure { verb, scalar, door } => write!(
                 f,
-                "`{verb}` answers with a certified enclosure, and a {scalar} build has no \
-                 channel for one — a point-scalar search finds a pair, and a pair that was \
-                 found is an upper bound on the minimum rather than the minimum. Evaluate \
-                 the document at the interval scalar over a parameter box, where `{door}` \
-                 computes the bracket"
+                "`{verb}` answers with a certified enclosure, which only the {interval} \
+                 scalar's engine computes, so a {scalar} build has no answer to give: a pair a \
+                 point search finds is an upper bound on the minimum rather than the minimum. \
+                 Evaluate the document at the {interval} scalar over a parameter box, where \
+                 `{door}` computes the bracket",
+                interval = <geom_core::Interval as geom_core::Real>::NAME,
             ),
         }
     }
@@ -514,7 +515,7 @@ impl core::fmt::Display for MeasureUnavailableAt {
 ///
 /// The engine that computes it is the interval lane's
 /// (`clearance::min_separation`) and so is the only `Some`.
-pub trait MinClearanceLane: crate::lane::Lane {
+pub trait MinClearanceLane: geom_core::Real {
     /// The minimum separation between two resolved selections, or
     /// `None` when this scalar cannot carry an enclosure.
     ///
@@ -576,9 +577,9 @@ impl MinClearanceLane for geom_core::Probe {
 /// and D1 keep out of the certifying lanes — so the whole family
 /// answers `None`, and a document measured for sensitivities reports
 /// the same typed absence a plain f64 build does.
-impl<T: geom_core::Real> MinClearanceLane for geom_core::Dual<T>
+impl<T> MinClearanceLane for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: crate::lane::Lane,
+    geom_core::Dual<T>: geom_core::Real,
 {
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
@@ -636,7 +637,7 @@ impl MinClearanceLane for geom_core::Interval {
 /// silently degrades.
 impl<T: MinClearanceLane> MinClearanceLane for geom_core::Sym<T>
 where
-    geom_core::Sym<T>: crate::lane::Lane,
+    geom_core::Sym<T>: geom_core::Real,
 {
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,

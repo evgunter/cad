@@ -317,9 +317,10 @@ fn in_band_shell_escalates_typed_never_guessed() {
     // The rendered story names the margin data and ends in the
     // shell-role decision's own ending — a thickness a smaller
     // tolerance decides — not the funnel's generic
-    // declare-the-coincidence menu, and no kernel arena key.
+    // declare-the-coincidence menu, and no kernel arena key or
+    // predicate name.
     let rendered = finding.to_string();
-    assert!(rendered.contains("chk_shell_volume_sign"), "{rendered}");
+    assert!(!rendered.contains("chk_shell_volume_sign"), "{rendered}");
     assert!(
         rendered.contains(
             "Recourse: thicken or remove the degenerate geometry, or, if this thickness is \
@@ -403,8 +404,7 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
     let rendered = finding.to_string();
     assert!(
         rendered.ends_with(&format!(
-            "predicate 'chk_shell_volume_sign' indeterminate: margin {m:e} lies inside the \
-             ambiguity band ({:e}, {:e}). {ending}",
+            "margin {m:e} lies inside the ambiguity band ({:e}, {:e}). {ending}",
             ind.band.zero(),
             ind.band.escalate()
         )),
@@ -620,12 +620,14 @@ fn separation_off_is_visibly_skipped_and_independent() {
     let moved = |doc, dx: f64| {
         insert(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                editor_core::Step::Rigid {
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         )
     };
     let (doc, _) = moved(doc, 3.0);

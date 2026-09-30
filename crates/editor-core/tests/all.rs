@@ -154,6 +154,10 @@ mod edit_ladder_rim;
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_placement_corpus_bits.rs"]
+mod edit_placement_corpus_bits;
+#[path = "edit_placement_type.rs"]
+mod edit_placement_type;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
@@ -234,6 +238,8 @@ mod lib_u5_interrogate;
 mod lib_u7_select;
 #[path = "load_door_payload_param_ref.rs"]
 mod load_door_payload_param_ref;
+#[path = "load_door_program_validate.rs"]
+mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]
@@ -437,10 +443,14 @@ mod mate6r1_shared;
 mod mate6r2_probes;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
+#[path = "node_standing.rs"]
+mod node_standing;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
 mod parallel_node_map_probe;
+#[path = "part_depth_bound.rs"]
+mod part_depth_bound;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -520,6 +530,8 @@ mod seat7_sweep_lowering;
 mod seat8_split_lowering;
 #[path = "seatfw_curved_flush.rs"]
 mod seatfw_curved_flush;
+#[path = "step_handle_binding.rs"]
+mod step_handle_binding;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -628,6 +640,8 @@ mod wire_rv_unknown;
 
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
+#[path = "edit_refusal_recourse.rs"]
+mod edit_refusal_recourse;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]

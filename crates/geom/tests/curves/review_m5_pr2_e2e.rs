@@ -33,6 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom::NurbsCurve3;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Point3, Vec3};
 
@@ -132,7 +133,7 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
         .with_rational_coeffs(&clean, weights)
         .expect("the residual is the curve's length")
         .sup_norm_bound_rational();
-    assert!(bound.is_finite() && bound_rat.is_finite(), "poisoned bound");
+    assert!(bound.is_finite() && bound_rat.is_finite(), "refused bound");
     assert!(
         bound <= EPS,
         "clean fit must certify at eps={EPS:e}, bound was {bound:e}"

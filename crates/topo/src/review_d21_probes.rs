@@ -11,7 +11,7 @@
 //! `review_m2_pr3.rs`'s setter row already pairs a typed refusal with
 //! a body-untouched snapshot — including one on `set_face_surface`,
 //! for a stale *surface* key (`StaleGeometry`, raised by
-//! `check_face_surface`). What no row anywhere pinned is a stale
+//! `resolve_face_surface`). What no row anywhere pinned is a stale
 //! **entity argument** at these doors: the `get_face(face)` /
 //! `get_edge(edge)` gates that guard the converted writes are a
 //! different gate from the ones already covered, and reaching them
@@ -75,7 +75,13 @@ fn d21_set_face_surface_refuses_a_stale_face_typed() {
     body.faces.remove(dead);
     let before = deep_snapshot(&body);
     let err = body
-        .set_face_surface(dead, FaceSurface::New(a_plane()))
+        .set_face_surface(
+            dead,
+            FaceSurface::New {
+                surface: a_plane(),
+                sense: true,
+            },
+        )
         .unwrap_err();
     assert_eq!(
         err,

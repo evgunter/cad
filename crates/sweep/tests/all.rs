@@ -131,6 +131,8 @@ mod sf2b_interval_probe;
 mod sf2b_r1_probes;
 #[path = "sf2b_r2_probes.rs"]
 mod sf2b_r2_probes;
+#[path = "shallow_arc_extrude_grid_interval.rs"]
+mod shallow_arc_extrude_grid_interval;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
@@ -196,6 +198,10 @@ mod contact_edge_must_carry;
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
+#[path = "euler_site_row_frontiers.rs"]
+mod euler_site_row_frontiers;
+#[path = "euler_site_rows_equal_the_pass.rs"]
+mod euler_site_rows_equal_the_pass;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]

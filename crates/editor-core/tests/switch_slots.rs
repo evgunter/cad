@@ -14,10 +14,10 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
     Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
-    ExprPath, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, ProfileDoc, ProfilePayload,
+    ExprPath, Frame, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, Placement, ProfileDoc,
     ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SlotId, SplitHalf, StepArg, TubeWindow, ValuePayload, evaluate,
+    RoleSeg, SlotId, SplitHalf, Step, StepArg, TubeWindow, ValuePayload, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -246,7 +246,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
+                name: ParamName::from_static("r"),
                 value: DocParam::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
@@ -271,7 +271,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                     plane: PLANE,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                        radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
                 }),
@@ -285,7 +285,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let broken = doc
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
+                name: ParamName::from_static("r"),
                 value: DocParam::continuous(Dimension::Length, 0.0),
             },
             Tol::witness(),
@@ -438,7 +438,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             step: 1,
             arg: arrival,
         };
-        let mut program = ProfileProgram {
+        let mut program: ProfileNode = Node::Profile(ProfileProgram {
             plane: PLANE,
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.0), len(0.0)]),
@@ -449,7 +449,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 },
             ])],
             ids: Vec::new(),
-        };
+        });
 
         // Both roles are enumerated, once each.
         let slots = program.slots();
@@ -506,9 +506,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // transition, so no `SetParam`/`SetExpression`/`expr_at` row
         // can exist for these three roles.
         match doc.apply(
-            &DocEdit::InsertNode {
-                node: Node::Profile(program),
-            },
+            &DocEdit::InsertNode { node: program },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
@@ -689,11 +687,38 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             members: vec![nid(1), nid(2)],
             declare: None,
         },
+        Node::transform(
+            nid(1),
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
+        // A chain: rigid, literal, rigid — the literal takes no slot and
+        // its index is skipped, so the second rigid step is step 2.
         Node::Transform {
             input: nid(1),
-            translation: [len(1.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
+            placement: Placement {
+                steps: vec![
+                    Step::Rigid {
+                        translation: [len(1.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                    Step::Literal(Frame::translation([0.0, 1.0, 0.0])),
+                    Step::Rigid {
+                        translation: [len(0.0), len(0.0), len(1.0)],
+                        axis: [scl(1.0), scl(0.0), scl(0.0)],
+                        angle: ang(0.5),
+                    },
+                ],
+            },
+        },
+        // A literal alone: no slot at all.
+        Node::Transform {
+            input: nid(1),
+            placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
         },
     ]);
     for kind in [
@@ -775,11 +800,10 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     nodes
 }
 
-/// **`slots()` is `expr()`'s domain, for every node kind** — the
-/// invariant the two matches in `node.rs` keep between them, and the
-/// reason neither door carries a refusal for a slot it cannot read:
-/// `Node::slot_dimension_fault` asserts against it at the site rather
-/// than routing a missing expression to a door as a document's fault.
+/// **`slots()` is `expr()`'s domain, for every node kind, it lists no
+/// slot twice, and each slot reads an expression of the dimension its
+/// address fixes.** A slot listed twice is two rows that `expr` answers
+/// from the first of.
 ///
 /// `profile_nodes_enumerate_program_slots` pins the same thing for one
 /// kind. This row is the whole vocabulary, welded by `NODE_KIND` and
@@ -788,7 +812,14 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
 fn every_node_kinds_slots_are_all_readable() {
     let nodes = one_of_every_node_shape();
     for node in &nodes {
-        for slot in node.slots() {
+        let slots = node.slots();
+        let distinct: std::collections::BTreeSet<SlotId> = slots.iter().copied().collect();
+        assert_eq!(
+            distinct.len(),
+            slots.len(),
+            "{node:?} lists a slot twice: {slots:?}"
+        );
+        for slot in slots {
             let Some(expr) = node.expr(slot) else {
                 panic!(
                     "{node:?} names the slot {} and `expr` does not answer for it",
@@ -831,4 +862,126 @@ fn every_node_kinds_slots_are_all_readable() {
             panic!("{report}");
         }
     }
+}
+
+/// **`expr_mut` reaches the field `expr` reads, for every slot of every
+/// node shape.** The edit door writes through `expr_mut` and every
+/// reader reads through `expr`, so a slot the two resolve to different
+/// fields is an edit that lands where no reader looks.
+///
+/// Each slot takes a sentinel through `expr_mut` on a fresh copy of its
+/// node; the copy must read the sentinel back at that slot through
+/// `expr` and read every other slot unchanged. Across the union of
+/// every shape's slots, `expr_mut` answers exactly where `expr` does.
+/// The shapes are `one_of_every_node_shape`'s, which
+/// `every_node_kinds_slots_are_all_readable` welds to the roster.
+#[test]
+fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
+    let nodes = one_of_every_node_shape();
+    let sentinel = scl(-271.828);
+    let every_slot: std::collections::BTreeSet<SlotId> =
+        nodes.iter().flat_map(ProfileNode::slots).collect();
+    for node in &nodes {
+        let slots = node.slots();
+        for &slot in &slots {
+            let mut written = node.clone();
+            let Some(target) = written.expr_mut(slot) else {
+                panic!(
+                    "{node:?} names the slot {} and `expr_mut` does not answer for it",
+                    slot.label()
+                )
+            };
+            *target = sentinel.clone();
+            assert_eq!(
+                written.expr(slot),
+                Some(&sentinel),
+                "{node:?}: a write to {} through `expr_mut` is not what `expr` reads there",
+                slot.label()
+            );
+            for &other in slots.iter().filter(|&&other| other != slot) {
+                assert_eq!(
+                    written.expr(other),
+                    node.expr(other),
+                    "{node:?}: a write to {} through `expr_mut` moved {}",
+                    slot.label(),
+                    other.label()
+                );
+            }
+        }
+        let mut probe = node.clone();
+        for &slot in &every_slot {
+            assert_eq!(
+                probe.expr_mut(slot).is_some(),
+                node.expr(slot).is_some(),
+                "{node:?}: `expr_mut` and `expr` disagree on whether {} is carried",
+                slot.label()
+            );
+        }
+    }
+}
+
+/// **Every node shape's slot table, pinned: its slots in order, and the
+/// field each one addresses.** The golden is
+/// `tests/golden/slot_tables.txt`: per shape, the node's `Debug` with
+/// slot `#i`'s expression written in the field it lands in, then the
+/// slots in `slots()` order.
+///
+/// Slot order is observable (the first faulting slot is the one
+/// `Node::slot_dimension_fault` and the load re-check report, and the
+/// property panel lists `slots()` in order), and so is the field a slot
+/// addresses. The censuses above cannot see either kind of move when it
+/// keeps every slot readable at its own dimension: two rows of one
+/// dimension trading fields, or two rows trading places. Each slot is
+/// written a distinct tag through `expr_mut` and read back through
+/// `expr`, so the render names the field by what landed in it, whatever
+/// the two fields held before.
+#[test]
+fn every_node_shapes_slot_table_is_pinned() {
+    use std::fmt::Write as _;
+    let mut text = String::new();
+    for node in one_of_every_node_shape() {
+        let slots = node.slots();
+        let tags: Vec<Expr> = (0..slots.len()).map(|i| scl(1000.0 + i as f64)).collect();
+        let mut tagged = node.clone();
+        for (&slot, tag) in slots.iter().zip(&tags) {
+            *tagged
+                .expr_mut(slot)
+                .expect("a listed slot answers `expr_mut`") = tag.clone();
+        }
+        let mut fields = format!("{tagged:?}");
+        for (i, (&slot, tag)) in slots.iter().zip(&tags).enumerate() {
+            assert_eq!(
+                tagged.expr(slot),
+                Some(tag),
+                "{node:?}: {} does not read back the tag written through it",
+                slot.label()
+            );
+            let rendered = format!("{tag:?}");
+            assert_eq!(
+                fields.matches(&rendered).count(),
+                1,
+                "{node:?}: the tag written through {} is not in exactly one field",
+                slot.label()
+            );
+            fields = fields.replace(&rendered, &format!("#{i}"));
+        }
+        writeln!(text, "{fields}").unwrap();
+        for (i, slot) in slots.iter().enumerate() {
+            writeln!(text, "  #{i} {slot:?}").unwrap();
+        }
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/slot_tables.txt");
+    if std::env::var_os("PNCAD_BLESS").is_some() {
+        std::fs::write(&path, &text).expect("the golden writes");
+        return;
+    }
+    assert_eq!(
+        text,
+        include_str!("golden/slot_tables.txt"),
+        "a node shape's slot order or slot-to-field mapping moved. Read the diff: slot order \
+         is what fault reports and the property panel read, and a PR body says which move was \
+         meant (regenerate: PNCAD_BLESS=1 cargo test -p editor-core --test all \
+         every_node_shapes_slot_table_is_pinned)"
+    );
 }

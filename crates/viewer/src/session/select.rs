@@ -299,7 +299,9 @@ pub enum Standing {
     Face {
         /// The selection.
         face: FaceSelection,
-        /// What the shipped resolution machinery answered — `None`
+        /// What the shipped resolution machinery answered, the node an
+        /// indeterminate verdict waits on named as the feature tree
+        /// names it ([`crate::tree::resolution_as_drawn`]) — `None`
         /// when there is no evaluation to answer against yet, which is
         /// neither "live" nor "vanished" and is not reported as
         /// either.
@@ -308,6 +310,10 @@ pub enum Standing {
         /// carrying a diagnosis and a tombstone is an order of
         /// magnitude wider than the other arms here, and this value is
         /// returned by value on every frame.
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         resolution: Option<Box<Resolution>>,
     },
     /// An edge selection, and the resolution verdict its name got.
@@ -320,10 +326,25 @@ pub enum Standing {
     Edge {
         /// The selection.
         edge: EdgeSelection,
-        /// What the shipped resolution machinery answered — `None`
-        /// when there is no evaluation to answer against yet.
+        /// What the shipped resolution machinery answered, read as
+        /// [`Standing::Face`]'s is — `None` when there is no evaluation
+        /// to answer against yet.
         resolution: Option<Box<Resolution>>,
     },
+}
+
+/// **Whether a picked name's verdict still denotes its entity** — the
+/// one reading of a [`Resolution`] every surface that holds a pick
+/// makes: a live selection, an unresolved one, and a mate tool pick
+/// that survives a landing.
+///
+/// A name that no longer denotes and a run that cannot say are both
+/// "no": only a pick that resolves may be acted on.
+pub fn resolves(resolution: &Resolution) -> bool {
+    match resolution {
+        Resolution::Resolved(_) => true,
+        Resolution::Failed(_) | Resolution::Indeterminate(_) => false,
+    }
 }
 
 impl Standing {
@@ -339,7 +360,7 @@ impl Standing {
             Self::Empty => false,
             Self::Node { present, .. } | Self::Param { present, .. } => *present,
             Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
-                matches!(resolution.as_deref(), Some(Resolution::Resolved(_)))
+                resolution.as_deref().is_some_and(resolves)
             }
         }
     }
@@ -404,15 +425,10 @@ impl Standing {
     /// render distinctly, for a face and for an edge alike.
     pub fn unresolved(&self) -> Option<&Resolution> {
         match self {
-            Self::Face {
-                resolution: Some(resolution),
-                ..
-            }
-            | Self::Edge {
-                resolution: Some(resolution),
-                ..
-            } if !matches!(**resolution, Resolution::Resolved(_)) => Some(resolution),
-            _ => None,
+            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => resolution
+                .as_deref()
+                .filter(|resolution| !resolves(resolution)),
+            Self::Empty | Self::Node { .. } | Self::Param { .. } => None,
         }
     }
 }
@@ -437,7 +453,7 @@ mod tests {
             present,
         };
         let param = |present| Standing::Param {
-            name: ParamName("thickness".to_owned()),
+            name: ParamName::from_static("thickness"),
             present,
         };
         assert_eq!(node(false).tone(), Tone::Actionable);

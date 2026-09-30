@@ -2079,7 +2079,7 @@ mod tests {
     fn segment(p: [f64; 3], q: [f64; 3]) -> (Body<f64>, EdgeKey) {
         let mut body = Body::<f64>::new();
         let born = body
-            .mvfs(Point3::new(p[0], p[1], p[2]))
+            .mvfs(Point3::new(p[0], p[1], p[2]), true)
             .expect("mvfs births a lone vertex");
         let edge = body
             .mev_line(

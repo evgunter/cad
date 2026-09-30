@@ -100,12 +100,14 @@ fn slot() -> Slot {
     let (doc, b0) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, cut) = insert(
         doc,
@@ -137,10 +139,11 @@ fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
     .0
 }
 
-/// The `SideOf`-discriminated cap fragments of `cut`'s table, in
-/// table order (deterministic).
+/// The `SideOf`-discriminated cap fragments of `cut`'s table, left to
+/// right.
 fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName> {
-    ev.value(cut)
+    let fragments = ev
+        .value(cut)
         .expect("the cut evaluates")
         .name_table
         .iter()
@@ -149,7 +152,8 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
                 matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
             (discriminated && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
-        .collect()
+        .collect();
+    fixture::left_to_right(ev, cut, fragments)
 }
 
 /// The `SideVerdict` `name`'s own qualifier records for `partner`.
@@ -870,9 +874,13 @@ fn a_collapsed_orderalong_edge_group_at_the_cut_is_diagnosed_group_resized() {
                     was: 2,
                     now: 1,
                     // The near rim edge: the bar has left it, both x
-                    // walls at once.
+                    // walls at once, read in name order.
                     cutters: GroupCutters::Read {
-                        gone: vec![wall(&s.doc, s.bar, 1), wall(&s.doc, s.bar, 3)],
+                        gone: {
+                            let mut gone = vec![wall(&s.doc, s.bar, 1), wall(&s.doc, s.bar, 3)];
+                            gone.sort();
+                            gone
+                        },
                         new: vec![],
                     },
                 },
@@ -958,12 +966,14 @@ fn a_partner_behind_a_pattern_and_a_part_is_probed_at_the_operand() {
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: bar,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bar,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, pat) = insert(
         doc,

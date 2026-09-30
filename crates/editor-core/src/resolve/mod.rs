@@ -78,10 +78,13 @@ mod hit;
 mod pick;
 mod vdiff;
 
-pub use hit::{HitTestError, body_name, edge_name, entity_name, face_name, vertex_name};
+pub use hit::{
+    HitTestError, UnnamedEntity, body_name, edge_name, entity_name, face_name, vertex_name,
+};
 pub use pick::{
-    Answer, Crossing, FaceAnswer, MeshPick, MeshPickError, NodePick, NodePickError, PickHit,
-    PickMemo, PickTarget, TSpan, answer_of, crossing, pick_face, ray_triangle,
+    Answer, Crossing, FaceAnswer, MeshPick, MeshPickError, NameLookupError, NodePick,
+    NodePickError, PickHit, PickMemo, PickTarget, TSpan, answer_of, crossing, pick_face,
+    ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
@@ -96,7 +99,7 @@ use geom_core::{Decide, Sign};
 use crate::appearance::{AppearanceLoss, AppearanceLossCause, AppearanceMap};
 use crate::diff::NodeChange;
 use crate::doc::Doc;
-use crate::eval::{Evaluation, NodeResult};
+use crate::eval::{Evaluation, NodeStanding};
 use crate::names::{
     EntityKey, EntityKind, EntityRef, Entry, Qualifier, RoleSeg, StableName, name_free_seg,
 };
@@ -807,6 +810,23 @@ pub enum UpstreamCause {
     },
 }
 
+/// The subject of a flip report: the signed margin a predicate
+/// decides on, named by what it decides (`crate::decision::words`).
+/// What flips is that margin's sign, so "from negative to positive"
+/// reads as the margin's, not as the decision's. The predicate's name
+/// is routing and rides `Debug`; a predicate with no words reads as
+/// `geom_core::UNNAMED_DECISION`.
+struct FlipSubject<'a>(&'a str);
+
+impl core::fmt::Display for FlipSubject<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match crate::decision::words(self.0) {
+            Some(words) => write!(f, "the margin deciding {words}"),
+            None => write!(f, "the margin of {}", geom_core::UNNAMED_DECISION),
+        }
+    }
+}
+
 // The CAUSE clause of [`Diagnosis::Upstream`]'s sentence; the arm adds
 // where it sits relative to the name.
 impl core::fmt::Display for UpstreamCause {
@@ -819,7 +839,8 @@ impl core::fmt::Display for UpstreamCause {
                 to,
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from} to {to} at node {}",
+                "{} flipped from {from} to {to} at node {}",
+                FlipSubject(predicate),
                 at.0
             ),
             Self::StructuralParam { node, param } => write!(
@@ -871,8 +892,8 @@ impl core::fmt::Display for Diagnosis {
                 source: FlipSource::VerdictLog,
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from} to {to} on the name's \
-                 derivation path"
+                "{} flipped from {from} to {to} on the name's derivation path",
+                FlipSubject(predicate)
             ),
             // The recovered flip says so: it is a real flip of a real
             // predicate, and it is in no log a reader could go and
@@ -884,9 +905,10 @@ impl core::fmt::Display for Diagnosis {
                 source: FlipSource::ShadowExec { partner },
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from} to {to} against the {partner} \
+                "{} flipped from {from} to {to} against the {partner} \
                  — recovered by re-running the pair at diagnosis time, because one of the \
-                 two runs recorded no side verdict at the name's minting node"
+                 two runs recorded no side verdict at the name's minting node",
+                FlipSubject(predicate)
             ),
             Self::ShadowExecDeclined { node, reason } => write!(
                 f,
@@ -1060,62 +1082,25 @@ pub struct ResolutionFailure {
 
 /// A name whose minting node has no usable value in this evaluation:
 /// the reference is INDETERMINATE, not vanished — it resolves again
-/// when the node evaluates (same vocabulary as appearance's loss
-/// causes; kept outside [`ResolveError`], which is N5's closed
-/// naming-verdict trio).
+/// when the node evaluates (kept outside [`ResolveError`], which is
+/// N5's closed naming-verdict trio).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResolveIndeterminate {
-    /// The minting node failed this evaluation.
-    TargetFailed {
-        /// The failed node.
-        node: RecipeNodeId,
-    },
-    /// The minting node was poisoned by an upstream failure.
-    TargetPoisoned {
-        /// The nearest failed ancestor.
-        through: RecipeNodeId,
-    },
-    /// The minting node has no result (canceled run's suffix).
-    TargetNotEvaluated {
-        /// The unevaluated node.
-        node: RecipeNodeId,
-    },
+pub struct ResolveIndeterminate {
+    /// The minting node's standing.
+    pub standing: NodeStanding,
 }
 
-// The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM — the minting node's standing, which is the half a user
-// can act on — plus the fact that makes this vocabulary its own: the
-// reference is indeterminate, not vanished, so the recourse is always
-// to restore the node's value, never to rebind. The three arms say
-// what the hit-test and interrogate doors' identical arms say — the
-// same fact about the same evaluation reached through a different
-// door — and the shared recourse tail ("the repair is upstream, at
-// node N") is deliberately word-for-word across the three standing
-// renderings, hand-synced: each door's sentence differs in subject
-// and consequence, so only the tail is common and it is too small a
-// fragment to be worth a shared helper.
+// The subject is the reference, and what makes this vocabulary its own
+// is that the reference is indeterminate rather than vanished, so the
+// recourse is always to restore the node's value, never to rebind; the
+// standing supplies which node, what state and where the repair is.
 impl core::fmt::Display for ResolveIndeterminate {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::TargetFailed { node } => write!(
-                f,
-                "the name's minting node {} failed this evaluation, so the reference cannot be \
-                 answered right now — fix the node's own failure and it resolves again",
-                node.0
-            ),
-            Self::TargetPoisoned { through } => write!(
-                f,
-                "the name's minting node is poisoned by the failure at node {}, so the \
-                 reference cannot be answered right now — the repair is upstream, at node {}",
-                through.0, through.0
-            ),
-            Self::TargetNotEvaluated { node } => write!(
-                f,
-                "the name's minting node {} has no result in this evaluation (a canceled run's \
-                 suffix) — re-evaluate and the reference resolves again",
-                node.0
-            ),
-        }
+        write!(
+            f,
+            "the reference is indeterminate until its minting node evaluates: {}",
+            self.standing
+        )
     }
 }
 
@@ -1183,9 +1168,8 @@ pub fn resolve_with_prior<T: Decide, U: Decide>(
 ///   reappear among [`ResolutionFailure::offers`] (the spec D9
 ///   wrapping choice: offers ride NEXT TO the byte-verbatim N5 error,
 ///   never inside it).
-/// - `TargetFailed`/`TargetPoisoned`/`TargetNotEvaluated` →
-///   [`Resolution::Indeterminate`] (indeterminate, not vanished —
-///   same vocabulary on both sides of the hook).
+/// - `Indeterminate` → [`Resolution::Indeterminate`] (indeterminate,
+///   not vanished — one standing on both sides of the hook).
 ///
 /// Total and honest: a loss row whose recorded cause no longer
 /// matches the evaluation (stale row against a different run) falls
@@ -1539,23 +1523,8 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 
     // 4. The minting node's standing decides Vanished vs
     //    Indeterminate.
-    match new.eval.nodes.get(&name.node) {
-        Some(NodeResult::Ok(_)) => {}
-        Some(NodeResult::Failed(_)) => {
-            return Resolution::Indeterminate(ResolveIndeterminate::TargetFailed {
-                node: name.node,
-            });
-        }
-        Some(NodeResult::Poisoned { through }) => {
-            return Resolution::Indeterminate(ResolveIndeterminate::TargetPoisoned {
-                through: *through,
-            });
-        }
-        None => {
-            return Resolution::Indeterminate(ResolveIndeterminate::TargetNotEvaluated {
-                node: name.node,
-            });
-        }
+    if let Err(standing) = new.eval.usable(name.node) {
+        return Resolution::Indeterminate(ResolveIndeterminate { standing });
     }
 
     // 5. Vanished. N3 structural offers first (merge/unmerge), then

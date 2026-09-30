@@ -11,7 +11,7 @@
 //! [`profile::ProfileLoop`]. A row here could only observe the seal's
 //! consequences, never a compile error.
 
-use geom_core::{Point2, Tol};
+use geom_core::{Arc2, Point2, Tol};
 use profile::{
     Profile, ProfileError, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop,
 };
@@ -90,11 +90,11 @@ fn accessors_read_back_everything_the_doors_wrote() {
 #[test]
 fn the_canonical_door_writes_the_stored_form_verbatim() {
     let bits = |x: &dyn core::fmt::Debug| format!("{x:?}");
-    let arc = Segment::Arc {
+    let arc = Segment::Arc(Arc2 {
         centre: Point2::new(1.0, 0.5),
         radius: 0.5,
         sweep: std::f64::consts::PI,
-    };
+    });
     let chain = [
         (Point2::new(0.0, 0.0), Segment::Line),
         (Point2::new(1.0, 0.0), arc),
@@ -113,11 +113,11 @@ fn the_canonical_door_writes_the_stored_form_verbatim() {
 
     let circle: ProfileLoop<f64> = RawLoop::new([(
         Point2::new(1.0, 0.0),
-        Segment::Arc {
+        Segment::Arc(Arc2 {
             centre: Point2::new(0.0, 0.0),
             radius: 1.0,
             sweep: std::f64::consts::TAU,
-        },
+        }),
     )]);
     assert_eq!(circle.segments().len(), 1);
     let refusal = Profile::new(SketchPlane::xy(), vec![circle])

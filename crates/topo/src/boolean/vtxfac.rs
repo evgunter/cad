@@ -56,8 +56,8 @@ use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
 use super::tables::eq15_3_lump;
 use super::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
-    PierceRingRecord, SideCode, VfContact,
+    BoolNullEdgeRecord, BooleanDecision, BooleanError, BooleanOp, NullEdgePairRecord, Operand,
+    PairSite, PierceRingRecord, SideCode, VfContact,
 };
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
@@ -142,8 +142,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                     kind: pierced_kind(pierced_body, contact.face),
                 });
             }
-            Err(crate::face_normal::NormalAtError::Escalated(diag)) => {
-                return Err(BooleanError::Escalated { diag });
+            Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::of_normal(decision),
+                    diag,
+                });
             }
             Err(crate::face_normal::NormalAtError::OffSurface) => {
                 return Err(BooleanError::ClassificationInvariant {
@@ -206,7 +209,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             continue;
         }
         if let Some(diag) = in_band {
-            return Err(BooleanError::Escalated { diag });
+            return Err(BooleanError::coincidence(diag));
         }
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         // Declared-`Tangent` (distinct carriers touching): the lump
@@ -302,8 +305,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // material sides, so rung 1's syntactic Same± verdict has to
         // see the face senses as well as the surfaces' `orient` tags.
         let (g1, g2) = (
-            super::reduce::face_plane_source(piercing_body, s.face),
-            super::reduce::face_plane_source(pierced_body, contact.face),
+            super::reduce::face_oriented_source(piercing_body, s.face),
+            super::reduce::face_oriented_source(pierced_body, contact.face),
         );
         let id = super::PlaneIdentity {
             s1: g1.as_ref(),
@@ -319,7 +322,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                     });
                 }
                 Ok(rel) => rel,
-                Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
+                Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::coincidence(diag)),
                 Err(PlaneEqError::Undeclared { diag, relation }) => {
                     return Err(BooleanError::UndeclaredCoincidence {
                         diag,
@@ -327,8 +330,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                         relation,
                     });
                 }
-                Err(PlaneEqError::Contradicted(diag)) => {
-                    return Err(BooleanError::DeclarationContradicted { diag });
+                Err(PlaneEqError::Contradicted { fact, .. }) => {
+                    return Err(BooleanError::DeclarationContradicted { fact });
                 }
             };
         let lump = eq15_3_lump(op, piercing, rel);
@@ -684,7 +687,7 @@ fn pierce_germ_dir<T: Decide>(
                 what: "pierce transition on a coplanar sector",
             });
         }
-        Err(diag) => return Err(BooleanError::Escalated { diag }),
+        Err(diag) => return Err(BooleanError::coincidence(diag)),
     }
     let d = int.normalize();
     let plus = super::sectors::within(s, d, false, band)?;
@@ -760,7 +763,7 @@ mod tests {
         assert!(
             matches!(
                 resolve_on_entries(&mut one_sided, band),
-                Err(BooleanError::Escalated { diag })
+                Err(BooleanError::Escalated { diag, .. })
                     if diag.predicate == Some("bool_sector_bisector_side")
             ),
             "the bisector's Zero refuses"

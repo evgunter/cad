@@ -301,12 +301,14 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         .map(|p| {
             insert(
                 doc,
-                Node::Transform {
-                    input: ball,
-                    translation: p.centre.map(len),
-                    rotation_axis: p.axis.map(scl),
-                    rotation_angle: ang(p.angle),
-                },
+                Node::transform(
+                    ball,
+                    pncad::document::Step::Rigid {
+                        translation: p.centre.map(len),
+                        axis: p.axis.map(scl),
+                        angle: ang(p.angle),
+                    },
+                ),
                 tol,
             )
         })

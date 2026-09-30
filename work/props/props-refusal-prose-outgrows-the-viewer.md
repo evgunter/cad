@@ -55,8 +55,9 @@ identifier in backticks and the payload is the engine refusal's
 `NodeErrorKind::MeasureClearanceRefused`. The file is in open PR #2702,
 so the rewrite was filed here rather than made; the feature tree's
 guard (`crates/editor-core/tests/refusal_concision_chains.rs`) finds a
-`Debug` struct by its shape and admits it on exactly that row
-(`FILED_DEBUG`), and removing the entry is the check that this is done.
+`Debug` form by its shape and admits exactly its span on exactly that
+row (`ADMISSIONS`), and that admission reds once the row no longer
+prints the span.
 
 The render has since moved, unchanged (PORT, `port/min-clearance-typed`):
 `MinClearanceRefusal` is gone, `NodeErrorKind::MeasureClearanceRefused`
@@ -72,7 +73,7 @@ either: `Budget` renders `{k:?}` (the `Depth { max_cell_depth: 20 }` above),
 `NotADistance` the bound's hex bits, `NothingCertified`
 `refused_leaves=N`. The fix now reads the typed arm rather than a string.
 `refusal_concision_chains`' row is an `Unsupported` refusal, admitted by
-`FILED_DEBUG` for its arena key; `crates/pncad-py/src/tests.rs`'s
+`ADMISSIONS` for its arena key's span; `crates/pncad-py/src/tests.rs`'s
 `the_fourth_verbs_two_refusals_are_stable` pins prose only on the two
 payload-free arms.
 

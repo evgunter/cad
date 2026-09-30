@@ -633,6 +633,10 @@ BOUND_AS = {
     # survivable, not why it did not happen.
     "DimensionError": "ParseError.kind",
     "NodeErrorKind": "EvaluationError.kind",
+    # `NodeErrorKind`'s class, which is exactly what that tag is: the
+    # map reads the word off the class, so the fieldless mirror asks
+    # the Python caller no new question.
+    "NodeErrorClass": "EvaluationError.kind",
     "NodeValue": "Value",
     # The gather's refusal class, flattened to the tag its carrier
     # already publishes — the `NodeErrorKind` row's shape exactly.
@@ -691,11 +695,15 @@ BOUND_AS = {
     # `PartFault`'s arms and the `ResolveFault` classification inside
     # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
-    # `part_root_failed`, `part_product`, `part_reference_cycle`,
-    # `part_depth_exceeded` — the same flattening `NodeErrorKind` gets
-    # above. They left the `gap` roster at LIB-G18a, when the resolver
-    # parameter made them reachable: the tags existed before it, and
-    # `part_no_resolver` was the only one an evaluation could produce.
+    # `part_root_failed`, `part_root_poisoned`,
+    # `part_root_failure_unrecorded`, `part_product`,
+    # `part_reference_cycle`, `part_depth_exceeded`, `part_not_entered` —
+    # the same flattening `NodeErrorKind` gets above. They left the
+    # `gap` roster at LIB-G18a, when the resolver parameter made them
+    # reachable: the tags existed before it, and `part_no_resolver` was
+    # the only one an evaluation could produce. The refusal a failed
+    # part root, or a poisoned root's failed ancestor, CARRIES crosses
+    # as the exception's `__cause__`, an `EvaluationError` of its own.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
     # The read-back doors, which hang off the evaluation because a
@@ -778,6 +786,29 @@ BOUND_AS = {
     # report is assembled from numbers, and the payload's type is not
     # raisable, so this door is the only crossing they get.
     "MeshPickError": "NodePickError.index_variant",
+    # `UnnamedEntity` is the kernel's per-slot refusal at
+    # `NodePick.patch_names` / `boundary_names` — a name lookup's, and
+    # its own type because that lane holds nothing else — and the
+    # payload of `HitTestError::Unnamed`. It crosses by the carrier
+    # rule at ONE spelling: the slot value is the `unnamed` arm of
+    # `HitTestError`, built through the kernel's own `From`, so a
+    # caller reads the same class, tag, `node`, `kind` and `body` in a
+    # slot as at a raise. Whether the slot deserves a class of its own
+    # is `work/lib/the-unnamed-slot-crosses-as-a-hit-test-error.md`.
+    "UnnamedEntity": "HitTestError",
+    # `NameLookupError` is those two doors' refusal of the WHOLE call —
+    # the pairing, or the node's standing — and it crosses as the same
+    # class at the same words (`crate::tags::name_lookup_error_tag`):
+    # Python has one exception for a name that could not be read off
+    # a pick, and the message is the lookup's own, which names no hit
+    # test.
+    "NameLookupError": "HitTestError",
+    # `NodeStanding` is the payload every door that needs a node's
+    # value refuses with. It crosses by the carrier rule at every
+    # door that carries it, as that door's tag word (`node_failed`,
+    # `target_poisoned`, ...) plus the `node` and `through` attributes
+    # beside it; the hit test's spelling is the one named here.
+    "NodeStanding": "HitTestError.variant",
     # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
     # analytic kind's stage-1 estimator declined on a face that could
     # not import without promotion. It crosses by the carrier rule at
@@ -905,14 +936,19 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
-    # The profile step ids. A `StepId` is what `Doc.step_ids` answers
-    # and `DocEdit.set_program` takes, one int per authored step (a
-    # kept id, or `None` for a new step), which is the newtype spelled
-    # as Python data rather than a class of its own. `StepIdFault` is
-    # what `EditError::StepIdsRefused` carries, and its arms cross at
-    # the carrier's second word.
-    "StepId": "Doc.step_ids",
+    # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
+    # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # The authored-step doors. `StepHandleRefusal` crosses as its own
+    # class under the door's name, its arms at `variant`; `keep_grid`
+    # is the lowering `DocEdit.set_program` runs on its `keep` dicts;
+    # a profile piece's locator is `Piece` and its role `Role`, the
+    # `Piece` arm alone, because a kernel-built section's piece is
+    # never spelled from Python.
+    "StepHandleRefusal": "StepHandleError",
+    "keep_grid": "DocEdit.set_program",
+    "ProfileEdgeRef": "Piece",
+    "PieceRole": "Role",
     # `PiecesFault` is what `NodeErrorKind::ProfilePieces` carries, and
     # its arms cross at that carrier's second word.
     "PiecesFault": "EvaluationError.inner_kind",
@@ -1005,9 +1041,14 @@ BOUND_AS = {
     "LeverRefusal": "MateFault.inner_variant",
     # What a frame fails to be a placement: the word `PersistError`'s
     # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
-    # `improper`) for a recorded maintenance row held to the
+    # `improper`, `not_rigid`) for a recorded maintenance row held to the
     # `SetPlacement` door's rule at load.
     "FrameFault": "PersistError.inner_variant",
+    # Which of a node's placement frames an edit refusal is about: its
+    # position crosses as `EditError.index` (a transform's step, an
+    # explicit rule's listed placement), `None` for an instance's own
+    # placement frame, the only one it has.
+    "FrameSite": "EditError.index",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
@@ -2392,6 +2433,14 @@ NOT_BOUND = {
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
+    # A refusal's rendering machinery: Python reads a refusal through
+    # `str()`, and the stripped sentence is what a Rust carrier renders
+    # inside its own. The phrase is read in that text.
+    "Labelled": SHAPE,
+    "Labels": SHAPE,
+    "PASS_A_RESOLVER": SHAPE,
+    "Recourse": SHAPE,
+    "Staged": SHAPE,
     "Real": SHAPE,
     "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,
@@ -2421,6 +2470,13 @@ NOT_BOUND = {
     # into the word (`origin_x`), so a family and its axis read off
     # one string rather than off a type Python would have to hold.
     "VectorSlot": SHAPE,
+    # A rigid step's component, the index `SlotId::rigid` maps onto a
+    # slot at any step: `VectorSlot`'s argument, one level in.
+    "RigidArg": SHAPE,
+    # A placement's step: Python builds each as a one-step `Placement`
+    # (`Placement.rigid`, `Placement.literal`) and chains them with
+    # `Placement.compose`, so no value of the step type crosses.
+    "Step": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
     "bulge_from_center": SHAPE,
@@ -2611,6 +2667,19 @@ NOT_BOUND = {
     # the fault's own `str()`. Nothing in Python hands one out and no
     # bound door takes one.
     "NodeRefusal": INTERIOR,
+    # The kernel's reading of the refusals a failure carries, level by
+    # level, with the document each level's node is in. Python reads the
+    # same chain in its own shape: each level is an `EvaluationError`
+    # that is the `__cause__` of the level above, and its `document` is
+    # the part's `DocRef`, or `None` for the evaluated document's own.
+    "CarriedChain": SHAPE,
+    "CarriedLevel": SHAPE,
+    "CarriedIn": SHAPE,
+    # Whether a `PlacerRefused` placer states its own refusal, which
+    # decides whether the fault carries it. Python never holds one: it
+    # reads the answer as `MateFault.cause` being the placer's refusal
+    # or `None`.
+    "PlacerRow": INTERIOR,
     # The entity door's answer: what a name turned out to denote, on the
     # four refusals that test an `EntityKey`'s kind
     # (`shell_open_kind`, `face_frame_kind`, the two blend selection
@@ -2671,8 +2740,11 @@ NOT_BOUND = {
     # to Python — which is what `behind-a-door` means.
     "ParamEnv": INTERIOR,
     "Profile": INTERIOR,
-    "ProfileEdgeRef": INTERIOR,
-    "PieceRole": INTERIOR,
+    # What an `AuthoredStep` is made of: the value-erased shape of a
+    # step. Python holds the handle whole and never takes it apart.
+    "ArcShape": INTERIOR,
+    "StepShape": INTERIOR,
+    "TargetShape": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
@@ -2833,6 +2905,14 @@ NOT_BOUND = {
     # rule.
     "FaceName": SHAPE,
     "NotAFaceName": SHAPE,
+    # `ParamNameFault` is what `ParamName::new` refuses with, and
+    # `ParamNameReason` the lexer's finding inside it. A Python caller
+    # holds a name as text until `ParamName(text)`, which is where the
+    # binding calls the constructor and publishes the refusal as
+    # `EditError.variant == "param_name_not_an_identifier"`; neither
+    # type crosses, for `NotAFaceName`'s reason.
+    "ParamNameFault": SHAPE,
+    "ParamNameReason": SHAPE,
     # **The clearance engine's refusal, flattened to a tag — and
     # unreachable at the lane Python evaluates on.** It reaches Python
     # as `EvaluationError.kind == "measure_clearance_refused"`
@@ -3332,6 +3412,7 @@ MEMBERS_BOUND_AS = {
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
     "EditError::NonFinitePlacement": "EditError.variant",
+    "EditError::NonRigidPlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::NonFiniteAlignment": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
@@ -3347,9 +3428,7 @@ MEMBERS_BOUND_AS = {
     "EvalError::CountToScalarOutOfRange": "EvalError.variant",
     "EvalError::NonFiniteResult": "EvalError.variant",
     "FmtQuantityError::NonFinite": "FmtQuantityError.variant",
-    "HitTestError::NodeNotEvaluated": "HitTestError.variant",
-    "HitTestError::NodeFailed": "HitTestError.variant",
-    "HitTestError::NodePoisoned": "HitTestError.variant",
+    "HitTestError::Standing": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
     "HitTestError::Ambiguous": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
@@ -3444,11 +3523,9 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
-    "ProductError::UnknownNode": "ProductError.variant",
+    "ProductError::Root": "ProductError.variant",
     "ProductError::PlacedUnderTwoRoots": "ProductError.variant",
     "ProductError::Naming": "ProductError.variant",
-    "ProductError::RootFailed": "ProductError.variant",
-    "ProductError::RootPoisoned": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
@@ -3474,6 +3551,8 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
     "SelectRefusal::Unreadable": "SelectRefusal.reason",
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
+    "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
+    "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",
@@ -3785,6 +3864,10 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # The chain is authored through `Placement`'s constructors and
+    # `then`, and read back only as its length: the steps are the
+    # `Step` entry's `different-shape` argument, one level in.
+    "Placement::steps": SHAPE,
     # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
     # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
     # and nothing reads one back: the spec is consumed by the verb it is

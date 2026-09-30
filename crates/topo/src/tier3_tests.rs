@@ -33,7 +33,7 @@ use geom_core::Tol;
 /// tier-3-clean body, and the coplanar-split smooth-dihedral case.
 fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -55,7 +55,10 @@ fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
                 he2: seg.he_minus,
             },
             EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
-            FaceSurface::New(plane.clone()),
+            FaceSurface::New {
+                surface: plane.clone(),
+                sense: true,
+            },
             tol,
         )
         .unwrap();
@@ -63,8 +66,14 @@ fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     // (identical-by-construction would share the KEY in a sweep; here
     // the point is the smooth-dihedral classification, which compares
     // the surfaces' tangent planes, not their keys).
-    body.set_face_surface(seed.face, FaceSurface::New(plane))
-        .unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: plane,
+            sense: true,
+        },
+    )
+    .unwrap();
     // Both chords were built through the SCAFFOLDING door, because
     // neither face's surface existed when its `mev`/`mef` ran. The
     // body is at rest now and both faces have charts, so both edges
@@ -129,7 +138,7 @@ fn a_scaffold_at_rest_is_refused_and_the_chart_description_is_not() {
 fn the_scaffolding_door_still_passes_mid_construction() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     body.mev_line(
         MevSite::Lone {
             r#loop: seed.r#loop,
@@ -197,8 +206,14 @@ fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
 fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
     let (mut body, split) = coplanar_pillow(tol);
     assert_eq!(validate_geometric(&body, tol), Ok(()));
-    body.set_face_surface(split.face, FaceSurface::New(surface))
-        .unwrap();
+    body.set_face_surface(
+        split.face,
+        FaceSurface::New {
+            surface,
+            sense: true,
+        },
+    )
+    .unwrap();
     assert_eq!(validate(&body), Ok(()), "structurally still coherent");
     (
         validate_geometric(&body, tol).expect_err("the swapped chart is refused at rest"),
@@ -814,8 +829,14 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
     ];
     for (name, surface) in cases {
         let (mut body, split) = coplanar_pillow(tol);
-        body.set_face_surface(split.face, FaceSurface::New(surface))
-            .unwrap();
+        body.set_face_surface(
+            split.face,
+            FaceSurface::New {
+                surface,
+                sense: true,
+            },
+        )
+        .unwrap();
         let errs = validate_geometric(&body, tol).err().unwrap_or_default();
         assert_eq!(
             datum_verdicts(&errs),
@@ -1128,6 +1149,48 @@ fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
     ))
 }
 
+/// **The carrier poison read reads every scalar**: each scalar of each
+/// analytic kind ([`geom::test_support::analytic_curves`]), made NaN
+/// alone, is named by [`crate::validate::poisoned_curve_datums`] as the
+/// datum the walk ([`geom::Curve3::data`]) says owns it. The walk's
+/// scalars must be exactly the builder's, so a walk that drops a field
+/// reds on the count, and a fold that skips a datum reds on that
+/// datum's rows.
+#[test]
+fn the_carrier_poison_read_reads_every_scalar() {
+    use crate::validate::poisoned_curve_datums;
+    let base = geom::test_support::scalar_base();
+    for kind in geom::test_support::analytic_curves() {
+        let at_rest = (kind.build)(&base);
+        assert!(
+            poisoned_curve_datums(&at_rest).is_empty(),
+            "{at_rest:?}: a finite carrier has no poisoned datum"
+        );
+        let geom::CurveData::Analytic(data) = at_rest.data() else {
+            panic!("{at_rest:?}: an analytic kind reads as analytic data")
+        };
+        let walked: Vec<(geom::CurveDatum, f64)> = data
+            .into_iter()
+            .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+            .collect();
+        assert_eq!(
+            walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+            base[..kind.scalars],
+            "{at_rest:?}: the walk yields the builder's scalars, in its order"
+        );
+        for (i, &(datum, _)) in walked.iter().enumerate() {
+            let mut poisoned = base.clone();
+            poisoned[i] = f64::NAN;
+            assert_eq!(
+                poisoned_curve_datums(&(kind.build)(&poisoned)),
+                vec![datum],
+                "{at_rest:?}: check 1 missed a NaN in {} (scalar {i})",
+                datum.name()
+            );
+        }
+    }
+}
+
 /// **The frame margins' lever is the kind's radius — not 1, not its
 /// square, and for an ellipse the LARGER semi-axis magnitude,
 /// whichever field stores it.** Every row sits a frame deviation `δ`
@@ -1434,11 +1497,14 @@ fn description_references_keep_a_surface_alive() {
     // referenced only by the description — and must survive.
     body.set_face_surface(
         split.face,
-        FaceSurface::New(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::unit_y(),
-            u_ref: Vec3::unit_x(),
-        }),
+        FaceSurface::New {
+            surface: Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::unit_y(),
+                u_ref: Vec3::unit_x(),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     assert!(body.get_surface(s_plus).is_some(), "kept alive");
@@ -1520,7 +1586,13 @@ pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::RawPrism {
         (p.face_side[2], inner),
     ] {
         p.body
-            .set_face_surface(face, FaceSurface::New(surface))
+            .set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface,
+                    sense: true,
+                },
+            )
             .unwrap();
     }
     // The inner wall's material is OUTSIDE its cylinder, so its outward
@@ -1912,7 +1984,7 @@ fn kissing_cylinder_pillow(
     r2: f64,
 ) -> (Vec<ValidationError>, [crate::entity::EdgeKey; 2]) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -1935,12 +2007,21 @@ fn kissing_cylinder_pillow(
                 he2: seg.he_minus,
             },
             EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)),
-            FaceSurface::New(cylinder(r2)),
+            FaceSurface::New {
+                surface: cylinder(r2),
+                sense: true,
+            },
             tol,
         )
         .unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(cylinder(1.0)))
-        .unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: cylinder(1.0),
+            sense: true,
+        },
+    )
+    .unwrap();
     let chart = body.get_face(split.face).unwrap().surface;
     for e in [seg.edge, split.edge] {
         let spec =

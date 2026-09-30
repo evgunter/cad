@@ -97,8 +97,9 @@
 //!   on. **`bool_ray_torus_odd`** selects the biquadratic closed form,
 //!   **`bool_ray_torus_split_lead`** and **`bool_ray_torus_split`** are
 //!   the factorization's own certifications, and
-//!   **`bool_ray_torus_count`** is the `Invalid` a constructed root set
-//!   that disagrees with the certified count raises.
+//!   **`bool_ray_torus_count`** is the `Invalid` the ray raises when a
+//!   constructed root set disagrees with the certified count
+//!   ([`TorusRoots::CountDisagrees`]).
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
 //! - **`bool_torus_trim`** / **`bool_torus_trim_major_period`** /
@@ -2151,7 +2152,7 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// monotone on [0, π], so the equivalence is exact for every window
 /// narrower than a period — guarded). No `atan2`, no periodic
 /// reduction: under the Interval scalar an `atan2` enclosure near the
-/// chart seam is honest poison, and the pre-fix trim escalated
+/// chart seam is honestly refused, and the pre-fix trim escalated
 /// `Invalid` on probe points every f64 run decides cleanly — the
 /// whole Interval boolean lane died on it. The cone margin is metered
 /// `· radius` (its displacement scale at the window edge is
@@ -3659,6 +3660,12 @@ pub(super) enum TorusRoots<T> {
         /// The roots, `ts[..count]`.
         ts: [T; 4],
     },
+    /// The roots constructed disagree in number with the count
+    /// certified: the sign ladder and the factorization, two
+    /// computations on the same coefficients, broke the invariant that
+    /// they agree. Never an answer; each caller refuses on it as a
+    /// kernel invariant.
+    CountDisagrees,
 }
 
 /// A real cube root, built from `sqrt` alone — and a TRUNCATED one, with
@@ -3913,9 +3920,9 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// 4. **`bool_ray_torus_split` Zero** — one of the two quadratic factors
 ///    has a zero discriminant, i.e. a double root, which contradicts the
 ///    definite discriminant of rung 1. Uncertain, graze.
-/// 5. **`bool_ray_torus_count` Invalid** — the roots CONSTRUCTED disagree
+/// 5. **[`TorusRoots::CountDisagrees`]** — the roots CONSTRUCTED disagree
 ///    in number with the count CERTIFIED by rung 1. That is not a
-///    conditioning problem but a broken premise, so it escalates typed
+///    conditioning problem but a broken premise, so it refuses typed
 ///    rather than retrying: no other ray of the schedule would fare
 ///    better. **No input has reached it**, in this lane or in either
 ///    review lane's oracle; the note at the site says why it stays
@@ -4011,7 +4018,6 @@ pub(super) struct QuarticRows {
     pub(super) odd: &'static str,
     pub(super) split: &'static str,
     pub(super) split_lead: &'static str,
-    pub(super) count: &'static str,
 }
 
 /// The ray × torus lane's rows ([`line_torus_roots`]).
@@ -4022,7 +4028,6 @@ const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
     odd: "bool_ray_torus_odd",
     split: "bool_ray_torus_split",
     split_lead: "bool_ray_torus_split_lead",
-    count: "bool_ray_torus_count",
 };
 
 /// **The certified real roots of the depressed monic quartic**
@@ -4054,12 +4059,6 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
 ) -> Result<TorusRoots<T>, Indeterminate> {
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
-    let invalid = |predicate| Indeterminate {
-        margin: geom_core::MarginDiag::INVALID,
-        band,
-        predicate: Some(predicate),
-        terminal_sliver: false,
-    };
     let disc = T::from_f64(256.0) * s.powi(3) - T::from_f64(128.0) * p.powi(2) * s.powi(2)
         + T::from_f64(144.0) * p * q_hat.powi(2) * s
         - T::from_f64(27.0) * q_hat.powi(4)
@@ -4171,7 +4170,7 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
     // coefficients, and this is the one place they are made to agree.
     // Its cost is one comparison.
     if found != count {
-        return Err(invalid(rows.count));
+        return Ok(TorusRoots::CountDisagrees);
     }
     Ok(TorusRoots::Certified { count, ts })
 }
@@ -4611,6 +4610,12 @@ fn cast_ray<T: Decide>(
                     // An uncertain count: graze, retry.
                     TorusRoots::Uncertain => return Ok(None),
                     TorusRoots::Certified { count, ts } => (count, ts),
+                    TorusRoots::CountDisagrees => {
+                        return Err(escalate(crate::invalid_margin::invalid(
+                            band,
+                            "bool_ray_torus_count",
+                        )));
+                    }
                 };
                 for &t in &ts[..count] {
                     let p = q + d * t;

@@ -31,11 +31,11 @@ use geom_core::{Dual64, Tol};
 
 use fixture::{Recorder, ang, len, scl};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn param(n: &str, dim: Dimension) -> Expr {
+fn param(n: &'static str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
@@ -76,7 +76,7 @@ fn eval_f64(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn opts(seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
+fn opts(seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
         seed: seed.map(name),
         profile_lift: lift,
@@ -158,12 +158,14 @@ fn stepped_shaft_sized(
         profile: boss_p,
         distance: param("h2", Dimension::Length),
     });
-    let boss = r.insert(Node::Transform {
-        input: boss_raw,
-        translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let boss = r.insert(Node::transform(
+        boss_raw,
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
@@ -921,7 +923,10 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
                 panic!("DATUM changed — the chamber is {:?}", report.chamber)
             };
             for name in ["h1", "h2"] {
-                let (lo, hi) = leaf.get(&ParamName::new(name)).expect("the axis").span();
+                let (lo, hi) = leaf
+                    .get(&ParamName::from_static(name))
+                    .expect("the axis")
+                    .span();
                 assert!(
                     (lo + 0.1).abs() < 1e-12 && (hi - 0.1).abs() < 1e-12,
                     "{name}: [{lo}, {hi}]"

@@ -59,7 +59,8 @@ pub enum NodeKindWanted {
     SketchAxis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
-    /// A `Node::Datum(Datum::Frame)` — what a profile is drawn on.
+    /// A `Node::Datum(Datum::Frame)` or a `Node::Datum(Datum::FaceFrame)`
+    /// — what a profile is drawn on. Both evaluate to a frame value.
     Frame,
     /// A node whose value is ONE body — the combining seats' kind
     /// ([`combine::denotes_body`] carries the admissible set and why a
@@ -107,22 +108,56 @@ pub enum NodeKindWanted {
 /// would then reject.
 pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bool {
     match wanted {
-        NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
-        NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
-        NodeKindWanted::SketchAxis => {
-            matches!(held, Some(Node::Datum(Datum::AxisInPlane { .. })))
-        }
-        NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
-        // Both frame kinds: a profile is drawn on a frame VALUE, and a
-        // derived frame evaluates to the same value an authored one
-        // does.
-        NodeKindWanted::Frame => matches!(
-            held,
-            Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-        ),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
-        NodeKindWanted::Split => matches!(held, Some(Node::Split { .. })),
-        NodeKindWanted::Instances => matches!(held, Some(Node::Pattern { .. })),
+        NodeKindWanted::Profile
+        | NodeKindWanted::Axis
+        | NodeKindWanted::SketchAxis
+        | NodeKindWanted::Plane
+        | NodeKindWanted::Frame
+        | NodeKindWanted::Split
+        | NodeKindWanted::Instances => held.and_then(seat_kind) == Some(wanted),
+    }
+}
+
+/// **Which non-body kind a node is**, or `None` for a node no
+/// profile, axis, plane, frame, split or instances seat takes — the one classification
+/// [`admits`] reads for every kind but [`NodeKindWanted::Body`], whose
+/// rule is [`combine::denotes_body`]'s.
+fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
+    match node {
+        Node::Profile(_) => Some(NodeKindWanted::Profile),
+        Node::Datum(datum) => match datum {
+            Datum::Axis { .. } => Some(NodeKindWanted::Axis),
+            Datum::AxisInPlane { .. } => Some(NodeKindWanted::SketchAxis),
+            Datum::Plane { .. } => Some(NodeKindWanted::Plane),
+            // Both frame kinds: a profile is drawn on a frame VALUE,
+            // and a derived frame evaluates to the same value an
+            // authored one does.
+            Datum::Frame { .. } | Datum::FaceFrame { .. } => Some(NodeKindWanted::Frame),
+            // No seat asks for a point.
+            Datum::Point { .. } => None,
+        },
+        Node::Split { .. } => Some(NodeKindWanted::Split),
+        Node::Pattern { .. } => Some(NodeKindWanted::Instances),
+        Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
     }
 }
 
@@ -430,6 +465,41 @@ pub enum Refusal {
 }
 
 impl Refusal {
+    /// **The parse error, when the refusal is the expression door's
+    /// parse refusal** — the text an author typed did not parse, so
+    /// nothing reached the document and the typed source is still the
+    /// author's. The one reading `frame::creation_offer` and
+    /// `frame::retype_draft` both take.
+    pub fn parse_error(&self) -> Option<&ParseError> {
+        match self {
+            Self::Parse(error) => Some(&**error),
+            Self::DrivenByExpression { .. }
+            | Self::NoSuchSlot { .. }
+            | Self::NoSuchParam(_)
+            | Self::ParamNotANumber { .. }
+            | Self::ParamExists { .. }
+            | Self::EmptyName
+            | Self::WrongNodeKind { .. }
+            | Self::Duplicate(_)
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo { .. }
+            | Self::Display(_)
+            | Self::SlotUnit(_)
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
+            | Self::ProfileRestructure { .. }
+            | Self::ProfileEditOrder { .. }
+            | Self::ProfileEditOrderCapped { .. }
+            | Self::ProfileEditStale { .. } => None,
+        }
+    }
+
     /// How much this refusal has to say, lower being more.
     ///
     /// **A frame performs a BATCH of operations**, and a batch can hold
@@ -467,26 +537,16 @@ impl Refusal {
             | Self::ProfileEditOrderCapped { .. }
             | Self::ProfileEditStale { .. }
             | Self::Io(_) => 1,
-            // The ONE arm whose rank is a per-payload decision, so it
-            // is matched exhaustively rather than defaulted: the
+            // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
-            // twins,
-            // and the substantive ones rank with the real failures,
-            // because "this instance is mate-constrained" is a
-            // decision about what the user tried. A fifth
-            // `DisplayFault` reds here until its rank is chosen —
-            // which is the obligation every other arm on this table
-            // gets from `Refusal`'s own variants. `Edit` and
+            // twins, and the substantive ones rank with the real
+            // failures, because "this instance is mate-constrained" is
+            // a decision about what the user tried. `Edit` and
             // `SlotUnit` forward whole vocabularies at one rank each
             // and that IS a default: every condition either raises is
             // a real failure, so no payload of theirs ranks
-            // differently.
-            //
-            // The admission family is walked arm by arm for the same
-            // reason and not folded into one `Admission(_)`: that
-            // spelling would be the default this arm exists to
-            // refuse, one level further down, and a fifth admission
-            // fault would take rank 1 unchosen.
+            // differently. The admission family is walked arm by arm
+            // too, rather than folded into one `Admission(_)`.
             Self::Display(fault) => match fault {
                 DisplayFault::NoFreeMove
                 | DisplayFault::FreeMoveInFlight
@@ -597,17 +657,22 @@ impl Refusal {
     /// census of call sites that nothing re-derives, and the rule is
     /// what does the work. Two independently-built copies is how the
     /// wording drifts from the decision.
-    pub fn affordance(params: &[ParamName], current: Option<SlotValue>) -> String {
+    ///
+    /// The current value is spelled as the slot's field spells it
+    /// ([`props::computed_text`], in the notation of `slot`'s
+    /// dimension for a computed value and carrying its symbol), so the
+    /// two never show one number two ways.
+    pub fn affordance(params: &[ParamName], slot: SlotId, current: Option<SlotValue>) -> String {
         let over = if params.is_empty() {
             "an expression".to_owned()
         } else {
-            let names: Vec<&str> = params.iter().map(|p| p.0.as_str()).collect();
+            let names: Vec<&str> = params.iter().map(ParamName::as_str).collect();
             format!("an expression over {}", names.join(", "))
         };
         match current {
             Some(value) => format!(
                 "driven by {over} (currently {}) — edit the expression?",
-                value.as_f64()
+                props::computed_text(slot.dimension(), value.as_f64())
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
@@ -627,14 +692,14 @@ impl Refusal {
     pub fn exists_wording(name: &ParamName, dimension: Dimension) -> String {
         format!(
             "parameter {} already exists ({dimension}) — edit it instead?",
-            name.0
+            name.as_str()
         )
     }
 
     /// The create-offer sentence, and its one home — shown over the
     /// add-parameter form when an expression refused on this name.
     pub fn offer_wording(name: &ParamName) -> String {
-        format!("create parameter {}?", name.0)
+        format!("create parameter {}?", name.as_str())
     }
 }
 
@@ -652,8 +717,11 @@ impl core::fmt::Display for Refusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {
-                params, current, ..
-            } => write!(f, "{}", Self::affordance(params, *current)),
+                slot,
+                params,
+                current,
+                ..
+            } => write!(f, "{}", Self::affordance(params, *slot, *current)),
             Self::NoSuchSlot { node, slot } => {
                 write!(f, "node {} has no {} slot", node.0, slot.label())
             }
@@ -661,7 +729,7 @@ impl core::fmt::Display for Refusal {
                 write!(
                     f,
                     "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
-                    name.0
+                    name.as_str()
                 )
             }
             Self::ParamNotANumber { name } => {
@@ -669,7 +737,7 @@ impl core::fmt::Display for Refusal {
                     f,
                     "parameter {} holds a number, not an expression — write a number, with a \
                      unit if you want one (50 mm)",
-                    name.0
+                    name.as_str()
                 )
             }
             Self::ParamExists { name, dimension } => {
@@ -804,13 +872,19 @@ pub enum FaceFrameFault {
     /// [`crate::drafts::CommitFault`]'s reason.
     ///
     /// **A pick whose node an undo took away arrives here**, as
-    /// [`InterrogateError::NodeNotEvaluated`] — the door's own word
-    /// for a node id this evaluation has no result for. It is not
+    /// [`InterrogateError::Standing`] carrying
+    /// [`pncad::document::NodeStanding::NotInDocument`] — the standing of
+    /// a node id the evaluated document does not have. It is not
     /// [`Self::NotOneBody`]: "several bodies" is a claim about a value
     /// that exists, and telling an author to project the one they mean
     /// would be advice about a feature that is gone.
     Unresolved {
-        /// The interrogation door's refusal.
+        /// The interrogation door's refusal, read as the feature tree
+        /// reads it ([`crate::tree::interrogation_as_drawn`]).
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         error: InterrogateError,
     },
     /// The face's carrier is not a plane, and a sketch frame wants
@@ -931,7 +1005,9 @@ pub fn face_frame_seat(
     match face_carrier_kind(ev, at, &face.name) {
         Ok(SurfaceKind::Plane) => Ok((at, face.name.clone())),
         Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
-        Err(error) => Err(FaceFrameFault::Unresolved { error }),
+        Err(error) => Err(FaceFrameFault::Unresolved {
+            error: crate::tree::interrogation_as_drawn(error, ev),
+        }),
     }
 }
 
@@ -957,6 +1033,15 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             Some(body)
         }
-        _ => None,
+        ValuePayload::Boolean(BooleanValue::Empty)
+        | ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Split { .. }
+        | ValuePayload::Instances(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => None,
     }
 }

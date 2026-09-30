@@ -6138,7 +6138,10 @@ mod tests {
         assert!(!net.is_placeholder());
         body.set_face_surface(
             far_wall,
-            FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(net))),
+            FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(net)),
+                sense: true,
+            },
         )
         .unwrap();
         let part = quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol);
@@ -6794,8 +6797,14 @@ mod tests {
             .map(|(k, _)| k)
             .collect();
         for &f in &seeds {
-            body.set_face_surface(f, FaceSurface::New(masquerade_like_placeholder()))
-                .unwrap();
+            body.set_face_surface(
+                f,
+                FaceSurface::New {
+                    surface: masquerade_like_placeholder(),
+                    sense: true,
+                },
+            )
+            .unwrap();
         }
         seeds
     }
@@ -6971,11 +6980,14 @@ mod tests {
             p.body
                 .set_face_surface(
                     f,
-                    FaceSurface::New(Surface::Plane {
-                        origin: centroid,
-                        normal,
-                        u_ref,
-                    }),
+                    FaceSurface::New {
+                        surface: Surface::Plane {
+                            origin: centroid,
+                            normal,
+                            u_ref,
+                        },
+                        sense: true,
+                    },
                 )
                 .expect("a plane on a planar loop");
         }
@@ -7019,7 +7031,7 @@ mod tests {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let (p0, p1) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
-        let seed = body.mvfs(p0).expect("a seed");
+        let seed = body.mvfs(p0, true).expect("a seed");
         // After the seed: a surface on an empty body is an orphan.
         let plane = body.add_surface(Surface::Plane {
             origin: Point3::origin(),
@@ -7057,7 +7069,10 @@ mod tests {
                 he2: arc.he_plus,
             },
             EdgeCurveSpec::line_between(p1, p0),
-            FaceSurface::Shared(plane),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
             tol,
         )
         .expect("the chord closes the cap");
@@ -7083,7 +7098,7 @@ mod tests {
         };
         let (p0, p1) = (spiric.eval(v0), spiric.eval(v1));
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p0).expect("a seed");
+        let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
             origin: Point3::new(offset, 0.0, 0.0),
             normal: Vec3::unit_x(),
@@ -7121,7 +7136,10 @@ mod tests {
                 he2: arc.he_plus,
             },
             EdgeCurveSpec::line_between(p1, p0),
-            FaceSurface::Shared(plane),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
             tol,
         )
         .expect("the chord closes the cap");

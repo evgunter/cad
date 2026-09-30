@@ -55,6 +55,9 @@ from pncad import (
     Via,
     circle,
     CapEnd,
+    band,
+    band_pi,
+    band_rim,
     circle_split,
     deg,
     evaluate,
@@ -2498,8 +2501,9 @@ class TestTeapot(unittest.TestCase):
     is the pot's two `Band`/`BandPi` half-discs at the mouth-disc
     segment, the rims are the lid's `BandRim` edges at the meridian
     vertices they stand on, and nothing composes a name from text.
-    Segment and vertex are read off the CANONICAL ORDER `select`
-    answers in, which is the role path's own order.
+    Segment and vertex are read off the profile's canonical traversal
+    (`Doc.pieces`), which the names the evaluation answered are ordered
+    by.
 
     The oracles are the scene's own closed forms, restated here from
     the same dyadic constants — never a decimal copied out of a run.
@@ -2793,17 +2797,27 @@ class TestTeapot(unittest.TestCase):
         return hits[0]
 
     def seg_faces(self, ev, node, tag):
-        """The revolve's faces of one band role, in the canonical order
-        `select` answers in — which for a `Band` is its meridian
-        SEGMENT, so the mouth disc's half is at `SEG_MOUTH`."""
+        """The revolve's faces of one band role, in the order `select`
+        answers in (name order: a `Band` and its `BandPi` half share an
+        index)."""
         return ev.select(
             node, Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(tag)))
         )
 
+    def in_program_order(self, doc, profile, node, door, names):
+        """`names`, answered by the evaluation, ordered by the meridian
+        segment (or vertex) whose piece each spells — the profile's own
+        canonical traversal, read through `Doc.pieces`. `select`
+        answers in NAME order, which follows the minted step ids and
+        not the program."""
+        answered = set(names)
+        ordered = [n for n in (door(node, p) for p in doc.pieces(profile)[0]) if n in answered]
+        self.assertEqual(sorted(ordered), sorted(names), "every answered name spells a piece")
+        return ordered
+
     def rim_edges(self, ev, node):
-        """The revolve's closed latitude rims, in the canonical order
-        `select` answers in — which is the meridian VERTEX each stands
-        at."""
+        """The revolve's closed latitude rims, in the order `select`
+        answers in."""
         return ev.select(
             node,
             Selector.of(NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.BandRim))),
@@ -2815,10 +2829,15 @@ class TestTeapot(unittest.TestCase):
         frame, axis = teapot_frame_and_axis(doc)
 
         # ---- the vessel: one revolve, two hollows ----
-        pot = fully_revolved(doc, frame, axis, self.vessel_meridian())
+        vessel = doc.insert(Node.profile(self.vessel_meridian(), plane=frame))
+        pot = doc.insert(Node.revolve(vessel, axis, Expr.angle_in(2 * math.pi, rad)))
         ev = evaluate(doc)
-        bands = self.seg_faces(ev, pot, SegTag.Band)
-        bands_pi = self.seg_faces(ev, pot, SegTag.BandPi)
+        bands = self.in_program_order(
+            doc, vessel, pot, band, self.seg_faces(ev, pot, SegTag.Band)
+        )
+        bands_pi = self.in_program_order(
+            doc, vessel, pot, band_pi, self.seg_faces(ev, pot, SegTag.BandPi)
+        )
         self.assertEqual(len(bands), 4, "one band per meridian segment that sweeps")
         self.assertEqual(len(bands_pi), 4, "and its [pi, 2pi) half")
         # The mouth is the mouth-disc segment's TWO half-faces, the
@@ -2835,9 +2854,10 @@ class TestTeapot(unittest.TestCase):
         cup = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), mouth))
 
         # ---- the lid: three rims, by name ----
-        sharp = fully_revolved(doc, frame, axis, self.lid_meridian())
+        lid_profile = doc.insert(Node.profile(self.lid_meridian(), plane=frame))
+        sharp = doc.insert(Node.revolve(lid_profile, axis, Expr.angle_in(2 * math.pi, rad)))
         ev = evaluate(doc)
-        rims = self.rim_edges(ev, sharp)
+        rims = self.in_program_order(doc, lid_profile, sharp, band_rim, self.rim_edges(ev, sharp))
         self.assertEqual(len(rims), 6, "an annular profile mints one rim per vertex")
         # WHICH rims roll, pinned before they do: each selected name's
         # own circle stands at the station its meridian vertex was
@@ -3990,8 +4010,8 @@ class TestTubeAndHollowTube(unittest.TestCase):
         # Not a wall at all; a wall that eats the bore; and a wall
         # under the outer radius's own ulp, which the first two cannot
         # see because it is a fact about the STORED radii.
-        self.assertIn("tube_wall", refuse(self.OUTER, 0.0))
-        self.assertIn("tube_wall_bore", refuse(self.OUTER, self.OUTER))
+        self.assertIn("wall is not definitely thicker", refuse(self.OUTER, 0.0))
+        self.assertIn("wall leaves no bore", refuse(self.OUTER, self.OUTER))
         doc = Doc()
         spine = self.spine(doc)
         collapsed = doc.insert(
@@ -4002,7 +4022,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         )
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(collapsed)
-        self.assertIn("tube_wall_gap", str(caught.exception))
+        self.assertIn("would be stored as one value", str(caught.exception))
 
     def test_a_window_is_a_value_with_two_spellings(self):
         """`TubeWindow.full()` is a CHOICE, not an omitted argument —
@@ -4090,6 +4110,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `"assertion"` since it was written, for nodes no Python
         # caller could author. The positive form is
         # `tests/test_measures.py`.
+        #
+        # `transform_by` JOINED it at EDIT-PLACEMENT P1: a transform
+        # holds a `Placement` chain, and `transform` is its one-rigid-step
+        # sugar. The positive form is `tests/test_placement.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
@@ -4100,7 +4124,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
-                "split", "transform", "tube", "union",
+                "split", "transform", "transform_by", "tube", "union",
             ],
         )
         #

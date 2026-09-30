@@ -219,7 +219,7 @@ fn mint_directed<T: Decide>(
         match crate::validate::decide("bool_strut_order", m, band) {
             Ok(Sign::Positive) => true,
             Ok(_) => false,
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
+            Err(diag) => return Err(BooleanError::coincidence(diag)),
         }
     } else {
         false
@@ -296,7 +296,7 @@ fn record_germ_dir<T: Decide>(
     let d = match super::rest::tangent_locus(&s_a, &s_b, band) {
         Ok(super::rest::TangentLocus::Line { dir, .. }) => dir.normalize(),
         Err(super::rest::TangentLocusError::Escalated(diag)) => {
-            return Err(BooleanError::Escalated { diag });
+            return Err(BooleanError::coincidence(diag));
         }
         // Both remaining arms mean the same thing to this door: the
         // declaration promised a locus the closed-form lane does not
@@ -349,7 +349,7 @@ fn germ_dir<T: Decide>(
                 what: "surviving crossing record on coplanar sector faces",
             });
         }
-        Err(diag) => return Err(BooleanError::Escalated { diag }),
+        Err(diag) => return Err(BooleanError::coincidence(diag)),
     }
     let d = int.normalize();
     let plus = within(sa, d, false, band)? && within(sb, d, false, band)?;

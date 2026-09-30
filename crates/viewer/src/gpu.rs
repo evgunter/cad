@@ -28,15 +28,19 @@
 //! CLEARED to `IdMap::NOTHING` — so "the cursor is over nothing" is a
 //! value the pass produces rather than a case the reader infers.
 //!
-//! # Construction runs; drawing does not
+//! # What runs on a real device
 //!
-//! [`ViewportRenderer::new`] and everything it builds execute on a real
-//! device under `--features app`, so a pipeline this module cannot
-//! build is a red row. Nothing below that seam does: no surface, no
-//! frame, no readback, no pixel. The questions only a drawn frame
-//! answers — whether the depth attachment is really attached, and
-//! whether the id pass and the ray path agree on the same cursor —
-//! are open, and issue #1097 owns them.
+//! Under `--features app` two rows open the app's own device on the
+//! software adapter CI installs. One builds every pipeline
+//! [`ViewportRenderer::new`] builds, so a pipeline this module cannot
+//! build is a red row. The other renders one frame of a cube through
+//! [`ViewportCallback`]'s `prepare` and `paint`. At the projected
+//! centre of every face that faces the eye it asserts the id pass
+//! answers that face's id, and the shaded pass's depth at that pixel
+//! is the depth of that face's own plane there. So a pass that culls
+//! a face it should draw is a red row.
+//! Nothing compares colours: which pixels are which shade is not
+//! asserted anywhere.
 //!
 //! # Depth
 //!
@@ -60,7 +64,7 @@
 //! the callback, so it resets this pane's depth and nothing else. The
 //! id pass owns its own depth texture and clears it to 0 directly.
 //!
-//! # Culling is off, on purpose
+//! # Culling
 //!
 //! The triangles are outward-wound (`mesh::FacePatch`'s contract) and
 //! the shading uses that winding: the normal comes from the triangle's
@@ -340,9 +344,7 @@ const EDGE_FLAG_PROBE: u32 = EDGE_LANE_MASK + 1;
 /// **The WGSL expression one lane's colour is**, over `base` — the body
 /// colour, probe-tinted where the instance is free-moved.
 ///
-/// An exhaustive match, so a lane added to `EdgeLane` does not compile
-/// until it is given a colour; [`lane_colour_switch`] writes one arm
-/// per lane from it.
+/// [`lane_colour_switch`] writes one arm per lane from this.
 fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
     match lane {
         // The picked marks: the theme's own mark, composited over the
@@ -656,7 +658,7 @@ impl ViewportRenderer {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                // See the module docs: both sides are drawn.
+                // See the module docs: back faces are culled.
                 cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
@@ -971,11 +973,8 @@ impl IdPass {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                // Both sides, for the same reason the shaded pass draws
-                // both: which screen winding is "front" is the question
-                // #1097 settles on hardware, and an id pass that culled
-                // the wrong way would answer NOTHING over a face that
-                // is plainly there.
+                // The shaded pass's cull, so a face that is drawn is a
+                // face that can be picked and one that is not cannot.
                 cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
@@ -2189,6 +2188,56 @@ mod tests {
         }
     }
 
+    /// **The device the running app gets, on whatever adapter this
+    /// machine has** — the one door both real-device rows open theirs
+    /// through.
+    ///
+    /// No adapter is a FAILURE, never a skip: see
+    /// [`every_pass_builds_on_a_real_device`].
+    fn app_device() -> (wgpu::Device, wgpu::Queue) {
+        // `_from_env` so `WGPU_BACKEND` can steer these rows at an
+        // operator's hand; with the variable unset it is every
+        // backend the build has. No display handle: neither row opens
+        // a surface, so there is no window to hand one from.
+        let instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect(
+                    "NO WGPU ADAPTER. The rows that open this device build and draw this \
+                     module's passes on a real device and can report nothing without one, so \
+                     they fail rather than passing emptily. Install a software ICD: `mesa-vulkan-drivers` supplies lavapipe, \
+                     which needs no display (crates/viewer/README.md, headless).",
+                );
+        let info = adapter.get_info();
+        println!(
+            "viewer::gpu real device: adapter {:?} / {} ({:?}, driver {:?})",
+            info.backend, info.name, info.device_type, info.driver
+        );
+
+        // THE APP'S DEVICE, NOT A PERMISSIVE ONE. This crate never
+        // builds a `DeviceDescriptor`: `NativeOptions`' default
+        // `wgpu_options` carries `egui_wgpu`'s own closure, and that
+        // is what the running app requests. So this door ASKS THAT
+        // CLOSURE rather than restating its limits or handing itself
+        // `adapter.limits()` — at the adapter's limits a pipeline that
+        // fits the hardware and exceeds what egui asks for builds
+        // green here and panics at startup, which is the failure the
+        // smoke row exists to close.
+        let egui_wgpu::WgpuSetup::CreateNew(setup) =
+            egui_wgpu::WgpuConfiguration::default().wgpu_setup
+        else {
+            panic!(
+                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer \
+                 ask it for the device descriptor the app requests"
+            );
+        };
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&(setup.device_descriptor)(&adapter)))
+                .expect("the adapter above must yield a device at the limits egui_wgpu asks for");
+        (device, queue)
+    }
+
     /// **Every pipeline in this module, built on a real device.**
     ///
     /// Device acquisition, shader-module compilation and each
@@ -2223,49 +2272,10 @@ mod tests {
     /// exists to close. The environment owes this row an adapter:
     /// `mesa-vulkan-drivers` supplies lavapipe, it needs no display
     /// and no X server (crates/viewer/README.md, headless), and the
-    /// panic below names it when it is missing.
+    /// panic in [`app_device`] names it when it is missing.
     #[test]
     fn every_pass_builds_on_a_real_device() {
-        // `_from_env` so `WGPU_BACKEND` can steer this row at an
-        // operator's hand; with the variable unset it is every
-        // backend the build has. No display handle: this row opens
-        // no surface, so there is no window to hand one from.
-        let instance =
-            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
-        let adapter =
-            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-                .expect(
-                    "NO WGPU ADAPTER. This row builds every pipeline in this module on a real \
-                     device and can report nothing without one, so it fails rather than passing \
-                     emptily. Install a software ICD: `mesa-vulkan-drivers` supplies lavapipe, \
-                     which needs no display (crates/viewer/README.md, headless).",
-                );
-        let info = adapter.get_info();
-        println!(
-            "viewer::gpu pipeline smoke: adapter {:?} / {} ({:?}, driver {:?})",
-            info.backend, info.name, info.device_type, info.driver
-        );
-
-        // THE APP'S DEVICE, NOT A PERMISSIVE ONE. This crate never
-        // builds a `DeviceDescriptor`: `NativeOptions`' default
-        // `wgpu_options` carries `egui_wgpu`'s own closure, and that
-        // is what the running app requests. So the row ASKS THAT
-        // CLOSURE rather than restating its limits or handing itself
-        // `adapter.limits()` — at the adapter's limits a pipeline that
-        // fits the hardware and exceeds what egui asks for builds
-        // green here and panics at startup, which is the one failure
-        // this row exists to close.
-        let egui_wgpu::WgpuSetup::CreateNew(setup) =
-            egui_wgpu::WgpuConfiguration::default().wgpu_setup
-        else {
-            panic!(
-                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer \
-                 ask it for the device descriptor the app requests"
-            );
-        };
-        let (device, _queue) =
-            pollster::block_on(adapter.request_device(&(setup.device_descriptor)(&adapter)))
-                .expect("the adapter above must yield a device at the limits egui_wgpu asks for");
+        let (device, _queue) = app_device();
 
         // THE CENSUS, BOUND TO THE SOURCE. "Every pipeline" is a claim
         // only if something notices a new one: all four of this
@@ -2311,5 +2321,333 @@ mod tests {
             drop(renderer);
             println!("  {target_format:?}: shaded, depth-reset, id and edge pipelines built");
         }
+    }
+
+    /// **Which faces of a solid the culled passes draw, read off a
+    /// rendered frame.**
+    ///
+    /// Both solid passes cull back faces, so a face whose winding or
+    /// whose `FrontFace` is wrong is ABSENT — not shaded oddly — and
+    /// absent geometry reads as a modelling error. This row renders a
+    /// cube the kernel built, through [`ViewportCallback`]'s own
+    /// `prepare` (the id pass, at the app's 1x1 target) and `paint`
+    /// (the shaded pass, into an offscreen target), from two opposite
+    /// eyes, and asks at the centre of every face that faces the eye:
+    ///
+    /// - the id pass answers THAT face's id. A face the pass dropped
+    ///   answers the one behind it, and a pass that culled nothing
+    ///   would still answer correctly, so this reads the cull's
+    ///   direction and not its presence;
+    /// - the shaded pass left, at that pixel, the depth of that face's
+    ///   own plane under the pixel's centre. The far face behind it,
+    ///   a neighbouring face, or no face leaves a different one.
+    ///
+    /// **Which faces face the eye is decided without the winding**: a
+    /// face's outward direction is its centre minus the cube's, which
+    /// holds for any convex solid and asks nothing of the triangles
+    /// the passes are testing.
+    #[test]
+    fn the_culled_passes_draw_every_face_that_faces_the_eye() {
+        use egui_wgpu::CallbackTrait as _;
+        use pncad::document::{CancelToken, Doc, EvalOptions, Node, ProfileProgram, evaluate};
+
+        use crate::camera::Camera;
+        use crate::generation::Generation;
+        use crate::pickindex::{PickIndex, PictureKey};
+        use crate::test_support::{framed_square, inserted, len, plate_delta};
+
+        const SIDE_PX: u32 = 64;
+        const SIDE: f64 = 0.04;
+        let format = wgpu::TextureFormat::Bgra8Unorm;
+        let (device, queue) = app_device();
+
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("pixel-cube", tol);
+        let (doc, profile) = framed_square(&doc, SIDE, tol);
+        let (doc, _) = inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: len(SIDE),
+            },
+            tol,
+        );
+        let eval = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let index = PickIndex::build(
+            &doc,
+            &eval,
+            PictureKey::of(Generation::FIRST, plate_delta()),
+            tol,
+        )
+        .expect("the cube indexes");
+        let scene = Arc::new(index.scene().expect("the cube draws"));
+
+        // Each face's centre: the middle of its corners' box, which on
+        // a planar axis-aligned square is the square's own centre.
+        let mut boxes: std::collections::BTreeMap<u32, ([f64; 3], [f64; 3])> =
+            std::collections::BTreeMap::new();
+        for (corner, &id) in scene.positions().iter().zip(scene.ids()) {
+            let (lo, hi) = boxes.entry(id).or_insert(([f64::MAX; 3], [f64::MIN; 3]));
+            for ((lo, hi), &x) in lo.iter_mut().zip(hi.iter_mut()).zip(corner) {
+                *lo = lo.min(f64::from(x));
+                *hi = hi.max(f64::from(x));
+            }
+        }
+        let faces: Vec<(u32, [f64; 3])> = boxes
+            .iter()
+            .map(|(&id, (lo, hi))| (id, std::array::from_fn(|a| 0.5 * (lo[a] + hi[a]))))
+            .collect();
+        assert_eq!(
+            faces.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+            index.ids().ids().collect::<Vec<_>>(),
+            "the scene draws exactly the cube's six ids, none of them NOTHING"
+        );
+        assert_eq!(faces.len(), 6, "a cube has six faces");
+
+        let aspect = 1.0;
+        let framed = Camera::framing(&scene.bounds(), aspect).expect("the cube frames");
+        let behind = Camera::new(
+            framed.target(),
+            framed.distance(),
+            framed.yaw() + std::f64::consts::PI,
+            -framed.pitch(),
+            framed.fov_y(),
+            framed.scene_radius(),
+        )
+        .expect("the opposite eye is a camera");
+        let centre = framed.target();
+        let centre = [centre.x, centre.y, centre.z];
+
+        let mut resources = egui_wgpu::CallbackResources::default();
+        resources.insert(ViewportRenderer::new(&device, format));
+        let mut seen = std::collections::BTreeSet::new();
+        for (view, camera) in [("framed", &framed), ("behind", &behind)] {
+            let eye = camera.eye();
+            let eye = [eye.x, eye.y, eye.z];
+            let facing: Vec<(u32, [f64; 3])> = faces
+                .iter()
+                .copied()
+                .filter(|(_, c)| {
+                    (0..3)
+                        .map(|a| (c[a] - centre[a]) * (eye[a] - c[a]))
+                        .sum::<f64>()
+                        > 0.0
+                })
+                .collect();
+            assert_eq!(
+                facing.len(),
+                3,
+                "{view}: an eye off every axis sees three faces of a cube"
+            );
+            let view_projection = camera
+                .view_projection_f32(aspect)
+                .expect("the camera projects");
+            let ndc = |p: [f64; 3]| {
+                camera
+                    .project(pncad::geom_core::Point3::new(p[0], p[1], p[2]), aspect)
+                    .expect("the camera projects")
+                    .expect("the cube is in front of the eye")
+            };
+            let callback = |id_query: Option<IdQuery>| ViewportCallback {
+                scene: Arc::clone(&scene),
+                // One scene for both eyes, so one revision: the second
+                // eye draws the buffers the first uploaded.
+                revision: 1,
+                view_projection,
+                light_direction: [0.0, 0.0, -1.0],
+                theme: Theme::DEFAULT,
+                viewport_px: [SIDE_PX as f32; 2],
+                pixels_per_point: 1.0,
+                highlight: Highlight::default(),
+                edges: EdgeOverlay::default(),
+                id_query,
+            };
+            let screen = egui_wgpu::ScreenDescriptor {
+                size_in_pixels: [SIDE_PX; 2],
+                pixels_per_point: 1.0,
+            };
+
+            // The id pass, one query per facing face, as the app asks it.
+            for (serial, &(id, face)) in (1..).zip(&facing) {
+                let [x, y, _] = ndc(face);
+                let answer = Arc::new(AtomicU64::new(0));
+                let mut encoder = device.create_command_encoder(&Default::default());
+                let _ = callback(Some(IdQuery {
+                    cursor_ndc: [x as f32, y as f32],
+                    viewport_px: [SIDE_PX as f32; 2],
+                    serial,
+                    answer: Arc::clone(&answer),
+                }))
+                .prepare(&device, &queue, &screen, &mut encoder, &mut resources);
+                let answer = answer.load(Ordering::Relaxed);
+                assert_eq!(answer >> 32, u64::from(serial), "{view}: the id pass ran");
+                assert_eq!(
+                    answer & u64::from(u32::MAX),
+                    u64::from(id),
+                    "{view}: the id pass at the centre of face {id} answers another id — the \
+                     face that faces the eye was culled and the one behind it answered"
+                );
+                seen.insert(id);
+            }
+
+            // The shaded pass, into a pane-sized target, depth kept.
+            let paint = callback(None);
+            let mut encoder = device.create_command_encoder(&Default::default());
+            let _ = paint.prepare(&device, &queue, &screen, &mut encoder, &mut resources);
+            let extent = wgpu::Extent3d {
+                width: SIDE_PX,
+                height: SIDE_PX,
+                depth_or_array_layers: 1,
+            };
+            let texture = |format, usage| {
+                device.create_texture(&wgpu::TextureDescriptor {
+                    label: None,
+                    size: extent,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format,
+                    usage,
+                    view_formats: &[],
+                })
+            };
+            let colour = texture(format, wgpu::TextureUsages::RENDER_ATTACHMENT);
+            let depth = texture(
+                DEPTH_FORMAT,
+                wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            );
+            let colour_view = colour.create_view(&Default::default());
+            let depth_view = depth.create_view(&Default::default());
+            {
+                // Depth cleared to 1.0, as egui's painter clears it.
+                let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: None,
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &colour_view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations::default(),
+                    })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &depth_view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                let rect =
+                    egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::splat(SIDE_PX as f32));
+                paint.paint(
+                    egui::PaintCallbackInfo {
+                        viewport: rect,
+                        clip_rect: rect,
+                        pixels_per_point: 1.0,
+                        screen_size_px: [SIDE_PX; 2],
+                    },
+                    &mut pass.forget_lifetime(),
+                    &resources,
+                );
+            }
+            let row = u64::from(SIDE_PX) * 4;
+            assert_eq!(
+                row % COPY_ROW_ALIGNMENT,
+                0,
+                "one depth row is a whole copy row"
+            );
+            let readback = device.create_buffer(&wgpu::BufferDescriptor {
+                label: None,
+                size: row * u64::from(SIDE_PX),
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &depth,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::DepthOnly,
+                },
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &readback,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(row as u32),
+                        rows_per_image: Some(SIDE_PX),
+                    },
+                },
+                extent,
+            );
+            queue.submit(std::iter::once(encoder.finish()));
+            readback.slice(..).map_async(wgpu::MapMode::Read, |_| {});
+            device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .expect("the depth readback completes");
+            let texels: Vec<f32> = readback
+                .slice(..)
+                .get_mapped_range()
+                .expect("the depth readback maps")
+                .chunks_exact(4)
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .collect();
+            for &(id, face) in &facing {
+                let [x, y, _] = ndc(face);
+                let px = ((x + 1.0) * 0.5 * f64::from(SIDE_PX)) as usize;
+                let py = ((1.0 - y) * 0.5 * f64::from(SIDE_PX)) as usize;
+                let drawn = f64::from(texels[py * SIDE_PX as usize + px]);
+                // The depth THIS face has at the sampled pixel: the ray
+                // through the pixel's centre, met with the face's plane
+                // (the axis its box is flat on) and projected.
+                let (lo, hi) = boxes[&id];
+                let flat = (0..3)
+                    .min_by(|&a, &b| (hi[a] - lo[a]).total_cmp(&(hi[b] - lo[b])))
+                    .expect("three axes");
+                let ray = camera
+                    .ray_through(
+                        [px as f64 + 0.5, py as f64 + 0.5],
+                        crate::input::ViewportSize {
+                            width_px: f64::from(SIDE_PX),
+                            height_px: f64::from(SIDE_PX),
+                        },
+                    )
+                    .expect("a pixel of the target names a ray");
+                let origin = [ray.origin.x, ray.origin.y, ray.origin.z];
+                let dir = [ray.dir.x, ray.dir.y, ray.dir.z];
+                let t = (face[flat] - origin[flat]) / dir[flat];
+                let hit: [f64; 3] = std::array::from_fn(|a| origin[a] + t * dir[a]);
+                assert!(
+                    (0..3).all(|a| a == flat || (lo[a] < hit[a] && hit[a] < hi[a])),
+                    "{view}: pixel {px},{py} is not inside face {id} ({hit:?}), so its depth \
+                     says nothing about that face"
+                );
+                let expected = ndc(hit)[2];
+                // Measured on llvmpipe, the drawn depth agrees with this
+                // to at most 3.1e-7 relative (f32 vertices and depth
+                // against an f64 ray). Another face's plane at the same
+                // pixel lies percent away, so 1e-4 leaves the raster
+                // ~300x room and still names which face was drawn.
+                assert!(
+                    (drawn - expected).abs() <= 1e-4 * expected,
+                    "{view}: the shaded pass at pixel {px},{py}, inside face {id}, left depth \
+                     {drawn} where that face lies at {expected} — the face that faces the eye \
+                     was not drawn there"
+                );
+            }
+        }
+        assert_eq!(
+            seen.len(),
+            6,
+            "the two eyes between them see every face: {seen:?}"
+        );
     }
 }

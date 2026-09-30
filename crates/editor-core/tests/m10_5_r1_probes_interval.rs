@@ -47,11 +47,11 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(axis: &'static str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
         name(axis),
@@ -63,7 +63,7 @@ fn box_of(axis: &str) -> ParamBox {
     ParamBox::from_axes(axes)
 }
 
-fn declare_with(r: &mut Recorder, axis: &str, nominal: f64, hw: f64) {
+fn declare_with(r: &mut Recorder, axis: &'static str, nominal: f64, hw: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
         value: DocParam::Continuous {
@@ -75,17 +75,19 @@ fn declare_with(r: &mut Recorder, axis: &str, nominal: f64, hw: f64) {
     });
 }
 
-fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
+fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     declare_with(r, axis, nominal, half());
 }
 
 fn translated(input: RecipeNodeId, by: [Expr; 3]) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: by,
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    }
+        editor_core::Step::Rigid {
+            translation: by,
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    )
 }
 
 /// The xy sketch frame, as the `Datum::Frame` node a profile now names.
@@ -110,7 +112,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     })
 }
 
-fn param(n: &str) -> Expr {
+fn param(n: &'static str) -> Expr {
     Expr::param(name(n), Dimension::Length)
 }
 

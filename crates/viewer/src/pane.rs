@@ -180,6 +180,9 @@ pub(crate) mod headless {
         /// then each section's own colour, with egui's placeholder
         /// standing for the shape's fallback.
         pub(crate) ink: Option<egui::Color32>,
+        /// **The clip rect it was painted under**: a row's part
+        /// outside it is not on screen.
+        pub(crate) clip: egui::Rect,
     }
 
     /// [`Landed`] for every `Shape::Text` in a tree of shapes.
@@ -201,7 +204,7 @@ pub(crate) mod headless {
             let first = colours.next()?;
             colours.all(|colour| colour == first).then_some(first)
         }
-        fn walk(shape: &egui::Shape, out: &mut Vec<Landed>) {
+        fn walk(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<Landed>) {
             match shape {
                 egui::Shape::Text(text) => out.push(Landed {
                     text: text.galley.text().to_owned(),
@@ -216,10 +219,11 @@ pub(crate) mod headless {
                         })
                         .collect(),
                     ink: ink(text),
+                    clip,
                 }),
                 egui::Shape::Vec(inner) => {
                     for shape in inner {
-                        walk(shape, out);
+                        walk(shape, clip, out);
                     }
                 }
                 _ => {}
@@ -227,7 +231,7 @@ pub(crate) mod headless {
         }
         let mut out = Vec::new();
         for clipped in shapes {
-            walk(&clipped.shape, &mut out);
+            walk(&clipped.shape, clipped.clip_rect, &mut out);
         }
         out
     }

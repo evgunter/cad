@@ -52,7 +52,7 @@ without arithmetic — a property a stored frame would have to keep.
 `crates/profile/src/lib.rs` (`SketchPlane`, `new`, `from_frame`, the
 four accessors); `crates/geom-core/src/linalg/ortho_frame.rs` for the
 witness. The ruling is
-`work/scalar/unit-vector-invariants-carried-as-prose.md` §RATIFIED.
+SCALAR's `unit-vector-invariants-carried-as-prose` (ruled on PR 2457; `docs/doc-ledger/scalar-leaves-the-tracker.md`) §RATIFIED.
 
 ## Re-homed at S-BOOL's exit (2026-09-16)
 

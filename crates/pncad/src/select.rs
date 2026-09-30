@@ -169,13 +169,17 @@ pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 // as `NodePickError::Index`'s payload, out of a door that is carried
 // — and what a curated list owes about a refusal it names is that the
 // refusal is MATCHABLE through it. Every other arm of `NodePickError`
-// is: `Standing` carries a curated `HitTestError`, `Tessellate` a
+// is: `Standing` carries a curated `NodeStanding`, `Tessellate` a
 // prelude-curated `TessellateError`, the two the door owns carry a
 // `RecipeNodeId` and a `u32`. Carrying the payload alone leaves the
-// index unbuildable and closes that one exception.
+// index unbuildable and closes that one exception. `UnnamedEntity` is
+// carried by the same rule: it is what `HitTestError::Unnamed` holds
+// and the whole per-slot refusal of `NodePick::patch_names` and
+// `boundary_names`, so a slot read through this façade is matchable;
+// and `NameLookupError` is those two doors' refusal of the whole call.
 pub use editor_core::{
-    HitTestError, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray,
-    pick_face,
+    HitTestError, MeshPickError, NameLookupError, NodePick, NodePickError, PickHit, PickMemo,
+    PickTarget, Ray, UnnamedEntity, pick_face,
 };
 
 // **The resolution verdict a stored name gets at the next

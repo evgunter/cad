@@ -1332,11 +1332,30 @@ impl fmt::Display for BlendError {
                  {CHAMFER_ARM_RECOURSE}"
             ),
             Self::Escalated { site, source } => {
-                let recourse = match source.predicate {
-                    Some("fillet3_radius_headroom") => FILLET3_RADIUS_RECOURSE,
-                    Some("fillet3_face_clearance") => FILLET3_CLEARANCE_RECOURSE,
-                    Some("fillet3_spine_regularity") => FILLET3_SPINE_RECOURSE,
-                    Some("fillet3_chain_g1" | "fillet3_chain_arm") => FILLET3_CHAIN_RECOURSE,
+                // What each routed decision decides, in words, and its
+                // recourse: one table, so a name cannot gain a recourse
+                // without a subject or the other way round.
+                let (what, recourse) = match source.predicate {
+                    Some("fillet3_radius_headroom") => (
+                        "whether the radius fits inside the tightest bend of a support face",
+                        FILLET3_RADIUS_RECOURSE,
+                    ),
+                    Some("fillet3_face_clearance") => (
+                        "whether a face is wide enough for the setbacks on both its sides",
+                        FILLET3_CLEARANCE_RECOURSE,
+                    ),
+                    Some("fillet3_spine_regularity") => (
+                        "whether the ball's centre path folds",
+                        FILLET3_SPINE_RECOURSE,
+                    ),
+                    Some("fillet3_chain_g1") => (
+                        "whether two links of the chain meet tangentially",
+                        FILLET3_CHAIN_RECOURSE,
+                    ),
+                    Some("fillet3_chain_arm") => (
+                        "whether a link of the chain is long enough to measure an angle over",
+                        FILLET3_CHAIN_RECOURSE,
+                    ),
                     // `fillet3_convexity_sign`'s definite refusal is
                     // the decided `Zero` — `TangentialEdge`, whose
                     // sentence is the tangential one. An in-band wedge
@@ -1346,26 +1365,42 @@ impl fmt::Display for BlendError {
                     // different site — a chain whose links all resolved
                     // definitely and disagree — and keeps
                     // `FILLET3_CONVEXITY_RECOURSE`.
-                    Some("fillet3_convexity_sign") => FILLET3_TANGENTIAL_RECOURSE,
-                    Some("fillet3_ring_clearance") => FILLET3_RING_RECOURSE,
+                    Some("fillet3_convexity_sign") => (
+                        "whether the edge is convex or concave",
+                        FILLET3_TANGENTIAL_RECOURSE,
+                    ),
+                    Some("fillet3_ring_clearance") => (
+                        "whether a trimline clears a hole in its support face",
+                        FILLET3_RING_RECOURSE,
+                    ),
                     // The in-band arm carries the definite arm's
                     // recourse: a pair whose axes part by an amount
                     // too small to call belongs to the same door as
                     // one whose axes part definitely — a spine that is
                     // neither line nor circle is the canal family
                     // either way.
-                    Some("fillet3_support_coaxiality") => FILLET3_SPINE_KIND_RECOURSE,
+                    Some("fillet3_support_coaxiality") => (
+                        "whether the two support faces share an axis or a ruling",
+                        FILLET3_SPINE_KIND_RECOURSE,
+                    ),
                     // The must-carry rule's in-band verdict over a
                     // contact edge (the surgery's description pass):
                     // the lever is the blend radius, in a direction
                     // the site fixes, and the sentence says which.
-                    Some("tangent_second_order") => FILLET3_CONTACT_RECOURSE,
+                    Some("tangent_second_order") => {
+                        ("whether the faces curve apart", FILLET3_CONTACT_RECOURSE)
+                    }
                     // Predicate 6's two classifications share the corner
                     // recourse: the trihedron's independence and the
                     // ruled band's transverse cap.
-                    Some("fillet3_corner_independence" | "fillet3_cap_transverse") => {
-                        FILLET3_CORNER_RECOURSE
-                    }
+                    Some("fillet3_corner_independence") => (
+                        "whether the three face normals at the corner are independent",
+                        FILLET3_CORNER_RECOURSE,
+                    ),
+                    Some("fillet3_cap_transverse") => (
+                        "whether the band's end face is a plane perpendicular to its ruling",
+                        FILLET3_CORNER_RECOURSE,
+                    ),
                     // An escalation from a predicate this match does not
                     // know is a MISSING recourse, and saying so is the
                     // honest answer — emitting the radius sentence would
@@ -1378,7 +1413,8 @@ impl fmt::Display for BlendError {
                     other => {
                         return write!(
                             f,
-                            "escalated at {site}: {source}; {}",
+                            "at {site}, {} is undecided: {source}; {}",
+                            geom_core::UNNAMED_DECISION,
                             geom_core::MissingRecourse(other)
                         );
                     }
@@ -1392,13 +1428,13 @@ impl fmt::Display for BlendError {
                 match source.margin {
                     geom_core::MarginDiag::INVALID => write!(
                         f,
-                        "escalated at {site}: {}. Recourse: check the operation's inputs \
+                        "{what} is undecided: {}. Recourse: check the operation's inputs \
                          upstream, then {recourse}",
                         source.payload()
                     ),
                     _ => write!(
                         f,
-                        "escalated at {site}: {}. Recourse: {recourse}",
+                        "{what} is undecided: {}. Recourse: {recourse}",
                         source.payload()
                     ),
                 }

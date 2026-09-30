@@ -144,7 +144,7 @@ pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool
 /// (every channel of every point is poison), and so does a DESCRIBED
 /// net that carries poison anywhere — the two states a box must treat
 /// alike, because a box is a claim about where the locus is and a net
-/// with one poisoned bracket bounds its locus on no axis. That is the
+/// with one poisoned channel bounds its locus on no axis. That is the
 /// distinction a **box** needs; a consumer that must tell the three
 /// states apart asks `crate::NurbsSurface::net_state`, which reads
 /// this door and [`is_placeholder`] together and answers
@@ -171,7 +171,7 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
 /// produces; at the interval scalar each coefficient carries its
 /// enclosure into the hull, which is what makes a composite bound over
 /// a lifted payload honest.
-pub(crate) fn ring_coords<T: CertifiedBounds, P: ControlPoint<T>>(
+pub(crate) fn certified_coords<T: CertifiedBounds, P: ControlPoint<T>>(
     control: &[P],
 ) -> Vec<Vec<Interval>> {
     // One lane per channel. The lane count is read off the channel

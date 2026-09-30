@@ -70,12 +70,14 @@ fn slot() -> Slot {
     let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: bar,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bar,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, cut) = insert(
         doc,
@@ -93,7 +95,7 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
     let Some(value) = ev.value(cut) else {
         return Vec::new();
     };
-    value
+    let fragments = value
         .name_table
         .iter()
         .filter_map(|(n, e)| {
@@ -101,7 +103,8 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
                 matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
             (discriminated && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
-        .collect()
+        .collect();
+    fixture::left_to_right(ev, cut, fragments)
 }
 
 /// Sign histogram of the node's `name_frag_side_of` population.
@@ -810,12 +813,14 @@ fn a_second_pair_at_the_node_keeps_the_rung_out_of_a_pruned_one() {
     let (doc, b2) = block(doc, (4.0, 5.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: b1,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b1,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, tool) = insert(
         doc,

@@ -124,7 +124,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_brep::PcurveFittedLane;
 use geom_core::{Affine3, Band, Bounds, Decide, OrthoFrame, Point2, Point3, Real, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -270,7 +269,7 @@ pub fn revolved_about_y(
 /// interval twins build their fixtures through this, so the two lanes
 /// differ in the scalar and in nothing else. The bound is the door's
 /// own (`crate::revolve`'s), carrying no bracket read of its own.
-pub fn revolved_about_y_at<T: Decide + PcurveFittedLane>(
+pub fn revolved_about_y_at<T: Decide + topo::AtRestPolicy>(
     verts: Vec<(Point2<T>, T)>,
     rev: crate::Revolution<T>,
     tol: Tol,
@@ -437,7 +436,7 @@ pub fn waisted(tol: Tol) -> Body<f64> {
 /// [`waisted`] at any scalar: the same five dyadic vertices (every one
 /// exactly representable, so the fixture's enclosures are points at a
 /// certified scalar) through the same doors.
-pub fn waisted_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+pub fn waisted_at<T: Decide + topo::AtRestPolicy>(tol: Tol) -> Body<T> {
     revolved_about_y_at(
         corners(&[(0.0, 0.0), (1.0, 0.0), (0.5, 0.5), (1.0, 1.0), (0.0, 1.0)]),
         crate::Revolution::Full,
@@ -485,17 +484,13 @@ pub fn domed_cavity(tol: Tol) -> Body<f64> {
 /// y-axis, which is where the revolve puts a ball's poles, then
 /// translated to `c`. [`ball_poled_z`] is the same ball turned onto
 /// `+z` before it is placed.
-pub fn ball_poled_y<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
-    r: T,
-    c: Vec3<T>,
-    tol: Tol,
-) -> Body<T> {
+pub fn ball_poled_y<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
     topo::transform_rigid(&ball_about_origin(r, tol), &Affine3::translation(c), tol).unwrap()
 }
 
 /// The two ball doors' common first step: the lamina revolved about
 /// the sketch y-axis, at the origin.
-fn ball_about_origin<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
+fn ball_about_origin<T: Decide + topo::AtRestPolicy>(r: T, tol: Tol) -> Body<T> {
     revolved_about_y_at(
         vec![
             (Point2::new(T::zero(), -r), T::one()),
@@ -519,11 +514,7 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
 
 /// [`ball_poled_z`] at any scalar the revolve and rigid-motion doors
 /// take.
-pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
-    r: T,
-    c: Vec3<T>,
-    tol: Tol,
-) -> Body<T> {
+pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
     let poled = topo::transform_rigid(
         &ball_about_origin(r, tol),
         &Affine3::rotation_about_axis(
@@ -804,6 +795,22 @@ pub const ELBOW_STATIONS: usize = 9;
 /// The v-degree the elbow's stations are interpolated at.
 pub const ELBOW_V_DEGREE: usize = 3;
 
+/// The arc from `a` to `b` with `bulge` as a `geom-brep` sketch
+/// segment, carrying the carrier and sweep the profile's arc lowering
+/// (`arc_to(Bulge)`'s, through [`bulge_loop`]) stores — no arithmetic
+/// of its own.
+///
+/// # Panics
+///
+/// If `bulge` is exactly zero, which lowers to a line.
+pub fn bulge_arc(a: Point2<f64>, b: Point2<f64>, bulge: f64) -> SketchSegment<f64> {
+    let lp = bulge_loop(vec![(a, bulge), (b, 0.0)]);
+    let profile::Segment::Arc(arc) = lp.segments()[0] else {
+        panic!("a zero bulge lowers to a line, not an arc");
+    };
+    SketchSegment::Arc { a, b, arc }
+}
+
 /// **The elbow's path**: a quarter circle of radius [`ELBOW_R`] in the
 /// world YZ plane, starting at the origin with tangent `+z` — so the
 /// identity-placed profile, which lies in the world XY plane, is
@@ -812,17 +819,18 @@ pub const ELBOW_V_DEGREE: usize = 3;
 /// through that centre.
 ///
 /// The sketch arc runs `(0,0) → (R,R)` with `bulge = tan(θ/4) =
-/// tan(π/8)`, i.e. a 90° turn; the placement rotates the sketch plane
-/// by −π/2 about the world y-axis, sending sketch `(x, y)` to world
+/// tan(π/8)`, i.e. a 90° turn, lowered as the profile lowers it
+/// ([`bulge_arc`]); the placement rotates the sketch plane by −π/2
+/// about the world y-axis, sending sketch `(x, y)` to world
 /// `(0, y, x)`.
 pub fn elbow_path() -> NurbsCurve3<f64> {
     segment_curve(
         0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(ELBOW_R, ELBOW_R),
-            bulge: (core::f64::consts::PI / 8.0).tan(),
-        },
+        bulge_arc(
+            Point2::new(0.0, 0.0),
+            Point2::new(ELBOW_R, ELBOW_R),
+            (core::f64::consts::PI / 8.0).tan(),
+        ),
         Affine3::rotation_about_axis(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
@@ -1349,7 +1357,7 @@ pub fn bowl(tol: Tol) -> Body<f64> {
 /// [`bowl`] at any scalar: the same five dyadic vertices through the
 /// same doors, so the interval twin differs in the scalar and nothing
 /// else.
-pub fn bowl_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+pub fn bowl_at<T: Decide + topo::AtRestPolicy>(tol: Tol) -> Body<T> {
     revolved_about_y_at(
         corners(&[(0.0, 0.0), (1.5, 0.0), (1.5, 1.5), (1.0, 1.0), (0.0, 1.0)]),
         crate::Revolution::Full,
@@ -1407,7 +1415,7 @@ pub fn hemisphere_on_flat_base(r: f64, tol: Tol) -> Body<f64> {
 
 /// [`hemisphere_on_flat_base`] at any scalar, so the interval twin
 /// differs in the scalar and nothing else.
-pub fn hemisphere_on_flat_base_at<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
+pub fn hemisphere_on_flat_base_at<T: Decide + topo::AtRestPolicy>(r: T, tol: Tol) -> Body<T> {
     // A quarter turn: `tan(theta/4)` at `theta = pi/2`.
     let bulge = T::from_f64((core::f64::consts::FRAC_PI_2 / 4.0).tan());
     revolved_about_y_at(
@@ -1750,15 +1758,15 @@ pub fn rod_upper_crease(body: &Body<f64>) -> EdgeKey {
 /// far foot's split parameter lies a turn off the carrier's principal
 /// branch. Same creases, same caps, same closed form as
 /// [`rod_with_flat`]; generic over the scalar for the interval twin
-/// (the extrude door's bound is `Decide + PcurveFittedLane`, no bracket).
-pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+/// (the extrude door's bound is `Decide + AtRestPolicy`, no bracket).
+pub fn rod_d_profile_at<T: Decide + topo::AtRestPolicy>(tol: Tol) -> Body<T> {
     rod_d_profile_of_length_at(ROD_L, tol)
 }
 
 /// [`rod_d_profile_at`] at any length — the one home for the D-rod of
 /// a length other than [`ROD_L`], which the prism factor `A · L` and
 /// the cap lever are pinned on.
-pub fn rod_d_profile_of_length_at<T: Decide + PcurveFittedLane>(len: f64, tol: Tol) -> Body<T> {
+pub fn rod_d_profile_of_length_at<T: Decide + topo::AtRestPolicy>(len: f64, tol: Tol) -> Body<T> {
     let f = T::from_f64;
     let c = rod_chord_at(ROD_FLAT);
     let lp = bulge_loop(vec![

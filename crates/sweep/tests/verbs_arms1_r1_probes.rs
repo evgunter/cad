@@ -417,16 +417,19 @@ fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     out.body
         .set_face_surface(
             band_face,
-            FaceSurface::New(Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                // R − r lands at eps·√k — strictly inside the
-                // [eps, k·eps] escalation band, so the classification
-                // is not available at this tolerance.
-                minor_radius: major_radius - tol().eps() * tol().k().sqrt(),
-                u_ref,
-            }),
+            FaceSurface::New {
+                surface: Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    // R − r lands at eps·√k — strictly inside the
+                    // [eps, k·eps] escalation band, so the classification
+                    // is not available at this tolerance.
+                    minor_radius: major_radius - tol().eps() * tol().k().sqrt(),
+                    u_ref,
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let errors = validate_geometric(&out.body, tol()).expect_err("the boundary cannot pass");

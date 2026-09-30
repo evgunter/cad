@@ -28,7 +28,7 @@
 //!    as ring quotients (several are not `f64`-representable).
 //! 4. Bounds: per-span coefficient hulls of numerator and denominator,
 //!    the quotient per span (interval arithmetic refuses a zero-touching divisor,
-//!    so a degenerate denominator poisons loudly), hulled across spans.
+//!    so a degenerate denominator is refused loudly), hulled across spans.
 //!
 //! # Scaling conventions (what the bound means)
 //!
@@ -42,16 +42,17 @@
 //! take (C9), so the plane
 //! composite is `n·(P − p₀)` as given (meters only for unit `n`).
 //!
-//! # C6 and the poison posture
+//! # C6 and the refusal posture
 //!
 //! Structure (knots, weights, degrees, binomials) is `f64`; everything
 //! coefficient-valued is [`Interval`]. Checkable structural errors
 //! at the entry points are typed refusals; anything downstream (zero
-//! axis, degenerate weights) poisons the bound, which fails every
+//! axis, degenerate weights) refuses the bound, which fails every
 //! `≤ ε` comparison (D4 ¶2).
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 use crate::readable::Readable;
 use std::borrow::Cow;
 
@@ -121,13 +122,13 @@ impl core::fmt::Display for ComposeError {
 
 impl core::error::Error for ComposeError {}
 
-/// A NURBS curve's structure plus ring-lifted control coordinates —
-/// the data-in shape every composite consumes. `coords[d][i]` is the
-/// `d`-th coordinate of control point `i` as a certification enclosure (a plain
+/// A NURBS curve in certification form: its structure plus its control
+/// coordinates — the data-in shape every composite consumes. `coords[d][i]`
+/// is the `d`-th coordinate of control point `i` as a certification enclosure (a plain
 /// `f64` control point lifts via [`Interval::point`]; a perturbed
 /// or interval-valued one via [`Interval::from_bounds`]).
 #[derive(Clone, Debug)]
-pub struct CurveRingData<'a> {
+pub struct CurveCertData<'a> {
     kv: &'a KnotVector,
     weights: &'a [f64],
     coords: &'a [Vec<Interval>],
@@ -135,7 +136,7 @@ pub struct CurveRingData<'a> {
 
 // `!(w > 0)` is deliberate (NaN-catching): see `algebra::check_weights`.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-impl<'a> CurveRingData<'a> {
+impl<'a> CurveCertData<'a> {
     /// Validated construction: weight count/positivity/finiteness and
     /// per-channel coordinate counts against the knot vector. The
     /// channel count (2-D pcurves, 3-D curves, …) is free; composites
@@ -254,7 +255,7 @@ impl BernsteinSpans {
         self.spans
             .iter()
             .map(|row| {
-                let mut acc = Interval::poison();
+                let mut acc = Interval::refused();
                 for (n, c) in row.iter().enumerate() {
                     acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
                 }
@@ -398,7 +399,7 @@ const BINOM_EXACT_MAX: usize = 54;
 /// Binomial row `C(n, 0..=n)` at `f64` — exact for `n ≤`
 /// [`BINOM_EXACT_MAX`], which covers every degree this module can
 /// produce from kernel-sized splines (composite degrees are ≤ 4·p).
-/// Beyond the cap the row is **all-poison** (NaN), which poisons every
+/// Beyond the cap the row is **all-NaN**, which refuses every
 /// composite coefficient built from it and fails every `≤ ε`
 /// certification loudly (D4 ¶2) — a rounded weight would instead be a
 /// silently unsound enclosure. (Forming the weights as ring quotients
@@ -444,7 +445,7 @@ fn binom_table() -> &'static [Vec<f64>] {
 /// (`acc = acc + a_i·b_j·w`). The `f64` numerator product is exact
 /// whenever the output row is served at all: by Vandermonde,
 /// `C(da,i)·C(db,j) ≤ C(da+db, i+j)`, and `da + db >`
-/// [`BINOM_EXACT_MAX`] already poisons through `binom_row`.
+/// [`BINOM_EXACT_MAX`] is already refused through `binom_row`.
 fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
     let w = bern_weights(a.len() - 1, b.len() - 1);
     bern_mul_row_with(a, b, &w)
@@ -531,8 +532,8 @@ fn build_bern_weights(da: usize, db: usize) -> BernWeights {
 /// [`build_bern_weights`], memoized on the degree pair: the table is
 /// built on first ask and shared thereafter.
 ///
-/// **Poison is not what the grid excludes.** Every pair with
-/// `da + db >` [`BINOM_EXACT_MAX`] has an all-poison table, and plenty
+/// **A refused table is not what the grid excludes.** Every pair with
+/// `da + db >` [`BINOM_EXACT_MAX`] has an all-refused table, and plenty
 /// of those pairs are INSIDE the grid — `(27, 27)` is a slotted pair
 /// whose every entry is `NaN`. That is the correct answer for the pair
 /// and it is memoized like any other. What is served fresh rather than
@@ -600,26 +601,26 @@ fn bern_mul_row_into(a: &[Interval], b: &[Interval], w: &BernWeights, out: &mut 
     }
 }
 
-/// A structurally-poisoned channel: the shape mismatch outcome for the
+/// A structurally refused channel: the shape mismatch outcome for the
 /// span-wise combinators (never produced by the entry-point builders,
 /// which share one decomposition structure; total anyway, D4).
-fn poison_like(a: &BernsteinSpans, degree: usize) -> BernsteinSpans {
+fn refused_like(a: &BernsteinSpans, degree: usize) -> BernsteinSpans {
     BernsteinSpans {
         degree,
         breaks: a.breaks.clone(),
         spans: a
             .spans
             .iter()
-            .map(|_| vec![Interval::poison(); degree + 1])
+            .map(|_| vec![Interval::refused(); degree + 1])
             .collect(),
     }
 }
 
 /// Span-wise sum (equal degrees and span counts required; mismatch
-/// poisons). Ascending span, ascending coefficient (D9).
+/// is refused). Ascending span, ascending coefficient (D9).
 fn ch_add(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
     if a.degree != b.degree || a.spans.len() != b.spans.len() {
-        return poison_like(a, a.degree);
+        return refused_like(a, a.degree);
     }
     BernsteinSpans {
         degree: a.degree,
@@ -636,7 +637,7 @@ fn ch_add(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
 /// Span-wise difference (contract as [`ch_add`]).
 fn ch_sub(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
     if a.degree != b.degree || a.spans.len() != b.spans.len() {
-        return poison_like(a, a.degree);
+        return refused_like(a, a.degree);
     }
     BernsteinSpans {
         degree: a.degree,
@@ -654,7 +655,7 @@ fn ch_sub(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
 fn ch_mul(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
     let degree = a.degree + b.degree;
     if a.spans.len() != b.spans.len() {
-        return poison_like(a, degree);
+        return refused_like(a, degree);
     }
     BernsteinSpans {
         degree,
@@ -734,7 +735,7 @@ impl CompositeForm {
     /// Per-span certified enclosures of the composite's values: the
     /// numerator hull divided by the denominator hull, span by span.
     /// Interval arithmetic refuses a zero-touching divisor, so a degenerate
-    /// denominator yields a poisoned (NaN-bracket) entry — fail-loud.
+    /// denominator yields a refused (NaN-bracket) entry — fail-loud.
     pub fn span_bounds(&self) -> Vec<Interval> {
         self.num
             .span_hulls()
@@ -745,9 +746,9 @@ impl CompositeForm {
     }
 
     /// The whole-domain enclosure: the hull of [`Self::span_bounds`]
-    /// (fixed ascending fold, D9). Poison if any span poisons.
+    /// (fixed ascending fold, D9). Refused if any span is refused.
     pub fn bound(&self) -> Interval {
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         for (n, b) in self.span_bounds().into_iter().enumerate() {
             acc = if n == 0 { b } else { Interval::hull(acc, b) };
         }
@@ -756,7 +757,7 @@ impl CompositeForm {
 
     /// A certified upper bound on `|f ∘ C|` over the whole domain —
     /// C2.2's sup-norm honesty limb as one number. `NaN` on every
-    /// poison path (fails `≤ ε` in every direction, D4 ¶2).
+    /// refusal path (fails `≤ ε` in every direction, D4 ¶2).
     pub fn sup_bound(&self) -> f64 {
         self.bound().mag()
     }
@@ -870,9 +871,9 @@ fn dot_channel(g: &[BernsteinSpans], c: &[f64; 3]) -> BernsteinSpans {
 /// # Errors
 ///
 /// [`ComposeError::DimensionMismatch`] unless `data.dims() == 3` (the
-/// structure errors were caught at [`CurveRingData::new`]).
+/// structure errors were caught at [`CurveCertData::new`]).
 pub fn implicit_composite(
-    data: &CurveRingData<'_>,
+    data: &CurveCertData<'_>,
     surface: &ImplicitSurface,
 ) -> Result<CompositeForm, ComposeError> {
     if data.dims() != 3 {
@@ -986,7 +987,7 @@ pub fn implicit_composite(
 ///
 /// [`ComposeError::ChannelOutOfRange`] for a bad channel index.
 pub fn coordinate_product(
-    data: &CurveRingData<'_>,
+    data: &CurveCertData<'_>,
     i: usize,
     j: usize,
 ) -> Result<CompositeForm, ComposeError> {
@@ -1015,7 +1016,7 @@ pub fn coordinate_product(
 /// [`ComposeError::DimensionMismatch`] unless
 /// `coeffs.len() == data.dims()`.
 pub fn linear_composite(
-    data: &CurveRingData<'_>,
+    data: &CurveCertData<'_>,
     coeffs: &[f64],
     offset: f64,
 ) -> Result<CompositeForm, ComposeError> {
@@ -1141,7 +1142,7 @@ mod tests {
         f: impl Fn(&[f64]) -> f64,
     ) -> f64 {
         let b = form.sup_bound();
-        assert!(b.is_finite(), "poisoned bound");
+        assert!(b.is_finite(), "refused bound");
         let (lo, hi) = kv.domain();
         let mut worst = 0.0f64;
         for k in 0..=1024 {
@@ -1165,7 +1166,7 @@ mod tests {
         ];
         let w = vec![1.0, 1.0];
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
         let cone = ImplicitSurface::Cone {
             apex: [0.0, 0.0, 0.0],
             axis: [0.0, 0.0, 1.0],
@@ -1187,7 +1188,7 @@ mod tests {
         let coords = vec![vec![r, r], vec![0.0, 0.0], vec![-2.0, 5.0]];
         let w = vec![1.0, 1.0];
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
         // Non-unit axis on purpose: the |a|² normalization is exact in
         // interval arithmetic, so the bound is still the meters² residual.
         let cyl = ImplicitSurface::Cylinder {
@@ -1225,7 +1226,7 @@ mod tests {
         let (big_r, small_r) = (2.0, 0.5);
         let (kv, w, coords) = circle_fixture(big_r + small_r);
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
         let torus = ImplicitSurface::Torus {
             center: [0.0, 0.0, 0.0],
             axis: [0.0, 0.0, 2.0], // non-unit on purpose
@@ -1251,7 +1252,7 @@ mod tests {
         let coords = vec![vec![0.0, 0.7, 1.3, 2.0], vec![1.0, -0.4, 0.9, -1.5]];
         let w = vec![1.0, 0.8, 1.3, 1.0];
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
 
         let prod = coordinate_product(&data, 0, 1).unwrap();
         assert_sound(&prod, &kv, &w, &coords, |p| p[0] * p[1]);
@@ -1308,7 +1309,7 @@ mod tests {
     }
 
     /// Bitwise identity of a certification value: NaN endpoints compare equal
-    /// to each other and to nothing else, which is what a poisoned
+    /// to each other and to nothing else, which is what a refused
     /// weight has to preserve.
     pub(super) fn same_bits(x: Interval, y: Interval) -> bool {
         x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits()
@@ -1317,7 +1318,7 @@ mod tests {
     #[test]
     fn the_memoized_weight_table_is_the_recurrence_it_replaces_bitwise() {
         // Every degree pair the kernel can produce, and then the
-        // straddle: `da + db` past the exactness cap (all-poison rows)
+        // straddle: `da + db` past the exactness cap (all-refused rows)
         // and a single degree past it (the un-slotted path).
         let mut pairs: Vec<(usize, usize)> = Vec::new();
         for da in 0..=12 {
@@ -1341,7 +1342,7 @@ mod tests {
             // the convolution's: `lo(k) = k − db` clamped at zero.
             assert_eq!((table.da, table.db), (da, db), "pair at ({da}, {db})");
             assert_eq!(table.row_count(), da + db + 1, "row count at ({da}, {db})");
-            let poisoned = da + db > BINOM_EXACT_MAX;
+            let refused = da + db > BINOM_EXACT_MAX;
             for k in 0..table.row_count() {
                 let lo = table.lo(k);
                 assert_eq!(lo, k.saturating_sub(db), "lo({k}) at ({da}, {db})");
@@ -1358,13 +1359,13 @@ mod tests {
                         "at({k}, {}) at ({da}, {db})",
                         lo + t
                     );
-                    // Past the cap the row is all-poison, and the memo
-                    // must carry the poison rather than a rounded
+                    // Past the cap the row is all-refused, and the memo
+                    // must carry the refusal rather than a rounded
                     // weight (`binom_row`'s contract).
                     assert_eq!(
                         w.lo().is_nan() && w.hi().is_nan(),
-                        poisoned,
-                        "poison at ({da}, {db}) k={k} i={}",
+                        refused,
+                        "refusal at ({da}, {db}) k={k} i={}",
                         lo + t
                     );
                 }
@@ -1420,11 +1421,11 @@ mod tests {
     }
 
     #[test]
-    fn typed_refusals_and_poison_paths() {
+    fn typed_refusals_and_refusal_paths() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let coords2 = lift(&[vec![0.0, 1.0], vec![0.0, 1.0]]);
         let w = vec![1.0, 1.0];
-        let data2 = CurveRingData::new(&kv, &w, &coords2).unwrap();
+        let data2 = CurveCertData::new(&kv, &w, &coords2).unwrap();
         // Implicit surfaces need 3 channels.
         let sphere = ImplicitSurface::Sphere {
             center: [0.0; 3],
@@ -1450,16 +1451,16 @@ mod tests {
         ));
         // Bad weights are typed at construction.
         assert!(matches!(
-            CurveRingData::new(&kv, &[1.0, -1.0], &coords2),
+            CurveCertData::new(&kv, &[1.0, -1.0], &coords2),
             Err(ComposeError::Structure(
                 SplineError::NonPositiveWeight { .. }
             ))
         ));
         // A zero axis reaches the denominator as a zero-touching
-        // divisor: interval arithmetic refuses, the bound poisons (NaN), and NaN
+        // divisor: interval arithmetic refuses, the bound is refused (NaN), and NaN
         // fails every ≤ ε certification (D4 ¶2).
         let coords3 = lift(&[vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]]);
-        let data3 = CurveRingData::new(&kv, &w, &coords3).unwrap();
+        let data3 = CurveCertData::new(&kv, &w, &coords3).unwrap();
         let cyl = ImplicitSurface::Cylinder {
             point: [0.0; 3],
             axis: [0.0; 3],
@@ -1471,11 +1472,11 @@ mod tests {
 
     /// MINOR-1 pin (adversarial review): the recurrence is exact through
     /// `BINOM_EXACT_MAX` (differential vs `u128` integer arithmetic) and
-    /// refuses — all-poison, never a rounded weight — beyond it. The
+    /// refuses — all-NaN, never a rounded weight — beyond it. The
     /// first inexact recurrence row is n = 55, where the intermediate
     /// product exceeds 2⁵³ although `C(55, 26)` is representable.
     #[test]
-    fn binom_rows_are_exact_through_the_cap_and_poison_beyond_it() {
+    fn binom_rows_are_exact_through_the_cap_and_nan_beyond_it() {
         for n in 0..=BINOM_EXACT_MAX {
             let row = binom_row(n);
             let mut exact: u128 = 1;
@@ -1497,7 +1498,7 @@ mod tests {
     fn bit_replay_composites_are_deterministic() {
         let (kv, w, coords) = circle_fixture(2.5);
         let ring = lift(&coords);
-        let data = CurveRingData::new(&kv, &w, &ring).unwrap();
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
         let sphere = ImplicitSurface::Sphere {
             center: [0.1, -0.2, 0.3],
             radius: 2.5,

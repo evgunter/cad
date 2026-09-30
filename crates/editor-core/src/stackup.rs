@@ -138,7 +138,7 @@ use crate::doc::{Doc, DocParam, ParamName};
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
-    NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,
+    NodeErrorKind, NodeResult, NodeStanding, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
@@ -542,10 +542,6 @@ fn leaf_opts(box_: ParamBox) -> EvalOptions {
     }
 }
 
-/// The measured value at `id`, or the refusal rendered with the node
-/// it came from (the measure itself, or the failed ancestor a poisoned
-/// measure names) — the one ladder every reader of a measure payload
-/// takes.
 /// The stackup's NOMINAL column: the f64 value, or the typed reason
 /// there is none — distinguished from a measure node that genuinely
 /// failed, which stays an error.
@@ -557,22 +553,39 @@ fn nominal_of(
     ev: &Evaluation<f64>,
     id: RecipeNodeId,
 ) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (RecipeNodeId, String)> {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
+    match ev.usable(id) {
+        Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
             ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
             other => Err((id, format!("node is a {}", other.kind_name()))),
         },
-        other => Err((id, format!("the measure did not evaluate: {other:?}"))),
+        Err(standing) => Err(no_measure(ev, standing)),
     }
 }
 
+/// The refusal for a measure node with no value, rendered with the
+/// node it came from: a failed measure's own error, a poisoned one's
+/// failed ancestor's, and otherwise the standing.
+fn no_measure<T: geom_core::Decide>(
+    ev: &Evaluation<T>,
+    standing: NodeStanding,
+) -> (RecipeNodeId, String) {
+    ev.node_error(standing.node()).map_or_else(
+        || (standing.node(), standing.to_string()),
+        |e| (e.node, e.kind.to_string()),
+    )
+}
+
+/// The measured value at `id`, or the refusal rendered with the node
+/// it came from (the measure itself, or the failed ancestor a poisoned
+/// measure names) — the one ladder every reader of a measure payload
+/// takes.
 fn measure_of<T: geom_core::Decide + Copy>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Result<T, (RecipeNodeId, String)> {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
+    match ev.usable(id) {
+        Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(*value),
             // **A measure with no value at this scalar reads as a
             // refusal HERE**, carrying its own reason, and that is the
@@ -593,10 +606,7 @@ fn measure_of<T: geom_core::Decide + Copy>(
                 format!("node evaluated to a {}, not a measure", other.kind_name()),
             )),
         },
-        _ => Err(ev.node_error(id).map_or_else(
-            || (id, "not evaluated".to_owned()),
-            |e| (e.node, e.kind.to_string()),
-        )),
+        Err(standing) => Err(no_measure(ev, standing)),
     }
 }
 
@@ -1282,11 +1292,11 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
-                row.param.0,
+                row.param.as_str(),
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
-                    Err(u) => format!("unavailable:{}", u.param().0),
+                    Err(u) => format!("unavailable:{}", u.param().as_str()),
                 },
                 match &row.chamber_span {
                     Some(c) => format!(
@@ -1307,7 +1317,7 @@ impl Stackup {
                     "unavailable:{}",
                     blockers
                         .iter()
-                        .map(|b| b.param().0.clone())
+                        .map(|b| b.param().as_str().to_owned())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),
@@ -1319,7 +1329,7 @@ impl Stackup {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let crate::report::MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "  forced_by {}", p.0);
+                let _ = writeln!(s, "  forced_by {}", p.as_str());
             }
         }
         let _ = write!(s, "{}", coverage_bits(&self.coverage));
@@ -1386,7 +1396,7 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
-                row.param.0,
+                row.param.as_str(),
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
                     Ok(v) => Readable(*v).to_string(),
@@ -1482,7 +1492,8 @@ pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
             match refusal {
                 LiftRefusal::PinnedSection { section, param } => format!(
                     "{} feeds the section of node {}, which stays f64 (C6/D9)",
-                    param.0, section.0
+                    param.as_str(),
+                    section.0
                 ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
@@ -1790,7 +1801,7 @@ pub fn stackup(
 /// [`geom_core::Interval`], which has no tangent channel, and the
 /// bracket is read through
 /// [`geom_core::CertifiedEnclosure::certified_bracket`] — the
-/// domain-honest door, so a poisoned enclosure refuses named instead of
+/// domain-honest door, so a refused enclosure refuses named instead of
 /// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,
@@ -1895,8 +1906,8 @@ mod tests {
     /// One blocker of every arm, for `param` — checked against the
     /// weld, so an arm with no example here fails every row that reads
     /// this.
-    fn every_arm(param: &str) -> Vec<Unavailable> {
-        let param = ParamName::new(param);
+    fn every_arm(param: &'static str) -> Vec<Unavailable> {
+        let param = ParamName::from_static(param);
         let all = vec![
             Unavailable::TangentDegraded {
                 param: param.clone(),
@@ -1934,11 +1945,13 @@ mod tests {
     /// A refused rss row splits back into exactly the blockers it was
     /// made from, in order — including blockers whose sentences carry
     /// the punctuation a flat join would have split on, which a
-    /// sentence is free to write and a name can carry.
+    /// sentence is free to write. A NAME cannot carry it: a `ParamName`
+    /// is one identifier by construction, so the second batch is a
+    /// second identifier and the sentences alone carry the separators.
     #[test]
     fn a_refused_rss_splits_back_into_its_blockers() {
         let mut blockers = every_arm("width");
-        blockers.extend(every_arm("a; b, c"));
+        blockers.extend(every_arm("depth"));
         let rendered = render_rss(&Rss::UnavailableBecause {
             blockers: blockers.clone(),
         });
@@ -1962,7 +1975,7 @@ mod tests {
     fn a_single_blocker_is_counted_in_the_singular() {
         let rendered = render_rss(&Rss::UnavailableBecause {
             blockers: vec![Unavailable::Unliftable {
-                param: ParamName::new("w"),
+                param: ParamName::from_static("w"),
             }],
         });
         assert_eq!(

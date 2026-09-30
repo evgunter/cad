@@ -137,28 +137,34 @@ fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
     let (p0, p1) = (carrier.eval(h0), carrier.eval(h1));
 
     let mut body = topo::Body::<f64>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New(Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
-                radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 1.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let cyl = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New(Surface::Cylinder {
-                origin: Point3::new(0.03, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: 0.08,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Cylinder {
+                    origin: Point3::new(0.03, 0.0, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 0.08,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let mid = h0 + (h1 - h0) * 0.5;
@@ -319,27 +325,33 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     let (p0, p1) = (carrier.eval(h0), carrier.eval(h1));
 
     let mut body = topo::Body::<f64>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New(Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
-                radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 1.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let plane = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let mid = h0 + (h1 - h0) * 0.5;
@@ -417,27 +429,33 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     // whose METERED distance-to-endpoint sits inside the band still
     // refuses, on the rational arm exactly as on the integral one.
     let mut body2 = topo::Body::<f64>::new();
-    let seed2 = body2.mvfs(p0).unwrap();
+    let seed2 = body2.mvfs(p0, true).unwrap();
     let sph2 = body2
         .set_face_surface(
             seed2.face,
-            topo::FaceSurface::New(Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
-                radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 1.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
-    let anchor2 = body2.mvfs(p1).unwrap();
+    let anchor2 = body2.mvfs(p1, true).unwrap();
     let plane2 = body2
         .set_face_surface(
             anchor2.face,
-            topo::FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let made2 = body2

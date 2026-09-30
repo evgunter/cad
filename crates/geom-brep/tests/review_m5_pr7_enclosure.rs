@@ -33,6 +33,7 @@ test_utils::gated_to![
 use geom::Surface;
 use geom_brep::implicit_residual;
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::{Interval, Point3, Vec3};
 use test_utils::fuzz;
 
@@ -167,7 +168,7 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
         let ec = cyl_enclosure_good(*origin, *axis, *cr, b);
         assert!(
             es.is_certified() && ec.is_certified(),
-            "enclosure poisoned on box centre {c:?} — {}",
+            "enclosure refused on box centre {c:?} — {}",
             fuzz::replay()
         );
         // The 5×5×5 lattice is corners + face centres + interior of the

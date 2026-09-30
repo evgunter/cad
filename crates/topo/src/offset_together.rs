@@ -150,7 +150,7 @@ struct MovedPlane<T: Real> {
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
 /// plan is decided before anything is written, and the writes go to a
 /// clone that replaces `body` only on success.
-pub fn offset_planes_together<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,
@@ -362,19 +362,35 @@ pub fn offset_planes_together<T: Decide + geom_brep::PcurveFittedLane>(
         else {
             return Err(ReplaceFaceError::Corrupt);
         };
+        // An offset moves the chart along its own normal, so every face
+        // keeps the side its material lies on.
+        let sense = work.get_face(first).ok_or(ReplaceFaceError::Corrupt)?.sense;
         let new_key = work
             .set_face_surface(
                 first,
-                FaceSurface::New(Surface::Plane {
-                    origin: origin + p.delta,
-                    normal: p.normal,
-                    u_ref,
-                }),
+                FaceSurface::New {
+                    surface: Surface::Plane {
+                        origin: origin + p.delta,
+                        normal: p.normal,
+                        u_ref,
+                    },
+                    sense,
+                },
             )
             .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
         for &member in &m.faces[1..] {
-            work.set_face_surface(member, FaceSurface::Shared(new_key))
-                .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+            let sense = work
+                .get_face(member)
+                .ok_or(ReplaceFaceError::Corrupt)?
+                .sense;
+            work.set_face_surface(
+                member,
+                FaceSurface::Shared {
+                    key: new_key,
+                    sense,
+                },
+            )
+            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
         }
         minted.push((p.old_key, new_key));
     }
@@ -1088,12 +1104,15 @@ mod scope_walks {
         let victim = body.faces_of_solid(second).expect("a live solid")[0];
         body.set_face_surface(
             victim,
-            crate::euler::FaceSurface::New(geom::Surface::Cylinder {
-                origin: Point3::new(10.5, 0.5, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: 0.5,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            crate::euler::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::new(10.5, 0.5, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 0.5,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
         assert!(
@@ -1144,7 +1163,7 @@ mod scope_walks {
         // a stale key is the case this door promises to catch, and a
         // foreign key is the case it documents that it does not, so
         // only the first witnesses the refusal under test.
-        let scratch = body.mvfs(Point3::new(0.0, 0.0, 9.0)).unwrap();
+        let scratch = body.mvfs(Point3::new(0.0, 0.0, 9.0), true).unwrap();
         let dead = scratch.face;
         body.kvfs(scratch.solid)
             .expect("the scratch solid dies whole");

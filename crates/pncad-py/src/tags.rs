@@ -133,24 +133,25 @@ use pncad::document::{
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
     EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
     MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorKind, ParseError, PersistError, PiecesFault, PlacementRuleFault,
-    ProgramFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault,
-    ShellClassifyError, SlotId, SnapshotError, SplitError, StepIdFault, Subgroup, UpdateError,
+    MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError,
+    PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
+    RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError, SlotId, SnapshotError,
+    SplitError, StepHandleRefusal, StepIdFault, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
     UnitVec3Error,
 };
 use pncad::mesh::TessellateError;
-use pncad::prelude::BlendKind;
 use pncad::profile::{
     CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind, ProfileError,
     ReplayErrorKind, StructureRefusalKind,
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NamingError,
-    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate, RimShare,
+    DanglingRef, EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError,
+    NamingError, NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate,
+    RimShare,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -306,6 +307,8 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::TiedDisagrees { .. } => "tied_disagrees",
         R::Unreadable { .. } => "unreadable",
         R::NotADatum { .. } => "not_a_datum",
+        R::DatumHasNoValue(_) => "datum_has_no_value",
+        R::NodeHasNoValue(_) => "node_has_no_value",
         R::NotALength { .. } => "not_a_length",
         R::PairInBand { .. } => "pair_in_band",
         R::BadValue(_) => "bad_value",
@@ -379,6 +382,7 @@ pub fn boundary_edit_tag(refusal: BoundaryEdit<'_>) -> &'static str {
         BoundaryEdit::Declare(err) => declare_error_tag(err),
         BoundaryEdit::PlacementRule(fault) => placement_rule_fault_tag(fault),
         BoundaryEdit::MateHead(_) => "mate_head_not_a_face",
+        BoundaryEdit::ParamName(_) => "param_name_not_an_identifier",
     }
 }
 
@@ -430,12 +434,12 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 /// slots and a caller branching on it could not tell which expression
 /// refused.
 ///
-/// `profile` is the one arm that stops one level, and it stops for the
-/// reason [`profile_error_tag`]'s family does: what is left below it —
-/// the loop index, the step index and which of the step's arguments —
-/// is two integers and a third enum, and no `&'static str` carries an
-/// integer. The address is in the refusal's prose; the word says the
-/// slot is a profile program's.
+/// `profile` and `placement_step` are the two arms that stop one level,
+/// and they stop for the reason [`profile_error_tag`]'s family does:
+/// what is left below them — a profile's loop index, step index and
+/// argument role; a later placement step's index and component — holds
+/// an integer, and no `&'static str` carries one. The address is in the
+/// refusal's prose; the word says which kind of slot it is.
 pub fn slot_id_tag(slot: &SlotId) -> &'static str {
     match slot {
         SlotId::Origin(axis) => match axis {
@@ -492,6 +496,7 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::VDegree => "v_degree",
         SlotId::Stations => "stations",
         SlotId::Profile { .. } => "profile",
+        SlotId::PlacementStep { .. } => "placement_step",
     }
 }
 
@@ -588,6 +593,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
         EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
+        EditError::NonRigidPlacement { .. } => "non_rigid_placement",
         EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
@@ -727,18 +733,13 @@ pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
 /// The stable tag for a placement-rule fault (GROUP-BOOLEAN-DESIGN) —
 /// ONE tag per fault, shared by every door that carries one.
 ///
-/// The tags are the EDIT door's own (`placement_rule_mismatch`,
-/// `empty_placement_list`, `non_finite_placement`,
-/// `improper_placement`), so the same broken rule reads the same
-/// whether it is refused at the node constructor, at the edit gate, or
-/// at the evaluation backstop — one fault, one spelling, three doors.
+/// The word is the fault's class's ([`node_error_tag`] over
+/// `NodeErrorClass::of_placement_rule`), so the same broken rule reads
+/// the same whether it is refused at the node constructor, at the edit
+/// gate, or at the evaluation backstop — one fault, one spelling,
+/// three doors.
 pub fn placement_rule_fault_tag(fault: &PlacementRuleFault) -> &'static str {
-    match fault {
-        PlacementRuleFault::CountSpelling => "placement_rule_mismatch",
-        PlacementRuleFault::NoPlacements => "empty_placement_list",
-        PlacementRuleFault::NonFiniteFrame { .. } => "non_finite_placement",
-        PlacementRuleFault::ImproperFrame { .. } => "improper_placement",
-    }
+    node_error_tag(NodeErrorClass::of_placement_rule(fault))
 }
 
 /// The stable tag for a frame-construction refusal
@@ -826,17 +827,28 @@ pub fn root_fault_tag(fault: &RootFault) -> &'static str {
     }
 }
 
-/// The stable tag for a node's evaluation refusal.
-pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
-    match kind {
-        NodeErrorKind::Expr { .. } => "expr",
-        NodeErrorKind::Profile { .. } => "profile",
-        NodeErrorKind::ProfileReplay { .. } => "profile_replay",
-        NodeErrorKind::ProfileLaneReplay { .. } => "profile_lane_replay",
-        NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
-        NodeErrorKind::ProfilePieces { .. } => "profile_pieces",
-        NodeErrorKind::Extrude { .. } => "extrude",
-        NodeErrorKind::Revolve { .. } => "revolve",
+/// The stable tag for a node's evaluation refusal: one word per
+/// [`NodeErrorClass`], so the word is read off the class a refusal
+/// projects to and never off its payload.
+///
+/// Where a class splits an arm on a value its payload carries, the word
+/// is that value's own word at every other door that publishes it, by
+/// delegation: the instantiation seam's classes read
+/// [`resolve_fault_tag`], whose fieldless fault a class names; and
+/// [`placement_rule_fault_tag`] and [`mate_fault_tag`] read the words
+/// written here, through the class their fault projects to, because a
+/// class cannot name a fault that carries a payload.
+pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
+    use NodeErrorClass as C;
+    match class {
+        C::Expr => "expr",
+        C::Profile => "profile",
+        C::ProfileReplay => "profile_replay",
+        C::ProfileLaneReplay => "profile_lane_replay",
+        C::ProfileAnchor => "profile_anchor",
+        C::ProfilePieces => "profile_pieces",
+        C::Extrude => "extrude",
+        C::Revolve => "revolve",
         // ONE tag for both tube kinds, matching every other op on
         // this map (`revolve` covers ten `RevolveError` arms the
         // same way): the tag names the OP that refused, and the
@@ -844,135 +856,151 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // solid or hollow. Per-arm tags would be worth having, but
         // for every op at once — not for the one op whose unit
         // happened to be written last.
-        NodeErrorKind::Tube { .. } => "tube",
-        NodeErrorKind::Split { .. } => "split",
-        // The two blends share one kernel error type, so the tag is
-        // read off the VERB the node is: a chamfer's refusal must not
+        C::Tube => "tube",
+        C::Split => "split",
+        // The two blends share one kernel error type, so the class
+        // splits on the VERB the node is: a chamfer's refusal must not
         // reach Python calling itself a fillet's.
-        NodeErrorKind::Blend { verb, .. } => match verb {
-            BlendKind::Fillet => "fillet",
-            BlendKind::Chamfer => "chamfer",
-        },
-        NodeErrorKind::Boolean { .. } => "boolean",
-        NodeErrorKind::Transform { .. } => "transform",
-        NodeErrorKind::Skin { .. } => "skin",
-        NodeErrorKind::Loft { .. } => "loft",
-        NodeErrorKind::CurvedSolidFrontier { .. } => "curved_solid_frontier",
-        NodeErrorKind::MissingInput { .. } => "missing_input",
-        NodeErrorKind::MeasureRefResolve { .. } => "measure_ref_resolve",
-        NodeErrorKind::MeasureRefUnreadable { .. } => "measure_ref_unreadable",
-        NodeErrorKind::MeasureUnsupported(_) => "measure_unsupported",
-        NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
-        NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
-        NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
+        C::Fillet => "fillet",
+        C::Chamfer => "chamfer",
+        C::Boolean => "boolean",
+        C::Transform => "transform",
+        C::Skin => "skin",
+        C::Loft => "loft",
+        C::CurvedSolidFrontier => "curved_solid_frontier",
+        C::MissingInput => "missing_input",
+        C::MeasureRefResolve => "measure_ref_resolve",
+        C::MeasureRefUnreadable => "measure_ref_unreadable",
+        C::MeasureUnsupported => "measure_unsupported",
+        C::MeasureNotParallel => "measure_not_parallel",
+        C::MeasureNonFinite => "measure_non_finite",
+        C::MeasureMalformed => "measure_malformed",
         // Its own tag rather than `measure_unsupported`'s: the
         // recourse is "select a body or a face", not "this carrier
         // pair has no closed form".
-        NodeErrorKind::MeasureSelectionKind { .. } => "measure_selection_kind",
+        C::MeasureSelectionKind => "measure_selection_kind",
         // And its own again: the clearance engine refused, so the
         // recourse is the engine's — a wider budget, an admitted
         // carrier — and not the measurement vocabulary's.
-        NodeErrorKind::MeasureClearanceRefused(_) => "measure_clearance_refused",
-        NodeErrorKind::PayloadExpr { .. } => "payload_expr",
-        NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
-        NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
+        C::MeasureClearanceRefused => "measure_clearance_refused",
+        C::PayloadExpr => "payload_expr",
+        C::AssertionDimension => "assertion_dimension",
+        C::ToleranceConflict => "tolerance_conflict",
         // Its own tag rather than the ε conflict's: both refuse every
         // node for a whole-run reason, but the recourses are different
         // — one is "replay in a process whose ε matches", the other is
         // "ask for the box at a scalar that can carry it".
-        NodeErrorKind::ParamBox { .. } => "param_box",
+        C::ParamBox => "param_box",
         // The box arm's twin, and its own tag for the same reason: the
         // recourse is "seed at a scalar with a tangent channel" (or
         // name a continuous parameter), not the box's.
-        NodeErrorKind::Seed { .. } => "seed",
+        C::Seed => "seed",
         // The seed stopped at a C6/D9-pinned section: its own tag,
         // because the recourse ("this parameter cannot be seeded
         // through a loft or sweep section") is neither the box's nor
         // the scalar's.
-        NodeErrorKind::SeedPinnedSection { .. } => "seed_pinned_section",
-        NodeErrorKind::WrongOperand { .. } => "wrong_operand",
-        NodeErrorKind::EmptyOperand { .. } => "empty_operand",
-        NodeErrorKind::DegenerateDirection { .. } => "degenerate_direction",
-        NodeErrorKind::NonFiniteDirection { .. } => "non_finite_direction",
-        NodeErrorKind::UnderflowedDirection { .. } => "underflowed_direction",
-        NodeErrorKind::Band { .. } => "band",
-        NodeErrorKind::MissingSlot { .. } => "missing_slot",
-        NodeErrorKind::VerbArity { .. } => "verb_arity",
-        NodeErrorKind::Escalated { .. } => "escalated",
-        NodeErrorKind::AxisInDifferentPlane { .. } => "axis_in_different_plane",
-        NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
-        NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
-        NodeErrorKind::PlacementRule(fault) => placement_rule_fault_tag(fault),
-        NodeErrorKind::UnschedulableCycle => "unschedulable_cycle",
-        NodeErrorKind::Naming { .. } => "naming",
-        NodeErrorKind::ParamSourceAttach(_) => "param_source_attach",
-        NodeErrorKind::DeclareResolve { .. } => "declare_resolve",
-        NodeErrorKind::DeclareUnsupportedPair { .. } => "declare_unsupported_pair",
-        NodeErrorKind::DeclareSiteNotAnOperand { .. } => "declare_site_not_an_operand",
+        C::SeedPinnedSection => "seed_pinned_section",
+        C::WrongOperand => "wrong_operand",
+        C::EmptyOperand => "empty_operand",
+        C::DegenerateDirection => "degenerate_direction",
+        C::NonFiniteDirection => "non_finite_direction",
+        C::UnderflowedDirection => "underflowed_direction",
+        C::Band => "band",
+        C::MissingSlot => "missing_slot",
+        C::VerbArity => "verb_arity",
+        C::Escalated => "escalated",
+        C::AxisInDifferentPlane => "axis_in_different_plane",
+        C::NonPositiveCount => "non_positive_count",
+        C::PlacementsUncertified => "placements_uncertified",
+        C::PlacementRuleCountSpelling => "placement_rule_mismatch",
+        C::PlacementRuleNoPlacements => "empty_placement_list",
+        C::PlacementRuleNonFiniteFrame => "non_finite_placement",
+        C::PlacementRuleImproperFrame => "improper_placement",
+        C::PlacementRuleNonRigidFrame => "non_rigid_placement",
+        C::UnschedulableCycle => "unschedulable_cycle",
+        C::Naming => "naming",
+        C::ParamSourceAttach => "param_source_attach",
+        C::DeclareResolve => "declare_resolve",
+        C::DeclareUnsupportedPair => "declare_unsupported_pair",
+        C::DeclareSiteNotAnOperand => "declare_site_not_an_operand",
         // The refusal MENU: the boolean's
         // undeclared-contact refusal carrying the candidate
         // declaration; the `finding` payload crosses as a typed
         // attribute beside this tag.
-        NodeErrorKind::UndeclaredContact { .. } => "undeclared_contact",
+        C::UndeclaredContact => "undeclared_contact",
         // The same refusal with no declare arm: the contact is
         // against a row the union's own fold minted, which no sited
         // declaration names.
-        NodeErrorKind::UndeclarableContact { .. } => "undeclarable_contact",
-        NodeErrorKind::BlendSelectionResolve { verb, .. } => match verb {
-            BlendKind::Fillet => "fillet_selection_resolve",
-            BlendKind::Chamfer => "chamfer_selection_resolve",
-        },
-        NodeErrorKind::BlendSelectionKind { verb, .. } => match verb {
-            BlendKind::Fillet => "fillet_selection_kind",
-            BlendKind::Chamfer => "chamfer_selection_kind",
-        },
-        NodeErrorKind::BlendSelectionEmpty { verb } => match verb {
-            BlendKind::Fillet => "fillet_selection_empty",
-            BlendKind::Chamfer => "chamfer_selection_empty",
-        },
+        C::UndeclarableContact => "undeclarable_contact",
+        C::FilletSelectionResolve => "fillet_selection_resolve",
+        C::ChamferSelectionResolve => "chamfer_selection_resolve",
+        C::FilletSelectionKind => "fillet_selection_kind",
+        C::ChamferSelectionKind => "chamfer_selection_kind",
+        C::FilletSelectionEmpty => "fillet_selection_empty",
+        C::ChamferSelectionEmpty => "chamfer_selection_empty",
         // The shell: ONE tag for the op's refusal family (the
         // `revolve`/`tube` treatment — the kernel's `ShellError` arms
         // are prose in the message), the two open-list refusals in the
         // `chamfer_selection_*` spelling, and the lane refusal.
-        NodeErrorKind::Shell(_) => "shell",
-        NodeErrorKind::ShellOpenResolve { .. } => "shell_open_resolve",
-        NodeErrorKind::ShellOpenKind { .. } => "shell_open_kind",
-        NodeErrorKind::ShellLaneUnsupported { .. } => "shell_lane_unsupported",
+        C::Shell => "shell",
+        C::ShellOpenResolve => "shell_open_resolve",
+        C::ShellOpenKind => "shell_open_kind",
+        C::ShellLaneUnsupported => "shell_lane_unsupported",
         // The derived sketch frame's refusals (DOCM-1): the fillet's
         // ladder and kind refusals, one carrier-kind refusal, one
         // read-back refusal, and the section refusal DM1c adds.
-        NodeErrorKind::FaceFrameResolve { .. } => "face_frame_resolve",
-        NodeErrorKind::FaceFrameKind { .. } => "face_frame_kind",
-        NodeErrorKind::FaceFrameNotPlanar { .. } => "face_frame_not_planar",
-        NodeErrorKind::FaceFrameReadback { .. } => "face_frame_readback",
-        NodeErrorKind::DerivedFrameSection { .. } => "derived_frame_section",
+        C::FaceFrameResolve => "face_frame_resolve",
+        C::FaceFrameKind => "face_frame_kind",
+        C::FaceFrameNotPlanar => "face_frame_not_planar",
+        C::FaceFrameReadback => "face_frame_readback",
+        C::DerivedFrameSection => "derived_frame_section",
         // **No new word.** A carried frame refusal is the SAME fact
-        // as the one raised at the frame itself — zero length,
-        // non-finite length, underflow, escalation — and the arm
-        // exists to add the frame's id to the prose, not to split the
-        // fact in two. So it answers the word the frame's own raise
-        // answers, and a caller matching `degenerate_direction` keeps
-        // matching. `DirectionRefusal::node_error` is the one
-        // spelling of that map, so this cannot drift from it.
-        NodeErrorKind::FrameDirection { refusal, .. } => node_error_tag(&refusal.node_error()),
+        // as the one raised at the frame itself, and the arm exists to
+        // add the frame's id to the prose, not to split the fact in
+        // two. So each answers the word of the class the raise has,
+        // and a caller matching `degenerate_direction` keeps matching.
+        C::FrameDirectionDegenerate
+        | C::FrameDirectionNonFiniteLength
+        | C::FrameDirectionUnderflowedLength
+        | C::FrameDirectionEscalated => node_error_tag(class.raised()),
         // The projection node's two refusals (DOCM-2): a half with no
         // material, and an instance index outside the pattern's count.
-        // Tags only — the Python surface for `Node.part` is LIB's
-        // build, and this match is exhaustive, so the crate's compile
-        // is what requires these rows.
-        NodeErrorKind::EmptyHalf { .. } => "empty_half",
-        NodeErrorKind::InstanceOutOfRange { .. } => "instance_out_of_range",
-        NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
+        C::EmptyHalf => "empty_half",
+        C::InstanceOutOfRange => "instance_out_of_range",
+        C::WitnessBifurcation => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
-        // different recourses, so they are different tags.
-        NodeErrorKind::Part { fault, .. } => part_fault_tag(fault),
+        // different recourses, so they are different tags — the
+        // seam's own words, which `inline` speaks too.
+        C::PartNoResolver => "part_no_resolver",
+        C::PartPinMismatch => resolve_fault_tag(&ResolveFault::PinMismatch),
+        C::PartEpsilonSeam => resolve_fault_tag(&ResolveFault::EpsilonSeam),
+        C::PartUnresolved => resolve_fault_tag(&ResolveFault::Unresolved),
+        C::PartRootFailed => "part_root_failed",
+        C::PartRootPoisoned => "part_root_poisoned",
+        C::PartRootFailureUnrecorded => "part_root_failure_unrecorded",
+        C::PartProduct => "part_product",
+        C::PartReferenceCycle => "part_reference_cycle",
+        C::PartDepthExceeded => "part_depth_exceeded",
+        C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
         // the root invariants do — UNDER, CONTRADICTORY and a
         // dangling head carry different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
-        NodeErrorKind::Mate(fault) => mate_fault_tag(fault),
-        NodeErrorKind::CrossingUnverified { .. } => "crossing_unverified",
+        C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
+        C::MateFrame => "mate_frame_degenerate",
+        C::MateClassNotAdmitted => "mate_class_not_admitted",
+        C::MateTableLacks => "mate_table_lacks",
+        C::MateIndeterminate => "mate_indeterminate",
+        C::MateBand => "mate_band",
+        C::MateContradictory => "mate_contradictory",
+        C::MateUnder => "mate_under",
+        C::MateDanglingHead => "mate_dangling_head",
+        C::MatePlacerRefused => "mate_placer_refused",
+        C::MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
+        C::MateSelf => "mate_self",
+        C::MateUnleverable => "mate_unleverable",
+        C::CrossingUnverified => "crossing_unverified",
     }
 }
 
@@ -999,11 +1027,11 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
 ///   answers "which fault", and what a value-valued field answers is
 ///   the payload question, whose home is an attribute of its own;
 /// * an arm whose own tag is ALREADY the payload's — `Mate`, `Part`
-///   and `PlacementRule` read their word off the fault through
-///   [`mate_fault_tag`], [`part_fault_tag`] and
-///   [`placement_rule_fault_tag`], so the fine word is on the wire
-///   under the carrier's name and moving it here would move a shipped
-///   `kind` value;
+///   and `PlacementRule` split into one [`NodeErrorClass`] per fault,
+///   worded as [`mate_fault_tag`], [`resolve_fault_tag`] and
+///   [`placement_rule_fault_tag`] word it, so the fine word is on the
+///   wire under the carrier's name and moving it here would move a
+///   shipped `kind` value;
 /// * `WitnessBifurcation`, whose payload is the branch solver's
 ///   telemetry record: the arm is not constructed before the M6
 ///   solver, and the façade curates the record's discriminant
@@ -1124,7 +1152,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::InvalidDistribution { fault, .. } => Some(distribution_fault_tag(fault)),
         // The direction door's refusal is a whole `NodeErrorKind`, so
         // its arm is the same vocabulary `EvaluationError.kind` speaks.
-        EditError::PlacementAxis { error } => Some(node_error_tag(error.kind())),
+        EditError::PlacementAxis { error } => Some(node_error_tag(error.kind().class())),
         // The metadata arm's refusal is a SHAPE refusal, so its word
         // says which of the three ways the D7 producer convention was
         // broken rather than which door broke it.
@@ -1198,6 +1226,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::EmptyPlacementList { .. } => None,
         EditError::ImproperPlacement { .. } => None,
         EditError::NonFinitePlacement { .. } => None,
+        EditError::NonRigidPlacement { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
         EditError::NonFiniteAlignment { .. } => None,
@@ -1647,22 +1676,12 @@ pub fn seed_error_tag(err: &SeedError) -> &'static str {
 /// a different recourse: add the complementary mate, delete one of the
 /// clashing pair, rebind the stranded head, author the missing
 /// primitive, or move the geometry out of the band.
+///
+/// The word is the fault's class's ([`node_error_tag`] over
+/// `NodeErrorClass::of_mate`), so `MateFault.kind`, the edit door's
+/// mate refusals and `EvaluationError.kind` speak one word per fault.
 pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
-    match fault {
-        MateFault::PosesOfAnotherDocument { .. } => "mate_poses_of_another_document",
-        MateFault::Frame { .. } => "mate_frame_degenerate",
-        MateFault::ClassNotAdmitted { .. } => "mate_class_not_admitted",
-        MateFault::TableLacks { .. } => "mate_table_lacks",
-        MateFault::Indeterminate { .. } => "mate_indeterminate",
-        MateFault::Band { .. } => "mate_band",
-        MateFault::Contradictory { .. } => "mate_contradictory",
-        MateFault::Under { .. } => "mate_under",
-        MateFault::DanglingHead { .. } => "mate_dangling_head",
-        MateFault::PlacerRefused { .. } => "mate_placer_refused",
-        MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
-        MateFault::SelfMate { .. } => "mate_self",
-        MateFault::Unleverable { .. } => "mate_unleverable",
-    }
+    node_error_tag(NodeErrorClass::of_mate(fault))
 }
 
 /// The stable tag for a lever refusal — the inner arm of
@@ -1692,6 +1711,7 @@ pub fn frame_fault_tag(fault: &FrameFault) -> &'static str {
     match fault {
         FrameFault::NonFinite => "non_finite",
         FrameFault::Improper { .. } => "improper",
+        FrameFault::NotRigid { .. } => "not_rigid",
     }
 }
 
@@ -1717,8 +1737,8 @@ pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
 /// The stable tag for a document-seam resolution failure — the
 /// vocabulary EVERY door that crosses the seam speaks.
 ///
-/// Two doors cross it: evaluation, through [`part_fault_tag`]'s
-/// `Unresolved` arm, and `inline`, which resolves the referenced
+/// Two doors cross it: evaluation, through [`node_error_tag`]'s
+/// instantiation-seam classes, and `inline`, which resolves the referenced
 /// document in order to splice it. A stale pin is the same fact at
 /// both, so it carries the same tag at both; the `part_` prefix names
 /// the SEAM, not evaluation.
@@ -1728,19 +1748,6 @@ pub fn resolve_fault_tag(fault: &pncad::document::ResolveFault) -> &'static str 
         R::PinMismatch => "part_pin_mismatch",
         R::EpsilonSeam => "part_epsilon_seam",
         R::Unresolved => "part_unresolved",
-    }
-}
-
-/// The stable tag for an instantiation refusal.
-pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
-    use pncad::document::PartFault as F;
-    match fault {
-        F::NoResolver => "part_no_resolver",
-        F::Unresolved { fault, .. } => resolve_fault_tag(fault),
-        F::PartRootFailed { .. } => "part_root_failed",
-        F::PartProduct { .. } => "part_product",
-        F::ReferenceCycle { .. } => "part_reference_cycle",
-        F::DepthExceeded => "part_depth_exceeded",
     }
 }
 
@@ -1772,7 +1779,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
         SnapshotError::StepIds { .. } => "step_ids",
-        SnapshotError::NameStepBeyondCounter { .. } => "name_step_beyond_counter",
+        SnapshotError::MintLogOrder { .. } => "mint_log_order",
+        SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
         SnapshotError::DeclareInput { .. } => "declare_input",
@@ -1791,6 +1799,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::PlacementSite { .. } => "placement_site",
         SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
         SnapshotError::PlacementImproper { .. } => "placement_improper",
+        SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
         SnapshotError::PlacementNotGauge { .. } => "placement_not_gauge",
         SnapshotError::MateAlignment { .. } => "mate_alignment",
         SnapshotError::PlacementRule { .. } => "placement_rule",
@@ -1990,9 +1999,13 @@ pub fn promoted_curve_kind_tag(kind: &PromotedCurveKind) -> &'static str {
 pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
     use pncad::export::ExportError as E;
     match err {
-        E::UnknownNode { .. } => "unknown_node",
-        E::NodeFailed { .. } => "node_failed",
-        E::Poisoned { .. } => "poisoned",
+        E::Standing(standing) => match standing {
+            NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+                "unknown_node"
+            }
+            NodeStanding::Failed { .. } => "node_failed",
+            NodeStanding::Poisoned { .. } => "poisoned",
+        },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
         E::Step(_) => "step_refused",
@@ -2003,19 +2016,19 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
 /// The stable tag for a whole-document product refusal
 /// (`editor_core::product`'s error).
 pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
-    use pncad::document::ProductError as E;
-    match err {
-        E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
-        E::UnknownNode { .. } => "unknown_node",
-        E::PlacedUnderTwoRoots { .. } => "placed_under_two_roots",
-        E::RootFailed { .. } => "root_failed",
-        E::RootPoisoned { .. } => "root_poisoned",
-        E::NoBodyRoots => "no_body_roots",
-        E::Graft { .. } => "graft_refused",
-        E::RootInvalid { .. } => "root_invalid",
-        E::ProductInvalid { .. } => "product_invalid",
-        E::Naming { .. } => "product_naming",
-        E::ContactLineage { .. } => "contact_lineage",
+    use pncad::document::ProductErrorKind as K;
+    match err.kind() {
+        K::EvaluationOfAnotherDocument => "evaluation_of_another_document",
+        K::UnknownNode => "unknown_node",
+        K::RootFailed => "root_failed",
+        K::RootPoisoned => "root_poisoned",
+        K::PlacedUnderTwoRoots => "placed_under_two_roots",
+        K::NoBodyRoots => "no_body_roots",
+        K::Graft => "graft_refused",
+        K::RootInvalid => "root_invalid",
+        K::ProductInvalid => "product_invalid",
+        K::Naming => "product_naming",
+        K::ContactLineage => "contact_lineage",
     }
 }
 
@@ -2295,7 +2308,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
 
 /// The stable tag for an inline refusal.
 ///
-/// `Unresolved` delegates to [`part_fault_tag`]'s sibling vocabulary
+/// `Unresolved` delegates to the seam vocabulary [`node_error_tag`] reads
 /// through [`resolve_fault_tag`]: inline crosses the SAME document
 /// seam evaluation does, and a stale pin refused here is the stale
 /// pin refused there. One vocabulary, so a caller who learned to read
@@ -2365,9 +2378,7 @@ pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
 /// is reached through a name or through a key.
 pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
     match err {
-        InterrogateError::NodeNotEvaluated { .. } => "node_not_evaluated",
-        InterrogateError::NodeFailed { .. } => "node_failed",
-        InterrogateError::NodePoisoned { .. } => "node_poisoned",
+        InterrogateError::Standing(standing) => node_standing_tag(standing),
         InterrogateError::NoSuchName => "no_such_name",
         InterrogateError::Ambiguous { .. } => "ambiguous",
         InterrogateError::WrongKind { .. } => "wrong_kind",
@@ -2411,31 +2422,27 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
 /// `tests::the_whole_tag_table_matches_its_committed_inventory` reds
 /// on an addition and on a rename.
 ///
-/// [`EvalReason::NodeNotEvaluated`] is the standing ladder's first
-/// rung, spelled identically to the read-back and picking doors'
-/// ([`interrogate_error_tag`], [`hit_test_error_tag`]) and pinned
-/// against both by `tests::the_evaluation_door_speaks_the_standing_ladder`,
-/// in both directions. (Named as text rather than as an intra-doc
-/// link: `tests` is `#[cfg(test)]`, so a link would not render.)
+/// A node with no value answers through [`node_standing_tag`], except
+/// the two words this door shipped before the ladder had one:
+/// `unknown_node` for an id the document does not have, and
+/// `poisoned`.
 pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
     match reason {
-        EvalReason::UnknownNode => "unknown_node",
         EvalReason::WrongKind => "wrong_kind",
         EvalReason::EmptyBoolean => "empty_boolean",
-        EvalReason::NodeNotEvaluated => "node_not_evaluated",
-        EvalReason::NodeFailed => "node_failed",
-        EvalReason::Poisoned => "poisoned",
+        EvalReason::Standing(standing) => match standing {
+            NodeStanding::NotInDocument { .. } => "unknown_node",
+            NodeStanding::Poisoned { .. } => "poisoned",
+            NodeStanding::NotEvaluated { .. } | NodeStanding::Failed { .. } => {
+                node_standing_tag(&standing)
+            }
+        },
     }
 }
 
 /// The stable tag for a hit-test refusal — the ray door's own.
 ///
-/// The three standing arms are the SAME vocabulary
-/// [`interrogate_error_tag`] speaks for the read-back doors, spelled
-/// identically on purpose: "node 7 has no result in this evaluation"
-/// is one fact about the run, and a caller that already branches on
-/// `node_not_evaluated` from a frame read should not have to learn a
-/// second word for it at the pick.
+/// A standing answers [`node_standing_tag`]'s word.
 ///
 /// `evaluation_of_another_document` is DI3's pairing refusal, the
 /// same word the gather, the checks and the name-level edit door
@@ -2461,12 +2468,46 @@ pub fn eval_reason_tag(reason: EvalReason) -> &'static str {
 /// diagnostic a bug report can act on.
 pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
     match err {
-        HitTestError::NodeNotEvaluated { .. } => "node_not_evaluated",
-        HitTestError::NodeFailed { .. } => "node_failed",
-        HitTestError::NodePoisoned { .. } => "node_poisoned",
+        HitTestError::Standing(standing) => node_standing_tag(standing),
         HitTestError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         HitTestError::Ambiguous { .. } => "ambiguous",
         HitTestError::Unnamed { .. } => "unnamed",
+    }
+}
+
+/// The stable tag for a node's standing, under the ladder's own words:
+/// `node_not_evaluated`, `node_failed`, `node_poisoned`.
+///
+/// The one spelling the hit test, the pick index, the name lookup and
+/// the read-back doors answer with, so a caller that branches on a
+/// failed node at one of them branches on it at every one. The
+/// export, resolution, product and checks doors keep the words they
+/// shipped with (`unknown_node`/`node_failed`/`poisoned`, `target_*`,
+/// `unknown_node`/`root_*`, `root_without_value`) and map the same
+/// standing onto them; the evaluation door reads this map except for
+/// its own `unknown_node` and `poisoned` ([`eval_reason_tag`]).
+///
+/// `node_not_evaluated` covers both of the ladder's absent arms, the
+/// run stopping before the node and an id not in the document: these
+/// doors answered that one word for both before the standing split
+/// them.
+pub fn node_standing_tag(standing: &NodeStanding) -> &'static str {
+    match standing {
+        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+            "node_not_evaluated"
+        }
+        NodeStanding::Failed { .. } => "node_failed",
+        NodeStanding::Poisoned { .. } => "node_poisoned",
+    }
+}
+
+/// The stable tag for [`NameLookupError`], the name doors' refusal of
+/// the whole call: the pairing word [`hit_test_error_tag`] answers
+/// with, or the standing's.
+pub fn name_lookup_error_tag(err: &NameLookupError) -> &'static str {
+    match err {
+        NameLookupError::EvaluationOfAnotherDocument(_) => "evaluation_of_another_document",
+        NameLookupError::Standing(standing) => node_standing_tag(standing),
     }
 }
 
@@ -2474,11 +2515,10 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 ///
 /// Three arms FORWARD rather than wrap, the
 /// [`interrogate_error_tag`] / [`assembly_error_tag`] convention: the
-/// standing ladder arrives under [`hit_test_error_tag`]'s words (it is
-/// literally that type), and a tessellation refusal arrives under the
-/// tessellator's own tag, because "the chordal budget was not finite"
-/// is that fact whether it is reached through `Body.tessellate` or
-/// through a pick index.
+/// standing arrives under [`node_standing_tag`]'s words, and a
+/// tessellation refusal arrives under the tessellator's own tag,
+/// because "the chordal budget was not finite" is that fact whether it
+/// is reached through `Body.tessellate` or through a pick index.
 ///
 /// The `Index` arm does NOT forward, and that is a decision rather
 /// than the absence one. `mesh_index` names which door's invariant
@@ -2489,7 +2529,7 @@ pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
 /// [`mesh_pick_error_tag`] rather than in place of it.
 pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
     match err {
-        NodePickError::Standing(err) => hit_test_error_tag(err),
+        NodePickError::Standing(standing) => node_standing_tag(standing),
         NodePickError::NotABody { .. } => "not_a_body",
         NodePickError::NoSuchBody { .. } => "no_such_body",
         NodePickError::Tessellate(err) => tessellate_error_tag(err),
@@ -2594,10 +2634,12 @@ pub fn resolve_error_tag(err: &ResolveError) -> &'static str {
 /// `target_not_evaluated`: a canceled run never reached it, and
 /// re-evaluating is the whole of the recourse.
 pub fn resolve_indeterminate_tag(cause: &ResolveIndeterminate) -> &'static str {
-    match cause {
-        ResolveIndeterminate::TargetFailed { .. } => "target_failed",
-        ResolveIndeterminate::TargetPoisoned { .. } => "target_poisoned",
-        ResolveIndeterminate::TargetNotEvaluated { .. } => "target_not_evaluated",
+    match cause.standing {
+        NodeStanding::Failed { .. } => "target_failed",
+        NodeStanding::Poisoned { .. } => "target_poisoned",
+        NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => {
+            "target_not_evaluated"
+        }
     }
 }
 
@@ -3030,7 +3072,19 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::Shape { .. } => "shape",
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
-        StepIdFault::BeyondCounter { .. } => "beyond_counter",
+        StepIdFault::NotMinted { .. } => "not_minted",
+        StepIdFault::Collides { .. } => "collides",
+    }
+}
+
+/// The stable tag for why an authored step handle does not bind
+/// (`StepHandleError.variant`).
+pub fn step_handle_refusal_tag(refusal: &StepHandleRefusal) -> &'static str {
+    match refusal {
+        StepHandleRefusal::OffProgram { .. } => "handle_off_program",
+        StepHandleRefusal::Unminted => "unminted",
+        StepHandleRefusal::StepIds(_) => "step_ids",
+        StepHandleRefusal::RoleNotDrawn { .. } => "role_not_drawn",
     }
 }
 

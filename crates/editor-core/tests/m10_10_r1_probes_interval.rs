@@ -49,8 +49,8 @@ const BORE_R: f64 = 0.3e-3;
 /// of this fixture died).
 const BULGE: f64 = 2.0;
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Expr {
+    Expr::param(ParamName::from_static(n), Dimension::Length)
 }
 
 /// **R1's circular-segment boss**, as a function of the SCALE of its
@@ -74,9 +74,9 @@ fn plen(n: &str) -> Expr {
 /// spellings rule D is about.
 pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::from_static(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,

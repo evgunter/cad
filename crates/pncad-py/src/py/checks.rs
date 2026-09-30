@@ -583,7 +583,7 @@ pub(crate) fn checks_err(py: Python<'_>, err: &d::ChecksError) -> PyErr {
     // arrives here as a compile error rather than as a silently
     // unprojected payload.
     let node = match err {
-        d::ChecksError::Root { node } => Py::new(py, NodeId(*node))
+        d::ChecksError::Root(standing) => Py::new(py, NodeId(standing.node()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None()),
         // A tolerance that forms no band, a gather that yields no

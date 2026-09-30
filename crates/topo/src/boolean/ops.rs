@@ -100,6 +100,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::BooleanDecision;
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
@@ -274,7 +275,7 @@ impl<T: Real> BooleanResult<T> {
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
-pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -294,7 +295,7 @@ pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::At
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn intersect<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -314,7 +315,7 @@ pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn subtract<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -335,7 +336,7 @@ pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props:
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn union_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -349,9 +350,7 @@ pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::prop
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+pub fn intersect_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -372,9 +371,7 @@ pub fn intersect_with<
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+pub fn subtract_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -400,9 +397,7 @@ pub fn subtract_with<
 /// # Errors
 ///
 /// [`BooleanError`] — identical to [`union`] and friends.
-pub fn boolean_op_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -466,9 +461,7 @@ pub fn boolean_op_with<
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
-fn boolean_op_recut<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -672,9 +665,7 @@ fn boolean_op_recut<
 /// Decided on the unmutated reduction and raised only where a body
 /// would be returned (the call site), so every refusal the pipeline
 /// meets first stands verbatim.
-fn interior_loop_verdict<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -741,7 +732,7 @@ impl ChartCache {
     /// punctured nappe's universal cover, at most a period wide. Every
     /// closed curve in `int F` therefore lifts to a closed curve with
     /// zero winding, and no essential component lies in `int F`.
-    pub(crate) fn describes<T: geom_brep::PcurveFittedLane>(
+    pub(crate) fn describes<T: crate::props::AtRestPolicy>(
         &mut self,
         operand: Operand,
         body: &Body<T>,
@@ -919,7 +910,7 @@ pub(crate) fn place_witness<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] for a face whose surface
 /// or loops do not resolve, and the box builder's own errors.
-pub(crate) fn section_pairs<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     band: Band,
@@ -1013,7 +1004,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// pair's curved face. Declarations exempt nothing on this path: with
 /// no crossings, a declared coincident pair is exactly what the vertex
 /// probe cannot decide.
-fn section_extent_pass<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+fn section_extent_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     band: Band,
@@ -1051,9 +1042,7 @@ fn section_extent_pass<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 ///
 /// The reduction's own refusals, and [`section_pairs`]'.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn section_report<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
->(
+pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -1362,7 +1351,10 @@ pub(super) fn volume_backstop<T: Decide>(
         match geom_core::k_stats::decide_invariant("volume_backstop_operand", v / area, band) {
             Ok(Sign::Positive) => Ok(true),
             Ok(Sign::Zero | Sign::Negative) => Ok(false),
-            Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated { diag }),
+            Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated {
+                decision: BooleanDecision::VolumeBackstop,
+                diag,
+            }),
             Err(_) => Ok(false),
         }
     };
@@ -1398,7 +1390,10 @@ pub(super) fn volume_backstop<T: Decide>(
             match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
                 Ok(Sign::Negative) => Err(implausible()),
                 Ok(Sign::Zero | Sign::Positive) => Ok(()),
-                Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated { diag }),
+                Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated {
+                    decision: BooleanDecision::VolumeBackstop,
+                    diag,
+                }),
                 Err(_) => Ok(()),
             }
         };
@@ -1688,7 +1683,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     }
                 }
             }
-            Err(diag) => return Err(BooleanError::Escalated { diag }),
+            Err(diag) => return Err(BooleanError::coincidence(diag)),
         }
     }
     Ok(())
@@ -2046,7 +2041,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     b: &Body<T>,
     band: Band,
 ) -> Result<Vec<SphereRecut<T>>, BooleanError> {
-    let esc = |diag| BooleanError::Escalated { diag };
+    let esc = BooleanError::coincidence;
     // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
     // NURBS face refuses before a vertex is probed — the extent test
     // is unwritable for the kind (variant docs).
@@ -2189,9 +2184,10 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 }
                                 let witness = foot + u_ref * rho;
                                 match contfp(y, yf, normal, witness, band).map_err(|e| match e {
-                                    ContainError::Escalated(diag) => {
-                                        BooleanError::Escalated { diag }
-                                    }
+                                    ContainError::Escalated(diag) => BooleanError::Escalated {
+                                        decision: BooleanDecision::Containment,
+                                        diag,
+                                    },
                                     ContainError::RayExhausted => {
                                         BooleanError::ClassificationInvariant {
                                             what: "extent scan: contfp ray schedule exhausted",
@@ -2424,7 +2420,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
 /// polar axis lands on the escape normal (the same point set — a
 /// sphere is rotation-invariant about its center — with the seam
 /// meridians now transverse to the escape planes), and grafted back.
-fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     recuts: &[SphereRecut<T>],
@@ -2465,7 +2461,7 @@ fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props:
                 Margin::levered(sin, r.radius),
                 band,
             )
-            .map_err(|diag| BooleanError::Escalated { diag })?
+            .map_err(BooleanError::coincidence)?
             {
                 Sign::Positive | Sign::Negative => {}
                 Sign::Zero => {
@@ -2602,7 +2598,7 @@ fn classify_shells<T: Decide>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
-fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
+fn fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     red: &BooleanReduction<T>,
     a_pristine: &Body<T>,
@@ -2759,7 +2755,7 @@ fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
-fn finish_fallback<T: Decide + geom_brep::PcurveFittedLane>(
+fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
     contacts: &ContactRecords,
