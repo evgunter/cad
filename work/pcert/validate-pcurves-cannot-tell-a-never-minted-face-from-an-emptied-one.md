@@ -143,9 +143,10 @@ left as found, and still reads as never minted. What moved:
   it half-minted, and this pass then reads it as never minted. Measured
   on sweep's `ci` profile (probes on every moving door, not committed):
   of the `kef`s that land a remnant across a chart change on a
-  complete analytic face, 18 now mint it and about 316 empty it, all
-  in the blend surgery's `kef_minted` mid-carve (the walk refuses at
-  certification, `MapResidual`, or at the closed-form derivation);
+  complete analytic face, 723 now mint it and 316 empty it, nearly
+  all of those in the blend surgery's `kef_minted` mid-carve and 6 in
+  `curved_mergedoor`'s rows (the walk refuses at certification,
+  `MapResidual`, or at the closed-form derivation);
   on the merge base each of those left the face half-minted, which
   this pass reported per rowless half. Most are re-minted by the
   blend's closing pass; the rest are probe rows that stop mid-carve.
