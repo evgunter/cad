@@ -243,8 +243,6 @@ fn the_interval_hull_bound_is_span_dependent() {
         .map(|d| (d, hull_sup_at_interval(d)))
         .collect();
     println!("ssi_hull_sup vs span divisor: {bounds:?}");
-    panic!("ZZ SSIFLAT TABLE: {bounds:?}");
-    #[allow(unreachable_code)]
     let full = bounds[0].1.expect("the quarter turn escalates");
     let eighth = bounds[2].1.expect("an eighth of it still escalates");
     assert!(
