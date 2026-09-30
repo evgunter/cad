@@ -136,7 +136,7 @@ fn require_same<T: Decide>(
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
         Ok(rel) => Ok(rel),
-        Err(PlaneEqError::Escalated(diag)) => Err(BooleanError::Escalated { diag }),
+        Err(PlaneEqError::Escalated(diag)) => Err(BooleanError::coincidence(diag)),
         Err(PlaneEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
                 diag,
@@ -144,8 +144,8 @@ fn require_same<T: Decide>(
                 relation,
             })
         }
-        Err(PlaneEqError::Contradicted(diag)) => {
-            Err(BooleanError::DeclarationContradicted { diag })
+        Err(PlaneEqError::Contradicted { fact, .. }) => {
+            Err(BooleanError::DeclarationContradicted { fact })
         }
     }
 }
@@ -711,7 +711,7 @@ fn resolve_edge_edge<T: Decide>(
                                 what: "degenerate rep pair in edge-edge membership",
                             });
                         }
-                        Err(diag) => return Err(BooleanError::Escalated { diag }),
+                        Err(diag) => return Err(BooleanError::coincidence(diag)),
                     };
                     if !same {
                         inside = false; // touching, not overlapping
@@ -1006,12 +1006,12 @@ fn parallel_same_dir<T: Decide>(
     ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::Escalated { diag }),
+        Err(diag) => return Err(BooleanError::coincidence(diag)),
     }
     match decide("bool_dir_same", Margin::levered(un.dot(vn), arm), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(_) => Ok(false),
-        Err(diag) => Err(BooleanError::Escalated { diag }),
+        Err(diag) => Err(BooleanError::coincidence(diag)),
     }
 }
 
@@ -1070,7 +1070,7 @@ mod tests {
         assert!(
             matches!(
                 resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0)),
-                Err(BooleanError::Escalated { diag })
+                Err(BooleanError::Escalated { diag, .. })
                     if diag.predicate == Some("bool_sector_bisector_side")
             ),
             "the graze between two Out keys refuses"

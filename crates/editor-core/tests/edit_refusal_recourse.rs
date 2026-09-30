@@ -261,13 +261,20 @@ const WORDLESS: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        // Raised under two decisions — the Boolean contact sweep's
+        // vertex-to-vertex coincidence and containment's boundary
+        // pre-pass — so no one decision's words are true of it
+        // (`topo::decision_words`).
+        "one name, two decisions",
+        &["bool_contact_vertex"],
+    ),
+    (
         // Filed: work/edit/flip-reports-name-no-decision-for-most-predicates.md.
         "no words yet",
         &[
             "bool_chord_side",
             "bool_contact_edge",
             "bool_contact_edge_length",
-            "bool_contact_vertex",
             "bool_germ_line",
             "bool_join_chord",
             "bool_join_facing",
@@ -293,16 +300,7 @@ const WORDLESS: &[(&str, &[&str])] = &[
             "interval_span_forward",
             "interval_span_winding",
             "newell_plane_residual",
-            "point_in_loop_advance",
-            "point_in_loop_arm",
-            "point_in_loop_boundary",
-            "point_in_loop_segment",
-            "point_in_loop_side",
-            "sector_arm",
-            "sector_reflex",
-            "sector_straight",
             "side_planes_cosurface",
-            "split_edge_param_interior",
             "witness_at_mid_parameter",
             "witness_on_surface_1",
             "witness_on_surface_2",

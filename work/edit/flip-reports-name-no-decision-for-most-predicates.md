@@ -43,3 +43,17 @@ table (`topo::decision_words`, or a new `decision_words` in `sweep`
 and `geom-brep` that `decision::words` then consults). Then drop its
 `WORDLESS` entry. The row reds a listed predicate that renders words,
 so an entry left behind goes red.
+
+## 2026-09-30 — the counts after PR 3493
+
+PR 3493 gives `topo::decision_words` words for the containment walk's
+predicates (`point_in_loop_*` among them), the sector rungs and
+`split_edge_param_interior`, each read from the closed decision type the
+Boolean's refusals carry. Of the 60 predicates a plain subtract logs, 24
+now have words and 36 do not: the three invariant-lane ones, 32 with no
+words yet, and `bool_contact_vertex`, which is raised under two
+decisions (the Boolean contact sweep's vertex-to-vertex coincidence and
+containment's boundary pre-pass), so no one decision's words are true of
+it. `WORDLESS` lists it under its own reason. Giving it words needs one
+predicate name per decision; `bool_contact_arc` is the same case,
+though a subtract does not log it.

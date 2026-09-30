@@ -24,7 +24,8 @@
 //! reduction sweep (M3 PRs 2 and 4).
 
 use geom_brep::CertifyError;
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign, Tol};
+use geom_brep::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use geom_core::{Band, Decide, InfSpeed, Margin, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -33,6 +34,37 @@ use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey};
 use crate::provenance::Provenance;
+
+/// Where a crossing lands along its edge, in words: the subject every
+/// decision on it states, here and wherever an edge is split at a
+/// crossing.
+pub(crate) const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside its edge";
+
+/// The lever every door that splits an edge at a crossing has (the
+/// split, the blend, the Boolean): the geometry.
+pub(crate) const CROSSING_LEVER: &str =
+    "move the geometry so the crossing lands clearly away from the edge's ends";
+
+/// What a crossing's interiority margin measures.
+pub(crate) const CROSSING_SIZE: &str = "distance from the edge's end";
+
+/// [`Body::split_edge`]'s interiority decision: it passes only on a
+/// crossing definitely inside its edge.
+pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
+    lever: CROSSING_LEVER,
+    size: CROSSING_SIZE,
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The one ending of [`SPLIT_PARAM_INTERIOR`]'s refused `arm`, at the
+/// operation that asked. Both of `split_edge`'s interiority refusals end
+/// here, and neither offers a declaration: no door that splits an edge
+/// takes one naming where on the edge a crossing lands.
+pub(crate) fn split_param_ending(arm: RefusedArm<'_>) -> String {
+    SPLIT_PARAM_INTERIOR.recourse(arm, Reading::Build)
+}
 
 /// Every key minted (and the one possibly killed) by one
 /// [`Body::split_edge`] call.
@@ -243,10 +275,11 @@ impl<T: Decide> Body<T> {
             Margin::metered(t - t0, scale),
             Margin::metered(t1 - t, scale),
         ] {
-            match geom_core::k_stats::decide("split_edge_param_interior", margin, band) {
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Zero | Sign::Negative) => {
-                    return Err(EulerOpError::SplitParamNotInterior { edge });
+            match geom_core::k_stats::decide_reported("split_edge_param_interior", margin, band) {
+                Ok(decided) => {
+                    if let Some(verdict) = Refused::of(decided, band) {
+                        return Err(EulerOpError::SplitParamNotInterior { edge, verdict });
+                    }
                 }
                 Err(diag) => {
                     return Err(EulerOpError::SplitParamEscalated { edge, diag });
@@ -615,7 +648,7 @@ mod tests {
         ] {
             let err = body.split_edge(edge, t, Tol::witness()).unwrap_err();
             match (expect_escalated, &err) {
-                (false, EulerOpError::SplitParamNotInterior { edge: e }) => {
+                (false, EulerOpError::SplitParamNotInterior { edge: e, .. }) => {
                     assert_eq!(*e, edge);
                 }
                 (true, EulerOpError::SplitParamEscalated { edge: e, .. }) => {
