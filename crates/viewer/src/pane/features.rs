@@ -756,8 +756,8 @@ mod tests {
         let fixture = measure_fixture();
         let unavailable = match fixture
             .evaluation
-            .result(fixture.clearance)
-            .and_then(|result| result.value())
+            .usable(fixture.clearance)
+            .ok()
             .map(|value| &value.payload)
         {
             Some(ValuePayload::MeasureUnavailable { reason, .. }) => *reason,
