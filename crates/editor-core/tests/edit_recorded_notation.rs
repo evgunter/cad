@@ -58,9 +58,20 @@ use editor_core::{
 use geom_core::{Point2, Tol};
 use profile::{Open, Start, Step};
 
-/// Every document below is a frame and then the profile drawn on it.
-const PLANE: RecipeNodeId = RecipeNodeId(0);
-const PROFILE: RecipeNodeId = RecipeNodeId(1);
+/// Every document below is a frame and then the profile drawn on it:
+/// the frame's id, as the insert door mints it into the empty document.
+fn plane() -> RecipeNodeId {
+    fixture::insert(empty(), fixture::xy_frame()).1
+}
+
+/// The profile of a document [`doc_of`] built: its second node.
+fn profile(doc: &ProfileDoc) -> RecipeNodeId {
+    doc.order()[1]
+}
+
+fn empty() -> ProfileDoc {
+    ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness())
+}
 
 /// The leg this suite is about: step 1's target, the corner a path
 /// author writes as `line_to((25 mm, 0 mm))`.
@@ -120,7 +131,7 @@ fn in_millimetres() -> (Vec<Step<f64>>, RecordedNotation) {
 
 /// The document a lifted program reaches: a frame, then the profile.
 fn doc_of(program: LoopProgram) -> ProfileDoc {
-    let mut doc = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
+    let mut doc = empty();
     for edit in edits_of(program) {
         doc = doc
             .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
@@ -138,7 +149,7 @@ fn edits_of(program: LoopProgram) -> [DocEdit<ProfileProgram>; 2] {
         },
         DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: PLANE,
+                plane: plane(),
                 loops: vec![program],
                 ids: Vec::new(),
             }),
@@ -146,9 +157,9 @@ fn edits_of(program: LoopProgram) -> [DocEdit<ProfileProgram>; 2] {
     ]
 }
 
-fn slot(step: u32, arg: StepArg) -> ExprPath {
+fn slot(doc: &ProfileDoc, step: u32, arg: StepArg) -> ExprPath {
     ExprPath {
-        node: PROFILE,
+        node: profile(doc),
         slot: SlotId::Profile {
             loop_: 0,
             step,
@@ -161,7 +172,7 @@ fn slot(step: u32, arg: StepArg) -> ExprPath {
 /// What a reader asking the document what one argument says gets back:
 /// the canonical value, and the notation it was written in.
 fn read_back(doc: &editor_core::ProfileDoc, step: u32, arg: StepArg) -> (f64, &'static str) {
-    let Some(e) = doc.expr_at(&slot(step, arg)) else {
+    let Some(e) = doc.expr_at(&slot(doc, step, arg)) else {
         panic!("the document addresses ({step}, {arg:?})")
     };
     let Some(v) = e.literal_value() else {
@@ -191,7 +202,7 @@ fn arg_bits(program: LoopProgram) -> Vec<(u32, StepArg, Option<f64>, Option<&'st
     addresses
         .into_iter()
         .map(|(step, arg)| {
-            let Some(e) = doc.expr_at(&slot(step, arg)) else {
+            let Some(e) = doc.expr_at(&slot(&doc, step, arg)) else {
                 panic!("step_args names ({step}, {arg:?}), so the document addresses it")
             };
             (
@@ -208,7 +219,7 @@ fn arg_bits(program: LoopProgram) -> Vec<(u32, StepArg, Option<f64>, Option<&'st
 /// means where two documents are compared.
 fn vertex_bits(doc: &ProfileDoc) -> Vec<(u64, u64)> {
     let ev = fixture::run(doc, &EvalOptions::default());
-    let Some(v) = ev.value(PROFILE) else {
+    let Some(v) = ev.value(profile(doc)) else {
         panic!("the profile evaluates")
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -327,12 +338,12 @@ fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
         "the two recordings really do say different things about their notation"
     );
     let a = ProfileProgram {
-        plane: PLANE,
+        plane: plane(),
         loops: vec![millimetres.clone()],
         ids: Vec::new(),
     };
     let b = ProfileProgram {
-        plane: PLANE,
+        plane: plane(),
         loops: vec![metres.clone()],
         ids: Vec::new(),
     };

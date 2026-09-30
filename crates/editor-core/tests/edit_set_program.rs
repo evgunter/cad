@@ -889,16 +889,15 @@ fn extruded(label: &str, loops: Vec<LoopProgram>) -> (ProfileDoc, RecipeNodeId, 
 fn rod_log() -> (ProfileDoc, Vec<LoggedEdit<ProfileProgram>>) {
     let empty = ProfileDoc::empty_derived("set-program-log", tol());
     let r = rod("set-program-log", &[CREASE]);
-    let profile_node = RecipeNodeId(1);
-    let rod_node = RecipeNodeId(2);
-    assert_eq!((r.profile, r.rod), (profile_node, rod_node));
+    // The log is the edits `rod` applied, so it mints the same ids.
+    let (plane, profile_node, rod_node) = (r.doc.order()[0], r.profile, r.rod);
     let edits = vec![
         DocEdit::InsertNode {
             node: fixture::xy_frame(),
         },
         DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: RecipeNodeId(0),
+                plane,
                 loops: vec![rod_loop(false)],
                 ids: Vec::new(),
             }),
@@ -1067,11 +1066,13 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     let mine = ids_of(&doc, profile)[0].clone();
     let theirs = ids_of(&doc, other)[0].clone();
 
-    // Two profiles share an id: the later profile in node order holds
-    // the repeat.
+    // Two profiles share an id: the later profile in id order holds
+    // the repeat. That pins the load door's current walk (the node map,
+    // in id order), not a contract; `persist::check`'s
+    // `rv_the_name_pass_refuses_in_document_order` is its sibling.
     let shared = edited(&|v| ids(v, other, 0, mine[0].0));
     assert_eq!(
-        step_fault(shared, other),
+        step_fault(shared, profile.max(other)),
         StepIdFault::Repeated { step: mine[0] }
     );
     // One profile holds an id twice.

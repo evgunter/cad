@@ -669,10 +669,10 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // Review A2 (adapted from the reviewer's transform-duplicate
     // probe): a tied name passed through a Transform appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
-    // row, `at` = the first carrying node in id order (the subtract),
-    // the rest derivable by table lookup.
+    // row, `at` = the first carrying node in id order, the rest
+    // derivable by table lookup.
     let (doc, sub) = tie_fixture();
-    let (doc, _moved) = insert(
+    let (doc, moved) = insert(
         doc,
         Node::transform(
             sub,
@@ -696,7 +696,10 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     assert_eq!(ev.appearance.losses[0].name, tied);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
+        AppearanceLossCause::Ambiguous {
+            at: sub.min(moved),
+            width: 2
+        }
     );
     assert!(ev.appearance.resolved.is_empty(), "ties are never painted");
 }
