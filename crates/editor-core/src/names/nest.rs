@@ -417,6 +417,10 @@ impl fmt::Debug for StableName {
         if shallow(Walk::Debug, Family::Name) {
             return fmt::Write::write_char(f, HOLE);
         }
+        #[cfg(test)]
+        if tests::recursing() {
+            return Level(self).fmt(f);
+        }
         render_nested(
             self,
             f,
@@ -515,6 +519,10 @@ impl PartialEq for StableName {
         if shallow(Walk::Eq, Family::Name) {
             return true;
         }
+        #[cfg(test)]
+        if tests::recursing() {
+            return self.kind == other.kind && self.node == other.node && self.path == other.path;
+        }
         let _shallow = Shallow::enter(Walk::Eq, Family::Name);
         let mut pairs = vec![(self, other)];
         while let Some((a, b)) = pairs.pop() {
@@ -580,6 +588,12 @@ impl Ord for StableName {
         }
         if core::ptr::eq(self, other) {
             return Ordering::Equal;
+        }
+        #[cfg(test)]
+        if tests::recursing() {
+            return (self.kind, self.node)
+                .cmp(&(other.kind, other.node))
+                .then_with(|| self.path.cmp(&other.path));
         }
         let _shallow = Shallow::enter(Walk::Ord, Family::Name);
         let mut stack = vec![OrdLevel::of(self, other)];
@@ -1020,5 +1034,457 @@ impl StableName {
     /// Text that is not JSON, or JSON that is not a name.
     pub fn from_json(text: &str) -> Result<Self, serde_json::Error> {
         json_door(|| serde_json::from_str(text))
+    }
+}
+
+#[cfg(test)]
+pub(super) mod tests {
+    //! Every walk against the derived impl's own recursion, at every
+    //! variant; and every walk at a depth past any stack, on the
+    //! smallest stack a door runs on.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use crate::names::SegTag;
+    use crate::names::role::{
+        CapEnd, MeridianEnd, PieceRole, ProfileEdgeRef, ProfileVertexRef, RimSupport,
+        SectionCircle, SideVerdict, SplitHalf,
+    };
+    use crate::node::StepId;
+
+    thread_local! {
+        static RECURSING: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// Whether the walks answer by the derived impls' own recursion —
+    /// the reference each walk here is checked against.
+    pub(in crate::names) fn recursing() -> bool {
+        RECURSING.with(Cell::get)
+    }
+
+    /// `f`, answered by the derived recursion.
+    fn derived<R>(f: impl FnOnce() -> R) -> R {
+        let was = RECURSING.with(|r| r.replace(true));
+        let out = f();
+        RECURSING.with(|r| r.set(was));
+        out
+    }
+
+    /// The wasm32 build's default stack, the smallest any door runs on.
+    const WASM_STACK: usize = 1 << 20;
+
+    /// Deeper than any stack holds a recursive walk over it: a drop
+    /// recursed about 80 bytes a level in release and 270 in dev, a
+    /// `Debug` 0.8 to 1.3 KiB, so a mebibyte ran out by 13 000 levels
+    /// in release and 700 in dev.
+    pub(in crate::names) const DEEP: usize = 20_000;
+
+    pub(in crate::names) fn on_the_smallest_stack<R: Send + 'static>(
+        f: impl FnOnce() -> R + Send + 'static,
+    ) -> R {
+        std::thread::Builder::new()
+            .stack_size(WASM_STACK)
+            .spawn(f)
+            .expect("the thread starts")
+            .join()
+            .expect("the walk returns")
+    }
+
+    fn leaf(node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    fn named(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(node),
+            path,
+        }
+    }
+
+    /// One segment of every variant, each name it holds `a` or `b`.
+    fn every_segment(a: &StableName, b: &StableName) -> Vec<RoleSeg> {
+        use RoleSeg as R;
+        let r = |n: &StableName| NameRef::new(n.clone());
+        let step = StepId(7);
+        let e = ProfileEdgeRef::Piece {
+            step,
+            role: PieceRole::Piece(2),
+        };
+        let e2 = ProfileEdgeRef::Section {
+            circle: SectionCircle::Bore,
+            role: PieceRole::Arc,
+        };
+        let v = ProfileVertexRef::Piece {
+            step,
+            role: PieceRole::Leg,
+        };
+        vec![
+            R::OutputBody,
+            R::Cap(CapEnd::Start),
+            R::Lateral(e),
+            R::RimEdge(CapEnd::End, e2),
+            R::LateralEdge(v),
+            R::CapVertex(CapEnd::Start, v),
+            R::LoftWall(vec![e, e2]),
+            R::LoftSeam(vec![v]),
+            R::Band(e),
+            R::BandRim(v),
+            R::BandRimPi(v),
+            R::BandPi(e),
+            R::Meridian(MeridianEnd::Seam, e),
+            R::MeridianVertex(MeridianEnd::Pi, v),
+            R::RevolveCap(MeridianEnd::End),
+            R::Pole(v),
+            R::AxisEdge(e2),
+            R::FromA(r(a)),
+            R::FromB(r(b)),
+            R::FromMember {
+                member: RecipeNodeId(3),
+                of: r(a),
+            },
+            R::Seam { a: r(a), b: r(b) },
+            R::Merged(vec![a.clone(), b.clone()]),
+            R::Fragment(Qualifier::SideOf(vec![
+                (a.clone(), SideVerdict::On),
+                (b.clone(), SideVerdict::Mixed),
+            ])),
+            R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
+            R::SplitBody(SplitHalf::Below),
+            R::SectionFace {
+                side: SplitHalf::Above,
+                section: 2,
+            },
+            R::SectionEdge {
+                side: SplitHalf::Below,
+                face: r(a),
+            },
+            R::SplitFragment {
+                side: SplitHalf::Above,
+                parent: r(b),
+            },
+            R::CrossingVertex {
+                side: SplitHalf::Below,
+                edge: r(a),
+            },
+            R::OnToolVertex {
+                side: SplitHalf::Above,
+                of: r(b),
+            },
+            R::FromTarget(r(a)),
+            R::BlendFace(r(b)),
+            R::CornerFace(r(a)),
+            R::TrimEdge {
+                edge: r(a),
+                support: r(b),
+            },
+            R::FootVertex {
+                vertex: r(b),
+                support: r(a),
+            },
+            R::EndArc {
+                vertex: r(a),
+                edge: r(b),
+            },
+            R::BandFace(vec![a.clone(), b.clone()]),
+            R::BandTrim {
+                edge: r(a),
+                support: RimSupport::Mate,
+            },
+            R::BandFoot(r(b)),
+            R::BandCross {
+                edge: r(a),
+                band: vec![b.clone()],
+            },
+            R::BandCut(r(a)),
+            R::BandSlit {
+                edge: r(b),
+                band: vec![a.clone(), b.clone()],
+            },
+            R::Inner(r(a)),
+            R::Rim(r(b)),
+            R::HoleRim { of: r(a), hole: 4 },
+            R::InPart { of: r(b) },
+            R::Instance { i: 5, of: r(a) },
+        ]
+    }
+
+    #[test]
+    fn the_corpus_holds_every_variant() {
+        let (x, y) = (leaf(1), leaf(2));
+        let tags: std::collections::BTreeSet<SegTag> =
+            every_segment(&x, &y).iter().map(SegTag::of).collect();
+        assert_eq!(tags.len(), SegTag::ALL.len(), "one segment per variant");
+    }
+
+    /// Names one and two levels deep over every variant, pairs of them
+    /// differing only at their deepest level, and handles that share
+    /// an `Arc` or were stamped by one sealing walk.
+    fn corpus() -> Vec<StableName> {
+        let (x, y) = (leaf(1), leaf(2));
+        let mut out = vec![x.clone(), y.clone()];
+        for seg in every_segment(&x, &y) {
+            out.push(named(EntityKind::Face, 10, vec![seg]));
+        }
+        let over = |n: &StableName| named(EntityKind::Face, 10, vec![RoleSeg::FromA(n.clone().into())]);
+        let (a, b) = (over(&x), over(&y));
+        let rank = RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 });
+        for (p, q) in [(&a, &b), (&b, &a)] {
+            for seg in every_segment(p, q) {
+                out.push(named(EntityKind::Edge, 11, vec![seg, rank.clone()]));
+            }
+        }
+        // One `Arc` held twice, and two handles stamped by one walk in
+        // their structural order.
+        let shared = NameRef::new(a.clone());
+        let (low, high) = (NameRef::new(x.clone()), NameRef::new(y.clone()));
+        let epoch = super::super::role::next_epoch().expect("an epoch");
+        low.stamp(epoch, 0);
+        high.stamp(epoch, 1);
+        for other in [&low, &high] {
+            out.push(named(
+                EntityKind::Edge,
+                12,
+                vec![RoleSeg::Seam {
+                    a: shared.clone(),
+                    b: other.clone(),
+                }],
+            ));
+        }
+        out
+    }
+
+    fn hash(n: &StableName) -> u64 {
+        use core::hash::BuildHasher;
+        std::hash::BuildHasherDefault::<std::collections::hash_map::DefaultHasher>::default()
+            .hash_one(n)
+    }
+
+    #[test]
+    fn every_walk_answers_what_the_derived_impl_answers_at_every_variant() {
+        let names = corpus();
+        for a in &names {
+            let shown = derived(|| format!("{a:?}"));
+            assert_eq!(format!("{a:?}"), shown, "Debug");
+            assert_eq!(
+                format!("{a:#?}"),
+                derived(|| format!("{a:#?}")),
+                "pretty Debug of {shown}"
+            );
+            let copy = a.clone();
+            assert!(derived(|| copy == *a), "a clone equals its source: {shown}");
+            assert_eq!(hash(&copy), hash(a), "a clone hashes as its source: {shown}");
+            let text = a.to_json().unwrap();
+            assert_eq!(
+                text,
+                serde_json::to_string(a).unwrap(),
+                "the door writes the derived form: {shown}"
+            );
+            let back = StableName::from_json(&text).unwrap();
+            assert!(derived(|| back == *a), "the door reads it back: {shown}");
+            let pretty = serde_json::to_string_pretty(a).unwrap();
+            assert!(
+                derived(|| StableName::from_json(&pretty).unwrap() == *a),
+                "the door reads the pretty spelling: {shown}"
+            );
+            for b in &names {
+                assert_eq!(a == b, derived(|| a == b), "eq: {shown} / {b:?}");
+                assert_eq!(a.cmp(b), derived(|| a.cmp(b)), "cmp: {shown} / {b:?}");
+            }
+        }
+    }
+
+    /// A name `DEEP` levels deep, each level holding the one below in
+    /// turn through a shared handle and by value, beside a leaf: every
+    /// shape a walk descends through.
+    pub(in crate::names) fn deep(bottom: u64) -> StableName {
+        let mut n = leaf(bottom);
+        let side = leaf(9);
+        for level in 0..DEEP {
+            let r = NameRef::new(n.clone());
+            let seg = match level % 7 {
+                0 => RoleSeg::FromA(r),
+                1 => RoleSeg::Instance { i: 1, of: r },
+                2 => RoleSeg::InPart { of: r },
+                3 => RoleSeg::Merged(vec![n]),
+                4 => RoleSeg::Fragment(Qualifier::SideOf(vec![(n, SideVerdict::On)])),
+                5 => RoleSeg::Seam {
+                    a: r,
+                    b: NameRef::new(side.clone()),
+                },
+                _ => RoleSeg::BandCross {
+                    edge: NameRef::new(side.clone()),
+                    band: vec![n],
+                },
+            };
+            n = named(EntityKind::Face, level as u64 + 20, vec![seg]);
+        }
+        n
+    }
+
+    #[test]
+    fn a_name_nested_past_every_stack_walks_on_the_smallest_stack() {
+        on_the_smallest_stack(|| {
+            let (a, b) = (deep(1), deep(2));
+            let copy = a.clone();
+            assert!(a == copy, "a clone equals its source");
+            assert!(a != b, "names differing at the bottom differ");
+            assert_eq!(a.cmp(&b), Ordering::Less, "and order by the bottom");
+            assert_eq!(hash(&a), hash(&copy), "a clone hashes as its source");
+            let shown = format!("{a:?}");
+            let sides = (DEEP / 7) * 2 + usize::from(DEEP % 7 > 5);
+            assert_eq!(
+                shown.matches("StableName {").count(),
+                DEEP + 1 + sides,
+                "Debug renders every level"
+            );
+            let text = a.to_json().unwrap();
+            let back = StableName::from_json(&text).unwrap();
+            assert!(back == a, "the JSON door reads back what it wrote");
+            drop((a, b, copy, back));
+        });
+    }
+
+    /// `inner` under `levels` wrappers of `seg`, each minted by `node`.
+    fn wrapped(
+        inner: StableName,
+        levels: usize,
+        node: u64,
+        seg: fn(NameRef) -> RoleSeg,
+    ) -> StableName {
+        (0..levels).fold(inner, |n, _| StableName {
+            kind: n.kind,
+            node: RecipeNodeId(node),
+            path: vec![seg(NameRef::new(n))],
+        })
+    }
+
+    #[test]
+    fn the_descent_walks_run_on_the_smallest_stack() {
+        on_the_smallest_stack(|| {
+            let edge = named(
+                EntityKind::Edge,
+                5,
+                vec![RoleSeg::Seam {
+                    a: NameRef::new(leaf(1)),
+                    b: NameRef::new(leaf(2)),
+                }],
+            );
+            let through = wrapped(edge, DEEP, 6, RoleSeg::FromA);
+            let (a, b) = super::super::seam_pair::seam_line_pair(&through).expect("a seam pair");
+            assert_eq!((a.node.0, b.node.0), (1, 2), "the seam at the foot");
+            let face = wrapped(leaf(1), DEEP, 6, RoleSeg::FromB);
+            assert!(
+                super::super::face_descends_from(&face, &leaf(1)),
+                "a face descends from its foot"
+            );
+            let merged = named(
+                EntityKind::Face,
+                4,
+                vec![RoleSeg::Merged(vec![leaf(1), leaf(2)])],
+            );
+            let constituents = super::super::merged::constituents_through_wrappers(
+                &wrapped(merged, DEEP, 6, RoleSeg::FromA),
+            )
+            .expect("a merged face under its wrappers");
+            assert_eq!(
+                constituents,
+                vec![
+                    wrapped(leaf(1), DEEP, 6, RoleSeg::FromA),
+                    wrapped(leaf(2), DEEP, 6, RoleSeg::FromA)
+                ],
+                "each constituent re-wrapped by the whole chain"
+            );
+            let piece = named(
+                EntityKind::Face,
+                3,
+                vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+                    step: StepId(7),
+                    role: PieceRole::Leg,
+                })],
+            );
+            let copy = |r: NameRef| RoleSeg::Instance { i: 1, of: r };
+            assert_eq!(
+                wrapped(piece, DEEP, 8, copy).piece_steps(),
+                [StepId(7)].into(),
+                "the step at the foot of a chain of pattern copies"
+            );
+        });
+    }
+
+    #[test]
+    fn a_union_collapses_a_fold_name_nested_past_every_stack_on_the_smallest_stack() {
+        on_the_smallest_stack(|| {
+            let union = RecipeNodeId(9);
+            let member = named(
+                EntityKind::Face,
+                9,
+                vec![RoleSeg::FromMember {
+                    member: RecipeNodeId(4),
+                    of: NameRef::new(leaf(4)),
+                }],
+            );
+            let folded = wrapped(member.clone(), DEEP, 9, RoleSeg::FromA);
+            let collapsed = super::super::collapse_name(union, &folded).expect("it collapses");
+            assert_eq!(collapsed, member, "the descent is flattened to its foot");
+        });
+    }
+
+    #[test]
+    fn a_name_pattern_nested_past_every_stack_walks_on_the_smallest_stack() {
+        use crate::names::{NamePat, SegPat};
+        on_the_smallest_stack(|| {
+            let nest = |bottom: NamePat| {
+                (0..DEEP).fold(bottom, |p, _| NamePat::any().seg(SegPat::any().of([p])))
+            };
+            let face = wrapped(leaf(1), DEEP, 6, RoleSeg::FromA);
+            let any = nest(NamePat::any());
+            let copy = any.clone();
+            assert!(copy == any, "a clone equals its source");
+            assert!(any.matches(&face), "a pattern as deep as the name matches it");
+            let edges = nest(NamePat::of_kind(EntityKind::Edge));
+            assert!(any != edges, "patterns differing at the bottom differ");
+            assert!(!edges.matches(&face), "and the bottom decides the match");
+            assert_eq!(
+                format!("{any:?}").matches("NamePat {").count(),
+                DEEP + 1,
+                "Debug renders every level"
+            );
+            drop((any, copy, edges, face));
+        });
+    }
+
+    #[test]
+    fn a_nested_name_the_door_cannot_read_refuses_in_the_derived_words() {
+        let text = leaf(1).to_json().unwrap();
+        let wrap = |inner: &str| format!(r#"{{"kind":"Face","node":3,"path":[{{"FromA":{inner}}}]}}"#);
+        let refused = |t: &str| StableName::from_json(t).unwrap_err().to_string();
+        assert!(
+            refused(&wrap(&text.replace("\"Cap\"", "\"Cop\""))).contains("unknown variant `Cop`"),
+            "a nested name's own refusal"
+        );
+        assert!(
+            refused(&wrap("{}")).contains("missing field `kind`"),
+            "an object at a name's place with no name's key"
+        );
+        assert!(
+            refused(&wrap(r#"{"kind":"Face","node":1,"path":[],"x":0}"#))
+                .contains("unknown field `x`"),
+            "an unknown field in a nested name"
+        );
+        assert!(
+            refused(&wrap("\"\\u0000\"")).contains("NUL"),
+            "the hole's spelling in the text"
+        );
+        // Any key order and any spelling of a key reads the same name.
+        let reordered = r#"{"path":[{"FromA":{"path":[{"Cap":"End"}],"n\u006fde":1,"kind":"Face"}}],"node":3,"kind":"Face"}"#;
+        assert_eq!(
+            StableName::from_json(reordered).unwrap(),
+            StableName::from_json(&wrap(&text)).unwrap()
+        );
     }
 }
