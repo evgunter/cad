@@ -2597,7 +2597,10 @@ NOT_BOUND = {
     # a door projecting its arms' FIELDS, which is
     # `work/lib/pncad-py-seven-doors-lack-field-projection.md`'s
     # (the `path` door is one of the six it names), and not a missing
-    # binding for these five types.
+    # binding for these five types. `ArcCheck` is the sixth, on the
+    # same footing: `InconsistentArc`'s payload, crossing as the word
+    # `inconsistent_arc` with its check left behind.
+    "ArcCheck": INTERIOR,
     "ContactKind": INTERIOR,
     "EscalationSite": INTERIOR,
     "FilletLeg": INTERIOR,
