@@ -1120,6 +1120,102 @@ mod tests {
         }
     }
 
+    /// **An edge-edge membership tie offers the declaration that settles
+    /// it.** Two corners along a common line `z`, each flanker's
+    /// representative `x` lying exactly on the other corner's flanking
+    /// plane `y = 0`, at an arm whose reading of their sense lies in the
+    /// band: undeclared, the membership refuses, and offers a
+    /// declaration, since a declared-`Tangent` flanking pair
+    /// short-circuits the membership before it runs. Declared, the
+    /// germ is the flanking combination's record. A decided zero (a
+    /// zero-band arm) refuses as the same decision, with its margin.
+    #[test]
+    fn an_edge_edge_membership_tie_offers_the_declaration_that_settles_it() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{
+            BooleanDecision, BooleanDeclarations, DeclaredPairs, FacePairDeclaration,
+        };
+        use crate::contact::ContactClass;
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, arm: f64| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + start,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + end,
+            },
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(y, true),
+            arm,
+        };
+        let face = crate::entity::FaceKey::default();
+        let records = [rec(0, 0, (On, Out), (Out, In))];
+        let run = |arm: f64, class: Option<ContactClass>| {
+            let corner = [sector(z, x, arm), sector(x, z, arm)];
+            let decls = BooleanDeclarations {
+                coincident_faces: class
+                    .map(|class| vec![FacePairDeclaration::new(face, face, class)])
+                    .unwrap_or_default(),
+                ..BooleanDeclarations::none()
+            };
+            let declared = DeclaredPairs::build(&decls, Default::default());
+            let body = crate::body::Body::<f64>::new();
+            resolve_edge_edge(
+                &records,
+                &corner,
+                &corner,
+                &body,
+                &body,
+                BooleanOp::Union,
+                &declared,
+                band,
+                0,
+                0,
+            )
+        };
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        for (arm, label) in [(mid, "an in-band arm"), (0.5 * band.zero(), "a zero-band arm")] {
+            let err = run(arm, None).expect_err("the tie refuses");
+            let BooleanError::Escalated { decision, diag } = &err else {
+                panic!("{label}: an escalation: {err:?}");
+            };
+            assert_eq!(
+                *decision,
+                BooleanDecision::Coincidence(Coincide::EdgeOnEdge, DeclarationRead::Settles),
+                "{label}"
+            );
+            assert_eq!(diag.predicate, Some("bool_dir_same"), "{label}");
+            assert_eq!(
+                diag.margin.diagnostic_f64_for_error_text().value(),
+                Some(arm),
+                "{label}: the margin the funnel read rides the payload"
+            );
+            assert!(
+                err.to_string()
+                    .ends_with("Recourse: declare the coincidence, move the geometry, or lower the tolerance"),
+                "{label}: {err}"
+            );
+            assert_eq!(
+                run(arm, Some(ContactClass::Tangent)).expect("the declared flank short-circuits"),
+                Some(0),
+                "{label}: declared, the flanking record is the germ"
+            );
+        }
+    }
+
     /// The Program 15.10 mechanics on the Figure 15.9 shape (union,
     /// coplanar pair (a1, b2), Eq. 15.3 ⁺ row): the coplanar record is
     /// lumped and cancelled, the neighbors' shared-bound codes are

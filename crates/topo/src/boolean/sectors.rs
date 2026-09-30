@@ -891,6 +891,92 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    /// **A direction's membership in a sector names no declaration**: a
+    /// direction an in-band angle past the sector's start bound, read
+    /// by `within` ahead of any declaration (the sector primitives take
+    /// none), escalates as the sectors' coincidence with nothing read,
+    /// and ends in its lever and the tolerance the gap gives.
+    #[test]
+    fn a_direction_on_a_sector_bound_escalates_with_no_declaration_read() {
+        let b = band();
+        let mid = (b.zero() + b.escalate()) / 2.0;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let s = BoolSector {
+            he: HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Chord { base: o, far: o + x },
+            end_reach: Reach::Chord { base: o, far: o + y },
+            face: FaceKey::default(),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            arm: 1.0,
+        };
+        let err = within(&s, Vec3::new(1.0, -mid, 0.0), false, b)
+            .expect_err("an in-band direction escalates");
+        let BooleanError::Escalated { decision, diag } = &err else {
+            panic!("an escalation: {err:?}");
+        };
+        assert_eq!(
+            *decision,
+            BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Moot)
+        );
+        assert_eq!(diag.predicate, Some("bool_sector_within"));
+        let text = err.to_string();
+        assert!(
+            text.starts_with("how two corners of the two solids overlap where they meet is ")
+                && text.contains(
+                    "Recourse: move the parts so they clearly meet or clearly stand apart there, \
+                     or, if this gap is intended, tighten the tolerance below "
+                )
+                && !text.contains("declare"),
+            "{text}"
+        );
+    }
+
+    /// **Two parallel directions' sense is its own decision, and its
+    /// decided zero refuses as its in-band arm does**: read at an arm in
+    /// the band, and at one in the zero band, the cosine of two equal
+    /// directions escalates as [`BooleanDecision::DirectionSense`] with
+    /// the margin the funnel read, and both end in the corner's lever
+    /// and the tolerance that margin gives (the decision passes on
+    /// either definite sign, so a zero-band margin is a size a smaller
+    /// tolerance decides). A clear arm reads the sense.
+    #[test]
+    fn a_direction_sense_refuses_its_decided_zero_as_its_in_band_arm() {
+        let b = band();
+        let (z, e) = (b.zero(), b.escalate());
+        let u = Vec3::new(1.0, 0.0, 0.0);
+        assert!(direction_sense(u, u, 1.0, b).expect("a clear arm reads the sense"));
+        assert!(!direction_sense(u, -u, 1.0, b).expect("a clear arm reads the sense"));
+        for arm in [(z + e) / 2.0, 0.5 * z] {
+            let err = direction_sense(u, u, arm, b).expect_err("a short arm refuses");
+            let BooleanError::Escalated { decision, diag } = &err else {
+                panic!("{arm:e}: an escalation: {err:?}");
+            };
+            assert_eq!(*decision, BooleanDecision::DirectionSense, "{arm:e}");
+            assert_eq!(diag.predicate, Some("bool_dir_same"), "{arm:e}");
+            assert_eq!(
+                diag.margin.diagnostic_f64_for_error_text().value(),
+                Some(arm),
+                "{arm:e}: the margin the funnel read"
+            );
+            let text = err.to_string();
+            assert!(
+                text.starts_with(
+                    "whether two parallel directions at a corner point the same way or opposite \
+                     ways is undecided: "
+                ) && text.ends_with(&format!(
+                    "Recourse: make the edges at the corner where the two faces meet clearly \
+                     longer than the tolerance, or, if this length of the corner's shorter edge \
+                     is intended, tighten the tolerance below {:e} m",
+                    arm / (e / z)
+                )),
+                "{arm:e}: {text}"
+            );
+        }
+    }
+
     /// The 15.7 sign resolution, mirror-pinned (F3): against a face
     /// with outward normal +z (material below), a direction with
     /// negative z ENTERS material ⇒ In; positive z ⇒ Out; in-plane ⇒
