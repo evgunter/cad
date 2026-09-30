@@ -441,3 +441,17 @@ Next: split `store-constructed-carriers` into three:
 3. 5b.
 
 Spec 5a first.
+
+## 2026-09-30 — unit 5 split; the shared arc type is dispatched first
+
+The ruling's order was 5a, then the type move, then 5b. It is now:
+1. `one-arc-carrier-type-in-geom-core` (mechanical, byte-identical,
+   single FULL review);
+2. `retire-the-stored-bulge` (5a, dual);
+3. `store-constructed-carriers` (5b).
+
+**Why the type moves first.** 5a's registration chain needs the one
+spelling of the rim and landing, and the type unit is what provides
+it. Doing the type move first removes the "land its methods inside 5a"
+coupling both designers flagged. This is a sequencing call, not a
+design change.
