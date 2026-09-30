@@ -157,12 +157,12 @@ pub mod surfaces;
 pub mod test_support;
 
 pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin};
+pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 pub use curves::{
     ComposeError, Curve3, CurveData, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3,
-    ProjectionInconclusive, RefitSkip, SeamSide, SecondDerivativeUnbounded, SpiricInvalid,
-    compose_chain, nonrational_second_derivative_sup, spiric_curvature_sup, spiric_f_range,
-    spiric_radial,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
+    spiric_curvature_sup, spiric_f_range, spiric_radial,
 };
 pub use datum::{AnalyticData, DatumValue};
 // The §6.1 policy module is interior — its body is the argument for

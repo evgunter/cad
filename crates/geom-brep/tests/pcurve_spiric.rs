@@ -251,7 +251,11 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
     // within check 1's Zero window and `definite` is past the
     // escalation threshold, at all three ε cells CI gates.
     let eps = tol().eps();
-    let inside = 0.5 * eps;
+    // A quarter of ε, not a half: the price a drift pays is not the
+    // drift itself — a wrong `r` moves two channels and pays twice, and
+    // a tilt pays `(R + r)·θ·π/2` — and a half-ε `r` drift lands its
+    // price exactly on the band edge, where it escalates.
+    let inside = 0.25 * eps;
     let definite = 50.0 * eps;
 
     // Each of the four premises, drifted inside the band: certifies,
@@ -289,7 +293,7 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
             0.0,
             drifted(&move |s| {
                 if let Surface::Torus { axis, .. } = s {
-                    *axis = Vec3::new(0.5 * eps / ARM, 1.0, 0.0).normalize();
+                    *axis = Vec3::new(0.25 * eps / ARM, 1.0, 0.0).normalize();
                 }
             }),
         ),
