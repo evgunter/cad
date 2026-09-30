@@ -4159,3 +4159,41 @@ Dispatched on the walk target: `deep-snapshot-does-not-walk-the-body-side-tables
 - It fixes those in files no live lane touches. For any in PR 3531's
   or PR 3513's files it stops and reports, so I can sequence them after
   those merge.
+
+## PR 3531's review: APPROVE-WITH-FIXES with a MAJOR; fix pass out (2026-09-30)
+
+The single full review of PR 3531 at `f7746ac162` took 360,650 tokens,
+169 tools and 3,608 s. It re-ran after the restart. The gate was green.
+
+**Confirmed:**
+- The keys-only refusal and the twin agree on every boundary case.
+- Atomicity holds for all eight doors.
+- The gate pins are exact.
+- The base before-state reproduces.
+
+**MAJOR.** `merge_coplanar_faces` stayed on keys-only `kef` and
+`ring_move`. On a curved same-key run where one sector was never
+minted, it now skips the group (`KeysOnly`, `groups=0`) where main
+merged it. The door holds `tol`, so it moves to the twins, and every
+production keys-only caller is re-checked for the same shape.
+
+**MINORs:**
+- `site_rows_owed` restates `site_rows`' walked-loop predicate, so a
+  mutant survives: one predicate.
+- The twins' same-chart carry is unpinned.
+- The account of the emptied faces is off. The truth is 317 clears:
+  147 re-minted, 169 killed later in completed carves, 1 reaching a
+  caller.
+- A sweep fixture's doc is stale.
+- The spline row lists `mef` wrongly.
+
+**On the review's provenance note.** Applying "a half-minted face
+becomes a state no door can produce" to the moving doors is my reading
+of the comment Ev approved, not Ev's recorded words. The PR body will
+say so.
+
+**Not taken:** the review's Q7, to fold `mfkrh` into one banded make
+door. `mfkrh` was keys-only before this PR and its twin is additive,
+so no finding requires the signature change.
+
+The fix pass is out on the rebase target.
