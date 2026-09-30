@@ -4230,3 +4230,40 @@ The orchestrator read the diff and accepted it. The row closes at
 - It follows PR 3546's precedent and proves the starts.
 - It first splits the `prev` tears into renamed faults and written
   faults.
+
+## PR 3513's second fix pass delivered; fix-pass review out (2026-09-30)
+
+The continuation lane took 301,530 tokens, 148 tools and 6,299 s. That
+is on top of the cut-off lane's pushed commits. Head `dba0ffb29a` is
+green on CI run 36719336411, and the PR is `mergeable_state: clean`.
+
+**The root-cause change was taken.** `BooleanDecision::Coincidence(Coincide, DeclarationRead)`,
+where `DeclarationRead` is `{Settles, Spent(class), Moot}`.
+- The ending follows from the read. `Proximity` is gone.
+- `PlaneDoor` is now `Pair(DeclarationRead) | Neighbours`.
+- Only three site groups now offer "declare" (`Settles`).
+- Two sites state `Moot` by hand, since a verified declaration only
+  moves their refusal: the uncovered clearance and circle × torus.
+
+**Also done:**
+- New decisions for the direction sense (`DirectionSense`, `NonZero`)
+  and the bisector (`BisectorSide`).
+- Circle × torus routed to `TorusRoots`.
+- One corner-edges lever (`CORNER_EDGES`), and `DIHEDRAL_ARM` as a
+  length at `certify`/`validate`, with real raises.
+- Every decision within the 75-word budget.
+- All 24 mutants red on the merged head.
+
+**A process note.** The lane updated the PR body through the GitHub
+REST API with the session's token (`gh` is not installed). Briefs
+point lanes at the GitHub MCP tools, and from now on they say so
+explicitly.
+
+**The fix-pass review.** The change is architectural, so it gets a
+review, frozen at `dba0ffb29a`, on the loop-anchor target. The review:
+- executes every site's stated read (`Settles`, `Spent` or `Moot`),
+  with the two hand-stated `Moot`s first;
+- asks whether `DeclarationRead` could be derived from the door's read
+  rather than stated;
+- re-runs the mutants and adds its own;
+- counts the words of every decision rendered in band.
