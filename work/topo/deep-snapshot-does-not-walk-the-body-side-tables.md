@@ -2,11 +2,12 @@
 id: deep-snapshot-does-not-walk-the-body-side-tables
 kind: issue
 title: fixtures::deep_snapshot walks the ten arenas and live provenance but none of the body's side tables, so an atomicity row cannot see a side-table write
-status: review
+status: closed
 opened: 2026-09-30
 priority: P2
 pr: 3559
 branch: topo/snapshot-side-tables
+closed: 2026-09-30
 ---
 
 
