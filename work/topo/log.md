@@ -2987,3 +2987,35 @@ P2, M, `design: true`; tier SINGLE, full):
 
 Three lanes are live: PR 3495's review, PR 3493's fix pass, and the
 `mev_null` implementer.
+
+## The `mev_null` unit delivered as PR 3500; review queued for a free target (2026-09-30)
+
+PR 3500 is green at `223c63054e`. The implementer took 291,742
+tokens, 175 tools and 69 min (harness).
+- **What it built:** shape (b). `set_edge_curve_via` plans the null
+  edge's first description through `site_rows` before it mutates, and
+  writes the rows after the curve swap. `StoredRows::complete_except`
+  is the one predicate. A spline chart keeps today's answer.
+- **What it measured:** no production pipeline reaches (b).
+  - The boolean and splitting pipelines kill their null edges
+    undescribed. `mev_null` half-mints in 120 sweep tests (1,090
+    calls).
+  - The join's Euler operators then find the face half-minted and
+    leave their own halves rowless (828 reads).
+  - The closing `mint_pcurves` is still what closes the state in
+    production.
+  - Shape (a) would change nothing there either.
+- **Filed:**
+  - `a-null-edge-that-is-killed-leaves-its-face-half-minted`: the
+    production residue, with two shapes, both consistent with Ev's
+    retirement of the closing mint.
+  - `kev-describing-a-null-member-leaves-its-face-missing-its-rows`:
+    unreached today.
+
+The residue is the ruling's unfinished part, not a fork. It is queued
+as its own unit after its own measurement.
+
+Tier SINGLE, full. The brief names the PR 2527 ruling and asks the
+reviewer to re-run the measurement. It dispatches when PR 3495's
+reviewer or PR 3493's fix pass frees a target: 7.5 GB is free, too
+little for a fresh sweep build beside two live lanes.
