@@ -212,10 +212,16 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 ///
 /// This probe MEASURES that. It reports the bound at four span lengths
 /// and asserts it is strictly span-dependent — i.e. that something IS
-/// tightenable. The measurement also shows how weakly: the bound falls
-/// far slower than the span, because at `T = Interval` it is dominated
-/// by the width the ring data carries rather than by the span, which is
-/// the honest version of the PR's claim.
+/// tightenable. The strongest form of that: the quarter turn escalates
+/// at about 1.02e-12, and HALVING the arc certifies outright, as does
+/// every shorter arc below it.
+///
+/// What the measurement also shows is where the bound's floor comes
+/// from. At `T = Interval` it is dominated by the width the ring data
+/// carries rather than by the span — which is why, under the lerp
+/// insertion form, the four spans sat within 1.6x of each other
+/// (1.80e-12, 1.30e-12, 1.14e-12, 1.14e-12) and none of them certified.
+/// The convex insertion form took that floor out from under them.
 #[test]
 fn the_interval_hull_bound_is_span_dependent() {
     /// The `ssi_hull_sup` bound this route certifies at the interval
@@ -244,11 +250,22 @@ fn the_interval_hull_bound_is_span_dependent() {
         .collect();
     println!("ssi_hull_sup vs span divisor: {bounds:?}");
     let full = bounds[0].1.expect("the quarter turn escalates");
-    let eighth = bounds[2].1.expect("an eighth of it still escalates");
+    // Each shorter arc must beat the quarter turn: either it certifies
+    // outright (the strongest form of "the bound moves with the span"),
+    // or its bound is strictly smaller. "Nothing to tighten" claims
+    // neither can happen.
+    for (div, bound) in &bounds[1..] {
+        assert!(
+            bound.is_none_or(|b| b < full),
+            "1/{div} of the quarter turn neither certifies nor beats the quarter turn's \
+             {full:e} — 'nothing to tighten' claims the bound cannot move with the span: \
+             {bounds:?}"
+        );
+    }
     assert!(
-        eighth < full,
-        "the bound must move with the span — 'nothing to tighten' claims it cannot: \
-         {bounds:?}"
+        bounds[1..].iter().any(|(_, b)| b.is_none()),
+        "no shorter arc certifies, so the span no longer reaches past the escalation at \
+         all: {bounds:?}"
     );
 }
 

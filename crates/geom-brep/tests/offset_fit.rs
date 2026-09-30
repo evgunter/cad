@@ -1126,7 +1126,7 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
 /// `theta` about its centre at `z = 1`, `u` running up the wall. It is
 /// the first spline wall of `sweep`'s `twisted_loft(theta)` test body,
 /// rebuilt here as the net that loft produces. The fit loop's outcome
-/// on it at `theta = 0.3` is pinned, grid and bound, by
+/// on it at `theta = 0.6` is pinned, grid and bound, by
 /// `the_second_non_improving_round_is_the_stalls_face`.
 fn saddle_wall(theta: f64) -> NurbsSurface<f64> {
     let (s, c) = theta.sin_cos();
@@ -1155,13 +1155,13 @@ fn saddle_wall(theta: f64) -> NurbsSurface<f64> {
 /// request pinned by the round it stalls on, its grid and its bound:
 ///
 /// ```text
-/// d = ±5e-10   round 4, (16, 12), 1.2915e-11
-/// d =  1e-6    OFFSET_FIT_BUDGET's round, (26, 18), 9.52e-10
+/// d = ±5.6234132519034906e-11   round 5, (31, 23) / (35, 23), ~2.8e-14
+/// d =  1.333521432163324e-10    OFFSET_FIT_BUDGET's round, (41, 29), 3.1913e-14
 /// ```
 ///
-/// At `d = 1e-6`, a loop that tested the budget first would refuse
-/// `BudgetExhausted` on the same round, so this request is the witness
-/// that the verdict comes first.
+/// At `d = 1.333521432163324e-10`, a loop that tested the budget first
+/// would refuse `BudgetExhausted` on the same round, so this request is
+/// the witness that the verdict comes first.
 ///
 /// **What the read-back pins is the loop at a fixed band.** Each
 /// refusal's `best` is requested again at the same band, and certifies
@@ -1172,22 +1172,22 @@ fn saddle_wall(theta: f64) -> NurbsSurface<f64> {
 ///
 /// **If a request here certifies, re-find the fixture; do not delete
 /// the row.** These stalls ride on the Bézier decomposition's insertion
-/// width, which grows with the grid; PROPS has a convex insertion form
-/// in view that narrows it, under which the `5e-10` request measured
-/// certifying on round 3. A certificate here most likely means that
-/// landed. The hunt that found these swept `theta` over 0.05–1.2 and
-/// `d` over 1e-11–1e-2 at a target of 1e-17 on this saddle, and most
-/// requests below `d ~ 1e-6` stalled; sweep again, and pin a request
-/// that stalls on `OFFSET_FIT_BUDGET`'s round.
+/// width, which grows with the grid, so a change that narrows that
+/// width moves them — the convex insertion form did exactly that, and
+/// the requests this row carried before it (`theta = 0.3`, `d = ±5e-10`
+/// and `1e-6`) all certify now. The hunt that finds replacements sweeps
+/// `theta` over 0.05–1.2 and `d` over 1e-11–1e-2 at THIS row's target
+/// on this saddle; pin one request that stalls on `OFFSET_FIT_BUDGET`'s
+/// round and one that stalls before it.
 #[test]
 fn the_second_non_improving_round_is_the_stalls_face() {
-    let base = saddle_wall(0.3);
+    let base = saddle_wall(0.6);
     let target = 1e-14;
     let last_round = u32::try_from(OFFSET_FIT_BUDGET).unwrap();
     for (d, want_rounds, want_grid, want_achieved) in [
-        (5e-10, 4u32, (16, 12), 1.2915e-11),
-        (-5e-10, 4, (16, 12), 1.2915e-11),
-        (1e-6, last_round, (26, 18), 9.52e-10),
+        (5.6234132519034906e-11, 5u32, (31, 23), 2.767036e-14),
+        (-5.6234132519034906e-11, 5, (35, 23), 2.812559e-14),
+        (1.333521432163324e-10, last_round, (41, 29), 3.191256e-14),
     ] {
         let (rounds, grid, achieved, best, msg) = match fit_offset_at(&base, d, target, band()) {
             Err(
