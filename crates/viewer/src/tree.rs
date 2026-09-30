@@ -688,7 +688,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
 /// [`rows`] has read `Ok`, so this decides which payload, never
 /// whether there is one. `None` for every payload but a measure's.
 fn measured_of(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Measured> {
-    match &evaluation.result(id)?.value()?.payload {
+    match &evaluation.usable(id).ok()?.payload {
         ValuePayload::Measure { value, dim } => Some(Measured::Value(computed_text(*dim, *value))),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Measured::Unavailable(*reason)),
         ValuePayload::Body(_)
