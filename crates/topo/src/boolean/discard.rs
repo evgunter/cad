@@ -84,22 +84,10 @@ pub(super) fn discard_row<T: geom_core::Real>(
             let h = body
                 .get_half_edge(he)
                 .ok_or_else(|| desync("a discarded face's half-edge no longer resolves"))?;
-            let edge = body
-                .get_edge(h.edge)
-                .ok_or_else(|| desync("a discarded face's edge no longer resolves"))?;
-            let mate = if edge.he_plus == he {
-                edge.he_minus
-            } else {
-                edge.he_plus
-            };
-            let mate_loop = body
-                .get_half_edge(mate)
-                .ok_or_else(|| desync("a discarded face's mate half-edge no longer resolves"))?
-                .parent_loop;
             let mate_face = body
-                .get_loop(mate_loop)
-                .ok_or_else(|| desync("a discarded face's mate loop no longer resolves"))?
-                .face;
+                .mate(he)
+                .and_then(|m| body.face_of_half_edge(m))
+                .ok_or_else(|| desync("a discarded face's edge has no face across it"))?;
             if kept_across(mate_face) {
                 let end = body
                     .half_edge_end(he)

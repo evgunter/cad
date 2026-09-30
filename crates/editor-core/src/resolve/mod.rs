@@ -1149,6 +1149,9 @@ trait PriorCtx {
     /// The group-size rung ([`group_resized`]): with-prior only, since
     /// a size CHANGE needs a size to change from.
     fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis>;
+    /// Whether the last-good run's tables carry `name` (none without a
+    /// prior run).
+    fn carried(&self, name: &StableName) -> bool;
 }
 
 struct NoPrior;
@@ -1168,6 +1171,10 @@ impl<U: Decide> Prior<'_, U> {
 }
 
 impl PriorCtx for NoPrior {
+    fn carried(&self, _name: &StableName) -> bool {
+        false
+    }
+
     fn diagnose<T: Decide>(
         &self,
         _new: RunCtx<'_, T>,
@@ -1236,6 +1243,10 @@ enum Evidence {
 }
 
 impl<U: Decide> PriorCtx for Prior<'_, U> {
+    fn carried(&self, name: &StableName) -> bool {
+        lookup(self.ctx.eval, name).is_some()
+    }
+
     /// The PATH scope (the scope rule: [`upstream_nodes`]): the lane
     /// table over [`derivation_nodes`], answering `PredicateFlip`,
     /// `StructuralParam` or `RecipeEdit`, with the name's own
@@ -1421,7 +1432,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // population-cancel blind spot, or a single-run resolve —
             // the N2 discriminators recorded IN the names themselves
             // are still evidence.
-            .or_else(|| border_delta(new.eval, name))
+            .or_else(|| border_delta(new.eval, name, |n| prior.carried(n)))
             // The upstream scope ([`upstream_nodes`]): below every
             // rung that names a cause ON the path, qualifier delta
             // included, because a path cause decided the name and an
@@ -1488,15 +1499,22 @@ fn unqualified(name: &StableName) -> Option<StableName> {
 /// names even when no log recorded it (the population-cancel blind
 /// spot, a pruned pair, or no prior run at all).
 ///
-/// The counterpart is the current piece under the same base whose wall
-/// set differs least from the vanished one's (the size of the
-/// symmetric difference). It answers only when that nearest set is
-/// unique, and says which walls the vanished piece bordered and that
-/// piece does not, and the reverse; two sets equally near are no one
-/// counterpart, and the rung declines rather than pick. A group that
-/// stopped being divided has no `Borders` sibling left, and the
-/// group-size rung answers it.
-fn border_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option<Diagnosis> {
+/// The counterpart is a current piece under the same base that still
+/// borders at least one of the vanished piece's walls — a piece sharing
+/// none is another piece, not this one changed — and that the last-good
+/// run did not already publish (`carried`: an untouched sibling is not
+/// a counterpart). Among those, it is the one whose wall set differs
+/// least from the vanished one's (the size of the symmetric
+/// difference). It answers only when that nearest set is unique, and
+/// says which walls the vanished piece bordered and that piece does
+/// not, and the reverse; no candidate, or two equally near, and the
+/// rung declines rather than pick. A group that stopped being divided
+/// has no `Borders` sibling left, and the group-size rung answers it.
+fn border_delta<T: Decide>(
+    eval: &Evaluation<T>,
+    name: &StableName,
+    carried: impl Fn(&StableName) -> bool,
+) -> Option<Diagnosis> {
     let RoleSeg::Fragment(Qualifier::Borders(was)) = name.path.last()? else {
         return None;
     };
@@ -1509,6 +1527,8 @@ fn border_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option<Di
                 && candidate.kind == name.kind
                 && candidate.node == name.node
                 && fragment_base(candidate).as_ref() == Some(&base)
+                && walls.iter().any(|w| was.contains(w))
+                && !carried(candidate)
             {
                 now.insert(walls.clone());
             }

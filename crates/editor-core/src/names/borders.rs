@@ -25,11 +25,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::emit::{NamingError, face_half_edges};
+use super::least_root::LeastRoot;
 
 /// One discarded face, resolved into the result of its step.
-struct Discard<K> {
-    /// What the discarded face is a fragment of, in the caller's keys.
-    parents: BTreeSet<K>,
+struct Discard {
     /// The result edges it bordered a kept face along.
     seams: Vec<EdgeKey>,
     /// Seam edges of earlier steps its boundary descends from: the
@@ -40,7 +39,10 @@ struct Discard<K> {
 
 /// The discards of one boolean, or of each step of a union's fold.
 pub(crate) struct Obstacles<K> {
-    discards: Vec<Discard<K>>,
+    discards: Vec<Discard>,
+    /// Parent key → the discards descending from it (what the caller's
+    /// `parents_of` named each a fragment of).
+    by_parent: BTreeMap<K, Vec<usize>>,
     /// Edge → the edge it was split from, for edges that died with a
     /// discarded face and so left the result's own provenance.
     dead_split: BTreeMap<EdgeKey, EdgeKey>,
@@ -55,6 +57,7 @@ impl<K: Ord + Clone> Obstacles<K> {
     pub(crate) fn new() -> Self {
         Self {
             discards: Vec::new(),
+            by_parent: BTreeMap::new(),
             dead_split: BTreeMap::new(),
         }
     }
@@ -68,16 +71,10 @@ impl<K: Ord + Clone> Obstacles<K> {
         body: &Body<T>,
         mut parents_of: impl FnMut(topo::Operand, FaceKey) -> Result<BTreeSet<K>, NamingError>,
     ) -> Result<(), NamingError> {
-        let merges: BTreeMap<VertexKey, VertexKey> = naming.vertex_merges.iter().copied().collect();
-        let settle = |mut v: VertexKey| -> Result<VertexKey, NamingError> {
-            for _ in 0..=merges.len() {
-                match merges.get(&v) {
-                    Some(&k) if k != v => v = k,
-                    _ => return Ok(v),
-                }
-            }
-            Err(bug("a boolean's vertex fusions form a cycle"))
-        };
+        let fused = naming
+            .fused_into()
+            .ok_or_else(|| bug("a boolean's vertex fusions form a cycle"))?;
+        let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(v);
         // A bordered stretch settles on a seam edge: the zip made the
         // kept face's section edge one edge with the wall's.
         let seam_edges: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
@@ -128,7 +125,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                 .collect();
             let mut seams = Vec::new();
             for &(u, w) in &row.bordered {
-                let (u, w) = (settle(u)?, settle(w)?);
+                let (u, w) = (settle(u), settle(w));
                 // A stretch no live seam edge joins merged away with the
                 // faces beside it: nothing of a piece lies along it.
                 if let Some(es) = by_ends.get(&(u.min(w), u.max(w))) {
@@ -146,11 +143,14 @@ impl<K: Ord + Clone> Obstacles<K> {
                 .filter(|k| earlier.contains(k))
                 .copied()
                 .collect();
-            self.discards.push(Discard {
-                parents: parents_of(row.operand, row.face)?,
-                seams,
-                touches,
-            });
+            let parents = parents_of(row.operand, row.face)?;
+            for k in &parents {
+                self.by_parent
+                    .entry(k.clone())
+                    .or_default()
+                    .push(self.discards.len());
+            }
+            self.discards.push(Discard { seams, touches });
         }
         Ok(())
     }
@@ -160,46 +160,49 @@ impl<K: Ord + Clone> Obstacles<K> {
     /// each wall named by `wall`. Several pieces under one set are N2's
     /// tie. The sets come out sorted, in `W`'s order.
     ///
-    /// Refuses when the record holds nothing that divides the pieces:
-    /// a region the kernel discarded without recording it.
+    /// `merged` are the parent's other faces, the ones a merge made one
+    /// with another parent's (the pair boolean names those `Merged`, N3):
+    /// they hold part of the parent's region, so an obstacle they border
+    /// counts toward dividing it, and they are neither grouped nor
+    /// checked. Every face of a union's parent is a piece, and it passes
+    /// none.
+    ///
+    /// Refuses when a piece of several borders no divider: the face is
+    /// connected, so what lies between its pieces is discarded region,
+    /// and a piece that borders none of it is a region the kernel
+    /// discarded without recording it.
     pub(crate) fn split<T: geom_core::Real, W: Ord + Clone>(
         &self,
         body: &Body<T>,
         parent: &BTreeSet<K>,
         pieces: &[FaceKey],
+        merged: &[FaceKey],
         mut wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
     ) -> Result<BTreeMap<Vec<W>, Vec<FaceKey>>, NamingError> {
-        let mine: Vec<usize> = (0..self.discards.len())
-            .filter(|&i| !self.discards[i].parents.is_disjoint(parent))
+        let mine: BTreeSet<usize> = parent
+            .iter()
+            .filter_map(|k| self.by_parent.get(k))
+            .flatten()
+            .copied()
             .collect();
-        // Union–find over this parent's discards; a class's root is its
-        // least index, so no visiting order changes it.
-        let mut link: BTreeMap<usize, usize> = mine.iter().map(|&i| (i, i)).collect();
-        fn root(link: &BTreeMap<usize, usize>, mut i: usize) -> usize {
-            while let Some(&up) = link.get(&i).filter(|up| **up != i) {
-                i = up;
-            }
-            i
-        }
-        let join = |link: &mut BTreeMap<usize, usize>, a: usize, b: usize| {
-            let (ra, rb) = (root(link, a), root(link, b));
-            link.insert(ra.max(rb), ra.min(rb));
-        };
+        // This parent's discards, joined into obstacles.
+        let mut link = LeastRoot::new();
         let mut seam_of: BTreeMap<EdgeKey, Vec<usize>> = BTreeMap::new();
         for &i in &mine {
+            link.insert(i);
             for &k in &self.discards[i].seams {
                 seam_of.entry(k).or_default().push(i);
             }
         }
         for ds in seam_of.values() {
             for w in ds.windows(2) {
-                join(&mut link, w[0], w[1]);
+                link.join(w[0], w[1]);
             }
         }
         for &i in &mine {
             for k in &self.discards[i].touches {
                 for &j in seam_of.get(k).into_iter().flatten() {
-                    join(&mut link, i, j);
+                    link.join(i, j);
                 }
             }
         }
@@ -208,7 +211,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         let obstacle = |mut e: EdgeKey| -> Result<Option<usize>, NamingError> {
             for _ in 0..bound {
                 if let Some(ds) = seam_of.get(&e) {
-                    return Ok(Some(root(&link, ds[0])));
+                    return Ok(Some(link.root(ds[0])));
                 }
                 e = match body.edge_provenance_of(e) {
                     Some(Provenance::SplitEdge { edge }) => *edge,
@@ -222,30 +225,19 @@ impl<K: Ord + Clone> Obstacles<K> {
             Err(bug("a piece edge's split lineage is cyclic"))
         };
         let mut met: Vec<(usize, usize, FaceKey)> = Vec::new();
-        for (p, &f) in pieces.iter().enumerate() {
+        for (p, &f) in pieces.iter().chain(merged).enumerate() {
             for he in face_half_edges(body, f)? {
-                let h = body
+                let edge = body
                     .get_half_edge(he)
-                    .ok_or_else(|| bug("a piece's half-edge is dangling"))?;
-                let Some(o) = obstacle(h.edge)? else {
+                    .ok_or_else(|| bug("a piece's half-edge is dangling"))?
+                    .edge;
+                let Some(o) = obstacle(edge)? else {
                     continue;
                 };
-                let edge = body
-                    .get_edge(h.edge)
-                    .ok_or_else(|| bug("a piece's edge is dangling"))?;
-                let mate = if edge.he_plus == he {
-                    edge.he_minus
-                } else {
-                    edge.he_plus
-                };
                 let across = body
-                    .get_loop(
-                        body.get_half_edge(mate)
-                            .ok_or_else(|| bug("a piece edge's mate is dangling"))?
-                            .parent_loop,
-                    )
-                    .ok_or_else(|| bug("a piece edge's mate loop is dangling"))?
-                    .face;
+                    .mate(he)
+                    .and_then(|m| body.face_of_half_edge(m))
+                    .ok_or_else(|| bug("a piece edge has no face across it"))?;
                 met.push((o, p, across));
             }
         }
@@ -254,16 +246,16 @@ impl<K: Ord + Clone> Obstacles<K> {
             touched.entry(o).or_default().insert(p);
         }
         let divides = |o: usize| touched.get(&o).is_some_and(|ps| ps.len() >= 2);
-        if pieces.len() >= 2 && !touched.keys().any(|&o| divides(o)) {
-            return Err(bug(
-                "a face held as several pieces has no recorded discard between them",
-            ));
-        }
         let mut walls: Vec<BTreeSet<W>> = vec![BTreeSet::new(); pieces.len()];
         for (o, p, across) in met {
-            if divides(o) {
+            if divides(o) && p < pieces.len() {
                 walls[p].insert(wall(across)?);
             }
+        }
+        if pieces.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
+            return Err(bug(
+                "a piece of a face held as several borders no recorded discard between them",
+            ));
         }
         let mut out: BTreeMap<Vec<W>, Vec<FaceKey>> = BTreeMap::new();
         for (set, &f) in walls.into_iter().zip(pieces) {

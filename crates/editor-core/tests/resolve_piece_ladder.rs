@@ -691,8 +691,8 @@ fn the_count_is_the_record_not_the_rows_spelled_from_the_base() {
 fn a_group_that_grows_is_resized_too_and_a_tie_inside_it_is_several_members() {
     // Prior: the vanished fragment beside a TIED sibling row of two,
     // all three dividing one parent — a group of three entities under
-    // two names. Now: two distinct fragments that are neither — a
-    // group of two.
+    // two names. Now: two distinct fragments, neither bordering the
+    // vanished one's wall (so no border delta) — a group of two.
     let h = hand();
     let f = group_diagnosis(
         &h,
@@ -702,7 +702,7 @@ fn a_group_that_grows_is_resized_too_and_a_tie_inside_it_is_several_members() {
             one_group(&h, 3),
         ),
         (
-            vec![(sibling(&h, &[0, 1]), 1), (sibling(&h, &[]), 1)],
+            vec![(sibling(&h, &[1]), 1), (sibling(&h, &[]), 1)],
             one_group(&h, 2),
         ),
     );
@@ -784,8 +784,8 @@ fn two_tied_parents_are_counted_one_parent_at_a_time() {
 #[test]
 fn a_group_that_requalified_at_the_same_size_is_not_a_resize() {
     // Two fragments before, two after, the vanished one not among
-    // them. No single pure-sign delta either (Mixed/On have no sign),
-    // so every rung is silent and the fallback is the honest answer.
+    // them: no resize. The piece still bordering the vanished one's
+    // wall now borders another too, and the border delta says so.
     let h = hand();
     let f = group_diagnosis(
         &h,
@@ -799,7 +799,14 @@ fn a_group_that_requalified_at_the_same_size_is_not_a_resize() {
             one_group(&h, 2),
         ),
     );
-    assert_eq!(diag(&f), &fallback(&h));
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::BorderDelta {
+            node: h.node,
+            gone: vec![],
+            new: vec![h.walls[1].clone()],
+        }
+    );
 }
 
 #[test]

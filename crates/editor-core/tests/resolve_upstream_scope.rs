@@ -553,7 +553,7 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
 /// The ORDER among causes: the border delta — a change of the name's
 /// own walls, read off the names at its minting node — outranks an
 /// upstream flip. Hand-built runs over a real two-node chain: the
-/// name is minted at `n = Transform(u)`, its piece borders another
+/// name is minted at `n = Transform(u)`, its piece borders one more
 /// wall in the current table, and `u`'s verdict log flips. Both rungs
 /// have evidence; the path's wins.
 #[test]
@@ -570,15 +570,15 @@ fn the_border_delta_outranks_an_upstream_flip() {
     let f = fixture::minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let p = fixture::minted(EntityKind::Body, m, RoleSeg::OutputBody);
     let q = fixture::minted(EntityKind::Body, u, RoleSeg::OutputBody);
-    let frag = |w: &StableName| StableName {
+    let frag_of = |ws: &[&StableName]| StableName {
         kind: EntityKind::Body,
         node: n,
         path: vec![
             RoleSeg::FromA(f.clone().into()),
-            RoleSeg::Fragment(Qualifier::Borders(vec![w.clone()])),
+            RoleSeg::Fragment(Qualifier::Borders(ws.iter().map(|&w| w.clone()).collect())),
         ],
     };
-    let old = frag(&p);
+    let old = frag_of(&[&p]);
     let table = |name: &StableName| {
         let mut t = NameTable::new();
         t.insert(name.clone(), body(0)).unwrap();
@@ -594,7 +594,7 @@ fn the_border_delta_outranks_an_upstream_flip() {
     let now = two_node_eval(
         &doc,
         (u, vec![verdict(Sign::Positive)]),
-        (n, table(&frag(&q))),
+        (n, table(&frag_of(&[&p, &q]))),
     );
     assert!(
         editor_core::diff_verdicts(&prior, &now)
@@ -607,7 +607,7 @@ fn the_border_delta_outranks_an_upstream_flip() {
         diagnosis((&doc, &now), (&doc, &prior), &old),
         Diagnosis::BorderDelta {
             node: n,
-            gone: vec![p],
+            gone: vec![],
             new: vec![q],
         }
     );

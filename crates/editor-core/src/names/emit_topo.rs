@@ -884,7 +884,8 @@ pub(crate) fn name_boolean<T: Decide>(
                 ent(0, EntityKey::Face(*one)),
             )?,
             _ => {
-                let split = obstacles.split(body, &BTreeSet::from([d]), &members, &wall)?;
+                let split =
+                    obstacles.split(body, &BTreeSet::from([d]), &members, &in_merged, &wall)?;
                 name_split_group(&mut t, &mut tie, from_tie, &base, split)?;
             }
         }

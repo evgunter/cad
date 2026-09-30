@@ -120,6 +120,7 @@ use crate::names::emit_topo::{
     insert_ranked_or_tied, name_split_group,
 };
 use crate::names::groups::Rederived;
+use crate::names::least_root::LeastRoot;
 use crate::names::role::{
     EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, StableName, never_in_a_boolean_table,
 };
@@ -405,15 +406,8 @@ impl Cells {
                 at => on.push((v, at, seg.along(p))),
             }
         }
-        // Components of the `Zero` relation, by union–find.
-        fn find(root: &mut [usize], mut i: usize) -> usize {
-            while root[i] != i {
-                root[i] = root[root[i]];
-                i = root[i];
-            }
-            i
-        }
-        let mut root: Vec<usize> = (0..on.len()).collect();
+        // Components of the `Zero` relation.
+        let mut root = LeastRoot::new();
         for i in 0..on.len() {
             for j in (i + 1)..on.len() {
                 let gap = decide(ON_MEMBER_EDGE, Margin::of(on[j].2 - on[i].2), bnd).map_err(
@@ -423,8 +417,7 @@ impl Cells {
                     },
                 )?;
                 if gap == Sign::Zero {
-                    let (a, b) = (find(&mut root, i), find(&mut root, j));
-                    root[a.max(b)] = a.min(b);
+                    root.join(i, j);
                 }
             }
         }
@@ -433,7 +426,7 @@ impl Cells {
         let mut components: Vec<Place<T>> = Vec::new();
         let mut slot = vec![usize::MAX; on.len()];
         for (i, &(v, at, t)) in on.iter().enumerate() {
-            let r = find(&mut root, i);
+            let r = root.root(i);
             if slot[r] == usize::MAX {
                 slot[r] = components.len();
                 components.push((Vec::new(), Extent { min: t, max: t }, false, false));
@@ -1193,28 +1186,19 @@ impl Parents {
                 .ok_or_else(|| bug("a union's face descends from no member face"))?;
             rows.push((f, from));
         }
-        // Union–find over member faces; a class's root is its least
-        // member face, so no visiting order changes it.
-        let mut link: BTreeMap<MemberFace, MemberFace> = BTreeMap::new();
-        let root = |link: &BTreeMap<MemberFace, MemberFace>, mut m: MemberFace| {
-            while let Some(&up) = link.get(&m).filter(|up| **up != m) {
-                m = up;
-            }
-            m
-        };
+        // The member faces one finished face descends from are one class.
+        let mut link = LeastRoot::new();
         for (_, from) in &rows {
             let mut from = from.iter().copied();
             let Some(first) = from.next() else { continue };
-            link.entry(first).or_insert(first);
+            link.insert(first);
             for m in from {
-                link.entry(m).or_insert(m);
-                let (r0, r1) = (root(&link, first), root(&link, m));
-                link.insert(r0.max(r1), r0.min(r1));
+                link.join(first, m);
             }
         }
         let mut classes: BTreeMap<MemberFace, BTreeSet<MemberFace>> = BTreeMap::new();
-        for &m in link.keys() {
-            classes.entry(root(&link, m)).or_default().insert(m);
+        for m in link.keys() {
+            classes.entry(link.root(m)).or_default().insert(m);
         }
         let mut parents = Parents {
             of_face: BTreeMap::new(),
@@ -1257,7 +1241,7 @@ impl Parents {
                 .first()
                 .ok_or_else(|| bug("a union's face descends from no member face"))?;
             let p = *index
-                .get(&root(&link, first))
+                .get(&link.root(first))
                 .ok_or_else(|| bug("a union's face has no parent"))?;
             parents.all[p].faces.push(f);
             parents.of_face.insert(f, p);
@@ -1578,9 +1562,11 @@ fn name_by_parents<T: geom_core::Decide>(
                 ent(0, EntityKey::Face(*one)),
             )?,
             _ => {
-                let split = fold.obstacles.split(body, &parent.entities, faces, |g| {
-                    Ok(parents.face(g)?.name.clone())
-                })?;
+                let split = fold
+                    .obstacles
+                    .split(body, &parent.entities, faces, &[], |g| {
+                        Ok(parents.face(g)?.name.clone())
+                    })?;
                 name_split_group(&mut out, &mut tie, parent.tied, &parent.name, split)?;
             }
         }

@@ -2,9 +2,11 @@
 id: the-pair-boolean-sides-a-split-face-against-every-seam-neighbour
 kind: issue
 title: The pair boolean sides a split face's pieces against every seam neighbour, so a boss on one piece is a SideOf partner and a curved one refuses as an emission bug
-status: open
+status: closed
 opened: 2026-09-26
 priority: P2
+closed: 2026-09-30
+pr: 3241
 ---
 
 
@@ -44,3 +46,14 @@ those two refusals.
 Give `name_fragment_group` the union's rule: partners from the seams that
 divide the group, and a curved partner set aside or refused typed. Then the
 two orders publish, and the row's pinned refusals go.
+
+## Closed (2026-09-30, PR 3241)
+
+Retired by `Borders` (N2 as ruled on #3454): the pair boolean no longer
+sides a piece against any partner. It names each piece by the divider
+walls it borders, read off the kernel's discard record
+(`names::borders::Obstacles::split`), so a boss or notch on one piece is
+an obstacle that borders one piece and is never cited, and no plane is
+read. `crates/editor-core/tests/emit_union_borders.rs`
+(`a_boss_on_one_piece_is_not_cited_and_one_straddling_the_divider_is`,
+`the_pair_boolean_names_its_pieces_by_the_same_rule`) pins it.

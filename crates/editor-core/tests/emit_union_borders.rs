@@ -23,6 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
 use crate::emit_shared_rim_several::permutations;
+use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, scl, step, table};
 
 use editor_core::{
@@ -74,15 +75,6 @@ fn union_of(
             declare: None,
         },
     )
-}
-
-/// A published face's parent: its name without its trailing `Fragment`s.
-fn parent_of(face: &StableName) -> StableName {
-    let mut f = face.clone();
-    while f.path.len() > 1 && matches!(f.path.last(), Some(RoleSeg::Fragment(_))) {
-        f.path.pop();
-    }
-    f
 }
 
 /// Each uniquely named face of `union`'s table → the centroid of its
@@ -521,45 +513,115 @@ fn a_boss_on_one_piece_is_not_cited_and_one_straddling_the_divider_is() {
     ));
 }
 
-/// **A T-junction divides the top in three, and a boss aligned with the
-/// T's stem on the other piece is not cited** (the aligned-feature case
-/// that reframed N2): the boss borders one piece.
-#[test]
-fn a_t_junction_divides_in_three_and_an_aligned_boss_is_not_cited() {
-    let top = || {
-        (
-            "plate:z=1.00",
-            vec![
-                w(&["s1:x=1.40"]),
-                w(&["s1:x=1.60", "s2:y=1.45"]),
-                w(&["s1:x=1.60", "s2:y=1.55"]),
-            ],
-        )
-    };
-    let bottom = || {
-        (
-            "s1:z=0.50",
-            vec![w(&["plate:y=0.00"]), w(&["plate:y=3.00"])],
-        )
-    };
-    let plate3 = || b((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
-    let s1 = || b((1.4, 1.6), (-1.0, 4.0), (0.5, 1.5));
-    let s2 = || b((1.5, 3.5), (1.45, 1.55), (0.47, 1.23));
-    check(&u(
-        "t_junction",
-        vec![("plate", plate3()), ("s1", s1()), ("s2", s2())],
-        vec![top(), bottom()],
-    ));
-    check(&u(
-        "aligned_boss",
+/// The T-junction's top: three pieces, told apart by the stem's walls.
+fn t_top() -> (&'static str, Vec<Vec<String>>) {
+    (
+        "plate:z=1.00",
         vec![
-            ("plate", plate3()),
-            ("s1", s1()),
-            ("s2", s2()),
-            ("r", b((0.4, 0.8), (1.45, 1.9), (0.44, 0.86))),
+            w(&["s1:x=1.40"]),
+            w(&["s1:x=1.60", "s2:y=1.45"]),
+            w(&["s1:x=1.60", "s2:y=1.55"]),
         ],
-        vec![top(), bottom()],
-    ));
+    )
+}
+
+/// The T-junction's members: a square plate, a slab across it, and a
+/// stem from the slab to past the plate's far side.
+fn t_members() -> Vec<(&'static str, Mem)> {
+    vec![
+        ("plate", b((0.0, 3.0), (0.0, 3.0), (0.0, 1.0))),
+        ("s1", b((1.4, 1.6), (-1.0, 4.0), (0.5, 1.5))),
+        ("s2", b((1.5, 3.5), (1.45, 1.55), (0.47, 1.23))),
+    ]
+}
+
+/// **A T-junction divides the top in three**, one table in all six
+/// member orders — the per-PR witness of the order-free claim.
+#[test]
+fn a_t_junction_divides_in_three() {
+    let bottom = (
+        "s1:z=0.50",
+        vec![w(&["plate:y=0.00"]), w(&["plate:y=3.00"])],
+    );
+    check(&u("t_junction", t_members(), vec![t_top(), bottom]));
+}
+
+/// **A boss aligned with the T's stem on the other piece is not cited**
+/// (the aligned-feature case that reframed N2): the boss borders one
+/// piece.
+#[test]
+fn an_aligned_boss_on_the_other_piece_is_not_cited() {
+    let bottom = (
+        "s1:z=0.50",
+        vec![w(&["plate:y=0.00"]), w(&["plate:y=3.00"])],
+    );
+    let mut members = t_members();
+    members.push(("r", b((0.4, 0.8), (1.45, 1.9), (0.44, 0.86))));
+    check(&u("aligned_boss", members, vec![t_top(), bottom]));
+}
+
+/// **A boss moved to abut the slab joins the divider, and the border
+/// delta says so.** The boss stands on the left piece; slid right until
+/// it overlaps the slab, it is part of the obstacle between the pieces,
+/// so the left piece's name changes. Resolving the old name answers the
+/// walls it gained — the boss's three free walls — and nothing lost,
+/// and the right piece, untouched, is no counterpart.
+#[test]
+fn a_boss_moved_onto_the_divider_is_the_border_delta() {
+    let doc = ProfileDoc::empty_derived("boss-abuts", Tol::witness());
+    let (doc, plate) = add(doc, &plate());
+    let (doc, slab_id) = add(doc, &slab());
+    let (doc, boss) = add(doc, &b((0.4, 0.8), (0.8, 1.2), (0.47, 1.03)));
+    let (doc, tr) = movable(doc, boss);
+    let (doc, u) = union_of(doc, &[plate, slab_id, tr], &[0, 1, 2]);
+    let doc2 = moved(doc.clone(), tr, Axis3::X, 0.65);
+    let pieces = |ev: &Evaluation<f64>| -> BTreeSet<StableName> {
+        table(ev, u)
+            .iter()
+            .filter(|(n, _)| {
+                n.kind == EntityKind::Face
+                    && matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+                    && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Borders(_))))
+            })
+            .map(|(n, _)| n.clone())
+            .collect()
+    };
+    let (ev1, ev2) = (run(&doc), run(&doc2));
+    for ev in [&ev1, &ev2] {
+        assert!(failure(ev, u).is_none(), "{:?}", failure(ev, u));
+    }
+    let (before, after) = (pieces(&ev1), pieces(&ev2));
+    let gone: Vec<&StableName> = before.difference(&after).collect();
+    let [left] = gone.as_slice() else {
+        panic!("exactly the left piece's name changes: {before:?} -> {after:?}");
+    };
+    let res = editor_core::resolve(
+        editor_core::RunCtx {
+            doc: &doc2,
+            eval: &ev2,
+        },
+        left,
+    );
+    let editor_core::Resolution::Failed(f) = res else {
+        panic!("the old name no longer resolves: {res:?}");
+    };
+    let editor_core::ResolveError::Vanished { diagnosis, .. } = f.error else {
+        panic!("{:?}", f.error)
+    };
+    let editor_core::Diagnosis::BorderDelta { gone, new, .. } = diagnosis else {
+        panic!("expected the border delta, got {diagnosis:?}")
+    };
+    assert!(
+        gone.is_empty(),
+        "the left piece still borders the slab: {gone:?}"
+    );
+    assert_eq!(new.len(), 3, "the boss's three free walls: {new:?}");
+    assert!(
+        new.iter().all(
+            |n| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == tr)
+        ),
+        "every new wall is the boss's: {new:?}"
+    );
 }
 
 /// **A staircase divider, one member or three**: every wall along the

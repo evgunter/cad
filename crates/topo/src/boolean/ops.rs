@@ -251,6 +251,38 @@ pub struct BooleanNaming {
     pub discards: Vec<super::DiscardRow>,
 }
 
+impl BooleanNaming {
+    /// Each vertex the zip fused away → the live vertex it finally
+    /// fused into, following `vertex_merges` through every hop: the one
+    /// reading of "where did this pre-zip vertex go" (a discard's
+    /// `bordered` ends are read through it). `None` when the fusions
+    /// form a cycle, which no zip writes.
+    #[must_use]
+    pub fn fused_into(&self) -> Option<BTreeMap<VertexKey, VertexKey>> {
+        let step: BTreeMap<VertexKey, VertexKey> = self
+            .vertex_merges
+            .iter()
+            .copied()
+            .filter(|(dead, kept)| dead != kept)
+            .collect();
+        let mut out = BTreeMap::new();
+        for &dead in step.keys() {
+            let mut at = dead;
+            for _ in 0..=step.len() {
+                match step.get(&at) {
+                    Some(&next) => at = next,
+                    None => break,
+                }
+            }
+            if step.contains_key(&at) {
+                return None;
+            }
+            out.insert(dead, at);
+        }
+        Some(out)
+    }
+}
+
 /// The typed result of a boolean op: a body, or the typed empty
 /// success (F8: ∅ is a value, not an error).
 // Size skew vs `Empty` is inherent (same posture as `SplitPart`).

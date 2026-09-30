@@ -108,7 +108,7 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
 }
 
 /// A published face's parent: its name without its trailing `Fragment`s.
-fn parent_of(face: &StableName) -> StableName {
+pub(crate) fn parent_of(face: &StableName) -> StableName {
     let mut f = face.clone();
     while f.path.len() > 1 && matches!(f.path.last(), Some(RoleSeg::Fragment(_))) {
         f.path.pop();
@@ -236,24 +236,100 @@ fn near_slab() -> Case {
     Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2], vec![(0, 1)])
 }
 
+/// The unions that refuse in some member orders, as `(case, union,
+/// orders refusing, refusal variants)`: the permanent row's
+/// `KNOWN_MIXED` (`emit_union_rim_piece_ranks`) and the cases every order
+/// of which refuses. The rows below check what the others publish, and
+/// fail on any refusal not pinned here, so a new one cannot pass by
+/// being skipped.
+const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
+    ("abg", "U", 2, "DeclareResolve"),
+    ("abgg2", "U", 16, "DeclareResolve"),
+    ("abgids", "U", 2, "DeclareResolve"),
+    ("abglow", "U", 2, "DeclareResolve"),
+    ("cross", "U", 24, "UndeclaredContact"),
+    ("fam000", "U", 2, "DeclareResolve"),
+    ("fam001", "U", 2, "DeclareResolve"),
+    ("fam002", "U", 2, "DeclareResolve"),
+    ("fam012", "U", 2, "DeclareResolve"),
+    ("fam022", "U", 2, "DeclareResolve"),
+    ("fam100", "U", 4, "DeclareResolve"),
+    ("fam101", "U", 4, "DeclareResolve"),
+    ("fam102", "U", 4, "DeclareResolve"),
+    ("fam112", "U", 4, "DeclareResolve"),
+    ("fam122", "U", 4, "DeclareResolve"),
+    ("fam200", "U", 2, "DeclareResolve"),
+    ("fam201", "U", 2, "DeclareResolve"),
+    ("fam202", "U", 2, "DeclareResolve"),
+    ("fam212", "U", 2, "DeclareResolve"),
+    ("fam222", "U", 2, "DeclareResolve"),
+    ("near", "U", 2, "DeclareResolve"),
+    ("r1flush", "U", 18, "DeclareResolve"),
+    ("r1three", "U", 24, "UndeclaredContact"),
+    ("r2endsg", "U", 8, "DeclareResolve"),
+    ("r4tri", "U", 2, "Boolean"),
+    ("r4trig", "U", 12, "Boolean/DeclareResolve"),
+    ("row", "U", 24, "UndeclaredContact"),
+    ("rowids", "U", 24, "UndeclaredContact"),
+];
+
+/// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]
+/// for the whole run; `each` sees the unions that publish.
+fn published(
+    cases: &[Case],
+    mut each: impl FnMut(&Case, &str, &Evaluation<f64>, &[RecipeNodeId], &str, RecipeNodeId),
+) {
+    let mut refused: std::collections::BTreeMap<(String, String), (usize, BTreeSet<String>)> =
+        Default::default();
+    for case in cases {
+        runs(case, |at, ev, ids, unions| {
+            for &(tag, union) in unions {
+                match failure(ev, union) {
+                    None => each(case, at, ev, ids, tag, union),
+                    Some(e) => {
+                        let shown = format!("{e:?}");
+                        let kind = shown.split([' ', '(', '{']).next().unwrap_or("").to_owned();
+                        let slot = refused
+                            .entry((case.label.clone(), tag.to_owned()))
+                            .or_default();
+                        slot.0 += 1;
+                        slot.1.insert(kind);
+                    }
+                }
+            }
+        });
+    }
+    let found: Vec<String> = refused
+        .into_iter()
+        .map(|((label, tag), (n, kinds))| {
+            format!(
+                "{label} {tag}: {n} {}",
+                kinds.into_iter().collect::<Vec<_>>().join("/")
+            )
+        })
+        .collect();
+    let labels: BTreeSet<&str> = cases.iter().map(|c| c.label.as_str()).collect();
+    let known: Vec<String> = KNOWN_REFUSING
+        .iter()
+        .filter(|(label, ..)| labels.contains(label))
+        .map(|(label, tag, n, kinds)| format!("{label} {tag}: {n} {kinds}"))
+        .collect();
+    assert_eq!(found, known, "the orders that refuse changed");
+}
+
 /// **The corpus, its fixtures and the ZIP document publish no seam side
 /// but the parents of the faces beside it, no face but a parent or a
 /// fragment of one, and no member vertex another shell holds.**
 #[test]
 fn a_union_cites_only_what_the_finished_body_holds() {
     let (mut seams, mut faces, mut vertices) = (0, 0, 0);
-    for case in cases().into_iter().chain([near_slab()]) {
-        runs(&case, |at, ev, _, unions| {
-            for &(tag, union) in unions {
-                if failure(ev, union).is_none() {
-                    let at = format!("{} {tag} {at}", case.label);
-                    seams += seam_sides_hold(ev, union, &at);
-                    faces += faces_are_parents(ev, union, &at);
-                    vertices += member_vertices_hold(ev, union, &at);
-                }
-            }
-        });
-    }
+    let all: Vec<Case> = cases().into_iter().chain([near_slab()]).collect();
+    published(&all, |case, at, ev, _, tag, union| {
+        let at = format!("{} {tag} {at}", case.label);
+        seams += seam_sides_hold(ev, union, &at);
+        faces += faces_are_parents(ev, union, &at);
+        vertices += member_vertices_hold(ev, union, &at);
+    });
     assert!(seams > 1000, "only {seams} seam edges checked");
     assert!(faces > 1000, "only {faces} faces checked");
     assert!(vertices > 1000, "only {vertices} member vertices checked");
@@ -298,11 +374,7 @@ fn a_face_cut_and_merged_in_one_step_publishes_no_constituent() {
         .find(|c| c.label == "fam012")
         .expect("fam012");
     let mut spelled: std::collections::BTreeMap<String, BTreeSet<StableName>> = Default::default();
-    runs(&case, |at, ev, ids, unions| {
-        let union = unions[0].1;
-        if failure(ev, union).is_some() {
-            return;
-        }
+    published(&[case], |_, at, ev, ids, _, union| {
         let (wa, wb) = (wall_at_y0(ev, union, ids[0]), wall_at_y0(ev, union, ids[1]));
         let mut set = vec![wa.clone(), wb];
         set.sort();

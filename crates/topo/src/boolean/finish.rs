@@ -42,7 +42,7 @@ use crate::entity::{FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The finish product: the combined result body (still un-zipped) plus
 /// the seam bookkeeping the zip consumes.
@@ -398,14 +398,18 @@ pub(super) fn setopfinish<T: Decide>(
         }
     }
 
-    let mut discards = discarded(&red, a_solid, &a_kept_shells, &a_sides, Operand::A, None)?;
+    // A kept vertex in result keys: A's survive the carve in place,
+    // B's through the graft.
+    let a_kept = |v: VertexKey| body.get_vertex(v).is_some().then_some(v);
+    let b_kept = |v: VertexKey| graft.vertices.get(v).copied();
+    let mut discards = discarded(&red, a_solid, &a_kept_shells, &a_sides, Operand::A, &a_kept)?;
     discards.extend(discarded(
         &red,
         b_solid,
         &b_kept_shells,
         &b_sides,
         Operand::B,
-        Some(&graft),
+        &b_kept,
     )?);
 
     Ok(FinishOut {
@@ -420,37 +424,44 @@ pub(super) fn setopfinish<T: Decide>(
 /// The discarded faces of one operand solid (`boolean::discard`): every
 /// face of a shell the selection dropped, the section faces aside. A
 /// stretch it bordered a kept face along runs along a section face; the
-/// kept side's copy of each end is the other end of that end's null
-/// edge, read through `graft` on the B side.
+/// kept side's copy of each end is the other end of one of that end's
+/// null edges — the one end among them that survived into the result,
+/// which `kept_vertex` reads in result keys, as the seam vertex map
+/// picks its survivor.
 fn discarded<T: Decide>(
     red: &BooleanReduction<T>,
     solid: SolidKey,
     kept: &[ShellKey],
     sides: &SecondaryMap<FaceKey, SideCode>,
     operand: Operand,
-    graft: Option<&GraftMap>,
+    kept_vertex: &dyn Fn(VertexKey) -> Option<VertexKey>,
 ) -> Result<Vec<DiscardRow>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let body = match operand {
         Operand::A => &red.a,
         Operand::B => &red.b,
     };
-    let mut copy: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
+    let mut copy: BTreeMap<VertexKey, BTreeSet<VertexKey>> = BTreeMap::new();
     for r in red.null_edges.iter().filter(|r| r.operand == operand) {
-        copy.insert(r.attr.below_end, r.attr.above_end);
-        copy.insert(r.attr.above_end, r.attr.below_end);
+        copy.entry(r.attr.below_end)
+            .or_default()
+            .insert(r.attr.above_end);
+        copy.entry(r.attr.above_end)
+            .or_default()
+            .insert(r.attr.below_end);
     }
     let kept_end = |v: VertexKey| -> Result<VertexKey, BooleanError> {
-        let k = *copy
+        let survivors: BTreeSet<VertexKey> = copy
             .get(&v)
-            .ok_or_else(|| desync("a section vertex has no null-edge copy"))?;
-        match graft {
-            None => Ok(k),
-            Some(g) => g
-                .vertices
-                .get(k)
-                .copied()
-                .ok_or_else(|| desync("a kept section vertex is missing from the graft")),
+            .ok_or_else(|| desync("a section vertex has no null-edge copy"))?
+            .iter()
+            .filter_map(|&k| kept_vertex(k))
+            .collect();
+        match survivors.first() {
+            Some(&k) if survivors.len() == 1 => Ok(k),
+            _ => Err(desync(
+                "a section vertex's null-edge copies have not exactly one kept end",
+            )),
         }
     };
     let kept_ends = |u, w| Ok((kept_end(u)?, kept_end(w)?));

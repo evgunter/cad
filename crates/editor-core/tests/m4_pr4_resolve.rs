@@ -1398,40 +1398,34 @@ fn body_ent(i: u32) -> editor_core::EntityRef {
 
 #[test]
 fn border_delta_reads_the_walls_off_the_names_without_any_flip_set_evidence() {
-    // The change is recorded IN the names: the old piece borders P,
-    // and its parent's one piece now borders Q. Both runs have EMPTY
-    // verdict logs and the doc is UNCHANGED — the diff-engine and
-    // doc-diff lanes have nothing (the population-cancel shape), yet
-    // the diagnosis names the walls that moved.
-    let (doc, n) = insert(
+    // The change is recorded IN the names: the old piece borders P, and
+    // the piece that still borders P now borders S as well. Both runs
+    // have EMPTY verdict logs and the doc is UNCHANGED — the
+    // diff-engine and doc-diff lanes have nothing (the
+    // population-cancel shape), yet the diagnosis names the wall that
+    // moved.
+    let (mut doc, n) = insert(
         ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
         Node::declare_rest(vec![]),
     );
-    let (doc, m) = insert(doc, Node::declare_rest(vec![]));
-    let (doc, k) = insert(doc, Node::declare_rest(vec![]));
-    let (doc, l) = insert(doc, Node::declare_rest(vec![]));
+    let mut walls = Vec::new();
+    for _ in 0..7 {
+        let (d, at) = insert(doc, Node::declare_rest(vec![]));
+        doc = d;
+        walls.push(minted(EntityKind::Body, at, RoleSeg::OutputBody));
+    }
+    let [p, q, r, s, t, r2, r3] = <[StableName; 7]>::try_from(walls).unwrap();
     let f = minted(EntityKind::Body, n, RoleSeg::OutputBody);
-    let [p, q, r] = [m, k, l].map(|at| minted(EntityKind::Body, at, RoleSeg::OutputBody));
     let old_name = piece(n, &f, &[&p]);
     let table = |pieces: &[StableName]| {
-        let mut t = NameTable::new();
+        let mut tb = NameTable::new();
         for (i, name) in pieces.iter().enumerate() {
-            t.insert(name.clone(), body_ent(i as u32)).unwrap();
+            tb.insert(name.clone(), body_ent(i as u32)).unwrap();
         }
-        t.insert(f.clone(), body_ent(10)).unwrap();
-        t
+        tb.insert(f.clone(), body_ent(10)).unwrap();
+        tb
     };
-    let prior_ev = one_node_eval(
-        doc.id(),
-        n,
-        table(&[old_name.clone(), piece(n, &f, &[&p, &q])]),
-    );
-    let new_ev = one_node_eval(
-        doc.id(),
-        n,
-        table(&[piece(n, &f, &[&q]), piece(n, &f, &[&q, &r])]),
-    );
-
+    let eval = |pieces: &[StableName]| one_node_eval(doc.id(), n, table(pieces));
     let diagnosis_of = |res: Resolution| {
         let Resolution::Failed(fail) = res else {
             panic!("expected Failed, got {res:?}");
@@ -1446,63 +1440,82 @@ fn border_delta_reads_the_walls_off_the_names_without_any_flip_set_evidence() {
         };
         (diagnosis, last_good)
     };
-    let delta = Diagnosis::BorderDelta {
-        node: n,
-        gone: vec![p.clone()],
-        new: vec![q.clone()],
+    let single = |ev: &Evaluation<f64>| {
+        diagnosis_of(resolve(
+            RunCtx {
+                doc: &doc,
+                eval: ev,
+            },
+            &old_name,
+        ))
+    };
+    let with_prior = |ev: &Evaluation<f64>, prior: &Evaluation<f64>| {
+        diagnosis_of(resolve_with_prior(
+            RunCtx {
+                doc: &doc,
+                eval: ev,
+            },
+            RunCtx {
+                doc: &doc,
+                eval: prior,
+            },
+            &old_name,
+        ))
+    };
+    let fallback = Diagnosis::RecipeEdit {
+        edit: RecipeEditRef::NodeChanged { node: n },
     };
 
-    // Single-run: the rung is the FIRST evidence (no prior at all). The
-    // piece bordering Q alone is nearer than the one bordering Q and R.
-    let (d, last_good) = diagnosis_of(resolve(
-        RunCtx {
-            doc: &doc,
-            eval: &new_ev,
-        },
-        &old_name,
-    ));
+    // The untouched sibling {Q, R} borders none of the vanished walls,
+    // so it is no counterpart; the piece bordering P and S is.
+    let prior_ev = eval(&[old_name.clone(), piece(n, &f, &[&q, &r])]);
+    let new_ev = eval(&[piece(n, &f, &[&p, &s]), piece(n, &f, &[&q, &r])]);
+    let delta = Diagnosis::BorderDelta {
+        node: n,
+        gone: vec![],
+        new: vec![s.clone()],
+    };
+    // Single-run: the rung is the FIRST evidence (no prior at all).
+    let (d, last_good) = single(&new_ev);
     assert_eq!(d, delta);
     assert!(last_good.is_none());
-
-    // With-prior, empty FlipSet (both logs empty), unchanged doc:
-    // every earlier lane is silent; the rung still fires, and the
-    // tombstone rides from the prior run.
-    let (d, last_good) = diagnosis_of(resolve_with_prior(
-        RunCtx {
-            doc: &doc,
-            eval: &new_ev,
-        },
-        RunCtx {
-            doc: &doc,
-            eval: &prior_ev,
-        },
-        &old_name,
-    ));
+    // With-prior, empty FlipSet (both logs empty), unchanged doc: every
+    // earlier lane is silent; the rung still fires, and the tombstone
+    // rides from the prior run.
+    let (d, last_good) = with_prior(&new_ev, &prior_ev);
     assert_eq!(d, delta);
-    let t = last_good.expect("the prior run resolved the name");
-    assert_eq!(t.patch.node, n);
-    assert_eq!(t.patch.entity, body_ent(0));
+    let tomb = last_good.expect("the prior run resolved the name");
+    assert_eq!(tomb.patch.node, n);
+    assert_eq!(tomb.patch.entity, body_ent(0));
 
-    // Two pieces equally near are no one counterpart: the rung does
-    // not pick, and the fallback names the site without claiming an
-    // edit.
-    let split_ev = one_node_eval(
-        doc.id(),
-        n,
-        table(&[piece(n, &f, &[&q]), piece(n, &f, &[&r])]),
-    );
-    let (d, _) = diagnosis_of(resolve(
-        RunCtx {
-            doc: &doc,
-            eval: &split_ev,
-        },
-        &old_name,
-    ));
+    // Two pieces equally near are no one counterpart: the rung does not
+    // pick, and the fallback names the site without claiming an edit.
+    let (d, _) = single(&eval(&[piece(n, &f, &[&p, &s]), piece(n, &f, &[&p, &t])]));
     assert_eq!(
-        d,
-        Diagnosis::RecipeEdit {
-            edit: RecipeEditRef::NodeChanged { node: n }
-        },
+        d, fallback,
         "two equally near pieces: choosing one would be a guess"
+    );
+
+    // A piece that borders none of the vanished walls is another piece,
+    // however near its set is: no counterpart, no answer.
+    let (d, _) = single(&eval(&[piece(n, &f, &[&q])]));
+    assert_eq!(
+        d, fallback,
+        "a piece sharing no wall is not the vanished one changed"
+    );
+
+    // The review's probe: {P} vanishes beside a sibling {P, R, R2, R3}
+    // that the last-good run already published, and a new piece {Q}.
+    // {Q} shares no wall, and the sibling is untouched, so with the
+    // prior run the rung declines; it never answers `new: [Q]`.
+    let sibling = piece(n, &f, &[&p, &r, &r2, &r3]);
+    let prior_ev = eval(&[old_name.clone(), sibling.clone()]);
+    let new_ev = eval(&[sibling, piece(n, &f, &[&q])]);
+    let (d, _) = with_prior(&new_ev, &prior_ev);
+    assert_eq!(d, fallback, "an untouched sibling is not the counterpart");
+    let (d, _) = single(&new_ev);
+    assert!(
+        !matches!(&d, Diagnosis::BorderDelta { new, .. } if new.contains(&q)),
+        "a piece sharing no wall is never the counterpart: {d:?}"
     );
 }

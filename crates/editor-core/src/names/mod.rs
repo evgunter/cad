@@ -36,6 +36,7 @@ mod flush;
 mod geompred;
 mod groups;
 pub(crate) mod interrogate;
+mod least_root;
 pub(crate) mod merged;
 mod role;
 mod seam_pair;

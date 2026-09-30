@@ -21,18 +21,12 @@ pub(crate) type Stretch = Option<(EdgeKey, [FaceKey; 2])>;
 /// fused or that no live edge joins.
 pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let body: &Body<f64> = &out.body;
-    let merges: BTreeMap<VertexKey, VertexKey> = out.naming.vertex_merges.iter().copied().collect();
-    let settle = |mut v: VertexKey| {
-        while let Some(&k) = merges.get(&v).filter(|k| **k != v) {
-            v = k;
-        }
-        v
-    };
-    let face_of = |he| {
-        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
-            .unwrap()
-            .face
-    };
+    let fused = out
+        .naming
+        .fused_into()
+        .expect("the zip's fusions form no cycle");
+    let settle = |v: VertexKey| fused.get(&v).copied().unwrap_or(v);
+    let face_of = |he| body.face_of_half_edge(he).unwrap();
     let mut by_ends: BTreeMap<(VertexKey, VertexKey), (EdgeKey, [FaceKey; 2])> = BTreeMap::new();
     for (k, e) in body.edges() {
         let s = body.get_half_edge(e.he_plus).unwrap().start;
