@@ -142,6 +142,7 @@ fn eye_slot(radius: f64) -> ProfileLoop<f64> {
     )
     .unwrap()
     .loop_
+    .into_loop()
 }
 
 /// A2: extrude the eye slot as an OUTER region -> every wall convex,

@@ -485,7 +485,7 @@ pub type ProfileDoc = crate::doc::Doc<ProfileProgram>;
 /// and one per loop — the pair [`ProfileProgram::check`] and
 /// [`ProfileProgram::pieces`] read.
 type Replayed = (
-    Vec<profile::ProfileLoop<f64>>,
+    Vec<profile::ConstructedLoop<f64>>,
     Vec<profile::ReplayStructure>,
 );
 
@@ -1997,9 +1997,9 @@ impl ProfileProgram {
         // every other operand's kind is, at evaluation.
         // The loops are the replay's own construction, so validation
         // decides no arc's consistency checks (D1).
-        let replayed = profile::ReplayedProfile::new(profile::SketchPlane::xy(), replayed);
+        let replayed = profile::ConstructedProfile::new(profile::SketchPlane::xy(), replayed);
         let validated = replayed.validate(tol).map_err(ProgramRefusal::Validate)?;
-        Ok((validated, (replayed.into_profile().loops, records)))
+        Ok((validated, (replayed.into_parts().1, records)))
     }
 
     /// **The piece every canonical position of this program is**, under
@@ -2088,7 +2088,7 @@ impl ProfileProgram {
         tol: Tol,
     ) -> Result<
         (
-            Vec<profile::ReplayedLoop<f64>>,
+            Vec<profile::ConstructedLoop<f64>>,
             Vec<profile::ReplayStructure>,
         ),
         ProgramRefusal,

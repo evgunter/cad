@@ -111,6 +111,7 @@ fn thirds() -> ProfileLoop<f64> {
     circle_split(Point2::new(1.2, 1.7), 0.35, 3, 0.0, Tol::witness())
         .expect("boss rim splits")
         .loop_
+        .into_loop()
 }
 
 /// A plain arc chain: no declared joints, no same-carrier run.
@@ -152,7 +153,8 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
             "circle_primitive",
             circle(Point2::new(0.5, -0.25), 1.5, Tol::witness())
                 .expect("circle")
-                .loop_,
+                .loop_
+                .into_loop(),
             Class::Bits,
         ),
         ("circle_split_3", thirds(), Class::Bits),
@@ -491,6 +493,7 @@ fn zero_bulge_square(b: f64) -> ProfileLoop<f64> {
         .line_to(Start, t)
         .unwrap()
         .loop_
+        .into_loop()
 }
 
 /// The same square with its first side a `tangent_arc_to` whose target
@@ -513,6 +516,7 @@ fn collinear_tangent_arc_square() -> ProfileLoop<f64> {
         .line_to(Start, t)
         .unwrap()
         .loop_
+        .into_loop()
 }
 
 /// **A zero bulge is stored as a line, whichever verb wrote it**, so it

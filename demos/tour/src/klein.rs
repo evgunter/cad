@@ -227,7 +227,7 @@ use core::f64::consts::PI;
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point3, Tol};
-use pncad::prelude::{Open, ProfileLoop, Start, SurfaceKindSet, circle, query};
+use pncad::prelude::{Open, ConstructedLoop, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
@@ -360,7 +360,7 @@ fn meridian_at(alpha: f64, rf: f64, rrim: f64, rloop: f64) -> Meridian {
 /// neck→flare blend curves AWAY from the axis (outer offset is the
 /// smaller radius), the rim curves toward it. That bookkeeping is
 /// finding 1 in its most concrete form.
-fn band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
+fn band<S: Scalar>(m: &Meridian, tol: Tol) -> ConstructedLoop<S> {
     let half = S::from_f64(WALL / 2.0);
     Open.at(p2::<S>(m.ri, ZTOP))
         .toward(S::from_f64(0.0), S::from_f64(-1.0), tol)
@@ -399,7 +399,7 @@ fn band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
 /// The same band with the two blends taken OUT: a hard corner where
 /// the neck meets the flare. Built only to ask `fillet_edges` for the
 /// blend the band authors for free — walls 1 and 2.
-fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
+fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ConstructedLoop<S> {
     // Where the flare's two offsets cross the neck's two walls.
     let corner = |g: (f64, f64), x: f64| {
         let s = (x - g.0) / m.dir.0;
@@ -440,7 +440,7 @@ fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
 /// Revolves a meridian band about the bottle's axis. `Full` is the
 /// bulb; the partial form exists only so wall 2 can ask the same
 /// question of an OPEN rim (findings entry 2).
-fn bulb<S: Scalar>(loop_: ProfileLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
+fn bulb<S: Scalar>(loop_: ConstructedLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
     let plane = sketch_frame(
         p3::<S>(0.0, 0.0, 0.0),
         v3::<S>(1.0, 0.0, 0.0),
@@ -881,7 +881,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         .collect();
     let path =
         pncad::geom::NurbsCurve3::interpolate(&spine, 3).expect("the loop's spine interpolates");
-    let annulus: Vec<ProfileLoop<f64>> = vec![
+    let annulus: Vec<ConstructedLoop<f64>> = vec![
         circle(p2(0.0, 0.0), R + WALL / 2.0, tol)
             .expect("outer")
             .into(),

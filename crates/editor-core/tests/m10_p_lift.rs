@@ -194,7 +194,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     use editor_core::ParamName;
     use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
-    fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ReplayedLoop<f64>> {
+    fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ConstructedLoop<f64>> {
         resolved
             .iter()
             .map(|steps| profile::replay(steps, Tol::witness()).expect("the nominal replays"))
@@ -247,12 +247,12 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // from a `SketchPlane`, and the node id is not one. Read from the
     // document, so this is the plane the evaluator would build too.
     let plane = fixture::plane_of(&doc.doc, program.plane);
-    let (_, canonical) = profile::ReplayedProfile::new(plane, nominal_loops(&nominal))
+    let (_, canonical) = profile::ConstructedProfile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");
     // The sketch plane at the lane scalar lifts as constants: VQ8 keeps
     // the plane out of the parameter layer.
-    let err = profile::ReplayedProfile::new(plane.map(Interval::from_f64), loops)
+    let err = profile::ConstructedProfile::new(plane.map(Interval::from_f64), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is

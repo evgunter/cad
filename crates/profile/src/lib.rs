@@ -4,10 +4,12 @@
 //! A profile is the *input* to sweeps (M2 PR 4/5): closed 2-D loops on a
 //! [`SketchPlane`], stored as plain data. The stored form is redundant
 //! — an arc's carrier and sweep agree with its two vertices — and
-//! validation verifies that agreement per arc as ε-decisions rather
-//! than trusting it. Sweeps accept only a
-//! [`ValidatedProfile`], the canonicalized output of
-//! [`Profile::validate`]; arcs lower to `geom` circle carriers at
+//! that agreement is never trusted: [`Profile::validate`] decides it
+//! per arc of a table as ε-decisions, and an arc the path lattice
+//! constructs is verified at its construction, so
+//! [`ConstructedProfile::validate`] does not decide it again. Sweeps
+//! accept only a [`ValidatedProfile`], the canonicalized output of
+//! validation; arcs lower to `geom` circle carriers at
 //! sweep time — this crate stays 2-D and depends on `geom-core` only.
 //!
 //! # Profile conventions (normative, stated once)
@@ -23,9 +25,10 @@
 //!   a [`Segment::Arc`] (centre, radius, and the signed sweep Δθ,
 //!   positive counterclockwise). The vertices are authoritative;
 //!   an arc's carrier and sweep are stored beside them and carried
-//!   verbatim, never re-derived from them, and validation verifies that
-//!   the two agree (the start on the carrier, the swept start landing on
-//!   the end, and 0 < |Δθ| ≤ 2π).
+//!   verbatim, never re-derived from them. That the two agree (the
+//!   start on the carrier, the swept start landing on the end, and
+//!   0 < |Δθ| ≤ 2π) is decided by a table's validation and verified by
+//!   a construction at its construction.
 //! - **The bulge input form.** The lattice's bulge mode writes a
 //!   segment as a (position, bulge) pair — vertex k's bulge describes
 //!   the segment leaving it — and LOWERS it to the stored form once: a
@@ -155,7 +158,7 @@ use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Tol, Vec3
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, ReplayedLoop, SpecForms, Step,
+    ArcData, ArcMode, ClosedLoop, ConstructedLoop, ReplayError, ReplayErrorKind, SpecForms, Step,
     Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_guided, replay_recording,
 };
 pub use path::{
@@ -170,11 +173,6 @@ pub use structure::{
     RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
-pub use validate::{
-    ArcCheck, BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole,
-    NoCornerReason, ProfileError, ReplayedProfile, SegmentKind, SegmentRef, ValidatedLoop,
-    ValidatedProfile, ValidatedSegment, decision_subject,
-};
 /// The fillet recourse sentences and the map that selects one, under
 /// `test-support` only.
 ///
@@ -196,11 +194,16 @@ pub use validate::{
 /// itself.
 #[cfg(any(test, feature = "test-support"))]
 pub use validate::{
-    FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE,
-    FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
-    FILLET_SCENE_RESOLUTION_RECOURSE, FILLET_STORED_FORM_INBAND_RECOURSE,
-    FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY, UNNAMED_DECISION, fillet_recourse_for,
-    shared_clause_only,
+    ARC_SCENE_RESOLUTION_RECOURSE, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
+    FILLET_FLATTENED_RECOURSE, FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE,
+    FILLET_OFFSET_LEVER_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    FILLET_STORED_FORM_INBAND_RECOURSE, FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY,
+    UNNAMED_DECISION, fillet_recourse_for, shared_clause_only,
+};
+pub use validate::{
+    ArcCheck, BlendArc, ConstructedProfile, ContactKind, EscalationSite, FilletLeg,
+    FilletLegCarrier, LoopRole, NoCornerReason, ProfileError, SegmentKind, SegmentRef,
+    ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed

@@ -206,6 +206,7 @@ fn stadium() -> ProfileLoop<f64> {
         .tangent_arc_to(Start.arrives_tangent(), t)
         .expect("the stadium closes")
         .loop_
+        .into_loop()
 }
 
 /// The all-declared loop seamed at EVERY rotation: the closing leg is

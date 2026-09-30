@@ -63,7 +63,7 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// The centre of the **line × arc** corner's arrival circle: radius 2,
@@ -89,7 +89,7 @@ fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// An **arc × arc** corner turning by `theta`: the two radius-2 circles
@@ -112,7 +112,7 @@ fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> 
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// A corner kind: its name for the messages, and the door that builds
@@ -342,7 +342,7 @@ fn the_recourse_the_refusal_names_builds_and_validates() {
         .and_then(|p| p.line_to(Start, tol()))
         .expect("the sharp corner builds")
         .loop_;
-    validates(sharp, tol()).expect("and the sharp corner validates");
+    validates(sharp.into_loop(), tol()).expect("and the sharp corner validates");
 }
 
 /// **No loop the fillet doors build carries a declared tangency
@@ -473,7 +473,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                 .and_then(|p| p.angle(th[3], tol()))
                 .and_then(|p| p.fillet(radius, tol()))
                 .and_then(|p| p.to(Start, tol()))
-                .map(|c| c.loop_)
+                .map(|c| c.loop_.into_loop())
         });
         must(format!("line x arc internal r={radius}"), {
             Open.at(Point2::new(0.0, 2.0))
@@ -490,7 +490,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                         tol(),
                     )
                 })
-                .map(|c| c.loop_)
+                .map(|c| c.loop_.into_loop())
         });
         must(format!("arc x line r={radius}"), {
             Open.arc_fillet(
@@ -507,7 +507,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
             .and_then(|p| p.line_to(Point2::new(4.0, 3.0), tol()))
             .and_then(|p| p.line_to(Point2::new(-1.0, 3.0), tol()))
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
         });
         must(format!("arc x arc vesica r={radius}"), {
             Open.arc_fillet_arc(
@@ -525,7 +525,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                 tol(),
             )
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
         });
     }
     let named = out.len() - swept;
@@ -551,7 +551,10 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
             continue;
         }
         carried += 1;
-        out.push((format!("shared coverage corpus {i}"), closed.loop_));
+        out.push((
+            format!("shared coverage corpus {i}"),
+            closed.loop_.into_loop(),
+        ));
     }
     assert!(
         carried >= 5,
@@ -716,5 +719,5 @@ fn an_exact_outgoing_fit_leaves_its_joint_undeclared_and_still_validates() {
         "the exact fit declares fewer joints than the loop has: {:?} of {joints}",
         lp.tangent_joints()
     );
-    validates(lp, tol()).expect("and the loop the door built validates");
+    validates(lp.into_loop(), tol()).expect("and the loop the door built validates");
 }

@@ -189,7 +189,7 @@ fn arc_leg_fillet_constructs_and_validates_at_interval() {
         .expect("the arc-carrier fillet constructs at Interval")
         .loop_;
     assert_eq!(lp.tangent_joints(), [2, 3]);
-    profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
+    profile::Profile::new(profile::SketchPlane::xy(), vec![lp.into_loop()])
         .validate(tol())
         .expect("the arc-leg fillet validates at Interval");
 }

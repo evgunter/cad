@@ -195,7 +195,7 @@ the containment representative instead of re-running `lex_min`) (ulp-wide bands:
 essentially every input); it verifies the value channel they induce (segment
 shapes, declared joints) and re-runs the containment forest, an ordinary
 decided predicate, against the record. Neither pass decides an arc's
-consistency checks: both validate a `profile::ReplayedProfile` of the loops
+consistency checks: both validate a `profile::ConstructedProfile` of the loops
 `replay_recording` and `replay_guided` mint, whose arcs were verified at their
 construction at that scalar (D1).
 

@@ -34,7 +34,7 @@
 //! orientation parity, which positions alone cannot decide at n = 2
 //! (see `derive_naming`).
 
-use profile::{Profile, ProfileLoop, Segment, SegmentKind, ValidatedProfile};
+use profile::{ConstructedLoop, ConstructedProfile, Segment, SegmentKind, ValidatedProfile};
 
 use crate::names::{
     NamingError, PieceRole, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
@@ -408,8 +408,8 @@ pub struct ProfileValue<T: geom_core::Real> {
 }
 
 /// The profile node's f64 PRECOMPUTE (LIB-SWITCH §4b): the replayed
-/// loops assembled into a `Profile<f64>`, its validated form, and the
-/// derived naming anchor. Computed in `eval_node`'s resolution stage,
+/// loops assembled into a `ConstructedProfile<f64>`, its validated
+/// form, and the derived naming anchor. Computed in `eval_node`'s resolution stage,
 /// inside the node's verdict frame: replay and the f64 validation are
 /// C6 STRUCTURE SELECTION (the v1 substrate's stored bits, one
 /// derivation earlier), decided once on the node's behalf and logged
@@ -424,7 +424,7 @@ pub(crate) struct ProfilePre {
     /// there is not — validation is 2-D and the naming anchor is
     /// loop-derived, so no decision reads it. What a consumer PLACES
     /// with is `placement_f64`, never this field's plane.
-    pub profile_f64: Profile<f64>,
+    pub profile_f64: ConstructedProfile<f64>,
     /// [`ProfilePre::profile_f64`]'s canonical form, minted by the
     /// pre-pass's one validation. Its plane is `profile_f64`'s
     /// assembly frame, with the same caveat: a consumer places with
@@ -481,7 +481,7 @@ fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
 /// decide. Declared joints ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
-    program_loops: &[ProfileLoop<f64>],
+    program_loops: &[ConstructedLoop<f64>],
 ) -> Option<ProfileNaming> {
     let mut anchors = Vec::with_capacity(validated.loops().len());
     for vl in validated.loops() {

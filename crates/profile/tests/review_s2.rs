@@ -523,7 +523,7 @@ fn build_corner(
                 .line_to(Start, Tol::witness())?
         }
     };
-    Ok(closed.loop_)
+    Ok(closed.loop_.into_loop())
 }
 
 /// Locate the emitted fillet arc: the unique segment whose recovered

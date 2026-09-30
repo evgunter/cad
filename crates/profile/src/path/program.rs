@@ -1856,7 +1856,7 @@ transition_table! {
                     // ladder, nothing discrete to record but the one
                     // step's reach, which is the whole loop.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
-                    loop_,
+                    loop_: ConstructedLoop(loop_),
                     program: vec![Step::Circle { centre, radius }],
                 })
                 .inspect(|closed| closed.structure.check_role_lists(&closed.program))
@@ -1914,7 +1914,7 @@ transition_table! {
                     // fillet resolution anywhere in the form, and the
                     // one step reaches every subdivision.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
-                    loop_,
+                    loop_: ConstructedLoop(loop_),
                     program: vec![Step::CircleSplit {
                         centre,
                         radius,
@@ -2067,8 +2067,8 @@ impl<T: Real> ArcData<T> {
 /// [`From`]/`.into()` or by reading [`ClosedLoop::loop_`].
 #[derive(Clone, Debug)]
 pub struct ClosedLoop<T: Real> {
-    /// The lowered loop.
-    pub loop_: ProfileLoop<T>,
+    /// The lowered loop, carrying the provenance of its construction.
+    pub loop_: ConstructedLoop<T>,
     /// The recorded program: replaying it reproduces `loop_` exactly.
     pub program: Vec<Step<T>>,
     /// The discrete choices this lowering made — the third value one
@@ -2078,9 +2078,17 @@ pub struct ClosedLoop<T: Real> {
     pub structure: crate::structure::ReplayStructure,
 }
 
-impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
+impl<T: Real> From<ClosedLoop<T>> for ConstructedLoop<T> {
     fn from(closed: ClosedLoop<T>) -> Self {
         closed.loop_
+    }
+}
+
+/// The loop, giving up the provenance ([`ConstructedLoop::into_loop`]):
+/// a `ProfileLoop` validates as a table.
+impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
+    fn from(closed: ClosedLoop<T>) -> Self {
+        closed.loop_.into_loop()
     }
 }
 
@@ -2664,9 +2672,9 @@ spec_dispatch! {
 /// (`common::pinned`), and per-verb reachability by the
 /// replay-coverage census (see the module docs).
 ///
-/// The loop comes back as a [`ReplayedLoop`]: its arcs are the ones
+/// The loop comes back as a [`ConstructedLoop`]: its arcs are the ones
 /// this replay constructed, verified at their construction (D1), and
-/// [`crate::ReplayedProfile`] validates it without deciding their
+/// [`crate::ConstructedProfile`] validates it without deciding their
 /// consistency checks again.
 ///
 /// # Errors
@@ -2675,8 +2683,8 @@ spec_dispatch! {
 pub fn replay<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> Result<ReplayedLoop<T>, ReplayError<T>> {
-    drive(steps, tol, Guide::recording()).map(|closed| ReplayedLoop(closed.loop_))
+) -> Result<ConstructedLoop<T>, ReplayError<T>> {
+    drive(steps, tol, Guide::recording()).map(|closed| closed.loop_)
 }
 
 /// [`replay`] keeping the STRUCTURE RECORD it built: the discrete
@@ -2694,9 +2702,8 @@ pub fn replay<T: ArcCarrierScalar>(
 pub fn replay_recording<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> Result<(ReplayedLoop<T>, ReplayStructure), ReplayError<T>> {
-    drive(steps, tol, Guide::recording())
-        .map(|closed| (ReplayedLoop(closed.loop_), closed.structure))
+) -> Result<(ConstructedLoop<T>, ReplayStructure), ReplayError<T>> {
+    drive(steps, tol, Guide::recording()).map(|closed| (closed.loop_, closed.structure))
 }
 
 /// **Guided replay**: elaborate `steps` at this scalar while CONSUMING
@@ -2730,7 +2737,7 @@ pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
     tol: Tol,
-) -> Result<ReplayedLoop<T>, ReplayError<T>> {
+) -> Result<ConstructedLoop<T>, ReplayError<T>> {
     let want = structure.fillets.len();
     let closed = drive(steps, tol, Guide::guided(structure.clone()))?;
     // Reaching FEWER resolutions than the record describes is not a
@@ -2819,23 +2826,27 @@ pub fn replay_guided<T: ArcCarrierScalar>(
             )));
         }
     }
-    Ok(ReplayedLoop(closed.loop_))
+    Ok(closed.loop_)
 }
 
-/// A loop a replay constructed: the loop, and the fact that every arc
-/// in it was verified at its construction, at this scalar (D1) — a
-/// `Center` arc by `path_arc_center_equidistant`, decided inline by the
-/// path door, and a lowered arc by its lowering, the bulge form's one
-/// conversion, whose endpoint identities it registers.
+/// A loop the path lattice constructed: the loop, and the fact that
+/// every arc in it was verified at its construction, at this scalar
+/// (D1) — a `Center` arc by `path_arc_center_equidistant`, decided
+/// inline by the path door, and a lowered arc by its lowering, the
+/// bulge form's one conversion, whose endpoint identities it registers.
 ///
-/// Minted only by [`replay`], [`replay_recording`] and
-/// [`replay_guided`] (the field is private to this module), and the one
-/// loop [`crate::ReplayedProfile`] is built from, so a table cannot
-/// reach the validation that consumes that fact.
+/// Minted only at the lattice's closing — a chain's `finish` and the
+/// `circle` and `circle_split` forms — which the builder and every
+/// replay ([`replay`], [`replay_recording`], [`replay_guided`]) go
+/// through; the field is private to the `path` module. It is the loop
+/// [`crate::ConstructedProfile`] is built from, so a table cannot reach
+/// the validation that consumes that fact. It reads as its loop
+/// ([`Deref`](core::ops::Deref)), and gives the provenance up only by
+/// [`ConstructedLoop::into_loop`].
 #[derive(Clone, Debug)]
-pub struct ReplayedLoop<T: Real>(ProfileLoop<T>);
+pub struct ConstructedLoop<T: Real>(pub(in crate::path) ProfileLoop<T>);
 
-impl<T: Real> ReplayedLoop<T> {
+impl<T: Real> ConstructedLoop<T> {
     /// The loop.
     pub fn as_loop(&self) -> &ProfileLoop<T> {
         &self.0
@@ -2844,6 +2855,20 @@ impl<T: Real> ReplayedLoop<T> {
     /// The loop, giving up the provenance.
     pub fn into_loop(self) -> ProfileLoop<T> {
         self.0
+    }
+}
+
+impl<T: Real> core::borrow::Borrow<ProfileLoop<T>> for ConstructedLoop<T> {
+    fn borrow(&self) -> &ProfileLoop<T> {
+        &self.0
+    }
+}
+
+impl<T: Real> core::ops::Deref for ConstructedLoop<T> {
+    type Target = ProfileLoop<T>;
+
+    fn deref(&self) -> &ProfileLoop<T> {
+        &self.0
     }
 }
 

@@ -534,7 +534,7 @@ fn r2_a_straight_arrival_onto_an_arc_first_side_authors_but_does_not_validate() 
     // the DATA gate — which owns materialized carriers — refuses.
     let closed = ring(true).expect("the declared arrival closes");
     assert_eq!(closed.loop_.tangent_joints(), &[0]);
-    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()]).validate(t);
     println!("R2: arc-first-side, declared -> at the gate {verdict:?}");
     // RULED (2026-09-02, addendum 3): one token, and it declares the
     // joint TANGENT — which is what this joint is — so the gate accepts.
@@ -597,7 +597,7 @@ fn r2_a_declared_g1_seam_onto_a_cocircular_first_side() {
     // one onto an identical carrier is true rather than contradicted.
     let closed = built.expect("the declared G1 arrival closes");
     assert!(closed.loop_.tangent_joints().contains(&0));
-    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_]).validate(t);
+    let verdict = Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()]).validate(t);
     println!("R2: cocircular G1 seam, at the gate -> {verdict:?}");
     verdict.expect("the data gate accepts it: the directions agree");
 }

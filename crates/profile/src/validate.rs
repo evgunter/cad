@@ -5,9 +5,14 @@
 //!
 //! 1. **Arity** — every loop has ≥ 2 vertices (structural; a 2-vertex
 //!    loop with two arc segments is the legal minimal circle).
-//! 2. **Degeneracy** — no zero-length segments (chord-level vertex
-//!    coincidence), via the `vertex_separation` distance predicate;
-//!    in-band ⇒ escalation (the Q1 sliver semantics).
+//! 2. **Degeneracy and consistency** — no zero-length segments
+//!    (chord-level vertex coincidence), via the `vertex_separation`
+//!    distance predicate, in-band ⇒ escalation (the Q1 sliver
+//!    semantics); and, for a table's arcs, the three consistency checks
+//!    of each stored carrier against its vertices, past the scene's
+//!    resolution refused as unreadable rather than inconsistent
+//!    (`seg::build_seg`). A [`ConstructedProfile`]'s arcs were verified
+//!    at their construction and skip them.
 //! 3. **Simplicity** — pairwise closed-form segment/segment contact
 //!    classification (line/line, line/arc, arc/arc; O(n²), fine at M2).
 //!    Adjacent segments may share exactly their common vertex; any other
@@ -64,8 +69,10 @@
 //! is asked.
 //!
 //! What that costs, stated: nothing here can tell a hand-written table
-//! from an emitted one, so nothing here enforces the lattice's rules.
-//! It is not meant to. The enforcement is upstream, at the doors, and
+//! from an emitted one that gave up its provenance, so nothing here
+//! enforces the lattice's rules — the one thing a [`ConstructedProfile`]
+//! carries is that its arcs were verified at their construction. It is
+//! not meant to. The enforcement is upstream, at the doors, and
 //! [`crate::ProfileLoop`]'s own docs are the one home for what those
 //! are — this gate re-checks whatever comes through them anyway.
 //!
@@ -135,6 +142,7 @@
 //! coordinates at once. At the interval scalar an enclosure straddling
 //! the hairline escalates honestly.
 
+use core::borrow::Borrow;
 use core::fmt;
 
 use geom_core::k_stats::decide;
@@ -146,17 +154,26 @@ use geom_core::{
 /// The recourse of [`ProfileError::ArcBelowSceneResolution`]: the arc's
 /// carrier is stored at a magnitude whose `f64` rounding the tolerance
 /// cannot see past, so bring the magnitude down or the tolerance up.
-pub(crate) const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
      arc with a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
-     also reads it, and an arc authored through the path lattice is verified at its construction \
-     and not re-read here";
+     also reads it, and an arc the path lattice constructs is verified at its construction, so \
+     validating its loop with that provenance (a `ConstructedProfile`, `pncad::validated`) does \
+     not re-read it";
 
 use crate::path::num;
 use crate::seg::{self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
-use crate::{Profile, ProfileLoop, ReplayedLoop, SketchPlane};
+use crate::{ConstructedLoop, Profile, ProfileLoop, SketchPlane};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in
@@ -1113,8 +1130,8 @@ impl fmt::Display for ProfileError {
             } => write!(
                 f,
                 "{at} stores an arc whose {check} reads {margin} off its vertices, a difference \
-                 this scene's magnitude cannot resolve (the largest magnitude whose f64 \
-                 rounding stays inside the tolerance band, less the one it was read at: \
+                 this scene's magnitude cannot resolve (the largest magnitude at which the \
+                 check's f64 rounding stays inside the tolerance band, less the one it was read at: \
                  {headroom}). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}"
             ),
             Self::InconsistentArc { at, check } => write!(
@@ -1559,7 +1576,7 @@ impl ValidatedProfile<f64> {
     /// — [`ValidatedProfile::plane`]); everything else carried. No
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
     /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
-    /// from a raw profile, by [`ReplayedProfile`]'s three validations
+    /// from a raw profile, by [`ConstructedProfile`]'s three validations
     /// from a replayed one, and by this
     /// from an `f64` one; nothing else mints one.
     ///
@@ -1632,10 +1649,11 @@ impl<T: Decide> Profile<T> {
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
     ///
-    /// A `Profile` is a table: its arcs had no construction, so their
-    /// three consistency checks are decided here (D1). A profile of
-    /// loops a replay constructed validates through
-    /// [`ReplayedProfile::validate`] instead.
+    /// A `Profile` is read as a table: whatever built its loops, their
+    /// arcs' three consistency checks are decided here (D1). A profile
+    /// of loops the path lattice constructed, kept as
+    /// [`ConstructedLoop`]s, validates through
+    /// [`ConstructedProfile::validate`] instead.
     pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
         self.validate_with(
             tol,
@@ -1659,22 +1677,7 @@ impl<T: Decide> Profile<T> {
         &self,
         tol: Tol,
     ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
-        self.recording_with(tol, Consistency::Decide)
-    }
-
-    /// [`validate_recording`](Self::validate_recording) at a chosen
-    /// [`Consistency`].
-    fn recording_with(
-        &self,
-        tol: Tol,
-        consistency: Consistency,
-    ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
-        let mut guide = CanonGuide::Recording(Vec::new());
-        let vp = self.validate_with(tol, &mut guide, consistency)?;
-        let CanonGuide::Recording(loops) = guide else {
-            unreachable!("the guide was constructed Recording two lines above")
-        };
-        Ok((vp, CanonicalStructure { loops }))
+        recording_loops(self.plane, &self.loops, tol, Consistency::Decide)
     }
 
     fn validate_with(
@@ -1683,19 +1686,50 @@ impl<T: Decide> Profile<T> {
         guide: &mut CanonGuide,
         consistency: Consistency,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
+        validate_loops(self.plane, &self.loops, tol, guide, consistency)
+    }
+}
+
+/// [`validate_loops`] keeping the structure record it built
+/// ([`Profile::validate_recording`]).
+fn recording_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
+    plane: SketchPlane<T>,
+    loops_in: &[L],
+    tol: Tol,
+    consistency: Consistency,
+) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
+    let mut guide = CanonGuide::Recording(Vec::new());
+    let vp = validate_loops(plane, loops_in, tol, &mut guide, consistency)?;
+    let CanonGuide::Recording(loops) = guide else {
+        unreachable!("the guide was constructed Recording two lines above")
+    };
+    Ok((vp, CanonicalStructure { loops }))
+}
+
+/// The validation of `loops` on `plane` ([`Profile::validate`]'s body),
+/// over any loop that reads as a [`ProfileLoop`]: a table, or a
+/// [`ConstructedLoop`] whose provenance its caller carries.
+fn validate_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
+    plane: SketchPlane<T>,
+    loops_in: &[L],
+    tol: Tol,
+    guide: &mut CanonGuide,
+    consistency: Consistency,
+) -> Result<ValidatedProfile<T>, ProfileError> {
+    {
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
         // The exact-order band for the containment representative
         // (module docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
 
-        if self.loops.is_empty() {
+        if loops_in.is_empty() {
             return Err(ProfileError::EmptyProfile);
         }
 
         // 1 + 2: arity, then per-segment degeneracy + kind
         // classification.
-        let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(self.loops.len());
-        for (li, lp) in self.loops.iter().enumerate() {
+        let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(loops_in.len());
+        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             loop_segs.push(build_loop_segs(lp, li, consistency, band)?);
             // Declared-tangent joints must name vertices of their loop
             // (set semantics — duplicates are harmless, order is not
@@ -1713,16 +1747,16 @@ impl<T: Decide> Profile<T> {
 
         // 3: simplicity — every unordered segment pair, adjacency
         // discounted only at the shared vertex.
-        for li in 0..self.loops.len() {
+        for li in 0..loops_in.len() {
             for si in 0..loop_segs[li].len() {
                 // Same-loop partners after si, then every segment of
                 // later loops (deterministic order, first error wins).
                 for sj in (si + 1)..loop_segs[li].len() {
-                    judge_pair(self, &loop_segs, (li, si), (li, sj), band)?;
+                    judge_pair(loops_in, &loop_segs, (li, si), (li, sj), band)?;
                 }
-                for lj in (li + 1)..self.loops.len() {
+                for lj in (li + 1)..loops_in.len() {
                     for sj in 0..loop_segs[lj].len() {
-                        judge_pair(self, &loop_segs, (li, si), (lj, sj), band)?;
+                        judge_pair(loops_in, &loop_segs, (li, si), (lj, sj), band)?;
                     }
                 }
             }
@@ -1737,8 +1771,8 @@ impl<T: Decide> Profile<T> {
         // definite-Zero tangency (verified, never trusted). Each
         // declared joint's heading is decided here too: which of them
         // are cusps (INPUT indices; canonicalization remaps them).
-        let mut input_cusps: Vec<Vec<usize>> = Vec::with_capacity(self.loops.len());
-        for (li, lp) in self.loops.iter().enumerate() {
+        let mut input_cusps: Vec<Vec<usize>> = Vec::with_capacity(loops_in.len());
+        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             input_cusps.push(judge_joints(lp, &loop_segs[li], li, band)?);
         }
 
@@ -1747,9 +1781,9 @@ impl<T: Decide> Profile<T> {
         // is decided from. PINNED under guidance
         // — see `validate_guided` for why `lex_min` is not a predicate
         // a lane scalar can be asked.
-        let mut rep: Vec<Point2<T>> = Vec::with_capacity(self.loops.len());
-        let mut rep_index: Vec<usize> = Vec::with_capacity(self.loops.len());
-        for (li, lp) in self.loops.iter().enumerate() {
+        let mut rep: Vec<Point2<T>> = Vec::with_capacity(loops_in.len());
+        let mut rep_index: Vec<usize> = Vec::with_capacity(loops_in.len());
+        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             let idx = match guide.loop_at(li) {
                 Some(rec) => rec.representative,
                 None => lex_min_index(&lp.vertices, exact, li)?,
@@ -1767,7 +1801,7 @@ impl<T: Decide> Profile<T> {
 
         // 4: containment forest by ray parity — RE-RUN under guidance,
         // parity being an ordinary decided predicate, and compared.
-        let n = self.loops.len();
+        let n = loops_in.len();
         let mut depth = vec![0usize; n];
         let mut within: Vec<Vec<usize>> = vec![Vec::new(); n];
         for i in 0..n {
@@ -1844,7 +1878,7 @@ impl<T: Decide> Profile<T> {
 
         // 5: canonicalize each loop; assemble outer-first.
         let mut canonical: Vec<Option<ValidatedLoop<T>>> = (0..n).map(|_| None).collect();
-        for (li, lp) in self.loops.iter().enumerate() {
+        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             let role = if li == outer_index {
                 LoopRole::Outer
             } else {
@@ -1887,15 +1921,12 @@ impl<T: Decide> Profile<T> {
         for c in canonical.into_iter().flatten() {
             loops.push(c);
         }
-        Ok(ValidatedProfile {
-            plane: self.plane,
-            loops,
-        })
+        Ok(ValidatedProfile { plane, loops })
     }
 }
 
-/// A profile whose loops a replay constructed ([`crate::replay`],
-/// [`crate::replay_recording`], [`crate::replay_guided`]).
+/// A profile whose loops the path lattice constructed
+/// ([`ConstructedLoop`]: the builder's closing, or a replay's).
 ///
 /// The type is the provenance. Its validations do not decide an arc's
 /// three consistency checks, because D1 verifies a constructed arc at
@@ -1903,32 +1934,48 @@ impl<T: Decide> Profile<T> {
 /// construction, so a [`Profile`] of them cannot reach these doors and
 /// goes through [`Profile::validate`], which decides the checks.
 #[derive(Clone, Debug)]
-pub struct ReplayedProfile<T: Real>(Profile<T>);
+pub struct ConstructedProfile<T: Real> {
+    plane: SketchPlane<T>,
+    loops: Vec<ConstructedLoop<T>>,
+}
 
-impl<T: Real> ReplayedProfile<T> {
-    /// Builds the profile from a plane and loops a replay constructed
-    /// (under guidance, in the record's loop order).
-    pub fn new(plane: SketchPlane<T>, loops: Vec<ReplayedLoop<T>>) -> Self {
-        Self(Profile::new(
-            plane,
-            loops.into_iter().map(ReplayedLoop::into_loop).collect(),
-        ))
+impl<T: Real> ConstructedProfile<T> {
+    /// Builds the profile from a plane and loops the lattice
+    /// constructed (under guidance, in the record's loop order).
+    pub fn new(plane: SketchPlane<T>, loops: Vec<ConstructedLoop<T>>) -> Self {
+        Self { plane, loops }
     }
 
-    /// The profile, read-only: its plane and loops as data.
-    pub fn profile(&self) -> &Profile<T> {
-        &self.0
+    /// The plane.
+    pub fn plane(&self) -> &SketchPlane<T> {
+        &self.plane
+    }
+
+    /// The loops, keeping their provenance.
+    pub fn loops(&self) -> &[ConstructedLoop<T>] {
+        &self.loops
+    }
+
+    /// The plane and the loops, keeping their provenance.
+    pub fn into_parts(self) -> (SketchPlane<T>, Vec<ConstructedLoop<T>>) {
+        (self.plane, self.loops)
     }
 
     /// The profile, giving up the provenance: a `Profile` validates as
     /// a table.
     pub fn into_profile(self) -> Profile<T> {
-        self.0
+        Profile::new(
+            self.plane,
+            self.loops
+                .into_iter()
+                .map(ConstructedLoop::into_loop)
+                .collect(),
+        )
     }
 }
 
-impl<T: Decide> ReplayedProfile<T> {
-    /// [`Profile::validate`] of loops a replay constructed: the same
+impl<T: Decide> ConstructedProfile<T> {
+    /// [`Profile::validate`] of loops the lattice constructed: the same
     /// checks, except an arc's three consistency checks, which its
     /// construction verified (D1) and which are not decided again
     /// ([`Consistency::ByConstruction`]).
@@ -1937,14 +1984,16 @@ impl<T: Decide> ReplayedProfile<T> {
     ///
     /// [`ProfileError`], as [`Profile::validate`].
     pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
-        self.0.validate_with(
+        validate_loops(
+            self.plane,
+            &self.loops,
             tol,
             &mut CanonGuide::Recording(Vec::new()),
             Consistency::ByConstruction,
         )
     }
 
-    /// [`Profile::validate_recording`] of loops a replay constructed,
+    /// [`Profile::validate_recording`] of loops the lattice constructed,
     /// deciding no consistency check ([`validate`](Self::validate)):
     /// the evaluator's f64 pass 1.
     ///
@@ -1955,7 +2004,7 @@ impl<T: Decide> ReplayedProfile<T> {
         &self,
         tol: Tol,
     ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
-        self.0.recording_with(tol, Consistency::ByConstruction)
+        recording_loops(self.plane, &self.loops, tol, Consistency::ByConstruction)
     }
 
     /// **Guided validation**: canonicalize at this scalar while
@@ -1997,13 +2046,15 @@ impl<T: Decide> ReplayedProfile<T> {
         tol: Tol,
         structure: &CanonicalStructure,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
-        if structure.loops.len() != self.0.loops.len() {
+        if structure.loops.len() != self.loops.len() {
             return Err(ProfileError::Structure(StructureRefusal::shape(
                 structure.loops.len(),
-                self.0.loops.len(),
+                self.loops.len(),
             )));
         }
-        self.0.validate_with(
+        validate_loops(
+            self.plane,
+            &self.loops,
             tol,
             &mut CanonGuide::Guided(structure.clone()),
             Consistency::ByConstruction,
@@ -2094,8 +2145,8 @@ fn build_loop_segs<T: Decide>(
 /// Judges one segment pair: classifies contacts and applies the
 /// adjacency discount (adjacent segments may touch exactly at their
 /// shared vertex/vertices; everything else is an error).
-fn judge_pair<T: Decide>(
-    profile: &Profile<T>,
+fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
+    loops: &[L],
     loop_segs: &[Vec<Seg<T>>],
     (li, si): (usize, usize),
     (lj, sj): (usize, usize),
@@ -2118,10 +2169,10 @@ fn judge_pair<T: Decide>(
     if li == lj {
         let n = loop_segs[li].len();
         if sj == si + 1 {
-            shared.push(profile.loops[li].vertices[(si + 1) % n]);
+            shared.push(loops[li].borrow().vertices[(si + 1) % n]);
         }
         if si == 0 && sj == n - 1 {
-            shared.push(profile.loops[li].vertices[0]);
+            shared.push(loops[li].borrow().vertices[0]);
         }
     }
 

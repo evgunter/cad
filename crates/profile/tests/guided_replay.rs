@@ -276,7 +276,7 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
         ..structure.clone()
     };
     let flipped = replay_guided(&program, &other, tol())
-        .map(profile::ReplayedLoop::into_loop)
+        .map(profile::ConstructedLoop::into_loop)
         .expect("the other pocket is a valid fillet of the same legs");
     // Same arity, different geometry: the pick moved because the record
     // moved.
@@ -352,7 +352,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
         "the lens is the two-survivor configuration this row is about"
     );
     let nominal = replay_guided(&lifted, &structure, tol())
-        .map(profile::ReplayedLoop::into_loop)
+        .map(profile::ConstructedLoop::into_loop)
         .expect("the interval lane confirms the recorded structure");
     let other = ReplayStructure {
         fillets: vec![profile::FilletDecision {
@@ -361,7 +361,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
         }],
         ..structure.clone()
     };
-    match replay_guided(&lifted, &other, tol()).map(profile::ReplayedLoop::into_loop) {
+    match replay_guided(&lifted, &other, tol()).map(profile::ConstructedLoop::into_loop) {
         // The other pocket built: same arity, and the two are
         // SEPARATED — not merely different bits, which an enclosure
         // lane cannot honestly claim: some vertex's y enclosures are

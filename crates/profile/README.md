@@ -170,7 +170,7 @@ replayed output under every binding: flags verified-never-trusted
 continuation is identity and is legal declared or undeclared, fit
 gating; a `ValidatedProfile` is minted by the validate doors
 (`validate` and `validate_recording` on a `Profile` or a
-`ReplayedProfile`, and `validate_guided` on a `ReplayedProfile`) on
+`ConstructedProfile`, and `validate_guided` on a `ConstructedProfile`) on
 segments and by
 `ValidatedProfile::lift_onto` from an `f64` one, and
 extrude/revolve/fillet/loft/sweep never see a program. Junction

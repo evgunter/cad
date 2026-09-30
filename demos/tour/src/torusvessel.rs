@@ -94,7 +94,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
@@ -172,7 +172,7 @@ const _: () = assert!(R_TUBE > (Y_SHOULDER - Y_FOOT) / 2.0);
 /// junction chord the arc bulges to. That is the whole of the sense
 /// claim, expressed where it cannot drift: two bodies, one profile
 /// builder, one pair of stations.
-fn meridian(centre_rho: f64, winding: ArcSweep, tol: Tol) -> ProfileLoop<f64> {
+fn meridian(centre_rho: f64, winding: ArcSweep, tol: Tol) -> ConstructedLoop<f64> {
     Open.at(p2(0.0, 0.0))
         .line_to(p2(R_FOOT, 0.0), tol)
         .expect("the base disc")
@@ -202,7 +202,7 @@ fn meridian(centre_rho: f64, winding: ArcSweep, tol: Tol) -> ProfileLoop<f64> {
 
 /// The meridian revolved about `+y` through the origin, so a vertex's
 /// axial coordinates are `(hypot(x, z), y)`.
-fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>, tol: Tol) -> Body<f64> {
+fn revolved(lp: ConstructedLoop<f64>, turn: Revolution<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
         RevolveAxis {

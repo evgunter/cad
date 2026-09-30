@@ -102,7 +102,7 @@ fn mismatched_radius_continuation() {
         "the constructed tangency at the anchor is declared"
     );
     // The defect class is gone structurally: the loop validates.
-    Profile::new(SketchPlane::xy(), vec![lp.clone()])
+    Profile::new(SketchPlane::xy(), vec![lp.clone().into_loop()])
         .validate(Tol::witness())
         .expect("every authored r is sound under the dissolution");
 }
@@ -170,7 +170,7 @@ fn sharp_after_arc_arrival() {
         (heading - 2.6).abs() < 1e-9,
         "the leg departs the anchor on the authored heading; got {heading}"
     );
-    Profile::new(SketchPlane::xy(), vec![lp.clone()])
+    Profile::new(SketchPlane::xy(), vec![lp.clone().into_loop()])
         .validate(Tol::witness())
         .expect("the restored junction validates");
 }

@@ -62,7 +62,7 @@ fn line_arc(radius: f64, carrier: f64) -> Result<ProfileLoop<f64>, PathError<f64
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
@@ -81,7 +81,7 @@ fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathEr
         },
         tol(),
     )
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 fn mixed(r_carrier: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
@@ -100,7 +100,7 @@ fn mixed(r_carrier: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
@@ -112,7 +112,7 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 fn corner_out(
@@ -136,7 +136,7 @@ fn corner_out(
             tol(),
         )?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 #[test]

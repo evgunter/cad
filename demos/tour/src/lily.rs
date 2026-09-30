@@ -151,7 +151,7 @@ use core::f64::consts::PI;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane, Via};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
@@ -348,7 +348,7 @@ fn meridian<S: Scalar>(
     lip_drop: f64,
     neck: Option<(f64, f64)>,
     tol: Tol,
-) -> ProfileLoop<S> {
+) -> ConstructedLoop<S> {
     let r_top = (globe.powi(2) - top.powi(2)).sqrt();
     let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
     let shoulder = neck.map_or(0.0, |(nr, a)| neck_drop(globe, top, nr, a));
@@ -458,7 +458,7 @@ fn corm<S: Scalar>(
     let r_top = (globe.powi(2) - shoulder.powi(2)).sqrt();
     let r_base = (globe.powi(2) - base.powi(2)).sqrt();
     let t_base = shoulder + base;
-    let lp: ProfileLoop<S> = Open
+    let lp: ConstructedLoop<S> = Open
         .at(p2(bore_r, 0.0))
         .line_to(p2(r_top, 0.0), tol)
         .expect("corm shoulder annulus")
@@ -783,7 +783,7 @@ fn leaf<S: Scalar>(
     let place = authored_frame(base, u, v, tol).to_affine();
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
-    let loops: Vec<ProfileLoop<f64>> = vec![
+    let loops: Vec<ConstructedLoop<f64>> = vec![
         polygon(
             &[
                 (-0.5 * section.width, 0.0),
@@ -881,7 +881,7 @@ struct Section {
 impl Section {
     /// The eight-vertex outline, wound counterclockwise in the sketch
     /// `(s, t)` frame from the `+s` margin.
-    fn outline(self, tol: Tol) -> Vec<ProfileLoop<f64>> {
+    fn outline(self, tol: Tol) -> Vec<ConstructedLoop<f64>> {
         // The shoulder between tips `a` and `b`: their midpoint at
         // `shoulder = 0`, their vector sum (the rectangle corner) at 1.
         let shoulder = |a: Vec2<f64>, b: Vec2<f64>| {
@@ -1104,7 +1104,7 @@ fn try_lofted_blade<S: Scalar>(
 ) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
     let (d, v, u) = blade_frame(dir, up, tol);
     let r = len / curl;
-    let mut sections: Vec<Vec<ProfileLoop<f64>>> = Vec::with_capacity(stations);
+    let mut sections: Vec<Vec<ConstructedLoop<f64>>> = Vec::with_capacity(stations);
     let mut places: Vec<Affine3<f64>> = Vec::with_capacity(stations);
     for k in 0..stations {
         #[allow(clippy::cast_precision_loss)]

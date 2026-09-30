@@ -368,7 +368,7 @@ use geom_core::{
 };
 
 use crate::ProfileLoop;
-use crate::path::program::{ClosedLoop, Step, Target};
+use crate::path::program::{ClosedLoop, ConstructedLoop, Step, Target};
 use crate::seg;
 use crate::sugar::{
     ArcSweep, LineFilletTrims, TrimRefusal, bulge_from_center, bulge_from_via,
@@ -2723,10 +2723,10 @@ impl<T: Real> Core<T> {
         let structure = structure.into_record(spans, radii, pieces);
         structure.check_role_lists(&self.program);
         ClosedLoop {
-            loop_: ProfileLoop::from_chain(
+            loop_: ConstructedLoop(ProfileLoop::from_chain(
                 crate::lower_chain(&self.verts, Some(tol)),
                 self.tangent,
-            ),
+            )),
             program: self.program,
             structure,
         }
@@ -5851,7 +5851,7 @@ mod fillet_stored_form {
             .angle(theta, Tol::witness())?
             .line(1.0, Tol::witness())?
             .line_to(Start, Tol::witness())
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
     }
 
     /// The line × arc corner's arrival circle: radius 2, counterclockwise
@@ -5877,7 +5877,7 @@ mod fillet_stored_form {
                 },
                 Tol::witness(),
             )
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
     }
 
     /// An arc × arc corner turning by `theta`: two radius-2 circles about
@@ -5900,7 +5900,7 @@ mod fillet_stored_form {
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
     }
 
     fn corners() -> [Corner; 3] {

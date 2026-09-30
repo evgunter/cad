@@ -399,11 +399,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   carrier is one edge. The form is redundant (the vertices lie on the
   carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
   consistency conditions are never trusted: a table's arcs are verified
-  at validate as ε-decisions at the validating scalar, and an arc a
-  replay constructs is verified at its construction, at that
-  scalar (by the construction's own predicate, or by the exact witness
-  of the identity it registers), which validation then does not
-  re-decide; a stored carrier is carried
+  at validate as ε-decisions at the validating scalar, and an arc the
+  path lattice constructs (directly or by replay) is verified at its
+  construction, at that scalar — by the construction's own predicate,
+  or by the identity it registers, which an exact scalar's witness
+  checks and a point scalar takes on the construction's proof — and a
+  validation that keeps the loop's provenance does not re-decide it; a
+  stored carrier is carried
   verbatim, including across scalars, and never re-derived from its
   vertices. The authored shape lives in the program, which is what a
   document stores and edits; the loop is its canonical cache, rebuilt

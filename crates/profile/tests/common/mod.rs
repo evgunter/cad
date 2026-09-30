@@ -183,13 +183,16 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
 /// records the canonical structure of) and the guided profile at `T`.
 ///
 /// Guided validation takes only loops a guided replay constructed
-/// ([`profile::ReplayedProfile`]), so a fixture reaches it through its
+/// ([`profile::ConstructedProfile`]), so a fixture reaches it through its
 /// program; the pass-1 profile, not the fixture, is the one its record
 /// describes, because the lift's `Center` writer re-derives an arc's
 /// sweep and can move bits.
 pub fn replayed<T: profile::ArcCarrierScalar>(
     p: &Profile<f64>,
-) -> (profile::ReplayedProfile<f64>, profile::ReplayedProfile<T>) {
+) -> (
+    profile::ConstructedProfile<f64>,
+    profile::ConstructedProfile<T>,
+) {
     let mut recorded = Vec::with_capacity(p.loops.len());
     let mut guided = Vec::with_capacity(p.loops.len());
     for (li, lp) in p.loops.iter().enumerate() {
@@ -205,8 +208,8 @@ pub fn replayed<T: profile::ArcCarrierScalar>(
         recorded.push(rec);
     }
     (
-        profile::ReplayedProfile::new(p.plane, recorded),
-        profile::ReplayedProfile::new(p.plane.map(T::from_f64), guided),
+        profile::ConstructedProfile::new(p.plane, recorded),
+        profile::ConstructedProfile::new(p.plane.map(T::from_f64), guided),
     )
 }
 
@@ -217,7 +220,7 @@ pub fn try_replay_at<T: profile::ArcCarrierScalar>(
     program: &[profile::Step<f64>],
 ) -> Result<ProfileLoop<T>, profile::ReplayError<T>> {
     let lifted: Vec<profile::Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
-    profile::replay(&lifted, tol()).map(profile::ReplayedLoop::into_loop)
+    profile::replay(&lifted, tol()).map(profile::ConstructedLoop::into_loop)
 }
 
 /// A loop from `(x, y, bulge)` triples.
@@ -390,7 +393,7 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
     assert_bit_identical(&closed.loop_, &replayed);
     assert_spans_partition(&closed);
     assert_pieces_name_one_segment_each(&closed);
-    closed.loop_
+    closed.loop_.into_loop()
 }
 
 /// **Every segment is exactly one piece, and no piece is two
@@ -1114,7 +1117,7 @@ pub fn arc_arc(case: [f64; 8], r: f64) -> Result<ProfileLoop<f64>, PathError<f64
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())?;
-    Ok(closed.loop_)
+    Ok(closed.loop_.into_loop())
 }
 
 /// **Grid A**, PR 1895's grid verbatim: R_in in {0.2, 0.4, 0.15}, R_out
@@ -1178,7 +1181,7 @@ pub fn line_arc(
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The line×arc grid**: R ∈ {2, 1, 0.5}, sx ∈ {0.2, 0.8, 1.4, 1.9},

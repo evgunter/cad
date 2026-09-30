@@ -1375,12 +1375,12 @@ pub(crate) fn prepare_profile(
     }
     // The loops are the replay's own construction, so validation
     // decides no arc's consistency checks (D1).
-    let replayed = profile::ReplayedProfile::new(plane, loops);
+    let replayed = profile::ConstructedProfile::new(plane, loops);
     let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
-    let profile_f64 = replayed.into_profile();
-    let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
+    let profile_f64 = replayed;
+    let naming = anchor::derive_naming(&validated_f64, profile_f64.loops()).ok_or({
         // A canonical loop matched no program loop: an internal break.
         // The loop coordinate is not recoverable; 0 names the walk.
         NodeErrorKind::ProfileAnchor { loop_: 0 }
@@ -1449,7 +1449,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    profile::ReplayedProfile::new(plane, loops)
+    profile::ConstructedProfile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
 }
@@ -4334,7 +4334,14 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
+) -> Result<
+    (
+        sweep::Section<profile::ConstructedLoop<f64>>,
+        Affine3<f64>,
+        super::ProfilePieces,
+    ),
+    NodeErrorKind,
+> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -4394,7 +4401,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         .placement;
     // The REPLAYED loops in program order (LIB-U3), and the canonical
     // positions' names the skin's walls and seams are named by.
-    Ok((pre.profile_f64.loops, place, pre.pieces))
+    Ok((pre.profile_f64.into_parts().1, place, pre.pieces))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.

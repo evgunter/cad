@@ -238,7 +238,7 @@ pub(crate) enum Consistency {
     /// construction's own predicate (a `Center` arc's
     /// `path_arc_center_equidistant`), or by the exact witness of the
     /// identities the lowering registers. Passed by every validation of
-    /// a replayed loop ([`crate::ReplayedProfile`]) and by the path
+    /// a constructed loop ([`crate::ConstructedProfile`]) and by the path
     /// door's re-read of the fillet arcs it has just lowered.
     ByConstruction,
 }

@@ -76,7 +76,7 @@ fn author_arc_arc(
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())?;
-    Ok(closed.loop_)
+    Ok(closed.loop_.into_loop())
 }
 
 /// Row 1 of `enclosing_cases`: sigma = tau = +1, equal carriers

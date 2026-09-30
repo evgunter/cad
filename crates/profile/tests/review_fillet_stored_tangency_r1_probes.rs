@@ -62,7 +62,7 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 // ------------------------------------------------------------------
@@ -91,7 +91,7 @@ fn seam_bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .tangent()
         .fillet(radius, tol())?
         .to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 #[test]
@@ -138,7 +138,7 @@ fn fused_bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 #[test]
@@ -181,7 +181,7 @@ fn two_fillets(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f6
         .angle(d2, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 #[test]
@@ -232,7 +232,7 @@ fn arc_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
     .to(far, tol())?
     .line_to(Point2::new(-6.0, -6.0), tol())?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 #[test]
@@ -280,7 +280,7 @@ fn far_bend(
         .angle(theta, tol())?
         .line(leg, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 #[test]
@@ -378,7 +378,7 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
                     },
                     tol(),
                 )
-                .map(|c| c.loop_)
+                .map(|c| c.loop_.into_loop())
         }),
         ("arc x arc", || {
             Open.arc_fillet_arc(
@@ -396,7 +396,7 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
                 tol(),
             )?
             .line_to(Start, tol())
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
         }),
     ];
     for (name, build) in cases {
@@ -514,7 +514,8 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
                 short(&e.to_string())
             ),
             Ok(lp) => {
-                match profile::ReplayedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+                match profile::ConstructedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol())
+                {
                     Ok(_) => println!("R1 h corpus row {i}: built and VALIDATES"),
                     Err(e) => println!(
                         "R1 h corpus row {i}: built, VALIDATE refused: {}",
@@ -564,7 +565,8 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
                 short(&e.to_string())
             ),
             Ok(lp) => {
-                match profile::ReplayedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+                match profile::ConstructedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol())
+                {
                     Ok(_) => println!("R1 h lens {name}: built and VALIDATES"),
                     Err(e) => println!(
                         "R1 h lens {name}: built, VALIDATE refused: {}",

@@ -46,7 +46,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
@@ -68,7 +68,7 @@ const H_TUBE: f64 = 8.0 / 64.0;
 const BELLIED: f64 = 6.0 / 64.0;
 const WAISTED: f64 = 12.0 / 64.0;
 
-fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
+fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
         RevolveAxis {

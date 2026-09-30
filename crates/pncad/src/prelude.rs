@@ -181,18 +181,19 @@ pub use quantity::{
 
 // --- 2. Profile authoring -------------------------------------
 // NAMEABLE, NOT MINTABLE:
-// `ProfileLoop` stays here because read-back hands it back,
-// `ProfileError` payloads point into it, and `validated`
-// takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
-// the ladder passes around. What left is the raw MINTING tier:
+// `ProfileLoop` stays here because read-back hands it back and
+// `ProfileError` payloads point into it, and `ConstructedLoop` because
+// `validated` and `polygon` take and return one — a prelude user must be
+// able to name what the ladder passes around. What left is the raw
+// MINTING tier:
 // `ProfileLoop::new`/`polygon` live on `profile::RawLoop`, which is a
 // FIXTURE door behind that crate's `test-support` feature — absent from
 // every shipped build, so there is nothing here to decline. Loops are
 // authored through the lattice below, and a table that already exists
 // crosses scalars through `ProfileLoop::map_scalar`.
 pub use ::profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind, SketchPlane,
-    ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, ConstructedLoop, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind,
+    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra: `circle` (the one-step closed-carrier
 // program form) and the

@@ -90,7 +90,7 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             Tol::witness(),
         )
-        .map(|closed| closed.loop_)
+        .map(|closed| closed.loop_.into_loop())
 }
 
 /// **line×arc, external tangency** (the fillet curves the other way
@@ -113,7 +113,7 @@ fn line_arc_external(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             Tol::witness(),
         )
-        .map(|closed| closed.loop_)
+        .map(|closed| closed.loop_.into_loop())
 }
 
 /// **arc×line**: the incoming side is the circular one (a concave notch
@@ -137,7 +137,7 @@ fn arc_line(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     .line_to(Point2::new(4.0, 3.0), Tol::witness())?
     .line_to(Point2::new(-1.0, 3.0), Tol::witness())?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// **arc×arc, both tangencies internal**: the vesica of the two
@@ -165,7 +165,7 @@ fn arc_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         Tol::witness(),
     )?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// **arc×arc, one internal + one external**: the same crossing circles,
@@ -187,7 +187,7 @@ fn arc_arc_mixed(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         Tol::witness(),
     )?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// The line×arc corner at the radius that consumes BOTH sides exactly
@@ -356,7 +356,7 @@ fn bracket_with_an_arc_leg_validates_and_declares() {
     // T1 sits on the incoming side's carrier.
     let t1 = lp.vertices()[1];
     assert!(((t1.x - 2.0).powi(2) + (t1.y + 2.0).powi(2) - 10.0).abs() < 1e-14);
-    validates_with_declared_joints(lp, &[1, 2]);
+    validates_with_declared_joints(lp.into_loop(), &[1, 2]);
 }
 
 // ------------------------------------------------- the refusal taxonomy
@@ -650,6 +650,7 @@ fn vesica_lens(
     )
     .expect("the lens constructs")
     .loop_
+    .into_loop()
 }
 
 /// The S8 ruling flips the M5 S2 refusal: with both sides long enough

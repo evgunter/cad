@@ -43,7 +43,7 @@ fn bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 #[test]

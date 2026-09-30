@@ -110,12 +110,13 @@ pub use ::profile::{
 // has half a door. The record types are also the driver's input: a
 // bisecting lane records at f64 and replays guided at its own scalar
 // through exactly these two functions, and validates what the guided
-// replay built as a `ReplayedProfile` of its `ReplayedLoop`s.
+// replay built as a `ConstructedProfile` of its `ConstructedLoop`s.
 pub use ::profile::{
-    CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
-    LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
-    ReplayedLoop, ReplayedProfile, RoleList, SegmentShape, StepSpan, StructureRefusal,
-    StructureRefusalKind, carrier_pieces, replay_guided, replay_recording, structure,
+    CIRCLE_PIECES, CanonicalStructure, ConstructedLoop, ConstructedProfile, CornerGate, Decision,
+    DecisionValue, FilletDecision, LoopCanonical, Piece, PieceRole, ProfileStructure,
+    RadiusEmission, RadiusRole, ReplayStructure, RoleList, SegmentShape, StepSpan,
+    StructureRefusal, StructureRefusalKind, carrier_pieces, replay_guided, replay_recording,
+    structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.
