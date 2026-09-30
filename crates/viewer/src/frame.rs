@@ -243,7 +243,7 @@ use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
-use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
+use crate::session::{AtRestBadge, DeclareOffer, OpOutcome, Outstanding, Refusal, SessionOp};
 use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
 
@@ -2682,6 +2682,45 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
         | ParseError::UnknownFunction { .. }
         | ParseError::WrongArity { .. }
         | ParseError::Dimension { .. } => None,
+    }
+}
+
+/// **The declare offer a refused batch leaves behind** — the offer a
+/// boolean's undeclared-contact refusal makes
+/// ([`crate::session::RefusedBoolean::offer`]), for the frame loop to
+/// hold for the boolean tool the way it holds [`creation_offer`]'s name
+/// for the add-parameter form. `None` for every other refusal and for a
+/// clean batch.
+///
+/// The two offers go stale differently, and each says how where it is
+/// shown: a name to create stands until the name field moves past it,
+/// while a declaration is sited in one document, so it stands only at
+/// the generation it was refused at ([`DeclareOffer::is_for`]).
+pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
+    match refusal? {
+        Refusal::Contact(refused) => refused.offer(),
+        Refusal::DrivenByExpression { .. }
+        | Refusal::NoSuchSlot { .. }
+        | Refusal::NoSuchParam(_)
+        | Refusal::ParamNotANumber { .. }
+        | Refusal::ParamExists { .. }
+        | Refusal::EmptyName
+        | Refusal::WrongNodeKind { .. }
+        | Refusal::Duplicate(_)
+        | Refusal::Edit(_)
+        | Refusal::Dimension(_)
+        | Refusal::Parse(_)
+        | Refusal::NoGesture
+        | Refusal::GestureInFlight
+        | Refusal::WrongGesture
+        | Refusal::Io(_)
+        | Refusal::NothingToDo { .. }
+        | Refusal::Display(_)
+        | Refusal::SlotUnit(_)
+        | Refusal::NoDocumentDirectory
+        | Refusal::Workspace(_)
+        | Refusal::SelfInstance { .. }
+        | Refusal::ProfileEditStale { .. } => None,
     }
 }
 

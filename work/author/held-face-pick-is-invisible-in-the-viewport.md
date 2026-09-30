@@ -2,11 +2,12 @@
 id: held-face-pick-is-invisible-in-the-viewport
 kind: issue
 title: The add-datum form's held face pick is drawn nowhere, so an author can commit against a face the viewport is not showing
-status: open
+status: dispatched
 opened: 2026-09-21
 priority: P1
 cost: D
 refs: [face-pick-cannot-name-which-face, 2955]
+branch: author/held-face-mark
 ---
 
 ## What
@@ -46,3 +47,5 @@ descriptor or a facade re-export, and its ground is `create.rs` and
 and its ground is the viewport and `marks.rs`. One file, one item —
 bundling them under a title about naming would have hidden this one
 from anybody reading the slate for viewport work.
+
+Dispatched 2026-09-30 as **AUTH-10** (`docs/AUTH-10-SPEC.md`, branch `author/held-face-mark`). Checked first: `marks::Highlight` carries one selected patch id, `marks::focus` already marks a set, and the viewport marks the blend tool's held edges but not the mate tool's held faces. That makes two unmarked held face picks, and both are in scope.

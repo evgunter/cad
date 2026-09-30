@@ -298,6 +298,7 @@ fn the_parametric_living_walk() {
             op: BooleanOp::Union,
             a: base,
             b: tower_up,
+            declare: Vec::new(),
         },
     );
     let r1 = BASE_R * TAPER;
@@ -367,6 +368,7 @@ fn the_parametric_living_walk() {
             op: BooleanOp::Union,
             a: hull,
             b: lamp_up,
+            declare: Vec::new(),
         },
     );
     assert_eq!(
