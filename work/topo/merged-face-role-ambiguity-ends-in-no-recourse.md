@@ -2,10 +2,11 @@
 id: merged-face-role-ambiguity-ends-in-no-recourse
 kind: issue
 title: topo: the merge's winding decision refuses its zero or split verdict as MergedFaceRoleAmbiguous with a stage label and no recourse
-status: review
+status: closed
 opened: 2026-09-30
 branch: topo/merge-helpers-announce
 pr: 3532
+closed: 2026-09-30
 ---
 
 
