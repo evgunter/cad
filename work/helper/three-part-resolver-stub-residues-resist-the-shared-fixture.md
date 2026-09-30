@@ -30,14 +30,10 @@ decision this row owns.
 
 2. **`asm_r2a_mate_solve.rs`'s `in_part` has a different SIGNATURE** —
    `in_part(instance, part_node)`, taking the body node as an argument
-   and hardcoding `CapEnd::Start`, where the fixture's is
-   `in_part(instance, cap)` over `PART_BODY`. Neither is a widening of
-   the other. A fixture `in_part_of(instance, body, cap)` with
-   `in_part` as its `PART_BODY` specialization would hold both, and
-   would also give the two `RecipeNodeId(1)` suites a spelling that
-   says which node they mean; it was not written here because nothing
-   in the migration needed it and a helper with one caller is its own
-   defect.
+   and hardcoding `CapEnd::Start`. The fixture's is now
+   `in_part(instance, body, cap)`
+   (`part-suites-name-every-parts-body-by-one-constant`), so this
+   suite's is the fixture's at `CapEnd::Start` and can fold into it.
 
 3. **`asm4_split_inline.rs`'s `PART_BODY` is a different TYPE.**
    `const PART_BODY: usize = 2` is a positional index into
