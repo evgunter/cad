@@ -773,6 +773,13 @@ pub(crate) enum TearPoint {
     StrutBecomesASelfLoop,
     /// Before `kemr`: re-parents the duplicate's minus half elsewhere.
     DuplicateHalvesPartCompany,
+    /// Before the role pass: drops the survivor's surface. Not a
+    /// re-checked fact: a key the role pass looks up after the surgery
+    /// has mutated the arena, torn where no input can tear it.
+    SurvivorLosesItsSurface,
+    /// Before the role pass: drops the point of the survivor's
+    /// outline's first vertex (a lookup tear, as above).
+    OutlineLosesAPoint,
 }
 
 #[cfg(test)]
@@ -895,6 +902,30 @@ fn tear_before_kemr<T: geom_core::Real>(body: &mut Body<T>, he_minus: crate::ent
     }
     if let Some(h) = body.half_edges.get_mut(he_minus) {
         h.parent_loop = LoopKey::default();
+    }
+}
+
+/// The lookup tears offered immediately before the role pass.
+#[cfg(test)]
+fn tear_before_role_pass<T: geom_core::Real>(body: &mut Body<T>, survivor: &crate::entity::Face) {
+    match armed_tear() {
+        Some(TearPoint::SurvivorLosesItsSurface) => {
+            body.surfaces.remove(survivor.surface);
+        }
+        Some(TearPoint::OutlineLosesAPoint) => {
+            let point = body
+                .get_loop(survivor.outer)
+                .and_then(|l| match l.boundary {
+                    crate::entity::LoopBoundary::Cycle { first } => body.get_half_edge(first),
+                    crate::entity::LoopBoundary::Empty { .. } => None,
+                })
+                .and_then(|h| body.get_vertex(h.start))
+                .map(|v| v.point);
+            if let Some(point) = point {
+                body.points.remove(point);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -2287,6 +2318,8 @@ impl<T: Decide> Body<T> {
                 )
             };
             let survivor = survivor.clone();
+            #[cfg(test)]
+            tear_before_role_pass(self, &survivor);
             if let Some(i) = self.merged_outline_ring(rep, &survivor, tol)? {
                 let Some(fm) = self.faces.get_mut(rep) else {
                     unreachable!(
@@ -2694,6 +2727,111 @@ mod tests {
         assert!(group.killed_vertices.is_empty(), "{group:?}");
         assert_eq!(body.get_face(group.kept).expect("live").rings.len(), 1);
         assert_eq!(validate_closed(&body), Ok(()));
+    }
+
+    /// **The entry gate refuses every tear the adjacency scan's
+    /// helpers read** — the measurement behind their docs' claim that
+    /// no input reaches a failed lookup there. Each row tears a
+    /// declared planar cube the way one of `planes_declared_equal`'s
+    /// lookups would fail (a face a loop points at, that face's
+    /// surface, a vertex a half-edge starts at, that vertex's point)
+    /// and drives the public door: tier 2 refuses the input, and the
+    /// body comes back exactly as it went in.
+    #[test]
+    fn the_entry_gate_refuses_every_tear_the_adjacency_scan_reads() {
+        let tol = Tol::witness();
+        type Tear = fn(&mut Body<f64>);
+        let tears: [(&str, Tear); 4] = [
+            ("a face", |b| {
+                let (_, f) = adjacent_pair(b);
+                b.faces.remove(f);
+            }),
+            ("a face's surface", |b| {
+                let (f, _) = adjacent_pair(b);
+                let k = b.get_face(f).expect("live").surface;
+                b.surfaces.remove(k);
+            }),
+            ("a vertex", |b| {
+                let v = b.vertices().next().expect("a vertex").0;
+                b.vertices.remove(v);
+            }),
+            ("a vertex's point", |b| {
+                let p = b.vertices().next().expect("a vertex").1.point;
+                b.points.remove(p);
+            }),
+        ];
+        for (what, tear) in tears {
+            let (mut body, declared) = declared_planar_cube(tol);
+            tear(&mut body);
+            let before = format!("{body:?}");
+            let got = body.merge_coplanar_faces_declared(&declared, tol);
+            assert!(
+                matches!(got, Err(MergeCoplanarError::InputNotClosed { .. })),
+                "tearing {what}: {got:?}"
+            );
+            assert_eq!(
+                format!("{body:?}"),
+                before,
+                "tearing {what}: the refusal leaves the body as it was"
+            );
+        }
+    }
+
+    /// Runs the public door on the split ringed top — whose merge
+    /// mints a ring and so reaches the role pass — with one lookup
+    /// tear armed there, checks the body comes back as it went in (the
+    /// door stages on a clone), and returns the key the refusal names.
+    fn role_pass_tear(point: TearPoint) -> (Body<f64>, GeomRef) {
+        let tol = Tol::witness();
+        let mut body = split_ringed_top(tol);
+        let before = format!("{body:?}");
+        let got = {
+            let _armed = ArmedTear::at(point);
+            body.merge_coplanar_faces(tol)
+        };
+        assert_eq!(
+            format!("{body:?}"),
+            before,
+            "{point:?}: the refusal leaves the body as it was"
+        );
+        match got {
+            Err(MergeCoplanarError::Op {
+                error: EulerOpError::StaleGeometry { key },
+            }) => (body, key),
+            other => panic!("{point:?}: expected the torn key announced, got {other:?}"),
+        }
+    }
+
+    /// **The survivor's surface, torn under the role pass, refuses the
+    /// call naming that surface** — not read as "not a plane", which
+    /// would leave the roles as the `kemr` put them. The role pass
+    /// reads the arena after the surgery has mutated it, so the entry
+    /// gate's proof does not reach it.
+    #[test]
+    fn a_torn_survivor_surface_in_the_role_pass_refuses_naming_it() {
+        let (body, key) = role_pass_tear(TearPoint::SurvivorLosesItsSurface);
+        let GeomRef::Surface(k) = key else {
+            panic!("named {key:?}, not the surface")
+        };
+        assert_eq!(
+            body.faces().filter(|(_, f)| f.surface == k).count(),
+            2,
+            "names the surface the merged pair shares"
+        );
+    }
+
+    /// **A point torn under the winding walk refuses naming the
+    /// point**, not the loop the walk started from.
+    #[test]
+    fn a_torn_outline_point_in_the_role_pass_refuses_naming_it() {
+        let (body, key) = role_pass_tear(TearPoint::OutlineLosesAPoint);
+        let GeomRef::Point(p) = key else {
+            panic!("named {key:?}, not the point")
+        };
+        assert!(
+            body.vertices().any(|(_, v)| v.point == p),
+            "names a vertex's point"
+        );
     }
 
     /// The facts whose tear reaches its operator under the RECORDING
@@ -3838,6 +3976,22 @@ mod winding_arm_tests {
 
     fn tri(a: Point3<f64>, b: Point3<f64>, d: Point3<f64>, tol: Tol) -> Tri {
         let mut body = Body::<f64>::new();
+        let (r#loop, surface, ab) = tri_into(&mut body, [a, b, d], tol);
+        Tri {
+            body,
+            r#loop,
+            surface,
+            ab,
+        }
+    }
+
+    /// [`tri`]'s triangle, added to `body` as a shell of its own:
+    /// the `a → b → d` loop, its surface and the `a → b` edge.
+    fn tri_into(
+        body: &mut Body<f64>,
+        [a, b, d]: [Point3<f64>; 3],
+        tol: Tol,
+    ) -> (LoopKey, geom_brep::SurfaceKey, crate::entity::EdgeKey) {
         let seed = body.mvfs(a, true).unwrap();
         let surface = body
             .set_face_surface(
@@ -3885,13 +4039,8 @@ mod winding_arm_tests {
         )
         .unwrap();
         let r#loop = body.get_face(seed.face).unwrap().outer;
-        let ab = body_edge(&body, e_ab.he_plus);
-        Tri {
-            body,
-            r#loop,
-            surface,
-            ab,
-        }
+        let ab = body_edge(body, e_ab.he_plus);
+        (r#loop, surface, ab)
     }
 
     fn body_edge(body: &Body<f64>, he: crate::HalfEdgeKey) -> crate::entity::EdgeKey {
@@ -4344,6 +4493,116 @@ mod winding_arm_tests {
             t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
             Ok(None),
             "one fitted carrier and the whole cycle stops being answerable"
+        );
+    }
+
+    /// The refusal-shape guard every outline ending passes: one
+    /// recourse, no stage prefix, no subjectless escalation, and no
+    /// offer of a declaration the merge cannot take.
+    fn assert_one_story(text: &str) {
+        assert_eq!(test_utils::refusal::recourse_markers(text), 1, "{text}");
+        assert!(
+            test_utils::refusal::subjectless_escalations(text).is_empty()
+                && test_utils::refusal::stage_prefixes(text, &[]).is_empty()
+                && !text.contains("declare"),
+            "{text}"
+        );
+    }
+
+    /// **A zero winding that leaves the merged face no outline tells
+    /// the winding decision's in-band story**, with the tolerance its
+    /// own margin gives.
+    ///
+    /// The fixture: one triangle `(0,0) → (2,0) → (1,h)`, the merged
+    /// face's only loop, with `h` the band's zero threshold. Its
+    /// margin `2A/P = 2h/P ≈ h/2` is nonzero and lies within the zero
+    /// band at every tolerance row, so the winding classifies zero and
+    /// no loop is an outline. [`LOOP_WINDING`] passes on either
+    /// nonzero sign, so a smaller tolerance decides this margin: the
+    /// ending offers `m/K`, read here off the loop's own geometry.
+    #[test]
+    fn a_zero_winding_that_leaves_no_outline_tells_the_winding_story() {
+        let tol = Tol::witness();
+        let band = band(tol);
+        let h = band.zero();
+        let t = tri(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(1.0, h, 0.0),
+            tol,
+        );
+        let face = t.body.get_loop(t.r#loop).unwrap().face;
+        let survivor = t.body.get_face(face).unwrap().clone();
+        let text = t
+            .body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("a face whose one loop winds zero has no outline")
+            .to_string();
+        assert_one_story(&text);
+        assert!(
+            text.starts_with(
+                "which way a loop of the merged face winds about its normal is undecided: \
+                 margin "
+            ) && text.contains("lies within the zero band")
+                && text.contains(LOOP_WINDING.lever),
+            "{text}"
+        );
+        let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
+        let want = margin / (band.escalate() / band.zero());
+        let offered: f64 = text
+            .split_once("tighten the tolerance below ")
+            .and_then(|(_, tail)| tail.strip_suffix(" m"))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| panic!("a valued tolerance offer ends the text: {text}"));
+        assert!(
+            (offered - want).abs() <= 1e-9 * want,
+            "the offer is the zero winding's own margin over K: offered {offered:e}, \
+             want {want:e}: {text}"
+        );
+    }
+
+    /// **Several positive windings end in their own story**: two
+    /// counterclockwise triangles as one merged face's outline and
+    /// ring. Each bounds a region of its own, so the merge would make
+    /// one face of two separate regions; the refusal names both loops
+    /// and the move that makes the union one region.
+    #[test]
+    fn several_positive_windings_name_their_loops_and_the_move() {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let (first, _, _) = tri_into(
+            &mut body,
+            [
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            tol,
+        );
+        let (second, _, _) = tri_into(
+            &mut body,
+            [
+                Point3::new(3.0, 0.0, 0.0),
+                Point3::new(4.0, 0.0, 0.0),
+                Point3::new(3.0, 1.0, 0.0),
+            ],
+            tol,
+        );
+        let face = body.get_loop(first).unwrap().face;
+        let mut survivor = body.get_face(face).unwrap().clone();
+        survivor.rings = vec![second];
+        let text = body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("two outlines are not one face's")
+            .to_string();
+        assert_one_story(&text);
+        assert!(
+            text.contains(&format!("{first:?}"))
+                && text.contains(&format!("{second:?}"))
+                && text.contains(
+                    "Recourse: reshape the merged faces so their union is one connected region"
+                ),
+            "{text}"
         );
     }
 }
