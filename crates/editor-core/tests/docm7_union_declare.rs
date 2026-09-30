@@ -70,12 +70,14 @@ pub(crate) fn block(
 fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(dx), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(dx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     )
 }
 

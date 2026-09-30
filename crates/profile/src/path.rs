@@ -5587,6 +5587,7 @@ mod fillet_stored_form {
     use crate::seg::{self, JointClass, Seg, SegIssue, SegKind};
     use crate::sugar::ArcSweep;
     use crate::{Profile, ProfileLoop, SketchPlane};
+    use geom_core::Arc2;
 
     /// The fillet radius every corner below is rounded with.
     const R: f64 = 0.2;
@@ -5634,9 +5635,11 @@ mod fillet_stored_form {
         let apex = centre + toward_apex * radius;
         Seg {
             kind: SegKind::Arc(seg::ArcGeom {
-                center: centre,
-                radius,
-                sweep: 4.0 * arc.bulge.atan(),
+                arc: Arc2 {
+                    centre,
+                    radius,
+                    sweep: 4.0 * arc.bulge.atan(),
+                },
                 apex,
                 span_chord: arc.a.distance(apex),
                 turn: if arc.bulge >= 0.0 {
@@ -5687,7 +5690,7 @@ mod fillet_stored_form {
         (0..n).find(|&i| {
             declared.contains(&i)
                 && declared.contains(&((i + 1) % n))
-                && matches!(lp.segments()[i], crate::Segment::Arc { .. })
+                && matches!(lp.segments()[i], crate::Segment::Arc(..))
         })
     }
 
@@ -5765,8 +5768,8 @@ mod fillet_stored_form {
         let (joint_out, _) = reading(arc, nx, band);
         let (d_centre, d_radius, kind) = match &arc.kind {
             SegKind::Arc(g) => (
-                format!("{:e}", g.center.distance(door_centre)),
-                format!("{:e}", (g.radius - R).abs()),
+                format!("{:e}", g.arc.centre.distance(door_centre)),
+                format!("{:e}", (g.arc.radius - R).abs()),
                 "arc",
             ),
             SegKind::Line => ("stored as a line".to_string(), "-".to_string(), "line"),

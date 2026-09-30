@@ -945,7 +945,7 @@ impl EstablishedFact {
 /// | `loop_winding`, through `merged_outline_ring` | `StaleKey` |
 /// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
 /// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `OrbitBroken`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
-/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
+/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `LoopCycleBroken`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `StaleKey`, `StaleGeometry`, `LoopNotCycle`, `LoopNotEmpty`, `LoopCycleBroken`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
 /// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `OrbitBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
 ///

@@ -18,7 +18,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeDescriptionSpec, MappedCurve, SketchSegment, newell_plane};
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Decide, Point2, Point3, Vec3};
+use geom_core::{Affine3, Arc2, Band, Decide, Point2, Point3, Vec3};
 use topo::{
     Body, EdgeCurveSpec, EdgeDescription, EulerOpError, FaceSurface, MefSite, MevSite, SurfaceKey,
     ValidationError, validate, validate_closed, validate_geometric,
@@ -648,9 +648,11 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
                 a: Point2::new(0.0, 0.0),
                 b: Point2::new(1.0, 0.0),
                 // The half circle about (0.5, 0), counterclockwise.
-                centre: Point2::new(0.5, 0.0),
-                radius: 0.5,
-                sweep: core::f64::consts::PI,
+                arc: Arc2 {
+                    centre: Point2::new(0.5, 0.0),
+                    radius: 0.5,
+                    sweep: core::f64::consts::PI,
+                },
             },
             place: Affine3::identity(),
         }),
@@ -711,9 +713,11 @@ fn fixed_aliased_interval_refused_at_public_setter() {
             segment: SketchSegment::Arc {
                 a: Point2::new(0.0, 0.0),
                 b: Point2::new(1.0, 0.0),
-                centre: Point2::new(0.5, 0.0),
-                radius: 0.5,
-                sweep: PI,
+                arc: Arc2 {
+                    centre: Point2::new(0.5, 0.0),
+                    radius: 0.5,
+                    sweep: PI,
+                },
             },
             place: Affine3::identity(),
         }),

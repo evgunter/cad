@@ -4110,6 +4110,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `"assertion"` since it was written, for nodes no Python
         # caller could author. The positive form is
         # `tests/test_measures.py`.
+        #
+        # `transform_by` JOINED it at EDIT-PLACEMENT P1: a transform
+        # holds a `Placement` chain, and `transform` is its one-rigid-step
+        # sugar. The positive form is `tests/test_placement.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
@@ -4120,7 +4124,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "loft", "mate", "measure", "part", "pattern",
                 "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
-                "split", "transform", "tube", "union",
+                "split", "transform", "transform_by", "tube", "union",
             ],
         )
         #

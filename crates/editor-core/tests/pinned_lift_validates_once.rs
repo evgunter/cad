@@ -22,7 +22,7 @@ use crate::corpus::documents;
 use editor_core::{
     CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
 };
-use geom_core::{Real, Sign, Tol};
+use geom_core::{Arc2, Real, Sign, Tol};
 use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The `f64` loop embedded at `T` through `from_f64`, vertex by
@@ -61,9 +61,12 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
             if let SegmentKind::Arc {
-                center,
-                radius,
-                sweep,
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        sweep,
+                    },
                 ..
             } = s.kind
             {

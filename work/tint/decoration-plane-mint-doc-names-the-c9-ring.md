@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-29
 priority: P4
 cost: E
-refs: [ring-3-residue-outside-its-fence]
 ---
 
 

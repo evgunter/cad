@@ -139,12 +139,14 @@ fn spin(
 ) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: axis.map(scl),
-            rotation_angle: ang(angle),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: axis.map(scl),
+                angle: ang(angle),
+            },
+        ),
     )
 }
 

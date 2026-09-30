@@ -265,6 +265,7 @@ use geom::Surface;
 use geom_brep::recourse::Reading;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 use geom_core::{Band, Decide, Point3, Real, Tol};
+use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{
@@ -273,7 +274,7 @@ use crate::entity::{
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
-use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
+use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteMint, SiteRows};
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
 use crate::test_support_impl::ArenaCounts;
@@ -701,8 +702,12 @@ pub enum EulerOpError {
         he2: HalfEdgeKey,
     },
     /// A cycle walk failed to close, or closed without visiting the
-    /// half-edge it had to reach (despite matching parent-loop keys) —
-    /// tier-1-invalid input.
+    /// half-edge it had to reach (despite matching parent-loop keys), or
+    /// a kill's `next` step disagrees with the loop's members: the
+    /// member it would anchor the loop at is killed or lies in another
+    /// loop, or the loop it would empty keeps a member or empties at
+    /// another loop's lone vertex ([`Body::kef`], [`Body::kev`],
+    /// [`Body::kemr`]) — tier-1-invalid input.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -765,7 +770,8 @@ pub enum EulerOpError {
     /// [`EulerOpError::FanOrbitBroken`]); or a kill's new `emanating` for
     /// that vertex, read one `next` step from either killed half, starts
     /// elsewhere, or is `None` while another half-edge still starts there
-    /// (fired by [`Body::kef`], [`Body::kemr`] and the same three `kev`
+    /// or while no loop the kill empties holds the vertex (fired by
+    /// [`Body::kef`], [`Body::kemr`] and the same three `kev`
     /// calls, with `he` the killed half that starts at the vertex).
     OrbitBroken {
         /// The half-edge whose start vertex's orbit is broken.
@@ -920,10 +926,14 @@ pub enum EulerOpError {
     /// on a spline chart, the fitted frontier, or a half-edge of a loop
     /// the op rewires does not resolve). Raised before any mutation, so
     /// the body is untouched — these three operators leave no complete
-    /// face half-minted.
+    /// face half-minted. Also raised by [`Body::set_edge_curve`] on a
+    /// null edge's first description, which re-mints the faces the
+    /// edge's halves are on through the same site mint, where a
+    /// half-edge of such a face does not resolve.
     PcurveMint {
-        /// The face the new half-edge would join; for `mef`'s new face,
-        /// the face it is carved from.
+        /// The face whose rows were being re-minted: the face the new
+        /// half-edge would join (for `mef`'s new face, the face it is
+        /// carved from), or a face a described null edge's half is on.
         face: FaceKey,
         /// Why the row cannot be minted.
         refusal: crate::pcurves::SiteRowRefusal,
@@ -2175,7 +2185,7 @@ impl<T: Decide> Body<T> {
             (w, he2_loop),
             &provenance,
         );
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
 
         // Splice. Derived (module docs) rather than transcribed; the two
         // cases are the sequential "insert before he1, then before he2"
@@ -2300,7 +2310,7 @@ impl<T: Decide> Body<T> {
         let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (w, loop_key), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The two halves form the whole cycle: v → w → v.
         self.link_half_edges(he_plus, he_minus);
         self.link_half_edges(he_minus, he_plus);
@@ -2385,12 +2395,11 @@ impl<T: Decide> Body<T> {
     ) -> Result<MefCreated, EulerOpError> {
         // ---- Preconditions. ----
         let (he1_live, he1_data) = self.resolve_half_edge_live(he1)?;
-        let (u1, he1_prev, loop_key) = (he1_data.start, he1_data.prev, he1_data.parent_loop);
+        let (u1, he1_prev) = (he1_data.start, he1_data.prev);
         let (he2_live, he2_data) = self.resolve_half_edge_live(he2)?;
         let (u2, he2_prev) = (he2_data.start, he2_data.prev);
-        if he2_data.parent_loop != loop_key {
-            return Err(EulerOpError::NotSameLoop { he1, he2 });
-        }
+        let loop_key =
+            shared_loop(&he1_data, &he2_data).ok_or(EulerOpError::NotSameLoop { he1, he2 })?;
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(loop_key),
         })?;
@@ -2492,7 +2501,7 @@ impl<T: Decide> Body<T> {
             (u2, new_loop),
             &provenance,
         );
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
 
         // Splice (derivation in the module docs — Mäntylä's tail swap,
         // re-derived): he_minus closes he1's side into the new loop,
@@ -2613,7 +2622,7 @@ impl<T: Decide> Body<T> {
         let (new_loop, new_face) =
             self.mint_loop_and_face(surface, resolved.sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // Both halves are one-half-edge loops at v: the old loop keeps
         // he_plus, the new face's outer loop gets he_minus (the same
         // association as Chords — he1's "side" is the new loop).
@@ -2690,45 +2699,142 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// Proves the `emanating` writes of a kill that removes the
-    /// half-edges `killed`, one `(vertex, anchor, origin)` per write:
-    /// `Some(anchor)` starts at `vertex`
-    /// ([`Body::require_orbit_starts_at`]), and `None` leaves `vertex`
-    /// with no incidence, meaning every half-edge that starts at it is in
-    /// `killed`. Refuses [`EulerOpError::OrbitBroken`] naming `origin`,
-    /// the killed half that starts at `vertex`, at the first write that
-    /// fails. A kill that moves half-edges onto `vertex` (`kev`'s merged
-    /// fan) proves that anchor by its walk instead, and a kill that
-    /// writes one vertex twice proves both writes.
+    /// Proves the anchor writes of a kill that removes the half-edges
+    /// `killed`, before it mutates: every `emanating` write, then the
+    /// run it re-parents, then every loop write.
+    ///
+    /// One `(vertex, anchor, origin)` per `emanating` write, refusing
+    /// [`EulerOpError::OrbitBroken`] naming `origin`, the killed half
+    /// that starts at `vertex`, at the first that fails. A
+    /// [`KillAnchor::Step`] starts at `vertex`
+    /// ([`Body::require_orbit_starts_at`]); a [`KillAnchor::Merged`] is
+    /// proven by the caller's orbit walk and asks nothing here; a
+    /// [`KillAnchor::Lone`] leaves `vertex` lone: no half-edge but
+    /// `killed` starts at it, and a loop this kill writes is `Empty` at
+    /// it. A kill that writes one vertex twice proves both writes.
+    ///
+    /// Every member of the run claims the loop it is taken from, so the
+    /// move takes nothing out of a third loop; refuses
+    /// [`EulerOpError::LoopCycleBroken`] naming that loop otherwise.
+    ///
+    /// One `(loop, boundary)` per loop the kill keeps and re-anchors,
+    /// and the loop the run mints if it mints one
+    /// ([`KillInto::Minted`]), refusing `LoopCycleBroken` naming the
+    /// loop (for a minted loop, the run's) at the first that fails. A
+    /// `Cycle`'s `first` is not killed and lies in the loop once the
+    /// kill has run: its `parent_loop`, or the run's destination for a
+    /// member of the run. An `Empty` loop holds a vertex that `writes`
+    /// anchors [`KillAnchor::Lone`], keeps no member once the kill has
+    /// run, and is the only loop `Empty` at that vertex.
     ///
     /// Each kill reads an anchor one `next` step from a killed half, and
     /// reads "no anchor" where that step lands on a killed half. A torn
-    /// `next` can put the step on another vertex, or land it on a killed
-    /// half at a vertex that keeps other edges. The orbit walk from the
-    /// killed half takes that same step first, so it closes on the killed
-    /// halves either way; the `None` proof reads every half-edge's start
-    /// instead, bounded by the arena as the kill's orphan sweeps are. The
-    /// validator reports the faults this refuses in pass 5
-    /// (`EmanatingStartMismatch`, `LoneVertexWithIncidence`).
+    /// `next` can put the step on another vertex or into another loop,
+    /// or land it on a killed half where the vertex or the loop keeps
+    /// other members; a cycle walk it diverts through another loop
+    /// hands the kill that loop's members as its run; and a torn start
+    /// can put the vertex a kill empties a loop at on another lone
+    /// vertex, leaving its own vertex with neither. The orbit and cycle
+    /// walks from the killed half take the torn step first, so they
+    /// close on the killed halves either way; the `Lone` and `Empty`
+    /// proofs read the whole arena instead, bounded as the kill's orphan
+    /// sweeps are. The validator reports the faults this refuses in pass
+    /// 5 (`EmanatingStartMismatch`, `LoneVertexWithIncidence`,
+    /// `EmptyLoopVertexWithEmanating`), in its cycle pass
+    /// (`ParentLoopMismatch`, `UnreachableHalfEdge`), and as
+    /// `MultiplyOwned` and `DanglingTopology`.
     pub(crate) fn require_kill_anchors(
         &self,
-        writes: &[(VertexKey, Option<HalfEdgeKey>, HalfEdgeKey)],
+        writes: &[(VertexKey, KillAnchor, HalfEdgeKey)],
+        loops: &[(LoopKey, LoopBoundary)],
         killed: &[HalfEdgeKey],
+        run: Option<KillRun<'_>>,
     ) -> Result<(), EulerOpError> {
+        // Every loop write: the loop it lands on (`None`: the one the
+        // run mints), the loop a refusal names, and the boundary.
+        let minted = run.and_then(|run| match run.into {
+            KillInto::Minted(boundary) => Some((None, run.from, boundary)),
+            KillInto::Kept(_) => None,
+        });
+        let written: Vec<(Option<LoopKey>, LoopKey, LoopBoundary)> = loops
+            .iter()
+            .map(|&(r#loop, boundary)| (Some(r#loop), r#loop, boundary))
+            .chain(minted)
+            .collect();
         for &(vertex, anchor, origin) in writes {
             match anchor {
-                Some(anchor) => {
-                    self.require_orbit_starts_at(core::slice::from_ref(&anchor), vertex, origin)?;
+                KillAnchor::Step(step) => {
+                    self.require_orbit_starts_at(core::slice::from_ref(&step), vertex, origin)?;
                 }
-                None => {
-                    if self
+                KillAnchor::Merged(_) => {}
+                KillAnchor::Lone => {
+                    let held = written
+                        .iter()
+                        .any(|&(_, _, boundary)| boundary == LoopBoundary::Empty { vertex });
+                    let incident = self
                         .half_edges
                         .iter()
-                        .any(|(he, data)| data.start == vertex && !killed.contains(&he))
-                    {
+                        .any(|(he, data)| data.start == vertex && !killed.contains(&he));
+                    if incident || !held {
                         return Err(EulerOpError::OrbitBroken { he: origin });
                     }
                 }
+            }
+        }
+        let mut moved: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
+        let mut joins = None;
+        if let Some(KillRun {
+            members,
+            from,
+            into,
+        }) = run
+        {
+            for member in members {
+                if self
+                    .half_edges
+                    .get(member.key())
+                    .map(|data| data.parent_loop)
+                    != Some(from)
+                {
+                    return Err(EulerOpError::LoopCycleBroken { r#loop: from });
+                }
+                moved.insert(member.key(), ());
+            }
+            joins = match into {
+                KillInto::Kept(r#loop) => Some(r#loop),
+                KillInto::Minted(_) => None,
+            };
+        }
+        let stays_in = |he: HalfEdgeKey, data: &HalfEdge, target: Option<LoopKey>| {
+            !killed.contains(&he)
+                && if moved.contains_key(he) {
+                    joins == target
+                } else {
+                    Some(data.parent_loop) == target
+                }
+        };
+        for (target, name, boundary) in written {
+            let holds = match boundary {
+                LoopBoundary::Cycle { first } => self
+                    .half_edges
+                    .get(first)
+                    .is_some_and(|data| stays_in(first, data, target)),
+                LoopBoundary::Empty { vertex } => {
+                    writes
+                        .iter()
+                        .any(|&(lone, anchor, _)| lone == vertex && anchor == KillAnchor::Lone)
+                        && !self
+                            .half_edges
+                            .iter()
+                            .any(|(he, data)| stays_in(he, data, target))
+                        && !self
+                            .loops
+                            .iter()
+                            .any(|(other, data)| Some(other) != target && data.boundary == boundary)
+                }
+            };
+            if !holds {
+                return Err(EulerOpError::LoopCycleBroken { r#loop: name });
             }
         }
         Ok(())
@@ -3110,30 +3216,56 @@ impl<T: Decide> Body<T> {
     }
 
     /// **The pcurve rows the surgery's new halves need**, one plan per
-    /// face they land on, decided before the surgery mutates.
+    /// face they land on, decided before the surgery mutates: the site
+    /// mint as an Euler operator runs it ([`SiteMint::Operator`]), over
+    /// [`Body::plan_site_rows_as`]. `faces` describes the faces as the
+    /// surgery will leave them.
+    pub(crate) fn plan_site_rows(
+        &self,
+        touched: &[LoopKey],
+        faces: impl FnOnce(&Self) -> Result<Vec<SiteFace<T>>, EulerOpError>,
+        edge: &EdgeCurve<T>,
+        tol: Tol,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        self.plan_site_rows_as(
+            SiteMint::Operator,
+            touched,
+            |body, _| faces(body),
+            edge,
+            tol,
+        )
+    }
+
+    /// **A site mint's plan**: which faces it re-mints, and the rows it
+    /// writes onto each, decided before its door mutates.
     ///
-    /// `touched` names the loops the new halves are spliced into, as
-    /// the body holds them now. Their faces are read first, and only a
-    /// face whose rows are complete on a minting chart is re-minted
+    /// `touched` names the loops the door's halves are in, as the body
+    /// holds them now. Their faces are read first, once each, and only
+    /// a face `mint` selects is re-minted
     /// ([`crate::pcurves::site_rows_from`]); every other face is left
-    /// as found. So whether the op reads more than those faces, and
+    /// as found. So whether the door reads more than those faces, and
     /// whether it can refuse here, depends on the touched faces alone —
-    /// never on rows held elsewhere in the body — and when none of them
-    /// is complete, `faces` does not run and the op pays for no walk.
-    /// `faces` then describes the faces as the surgery will leave them,
-    /// and [`crate::pcurves::site_rows`] decides each one.
+    /// never on rows held elsewhere in the body — and when none is
+    /// selected, `faces` does not run and the door pays for no walk.
+    /// `faces` is handed the selected faces with their rows as found and
+    /// describes the faces as the door leaves them;
+    /// [`crate::pcurves::site_rows`] decides each one.
     ///
     /// # Errors
     ///
     /// In this order: a touched loop or its face does not resolve
     /// ([`EulerOpError::StaleKey`]), or the face's surface does not
-    /// ([`EulerOpError::StaleGeometry`]); then, only when a touched face
-    /// is complete, what `faces` raises; then
-    /// [`EulerOpError::PcurveMint`] naming the face.
-    pub(crate) fn plan_site_rows(
+    /// ([`EulerOpError::StaleGeometry`]); then, only when a face is
+    /// selected, what `faces` raises; then [`EulerOpError::PcurveMint`]
+    /// naming the face.
+    pub(crate) fn plan_site_rows_as(
         &self,
+        mint: SiteMint,
         touched: &[LoopKey],
-        faces: impl FnOnce(&Self) -> Result<Vec<SiteFace<T>>, EulerOpError>,
+        faces: impl FnOnce(
+            &Self,
+            &[(FaceKey, crate::pcurves::StoredRows<T>)],
+        ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         edge: &EdgeCurve<T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
@@ -3158,7 +3290,7 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleGeometry {
                         key: GeomRef::Surface(face_data.surface),
                     })?;
-            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface) {
+            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface, mint) {
                 minted.push((face, rows));
             }
         }
@@ -3168,13 +3300,13 @@ impl<T: Decide> Body<T> {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        faces(self)?
+        faces(self, &minted)?
             .iter()
             .map(|face| {
                 let Some((_, from)) = minted.iter().find(|(f, _)| *f == face.rows_from) else {
                     return Ok(SiteRows::Leave);
                 };
-                crate::pcurves::site_rows(self, face, from, edge, band).map_err(|refusal| {
+                crate::pcurves::site_rows(self, face, from, edge, band, mint).map_err(|refusal| {
                     EulerOpError::PcurveMint {
                         face: face.rows_from,
                         refusal,
@@ -3184,7 +3316,7 @@ impl<T: Decide> Body<T> {
             .collect()
     }
 
-    /// `face` as a surgery leaves it, for [`Body::plan_site_rows`]: its
+    /// `face` as a surgery leaves it, for [`Body::plan_site_rows_as`]: its
     /// chart, and its loops outer first — each loop named in `rewired`
     /// replaced by the half-edge sequence given there, `killed` gone,
     /// every other loop kept.
@@ -3402,6 +3534,67 @@ impl<T: Decide> Body<T> {
         );
         self.assert_tier1_postcondition(op);
     }
+}
+
+/// A run of half-edges a kill re-parents
+/// ([`Body::require_kill_anchors`]): the members its cycle walk took
+/// from the loop `from`, which join `into`.
+#[derive(Clone, Copy)]
+pub(crate) struct KillRun<'a> {
+    /// The run, as the walk returned it.
+    pub(crate) members: &'a [Live],
+    /// The loop the walk was of.
+    pub(crate) from: LoopKey,
+    /// The loop the run joins.
+    pub(crate) into: KillInto,
+}
+
+/// The loop a [`KillRun`] joins.
+#[derive(Clone, Copy)]
+pub(crate) enum KillInto {
+    /// A loop the kill keeps.
+    Kept(LoopKey),
+    /// The loop the kill mints, at this boundary, which
+    /// [`Body::require_kill_anchors`] proves as it proves a kept loop's.
+    Minted(LoopBoundary),
+}
+
+/// A vertex anchor a kill writes ([`Body::require_kill_anchors`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum KillAnchor {
+    /// A half-edge read one `next` step from a killed half.
+    Step(HalfEdgeKey),
+    /// The first member of a fan the kill merges onto the vertex, which
+    /// the kill's own orbit walk proves.
+    Merged(HalfEdgeKey),
+    /// No half-edge: the kill leaves the vertex lone, held by an `Empty`
+    /// loop it writes.
+    Lone,
+}
+
+impl KillAnchor {
+    /// The anchor a kill reads one `next` step away, `Lone` where that
+    /// step lands on a killed half.
+    pub(crate) fn step(anchor: Option<HalfEdgeKey>) -> Self {
+        anchor.map_or(Self::Lone, Self::Step)
+    }
+
+    /// The `emanating` the write stores.
+    pub(crate) fn key(self) -> Option<HalfEdgeKey> {
+        match self {
+            Self::Step(he) | Self::Merged(he) => Some(he),
+            Self::Lone => None,
+        }
+    }
+}
+
+/// The loop both half-edges claim, `None` where they claim two: the one
+/// comparison behind [`EulerOpError::NotSameLoop`] (a caller's pair that
+/// [`MefSite::Chords`] or [`Body::kemr`] needs in one loop) and
+/// [`Body::kev`]'s adjacent-arm [`EulerOpError::LoopCycleBroken`] (a
+/// torn `next` that reads two loops' halves as adjacent).
+pub(crate) fn shared_loop(a: &HalfEdge, b: &HalfEdge) -> Option<LoopKey> {
+    (a.parent_loop == b.parent_loop).then_some(a.parent_loop)
 }
 
 /// The **plane × NURBS attach door** (M7-8).

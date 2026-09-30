@@ -287,7 +287,9 @@ where
             env.boolean_sweep,
             tol,
         ),
-        Node::Transform { input, .. } => wire_transform(id, *input, results, vals, tol),
+        Node::Transform { input, placement } => {
+            wire_transform(id, *input, placement, results, vals, tol)
+        }
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
         // No `id`: the projection mints no description and no name, so
         // nothing it produces is stamped or keyed by this node.
@@ -296,7 +298,7 @@ where
             id,
             *input,
             kind,
-            node.placement_rule_fault(),
+            node.placement_rule_fault(tol),
             results,
             vals,
             tol,
@@ -405,10 +407,11 @@ where
             });
         }
     }
-    // The identity fast-path is admitted only for a BIT-exact identity
-    // frame: any other value could round, and `transform_rigid` is what
-    // decides whether it stayed rigid.
-    let map = (!placement.is_identity_bits()).then(|| placement.affine::<T>());
+    // The identity fast-path is the composition rule's
+    // (`placement::Motion`): admitted only for a BIT-exact identity
+    // frame, since any other value could round, and `transform_rigid`
+    // is what decides whether it stayed rigid.
+    let map = placement.motion::<T>().non_identity();
     let placed = place(&part.body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
@@ -906,9 +909,10 @@ pub(crate) fn need_scalar<T: Decide>(
 /// with the mate solve for the same reason.
 pub(crate) fn need_vec3<T: Decide>(
     vals: &SlotValues<T>,
-    f: fn(Axis3) -> SlotId,
+    f: impl Fn(Axis3) -> SlotId,
 ) -> Result<Vec3<T>, NodeErrorKind> {
-    slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
+    let slot = f(Axis3::X);
+    slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot })
 }
 
 fn need_point3<T: Decide>(
@@ -4018,10 +4022,11 @@ pub(crate) const TUBE_REFERENCE_ROLE: &str =
 /// [`unit()`]).
 pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 
-/// **The rigid map a [`crate::node::Node::Transform`] applies** — the
-/// one home of that construction, read by the evaluation and by the
-/// mate solve's derived offset, so a transform under a mate and a
-/// transform under the gather move a body by the same arithmetic.
+/// **The rigid map of a placement's rigid step** — the one home of
+/// that construction, read only by [`crate::Placement::motion`], which
+/// the evaluation and the mate solve's derived offset both read, so a
+/// transform under a mate and a transform under the gather move a body
+/// by the same arithmetic.
 ///
 /// Rotate about the axis THROUGH THE WORLD ORIGIN by `angle`, then
 /// translate. [`Mat3::rotation_about`] re-normalizes the already-unit
@@ -4034,9 +4039,10 @@ pub(crate) fn transform_map<T: Decide>(
     Affine3::from_parts(Mat3::rotation_about(axis.get(), angle), translation)
 }
 
-/// **The transform node**: ONE rigid map, shape-preserving over its
-/// input's value ([`Placeable`]), so body `i` of a transform of
-/// instances is bit for bit what the same map does to that body alone.
+/// **The transform node**: ONE rigid map, its placement's motion
+/// ([`crate::Placement::motion`]), shape-preserving over its input's
+/// value ([`Placeable`]), so body `i` of a transform of instances is
+/// bit for bit what the same map does to that body alone.
 ///
 /// Identity-preserving pass-through (spec D2): the transform
 /// contributes NO `RolePath` segment. `transform_rigid` is key-stable,
@@ -4046,20 +4052,14 @@ pub(crate) fn transform_map<T: Decide>(
 fn wire_transform<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
+    placement: &crate::placement::Placement,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
     let value = value_of(results, input)?;
     let placeable = placeable_operand(value, input)?;
-    let translation = need_vec3(vals, SlotId::Translation)?;
-    let rot_axis = unit(
-        need_vec3(vals, SlotId::RotationAxis)?,
-        TRANSFORM_AXIS_ROLE,
-        band(tol)?,
-    )?;
-    let angle = need_scalar(vals, SlotId::RotationAngle)?;
-    let map = transform_map(translation, rot_axis, angle);
+    let map = placement.motion(vals, band(tol)?)?;
     let per = placeable.bodies().len();
     let payload =
         placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;

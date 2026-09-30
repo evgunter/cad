@@ -154,7 +154,7 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -225,16 +225,10 @@ pub enum Segment<T: Real> {
     /// A straight segment: its carrier is the chord between its two
     /// vertices, and the interval is the chord itself.
     Line,
-    /// A circular arc.
-    Arc {
-        /// The carrier circle's centre (sketch coordinates).
-        centre: Point2<T>,
-        /// The carrier circle's radius (positive).
-        radius: T,
-        /// The signed sweep Δθ from the segment's start vertex to its
-        /// end vertex about `centre`: positive counterclockwise.
-        sweep: T,
-    },
+    /// A circular arc: its carrier (sketch coordinates) and the signed
+    /// sweep Δθ from the segment's start vertex to its end vertex about
+    /// the centre, positive counterclockwise.
+    Arc(Arc2<T>),
 }
 
 /// **The lowering rule** every loop is built by: the canonical segment
@@ -245,26 +239,7 @@ pub(crate) fn lower_to<T: Real>(start: Point2<T>, bulge: T, end: Point2<T>) -> S
     if is_exact_zero(bulge) {
         return Segment::Line;
     }
-    let LoweredArc {
-        centre,
-        radius,
-        sweep,
-    } = lower_arc(start, end, bulge);
-    Segment::Arc {
-        centre,
-        radius,
-        sweep,
-    }
-}
-
-/// An arc's carrier and sweep, as [`lower_arc`] derives them.
-pub(crate) struct LoweredArc<T: Real> {
-    /// The carrier circle's centre.
-    pub centre: Point2<T>,
-    /// The carrier circle's radius.
-    pub radius: T,
-    /// The signed sweep Δθ.
-    pub sweep: T,
+    Segment::Arc(lower_arc(start, end, bulge))
 }
 
 /// **The arc lowering**: the carrier [`seg::arc_carrier`] puts on the
@@ -276,9 +251,9 @@ pub(crate) struct LoweredArc<T: Real> {
 /// arc's carrier and sweep through it at the target scalar. A bulge of
 /// exactly zero has no carrier (its centre is at infinity), and the
 /// lowering rule sends it to a line before it reaches here.
-pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> LoweredArc<T> {
+pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> Arc2<T> {
     let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
-    LoweredArc {
+    Arc2 {
         centre: carrier.center,
         radius: carrier.radius,
         sweep: T::from_f64(4.0) * bulge.atan(),
@@ -507,7 +482,7 @@ macro_rules! raw_door {
                     .iter()
                     .map(|segment| match *segment {
                         Segment::Line => T::zero(),
-                        Segment::Arc { sweep, .. } => (sweep / T::from_f64(4.0)).tan(),
+                        Segment::Arc(Arc2 { sweep, .. }) => (sweep / T::from_f64(4.0)).tan(),
                     })
                     .collect();
                 Self {
@@ -1050,7 +1025,7 @@ mod lowering_tests {
             Point2::new(T::one(), T::zero()),
         ) {
             Segment::Line => "line",
-            Segment::Arc { .. } => "arc",
+            Segment::Arc(..) => "arc",
         }
     }
 
@@ -1142,16 +1117,16 @@ mod lowering_tests {
             match (lp.segments()[j], back.segments()[k]) {
                 (Segment::Line, Segment::Line) => {}
                 (
-                    Segment::Arc {
+                    Segment::Arc(Arc2 {
                         centre: c,
                         radius: r,
                         sweep: s,
-                    },
-                    Segment::Arc {
+                    }),
+                    Segment::Arc(Arc2 {
                         centre: cb,
                         radius: rb,
                         sweep: sb,
-                    },
+                    }),
                 ) => {
                     assert_eq!(bits(&sb), bits(&-s), "segment {k} sweep");
                     assert_eq!(bits(&rb), bits(&r), "segment {k} radius");

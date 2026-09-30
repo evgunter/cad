@@ -657,58 +657,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -722,58 +730,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -787,58 +803,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -852,58 +876,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -917,58 +949,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -982,58 +1022,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1047,58 +1095,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 3.141592653589793,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 3.141592653589793,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1112,58 +1168,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1177,58 +1241,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1242,58 +1314,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1307,58 +1387,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1372,58 +1460,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1437,58 +1533,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1502,58 +1606,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1567,58 +1679,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1632,58 +1752,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1697,58 +1825,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 1.04,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": -1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": 1.04,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.5,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": -1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1762,58 +1898,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1827,58 +1971,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1892,58 +2044,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }
@@ -1957,58 +2117,66 @@ id: a8d79f40ddb79de569d778f1c0b832f9
           "node": {
             "Transform": {
               "input": 7,
-              "translation": [
-                {
-                  "Literal": {
-                    "value": 0.28,
-                    "dim": "Length",
-                    "unit": "mm"
+              "placement": {
+                "steps": [
+                  {
+                    "Rigid": {
+                      "translation": [
+                        {
+                          "Literal": {
+                            "value": 0.28,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": -0.040000000000000036,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.72,
+                            "dim": "Length",
+                            "unit": "mm"
+                          }
+                        }
+                      ],
+                      "axis": [
+                        {
+                          "Literal": {
+                            "value": 1.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        },
+                        {
+                          "Literal": {
+                            "value": 0.0,
+                            "dim": "Scalar",
+                            "unit": ""
+                          }
+                        }
+                      ],
+                      "angle": {
+                        "Literal": {
+                          "value": 1.5707963267948966,
+                          "dim": "Angle",
+                          "unit": "deg"
+                        }
+                      }
+                    }
                   }
-                },
-                {
-                  "Literal": {
-                    "value": -0.040000000000000036,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.72,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "rotation_axis": [
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ],
-              "rotation_angle": {
-                "Literal": {
-                  "value": 1.5707963267948966,
-                  "dim": "Angle",
-                  "unit": "deg"
-                }
+                ]
               }
             }
           }

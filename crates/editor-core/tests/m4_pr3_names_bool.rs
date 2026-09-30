@@ -297,12 +297,14 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
         let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, tb) = insert(
             doc,
-            Node::Transform {
-                input: b0,
-                translation: [len(tx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                b0,
+                editor_core::Step::Rigid {
+                    translation: [len(tx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
         let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));
@@ -341,12 +343,14 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
         let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, tb) = insert(
             doc,
-            Node::Transform {
-                input: b0,
-                translation: [len(tx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                b0,
+                editor_core::Step::Rigid {
+                    translation: [len(tx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
         let (doc, decl) = declare_x_offset_flush_at(doc, (a, a), (tb, b0));

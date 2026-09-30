@@ -31,8 +31,8 @@
 //! The shape is the injected plane × NURBS lane's ([`crate::NurbsLane`]),
 //! for the same reason and with the same discipline: a caller that can
 //! derive hands the door in, a caller that cannot hands `None` and gets
-//! the typed refusal its pass already had. Under `work/scalar/H5.md`
-//! §RATIFIED ruling 3 the door is the parameter a mixed pass takes;
+//! the typed refusal its pass already had. Under H5's ratified ruling 3
+//! (PR 2701) the door is the parameter a mixed pass takes;
 //! the scalar seam that produces it is the per-scalar policy that cut
 //! leaves standing, folded into `topo::AtRestPolicy` rather than
 //! carried on a trait of its own.
