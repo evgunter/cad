@@ -204,13 +204,9 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
             assert_eq!(held.len(), loops.len(), "{name}: one held list per loop");
             for notation in [authored_in, other] {
                 let committed = program(&session, profile);
-                let lowered = ProfileProgram {
-                    plane: committed.plane,
-                    loops: lowered(&held, notation),
-                    ids: committed.ids.clone(),
-                };
+                let lowered = lowered(&held, notation);
                 assert!(
-                    lowered == *committed,
+                    sketch::is_committed(committed, &lowered, &sketch::kept_in_place(committed)),
                     "{name}: an untouched load lowers to another program: {lowered:?}"
                 );
             }
@@ -262,11 +258,11 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         };
         let held = sketch::held_program(node, &program, &ParamEnv::default())
             .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
-        let back = ProfileProgram {
-            loops: lowered(&held, MM),
-            ..program.clone()
-        };
-        assert!(back == program, "{verb}: came back as {back:?}");
+        let back = lowered(&held, MM);
+        assert!(
+            sketch::is_committed(&program, &back, &sketch::kept_in_place(&program)),
+            "{verb}: came back as {back:?}"
+        );
     }
 }
 

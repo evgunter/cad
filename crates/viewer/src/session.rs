@@ -2278,14 +2278,14 @@ impl DocSession {
 
     /// **What [`SessionOp::EditProfile`] would report, without
     /// committing it** — the edit door's own `Applied::maintenance` for
-    /// the one `SetProgram` the op would commit: every name on a step
+    /// the one `SetProgram` the op would commit, netted by
+    /// [`MaintenanceNet`] as the commit nets it: every name on a step
     /// the reshaping drops, stranded. Empty when the op would write
     /// nothing.
     ///
-    /// The profile editor reads it BEFORE its Apply, so a person
-    /// dropping a step sees the names they are about to lose while
-    /// they can still keep the step; the op's outcome carries the same
-    /// rows after.
+    /// The profile editor reads it BEFORE its Apply, while the person
+    /// can still keep the step; the op's outcome carries the same rows
+    /// after.
     ///
     /// # Errors
     ///
@@ -2302,9 +2302,11 @@ impl DocSession {
         };
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
-        apply(self.committed_doc(), &edit, self.tol, &reach)
-            .map(|applied| applied.maintenance)
-            .map_err(|error| Refusal::Edit(Box::new(error)))
+        let applied = apply(self.committed_doc(), &edit, self.tol, &reach)
+            .map_err(|error| Refusal::Edit(Box::new(error)))?;
+        let mut net = MaintenanceNet::new();
+        net.push(&applied);
+        Ok(net.finish(&applied.doc))
     }
 
     /// **The one `SetProgram` [`SessionOp::EditProfile`] commits**, or
@@ -2329,13 +2331,7 @@ impl DocSession {
             return Err(Refusal::ProfileEditStale { node });
         }
         let loops = carry_unmoved(doc, node, current, loops, &ids)?;
-        let unchanged = ids == sketch::kept_in_place(current)
-            && *current
-                == ProfileProgram {
-                    plane: current.plane,
-                    loops: loops.clone(),
-                    ids: current.ids.clone(),
-                };
+        let unchanged = sketch::is_committed(current, &loops, &ids);
         Ok((!unchanged).then_some(DocEdit::SetProgram { node, loops, ids }))
     }
 
@@ -2744,15 +2740,9 @@ impl DocSession {
         )
     }
 
-    /// The same door for an action that takes SEVERAL edits: apply
-    /// them in order, and record the whole run as one history state,
-    /// so one user action is one undo.
-    ///
-    /// **All or nothing**: each edit is applied to the value the last
-    /// one produced and nothing is recorded until every one has
-    /// succeeded, so a refusal anywhere leaves the session on the
-    /// document it started from. That is purity doing the work — no
-    /// rollback exists to be got wrong.
+    /// The same door for an action that takes SEVERAL edits, a fixed
+    /// list of them: one run of [`Self::commit_run`], so one user
+    /// action is one undo.
     fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
         let mut edits = edits.into_iter();
         self.commit_run(|_| edits.next())

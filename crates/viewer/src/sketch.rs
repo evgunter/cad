@@ -474,6 +474,24 @@ pub fn kept_in_place(program: &ProfileProgram) -> Vec<Vec<Option<StepId>>> {
         .collect()
 }
 
+/// **Whether `loops` under `ids` is `base` itself** — every step kept
+/// in place and the program bit-equal to `base`, blind to notation: a
+/// `DocEdit::SetProgram` of them would write nothing.
+#[must_use]
+pub fn is_committed(
+    base: &ProfileProgram,
+    loops: &[LoopProgram],
+    ids: &[Vec<Option<StepId>>],
+) -> bool {
+    ids == kept_in_place(base).as_slice()
+        && *base
+            == ProfileProgram {
+                plane: base.plane,
+                loops: loops.to_vec(),
+                ids: base.ids.clone(),
+            }
+}
+
 /// Why a committed node cannot be held by the path editor.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HeldRefusal {

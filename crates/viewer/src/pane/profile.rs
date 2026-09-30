@@ -11,7 +11,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Maintenance, RecipeNodeId};
+use pncad::document::RecipeNodeId;
 use pncad::geom_core::Tol;
 use pncad::profile::{Step, TipState, Verb};
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
@@ -140,7 +140,8 @@ pub(crate) fn edit_door_ui(
                 .unwrap_or_default()
         })
         .iter()
-        .filter_map(stranded_line)
+        .filter_map(frame::maintenance_notice)
+        .map(|notice| notice.text().to_owned())
         .collect()
     } else {
         Vec::new()
@@ -169,19 +170,6 @@ pub(crate) fn edit_door_ui(
         ));
     }
     Ok(None)
-}
-
-/// A stranding row as the line Apply's hover lists it under — the
-/// carrier and the name, which is what a reader has to find again —
-/// or `None` for a row that strands nothing.
-fn stranded_line(row: &Maintenance) -> Option<String> {
-    match row {
-        Maintenance::Strand { node, name } => Some(format!("node {} carries a {name}", node.0)),
-        Maintenance::StrandedAppearance { name } => Some(format!(
-            "the appearance store holds an attachment under a {name}"
-        )),
-        Maintenance::OrphanedDeclare { .. } | Maintenance::Cluster(_) => None,
-    }
 }
 
 /// **What the editor's preview says about its loops**, said under the
@@ -302,7 +290,7 @@ pub(crate) fn path_steps_ui(
     // the same reason the moves are: the probe that decides which
     // verbs a combo may offer reads the WHOLE list, and it cannot
     // borrow it while a row holds a mutable slice of it.
-    let mut rebind: Option<(usize, Verb, Option<TipState>)> = None;
+    let mut reverb: Option<(usize, Verb, Option<TipState>)> = None;
     let mut insert: Option<usize> = None;
     // The tip each row's step lands on, read off the replay of the
     // rows before it. Every frame rather than only while a combo is
@@ -329,19 +317,12 @@ pub(crate) fn path_steps_ui(
                 swap = Some((index, index + 1));
             }
             // **Insert after this row.** A chain is written in the
-            // middle as often as at the end — a leg forgotten
-            // between two that exist used to mean appending it and
-            // walking it up with the arrows — so every row carries
-            // the control, and the last row's is the append.
-            //
-            // In the row's own control cluster rather than at the
-            // far end of it, which is where this first went: a
-            // row's width is its verb's, so at the end the `+`
-            // sits at a different place on every row and, on the
-            // widest, past the edge of a pane that does not scroll
-            // sideways. A control that moves under the cursor is
-            // worse than one that is not where a reader first
-            // looks for it.
+            // middle as often as at the end, so every row carries
+            // the control, and the last row's is the append. It sits
+            // in the row's own control cluster: a row's width is its
+            // verb's, so at the far end the `+` would move from row
+            // to row and, on the widest, sit past the edge of a pane
+            // that does not scroll sideways.
             if step_control(ui, "+", "insert a step after this one", None) {
                 insert = Some(index + 1);
             }
@@ -375,7 +356,7 @@ pub(crate) fn path_steps_ui(
                                 ));
                             }
                             None if row.clicked() && option != verb => {
-                                rebind = Some((index, option, state));
+                                reverb = Some((index, option, state));
                             }
                             None => {}
                         }
@@ -392,11 +373,6 @@ pub(crate) fn path_steps_ui(
             // that inserts after it — including the last, which is the
             // append — so a second control at the bottom would be the
             // same move spelled twice.
-            //
-            // There is no verb picker beside it either. It duplicated
-            // the row combo one row down: whatever the new step is,
-            // the way to change it is the same control either way, and
-            // a second one only asked the question a frame earlier.
             if steps.is_empty() {
                 ui.button("Add step").clicked().then(|| RowEdit::Insert {
                     at: 0,
@@ -407,7 +383,7 @@ pub(crate) fn path_steps_ui(
             }
         })
         .inner;
-    let replace = rebind.map(|(index, verb, state)| RowEdit::Replace {
+    let replace = reverb.map(|(index, verb, state)| RowEdit::Replace {
         index,
         step: sketch::fresh_step_at(verb, state),
     });
@@ -465,11 +441,11 @@ const UNTOUCHED: &str = "the steps and numbers are the committed profile's";
 /// hover. A refused preview has its sentence already, drawn under the
 /// step list by [`preview_verdict`], so Apply adds none for it.
 ///
-/// **Apply says what it strands before it is clicked.** A name on a
-/// committed step the program drops keeps its spelling and resolves to
-/// nothing until it is rebound — a fillet on that edge is the fillet
-/// the person is about to lose — so the count is on the button, as a
-/// delete's cascade is, and each `stranded` line is on its hover.
+/// **Apply says what it strands before it is clicked** — a fillet on a
+/// dropped step's edge is the fillet the person is about to lose — so
+/// the count is on the button, as a delete's cascade is, and each
+/// `stranded` row's own sentence ([`frame::maintenance_notice`]) is on
+/// its hover.
 ///
 /// Answers whether each was clicked — Apply, then Revert — which a
 /// disabled button never is.
@@ -490,11 +466,7 @@ fn apply_and_revert(
     } else if stranded.is_empty() {
         apply
     } else {
-        let lines = stranded.join("\n");
-        let said = format!(
-            "this drops a committed step names are on; each keeps its spelling and resolves to \
-             nothing until it is rebound:\n{lines}"
-        );
+        let said = stranded.join("\n");
         apply.on_hover_text(&said).on_disabled_hover_text(said)
     };
     let revert = ui.add_enabled(moved, egui::Button::new("Revert"));

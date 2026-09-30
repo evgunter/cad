@@ -352,10 +352,9 @@ pub(crate) struct ProfileEdit {
     /// as, carried through every row edit ([`Self::edit_row`]); `None`
     /// for a row the editor made. The same shape as `loops`, always.
     loaded_as: Vec<Vec<Option<StepId>>>,
-    /// The committed program's steps as the editor first held them,
-    /// by id — what [`Self::ids`] asks a held step whether it still
-    /// draws.
-    committed: BTreeMap<StepId, Step<f64>>,
+    /// The base program's steps as the editor first held them, by id
+    /// — what [`Self::ids`] asks a held step whether it still draws.
+    base_steps: BTreeMap<StepId, Step<f64>>,
     /// The edit door's report for the last held state it was asked
     /// about ([`Self::report`]).
     report: Option<HeldReport>,
@@ -375,11 +374,7 @@ impl ProfileEdit {
     /// The draft of `program`, held as `loops` ([`sketch::held_loops`]
     /// of it), every step loaded as itself.
     fn load(node: RecipeNodeId, program: &ProfileProgram, loops: Vec<Vec<Step<f64>>>) -> Self {
-        let loaded_as: Vec<Vec<Option<StepId>>> = program
-            .ids
-            .iter()
-            .map(|steps| steps.iter().copied().map(Some).collect())
-            .collect();
+        let loaded_as = sketch::kept_in_place(program);
         let shaped = program.ids.len() == loops.len()
             && program
                 .ids
@@ -392,7 +387,7 @@ impl ProfileEdit {
                  step per authored step"
             )
         }
-        let committed = program
+        let base_steps = program
             .ids
             .iter()
             .flatten()
@@ -404,7 +399,7 @@ impl ProfileEdit {
             base: program.clone(),
             loops,
             loaded_as,
-            committed,
+            base_steps,
             report: None,
         }
     }
@@ -436,27 +431,14 @@ impl ProfileEdit {
     /// Apply a row edit to held loop `loop_`, and to what each of its
     /// rows was loaded as.
     pub(crate) fn edit_row(&mut self, loop_: usize, edit: RowEdit) {
-        edit.shape(&mut self.loaded_as[loop_], None);
+        edit.shape(&mut self.loaded_as[loop_], |_| None);
         edit.apply(&mut self.loops[loop_]);
     }
 
     /// **Which committed step each held step is** — `SetProgram`'s
-    /// `ids`: per loop, per step, the id of the committed step it
-    /// keeps, or `None` for a step the edit mints.
-    ///
-    /// A held step keeps the id it was loaded as, through every
-    /// insert, removal and reorder of the rows around it, for as long
-    /// as it draws the committed step's pieces: the same verb, and for
-    /// a split circle the same count. A step's piece roles are a
-    /// function of exactly those two (a verb's role list, and
-    /// `circle_split`'s `Piece(k)` for `k < n`), so a kept id never
-    /// hands a name a piece of another role, and a changed number, arc
-    /// mode, side, winding or target form is still the step it was.
-    /// A row whose verb was picked again is a fresh step
-    /// ([`RowEdit::Replace`]) and keeps nothing, whatever verb it ends
-    /// at; a split circle whose count moved is a different
-    /// subdivision, whose `Piece(k)` is another arc, and keeps nothing
-    /// either — both are reported stranded rather than rebound.
+    /// `ids`: per loop, per step, the id it was loaded as while it
+    /// still draws that step's pieces ([`draws_as`]), else `None`, so
+    /// a kept id never hands a name a piece of another role.
     pub(crate) fn ids(&self) -> Vec<Vec<Option<StepId>>> {
         self.loops
             .iter()
@@ -467,8 +449,8 @@ impl ProfileEdit {
                     .zip(loaded_as)
                     .map(|(step, id)| {
                         let id = (*id)?;
-                        let was = self.committed.get(&id)?;
-                        same_pieces(was, step).then_some(id)
+                        let was = self.base_steps.get(&id)?;
+                        draws_as(was, step).then_some(id)
                     })
                     .collect()
             })
@@ -529,17 +511,9 @@ impl ProfileEdit {
     /// state that does not lower counts as moved: applying it is how
     /// its refusal is said.
     pub(crate) fn moved(&self) -> bool {
-        let untouched = self.ids() == sketch::kept_in_place(&self.base)
-            && self
-                .programs(sketch::Notation::CANONICAL)
-                .is_ok_and(|loops| {
-                    self.base
-                        == ProfileProgram {
-                            plane: self.base.plane,
-                            loops,
-                            ids: self.base.ids.clone(),
-                        }
-                });
+        let untouched = self
+            .programs(sketch::Notation::CANONICAL)
+            .is_ok_and(|loops| sketch::is_committed(&self.base, &loops, &self.ids()));
         !untouched
     }
 
@@ -556,13 +530,11 @@ impl ProfileEdit {
     }
 }
 
-/// Whether `now` draws the pieces `was` drew: the same verb, and for a
-/// split circle the same count ([`ProfileEdit::ids`]).
-fn same_pieces(was: &Step<f64>, now: &Step<f64>) -> bool {
-    match (was, now) {
-        (Step::CircleSplit { n: a, .. }, Step::CircleSplit { n: b, .. }) => a == b,
-        _ => was.verb() == now.verb(),
-    }
+/// Whether `now` draws the pieces `was` drew: the same verb, whose
+/// role list it draws from, and the same piece count
+/// ([`Step::pieces`]).
+fn draws_as(was: &Step<f64>, now: &Step<f64>) -> bool {
+    was.verb() == now.verb() && was.pieces() == now.pieces()
 }
 
 /// **A change to the SHAPE of one step list** — what a step row's
@@ -572,8 +544,7 @@ fn same_pieces(was: &Step<f64>, now: &Step<f64>) -> bool {
 #[derive(Clone, Debug)]
 pub(crate) enum RowEdit {
     /// Row `index` becomes `step`: a fresh step of the verb the row's
-    /// picker chose. Two verbs' fields mean different things, so no
-    /// number is carried across, and it is a new step.
+    /// picker chose, with no number carried across.
     Replace {
         /// The row.
         index: usize,
@@ -597,28 +568,20 @@ pub(crate) enum RowEdit {
 
 impl RowEdit {
     /// The edit, made to `steps`.
-    pub(crate) fn apply(self, steps: &mut Vec<Step<f64>>) {
-        match self {
-            Self::Replace { index, step } => steps[index] = step,
-            Self::Remove(index) => {
-                steps.remove(index);
-            }
-            Self::Insert { at, step } => steps.insert(at, step),
-            Self::Swap(a, b) => steps.swap(a, b),
-            Self::Clear => steps.clear(),
-        }
+    pub(crate) fn apply(&self, steps: &mut Vec<Step<f64>>) {
+        self.shape(steps, |step| *step);
     }
 
-    /// The same edit made to a list beside the steps, one entry per
-    /// row, where a replaced or inserted row holds `fresh`.
-    fn shape<T: Clone>(&self, rows: &mut Vec<T>, fresh: T) {
-        match *self {
-            Self::Replace { index, .. } => rows[index] = fresh,
+    /// The edit made to a list of one entry per row, where a replaced
+    /// or inserted row holds `fresh` of its step.
+    fn shape<T>(&self, rows: &mut Vec<T>, fresh: impl FnOnce(&Step<f64>) -> T) {
+        match self {
+            Self::Replace { index, step } => rows[*index] = fresh(step),
             Self::Remove(index) => {
-                rows.remove(index);
+                rows.remove(*index);
             }
-            Self::Insert { at, .. } => rows.insert(at, fresh),
-            Self::Swap(a, b) => rows.swap(a, b),
+            Self::Insert { at, step } => rows.insert(*at, fresh(step)),
+            Self::Swap(a, b) => rows.swap(*a, *b),
             Self::Clear => rows.clear(),
         }
     }
@@ -1532,19 +1495,13 @@ mod tests {
         let Some(Node::Profile(current)) = doc.node(profile) else {
             panic!("a profile")
         };
-        assert_eq!(
-            edit.ids(),
-            sketch::kept_in_place(current),
-            "every step is its committed self"
-        );
-        let rewritten = ProfileProgram {
-            plane: current.plane,
-            loops: edit.programs(notation).expect("finite"),
-            ids: current.ids.clone(),
-        };
         assert!(
-            rewritten == *current,
-            "the held program is the committed one"
+            sketch::is_committed(
+                current,
+                &edit.programs(notation).expect("finite"),
+                &edit.ids()
+            ),
+            "the held program, every step its committed self, is the committed one"
         );
     }
 

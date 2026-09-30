@@ -520,7 +520,7 @@ pub enum SessionOp {
     EditProfile {
         /// The profile node.
         node: RecipeNodeId,
-        /// The committed program the editor's numbers were loaded
+        /// The committed program the editor's program was loaded
         /// from.
         base: ProfileProgram,
         /// The loop programs the editor holds, in description order.
