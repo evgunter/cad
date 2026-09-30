@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-29
 priority: P0
 cost: M
+pr: 3530
 ---
 
 **A red nightly is a red main, and the orchestrator owns it**
