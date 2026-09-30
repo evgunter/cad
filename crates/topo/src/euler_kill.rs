@@ -3938,4 +3938,60 @@ mod tests {
         let torn = EulerOpError::LoopCycleBroken { r#loop: l1 };
         assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
     }
+
+    #[test]
+    fn kef_refuses_to_kill_a_loop_whose_walk_skips_a_member() {
+        // The dying loop's walk torn past its third member
+        // (`next(next(he)) := next(next(next(he)))`, one `next` tear on
+        // the declined cube): the walk closes without that member, which
+        // still claims the dying loop. Unchecked, the kill removes the
+        // loop, leaves the member naming it, and returns `Ok`.
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let (he, _) = body.half_edges().next().unwrap();
+        let second = body.get_half_edge(he).unwrap().next;
+        let skipped = body.get_half_edge(second).unwrap().next;
+        let fourth = body.get_half_edge(skipped).unwrap().next;
+        body.get_half_edge_mut(second).unwrap().next = fourth;
+        let l1 = loop_of(&body, he);
+        assert!(
+            !body.loop_cycle(he).unwrap().contains(&skipped) && loop_of(&body, skipped) == l1,
+            "the walk skips a member of the dying loop"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l1 };
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
+    }
+
+    /// A segment's solid beside a lone vertex's (`mvfs`, then `mev_line`
+    /// at `MevSite::Lone`, then `mvfs`): the segment's plus half and the
+    /// lone solid.
+    fn segment_beside_a_lone_solid() -> (Body<f64>, HalfEdgeKey, MvfsCreated) {
+        let (mut body, _, seg) = segment();
+        let lone = body.mvfs(p(5.0), true).unwrap();
+        (body, seg.he_plus, lone)
+    }
+
+    #[test]
+    fn kvfs_refuses_a_loop_a_torn_half_edge_claims() {
+        // The segment's plus half torn to claim the lone loop. Unchecked,
+        // the kill removes the loop the half-edge names, and returns `Ok`.
+        let (mut body, he, lone) = segment_beside_a_lone_solid();
+        body.get_half_edge_mut(he).unwrap().parent_loop = lone.r#loop;
+        let torn = EulerOpError::LoopCycleBroken {
+            r#loop: lone.r#loop,
+        };
+        assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
+    }
+
+    #[test]
+    fn kvfs_refuses_a_vertex_a_torn_half_edge_starts_at() {
+        // The segment's plus half torn to start at the lone vertex.
+        // Unchecked, the kill removes the vertex the half-edge starts at,
+        // and returns `Ok`.
+        let (mut body, he, lone) = segment_beside_a_lone_solid();
+        body.get_half_edge_mut(he).unwrap().start = lone.vertex;
+        let torn = EulerOpError::LoopCycleBroken {
+            r#loop: lone.r#loop,
+        };
+        assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
+    }
 }

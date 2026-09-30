@@ -1775,7 +1775,8 @@ mod tests {
     use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, SolidKey, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
-        assert_err_deep_unchanged, assert_kill_refuses, deep_snapshot, mvfs_state, pillow, prov,
+        assert_err_deep_unchanged, assert_kill_refuses, assert_make_refuses, deep_snapshot,
+        mvfs_state, pillow, prov,
     };
     use crate::validate::validate;
 
@@ -3358,5 +3359,89 @@ mod tests {
         );
         let torn = EulerOpError::LoopCycleBroken { r#loop: loop_key };
         assert_kill_refuses(&mut body, &torn, |b| b.kemr(he1, he2));
+    }
+
+    #[test]
+    fn mekr_refuses_a_ring_walked_through_another_loop() {
+        // The anchor probe's `mekr` counterexample on the genus-2 body
+        // (`review_d18::kill_anchors_on_torn_bodies`, seed 171, two
+        // `next` tears): the ring's walk is diverted through another
+        // loop and back, so the ring's move carries that loop's anchor
+        // into the target. Unchecked, that loop is left anchored in the
+        // target, and the join returns `Ok`.
+        let mut body = crate::fixtures::ops_genus2(Tol::witness());
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[24]).unwrap().next = halves[52];
+        body.get_half_edge_mut(halves[52]).unwrap().next = halves[27];
+        let (target, ring) = (halves[16], halves[24]);
+        let ring_loop = body.get_half_edge(ring).unwrap().parent_loop;
+        let walk = body.loop_cycle(ring).unwrap();
+        assert!(
+            body.loops().any(|(l, data)| {
+                l != ring_loop
+                    && matches!(data.boundary, LoopBoundary::Cycle { first } if walk.contains(&first))
+            }),
+            "the ring's walk takes another loop's anchor"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: ring_loop };
+        assert_make_refuses(&mut body, &torn, |b| {
+            b.mekr_chord(MekrSite::Cycles { target, ring }, Tol::witness())
+        });
+    }
+
+    #[test]
+    fn mekr_refuses_to_kill_a_ring_whose_walk_skips_a_member() {
+        // The anchor probe's one-tear `mekr` counterexample on the holed
+        // box (`review_d18::kill_anchors_on_torn_bodies`, seed 8): the
+        // ring's walk torn past a member, which still claims the ring.
+        // Unchecked, the join kills the ring, leaves that member naming
+        // it, and returns `Ok`.
+        let mut body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[40]).unwrap().next = halves[44];
+        let (target, ring) = (halves[1], halves[40]);
+        let ring_loop = body.get_half_edge(ring).unwrap().parent_loop;
+        let walk = body.loop_cycle(ring).unwrap();
+        assert!(
+            body.half_edges()
+                .any(|(x, data)| data.parent_loop == ring_loop && !walk.contains(&x)),
+            "the walk skips a member of the ring"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: ring_loop };
+        assert_make_refuses(&mut body, &torn, |b| {
+            b.mekr_chord(MekrSite::Cycles { target, ring }, Tol::witness())
+        });
+    }
+
+    #[test]
+    fn mekr_refuses_to_grow_an_empty_target_around_a_ring_whose_walk_skips_a_member() {
+        // The anchor probe's `mekr` counterexample at an `Empty` target
+        // (`review_d18::kill_anchors_on_torn_bodies`, seed 1, one `next`
+        // tear): the strutted segment with the strut killed from its
+        // tip, so the outer loop is `Empty` and the ring is the
+        // segment's two halves, then one half torn onto itself. The
+        // ring's walk from it is that half alone. Unchecked, the join
+        // grows the target around it, kills the ring, leaves the other
+        // half naming it, and returns `Ok`.
+        let (mut body, seed, seg, strut) = strutted();
+        body.kemr(strut.he_minus, strut.he_plus).unwrap();
+        let ring = seg.he_minus;
+        let ring_loop = body.get_half_edge(ring).unwrap().parent_loop;
+        body.get_half_edge_mut(ring).unwrap().next = ring;
+        assert_eq!(body.loop_cycle(ring), Some(vec![ring]));
+        assert_eq!(
+            body.get_half_edge(seg.he_plus).unwrap().parent_loop,
+            ring_loop
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: ring_loop };
+        assert_make_refuses(&mut body, &torn, |b| {
+            b.mekr_chord(
+                MekrSite::EmptyTarget {
+                    target: seed.r#loop,
+                    ring,
+                },
+                Tol::witness(),
+            )
+        });
     }
 }

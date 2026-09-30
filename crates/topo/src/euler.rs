@@ -5900,4 +5900,33 @@ mod tests {
             assert_eq!(offered(&text), want, "the tolerance its arm gives: {text}");
         }
     }
+
+    #[test]
+    fn mef_refuses_a_run_walked_through_another_loop() {
+        // The anchor probe's first `mef` counterexample
+        // (`review_d18::kill_anchors_on_torn_bodies`: the strut cube,
+        // seed 26, two `next` tears): the walk from `he1` is diverted
+        // through another loop and back, so the run `[he1 .. he2)`
+        // carries that loop's anchor into the new loop. Unchecked, that
+        // loop is left anchored in another, and the split returns `Ok`.
+        let mut body = crate::fixtures::ops_strut_cube(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[14]).unwrap().next = halves[25];
+        body.get_half_edge_mut(halves[24]).unwrap().next = halves[13];
+        let (he1, he2) = (halves[4], halves[13]);
+        let loop_key = body.get_half_edge(he1).unwrap().parent_loop;
+        let walk = body.loop_cycle(he1).unwrap();
+        let run = &walk[..walk.iter().position(|&x| x == he2).unwrap()];
+        assert!(
+            body.loops().any(|(l, data)| {
+                l != loop_key
+                    && matches!(data.boundary, LoopBoundary::Cycle { first } if run.contains(&first))
+            }),
+            "the run takes another loop's anchor"
+        );
+        let torn = EulerOpError::LoopCycleBroken { r#loop: loop_key };
+        crate::fixtures::assert_make_refuses(&mut body, &torn, |b| {
+            b.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
+        });
+    }
 }
