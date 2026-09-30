@@ -286,11 +286,11 @@ fn record_germ_dir<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     // What the door read of the pair, which the questions below refuse
-    // alike declared or not.
+    // alike declared or not: no class settles them.
     let read = declared.read(
         &[(super::Operand::A, sa.face, super::Operand::B, sb.face)],
         Coincide::TangentLocus,
-        crate::contact::ContactClass::ALL,
+        &[],
     );
     if read != DeclarationRead::Spent(crate::contact::ContactClass::Tangent) {
         return germ_dir(sa, sb, read, band);

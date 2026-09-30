@@ -710,7 +710,7 @@ fn face_tree<T: Decide + Bounds>(
 /// ([`super::DeclaredPairs::read`]). No question the sweep asks of an
 /// edge is one a declaration settles (the declared cover spends the
 /// declaration, and an undeclared pair's refusal is the same pose's),
-/// whatever class the door admits.
+/// so the door admits no class that would.
 fn edge_face_read<T: geom_core::Real>(
     x: &Body<T>,
     x_is: Operand,
@@ -727,7 +727,7 @@ fn edge_face_read<T: geom_core::Real>(
     .flatten()
     .map(|f| (x_is, f, x_is.other(), face))
     .collect();
-    declared.read(&pairs, question, crate::contact::ContactClass::ALL)
+    declared.read(&pairs, question, &[])
 }
 
 #[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, declarations, sinks, band, strategy, plant, trace)
@@ -1206,7 +1206,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// REPORTED here and performed there rather than the body being
 /// threaded in for one branch.
 #[allow(clippy::too_many_arguments)]
-fn curved_face_arm<T: Decide>(
+pub(super) fn curved_face_arm<T: Decide>(
     x: &Body<T>,
     y: &mut Body<T>,
     x_is: Operand,
@@ -1486,7 +1486,7 @@ fn curved_face_arm<T: Decide>(
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
     let on_face = |diag| {
-        let which = Coincide::VertexOnFace;
+        let which = Coincide::VertexOnCurvedFace;
         BooleanError::coincidence(which, read(which), diag)
     };
     let s1 = side(pu).map_err(on_face)?;
@@ -2179,7 +2179,7 @@ fn line_wall_root_count<T: Decide>(
 
 /// What one edge×curved-face pair asks of the sweep.
 #[derive(Debug, Clone, Copy)]
-enum CurvedEvent<T: geom_core::Real> {
+pub(super) enum CurvedEvent<T: geom_core::Real> {
     /// No event: the pair is definitely clear, or the crossing lies
     /// outside this face's trim.
     None,
@@ -2872,7 +2872,7 @@ mod declaration_order_rows {
             .collect();
         same_refusal_without_declare(
             &runs,
-            Coincide::VertexOnFace,
+            Coincide::VertexOnCurvedFace,
             "whether a vertex of one solid lies on a face of the other",
         );
     }
@@ -3236,8 +3236,10 @@ mod declaration_order_rows {
     /// G2, G5 and G6): a face of each solid in-band parallel, the pair
     /// declared `Tangent`. The Tangent verification's conformal screen
     /// runs the plane ladder on a pair already declared, so the refusal
-    /// states that read, names the tilt and the tolerance it gives, and
-    /// offers no declaration.
+    /// states that read, names the tilt, and offers no declaration and
+    /// no tolerance: a smaller one decides the tilt, and the door then
+    /// refuses a `Tangent` claim on two planes whatever it decided
+    /// (executed: `offer_rows`' `tangent_screen_of_a_tilted_block`).
     #[test]
     fn a_declared_tangent_pairs_plane_rung_offers_no_declaration() {
         use crate::test_support_fixtures::{brick, mapped_cube};
@@ -3287,10 +3289,8 @@ mod declaration_order_rows {
             let text = got.expect_err("it refuses").to_string();
             assert!(
                 text.starts_with("whether a face of each solid lies on one plane is undecided: ")
-                    && text.contains(
-                        "Recourse: tilt one face so the two are clearly parallel or clearly not, \
-                         or, if this tilt between the two faces' planes is intended, tighten the \
-                         tolerance below "
+                    && text.ends_with(
+                        "Recourse: tilt one face so the two are clearly parallel or clearly not"
                     )
                     && !text.contains("declare"),
                 "{label}: {text}"

@@ -328,6 +328,69 @@ pub mod test_support {
         crate::splitting::through_the_join(operand, plane, tol)
     }
 
+    /// **Which decision a Boolean refusal came from**, as the executed-
+    /// offer harness keys it (`test_utils::offer`), and whether it is the
+    /// kernel's own defect. Two refusals of one decision carry one key: a
+    /// coincidence's key drops what its door read of the declaration, and
+    /// a definite arm carries its decision's (D4 ¶1 (iv): one story).
+    pub fn offer_key(err: &crate::BooleanError) -> (String, bool) {
+        use crate::{BooleanDecision, BooleanError, BooleanErrorKind, SphereQuestion};
+        let decision = |d: BooleanDecision| match d {
+            BooleanDecision::Coincidence(which, _) => format!("Coincidence({which:?})"),
+            other => format!("{other:?}"),
+        };
+        let key = match err {
+            BooleanError::Escalated { decision: d, .. } => decision(*d),
+            BooleanError::SpheresMeet { .. } => {
+                decision(BooleanDecision::Sphere(SphereQuestion::Nested))
+            }
+            BooleanError::CurvedSectorSideUnsupported { .. } => {
+                decision(BooleanDecision::PierceCurvature)
+            }
+            BooleanError::DegenerateTorus { convention, .. } => {
+                decision(BooleanDecision::Torus(*convention))
+            }
+            other => format!("{:?}", other.kind()),
+        };
+        let defect = err.to_string().contains(geom_core::KERNEL_DEFECT_ENDING)
+            || matches!(
+                err.kind(),
+                BooleanErrorKind::ClassificationInvariant
+                    | BooleanErrorKind::CorruptOperand
+                    | BooleanErrorKind::JoinDesync
+            );
+        (key, defect)
+    }
+
+    /// Whether two [`offer_key`]s name one decision: equal, or a lever
+    /// gate and the reading it meters (the gate passing leaves the same
+    /// question to that reading).
+    pub fn offer_same_decision(a: &str, b: &str) -> bool {
+        const GATE_AND_READING: &[(&str, &str)] = &[
+            ("LeverArm(SectorSide)", "Coincidence(SectorSide)"),
+            ("LeverArm(SectorCurving)", "Coincidence(TangentSide)"),
+            ("LeverArm(Seam)", "SeamWedge"),
+        ];
+        a == b
+            || GATE_AND_READING
+                .iter()
+                .any(|&(g, r)| (a, b) == (g, r) || (a, b) == (r, g))
+    }
+
+    /// The offers the executed-offer census counts as run in `sweep`,
+    /// whose doors build the solids they need (a ball): each decision's
+    /// key, the side of zero its margin lies on, and the child row of
+    /// `sweep`'s `offer_rows` that executes it. That suite checks it runs
+    /// each one.
+    pub const OFFERS_EXECUTED_IN_SWEEP: &[(&str, bool, &str)] = &[
+        ("Sphere(Apart)", true, "apart_in_band"),
+        ("Sphere(Apart)", true, "apart_in_the_zero_band"),
+        ("Sphere(Nested)", true, "nested_in_band"),
+        ("Sphere(Nested)", true, "nested_in_the_zero_band"),
+        ("Sphere(AgainstPlane)", false, "clear_of_a_slab_in_band"),
+        ("Sphere(AgainstPlane)", true, "into_a_slab_in_band"),
+    ];
+
     /// The topology-arena lengths of `body`. A free function because
     /// `Body::arena_counts` is `pub(crate)` — an inherent method's
     /// reach follows its own visibility, not its module's, so making

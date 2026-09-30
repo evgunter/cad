@@ -2380,7 +2380,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         ..
                     }) => {
                         let d = (c2 - center).norm();
-                        match decide(
+                        // A decided zero is band-decided: the spheres
+                        // touch within the tolerance, and a positive gap
+                        // there is one a smaller tolerance decides apart.
+                        // It refuses as the question's in-band arm does,
+                        // with its decided margin.
+                        match crate::validate::decide_nonzero_reported(
                             "bool_sphere_sphere_gap",
                             Margin::of(d - (radius + r2)),
                             band,
@@ -2388,8 +2393,8 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         .map_err(esc(SphereQuestion::Apart))?
                         {
                             // Definitely separated.
-                            Sign::Positive => {}
-                            Sign::Zero | Sign::Negative => {
+                            NonzeroSign::Positive => {}
+                            NonzeroSign::Negative => {
                                 // Nested (one strictly inside the
                                 // other) is boundary-disjoint too;
                                 // anything else is the sphere×sphere

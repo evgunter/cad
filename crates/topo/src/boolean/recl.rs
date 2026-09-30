@@ -73,7 +73,7 @@ fn carrier_of<T: Decide>(
 /// frontier refusal (the recourse is a declared contact, vocabulary
 /// CONTACT-DESIGN C4).
 #[allow(clippy::too_many_arguments)]
-fn require_same<T: Decide>(
+pub(super) fn require_same<T: Decide>(
     body1: &Body<T>,
     o1: super::Operand,
     s1: &BoolSector<T>,
@@ -199,7 +199,7 @@ pub(super) fn recl_sectors<T: Decide>(
         let read = declared.read(
             &[(super::Operand::A, sa.face, super::Operand::B, sb.face)],
             Coincide::TangentSide,
-            crate::contact::ContactClass::ALL,
+            &[],
         );
         if read == DeclarationRead::Spent(crate::contact::ContactClass::Tangent) {
             let surface_of = |body: &Body<T>, face| {
@@ -646,7 +646,7 @@ type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
 /// reflex dihedral wedges along a coincident edge are not yet
 /// discriminated — the A/B symmetry check refuses loudly if it bites.
 #[allow(clippy::too_many_arguments)]
-fn resolve_edge_edge<T: Decide>(
+pub(super) fn resolve_edge_edge<T: Decide>(
     records: &[PairRecord],
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
@@ -714,15 +714,13 @@ fn resolve_edge_edge<T: Decide>(
                 SideCode::In => {}
                 SideCode::Out => inside = false,
                 SideCode::On => {
-                    // On the flanking plane: overlap-tie or touch. A
-                    // declared-`Tangent` flanking pair short-circuits
-                    // this membership (below, read before it runs), and
-                    // the door admits the class only where the two
-                    // flanks meet along a tangency its witness lane
-                    // derives (`rest::tangent_locus`): two planar flanks
-                    // are conformal, and its screen refuses the class
-                    // there, while `Rest` changes nothing here. A decided
-                    // zero refuses as the in-band arm does.
+                    // On the flanking plane: overlap-tie or touch. No
+                    // declaration the door verifies settles it: two
+                    // planar flanks are conformal, and its screen refuses
+                    // `Tangent` there, while `Rest` changes nothing here;
+                    // a curved flank goes on, on either sense, to a face
+                    // pair the Boolean cannot yet meet. A decided zero
+                    // refuses as the in-band arm does.
                     let (own_op, other_op) = if own_is_a {
                         (super::Operand::A, super::Operand::B)
                     } else {
@@ -738,31 +736,26 @@ fn resolve_edge_edge<T: Decide>(
                         Ok(NonzeroSign::Positive) => true,
                         Ok(NonzeroSign::Negative) => false,
                         Err(diag) => {
-                            let tangent_witness =
-                                [(own_body, own_sec.face), (other_body, other_sec.face)].map(
-                                    |(body, face)| {
+                            let planar = [(own_body, own_sec.face), (other_body, other_sec.face)]
+                                .iter()
+                                .all(|&(body, face)| {
+                                    matches!(
                                         body.get_face(face)
-                                            .and_then(|f| body.get_surface(f.surface))
-                                    },
-                                );
-                            let admitted: &[crate::contact::ContactClass] = match tangent_witness {
-                                [Some(a), Some(b)]
-                                    if super::rest::tangent_locus(a, b, band).is_ok() =>
-                                {
-                                    &[crate::contact::ContactClass::Tangent]
-                                }
-                                _ => &[],
+                                            .and_then(|f| body.get_surface(f.surface)),
+                                        Some(geom::Surface::Plane { .. })
+                                    )
+                                });
+                            let which = if planar {
+                                Coincide::FlankSense
+                            } else {
+                                Coincide::CurvedFlankSense
                             };
                             let read = declared.read(
                                 &[(own_op, own_sec.face, other_op, other_sec.face)],
-                                Coincide::FlankSense,
-                                admitted,
+                                which,
+                                &[],
                             );
-                            return Err(BooleanError::coincidence(
-                                Coincide::FlankSense,
-                                read,
-                                diag,
-                            ));
+                            return Err(BooleanError::coincidence(which, read, diag));
                         }
                     };
                     if !same {
@@ -780,7 +773,7 @@ fn resolve_edge_edge<T: Decide>(
                         let read = declared.read(
                             &[(own_op, own_sec.face, other_op, other_sec.face)],
                             Coincide::TangentSide,
-                            crate::contact::ContactClass::ALL,
+                            &[],
                         );
                         let lump = if read
                             == DeclarationRead::Spent(crate::contact::ContactClass::Tangent)
@@ -1164,10 +1157,12 @@ mod tests {
     ///   refusal ends in the corner's lever and the tolerance its arm
     ///   gives.
     /// - **curved flanks** (a cylinder resting on a plane along the
-    ///   line): the door's witness lane derives the tangency, so a
-    ///   `Tangent` declaration short-circuits the membership, and the
-    ///   undeclared refusal offers it; declared, the germ is the
-    ///   flanking combination's record.
+    ///   line): the door refuses `Tangent` there
+    ///   (`verify_tangent_declaration`), so no declaration is offered;
+    ///   either sense goes on to the curved flank, which the Boolean
+    ///   cannot yet meet (executed: `offer_rows`'
+    ///   `membership_along_a_curved_flank`), so no tolerance is offered
+    ///   either, and the refusal ends in the corner's lever alone.
     #[test]
     fn an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it() {
         use super::super::sectors::Reach;
@@ -1323,33 +1318,26 @@ mod tests {
             u_ref: x,
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
+        assert!(
+            crate::boolean::verify_tangent_declaration(&ca, fca, &cb, fcb, band).is_err(),
+            "the door refuses Tangent on the curved flanks"
+        );
         for (arm, label) in arms {
             let err = run((&ca, fca), (&cb, fcb), arm, None).expect_err("the tie refuses");
             let BooleanError::Escalated { decision, .. } = &err else {
                 panic!("{label}: an escalation: {err:?}");
             };
-            assert!(
-                matches!(
-                    decision,
-                    BooleanDecision::Coincidence(
-                        Coincide::FlankSense,
-                        DeclarationRead::Settles(s)
-                    ) if s.class() == ContactClass::Tangent
-                ),
-                "{label}: {decision:?}"
+            assert_eq!(
+                *decision,
+                BooleanDecision::Coincidence(Coincide::CurvedFlankSense, DeclarationRead::Moot),
+                "{label}"
             );
             assert!(
-                err.to_string().contains(
-                    "Recourse: declare the coincidence, or make the edges at the corner where the \
-                     two faces meet clearly longer than the tolerance"
+                err.to_string().ends_with(
+                    "Recourse: make the edges at the corner where the two faces meet clearly \
+                     longer than the tolerance"
                 ),
                 "{label}: {err}"
-            );
-            assert_eq!(
-                run((&ca, fca), (&cb, fcb), arm, Some(ContactClass::Tangent))
-                    .expect("the declared flank short-circuits"),
-                Some(0),
-                "{label}: declared, the flanking record is the germ"
             );
         }
     }

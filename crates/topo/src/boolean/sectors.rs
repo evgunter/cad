@@ -86,6 +86,17 @@ impl<T: geom_core::Real> Reach<T> {
             Self::Extent(l) | Self::Bisector(l) => l,
         }
     }
+
+    /// The bound's signed departure from the plane through its base
+    /// vertex with unit normal `n`, as [`side_code`] reads it: a line
+    /// edge's far vertex, in metres; any other bound's direction `dir`
+    /// levered at its reach.
+    pub(super) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
+        match self {
+            Self::Chord { base, far } => crate::sector_shape::plane_offset(base, n, far),
+            Self::Extent(l) | Self::Bisector(l) => dir.normalize().dot(n) * l,
+        }
+    }
 }
 
 /// One (convex) sector of a vertex neighborhood.
@@ -484,7 +495,7 @@ pub(super) fn side_code<T: Decide>(
                     return Err(BooleanError::of_lever(
                         LeverArm::SectorSide,
                         BooleanDecision::Coincidence(Coincide::SectorSide, DeclarationRead::Moot),
-                        escalation,
+                        at_departure(escalation, dir.normalize().dot(n) * lever_arm, band),
                     ));
                 }
             };
@@ -529,6 +540,36 @@ pub(super) fn side_code<T: Decide>(
             decision: BooleanDecision::PierceCurvature,
             diag,
         }),
+    }
+}
+
+/// **A side reading's arm gate, quoted at the departure it reads**: the
+/// arm is in band or decided zero, and the reading it meters is the
+/// bound's departure from the face over that arm, `d̂·n̂·arm`, no longer
+/// than the arm. A tolerance that decides the arm but leaves the
+/// departure in band reads no side, so the escalation carries the
+/// departure's own margin, through the arm gate's funnel, and the
+/// tolerance it offers decides both. A poisoned arm keeps its own.
+fn at_departure<T: Decide>(
+    escalation: geom_brep::LeverEscalation,
+    departure: T,
+    band: Band,
+) -> geom_brep::LeverEscalation {
+    if escalation.rung != geom_brep::LeverRung::Arm || escalation.diag.margin.is_invalid() {
+        return escalation;
+    }
+    match geom_core::k_stats::decide_positive_reported(
+        "enters_material_arm",
+        Margin::of(departure.abs()),
+        band,
+    ) {
+        Err(diag) => geom_brep::LeverEscalation {
+            rung: geom_brep::LeverRung::Arm,
+            diag,
+        },
+        // Unreachable: the departure is no longer than an arm that did
+        // not read positive.
+        Ok(()) => escalation,
     }
 }
 
@@ -1269,14 +1310,16 @@ mod tests {
     /// **A lever arm gate escalates as its own decision, on a real
     /// raise**: a bound read over a curved edge whose extent lies in the
     /// band reaches `enters_material`'s arm rung before any side is
-    /// read. The refusal names the arm's question and its lever, offers
-    /// the tolerance the arm's length gives, and no declaration: no face
+    /// read. The refusal names the arm's question and its lever, quotes
+    /// the departure from the face the arm meters (the edge at 45°, so
+    /// `extent/√2`), offers the tolerance that departure gives, which
+    /// decides the side as well as the arm, and no declaration: no face
     /// pair names an edge's length. An extent that decides zero is the
-    /// same decision's band-decided arm: it quotes the margin decided and
-    /// offers the tolerance it gives, not a kernel bug. A clear extent
-    /// reads the side, and the same routing sends that reading's
-    /// escalation to the coincidence it is, which no declaration is read
-    /// ahead of.
+    /// same decision's band-decided arm: it quotes its departure's
+    /// decided margin and offers the tolerance it gives, not a kernel
+    /// bug. A clear extent reads the side, and the same routing sends
+    /// that reading's escalation to the coincidence it is, which no
+    /// declaration is read ahead of.
     #[test]
     fn a_lever_arm_gate_escalates_as_its_own_decision() {
         use super::super::{Coincide, LeverArm};
@@ -1285,6 +1328,7 @@ mod tests {
         let (z, e) = (b.zero(), b.escalate());
         let mid = (z + e) / 2.0;
         let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let departure = |extent: f64| Vec3::new(1.0, 0.0, 1.0).normalize().dot(n.vec()) * extent;
         let err = side_code(
             Vec3::new(1.0, 0.0, 1.0),
             Reach::Extent(mid),
@@ -1311,8 +1355,9 @@ mod tests {
                  leaves on is undecided: "
             ) && text.ends_with(&format!(
                 "Recourse: make the edges at the corner where the two faces meet clearly longer \
-                 than the tolerance, or, if this edge length is intended, tighten the tolerance below {:e} m",
-                mid / (e / z)
+                 than the tolerance, or, if this edge's rise off the face is intended, tighten \
+                 the tolerance below {:e} m",
+                departure(mid) / (e / z)
             )) && !text.contains("declare"),
             "{text}"
         );
@@ -1335,11 +1380,13 @@ mod tests {
                     decision: BooleanDecision::LeverArm(LeverArm::SectorSide),
                     ..
                 }
-            ) && text.contains(&format!("margin {short:e} lies within the zero band"))
-                && text.ends_with(&format!(
-                    "if this edge length is intended, tighten the tolerance below {:e} m",
-                    short / (e / z)
-                ))
+            ) && text.contains(&format!(
+                "margin {:e} lies within the zero band",
+                departure(short)
+            )) && text.ends_with(&format!(
+                "if this edge's rise off the face is intended, tighten the tolerance below {:e} m",
+                departure(short) / (e / z)
+            ))
                 && !text.contains("kernel bug"),
             "{text}"
         );
