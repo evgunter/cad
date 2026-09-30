@@ -2,12 +2,13 @@
 id: a-close-refused-on-its-geometry-draws-nothing
 kind: issue
 title: viewer: an unfinished chain whose provisional close is refused on its geometry draws nothing, not even its authored legs
-status: review
+status: closed
 opened: 2026-09-30
 priority: P2
 cost: M
 refs: [a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at, an-unfinished-chain-awaiting-a-binder-draws-nothing]
 branch: author/geometry-close
+closed: 2026-09-30
 ---
 
 
@@ -40,3 +41,7 @@ Per member, measured on the branch (census `test_support::geometry_refused_close
 Not drawn, and filed as `work/author/a-last-leg-no-close-can-follow-is-dropped`:
 - a last leg no close can follow: onto the start by a step that does not name it, reversed by every close (a cusp), or whose `line_to Start` escalates inside the ambiguity band ("too close to call", said and not re-spelled, even where `continue_to Start` would pass);
 - a chain that passes through its start and goes on, which is drawn as the loop its own steps closed and says the cusp that stops its tip closing.
+
+## Closed 2026-09-30 — PR 3579 merged (`f60af7d1`)
+
+Closed with its sibling as AUTH-13. What is drawn now is in the Built section above. The residue is its own row: `a-last-leg-no-close-can-follow-is-dropped` (the turn square, the 5.5e-17 point, a cusp close, "through the start and on", and the escalation band).
