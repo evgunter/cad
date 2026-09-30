@@ -3222,3 +3222,33 @@ ruling.
 
 It runs on the freed warm target, with the stale artifacts trimmed
 first.
+
+## The torus + merge unit delivered as PR 3506; review queued for a free target (2026-09-30)
+
+PR 3506 is green at `80f2c8cd80`, after one lint red on the
+payload-rung gate, which is now dispositioned.
+- **Torus.** Ratified text settles the story, so the lane built it
+  rather than stopping. D1's "spindle tori have no representation"
+  (`b846df1f10`, the M2 exit ratifications, #44) is in force, no
+  constructor mints one, and tier 3 already refuses one with a single
+  story.
+  - A closed `TorusConvention {Tube, Ring}` is shared by tier 3 and
+    the Boolean.
+  - The pierce door refuses with `DegenerateTorus` instead of
+    returning `Ok(None)` into "not supported yet".
+- **Plane ladder.** A closed `PlaneRung {Parallel, Orientation}`.
+  Orientation carries its decided margin and ends in
+  `PLANE_ORIENTATION` (`NonZero`), and every plane-identity site
+  routes by rung. The Boolean had also offered "declare" on declared
+  pairs.
+- **Merge.** A closed `MergeDecision`, including the loop-winding
+  raise the row missed.
+- **Filed:** rows on GERM, OFFSET and CONTACT, plus a topo row, with
+  evidence on CONTACT's and LIB's rows.
+
+Deviation to verify: a new `IndeterminatePayload` arm for a Zero
+verdict carried on `Escalated`.
+
+Tier SINGLE, full. The brief names D4 (i)/(iv) and PR 3352, and asks
+for D1's provenance. It dispatches when PR 3495's fix pass frees its
+target (6.1 GB free).
