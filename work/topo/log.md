@@ -4148,3 +4148,14 @@ The orchestrator read the diff and accepted it. The row closes at
 `2ccf366f48`; merge after CI. Next on the walk target: the side-tables
 row (P2), once PR 3557 merges, since it needs the one snapshot. Then
 `revert-writes-each-start-through-an-unproven-next`.
+
+PR 3557 merged (`7a6979ed91`) after CI run 36721532947 went green.
+Dispatched on the walk target: `deep-snapshot-does-not-walk-the-body-side-tables`
+(P2), branch `topo/snapshot-side-tables`.
+- The lane extends the snapshot to every side table, preferring a
+  compile guard over a hand list.
+- It then measures which atomicity rows newly red. Each is a real D1
+  defect.
+- It fixes those in files no live lane touches. For any in PR 3531's
+  or PR 3513's files it stops and reports, so I can sequence them after
+  those merge.
