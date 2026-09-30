@@ -994,6 +994,46 @@ mod tests {
         }
     }
 
+    /// **A direction sense's refusal is on the frame's escalation log**,
+    /// its decided zero as its in-band arm (the second review's probe
+    /// P3, adopted): each refusal is the funnel's own escalation, beside
+    /// the verdict it decided, as `kstats_escalation_channel` pins for the
+    /// lever-arm gates, so the log sees every refusal the Boolean raises.
+    #[test]
+    fn a_direction_senses_refusal_is_on_the_escalation_log() {
+        use geom_core::k_stats::Bracket;
+        let b = band();
+        let u = Vec3::new(1.0, 0.0, 0.0);
+        for (arm, decided) in [
+            (0.5 * b.zero(), true),
+            ((b.zero() + b.escalate()) / 2.0, false),
+        ] {
+            let bracket = Bracket::open();
+            let err = direction_sense(u, u, arm, b).expect_err("a short arm refuses");
+            let log = bracket.finish();
+            let BooleanError::Escalated { diag, .. } = err else {
+                panic!("{arm:e}: an escalation: {err:?}");
+            };
+            assert_eq!(
+                log.escalations.iter().map(|e| e.source).collect::<Vec<_>>(),
+                vec![diag],
+                "{arm:e}: the refusal is the log's escalation"
+            );
+            assert_eq!(
+                log.verdicts
+                    .iter()
+                    .map(|v| (v.predicate, v.sign))
+                    .collect::<Vec<_>>(),
+                if decided {
+                    vec![("bool_dir_same", Sign::Zero)]
+                } else {
+                    vec![]
+                },
+                "{arm:e}: a decided zero is the verdict beside it"
+            );
+        }
+    }
+
     /// The 15.7 sign resolution, mirror-pinned (F3): against a face
     /// with outward normal +z (material below), a direction with
     /// negative z ENTERS material ⇒ In; positive z ⇒ Out; in-plane ⇒

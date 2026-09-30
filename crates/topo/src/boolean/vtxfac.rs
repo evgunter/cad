@@ -213,10 +213,32 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // for this pierced face would change its verdict.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         if let (Some(diag), None) = (in_band, class) {
-            let admitted: &[crate::contact::ContactClass] = if plane.is_some() {
-                &[crate::contact::ContactClass::Rest]
-            } else {
-                &[crate::contact::ContactClass::Tangent]
+            // `Rest` bridges the residue only against a planar pierced
+            // face (a curved one refuses below whatever is declared);
+            // `Tangent` only where the door's witness lane derives the
+            // pair's tangency, which it checks before it admits one.
+            fn surface<T: Decide>(
+                body: &Body<T>,
+                f: crate::entity::FaceKey,
+            ) -> Option<&geom::Surface<T>> {
+                body.get_face(f)
+                    .and_then(|face| body.get_surface(face.surface))
+            }
+            let tangent = match (
+                surface(piercing_body, s.face),
+                surface(pierced_body, contact.face),
+            ) {
+                (Some(a), Some(b)) => super::rest::tangent_locus(a, b, band).is_ok(),
+                _ => false,
+            };
+            let admitted: &[crate::contact::ContactClass] = match (plane.is_some(), tangent) {
+                (true, true) => &[
+                    crate::contact::ContactClass::Rest,
+                    crate::contact::ContactClass::Tangent,
+                ],
+                (true, false) => &[crate::contact::ContactClass::Rest],
+                (false, true) => &[crate::contact::ContactClass::Tangent],
+                (false, false) => &[],
             };
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],

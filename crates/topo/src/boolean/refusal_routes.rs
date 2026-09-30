@@ -908,8 +908,7 @@ impl LeverArm {
 /// definitely positive one passes. Its decided refusal
 /// (`BooleanError::CurvedSectorSideUnsupported`) ends here too.
 pub(crate) const PIERCE_CURVATURE: SizedDecision = SizedDecision {
-    lever: "make the edge leave the curved face at a steeper angle, or make the face curve less \
-            sharply there",
+    lever: "make the edge leave the face more steeply, or make the face curve less sharply there",
     size: "departure beyond the bend",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Lever,
@@ -1165,8 +1164,8 @@ pub(crate) enum PlaneDoor {
 /// neighbouring faces off the question, whichever rung asked it.
 pub(crate) const NEIGHBOUR_LEVER: &str = "merge the two faces into one first \
                                (merge_coplanar_faces), or \
-                               tilt one so they meet at a clear angle along an edge clearly \
-                               longer than the tolerance";
+                               tilt one to meet at a clear angle along an edge clearly longer \
+                               than the tolerance";
 
 /// A corner's own shape: its arm and its straightness, the two rungs
 /// of [`SectorRung`], which one move answers.
@@ -1270,8 +1269,8 @@ impl BooleanDecision {
             Self::TorusRoots => "how many times an edge crosses a torus",
             Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::PierceCurvature => {
-                "whether an edge leaves a curved face steeply enough, for how sharply the face \
-                 bends, to read which side it goes"
+                "whether an edge leaves a curved face steeply enough against its bend to read \
+                 which side it goes"
             }
             Self::DirectionSense => {
                 "whether two parallel directions at a corner point the same way or opposite ways"
@@ -1506,8 +1505,8 @@ mod tests {
 
     const NEIGHBOURS: &str = "whether two neighbouring faces of one operand lie on one plane";
     const NEIGHBOUR_ENDING: &str = "Recourse: merge the two faces into one first \
-                                    (merge_coplanar_faces), or tilt one so they meet at a clear \
-                                    angle along an edge clearly longer than the tolerance";
+                                    (merge_coplanar_faces), or tilt one to meet at a clear angle \
+                                    along an edge clearly longer than the tolerance";
 
     const TUBE_LEVER: &str =
         "Recourse: reshape the torus so its tube is clearly thicker than the tolerance";
@@ -1518,8 +1517,8 @@ mod tests {
 
     const WALL_LEVER: &str =
         "Recourse: move the parts so the edge clearly crosses the wall or clearly misses it";
-    const PIERCE_LEVER: &str = "Recourse: make the edge leave the curved face at a steeper \
-                                angle, or make the face curve less sharply there";
+    const PIERCE_LEVER: &str = "Recourse: make the edge leave the face more steeply, or make the face curve less sharply \
+         there";
 
     /// The split door's own clause, a stage for a subject, filed with
     /// its owner: `work/reach/reach-refusals-short-of-the-shape-guard.md`.
@@ -1966,8 +1965,8 @@ mod tests {
                 Ending::Defect,
             ),
             BooleanDecision::PierceCurvature => (
-                "whether an edge leaves a curved face steeply enough, for how sharply the face \
-                 bends, to read which side it goes",
+                "whether an edge leaves a curved face steeply enough against its bend to read \
+                 which side it goes",
                 Ending::Sized(PIERCE_LEVER, SizedPass::Positive),
             ),
             BooleanDecision::Corner(SectorRung::Arm) => (
@@ -2166,6 +2165,43 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **Every escalation renders within the viewer's word budget**, in
+    /// band, with a point payload and with an enclosure payload on
+    /// either side of zero and across it, wrapped as the feature tree's
+    /// fault line draws it (the second review's words probe, adopted):
+    /// under the 75 words editor-core's `refusal_concision` holds each
+    /// refusal to, for every decision and every read a door can hand
+    /// it.
+    #[test]
+    fn every_escalation_renders_within_the_viewers_word_budget() {
+        const WRAPPER: &str = "node 5 failed: the Boolean op refused:";
+        let (z, e) = (band().zero(), band().escalate());
+        let margins = [
+            MarginDiag::value(5.500000010982831e-9),
+            MarginDiag::value(-5.500000010982831e-9),
+            MarginDiag::enclosure(2.000000000000001 * z, 0.5000000000000001 * e),
+            MarginDiag::enclosure(-0.5000000000000001 * e, -2.000000000000001 * z),
+            MarginDiag::enclosure(-2.000000000000001 * z, 3.000000000000001 * z),
+        ];
+        let mut over = Vec::new();
+        for decision in every_decision() {
+            for margin in margins {
+                let diag = Indeterminate {
+                    margin,
+                    band: band(),
+                    predicate: Some("side_of_plane"),
+                    terminal_sliver: false,
+                };
+                let text = format!("{WRAPPER} {}", BooleanError::Escalated { decision, diag });
+                let words = text.split_whitespace().count();
+                if words >= 75 {
+                    over.push(format!("{decision:?} at {margin}: {words} words: {text}"));
+                }
+            }
+        }
+        assert!(over.is_empty(), "{}", over.join("\n"));
     }
 
     /// **A declaration is offered only where the lookup mints it**: the
@@ -3144,8 +3180,8 @@ mod tests {
             );
         }
         const GATE: &str = "Recourse: merge the two faces into one first (merge_coplanar_faces), \
-                            or tilt one so they meet at a clear angle along an edge clearly \
-                            longer than the tolerance";
+                            or tilt one to meet at a clear angle along an edge clearly longer \
+                            than the tolerance";
         let theta = (z + e) / 2.0;
         let (flat, _) = planes(1.0);
         let bent = PlaneDesc {

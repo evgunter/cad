@@ -146,6 +146,12 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         margin: MarginDiag::value(5.500000010982831e-9),
         ..diag
     };
+    // An in-band enclosure, which quotes two numbers where a point
+    // quotes one: the longest payload the interval lane reports.
+    let enclosed = Indeterminate {
+        margin: MarginDiag::enclosure(2.000000000000001e-9, 5.000000000000001e-9),
+        ..diag
+    };
     let face = FaceKey::default();
     let edge = EdgeKey::default();
     let declaration = DeclaredContact {
@@ -311,19 +317,67 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::Coincidence(
                     topo::Coincide::VertexOnFace,
-                    topo::DeclarationRead::Settles,
+                    topo::DeclarationRead::Moot,
                 ),
                 diag,
             },
         ),
-        // The longest escalations in band (the review of PR 3513's fix
-        // pass counted `PierceCurvature` at 78 words with the viewer's
-        // wrapper).
+        // The longest escalations in band, with a point payload and with
+        // an enclosure (every decision is held under this budget by
+        // `topo`'s `every_escalation_renders_within_the_viewers_word_budget`).
         (
             "Escalated (PierceCurvature, in band)",
             BooleanError::Escalated {
                 decision: topo::BooleanDecision::PierceCurvature,
                 diag: in_band,
+            },
+        ),
+        (
+            "Escalated (PierceCurvature, in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::PierceCurvature,
+                diag: enclosed,
+            },
+        ),
+        (
+            "Escalated (Neighbours(Parallel), in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Neighbours(topo::PlaneRung::Parallel),
+                diag: enclosed,
+            },
+        ),
+        (
+            "Escalated (LeverArm(Seam), in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::LeverArm(topo::LeverArm::Seam),
+                diag: enclosed,
+            },
+        ),
+        (
+            "Escalated (TangentSide, declared, in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::TangentSide,
+                    topo::DeclarationRead::Spent(ContactClass::Tangent),
+                ),
+                diag: enclosed,
+            },
+        ),
+        (
+            "Escalated (Sphere(Nested), in-band enclosure)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Sphere(topo::SphereQuestion::Nested),
+                diag: enclosed,
+            },
+        ),
+        (
+            "SpheresMeet",
+            BooleanError::SpheresMeet {
+                operand: Operand::A,
+                face,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-0.5),
+                },
             },
         ),
         (

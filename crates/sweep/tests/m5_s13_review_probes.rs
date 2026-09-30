@@ -105,15 +105,20 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
 
 /// PROBE 2: ball exactly tangent to BOTH slab faces from inside
 /// (r = 0.5 buried at mid-height): the extent gap is exactly zero —
-/// the scan's tangency arm refuses typed, never answers.
+/// the scan's tangency arm refuses typed, never answers, as the sphere's
+/// question against the plane with the margin it decided.
 #[test]
 fn probe_exact_tangency_from_inside_refuses_typed() {
     let b = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let err = topo::union(&slab(), &b, Tol::witness()).expect_err("tangency must not answer");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+    let BooleanError::Escalated {
+        decision: topo::BooleanDecision::Sphere(topo::SphereQuestion::AgainstPlane),
+        diag,
+    } = err
+    else {
         panic!("expected the scan's tangency arm, got {err:?}");
     };
-    assert!(what.contains("tangent"), "{what}");
+    assert_eq!(diag.predicate, Some("bool_sphere_extent_gap"));
 }
 
 /// PROBE 3 (door corrected in adoption): the section circle crosses the

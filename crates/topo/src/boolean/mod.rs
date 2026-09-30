@@ -1943,7 +1943,7 @@ impl core::fmt::Display for BooleanError {
             // No operand is named, as the scan's other refusals name none.
             Self::SpheresMeet { verdict, .. } => write!(
                 f,
-                "a sphere of each solid {}, and the Boolean cannot yet join two curved faces \
+                "the two solids' spheres {}, and the Boolean cannot yet join two curved faces \
                  that meet. {}",
                 match verdict {
                     geom_brep::recourse::Refused::Zero(_) => {
