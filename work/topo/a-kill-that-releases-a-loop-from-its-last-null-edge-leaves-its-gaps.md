@@ -53,3 +53,10 @@ doors, with `kev`'s fan-merge door `kev_describing` beside them) or the
 cut in `chord_join` re-mints after its kill, which is a second
 spelling. Settle with `topo/kill-loop-anchor-proof`'s changes to the
 kill plans in view.
+
+**`kef` has a `Tol` now** (2026-09-30, PR 3531,
+`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`):
+it runs the site mint over the surviving face when its remnant's rows
+do not stand there. It does not run it where they do, so a `kef` of a
+null edge whose remnant carries its rows still leaves a released
+loop's gaps; `kemr` and `kev` still take no `Tol`.

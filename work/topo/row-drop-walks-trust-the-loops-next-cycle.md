@@ -35,3 +35,11 @@ see it. Not measured.
 Each walk proves its members claim the loop (the shape of
 `Body::require_run_of`) in its plan, and the mutation-phase drops take
 their member list from the plan instead of walking again.
+
+**More walks of the same shape** (2026-09-30, PR 3531): the moving
+doors' site-mint plans read the moved loop through `Body::site_cycle`
+— `kfmrh`'s demoted loop, `ring_move`'s ring, `mfkrh`'s promoted
+ring — and `kef`'s reads the surviving loop's own members through
+`site_cycle_from` from `next(m)` up to `m`
+(`Body::plan_moved_rows`'s callers). None proves its members claim the
+loop; the shape above covers them.

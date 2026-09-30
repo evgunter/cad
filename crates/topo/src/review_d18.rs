@@ -1030,7 +1030,7 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
         }
     };
     for &he in &halves {
-        note("kef", body.clone().kef(he).is_ok());
+        note("kef", body.clone().kef(he, tol).is_ok());
         note("kev", kill_reaches_its_mutation_phase(body, he, tol));
         note(
             "mev_line",
@@ -1103,7 +1103,7 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
                 .mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
                 .is_ok(),
         );
-        note("mfkrh_plug", body.clone().mfkrh_plug(l, true).is_ok());
+        note("mfkrh_plug", body.clone().mfkrh_plug(l, true, tol).is_ok());
     }
     census.add(KEMR_CYCLE_RING, cycle_ring);
     census.add(KEMR_EMPTY_RING, empty_ring);

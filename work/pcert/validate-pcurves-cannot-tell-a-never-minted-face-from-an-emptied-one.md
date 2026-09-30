@@ -121,3 +121,32 @@ and reads nothing at the head, while `mint_pcurves` over the same body
 refuses (the row pins both). The `mef` line of the run-door table above
 moved too: onto `New(other cylinder)` the OLD face's minted half now
 carries its row, so the pass reads `[]` there.
+
+**The moving doors now re-mint a complete destination**
+(`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`,
+PR 3531). `kfmrh`, `ring_move`, `mfkrh`, `kef` and `mef`'s new face
+run the site mint over the face they move a loop or run onto, where
+the moved rows do not stand there and that face was complete
+(`Body::plan_moved_rows`). The rows in the tables above whose
+destination stored no row of its own are unchanged: such a face is
+left as found, and still reads as never minted. What moved:
+
+- The loud rows went complete, not silent. `kef` into a MINTED face
+  on another chart, `(3, 3)` and three `MissingCache` above, reads
+  `(6, 0)` and `[]`, with the rows `mint_pcurves_of` derives
+  (`kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart`);
+  so do `kfmrh` and `ring_move` of a rowless or re-charted loop onto a
+  minted curved face.
+- **A new silent case, larger than the one it replaces.** Where the
+  moved loop does not walk in the destination's chart as the door
+  leaves it, the site mint empties the destination rather than leave
+  it half-minted, and this pass then reads it as never minted. Measured
+  on sweep's `ci` profile (probes on every moving door, not committed):
+  of the `kef`s that land a remnant across a chart change on a
+  complete analytic face, 18 now mint it and about 316 empty it, all
+  in the blend surgery's `kef_minted` mid-carve (the walk refuses at
+  certification, `MapResidual`, or at the closed-form derivation);
+  on the merge base each of those left the face half-minted, which
+  this pass reported per rowless half. Most are re-minted by the
+  blend's closing pass; the rest are probe rows that stop mid-carve.
+- A spline destination keeps the drop and stays half-minted, loud.

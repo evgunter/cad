@@ -417,19 +417,20 @@ pub enum PcurveMintError {
     /// and any body that never ran the minting pass); a half-minted
     /// one is a defect.
     ///
-    /// **On the output of `mev`, `mef` and `mekr` this is a
-    /// kernel-bug detector** for a face that was complete: they leave
-    /// such a face complete or rowless, or refuse ([`site_rows`]). The
-    /// doors that can still produce this state are:
+    /// **On the output of `mev`, `mef` and `mekr`, and of the doors
+    /// that move a loop or run onto a face (`kfmrh`, `ring_move`,
+    /// `mfkrh`, `kef`), this is a kernel-bug detector** for a face that
+    /// was complete on an analytic chart: they leave such a face
+    /// complete or rowless, or refuse ([`site_rows`],
+    /// [`crate::Body::plan_moved_rows`]). The doors that can still
+    /// produce this state are:
     ///
-    /// - [`crate::Body::kfmrh`] and [`crate::Body::ring_move`], which
-    ///   bring a rowless loop onto a complete face;
-    /// - [`crate::Body::kef`], merging a complete face with an unminted
-    ///   one on the same chart, whose half-edges arrive without rows —
-    ///   the boolean's seam zip does, killing each kept section face
-    ///   into the wall it closes;
-    /// - the chart-change drops: a door that moves a loop or run onto a
-    ///   face on another chart drops its rows ([`crate::Body::drop_rows`]);
+    /// - the moving doors onto a complete SPLINE face, where the moved
+    ///   loop's rows are dropped or missing and the fitted lane that
+    ///   could derive them is not theirs ([`crate::Body::drop_rows`]);
+    /// - the moving doors carrying a loop's rows, across one chart,
+    ///   onto a face that stored none of its own — or a rowless loop
+    ///   onto a half-minted one — which leaves the rows they find;
     /// - [`crate::Body::mev_null`], whose scaffolding edge has no
     ///   carrier to derive a row from. The loop it joins misses the
     ///   edge's two rows, and those of any half-edge an operator adds
