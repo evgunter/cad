@@ -110,8 +110,9 @@ pub enum NamingError {
     /// that a sentence cannot supply: WHICH edge.
     ///
     /// **Unguardable from this crate, and the reason is WRITER
-    /// ACCESS.** Both chases (`emit_topo`'s `chase_edge_to_table` and
-    /// `chase_b`) advance only on `Body::edge_provenance`, which is
+    /// ACCESS.** Every chase (`emit_topo`'s `chase_edge_to_table`,
+    /// `chase_split_edge_to_table` and `chase_b`) advances only on
+    /// `Body::edge_provenance`, which is
     /// `pub(crate)` to `topo`: `Body::split_edge` records the parent on
     /// a child it has just minted, so a chain is strictly decreasing in
     /// age in the arena that wrote it; a graft forwards it injectively

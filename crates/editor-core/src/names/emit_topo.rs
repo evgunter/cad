@@ -177,6 +177,38 @@ fn chase_edge_to_table<T: Decide>(
     Ok(body.split_root(e, |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some())?)
 }
 
+/// [`chase_edge_to_table`] over a split's two halves. The halves are
+/// carved from one scratch arena, so a key resolves in whichever half
+/// kept the entity and only there (`SplitNaming`), and so does its
+/// `SplitEdge` record: each hop reads the record from the half holding
+/// that key. An operand edge the plane crosses twice has its middle
+/// piece on one side and the outer two on the other, so an outer
+/// piece's lineage can run through a key its own half does not hold.
+///
+/// # Errors
+///
+/// [`NamingError::SplitLineage`] on a cycling lineage; the halves'
+/// records are restrictions of one acyclic record set, so their union
+/// is acyclic by the same writer-access argument.
+fn chase_split_edge_to_table<T: Decide>(
+    sides: &[Side<'_, T>],
+    table: &NameTable,
+    e: EdgeKey,
+) -> Result<EdgeKey, NamingError> {
+    let bound: usize = sides.iter().map(|s| s.body.edges().count()).sum();
+    let mut root = e;
+    for _ in 0..=bound {
+        if table.name_of(&ent(0, EntityKey::Edge(root))).is_some() {
+            return Ok(root);
+        }
+        match sides.iter().find_map(|s| s.body.edge_provenance_of(root)) {
+            Some(Provenance::SplitEdge { edge }) => root = *edge,
+            _ => return Ok(root),
+        }
+    }
+    Err(topo::SplitLineageCycle { edge: e }.into())
+}
+
 /// Names both sides of a split (spec D2's split vocabulary + N2).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn name_split<T: Decide>(
@@ -394,7 +426,7 @@ fn name_split_edges_vertices<T: Decide>(
                         Some(Provenance::SplitEdge { .. })
                     )
                 {
-                    divided_edges.insert(chase_edge_to_table(sb.body, target_table, e)?);
+                    divided_edges.insert(chase_split_edge_to_table(sides, target_table, e)?);
                 }
             }
         }
@@ -402,7 +434,7 @@ fn name_split_edges_vertices<T: Decide>(
             if chord_faces.contains_key(&e) {
                 continue;
             }
-            let root = chase_edge_to_table(body, target_table, e)?;
+            let root = chase_split_edge_to_table(sides, target_table, e)?;
             if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_some()
                 && !divided_edges.contains(&root)
             {
@@ -459,7 +491,7 @@ fn name_split_edges_vertices<T: Decide>(
                 .iter()
                 .find_map(|sb| match sb.body.vertex_provenance_of(src) {
                     Some(Provenance::SplitEdge { edge }) => {
-                        Some(chase_edge_to_table(sb.body, target_table, *edge))
+                        Some(chase_split_edge_to_table(sides, target_table, *edge))
                     }
                     _ => None,
                 })
@@ -2944,5 +2976,131 @@ mod split_carries_candidates {
                 "{what}: a carried candidate lost its number: {rows:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod split_edge_lineage {
+    //! **A split's edge chase crosses halves.** The plane through
+    //! `(0, 0.2, 0)` with normal `(0, 1, -1)` crosses a cylinder's start
+    //! rim arc twice: the arc's middle piece lies Above and its outer
+    //! two Below, and one Below piece's `SplitEdge` record names the
+    //! middle piece's key, which only the Above half holds.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{Side, chase_edge_to_table, chase_split_edge_to_table};
+    use crate::edit::DocEdit;
+    use crate::eval::{CancelToken, EvalOptions, ValuePayload, evaluate};
+    use crate::ident::DocumentId;
+    use crate::names::role::SplitHalf;
+    use crate::names::table::{EntityKey, EntityRef};
+    use crate::node::{Node, RecipeNodeId};
+    use crate::program::{LoopProgram, ProfileProgram};
+    use crate::test_support::{frame, len};
+    use crate::{ProfileDoc, RefusingReach};
+    use geom_core::{Point3, Tol, Vec3};
+    use topo::{Provenance, SplitPlane};
+
+    fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+        let a = crate::apply(
+            &doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("inserts");
+        (a.doc, a.record.minted.expect("a node"))
+    }
+
+    #[test]
+    fn a_twice_crossed_rim_arcs_pieces_chase_to_the_rim_across_halves() {
+        let doc = ProfileDoc::empty(DocumentId::derive("split-edge-lineage"), Tol::witness());
+        let (doc, plane) = ins(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
+                ids: Vec::new(),
+            }),
+        );
+        let (doc, ext) = ins(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let value = ev.value(ext).expect("the extrude evaluates");
+        let ValuePayload::Body(body) = &value.payload else {
+            panic!("the extrude is one body");
+        };
+        let table = &value.name_table;
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let out = topo::split(
+            body,
+            &SplitPlane {
+                origin: Point3::new(0.0, 0.2, 0.0),
+                normal: Vec3::new(0.0, h, -h),
+            },
+            Tol::witness(),
+        )
+        .expect("the plane splits the cylinder");
+        let sides: Vec<Side<'_, f64>> = [
+            (SplitHalf::Above, out.above.body()),
+            (SplitHalf::Below, out.below.body()),
+        ]
+        .into_iter()
+        .map(|(half, body)| Side {
+            body: body.expect("material on both sides"),
+            ix: half.output_body(),
+            half,
+        })
+        .collect();
+        let named = |k| {
+            table
+                .name_of(&EntityRef {
+                    body: 0,
+                    key: EntityKey::Edge(k),
+                })
+                .is_some()
+        };
+        let mut fresh = 0;
+        let mut lost_within_its_half = 0;
+        for s in &sides {
+            for (e, _) in s.body.edges() {
+                if named(e)
+                    || !matches!(
+                        s.body.edge_provenance_of(e),
+                        Some(Provenance::SplitEdge { .. })
+                    )
+                {
+                    continue;
+                }
+                fresh += 1;
+                let root = chase_split_edge_to_table(&sides, table, e).expect("acyclic");
+                assert!(
+                    named(root),
+                    "{:?} edge {e:?} chases to {root:?}, which the extrude never named",
+                    s.half
+                );
+                let within = chase_edge_to_table(s.body, table, e).expect("acyclic");
+                if !named(within) {
+                    lost_within_its_half += 1;
+                }
+            }
+        }
+        assert!(fresh >= 2, "the premise, fresh split pieces: {fresh}");
+        assert!(
+            lost_within_its_half >= 1,
+            "the premise, a piece whose lineage leaves its own half"
+        );
     }
 }
