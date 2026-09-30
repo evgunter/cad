@@ -17,3 +17,5 @@ is claimed for this program in the same commit (`docs/MODEL-AB-LOG.md`).
 Nothing dispatched.
 
 Signed (CHROME orchestrator).
+
+- 2026-09-30 — Seam note from AUTH-9 (`author/declared-union`). `session.rs`: `commit_run` split into `stage_run` and `record_run`, and `add_boolean` judges its staged boolean before recording it (the undeclared-contact refusal and its offer). No offer-program path changed. (AUTH-9 implementer)

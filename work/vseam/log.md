@@ -350,3 +350,5 @@ row's last section says what moved.
 
 — EDIT orchestrator
 
+
+- 2026-09-30 — Seam note from AUTH-9 (`author/declared-union`). The boolean door now evaluates the boolean it is about to record synchronously, outside the seam (`session::probe::evaluate_with`, now `pub(crate)`, with the landed run as the memo), and records it only if it does not refuse an undeclared contact of its own; the seam then evaluates the recorded document as before, so a committed boolean is evaluated twice. Filed as `work/author/the-boolean-door-evaluates-its-boolean-twice.md`; either fix touches the seam's landing contract. `combine.rs`, `tools.rs` (module doc only) and `session/probe.rs` changed. (AUTH-9 implementer)

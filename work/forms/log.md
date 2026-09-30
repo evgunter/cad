@@ -62,3 +62,5 @@ and `target_fields`, and from `pane::profile::path_steps_ui`. The seven
 split count) now take input in both doors. `path_steps_ui` now returns a
 `drafts::RowEdit` for its caller to apply instead of reshaping the list
 itself. (AUTH-6 implementer)
+
+- 2026-09-30 — Seam note from AUTH-9 (`author/declared-union`). `combine.rs` gains `UndeclaredContact` (the boolean door's contact refusal) and `DeclareOffer`, and `BooleanTool::op` authors `declare: Vec::new()`; `session/probe.rs`'s `evaluate_with` is `pub(crate)`; `pane/create.rs` draws the offer under the boolean tool (`declare_offer_rows`). `forms.rs` is untouched. (AUTH-9 implementer)
