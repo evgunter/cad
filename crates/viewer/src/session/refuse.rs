@@ -1049,6 +1049,12 @@ pub enum FaceFrameFault {
         /// The carrier kind the tag read answered.
         carrier: SurfaceKind,
     },
+    /// The face resolves, but the picture does not draw it: a later
+    /// feature consumed its body, or its instance is hidden. The
+    /// viewport marks no held face it cannot see
+    /// ([`crate::marks::drawn_patch`]), and a frame is not authored on
+    /// a face nothing on screen is marking.
+    NotDrawn,
 }
 
 impl FaceFrameFault {
@@ -1062,7 +1068,7 @@ impl FaceFrameFault {
     /// they choose again. [`Self::Unresolved`] is that on its own
     /// merits: the form's pick is LATCHED (it outlives the selection,
     /// so the reader can go on clicking elsewhere), and a latched face
-    /// that no longer resolves holds the button until the reader picks
+    /// that no longer resolves withholds the button until the reader picks
     /// a face again, whatever is selected now.
     ///
     /// A seat not yet answerable is [`Tone::Advisory`]: no face picked
@@ -1072,9 +1078,10 @@ impl FaceFrameFault {
     pub fn tone(&self) -> Tone {
         match self {
             Self::NoFace | Self::NotLanded => Tone::Advisory,
-            Self::NotOneBody { .. } | Self::Unresolved { .. } | Self::NotPlanar { .. } => {
-                Tone::Actionable
-            }
+            Self::NotOneBody { .. }
+            | Self::Unresolved { .. }
+            | Self::NotPlanar { .. }
+            | Self::NotDrawn => Tone::Actionable,
         }
     }
 }
@@ -1098,6 +1105,10 @@ impl core::fmt::Display for FaceFrameFault {
                 "a sketch frame is read off a PLANAR face, and that one's carrier is a {} — \
                  the kernel's own word for it",
                 carrier.name()
+            ),
+            Self::NotDrawn => f.write_str(
+                "that face is not in the picture — a later feature consumed its body, or it is \
+                 hidden — so pick a face where it is drawn",
             ),
         }
     }
@@ -1163,6 +1174,37 @@ pub fn face_frame_seat(
         Err(error) => Err(FaceFrameFault::Unresolved {
             error: crate::tree::interrogation_as_drawn(error, ev),
         }),
+    }
+}
+
+/// **[`face_frame_seat`], asked of the picture on screen too**: the
+/// seat the add-datum form's button commits, refusing
+/// [`FaceFrameFault::NotDrawn`] for a face that resolves but that the
+/// picture does not draw.
+///
+/// "Drawn" is [`crate::marks::drawn_patch`]'s answer — the one the
+/// held mark lights — so the button and the mark cannot disagree about
+/// a face while there is a picture to ask. With no index for the
+/// picture on screen (`on_screen` is `None`) there is nothing to ask,
+/// and the evaluation's answer stands, as it does for the selection.
+///
+/// # Errors
+///
+/// Every [`face_frame_seat`] refusal first, so a face that is gone is
+/// said as gone; then [`FaceFrameFault::NotDrawn`].
+pub fn face_frame_seat_drawn(
+    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    picked: Option<&FaceSelection>,
+    on_screen: Option<(&crate::pickindex::PickIndex, &crate::display::DisplayView)>,
+) -> Result<(RecipeNodeId, StableName), FaceFrameFault> {
+    let seat = face_frame_seat(landed, picked)?;
+    match (picked, on_screen) {
+        (Some(face), Some((index, display)))
+            if crate::marks::drawn_patch(index, display, face).is_none() =>
+        {
+            Err(FaceFrameFault::NotDrawn)
+        }
+        _ => Ok(seat),
     }
 }
 

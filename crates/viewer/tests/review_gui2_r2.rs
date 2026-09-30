@@ -54,7 +54,10 @@ use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, Viewport
 use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
-use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
+use viewer::session::{
+    DocSession, FaceFrameFault, FaceSelection, Hovered, Selection, SessionOp, face_frame_seat,
+    face_frame_seat_drawn,
+};
 use viewer::{cursor_projection, marks};
 
 // -------------------------------------------------------------------
@@ -820,22 +823,8 @@ fn one_name_can_be_drawn_under_two_ids() {
 /// is gone and this row gates.
 #[test]
 fn the_highlight_marks_the_selected_bodys_patch_not_another_with_the_same_name() {
-    let (doc, _left, right) = two_placements();
-    let mut session = DocSession::inline(doc, tol());
-    session.pump();
-    let index = landed_index(&session);
-    // A ray onto the RIGHT placement's top face (it sits at x ≈ 0.10).
-    let hit = index
-        .pick(evaluation(&session), &down_at(0.115, 0.010))
-        .expect("no refusal")
-        .expect("the right placement is hit");
-    assert_eq!(hit.node, right, "the ray really hit the right placement");
-    let selection = Selection::Face(FaceSelection {
-        name: hit.name.clone(),
-        node: hit.node,
-        body: hit.body,
-    });
-    let marked = marks::highlight(&index, &selection, None);
+    let (_session, index, face) = right_top_face();
+    let marked = marks::highlight(&index, &Selection::Face(face.clone()), None);
     assert_ne!(marked.selected, IdMap::NOTHING, "something is marked");
     let key = index
         .ids()
@@ -843,28 +832,30 @@ fn the_highlight_marks_the_selected_bodys_patch_not_another_with_the_same_name()
         .expect("the marked id names a patch");
     assert_eq!(
         (key.node, key.body),
-        (hit.node, hit.body),
+        (face.node, face.body),
         "the highlight marked {key:?}, which is not the picked body"
     );
 }
 
-/// The right placement's top face, as the pick a form latched off it,
-/// with the index that drew it.
-fn right_top_face() -> (Doc<ProfileProgram>, PickIndex, FaceSelection) {
-    let (doc, _left, _right) = two_placements();
-    let mut session = DocSession::inline(doc.clone(), tol());
+/// **The right placement's top face**, picked by a ray onto it (it
+/// sits at x ≈ 0.10), with the landed session and the index that drew
+/// it.
+fn right_top_face() -> (DocSession, PickIndex, FaceSelection) {
+    let (doc, _left, right) = two_placements();
+    let mut session = DocSession::inline(doc, tol());
     session.pump();
     let index = landed_index(&session);
     let hit = index
         .pick(evaluation(&session), &down_at(0.115, 0.010))
         .expect("no refusal")
         .expect("the right placement is hit");
+    assert_eq!(hit.node, right, "the ray really hit the right placement");
     let face = FaceSelection {
         name: hit.name,
         node: hit.node,
         body: hit.body,
     };
-    (doc, index, face)
+    (session, index, face)
 }
 
 /// **A held face marks the placement it was picked on, not its twin.**
@@ -910,14 +901,15 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
     }
 }
 
-/// **A held face whose body is no longer drawn marks nothing.** The
-/// extrude under the two placements is not a root, so a pick held off
-/// its own body names no drawn patch — and marks neither placement,
-/// though both draw its name.
+/// **A held face whose body is no longer drawn marks nothing, and the
+/// form will not commit against it.** The extrude under the two
+/// placements is not a root, so a pick held off its own body names no
+/// drawn patch — and marks neither placement, though both draw its
+/// name.
 #[test]
 fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
-    let (doc, index, drawn) = right_top_face();
-    let Some(Node::Transform { input: extrude, .. }) = doc.node(drawn.node) else {
+    let (session, index, drawn) = right_top_face();
+    let Some(Node::Transform { input: extrude, .. }) = session.doc().node(drawn.node) else {
         panic!("the right placement is a transform of the extrude");
     };
     let face = FaceSelection {
@@ -939,6 +931,19 @@ fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
         [IdMap::NOTHING; marks::HELD_FACES],
         "a held face on an undrawn body lit {:?}",
         marked.held
+    );
+    // The add-datum form's gate asks the same question of the same
+    // picture: the face still resolves in the evaluation, so only the
+    // picture can refuse it.
+    let (landed, display) = (session.landed_pair(), DisplayView::none());
+    assert!(
+        face_frame_seat(landed, Some(&face)).is_ok(),
+        "the evaluation still resolves the extrude's face"
+    );
+    assert_eq!(
+        face_frame_seat_drawn(landed, Some(&face), Some((&index, &display))),
+        Err(FaceFrameFault::NotDrawn),
+        "the button would commit against a face nothing marks"
     );
 }
 

@@ -268,9 +268,6 @@ pub struct Theme {
     /// half of the same legibility question.
     pub ground: Rgba8,
     /// The patch the user committed to.
-    ///
-    /// Also the colour of the HELD mark, which has no field of its own
-    /// (`crate::marks::Held` says why).
     pub selected: Mark,
     /// The patch under the cursor.
     pub hovered: Mark,
@@ -349,6 +346,17 @@ impl Theme {
     /// is a typo, and silently opening the default would hide it.
     pub fn by_name(name: &str) -> Option<Theme> {
         Theme::ALL.iter().copied().find(|theme| theme.name == name)
+    }
+
+    /// **The held mark** — a pick a form or tool holds while the
+    /// selection may be elsewhere (`crate::marks::Held`): the
+    /// selection's own mark, since it is a choice the user made.
+    ///
+    /// Not a field and not one of [`Theme::marks`]: the renderer tells
+    /// it from the selection by shape. Every place the held mark is
+    /// drawn reads its colour here.
+    pub fn held(&self) -> Mark {
+        self.selected
     }
 
     /// The four marks, paired with what to call each in a refusal.
