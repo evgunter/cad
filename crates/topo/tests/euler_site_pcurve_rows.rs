@@ -9,13 +9,15 @@
 //! is complete after the op, with the rows the minting pass would
 //! derive, or — where the closed-form lane cannot mint it as the
 //! surgery leaves it — stores nothing; a face that stored no row still
-//! stores none; a face that was already half-minted is left as found;
-//! and on a spline chart the op refuses before it mutates. Doors that
-//! are not these three can still leave a face half-minted, and the
-//! `kef` row below is one; so does `mev_null`, whose edge has no
-//! carrier, and the null-edge rows at the end pin the door that
-//! re-mints that face: the edge's first description, once no null edge
-//! is left on it.
+//! stores none; a face that was already half-minted is left as found,
+//! unless its only gaps are on loops a null edge holds open; and on a
+//! spline chart the op refuses before it mutates. Doors that are not
+//! these three can still leave a face half-minted, and the `kef` row
+//! below is one. `mev_null`, whose edge has no carrier, holds its loop
+//! open, and the null-edge rows at the end pin one door that releases
+//! it: the edge's first description, which mints every loop no other
+//! null edge holds open (`topo::null`'s rows pin the other, an
+//! operator that cuts the edge off the loop).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

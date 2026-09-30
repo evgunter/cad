@@ -2,10 +2,12 @@
 id: a-null-edge-that-is-killed-leaves-its-face-half-minted
 kind: issue
 title: A null edge the boolean or splitting pipeline kills undescribed leaves its face half-minted, and the join's Euler operators leave their own halves rowless on it
-status: open
+status: review
 opened: 2026-09-30
 priority: P2
 cost: M
+branch: topo/null-kill-remint
+pr: 3508
 ---
 
 

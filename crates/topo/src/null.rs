@@ -199,15 +199,17 @@ impl<T: geom_core::Decide> Body<T> {
     /// ([`crate::ValidationError::NullEdgeAtRest`]).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): the null edge has no
-    /// carrier to derive its halves' rows from, so this door returns a
-    /// minted face half-minted, missing those two. The edge's first
-    /// description ([`Body::set_edge_curve`]) is the first door that can
-    /// derive them: once no null edge is left on the face, it re-mints
-    /// the face whole, and on a spline chart leaves it as found. A null
-    /// edge killed undescribed — as the boolean and splitting pipelines
-    /// kill theirs — leaves the face half-minted until the producer's
-    /// final pass
-    /// (`work/topo/a-null-edge-that-is-killed-leaves-its-face-half-minted`).
+    /// carrier to derive its halves' rows from, so the loop it joins is
+    /// held open, missing those two, and the site mint cannot walk it.
+    /// The door that releases the loop mints it whole, with the rows of
+    /// any half an operator added to it meanwhile: an Euler operator
+    /// that rewires the loop out from under the edge — the boolean's and
+    /// the splitting lane's joins, whose chord `mef`s cut the section's
+    /// null halves off the faces they cross — or the edge's first
+    /// description ([`Body::set_edge_curve`]); on a spline chart either
+    /// leaves the face as found. A kill that releases the loop leaves
+    /// those rows missing
+    /// (`work/topo/a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`).
     ///
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to
     /// `mev` (a null edge is an edge).

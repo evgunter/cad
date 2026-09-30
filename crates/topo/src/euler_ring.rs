@@ -618,8 +618,8 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::Certification`]; `crate::euler` module docs,
     /// M2 geometry policy). Last, the pcurve rows, as [`Body::mev`]
     /// states them: the target loop, its face and the face's surface
-    /// resolve (`StaleKey` / `StaleGeometry`); then, only where that
-    /// face's rows are complete, the target's cycle from its anchor
+    /// resolve (`StaleKey` / `StaleGeometry`); then, only where the
+    /// site mint selects that face, the target's cycle from its anchor
     /// walks ([`EulerOpError::LoopCycleBroken`]), and the face's row
     /// plan is minted ([`EulerOpError::PcurveMint`]). Chord sugar:
     /// [`Body::mekr_chord`].

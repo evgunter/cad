@@ -914,13 +914,14 @@ pub enum EulerOpError {
         error: geom_brep::PcurveCertifyError,
     },
     /// [`Body::mev`], [`Body::mef`] or [`Body::mekr`] would add a
-    /// half-edge to a face whose **pcurve rows are complete**, and the
-    /// row that half-edge needs cannot be minted under the operators'
-    /// `Decide` bound ([`crate::pcurves::SiteRowRefusal`]: the face is
-    /// on a spline chart, the fitted frontier, or a half-edge of a loop
-    /// the op rewires does not resolve). Raised before any mutation, so
-    /// the body is untouched — these three operators leave no complete
-    /// face half-minted. Also raised by [`Body::set_edge_curve`] on a
+    /// half-edge to a face the site mint re-mints — one whose **pcurve
+    /// rows are complete**, or complete but for the loops a null edge
+    /// holds open — and a row it needs cannot be minted under the
+    /// operators' `Decide` bound ([`crate::pcurves::SiteRowRefusal`]: a
+    /// complete face on a spline chart, the fitted frontier, or a
+    /// half-edge of a loop the op re-mints does not resolve). Raised
+    /// before any mutation, so the body is untouched — these three
+    /// operators leave no complete face half-minted. Also raised by [`Body::set_edge_curve`] on a
     /// null edge's first description, which re-mints the faces the
     /// edge's halves are on through the same site mint, where a
     /// half-edge of such a face does not resolve.
@@ -1604,9 +1605,12 @@ impl<T: Decide> Body<T> {
     /// rows the minting pass would store — and its other loops keep
     /// theirs; or, where the closed-form lane cannot mint the face as
     /// the surgery leaves it, it stores nothing; on a spline chart the
-    /// op refuses [`EulerOpError::PcurveMint`]. A face storing no row
-    /// stays rowless, and a half-minted one is left as found
-    /// (`crate::pcurves::site_rows` carries the rule). The cost is one
+    /// op refuses [`EulerOpError::PcurveMint`]. A face whose only gaps
+    /// are on loops a null edge holds open is taken the same way, and a
+    /// loop the null edge still holds keeps what it had, its new halves
+    /// rowless; on a spline chart that face is left as found. A face
+    /// storing no row stays rowless, and one half-minted any other way
+    /// is left as found (`crate::pcurves::site_rows` carries the rule). The cost is one
     /// walk and one certification per half-edge of the rewired loops,
     /// and one presence read per half-edge of the face's other loops.
     ///
@@ -1705,8 +1709,8 @@ impl<T: Decide> Body<T> {
     /// The first edge of the run to fail names the refusal. Last, the
     /// pcurve rows, for both sites: the loops the new halves join, their
     /// faces and those faces' surfaces resolve (`StaleKey` /
-    /// `StaleGeometry`); then, only where one of those faces has
-    /// complete rows, the loops the surgery rewires walk
+    /// `StaleGeometry`); then, only where the site mint selects one of
+    /// those faces, the loops the surgery rewires walk
     /// ([`EulerOpError::LoopCycleBroken`] / `StaleKey` /
     /// `StaleGeometry`), and each face's row plan is minted
     /// ([`EulerOpError::PcurveMint`]).
@@ -1825,7 +1829,7 @@ impl<T: Decide> Body<T> {
     /// the reasons and with the consequences [`Body::drop_rows`]
     /// states. The old face's remaining rows are untouched either way.
     /// The two halves this op mints get their rows at the site, as
-    /// [`Body::mev`]'s do: the old face, when its rows were complete,
+    /// [`Body::mev`]'s do: the old face, when the site mint selects it,
     /// is re-minted with `he_plus` in it, and the new face — when the
     /// run's rows stand on it — with `he_minus`, on the terms
     /// [`Body::mev`] states.
@@ -1876,8 +1880,8 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::SenseContradictsChart`]), and `curve` certifies
     /// ([`EulerOpError::Certification`]). Last, the
     /// pcurve rows, as [`Body::mev`] states them: the loop, its face and
-    /// the face's surface resolve; then, only where that face's rows
-    /// are complete, the old loop's cycle from `he1` walks
+    /// the face's surface resolve; then, only where the site mint
+    /// selects that face, the old loop's cycle from `he1` walks
     /// ([`EulerOpError::LoopCycleBroken`]), the new face's chart
     /// resolves (`StaleGeometry`), and the two faces' row plans are
     /// minted ([`EulerOpError::PcurveMint`]).
