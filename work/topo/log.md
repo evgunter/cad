@@ -3391,3 +3391,29 @@ did not act on that deletion.
 
 Tier SINGLE, full. The reviewer is on the warm target, and the brief
 names the PR 2527 ruling.
+
+## PR 3506's fix pass delivered; both rows close on the branch (2026-09-30)
+
+The fix pass took 427,644 tokens, 210 tools and 67 min (harness).
+Head `6dfe2749f8` passed `gate ok` on run 36671503369.
+
+The orchestrator read the diff:
+- **MAJOR fixed.** The merge has its own `DECLARED_ORIENTATION`
+  (Positive), and `DeclaredOppositeOrientation` is its sign-certain arm
+  (lever only, no label or key). The Boolean keeps `PLANE_ORIENTATION`
+  (`NonZero`). Rows pin the merge's story across same-facing and
+  opposite planes, ± margins, and in-band and definite arms.
+- **Levers.** Both name the shared edge's chord.
+- **Routing by door.** `PlaneDoor` routes F7 to its own
+  `Neighbours` decision and lever ("merge the two faces into one
+  first…"). A declared door's unreadable norm is a defect at both the
+  merge and the Boolean.
+- **`TorusConvention`** moved to `geom_brep::torus_convention`, and
+  the filed rows point there.
+- **Filed:** six rows (topo ×3, CARVE, CONTACT, TINT), plus evidence
+  on CONTACT, CHART and LIB. Seam notes added on eight programs' logs.
+- **Deviation, accepted:** the Boolean's orientation lever and size
+  noun were also fixed, closing the MINOR-1 flaw there.
+
+Both rows close on the branch. Merge after CI on `dfa4340e83`. Single
+tier, so no DR row.
