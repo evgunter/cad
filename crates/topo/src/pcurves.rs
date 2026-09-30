@@ -4165,7 +4165,7 @@ mod derive_without_a_door {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::float_cmp)]
+#[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
 mod polar_shift_tests {
     use super::shift_polar_branch;
     use geom_brep::{Pcurve, SpiricImage};

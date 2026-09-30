@@ -939,7 +939,11 @@ fn the_node_cap_refuses_one_doubling_short_of_the_tolerance() {
 #[test]
 fn an_invalid_uncertainty_refuses_the_same_way_with_or_without_a_spiric() {
     let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
-    for value in [-1.0, 0.0, f64::NAN, f64::INFINITY] {
+    // `INFINITY` first, on purpose: with the check misplaced after the
+    // geometry, an infinite budget is "met" at the four-node floor, so
+    // the regression shows after one five-point fit instead of after
+    // a walk to the node cap.
+    for value in [f64::INFINITY, -1.0, 0.0, f64::NAN] {
         for (what, body) in [("with a spiric", &cavity), ("without one", &quarter)] {
             let e = step_export::step_string(
                 body,
@@ -1219,15 +1223,17 @@ mod interval_rows {
                 // paragraph). The f64 twin's row pins the exact zero;
                 // what this row pins is that the bracket's price stays
                 // at rounding level rather than growing into a claim.
-                // The gate is at ROUNDING LEVEL, not at ε: the
-                // measured width is 2.1e-15 and ε is 1e-9, so a gate
-                // at ε has six orders of headroom and cannot see the
-                // bracket price growing — which is the whole
-                // degradation this row exists to watch. 1e-13 is two
-                // orders above the measurement and eight below ε.
+                // The gate is at ROUNDING LEVEL, not at ε: the measured
+                // bracket is `[-1.5e-323, 2.84e-15]` and ε is 1e-9, so a gate at ε could not see the price
+                // growing by four orders. The lower end is only required
+                // to straddle zero — outward rounding may put it a
+                // denormal below.
                 assert!(
-                    cert.envelope.lo() == 0.0 && cert.envelope.hi() <= 1e-13,
-                    "the bracket's own width, metered, is at rounding level                      (measured 2.117080716278788e-15): {:?}",
+                    cert.envelope.lo() <= 0.0
+                        && cert.envelope.lo() >= -1e-300
+                        && cert.envelope.hi() <= 1e-13,
+                    "the bracket's own width, metered, is at rounding level \
+                     (measured [-1.5e-323, 2.84e-15]): {:?}",
                     cert.envelope
                 );
             }
