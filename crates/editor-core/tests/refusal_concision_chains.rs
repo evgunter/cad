@@ -3263,6 +3263,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("DepthExceeded", PartFault::DepthExceeded),
+        ("NotEntered", PartFault::NotEntered),
     ];
     for (n, fault) in parts {
         rows.push(row(

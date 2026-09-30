@@ -697,7 +697,7 @@ BOUND_AS = {
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
     # `part_root_failed`, `part_root_poisoned`,
     # `part_root_failure_unrecorded`, `part_product`,
-    # `part_reference_cycle`, `part_depth_exceeded` —
+    # `part_reference_cycle`, `part_depth_exceeded`, `part_not_entered` —
     # the same flattening `NodeErrorKind` gets above. They left the
     # `gap` roster at LIB-G18a, when the resolver parameter made them
     # reachable: the tags existed before it, and `part_no_resolver` was

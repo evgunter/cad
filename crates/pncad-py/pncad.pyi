@@ -233,6 +233,10 @@ class EvaluationError(PncadError):
     `DocRef` for a part's node, or `None` for a node of the evaluated
     document itself. A part inside a part is a
     chain of causes, one per document, ending at the node that refused.
+    A chain links at most 256 causes, so every interpreter can print
+    it: past that depth the last cause is raised for the node that
+    refused, and its message holds every level it stands for, one line
+    each, deepest first.
     """
 
     reason: str
