@@ -625,8 +625,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     edge: edge_key,
                 });
             }
-            Err(super::PlaneEqError::Escalated(diag)) => {
-                return Err(BooleanError::coincidence(diag));
+            Err(super::PlaneEqError::Escalated { rung, diag }) => {
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    super::PlaneDoor::Neighbours,
+                    diag,
+                ));
             }
             Err(super::PlaneEqError::Undeclared { diag, relation }) => {
                 // Same-operand pair (the F7 maximal-faces gate): both
