@@ -3417,3 +3417,12 @@ The orchestrator read the diff:
 
 Both rows close on the branch. Merge after CI on `dfa4340e83`. Single
 tier, so no DR row.
+
+## PR 3506 merged (2026-09-30)
+
+PR 3506 merged (`ef24e691de`), closing
+`pierced-torus-convention-arms-tell-two-stories` and
+`merge-coplanar-escalation-offers-a-declaration-already-made`. It was
+a single-tier review, so there is no DR row. The orchestration
+branch's `dispatched` status lines conflicted with main's closed
+items; main's versions were taken.
