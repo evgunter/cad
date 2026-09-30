@@ -23,3 +23,11 @@ Ev leans towards (a), with a "copy gauge then mate" shortcut, and ruled that del
 - `/dev/urandom` byte: 149
 - Mapping: Fable = A, Opus = B
 - Protocol: bb10a4cdd
+
+## Fourth fork, 2026-09-30: what split and inline do with gauges, offsets and mates (P2's open question)
+
+Fork: the same row; P2 (`docs/EDIT-PLACEMENT-SPEC.md`) cannot be spec'd until A4's pair has an answer under A11 (2)'s gauges and "no edit records a frame".
+
+- `/dev/urandom` byte: 218 (even)
+- Mapping: Opus = A, Fable = B
+- Protocol: bb10a4cdd
