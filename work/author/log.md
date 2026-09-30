@@ -1379,3 +1379,7 @@ had ever held them. Four mutations, all red.
 **Units** are Ev's to rank: `work/chrome/a-computed-slots-value-reads-in-metres-and-radians`
 (P3, design). A 12.5 mm part's measure reads `0.0125 m` and a right
 angle `1.5707963268 rad`, consistent with driven slots.
+
+## 2026-09-30 — AUTH-8 dispatched: an assertion row shows its verdict
+
+The only dispatchable P0 left. Of the others, the negative-extrude fork waits on the designer lanes and Ev, and `AddBoolean` waits on EDIT. AUTH-8 builds on AUTH-7's `Measured` and `feature_row_ui`. The tone of a `Violated` row is left to the lane with both readings stated. If it is close, it goes to Ev.
