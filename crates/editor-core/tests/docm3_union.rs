@@ -528,9 +528,11 @@ fn two_placements_of_one_prototype_are_two_members() {
             doc,
             Node::transform(
                 base,
-                [len(dx), len(0.0), len(0.0)],
-                [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-                fixture::ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                    angle: fixture::ang(0.0),
+                },
             ),
         )
     };
@@ -864,9 +866,11 @@ fn a_union_is_one_body_at_an_operand_seat() {
         doc,
         Node::transform(
             u,
-            [len(0.0), len(0.0), len(0.0)],
-            [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            fixture::ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
         ),
     );
     let ev = run(&doc);

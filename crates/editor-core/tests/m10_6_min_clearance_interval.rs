@@ -139,13 +139,15 @@ fn dumbbell() -> Dumbbell {
     // rather than sized).
     let placed = r.insert(Node::transform(
         solid,
-        [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        [scl(0.0), scl(0.0), scl(1.0)],
-        ang(0.0),
+        editor_core::Step::Rigid {
+            translation: [
+                Expr::param(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
     ));
     let measure = r.insert(
         Node::measure(

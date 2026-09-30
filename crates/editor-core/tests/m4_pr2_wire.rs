@@ -185,9 +185,11 @@ fn rotational_transform_wires_and_preserves_volume() {
         doc,
         Node::transform(
             cube,
-            [len(0.25), len(-1.5), len(3.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(FRAC_PI_2),
+            editor_core::Step::Rigid {
+                translation: [len(0.25), len(-1.5), len(3.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(FRAC_PI_2),
+            },
         ),
     );
     let ev = run(&doc);
@@ -713,9 +715,11 @@ fn non_finite_transform_axis_refuses_at_the_direction_door() {
         doc,
         Node::transform(
             cube,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(1e200), scl(0.0)],
-            ang(FRAC_PI_2),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(1e200), scl(0.0)],
+                angle: ang(FRAC_PI_2),
+            },
         ),
     );
     let ev = run(&doc);
@@ -825,9 +829,11 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
         doc,
         Node::transform(
             cube,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(0.0)],
-            ang(FRAC_PI_2),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(0.0)],
+                angle: ang(FRAC_PI_2),
+            },
         ),
     );
     let ev = run(&doc);

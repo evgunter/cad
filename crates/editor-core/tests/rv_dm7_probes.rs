@@ -140,9 +140,11 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         doc,
         Node::transform(
             ib,
-            [len(2.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(2.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let head_b = instance_face(ib, part_body);

@@ -95,9 +95,11 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
 fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<ProfileProgram> {
     Node::transform(
         input,
-        [dx, dy, dz],
-        [scl(0.0), scl(0.0), scl(1.0)],
-        ang(0.0),
+        editor_core::Step::Rigid {
+            translation: [dx, dy, dz],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
     )
 }
 

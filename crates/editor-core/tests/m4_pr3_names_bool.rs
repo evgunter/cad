@@ -299,9 +299,11 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
             doc,
             Node::transform(
                 b0,
-                [len(tx), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(tx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.
@@ -343,9 +345,11 @@ fn flip_changes_exactly_the_boolean_nodes_table() {
             doc,
             Node::transform(
                 b0,
-                [len(tx), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(tx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         );
         // The B side is read at the TRANSFORM, the boolean's operand.

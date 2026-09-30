@@ -162,9 +162,11 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         doc,
         Node::transform(
             bar,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let (doc, cut) = insert(
@@ -358,9 +360,11 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             doc,
             Node::transform(
                 bar,
-                [len(0.0), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(0.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         );
         let (doc, far) = block(doc, (10.0, 11.0), (0.0, 1.0), 0.0, 1.0);
@@ -492,9 +496,11 @@ fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
             doc,
             Node::transform(
                 bar,
-                [len(0.0), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(0.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         );
         let (doc, cblock) = block(doc, c.0, c.1, c.2, c.3);
@@ -615,9 +621,11 @@ fn plate_and_bar() -> (
         doc,
         Node::transform(
             bar,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let (doc, u) = insert(
@@ -774,9 +782,11 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
             doc,
             Node::transform(
                 bar,
-                [len(0.0), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(0.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         );
         let (doc, c) = block(doc, (0.5, 1.5), (-0.8, -0.5), 0.0, 2.0);

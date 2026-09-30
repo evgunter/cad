@@ -142,9 +142,11 @@ fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distributio
 fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Expr; 3]) -> RecipeNodeId {
     r.insert(Node::transform(
         input,
-        t,
-        [scl(0.0), scl(0.0), scl(1.0)],
-        ang(0.0),
+        editor_core::Step::Rigid {
+            translation: t,
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
     ))
 }
 

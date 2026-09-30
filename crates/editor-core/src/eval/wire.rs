@@ -298,7 +298,7 @@ where
             id,
             *input,
             kind,
-            node.placement_rule_fault(),
+            node.placement_rule_fault(tol),
             results,
             vals,
             tol,
@@ -407,10 +407,11 @@ where
             });
         }
     }
-    // The identity fast-path is admitted only for a BIT-exact identity
-    // frame: any other value could round, and `transform_rigid` is what
-    // decides whether it stayed rigid.
-    let map = (!placement.is_identity_bits()).then(|| placement.affine::<T>());
+    // The identity fast-path is the composition rule's
+    // (`placement::Motion`): admitted only for a BIT-exact identity
+    // frame, since any other value could round, and `transform_rigid`
+    // is what decides whether it stayed rigid.
+    let map = placement.motion::<T>().non_identity();
     let placed = place(&part.body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive

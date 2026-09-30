@@ -696,9 +696,11 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         doc2,
         Node::transform(
             li,
-            [len(0.0), len(0.0), len(0.5)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.5)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let (doc2, pat) = insert(

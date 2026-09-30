@@ -181,7 +181,7 @@ pub use persist::{
     load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
-pub use placement::{AxisRefusal, Frame, FrameFault, Placement, Step};
+pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{

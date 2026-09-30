@@ -84,9 +84,11 @@ fn slide_union(tx: f64) -> Slide {
         doc,
         Node::transform(
             b0,
-            [len(tx), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(tx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     // The B side is read at the TRANSFORM — the boolean's operand —
@@ -1063,9 +1065,11 @@ fn suggestions_never_offer_sideof_partner_phantoms_and_are_kind_filtered() {
         doc,
         Node::transform(
             band,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let (doc, sub) = insert(
@@ -1240,18 +1244,22 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
             doc,
             Node::transform(
                 if use_c { c } else { b },
-                [len(0.25), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(0.25), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         );
         let (doc, n) = insert(
             doc,
             Node::transform(
                 x,
-                [len(0.0), len(0.25), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(0.0), len(0.25), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         );
         (doc, b, c, n)

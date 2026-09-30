@@ -87,9 +87,11 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
         doc,
         Node::transform(
             cut,
-            [len(1.0), len(1.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.5),
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(1.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.5),
+            },
         ),
     );
     let (doc, sub) = insert(

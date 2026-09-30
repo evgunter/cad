@@ -52,9 +52,11 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         doc,
         Node::transform(
             pip,
-            [len(1.0), len(1.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(1.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     // The pip's outer cap lies ON the cube's top — declared (M4 PR 5).

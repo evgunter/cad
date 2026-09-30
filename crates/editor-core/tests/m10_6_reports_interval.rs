@@ -80,13 +80,15 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // interval lane at a usable box.
     let placed = r.insert(Node::transform(
         solid,
-        [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        [scl(0.0), scl(0.0), scl(1.0)],
-        ang(0.0),
+        editor_core::Step::Rigid {
+            translation: [
+                Expr::param(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
     ));
     // distance(wall 0, wall 2) — two parallel walls of the prism, 2 m
     // apart, measured at the PLACED node.

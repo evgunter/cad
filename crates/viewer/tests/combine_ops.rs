@@ -1948,9 +1948,11 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         &doc,
         Node::transform(
             extruded_b,
-            [common::len(0.1), common::len(0.0), common::len(0.0)],
-            [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            common::ang(0.0),
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
         ),
         tol,
     );
@@ -1959,9 +1961,11 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         &doc,
         Node::transform(
             body,
-            [common::len(0.01), common::len(0.002), common::len(0.002)],
-            [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            common::ang(0.0),
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
         ),
         tol,
     );
@@ -2063,9 +2067,11 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "transform",
             Node::transform(
                 body,
-                [common::len(0.0), common::len(0.0), common::len(0.0)],
-                [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                common::ang(0.0),
+                pncad::document::Step::Rigid {
+                    translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
             ),
         ),
         (
@@ -2147,9 +2153,11 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             &with_candidate,
             Node::transform(
                 candidate,
-                [common::len(0.0), common::len(0.0), common::len(0.0)],
-                [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                common::ang(0.0),
+                pncad::document::Step::Rigid {
+                    translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
             ),
             tol,
         );
@@ -2737,7 +2745,14 @@ fn the_part_seats_track_the_evaluators_part_door() {
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        Node::transform(pattern, len3([0.0; 3]), scl3([0.0, 0.0, 1.0]), ang(0.0)),
+        Node::transform(
+            pattern,
+            pncad::document::Step::Rigid {
+                translation: len3([0.0; 3]),
+                axis: scl3([0.0, 0.0, 1.0]),
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
 
@@ -3147,9 +3162,11 @@ fn duplicating_a_several_body_value_is_refused() {
         &mut doc,
         Node::transform(
             pattern,
-            len3([0.0, 0.05, 0.0]),
-            scl3([0.0, 0.0, 1.0]),
-            ang(0.0),
+            pncad::document::Step::Rigid {
+                translation: len3([0.0, 0.05, 0.0]),
+                axis: scl3([0.0, 0.0, 1.0]),
+                angle: ang(0.0),
+            },
         ),
         tol,
     );

@@ -82,14 +82,16 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         Node::transform(
             extrude,
-            [
-                Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
-                    .expect("length * scalar is a length"),
-                len(0.0),
-                len(0.0),
-            ],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            pncad::document::Step::Rigid {
+                translation: [
+                    Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
+                        .expect("length * scalar is a length"),
+                    len(0.0),
+                    len(0.0),
+                ],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
         tol,
     );
@@ -662,9 +664,11 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
         &doc,
         Node::transform(
             bad,
-            [len(0.01), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            pncad::document::Step::Rigid {
+                translation: [len(0.01), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
         tol,
     );

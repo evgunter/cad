@@ -109,9 +109,11 @@ fn band_cut() -> BandCut {
         doc,
         Node::transform(
             band,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let (doc, sub) = insert(
@@ -298,9 +300,11 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
         doc,
         Node::transform(
             b0,
-            [len(2.5), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(2.5), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     // M4 PR 5: the slide's flush planes are declared (the disjoint

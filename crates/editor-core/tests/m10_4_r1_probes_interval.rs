@@ -160,9 +160,11 @@ fn stepped_shaft_sized(
     });
     let boss = r.insert(Node::transform(
         boss_raw,
-        [len(0.0), len(0.0), param("h1", Dimension::Length)],
-        [scl(0.0), scl(0.0), scl(1.0)],
-        ang(0.0),
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
     ));
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),

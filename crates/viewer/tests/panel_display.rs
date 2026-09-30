@@ -353,10 +353,16 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
         &doc,
         Node::transform(
             extrude,
-            [common::len(0.0), common::len(0.0), common::len(0.0)],
-            [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            Expr::literal_with_unit(core::f64::consts::FRAC_PI_2, Dimension::Angle, DEG.def())
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: Expr::literal_with_unit(
+                    core::f64::consts::FRAC_PI_2,
+                    Dimension::Angle,
+                    DEG.def(),
+                )
                 .expect("a right angle"),
+            },
         ),
         tol,
     );

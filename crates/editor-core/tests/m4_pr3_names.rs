@@ -708,9 +708,11 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
         doc,
         Node::transform(
             ext,
-            [len(3.0), len(0.0), len(0.0)],
-            [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(3.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let (doc, pat) = insert(

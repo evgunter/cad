@@ -1,17 +1,9 @@
 //! Placement: the literal [`Frame`], and the [`Placement`] chain a
-//! `Node::Transform` holds (ASSEMBLY-DESIGN A11 (2)) — rigid steps of
-//! expressions and literal frames.
+//! `Node::Transform` holds (`crates/editor-core/ASSEMBLY.md` A11 (2)) —
+//! rigid steps of expressions and literal frames.
 //!
-//! # Cluster placement frames (ASSEMBLY-DESIGN A11; ASM-2A D-2)
-//!
-//! A11 puts placement on the **cluster**, never on the instance: a
-//! placement cluster is a connected component of the instance–mate
-//! graph, and its one frame places its gauge instance. In the mate-less
-//! v1 every instance is a SINGLETON cluster, so [`crate::Doc`]'s
-//! placement registry is keyed by the instantiate node's own id — the
-//! key generalizes to a cluster representative when mates land (R2),
-//! and nothing about the stored frame changes when it does.
-//!
+//! [`crate::Doc`]'s placement registry holds one [`Frame`] per
+//! placement cluster, keyed by the cluster's gauge instance (A11 (3)).
 //! A missing entry is the IDENTITY frame: a legal, complete state, not
 //! a hole. Zero-anchor and multi-anchor states are unrepresentable
 //! because the registry holds at most one frame per cluster.
@@ -19,10 +11,10 @@
 use geom_core::predicate::Band;
 use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
 
-use crate::eval::slots::{SlotVal, SlotValues};
+use crate::eval::slots::SlotValues;
 use crate::eval::{NodeErrorKind, NodeRefusal};
 use crate::expr::{Expr, ParamEnv};
-use crate::node::{Axis3, RigidArg, SlotId};
+use crate::node::{RigidArg, SlotId};
 
 /// **A placement axis with no definite direction** — the ONE thing
 /// [`Frame::rotate_then_translate`] refuses, and the only thing
@@ -74,10 +66,10 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// determinant +1 identically, so the v1 refusal could never fire and
 /// the R4 equivariance prerequisite would be invisible in the format.
 ///
-/// Rigidity is not a field invariant — it is a decided predicate, and
-/// the kernel's placement door
-/// ([`topo::transform_rigid`]) owns it. What the
-/// edit door checks is the sign (see [`Frame::determinant`]).
+/// Rigidity is not a field invariant — it is a decided predicate with
+/// one home, [`topo::check_rigid`], which the kernel's placement door
+/// ([`topo::transform_rigid`]) asks of every map it moves a body by and
+/// [`Frame::admission_fault`] asks of every frame a document admits.
 ///
 /// # Exactness
 ///
@@ -94,12 +86,14 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// [`Frame::compose`]'s general arm.
 ///
 /// A BIT-exact identity is a fast path, and only a bit-exact one may
-/// be, since any other value could round: [`Frame::compose`] returns
-/// the other operand verbatim on one, admitted by
-/// [`Frame::is_identity_bits`] over [`Frame::bit_eq`]. That is what
-/// makes the split/inline round trip exact — the frames a split hoists
-/// or leaves behind compose back with zero arithmetic, so D-4's
-/// bit-level volume identity never meets a rounding step.
+/// be, since any other value could round: [`Motion::compose`] — the one
+/// composition rule, which [`Frame::compose`] and a [`Placement`]'s
+/// chain both fold through — returns the other operand verbatim on one,
+/// admitted by [`Frame::is_identity_bits`] over [`Frame::bit_eq`]. That
+/// is what makes the split/inline round trip exact — the frames a split
+/// hoists or leaves behind compose back with zero arithmetic, so D-4's
+/// bit-level volume identity never meets a rounding step — and what
+/// makes an identity step in a chain move no bit.
 ///
 /// A placement and a modeled transform of the same part agree BIT FOR
 /// BIT: [`Frame::rotate_then_translate`] is the `Transform` node's own
@@ -279,22 +273,28 @@ impl Frame {
         self.affine_f64().map(T::from_f64)
     }
 
+    /// The motion this frame denotes in the backend scalar, with a
+    /// bit-exact identity marked as such ([`Motion`]) — which only a
+    /// stored frame can know, by its bits.
+    #[must_use]
+    pub(crate) fn motion<T: Real>(&self) -> Motion<T> {
+        if self.is_identity_bits() {
+            Motion::Identity
+        } else {
+            Motion::Map(self.affine())
+        }
+    }
+
     /// The composition `self ∘ inner`: the frame that places by
     /// `inner` first, then by `self` — inline's rule (ASM-4 D-3: the
-    /// instance's cluster frame composed onto the part's placements).
-    ///
-    /// A bit-exact identity on either side returns the other operand
-    /// verbatim; the general product is [`Affine3`]'s own
-    /// multiplication at `f64` ([`Frame`]'s exactness rule).
+    /// instance's cluster frame composed onto the part's placements),
+    /// by [`Motion::compose`] at `f64`.
     #[must_use]
     pub fn compose(&self, inner: &Frame) -> Frame {
-        if self.is_identity_bits() {
-            return *inner;
+        match self.motion::<f64>().compose(inner.motion()) {
+            Motion::Identity => Frame::IDENTITY,
+            Motion::Map(map) => Frame::from_affine(map),
         }
-        if inner.is_identity_bits() {
-            return *self;
-        }
-        Frame::from_affine(self.affine_f64() * inner.affine_f64())
     }
 
     /// Whether this frame is the stored identity, BY BITS — D-3's
@@ -306,26 +306,46 @@ impl Frame {
     }
 
     /// **The frame half of A11/A6's admission rule, stated once**: a
-    /// frame the document admits carries only numbers, and preserves
-    /// orientation.
+    /// frame the document admits carries only numbers, preserves
+    /// orientation, and is a rigid motion.
     ///
     /// One predicate with one home, asked wherever a document admits a
-    /// frame — the A11 cluster registry ([`crate::doc::PlacementFault`])
-    /// and a placement rule's listed frames
-    /// ([`crate::node::PlacementRuleFault`]) — so the two cannot come to
-    /// hold frames to different standards. Each caller keeps its own
-    /// arms, says WHICH frame is at fault in its own vocabulary, and
-    /// forwards this answer's sentence rather than restating it.
+    /// frame — the A11 cluster registry ([`crate::doc::PlacementFault`]),
+    /// a placement rule's listed frames
+    /// ([`crate::node::PlacementRuleFault`]) and a transform's literal
+    /// steps ([`Placement::frame_fault`]) — so none of them can come to
+    /// hold frames to a different standard. Each caller keeps its own
+    /// arms, says WHICH frame is at fault in its own vocabulary
+    /// ([`FrameSite`]), and forwards this answer's sentence rather than
+    /// restating it.
+    ///
+    /// Rigidity is [`topo::check_rigid`] at `tol`'s linear band, the
+    /// predicate the evaluation's [`topo::TransformError::NotRigid`]
+    /// applies, so a frame admitted here is one the evaluation moves a
+    /// body by. A tolerance that forms no band decides nothing, and
+    /// every evaluation at it refuses before it reads a frame, so the
+    /// rigidity half is left to the next door that holds a band: the
+    /// load door asks it again at the loading tolerance.
     ///
     /// It lives on [`Frame`] because the rule is about a frame and
     /// nothing else: it reads no document, no node and no registry.
     #[must_use]
-    pub(crate) fn admission_fault(&self) -> Option<FrameFault> {
+    pub(crate) fn admission_fault(&self, tol: geom_core::Tol) -> Option<FrameFault> {
         if !self.is_finite() {
             return Some(FrameFault::NonFinite);
         }
         let determinant = self.determinant();
-        (determinant <= 0.0).then_some(FrameFault::Improper { determinant })
+        if determinant <= 0.0 {
+            return Some(FrameFault::Improper { determinant });
+        }
+        let band = Band::linear(tol).ok()?;
+        match topo::check_rigid(&self.affine_f64(), band) {
+            Ok(()) => None,
+            Err(topo::TransformError::NotRigid { check }) => Some(FrameFault::NotRigid { check }),
+            // `check_rigid` raises `NotRigid` and `NonFiniteMap`, and
+            // the frame's coordinates were decided finite above.
+            Err(_) => Some(FrameFault::NonFinite),
+        }
     }
 
     /// Bit-semantic frame equality (D7's comparator family): every
@@ -361,12 +381,20 @@ pub enum FrameFault {
         /// The linear part's determinant.
         determinant: f64,
     },
+    /// The frame is proper but not definitely a rigid motion at
+    /// tolerance: it may scale or shear an axis
+    /// ([`topo::check_rigid`]).
+    NotRigid {
+        /// The rigidity check that refused, which
+        /// [`topo::not_rigid_reading`] puts in words; routing, never
+        /// rendered by name.
+        check: &'static str,
+    },
 }
 
 // The ONE prose for the frame rule: a predicate clause, so each door
-// forwards it into its own subject ("placement 2 …", "the placement
-// frame on node 7 …") rather than inventing a second wording for the
-// fact they share.
+// forwards it into its own subject ([`FrameSite::subject`]) rather than
+// inventing a second wording for the fact they share.
 impl core::fmt::Display for FrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -374,6 +402,62 @@ impl core::fmt::Display for FrameFault {
             Self::Improper { determinant } => {
                 write!(f, "is improper (mirroring): determinant {determinant}")
             }
+            Self::NotRigid { check } => write!(
+                f,
+                "is not definitely rigid at tolerance: {}",
+                topo::not_rigid_reading(check)
+            ),
+        }
+    }
+}
+
+impl FrameFault {
+    /// **What to do about the frame**, from any door that writes one:
+    /// each refuses the edit that carried the frame, so making that edit
+    /// again with the frame repaired gets through.
+    #[must_use]
+    pub fn recourse(&self) -> &'static str {
+        match self {
+            Self::NonFinite => "give every coordinate of that frame a finite value",
+            Self::Improper { .. } => {
+                "use a frame that does not mirror, a rotation and a translation; mirrored \
+                 placements are admitted only behind the equivariance audit"
+            }
+            Self::NotRigid { .. } => "use only a rotation and a translation in that frame",
+        }
+    }
+}
+
+/// **Which frame of a node a placement refusal is about** — the subject
+/// a door names beside the [`FrameFault`] sentence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrameSite {
+    /// The instance's placement frame: the registry row
+    /// `DocEdit::SetPlacement` writes, or one a file holds.
+    Registry,
+    /// Listed placement `index` of an explicit placement rule.
+    Listed {
+        /// Its index in the placement list.
+        index: usize,
+    },
+    /// Step `index` of a transform's placement chain.
+    Step {
+        /// Its index in the chain.
+        index: usize,
+    },
+}
+
+impl FrameSite {
+    /// The frame this site names on `node`, as a sentence's subject. A
+    /// step reads as a user counts, from one, as [`crate::SlotId::label`]
+    /// numbers a chain's steps; a listed placement reads by its index,
+    /// the one an instance's name carries.
+    #[must_use]
+    pub fn subject(self, node: crate::node::RecipeNodeId) -> String {
+        match self {
+            Self::Registry => format!("the placement frame for node {}", node.0),
+            Self::Listed { index } => format!("placement {index} of node {}", node.0),
+            Self::Step { index } => format!("step {} of node {}'s placement", index + 1, node.0),
         }
     }
 }
@@ -384,33 +468,89 @@ impl Default for Frame {
     }
 }
 
-/// **A placement: an ordered chain of steps**, the one placement type
-/// [`crate::Node::Transform`] holds (ASSEMBLY-DESIGN A11 (2)).
+/// **A motion with its bit-exact identity marked** — the one
+/// composition rule ([`Frame`]'s exactness rule), generic over the
+/// scalar so a [`Placement`]'s chain folds through the same rule
+/// [`Frame::compose`] does at `f64`.
 ///
-/// The chain composes LEFT TO RIGHT as a product: `[s0, s1, …, sn]`
-/// denotes `s0 ∘ s1 ∘ … ∘ sn`, so each step is expressed in the frame
-/// the steps before it build, and the last step is the first to act on
-/// the placed body — a `point_at` frame followed by a rigid step spins
-/// the body inside the aimed frame. The empty chain is the identity.
+/// The identity is marked rather than detected: only a stored frame
+/// knows it is the identity, by its bits ([`Frame::motion`]); a map
+/// computed from expressions is a [`Motion::Map`] whatever its value.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Motion<T: Real> {
+    /// The bit-exact identity: composes with anything by returning it.
+    Identity,
+    /// Any other motion.
+    Map(Affine3<T>),
+}
+
+impl<T: Real> Motion<T> {
+    /// `self ∘ inner`, `inner` acting first. A bit-exact identity on
+    /// either side returns the other operand verbatim, with zero
+    /// arithmetic; otherwise [`Affine3`]'s own product in its fixed
+    /// association.
+    #[must_use]
+    pub(crate) fn compose(self, inner: Self) -> Self {
+        match (self, inner) {
+            (Self::Identity, other) | (other, Self::Identity) => other,
+            (Self::Map(outer), Self::Map(inner)) => Self::Map(outer * inner),
+        }
+    }
+
+    /// The map, the identity included.
+    #[must_use]
+    pub(crate) fn affine(self) -> Affine3<T> {
+        match self {
+            Self::Identity => Affine3::identity(),
+            Self::Map(map) => map,
+        }
+    }
+
+    /// The map, `None` for the bit-exact identity — what a door that
+    /// skips the identity (an instance placement's fast path) reads.
+    #[must_use]
+    pub(crate) fn non_identity(self) -> Option<Affine3<T>> {
+        match self {
+            Self::Identity => None,
+            Self::Map(map) => Some(map),
+        }
+    }
+}
+
+/// **A placement: an ordered chain of steps** — what a
+/// [`crate::Node::Transform`] holds (ASSEMBLY-DESIGN A11 (2)). The
+/// registry (`Doc::placements`) and an explicit rule's listed
+/// placements hold literal [`Frame`]s.
+///
+/// The chain composes as a product: `[s0, s1, …, sn]` denotes
+/// `s0 ∘ s1 ∘ … ∘ sn`, the reading A11 (5) writes "gauge frame ∘ offset
+/// ∘ solved pose" in and [`Frame::compose`] computes. Each step is
+/// expressed in the frame the steps before it build, and the last step
+/// is the first to act on the placed body: a `point_at` frame composed
+/// with a rigid step spins the body inside the aimed frame.
+/// [`Placement::compose`] is the door that builds one chain from two.
+///
+/// The empty chain is the identity ([`Placement::IDENTITY`]), the unit
+/// of [`Placement::compose`]; both doors admit it.
 ///
 /// A rigid step is parametric: its components are slot expressions,
-/// addressed per step ([`crate::SlotId::rigid`]). A matrix step is a
-/// literal and carries no slot.
+/// addressed per step ([`crate::SlotId::rigid`]). A literal step
+/// carries no slot.
 ///
 /// # Exactness
 ///
 /// [`Placement::eval`] builds a rigid step by the construction the
 /// transform node has always used, so a one-step rigid placement moves
 /// a body by exactly the bits it did before the chain existed; a
-/// matrix step is read through [`Frame::affine`], so a one-step
-/// literal placement IS its frame, bit for bit
-/// ([`Placement::literal`]). A chain of two or more steps is the
-/// left-to-right [`Affine3`] product, which rounds as that product
-/// does.
+/// literal step is read through [`Frame::motion`], so a one-step
+/// literal placement IS its frame, bit for bit ([`Placement::literal`]).
+/// The chain folds through [`Motion::compose`], so a bit-exact identity
+/// literal anywhere in it moves no bit; any other chain of two or more
+/// steps is the [`Affine3`] product, which rounds as that product does.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Placement {
-    /// The steps, composed left to right.
+    /// The steps, composed as a product (`[a, b]` is `a ∘ b`).
     pub steps: Vec<Step>,
 }
 
@@ -431,98 +571,58 @@ pub enum Step {
         /// Rotation angle, Angle.
         angle: Expr,
     },
-    /// A literal proper frame, held to A6 ([`Frame::admission_fault`])
-    /// at every door that writes one and at load.
-    Matrix(Frame),
+    /// A literal frame, held to [`Frame::admission_fault`] at every door
+    /// that writes one and at load.
+    Literal(Frame),
 }
 
-/// The slot table of a placement: every rigid step's expressions,
-/// step by step, each at its per-step address.
-macro_rules! placement_rows {
-    ($steps:expr, $out:expr) => {{
-        for (k, step) in $steps.enumerate() {
-            match step {
-                Step::Rigid {
-                    translation,
-                    axis,
-                    angle,
-                } => {
-                    for (ax, e) in Axis3::ALL.into_iter().zip(translation) {
-                        $out.push((SlotId::rigid(k, RigidArg::Translation(ax)), e));
-                    }
-                    for (ax, e) in Axis3::ALL.into_iter().zip(axis) {
-                        $out.push((SlotId::rigid(k, RigidArg::RotationAxis(ax)), e));
-                    }
-                    $out.push((SlotId::rigid(k, RigidArg::RotationAngle), angle));
-                }
-                Step::Matrix(_) => {}
-            }
-        }
-    }};
+impl From<Step> for Placement {
+    /// The one-step placement.
+    fn from(step: Step) -> Self {
+        Self { steps: vec![step] }
+    }
 }
 
 impl Placement {
-    /// The one-step rigid placement — the three components the
-    /// transform node was always authored by.
-    #[must_use]
-    pub fn rigid(translation: [Expr; 3], axis: [Expr; 3], angle: Expr) -> Self {
-        Self {
-            steps: vec![Step::Rigid {
-                translation,
-                axis,
-                angle,
-            }],
-        }
-    }
+    /// The empty chain: the identity, and the unit of
+    /// [`Placement::compose`].
+    pub const IDENTITY: Self = Self { steps: Vec::new() };
 
     /// **The one bit-exact `Frame` → `Placement` door**: the one-step
     /// literal placement, which evaluates to `frame` bit for bit at
-    /// `f64`. The frame is carried, not checked: A6 is the doors'
-    /// ([`Placement::frame_fault`]).
+    /// `f64`. The frame is carried, not checked: admission is the
+    /// doors' ([`Placement::frame_fault`]).
     #[must_use]
     pub fn literal(frame: &Frame) -> Self {
-        Self {
-            steps: vec![Step::Matrix(*frame)],
+        Step::Literal(*frame).into()
+    }
+
+    /// The composition `self ∘ inner`, in [`Frame::compose`]'s order:
+    /// `inner`'s steps act on the body first, expressed in the frame
+    /// `self` builds. The chain is `self`'s steps followed by
+    /// `inner`'s.
+    #[must_use]
+    pub fn compose(&self, inner: &Placement) -> Placement {
+        Placement {
+            steps: self.steps.iter().chain(&inner.steps).cloned().collect(),
         }
     }
 
-    /// This placement followed by `step`, which acts on the body first.
+    /// The first literal step [`Frame::admission_fault`] refuses at
+    /// `tol`, with its index in the chain.
     #[must_use]
-    pub fn then(mut self, step: Step) -> Self {
-        self.steps.push(step);
-        self
-    }
-
-    /// Every expression of the chain at its slot address, shared.
-    pub(crate) fn rows(&self) -> Vec<(SlotId, &Expr)> {
-        let mut out = Vec::new();
-        placement_rows!(self.steps.iter(), out);
-        out
-    }
-
-    /// Every expression of the chain at its slot address, exclusive.
-    pub(crate) fn rows_mut(&mut self) -> Vec<(SlotId, &mut Expr)> {
-        let mut out = Vec::new();
-        placement_rows!(self.steps.iter_mut(), out);
-        out
-    }
-
-    /// The first matrix step A6 refuses, with its index in the chain —
-    /// [`Frame::admission_fault`] asked of every literal the chain
-    /// holds.
-    #[must_use]
-    pub fn frame_fault(&self) -> Option<(usize, FrameFault)> {
+    pub fn frame_fault(&self, tol: geom_core::Tol) -> Option<(usize, FrameFault)> {
         self.steps
             .iter()
             .enumerate()
             .find_map(|(k, step)| match step {
-                Step::Matrix(frame) => Some((k, frame.admission_fault()?)),
+                Step::Literal(frame) => Some((k, frame.admission_fault(tol)?)),
                 Step::Rigid { .. } => None,
             })
     }
 
     /// Bit-semantic equality (D7): a rigid step's expressions through
-    /// [`Expr::bit_eq`], a matrix step's coordinates through
+    /// [`Expr::bit_eq`], a literal step's coordinates through
     /// [`Frame::bit_eq`], so `0.0` and `-0.0` are different
     /// placements.
     #[must_use]
@@ -551,19 +651,16 @@ impl Placement {
                             .all(|(x, y)| x.bit_eq(y))
                             && ga.bit_eq(gb)
                     }
-                    (Step::Matrix(fa), Step::Matrix(fb)) => fa.bit_eq(fb),
-                    (Step::Rigid { .. }, Step::Matrix(_))
-                    | (Step::Matrix(_), Step::Rigid { .. }) => false,
+                    (Step::Literal(fa), Step::Literal(fb)) => fa.bit_eq(fb),
+                    (Step::Rigid { .. }, Step::Literal(_))
+                    | (Step::Literal(_), Step::Rigid { .. }) => false,
                 })
     }
 
     /// **The rigid motion this placement denotes, at `env`** — every
-    /// rigid step's expressions evaluated through the evaluation
-    /// layer's own expression door, then the one construction the
-    /// transform node's evaluation reads too: a rigid step by the
-    /// transform construction over its axis decided under the
-    /// transform's role word, a matrix step by [`Frame::affine`], the
-    /// chain folded left to right with no identity seeded.
+    /// rigid step's expressions evaluated through the evaluation's one
+    /// slot door (`eval::slots::eval_rows`), then the construction the
+    /// transform node's evaluation and the mate solve read.
     ///
     /// # Errors
     ///
@@ -575,21 +672,16 @@ impl Placement {
         env: &ParamEnv<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
-        let mut vals: SlotValues<T> = Vec::new();
-        for (slot, expr) in self.rows() {
-            let value = crate::expr::eval(expr, env)
-                .map_err(|source| NodeErrorKind::Expr { slot, source })?;
-            vals.push((slot, SlotVal::Scalar(value)));
-        }
+        let vals = crate::eval::slots::eval_rows(self.rows(), env)
+            .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
         self.motion(&vals, band)
     }
 
-    /// **The one construction of a placement's motion** ([`Placement::eval`]
-    /// states it), from its slots already evaluated — what the
-    /// transform node's evaluation reads, having evaluated every node's
-    /// slots through one door, and what [`Placement::eval`] reads after
-    /// evaluating them itself. No identity is seeded into the fold, so
-    /// a one-step chain is its step's map unmultiplied.
+    /// **The one construction of a placement's motion**, from its
+    /// slots already evaluated: a rigid step by the transform
+    /// construction over its axis decided under the transform's role
+    /// word, a literal step by [`Frame::motion`], the chain folded
+    /// through [`Motion::compose`].
     ///
     /// # Errors
     ///
@@ -600,7 +692,7 @@ impl Placement {
         vals: &SlotValues<T>,
         band: Band,
     ) -> Result<Affine3<T>, NodeErrorKind> {
-        let mut composed: Option<Affine3<T>> = None;
+        let mut composed = Motion::Identity;
         for (k, step) in self.steps.iter().enumerate() {
             let map = match step {
                 Step::Rigid { .. } => {
@@ -616,16 +708,13 @@ impl Placement {
                     )?;
                     let angle =
                         crate::eval::need_scalar(vals, SlotId::rigid(k, RigidArg::RotationAngle))?;
-                    crate::eval::transform_map(translation, axis, angle)
+                    Motion::Map(crate::eval::transform_map(translation, axis, angle))
                 }
-                Step::Matrix(frame) => frame.affine::<T>(),
+                Step::Literal(frame) => frame.motion(),
             };
-            composed = Some(match composed {
-                None => map,
-                Some(held) => held * map,
-            });
+            composed = composed.compose(map);
         }
-        Ok(composed.unwrap_or_else(Affine3::identity))
+        Ok(composed.affine())
     }
 }
 
@@ -897,7 +986,11 @@ mod tests {
             ([-0.0, 2.0, 0.1], [0.0, 0.0, 1.0], 0.0),
             ([1.0, -0.0, 3.0], [1.0, 2.0, -3.0], 0.7),
         ] {
-            let placement = Placement::rigid(t.map(len), axis.map(scl), ang(angle));
+            let placement = Placement::from(Step::Rigid {
+                translation: t.map(len),
+                axis: axis.map(scl),
+                angle: ang(angle),
+            });
             let got = placement
                 .eval::<f64>(&ParamEnv::default(), band())
                 .expect("a rigid step evaluates");

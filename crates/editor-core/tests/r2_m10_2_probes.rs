@@ -832,9 +832,11 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 "transform",
                 Node::transform(
                     victim,
-                    [len(1.0), len(0.0), len(0.0)],
-                    [scl(0.0), scl(0.0), scl(1.0)],
-                    ang(0.0),
+                    editor_core::Step::Rigid {
+                        translation: [len(1.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
                 ),
             ),
             (
@@ -1044,9 +1046,11 @@ fn r2_a_transform_has_no_emission_to_measure() {
         &DocEdit::InsertNode {
             node: Node::transform(
                 b,
-                [len(100.0), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(100.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         },
     );

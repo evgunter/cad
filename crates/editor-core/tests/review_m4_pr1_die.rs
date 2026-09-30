@@ -99,9 +99,11 @@ fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<Fake
     let (t, r, a) = p;
     Node::transform(
         pip,
-        [len(t[0]), len(t[1]), len(t[2])],
-        [scl(r[0]), scl(r[1]), scl(r[2])],
-        ang(*a),
+        editor_core::Step::Rigid {
+            translation: [len(t[0]), len(t[1]), len(t[2])],
+            axis: [scl(r[0]), scl(r[1]), scl(r[2])],
+            angle: ang(*a),
+        },
     )
 }
 

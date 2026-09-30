@@ -216,13 +216,15 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
     });
     let lifted = r.insert(Node::transform(
         cube,
-        [
-            len(0.0),
-            len(0.0),
-            Expr::param(ParamName::from_static("lift"), Dimension::Length),
-        ],
-        [scl(0.0), scl(0.0), scl(1.0)],
-        ang(0.0),
+        editor_core::Step::Rigid {
+            translation: [
+                len(0.0),
+                len(0.0),
+                Expr::param(ParamName::from_static("lift"), Dimension::Length),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
     ));
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: lifted,

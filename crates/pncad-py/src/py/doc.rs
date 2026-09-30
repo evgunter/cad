@@ -791,9 +791,9 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
          by the word: a profile's numbers are re-authored, not edited at a slot"
                 .to_owned()
         } else if word == "placement_step" {
-            "`placement_step` addresses one expression of a transform's placement past its \
-         first step, and the rest of that address — the step index and which component — \
-         is not carried by the word: such a step is re-authored, not edited at a slot"
+            "`placement_step` addresses one expression of a later step of a transform's \
+         placement, and the rest of that address — the step index and which component — \
+         is an integer the word does not carry, so no slot word here writes at it"
                 .to_owned()
         } else {
             format!(
@@ -2557,6 +2557,9 @@ impl Node {
     /// `translation`'s slots are `Length`s; the axis's are
     /// dimensionless, matching `SlotId::RotationAxis`'s `Scalar`; the
     /// angle's is an `Angle`.
+    ///
+    /// `Node.transform_by(input, Placement.rigid(...))`, spelled with
+    /// its three components; the checks are that door's.
     #[staticmethod]
     fn transform(
         py: Python<'_>,
@@ -2565,25 +2568,33 @@ impl Node {
         rotation_axis: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
         rotation_angle: &super::expr::Expr,
     ) -> PyResult<Self> {
-        let translation = direction_expr(py, d::VectorSlot::Translation, &translation)?;
-        let rotation_axis = direction_expr(py, d::VectorSlot::RotationAxis, &rotation_axis)?;
-        let rotation_angle = slot_expr(py, d::SlotId::RotationAngle, rotation_angle)?;
-        Ok(Self {
-            inner: d::Node::transform(input.0, translation, rotation_axis, rotation_angle),
-        })
+        Self::transform_by(
+            py,
+            input,
+            &super::place::Placement::rigid(translation, rotation_axis, rotation_angle),
+        )
     }
 
     /// A placement of an upstream body by a `Placement` chain — rigid
     /// steps a parameter can drive, literal frames, or both.
     /// `Node.transform` is this with one rigid step.
+    ///
+    /// Every rigid step's components are checked against the slot
+    /// they land in, so a refusal names that step's own slot: an angle
+    /// handed to a later step's translation says which step.
     #[staticmethod]
-    fn transform_by(input: &NodeId, placement: &super::place::Placement) -> Self {
-        Self {
-            inner: d::Node::Transform {
-                input: input.0,
-                placement: placement.0.clone(),
-            },
+    fn transform_by(
+        py: Python<'_>,
+        input: &NodeId,
+        placement: &super::place::Placement,
+    ) -> PyResult<Self> {
+        let inner = d::Node::transform(input.0, placement.0.clone());
+        for slot in inner.slots() {
+            if let Some(expr) = inner.expr(slot) {
+                slot_expr(py, slot, &super::expr::Expr(expr.clone()))?;
+            }
         }
+        Ok(Self { inner })
     }
 
     /// A Boolean of two upstream solids.

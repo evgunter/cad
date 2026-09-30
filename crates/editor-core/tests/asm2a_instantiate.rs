@@ -570,7 +570,11 @@ fn row4_set_placement_moves_undoes_and_refuses() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(e @ EditError::ImproperPlacement { node, determinant }) => {
+        Err(
+            e @ EditError::ImproperPlacement {
+                node, determinant, ..
+            },
+        ) => {
             assert_eq!(node, ids[0]);
             assert!(determinant < 0.0);
             let rendered = e.to_string();
@@ -1193,9 +1197,11 @@ fn moved_over(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId
         doc,
         Node::transform(
             input,
-            [len(0.1), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.1), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     )
 }
@@ -1322,9 +1328,11 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
                 doc,
                 Node::transform(
                     body,
-                    [len(dx), len(0.0), len(0.0)],
-                    [scl(0.0), scl(0.0), scl(1.0)],
-                    ang(0.0),
+                    editor_core::Step::Rigid {
+                        translation: [len(dx), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
                 ),
             )
             .0

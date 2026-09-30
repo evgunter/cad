@@ -141,9 +141,11 @@ fn spin(
         doc,
         Node::transform(
             input,
-            [len(0.0), len(0.0), len(0.0)],
-            axis.map(scl),
-            ang(angle),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: axis.map(scl),
+                angle: ang(angle),
+            },
         ),
     )
 }

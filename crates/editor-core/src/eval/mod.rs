@@ -4882,7 +4882,7 @@ where
             for step in &placement.steps {
                 match step {
                     crate::placement::Step::Rigid { .. } => h.write_tag(0),
-                    crate::placement::Step::Matrix(frame) => {
+                    crate::placement::Step::Literal(frame) => {
                         h.write_tag(1);
                         for x in frame
                             .columns

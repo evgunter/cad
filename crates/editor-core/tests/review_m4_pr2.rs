@@ -243,9 +243,11 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         doc,
         Node::transform(
             join,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     for parallel in [false, true] {
@@ -372,9 +374,11 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let tr = |dx: f64, dy: f64, dz: f64| {
         Node::transform(
             base,
-            [len(dx), len(dy), len(dz)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(dx), len(dy), len(dz)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         )
     };
     let (doc, t1) = insert(doc, tr(0.25, 0.125, 0.0625));
@@ -716,16 +720,20 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 // non-dyadic bracket of the same oracle.
                 Node::transform(
                     pip,
-                    [len(1.0), len(1.0), len(0.0)],
-                    [scl(0.0), scl(0.0), scl(1.0)],
-                    ang(std::f64::consts::FRAC_PI_2),
+                    editor_core::Step::Rigid {
+                        translation: [len(1.0), len(1.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(std::f64::consts::FRAC_PI_2),
+                    },
                 )
             } else {
                 Node::transform(
                     pip,
-                    [len(1.0), len(1.0), len(0.0)],
-                    [scl(0.0), scl(0.0), scl(1.0)],
-                    ang(0.0),
+                    editor_core::Step::Rigid {
+                        translation: [len(1.0), len(1.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
                 )
             },
         );

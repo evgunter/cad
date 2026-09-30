@@ -130,9 +130,11 @@ fn r2_measure_free_content_keys() {
         &DocEdit::InsertNode {
             node: Node::transform(
                 cut,
-                [len(1.0), len(2.0), len(3.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(1.0), len(2.0), len(3.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         },
     );

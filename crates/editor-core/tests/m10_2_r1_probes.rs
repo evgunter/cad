@@ -887,9 +887,11 @@ fn r1_ops_refuse_measurement_operands_typed() {
         &doc,
         Node::transform(
             m,
-            [len(0.1), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.1), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let ev = eval(&doc);
@@ -925,9 +927,11 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
         &doc,
         Node::transform(
             pin,
-            [len(0.25), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.25), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let ev = eval(&doc);

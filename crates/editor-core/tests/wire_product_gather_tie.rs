@@ -281,9 +281,11 @@ fn two_roots_aliasing_a_strict_name_still_refuse() {
         doc,
         Node::transform(
             a,
-            [len(2.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(2.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     assert_eq!(

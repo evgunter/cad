@@ -248,9 +248,11 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
         &mut bracket,
         Node::transform(
             inner,
-            [common::len(0.01), common::len(0.0), common::len(0.0)],
-            [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            common::ang(0.0),
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
         ),
         tol,
     );

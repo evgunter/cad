@@ -689,25 +689,31 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::transform(
             nid(1),
-            [len(1.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
         // A chain: rigid, literal, rigid — the literal takes no slot and
         // its index is skipped, so the second rigid step is step 2.
         Node::Transform {
             input: nid(1),
-            placement: Placement::rigid(
-                [len(1.0), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
-            )
-            .then(Step::Matrix(Frame::translation([0.0, 1.0, 0.0])))
-            .then(Step::Rigid {
-                translation: [len(0.0), len(0.0), len(1.0)],
-                axis: [scl(1.0), scl(0.0), scl(0.0)],
-                angle: ang(0.5),
-            }),
+            placement: Placement {
+                steps: vec![
+                    Step::Rigid {
+                        translation: [len(1.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                    Step::Literal(Frame::translation([0.0, 1.0, 0.0])),
+                    Step::Rigid {
+                        translation: [len(0.0), len(0.0), len(1.0)],
+                        axis: [scl(1.0), scl(0.0), scl(0.0)],
+                        angle: ang(0.5),
+                    },
+                ],
+            },
         },
         // A literal alone: no slot at all.
         Node::Transform {

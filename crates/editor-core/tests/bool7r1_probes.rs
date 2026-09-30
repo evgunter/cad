@@ -72,9 +72,11 @@ fn slot() -> Slot {
         doc,
         Node::transform(
             bar,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let (doc, cut) = insert(
@@ -813,9 +815,11 @@ fn a_second_pair_at_the_node_keeps_the_rung_out_of_a_pruned_one() {
         doc,
         Node::transform(
             b1,
-            [len(0.0), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     let (doc, tool) = insert(

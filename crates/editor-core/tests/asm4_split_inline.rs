@@ -733,9 +733,11 @@ fn row3_further_typed_refusals() {
         host,
         Node::transform(
             inst,
-            [len(1.0), len(0.0), len(0.0)],
-            [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            fixture::ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
         ),
     );
     match inline(&host, inst, &resolver, Tol::witness()) {

@@ -5,21 +5,25 @@
 //! wiring (they must never disagree).
 //!
 //! The door is the one SPELLING of the read, not a count of reads.
-//! `eval_node` asks it twice per node and nothing else asks at all:
-//! once at the evaluation scalar, whose values the op runs on and the
-//! key's lane half holds, and once at the document's nominal, whose
-//! values the key's other half holds (`super::tag::slot`). Those two
-//! lists are every evaluation of a node's expressions there is — an
-//! authored frame's f64 placement is minted from the nominal list
-//! (`super::wire::mint_frame_placement`) and rides the frame's value,
-//! so a profile drawn on that frame READS it rather than asking this
-//! door for the frame's nine slots again. A slot's expression is
-//! looked up and evaluated in exactly one place, and a refusal at
-//! either environment arrives in one shape.
+//! Its askers:
+//! - `eval_node`, twice per node: once at the evaluation scalar, whose
+//!   values the op runs on and the key's lane half holds, and once at
+//!   the document's nominal, whose values the key's other half holds
+//!   (`super::tag::slot`). An authored frame's f64 placement is minted
+//!   from the nominal list (`super::wire::mint_frame_placement`) and
+//!   rides the frame's value, so a profile drawn on that frame READS it
+//!   rather than asking this door for the frame's nine slots again;
+//! - the mate solve, for a placer's slots at the nominal
+//!   (`crate::mate::member`'s `node_slots`);
+//! - [`crate::Placement::eval`], over a placement's own rows
+//!   ([`eval_rows`]), for a caller holding a placement and no node.
+//!
+//! A slot's expression is evaluated in exactly one loop
+//! ([`eval_rows`]), and a refusal at any of them arrives in one shape.
 
 use geom_core::Decide;
 
-use crate::expr::{EvalError, ParamEnv, eval, eval_count};
+use crate::expr::{EvalError, Expr, ParamEnv, eval, eval_count};
 use crate::node::{Node, SlotId};
 
 /// An evaluated slot: continuous scalar or exact count.
@@ -48,20 +52,26 @@ pub(crate) fn eval_slots<T: Decide, P: crate::ProfilePayload>(
     if matches!(node, Node::Profile(_)) {
         return Ok(Vec::new());
     }
-    let mut out = Vec::new();
-    for slot in node.slots() {
-        let Some(expr) = node.expr(slot) else {
-            // Unreachable: slots() is the domain of expr().
-            continue;
-        };
-        let val = if slot.is_structural() {
-            SlotVal::Count(eval_count(expr, env).map_err(|e| (slot, e))?)
-        } else {
-            SlotVal::Scalar(eval(expr, env).map_err(|e| (slot, e))?)
-        };
-        out.push((slot, val));
-    }
-    Ok(out)
+    eval_rows(node.rows(), env)
+}
+
+/// **The one loop that evaluates slot rows**, in the order given: a
+/// structural slot as an exact count, every other as a scalar. The
+/// first failure returns with its slot.
+pub(crate) fn eval_rows<'e, T: Decide>(
+    rows: impl IntoIterator<Item = (SlotId, &'e Expr)>,
+    env: &ParamEnv<T>,
+) -> Result<SlotValues<T>, (SlotId, EvalError)> {
+    rows.into_iter()
+        .map(|(slot, expr)| {
+            let val = if slot.is_structural() {
+                SlotVal::Count(eval_count(expr, env).map_err(|e| (slot, e))?)
+            } else {
+                SlotVal::Scalar(eval(expr, env).map_err(|e| (slot, e))?)
+            };
+            Ok((slot, val))
+        })
+        .collect()
 }
 
 /// The scalar in a named slot (wiring helper; `None` if absent or a

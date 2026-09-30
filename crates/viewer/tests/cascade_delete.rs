@@ -70,13 +70,15 @@ fn die_shaped(tol: Tol) -> Die {
             &doc,
             Node::transform(
                 pip,
-                [
-                    common::len(0.001 * f64::from(u32::try_from(i).expect("a small index"))),
-                    common::len(0.0),
-                    common::len(0.0),
-                ],
-                [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                common::ang(0.0),
+                pncad::document::Step::Rigid {
+                    translation: [
+                        common::len(0.001 * f64::from(u32::try_from(i).expect("a small index"))),
+                        common::len(0.0),
+                        common::len(0.0),
+                    ],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
             ),
             tol,
         );

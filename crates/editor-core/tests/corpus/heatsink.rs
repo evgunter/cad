@@ -96,9 +96,11 @@ pub fn document() -> CorpusDoc {
     for i in 0..FINS {
         let tr = r.insert(Node::transform(
             fin,
-            [len(i as f64 * PITCH), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(i as f64 * PITCH), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ));
         acc = r.insert(Node::Boolean {
             op: BooleanOp::Union,

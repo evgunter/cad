@@ -922,6 +922,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::EmptyPlacementList { .. }
             | EditError::ImproperPlacement { .. }
             | EditError::NonFinitePlacement { .. }
+            | EditError::NonRigidPlacement { .. }
             | EditError::PlacementAxis { .. }
             | EditError::NonFiniteAlignment { .. }
             | EditError::UpdateOnNonInstance { .. }

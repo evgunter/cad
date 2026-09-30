@@ -141,7 +141,14 @@ pub fn xform(
     axis: [f64; 3],
     angle: f64,
 ) -> Node<ProfileProgram> {
-    Node::transform(input, translation.map(len), axis.map(scl), ang(angle))
+    Node::transform(
+        input,
+        editor_core::Step::Rigid {
+            translation: translation.map(len),
+            axis: axis.map(scl),
+            angle: ang(angle),
+        },
+    )
 }
 
 /// The pip depth the document's `pip_depth` parameter starts at.
@@ -742,9 +749,11 @@ pub fn die() -> Die {
             ];
             let tr = r.insert(Node::transform(
                 ext,
-                [len(t[0]), len(t[1]), len(t[2])],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(t[0]), len(t[1]), len(t[2])],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ));
             // The pip master extrudes INWARD (negative distance), so
             // its OUTER cap — the flush one — is Bottom (on the

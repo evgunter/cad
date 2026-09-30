@@ -665,9 +665,11 @@ fn one_body_under_two_roots(id: &str) -> ProfileDoc {
             doc,
             Node::transform(
                 extrude,
-                [len(dx), len(0.0), len(0.0)],
-                [scl(0.0), scl(0.0), scl(1.0)],
-                ang(0.0),
+                editor_core::Step::Rigid {
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
             ),
         )
     };

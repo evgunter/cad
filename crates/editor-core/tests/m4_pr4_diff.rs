@@ -78,9 +78,11 @@ fn slide_union(tx: f64) -> Slide {
         doc,
         Node::transform(
             b0,
-            [len(tx), len(0.0), len(0.0)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(0.0),
+            editor_core::Step::Rigid {
+                translation: [len(tx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
         ),
     );
     // M4 PR 5: the sliding overlap's flush planes are declared.

@@ -935,9 +935,11 @@ fn build_doc(tol: Tol) -> Recipe {
         &mut doc,
         Node::transform(
             spout_body,
-            [len(SPOUT_ROOT.x), len(SPOUT_ROOT.y), len(SPOUT_ROOT.z)],
-            [scl(0.0), scl(0.0), scl(1.0)],
-            ang(spout_turn()),
+            pncad::document::Step::Rigid {
+                translation: [len(SPOUT_ROOT.x), len(SPOUT_ROOT.y), len(SPOUT_ROOT.z)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(spout_turn()),
+            },
         ),
         tol,
     );

@@ -101,9 +101,11 @@ fn translated(input: RecipeNodeId, d: [Expr; 3]) -> Node<ProfileProgram> {
     let [dx, dy, dz] = d;
     Node::transform(
         input,
-        [dx, dy, dz],
-        [scl(0.0), scl(0.0), scl(1.0)],
-        ang(0.0),
+        editor_core::Step::Rigid {
+            translation: [dx, dy, dz],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
     )
 }
 

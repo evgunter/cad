@@ -273,9 +273,11 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
             doc,
             Node::transform(
                 extrude,
-                [common::len(dx), common::len(0.0), common::len(0.0)],
-                [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                common::ang(0.0),
+                pncad::document::Step::Rigid {
+                    translation: [common::len(dx), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
             ),
             tol,
         )

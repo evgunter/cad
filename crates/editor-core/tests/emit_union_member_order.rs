@@ -383,9 +383,11 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
         doc,
         Node::transform(
             rib,
-            [len(0.1), len(1.5), len(0.3)],
-            [scl(1.0), scl(0.0), scl(0.0)],
-            ang(std::f64::consts::FRAC_PI_2),
+            editor_core::Step::Rigid {
+                translation: [len(0.1), len(1.5), len(0.3)],
+                axis: [scl(1.0), scl(0.0), scl(0.0)],
+                angle: ang(std::f64::consts::FRAC_PI_2),
+            },
         ),
     );
     let mut doc = doc;
