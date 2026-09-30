@@ -2,11 +2,12 @@
 id: no-row-holds-that-the-create-pane-offers-the-tools-it-has
 kind: issue
 title: No row holds that the chrome CALLS its tool panels — nine activation buttons across create_ui and properties_ui are reachable only through a ViewerBehavior no test can build
-status: dispatched
+status: review
 opened: 2026-09-22
 priority: P1
 cost: D
 branch: author/tool-census
+pr: 3573
 ---
 
 
@@ -88,3 +89,25 @@ for its two panels and for the seven that shipped before them, is that
 **The premise above is stale.** Since 2026-09-25 (`9c9fb7ba7`), `app.rs`'s `properties_pane_tests` has run whole-app frames that paint `ViewerApp`, open sections and read what was painted. So the unit is a census row over `ToolKind::ALL` in that harness: no new fixture and no lowering of seven panels.
 
 **A duplication is folded in.** `ToolKind::label()` is "the tool's name, for sentences and buttons", yet all nine activation buttons spell their label literally.
+
+## Built (AUTH-12, PR 3573)
+
+- `ToolKind::button` (`crates/viewer/src/tools.rs`) is the one button
+  form of `ToolKind::label`. All nine activation buttons in
+  `pane/create.rs` take their words from it.
+- `app::properties_pane_tests::every_tool_opens_from_its_activation_button`
+  sweeps `ToolKind::ALL` in the whole-app harness. For each kind it
+  opens the hosting section (an exhaustive match), clicks the one run
+  reading `kind.button()`, and compares what opened against `ALL`.
+  Deleting any tool panel call from `create_ui` or `properties_ui`
+  reddens it, as do a button spelled apart from `button()` and a button
+  that opens the wrong kind.
+- The extrude form and `add_part_ui` are held by
+  `the_extrude_form_and_the_part_chooser_are_reachable`, through one
+  spelling each (`pane::create::EXTRUDE`, `pane::create::ADD_PART`).
+- This row's "nothing in the tree asserts any of it" was not true of
+  the add-datum and add-profile forms. Existing whole-app rows already
+  redden when either call is deleted (measured by mutation, PR 3573).
+- The sweep's second pass filed
+  `work/author/a-tools-commit-button-spells-its-name-a-second-time` and
+  `work/chrome/the-mate-tools-refusal-names-the-mate-tool-twice`.
