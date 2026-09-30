@@ -173,15 +173,13 @@ REGISTER=(
   "crates/topo/src/chord_join.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
   "crates/topo/src/coherence.rs|traversals||1|unaudited"
   "crates/topo/src/euler.rs|find_half_edge||1|unaudited"
-  "crates/topo/src/euler.rs|mef_chord||1|unaudited"
   "crates/topo/src/euler.rs|mef_lone||1|unaudited"
-  "crates/topo/src/euler.rs|mev_line||1|unaudited"
   "crates/topo/src/euler.rs|mev_lone_plan||1|unaudited"
   "crates/topo/src/euler_kill.rs|kvfs||1|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_both_empty||2|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_ring||1|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
-  "crates/topo/src/loop_winding.rs|planar_loop_winding||1|unaudited"
+  "crates/topo/src/loop_winding.rs|planar_loop_winding_decided||1|audited: the discarded variant is answered by name, not passed over: the arm returns LoopWinding::Empty, which the merge's role pass reads as not positive and planar_loop_winding reads as no winding"
   # The pruning's bridge target: the survivor's outline is read for a
   # half-edge to join a lone-vertex ring to, and an EMPTY outline is not
   # skipped but refused typed (LoopNotCycle naming that loop).

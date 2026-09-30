@@ -954,9 +954,10 @@ would leave the class on its own.
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need
 to act on — the rule that a poisoned row stays `Advisory` is STATED by
-`tree::RowStatus::tone`, the one function outside `frame` that decides
-a tone, and `pane::features` reads that value rather than arguing it at
-its draw), an optional hover detail, and a `frame::Affordance`: `Read`
+`tree::RowStatus::tone`, a row's whole loudness, a violated assertion's
+included, by `tree::TreeRow::tone`, and `pane::features` reads that
+value rather than arguing it at its draw), an optional hover detail,
+and a `frame::Affordance`: `Read`
 for a label, `Opens` for a control,
 which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member

@@ -439,6 +439,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "name_depth.rs"]
+mod name_depth;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
 #[path = "node_standing.rs"]
@@ -640,6 +642,8 @@ mod wire_rv_unknown;
 mod decide_1_self_dot_interval;
 #[path = "edit_refusal_recourse.rs"]
 mod edit_refusal_recourse;
+#[path = "emit_pair_cut_and_merged.rs"]
+mod emit_pair_cut_and_merged;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
