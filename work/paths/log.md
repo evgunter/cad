@@ -504,3 +504,23 @@ The 5a work in progress is on the branch at 5a6f2ebf; no PR is open.
   Ruling: restate it to Ev's ratified E12 property (no registration
   turns a proved non-zero margin into Zero), with counts compared over
   common decisions only. Announced on DECIDE's log.
+
+## 2026-09-30 — 5a is PR #3527; CI red on four ε-row flips
+
+**A (the near-full apex error).** The implementer fixed this: the
+clearance is now `2r·(1 − sin(|Δθ|/4))`.
+
+**B (`m4_pr6`, a fixture exactly on the ε band edge, one ulp over).**
+Pending: check the test's intent. Move the fixture off the edge unless
+the edge is its point.
+
+**C (q1's consistency checks escalate at Interval).** On hairline
+guided replays at ε 1e-12, the checks escalate from dependency width.
+The failing tests are:
+- `cert4r2_e2e` (it loses its construction);
+- `generic_replay` rows 1 and 13;
+- `guided_replay`.
+
+At `Sym` the registrations discharge these checks. At `Interval` there
+is no registry. This consequence of #3453 q1 was not weighed at the
+time, so it goes to designer round 6 and may go to Ev. #3527 waits.
