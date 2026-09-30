@@ -2,7 +2,7 @@
 id: revert-anchors-trust-a-torn-next-or-prev
 kind: issue
 title: revert re-anchors every vertex at mate(emanating), whose new start it reads through next, and every loop at prev(first): a live-but-foreign next or prev carries off anchors through Ok
-status: open
+status: review
 opened: 2026-09-29
 refs: [kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
 priority: P3
