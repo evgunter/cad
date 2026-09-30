@@ -186,9 +186,9 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
     let ev = run(&doc);
     let t = table(&ev, sub);
     let end = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
-    // Exactly two fragments of A's end cap, SideOf-qualified, with
-    // DISTINCT vectors (each Unique — no tie: the slot walls
-    // discriminate).
+    // Exactly two pieces of A's end cap, `Borders`-qualified, with
+    // DISTINCT wall sets (each Unique — no tie: each borders its own
+    // slot wall).
     let frags: Vec<&StableName> = t
         .iter()
         .filter_map(|(n, e)| {
@@ -197,25 +197,24 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
                     n.path.first(),
                     Some(RoleSeg::FromA(inner)) if **inner == end
                 )
-                && matches!(n.path.get(1), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
+                && matches!(
+                    n.path.get(1),
+                    Some(RoleSeg::Fragment(Qualifier::Borders(_)))
+                );
             (is_frag && matches!(e, Entry::Unique(_))).then_some(n)
         })
         .collect();
-    assert_eq!(
-        frags.len(),
-        2,
-        "expected two SideOf-qualified cap fragments"
-    );
+    assert_eq!(frags.len(), 2, "expected two Borders-qualified cap pieces");
     assert_ne!(frags[0], frags[1]);
-    // The vectors' partners are B lateral names (recipe-covariant
-    // references), and every verdict is a definite sign.
+    // The walls are B lateral names (recipe-covariant references),
+    // one per piece: the slot wall on its side.
     for f in frags {
-        let Some(RoleSeg::Fragment(Qualifier::SideOf(vec))) = f.path.get(1) else {
+        let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = f.path.get(1) else {
             unreachable!()
         };
-        assert!(!vec.is_empty());
-        for (partner, _verdict) in vec {
-            assert_eq!(partner.node, b, "partner is not a B-operand carrier");
+        assert_eq!(walls.len(), 1, "{f:?}");
+        for wall in walls {
+            assert_eq!(wall.node, b, "a wall is not a B-operand face");
         }
     }
 }

@@ -39,8 +39,10 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 // when profile pieces became named by minted step ids: the diagnosed
 // names spell `{ step, role }`, and every row keeps its shape; and
 // again when step ids became digests of the document's mint chain: the
-// ids the names spell moved, and every row keeps its shape.
-const DIAGNOSIS_DIGEST: u64 = 0xf656_8c12_cc7b_c381;
+// ids the names spell moved, and every row keeps its shape; and again
+// when a split face's pieces became named by the walls they border: the
+// `ambiguous` row's tied piece spells `Borders`, and keeps its shape.
+const DIAGNOSIS_DIGEST: u64 = 0xeb3c_d4cd_5d8a_f958;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

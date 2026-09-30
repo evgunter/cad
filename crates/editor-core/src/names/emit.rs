@@ -322,21 +322,18 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
-    /// A union's pieces that are told apart against a reference face's
-    /// oriented plane, where the reference has no one plane: the pieces
-    /// of a face a partner divides (`Fragment(SideOf)`, N2), or of a seam
-    /// ranked along its two sides' `n_a × n_b`, against a face whose
-    /// carrier is curved, or which a tie leaves as several faces on
-    /// different carriers.
+    /// A union's seam pieces, ranked along their two sides' `n_a × n_b`,
+    /// where a side has no one oriented plane: its carrier is curved,
+    /// or a tie leaves it as several faces on different carriers.
     ///
     /// The recipe is legal and the body sound; the naming has no rule
     /// for a curved reference or for choosing among tied ones, so this
     /// is a missing rule and not an [`Self::Emission`].
     SplitReference {
-        /// The name the pieces share: the divided face's parent, or the
-        /// seam.
+        /// The seam the pieces share.
         group: Box<StableName>,
-        /// The reference face, by the name the union publishes it under.
+        /// The side without a plane, by the name the union publishes it
+        /// under.
         reference: Box<StableName>,
         /// Whether the reference's carrier is curved; otherwise a tie
         /// leaves it on several carriers.
@@ -1686,10 +1683,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: crate::names::discriminate::SIDE_OF,
+                    predicate: crate::names::discriminate::ORDER_ALONG,
                     source: escalation(),
                 },
-                vec!["the side of a cut"],
+                vec!["the order of two pieces along an edge"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {

@@ -103,7 +103,6 @@ fn vanished(
                     eval: ev1,
                 },
                 n,
-                Tol::witness(),
             );
             let Resolution::Failed(f) = res else {
                 panic!("{n:?}: expected Failed, got {res:?}");
@@ -401,7 +400,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
                 matches!(e, Entry::Unique(_))
                     && match n.path.last() {
-                        Some(RoleSeg::Fragment(editor_core::Qualifier::SideOf(_))) => !ranked,
+                        Some(RoleSeg::Fragment(editor_core::Qualifier::Borders(_))) => !ranked,
                         Some(RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { .. })) => {
                             ranked && from(n, plate)
                         }
@@ -731,11 +730,11 @@ fn a_cutter_that_starts_cutting_is_named_new() {
 ///
 /// Slid 1.5 in x and 2.5 in y, the bar covers only the plate's far
 /// corner: its x = x1 wall stops cutting the top and its y = y0 wall
-/// starts. Of the top's two vanished fragments, the one on the far
-/// side of that x wall is answered by the flip of its side verdict
-/// against it, a cause, above this rung; the other by the rung, naming
-/// both. Slid 5 in y, clear of the plate, both x walls stop cutting the
-/// top and its rim edges. Each list holds every cutter it states.
+/// starts. The top's two vanished pieces are both the rung's to answer,
+/// naming both walls: a piece is named by the walls it borders, and no
+/// piece of the top remains to compare walls with. Slid 5 in y, clear
+/// of the plate, both x walls stop cutting the top and its rim edges.
+/// Each list holds every cutter it states.
 #[test]
 fn two_cutters_that_change_at_once_are_both_named() {
     // `slid` builds this same recipe, so its pieces are these.
@@ -743,9 +742,6 @@ fn two_cutters_that_change_at_once_are_both_named() {
     let (bar, u, rows) = slid((1.5, 2.5), &[TOP]);
     let mut answered = 0;
     for (n, d) in rows {
-        if matches!(d, Diagnosis::PredicateFlip { .. }) {
-            continue;
-        }
         answered += 1;
         assert_eq!(
             d,
@@ -753,7 +749,7 @@ fn two_cutters_that_change_at_once_are_both_named() {
             "{n:?}"
         );
     }
-    assert_eq!(answered, 1, "the near fragment is the rung's to answer");
+    assert_eq!(answered, 2, "both vanished pieces are the rung's to answer");
     let (bar, u, rows) = slid((0.0, 5.0), &[TOP, rim(&doc, plate, 0), rim(&doc, plate, 2)]);
     let mut gone = vec![wall(&doc, bar, 1), wall(&doc, bar, 3)];
     gone.sort();

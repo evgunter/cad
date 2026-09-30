@@ -1402,7 +1402,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()
         }
-        RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
+        RoleSeg::Fragment(Qualifier::Borders(v)) => v.iter().collect(),
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })
         | RoleSeg::OutputBody
         | RoleSeg::Cap(_)

@@ -13,10 +13,13 @@ use common::brick;
 use geom_core::Tol;
 use topo::{Body, BooleanBody, BooleanResult, EdgeKey, FaceKey, VertexKey, subtract};
 
+/// A settled stretch: the result edge and the faces on its two sides.
+pub(crate) type Stretch = Option<(EdgeKey, [FaceKey; 2])>;
+
 /// The result edge each discard's bordered stretch settles onto, and the
 /// kept faces on either side of it; `None` for a stretch whose ends
 /// fused or that no live edge joins.
-pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Option<(EdgeKey, [FaceKey; 2])>>> {
+pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let body: &Body<f64> = &out.body;
     let merges: BTreeMap<VertexKey, VertexKey> = out.naming.vertex_merges.iter().copied().collect();
     let settle = |mut v: VertexKey| {

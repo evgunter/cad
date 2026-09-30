@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{declared_union, failure, flush_pairs, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus, rim_piece};
-use crate::fixture::{face_vertices, fname, insert, table, wall};
+use crate::fixture::{ang, face_vertices, fname, insert, len, scl, table, wall};
 
 use editor_core::{
     CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, SitedRef, StableName,
@@ -145,6 +145,8 @@ pub(crate) struct Case {
     /// Blocks 0 and 1 in an inner union declared flush (both orders), and
     /// that union with the rest in an outer undeclared one (every order).
     nested: bool,
+    /// A block behind a `Transform` translated along x: `(block, dx)`.
+    shift: Option<(usize, f64)>,
 }
 
 impl Case {
@@ -160,6 +162,7 @@ impl Case {
             creation,
             flush,
             nested: false,
+            shift: None,
         }
     }
 
@@ -171,6 +174,7 @@ impl Case {
             creation,
             flush: vec![(0, 1)],
             nested: true,
+            shift: None,
         }
     }
 }
@@ -234,18 +238,18 @@ pub(crate) fn cases() -> Vec<Case> {
 const EDITED: &[(&str, usize, f64)] = &[("r1two", 1, 0.05), ("r1flush", 2, 0.05)];
 
 impl Case {
-    /// This case with block `i` moved `dx` along x: the same recipe, node
-    /// for node, with only values changed, as a value edit leaves it.
+    /// This case with block `i` behind a `Transform` translated `dx`
+    /// along x: for two values of `dx`, the same recipe, node for node
+    /// and step for step, with only a value changed, as a value edit
+    /// leaves it.
     fn moved(&self, i: usize, dx: f64) -> Case {
-        let mut blocks = self.blocks.clone();
-        let ((x0, x1), y, z) = blocks[i];
-        blocks[i] = ((x0 + dx, x1 + dx), y, z);
         Case {
-            label: format!("{} moved", self.label),
-            blocks,
+            label: format!("{} moved {dx}", self.label),
+            blocks: self.blocks.clone(),
             creation: self.creation.clone(),
             flush: self.flush.clone(),
             nested: self.nested,
+            shift: Some((i, dx)),
         }
     }
 }
@@ -293,7 +297,25 @@ pub(crate) fn runs(
     case: &Case,
     mut each: impl FnMut(&str, &editor_core::Evaluation<f64>, &[RecipeNodeId], &[(&str, RecipeNodeId)]),
 ) {
-    let (doc, ids) = document(&case.blocks, &case.creation);
+    let (doc, mut ids) = document(&case.blocks, &case.creation);
+    let doc = match case.shift {
+        None => doc,
+        Some((i, dx)) => {
+            let (doc, tr) = insert(
+                doc,
+                Node::transform(
+                    ids[i],
+                    editor_core::Step::Rigid {
+                        translation: [len(dx), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                ),
+            );
+            ids[i] = tr;
+            doc
+        }
+    };
     let flush = |ids: &[RecipeNodeId]| {
         case.flush
             .iter()
@@ -503,7 +525,10 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut edited = 0;
     for &(label, block, dx) in EDITED {
         let case = cases().into_iter().find(|c| c.label == label).unwrap();
-        let (before, after) = (centroids(&case), centroids(&case.moved(block, dx)));
+        let (before, after) = (
+            centroids(&case.moved(block, 0.0)),
+            centroids(&case.moved(block, dx)),
+        );
         assert_eq!(
             before.keys().collect::<Vec<_>>(),
             after.keys().collect::<Vec<_>>(),

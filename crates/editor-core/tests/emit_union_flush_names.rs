@@ -7,7 +7,7 @@
 //! - a vertex named for a member vertex sits at it and borders a face of
 //!   that member it lies on, so a coincident vertex of another shell
 //!   never takes its name;
-//! - a face is its parent, or its parent and one `SideOf`, and a member
+//! - a face is its parent, or its parent and one `Borders`, and a member
 //!   face a merge lists is published by no face of its own;
 //! - a seam edge's sides are the parents of the faces it lies between;
 //! - a document whose finished body depends on member order (a vertex a
@@ -167,14 +167,14 @@ fn parent_members(parent: &StableName) -> Option<BTreeSet<StableName>> {
 }
 
 /// **Every published face is its parent, or its parent and one
-/// `SideOf`** (N2, N3):
+/// `Borders`** (N2, N3):
 /// - a face's name is a member face, a flat `Merged` of member faces, or
-///   one of those followed by exactly one `Fragment(SideOf)`;
+///   one of those followed by exactly one `Fragment(Borders)`;
 /// - a parent is published bare only when it is held as one face, and
 ///   as fragments only when held as several;
 /// - no member face is listed by two parents, so a constituent a merge
 ///   lists is never published by a face of its own;
-/// - a `SideOf` partner is the parent of a published face.
+/// - a `Borders` wall is the parent of a published face.
 ///
 /// Returns how many faces were checked.
 fn faces_are_parents(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize {
@@ -204,19 +204,19 @@ fn faces_are_parents(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usi
                 pieces, 1,
                 "{at}: {face:?} is bare but held as {pieces} faces"
             ),
-            [RoleSeg::Fragment(editor_core::Qualifier::SideOf(v))] => {
+            [RoleSeg::Fragment(editor_core::Qualifier::Borders(v))] => {
                 assert!(
                     pieces > 1,
                     "{at}: {face:?} is a fragment of a parent held whole"
                 );
-                for (partner, _) in v {
+                for partner in v {
                     assert!(
                         parents.contains(partner),
                         "{at}: {face:?} cites {partner:?}, which is no published face's parent"
                     );
                 }
             }
-            _ => panic!("{at}: {face:?} is not its parent and one SideOf"),
+            _ => panic!("{at}: {face:?} is not its parent and one Borders"),
         }
     }
     faces.len()
