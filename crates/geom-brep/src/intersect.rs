@@ -113,6 +113,7 @@ use geom::{Curve3, EllipseInvalid};
 use geom_core::{Band, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::decide;
+use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
 use geom_core::Decide;
 
 // ---------------------------------------------------------------------
@@ -611,6 +612,7 @@ pub fn route_pose<T: Decide>(
         ),
         Err(
             e @ (SectionError::Escalated(_)
+            | SectionError::RadiusEscalated { .. }
             | SectionError::WrongLane { .. }
             | SectionError::RadiusDeclarationContradicted
             | SectionError::CoaxialDeclarationContradicted),
@@ -634,6 +636,15 @@ pub enum SectionError {
     /// A within-pair degeneracy trilean landed in the ambiguity band
     /// or poisoned (F6): the operand pair is ill-conditioned at this ε.
     Escalated(Indeterminate),
+    /// An operand's radius guard landed in the band or poisoned: whether
+    /// that radius is positive, the question [`SectionRadius`] names, is
+    /// undecided. Its decided sibling is [`Self::DegenerateOperand`].
+    RadiusEscalated {
+        /// Whose radius the guard read.
+        radius: SectionRadius,
+        /// The guard's diagnostics.
+        diag: Indeterminate,
+    },
     /// The configuration routes to the general rung — a documented arm
     /// decision (no runtime fallback exists; C5). The general rung is
     /// implemented; its arms retire one at a time, so a pair reaching
@@ -715,6 +726,15 @@ impl core::fmt::Display for SectionError {
                 f,
                 "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
+            Self::RadiusEscalated { radius, diag } => write!(
+                f,
+                "{} is undecided: {}. {}",
+                radius.subject(),
+                diag.payload(),
+                radius
+                    .sized()
+                    .recourse(RefusedArm::Undecided(diag), Reading::Build)
+            ),
             Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::RadiusDeclarationContradicted => write!(
                 f,
@@ -759,6 +779,49 @@ impl core::fmt::Display for SectionError {
 }
 
 impl std::error::Error for SectionError {}
+
+/// **Whose radius a section arm's operand guard reads** (D4 ¶1 (i)): an
+/// arm refuses an operand whose radius is not definitely positive
+/// before it classifies any pose, so the question is the operand's own
+/// size, which no declaration between the two faces names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
+pub enum SectionRadius {
+    /// The cylinder's radius (`cs_cylinder_radius`,
+    /// `coc_cylinder_radius`).
+    Cylinder,
+    /// The sphere's radius (`cs_sphere_radius`).
+    Sphere,
+}
+
+impl SectionRadius {
+    /// What the guard decides, as a clause with no colon or dash of its
+    /// own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::Cylinder => "whether a cylinder's radius is positive",
+            Self::Sphere => "whether a sphere's radius is positive",
+        }
+    }
+
+    /// The guard's lever and the size its margin measures: it passes on
+    /// a definitely positive radius, which the lever edits.
+    #[must_use]
+    pub const fn sized(self) -> SizedDecision {
+        let lever = match self {
+            Self::Cylinder => "make the cylinder's radius clearly larger than the tolerance",
+            Self::Sphere => "make the sphere's radius clearly larger than the tolerance",
+        };
+        SizedDecision {
+            lever,
+            size: "radius",
+            passes: SizedPass::Positive,
+            stored: StoredDefinite::Lever,
+            at_zero: None,
+        }
+    }
+}
 
 // ---------------------------------------------------------------------
 // plane × cylinder (spec §3.1)
@@ -1611,19 +1674,23 @@ pub fn cylinder_sphere_section<T: Decide>(
 
     // 2-3. The degeneracy guard, on the FULL convention: two questions,
     // two margins. Neither is implied by the reach trilean below.
-    for (name, margin, what) in [
+    for (name, margin, radius, what) in [
         (
             "cs_cylinder_radius",
             r,
+            SectionRadius::Cylinder,
             "the cylinder's radius is not definitely positive",
         ),
         (
             "cs_sphere_radius",
             big_r,
+            SectionRadius::Sphere,
             "the sphere's radius is not definitely positive",
         ),
     ] {
-        match decide(name, Margin::of(margin), band).map_err(SectionError::Escalated)? {
+        match decide(name, Margin::of(margin), band)
+            .map_err(|diag| SectionError::RadiusEscalated { radius, diag })?
+        {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => {
                 return Err(SectionError::DegenerateOperand { what });
@@ -2218,7 +2285,12 @@ pub fn cone_cylinder_section<T: Decide>(
     };
 
     let (sin_a, cos_a) = half_angle.sin_cos();
-    match decide("coc_cylinder_radius", Margin::of(big_r), band).map_err(SectionError::Escalated)? {
+    match decide("coc_cylinder_radius", Margin::of(big_r), band).map_err(|diag| {
+        SectionError::RadiusEscalated {
+            radius: SectionRadius::Cylinder,
+            diag,
+        }
+    })? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
             return Err(SectionError::DegenerateOperand {

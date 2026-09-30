@@ -45,12 +45,13 @@
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::{BooleanDecision, BooleanError, Operand, SideCode};
+use super::{BooleanDecision, BooleanError, Coincide, LeverArm, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
 use crate::validate::decide;
+use geom_brep::recourse::Refused;
 
 /// What stands behind a sector bound, which decides how its side of a
 /// plane is read ([`side_code`]).
@@ -334,7 +335,7 @@ pub(super) fn sector_face<T: Decide>(
 
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Coincidence,
+        decision: BooleanDecision::Coincidence(Coincide::Sectors),
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::INVALID,
             band,
@@ -351,7 +352,7 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
 /// known: the reading lies within `±zero`.
 pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Coincidence,
+        decision: BooleanDecision::Coincidence(Coincide::Sectors),
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
             band,
@@ -458,7 +459,7 @@ pub(super) fn side_code<T: Decide>(
                 Ok(Sign::Negative) => SideCode::In,
                 Ok(Sign::Positive) => SideCode::Out,
                 Ok(Sign::Zero) => return Ok(SideCode::On),
-                Err(diag) => return Err(BooleanError::coincidence(diag)),
+                Err(diag) => return Err(BooleanError::coincidence(Coincide::SectorSide, diag)),
             };
             (verdict, offset.abs(), (far - base).norm())
         }
@@ -467,7 +468,13 @@ pub(super) fn side_code<T: Decide>(
                 Ok(EntersMaterial::Enters) => SideCode::In,
                 Ok(EntersMaterial::Exits) => SideCode::Out,
                 Ok(EntersMaterial::Tangent) => return Ok(SideCode::On),
-                Err(diag) => return Err(BooleanError::coincidence(diag)),
+                Err(escalation) => {
+                    return Err(BooleanError::of_lever(
+                        LeverArm::SectorSide,
+                        Coincide::SectorSide,
+                        escalation,
+                    ));
+                }
             };
             (
                 verdict,
@@ -486,14 +493,18 @@ pub(super) fn side_code<T: Decide>(
     // spec writes `arm²/(2·lever)`; this is that term with the constant
     // corrected in the REFUSING direction, the only direction a
     // soundness charge may be wrong in.
-    let at_arm = decide(
+    let at_arm = crate::validate::decide_reported(
         "bool_pierce_sector_side_curved",
         Margin::of((dir.normalize().dot(n) * arm).abs() - arm.powi(2) / lever),
         band,
     );
-    if matches!(at_arm, Ok(Sign::Positive)) {
-        return Ok(verdict);
-    }
+    let at_arm = match at_arm {
+        Ok(decided) => match Refused::of(decided, band) {
+            None => return Ok(verdict),
+            Some(refused) => Ok(refused),
+        },
+        Err(diag) => Err(diag),
+    };
     let at_length = decide(
         "bool_pierce_sector_side_curved",
         Margin::of(displacement - length.powi(2) / lever),
@@ -501,8 +512,11 @@ pub(super) fn side_code<T: Decide>(
     );
     match (at_length, at_arm) {
         (Ok(Sign::Positive), _) => Ok(verdict),
-        (_, Ok(_)) => Err(BooleanError::CurvedSectorSideUnsupported { band }),
-        (_, Err(diag)) => Err(BooleanError::coincidence(diag)),
+        (_, Ok(refused)) => Err(BooleanError::CurvedSectorSideUnsupported { verdict: refused }),
+        (_, Err(diag)) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::PierceCurvature,
+            diag,
+        }),
     }
 }
 
@@ -550,7 +564,9 @@ pub(super) fn tangent_lump<T: Decide>(
     use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
     let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
         Ok(TangentLocus::Line { dir, .. }) => dir,
-        Err(TangentLocusError::Escalated(diag)) => return Err(BooleanError::coincidence(diag)),
+        Err(TangentLocusError::Escalated(diag)) => {
+            return Err(BooleanError::coincidence(Coincide::TangentLocus, diag));
+        }
         // The sector pair read geometrically ON while the carriers are
         // definitely apart or crossing: the same self-contradiction
         // family as a coplanar sector with definitely-distinct planes.
@@ -637,7 +653,11 @@ pub(super) fn tangent_relative_side<T: Decide>(
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
         Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
         Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
-        Err(diag) => Err(BooleanError::coincidence(diag)),
+        Err(escalation) => Err(BooleanError::of_lever(
+            LeverArm::SectorCurving,
+            Coincide::SectorSide,
+            escalation,
+        )),
     }
 }
 
@@ -672,8 +692,9 @@ pub(super) fn within<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
     let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let t1 = decide("bool_sector_within", c1, band).map_err(BooleanError::coincidence)?;
-    let t2 = decide("bool_sector_within", c2, band).map_err(BooleanError::coincidence)?;
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, diag);
+    let t1 = decide("bool_sector_within", c1, band).map_err(escalate)?;
+    let t2 = decide("bool_sector_within", c2, band).map_err(escalate)?;
     Ok(if strict {
         t1 == Sign::Positive && t2 == Sign::Positive
     } else {
@@ -692,13 +713,13 @@ fn parallel_same<T: Decide>(
     match decide("bool_dir_parallel", cross_margin, band) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::coincidence(diag)),
+        Err(diag) => return Err(BooleanError::coincidence(Coincide::Sectors, diag)),
     }
     match decide("bool_dir_same", Margin::levered(u.dot(v), arm), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(Sign::Negative) => Ok(false),
         Ok(Sign::Zero) => Err(invalid_escalation(band, "bool_dir_same")),
-        Err(diag) => Err(BooleanError::coincidence(diag)),
+        Err(diag) => Err(BooleanError::coincidence(Coincide::Sectors, diag)),
     }
 }
 
@@ -779,7 +800,7 @@ pub(super) fn pair_search<T: Decide>(
                 Ok(Sign::Negative) => {
                     return Err(invalid_escalation(band, "bool_faces_parallel"));
                 }
-                Err(diag) => return Err(BooleanError::coincidence(diag)),
+                Err(diag) => return Err(BooleanError::coincidence(Coincide::Sectors, diag)),
             };
             let hit = if coplanar {
                 sector_overlap(sa, sb, band)?

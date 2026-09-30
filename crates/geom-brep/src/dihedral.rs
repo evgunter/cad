@@ -86,6 +86,7 @@
 //! poisoned arms escalate through the ordinary decide door. "Arm too
 //! small to say" is always an escalation, never a classification.
 
+use crate::enters::LeverEscalation;
 use geom::Surface;
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign};
@@ -178,10 +179,11 @@ pub(crate) fn decide_nonzero<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`Indeterminate`]: predicate `"dihedral_wedge"` — the margin landed
-/// in the sliver band, or was poisoned (off-locus garbage, a surface
-/// singularity such as the cone apex, an unimplemented `Nurbs` kind);
-/// or predicate `"dihedral_arm"` — the folded lever arm is collapsed
+/// [`LeverEscalation`]: [`crate::LeverRung::Reading`], predicate
+/// `"dihedral_wedge"` — the margin landed in the sliver band, or was
+/// poisoned (off-locus garbage, a surface singularity such as the cone
+/// apex, an unimplemented `Nurbs` kind); or [`crate::LeverRung::Arm`],
+/// predicate `"dihedral_arm"` — the folded lever arm is collapsed
 /// (coincident with zero, in-band, or poisoned), so no angle can
 /// classify at this site (the collapsed-arm gate, module docs) —
 /// escalate-never-guess, D4 ¶3.
@@ -191,7 +193,7 @@ pub fn classify_dihedral<T: Decide>(
     p: Point3<T>,
     extent: T,
     band: Band,
-) -> Result<DihedralClass, Indeterminate> {
+) -> Result<DihedralClass, LeverEscalation> {
     wedge_decided(s1, s2, p, extent, band).map(|(class, _)| class)
 }
 
@@ -204,7 +206,7 @@ pub(crate) fn wedge_decided<T: Decide>(
     p: Point3<T>,
     extent: T,
     band: Band,
-) -> Result<(DihedralClass, geom_core::MarginDiag), Indeterminate> {
+) -> Result<(DihedralClass, geom_core::MarginDiag), LeverEscalation> {
     let n1 = implicit_gradient(s1, p);
     let n2 = implicit_gradient(s2, p);
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
@@ -214,9 +216,10 @@ pub(crate) fn wedge_decided<T: Decide>(
     // true magnitude, unreachable Negative) arm escalates as Invalid —
     // "the question was never validly posed here" — and an in-band or
     // poisoned arm escalates through `decide` itself via `?`.
-    decide_positive("dihedral_arm", Margin::of(arm), band)?;
+    decide_positive("dihedral_arm", Margin::of(arm), band).map_err(LeverEscalation::arm)?;
     let margin = Margin::levered(sin_theta, arm);
-    let Decided { sign, margin } = decide_reported("dihedral_wedge", margin, band)?;
+    let Decided { sign, margin } =
+        decide_reported("dihedral_wedge", margin, band).map_err(LeverEscalation::reading)?;
     let class = match sign {
         Sign::Positive => DihedralClass::Transverse,
         Sign::Zero => DihedralClass::Smooth,
@@ -453,7 +456,7 @@ pub fn must_carry_over_edge<T: Decide>(
         match classify_dihedral(s1, s2, p, extent, band) {
             Ok(DihedralClass::Smooth) => {}
             Ok(DihedralClass::Transverse) => return MustCarryVerdict::Transverse,
-            Err(source) => return MustCarryVerdict::InBand(source),
+            Err(LeverEscalation { diag, .. }) => return MustCarryVerdict::InBand(diag),
         }
         if !in_lane {
             continue;
@@ -698,6 +701,7 @@ mod tests {
     use geom_core::{Point3, Vec3};
 
     use super::*;
+    use crate::LeverRung;
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -705,6 +709,22 @@ mod tests {
 
     fn eps() -> f64 {
         Tol::witness().get().eps
+    }
+
+    /// An in-band extent escalates the arm gate, named as the arm,
+    /// before any angle is read (the reading's row is
+    /// `near_tangent_planes_escalate`).
+    #[test]
+    fn an_in_band_arm_escalates_as_the_arm() {
+        let b = band();
+        let mid = (b.zero() + b.escalate()) / 2.0;
+        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
+        let wall = plane(Vec3::unit_x(), Vec3::unit_y());
+        let err = classify_dihedral(&floor, &wall, Point3::origin(), mid, b).unwrap_err();
+        assert_eq!(
+            (err.rung, err.diag.predicate),
+            (LeverRung::Arm, Some("dihedral_arm"))
+        );
     }
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
@@ -746,7 +766,10 @@ mod tests {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(n, Vec3::unit_y());
         let err = classify_dihedral(&s1, &s2, Point3::origin(), 1.0, band()).unwrap_err();
-        assert_eq!(err.predicate, Some("dihedral_wedge"));
+        assert_eq!(
+            (err.rung, err.diag.predicate),
+            (LeverRung::Reading, Some("dihedral_wedge"))
+        );
     }
 
     /// Cylinder tangent to a plane: exactly tangent classifies smooth at
@@ -787,7 +810,7 @@ mod tests {
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
-        assert_eq!(err.margin, geom_core::MarginDiag::INVALID);
+        assert_eq!(err.diag.margin, geom_core::MarginDiag::INVALID);
     }
 
     /// Two coplanar faces on one tangent plane: material sides agree
@@ -930,6 +953,6 @@ mod tests {
             band(),
         )
         .unwrap_err();
-        assert_eq!(err.margin, geom_core::MarginDiag::INVALID);
+        assert_eq!(err.diag.margin, geom_core::MarginDiag::INVALID);
     }
 }

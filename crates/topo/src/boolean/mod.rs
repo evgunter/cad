@@ -92,7 +92,8 @@ pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
-    BooleanDecision, Contradiction, CrossingDecision, PlaneRung, SectorRung, TorusConvention,
+    BooleanDecision, Coincide, Contradiction, CrossingDecision, LeverArm, PlaneRung, SectionRadius,
+    SectorRung, TorusConvention, WallRung,
 };
 mod rest;
 mod rim_wedge;
@@ -842,14 +843,16 @@ pub enum BooleanError {
     /// same predicate instead.
     ///
     /// A refusal, never a guess: a first-order answer here would be a
-    /// wrong TOPOLOGY rather than a conservative one. The recourse is
-    /// the second-order sector trilean
+    /// wrong TOPOLOGY rather than a conservative one. The kernel's own
+    /// way through is the second-order sector trilean
     /// (`geom_brep::enters_material_order2`), which the declared-
     /// `Tangent` lump already consumes and which no lane wires into
-    /// this verdict yet.
+    /// this verdict yet; the user's is the decision's lever
+    /// ([`refusal_routes::PIERCE_CURVATURE`], shared with the in-band
+    /// arm, [`BooleanDecision::PierceCurvature`]).
     CurvedSectorSideUnsupported {
-        /// The band the curvature charge was classified against.
-        band: Band,
+        /// The charge's decided verdict at the sector's arm.
+        verdict: geom_brep::recourse::Refused,
     },
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
@@ -868,8 +871,10 @@ pub enum BooleanError {
     /// **definite** half of a two-tolerance pair: the very same
     /// clearance margin one band-width away escalates as
     /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
-    /// instead, and both halves quote the band and end on the shared
-    /// recourse.
+    /// instead ([`Coincide::EdgeOnCurvedFace`]), and both halves end on
+    /// the coincidence's levers: the declared-cover rung takes a
+    /// declaration of the edge's face against the curved one, and this
+    /// definite half names no tolerance.
     CurvedPierceUnsupported {
         /// The operand whose edge met the curved face.
         operand: Operand,
@@ -931,6 +936,21 @@ pub enum BooleanError {
         /// The shared edge whose two faces coincide.
         edge: EdgeKey,
     },
+    /// F7: two neighbouring faces of one operand lie on one plane with
+    /// no shared source, at a decided zero offset or one in band. The
+    /// maximal-faces gate compares faces of ONE operand, which no
+    /// face-pair declaration names, so the refusal ends in the gate's
+    /// own lever ([`refusal_routes::NEIGHBOUR_OFFSET`]) and offers no
+    /// declaration.
+    CoplanarNeighbours {
+        /// The operand both faces belong to.
+        operand: Operand,
+        /// The two faces.
+        faces: [FaceKey; 2],
+        /// The offset rung's diagnostics: a decided zero carries an
+        /// `INVALID` margin, synthesized by the plane ladder.
+        diag: Indeterminate,
+    },
     /// A vertex sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
     /// not a number. Distinct from [`BooleanError::Escalated`] on
@@ -973,14 +993,13 @@ pub enum BooleanError {
     /// lacked intent, each face tagged with its operand, plus the
     /// orientation the ladder decided before refusing — so a document
     /// layer can name the candidate declaration in the refusal itself
-    /// instead of re-running any decide on the error path.
+    /// instead of re-running any decide on the error path. Two faces
+    /// of ONE operand are [`BooleanError::CoplanarNeighbours`] instead.
     UndeclaredCoincidence {
         /// The escalation site's diagnostics.
         diag: Indeterminate,
-        /// The coincident face pair, each with the operand it lives
-        /// in. Cross-operand at the classification sites; both
-        /// entries share one operand at the F7 maximal-faces gate
-        /// (two faces of ONE body coinciding without shared source).
+        /// The coincident face pair, a face of each operand, each with
+        /// the operand it lives in.
         pair: [(Operand, FaceKey); 2],
         /// The decided orientation ([`PlaneRelation::SameOriented`]
         /// or [`PlaneRelation::SameOpposite`], never `Distinct`) —
@@ -1352,7 +1371,8 @@ pub enum BooleanError {
     /// configuration is a named sub-frontier the lane does not cover
     /// (no speculative region algebra is built for it); refused
     /// typed, never a laundered catch-all (the `SkippedMerge`
-    /// precedent).
+    /// precedent). The pair is declared and verified already, so the
+    /// geometry is the one lever ([`refusal_routes::REST_ZIP_LEVER`]).
     RestZipUnsupported {
         /// The precise sub-frontier.
         what: &'static str,
@@ -1475,6 +1495,8 @@ pub enum BooleanErrorKind {
     ScaffoldingOperand,
     /// [`BooleanError::NonMaximalFaces`].
     NonMaximalFaces,
+    /// [`BooleanError::CoplanarNeighbours`].
+    CoplanarNeighbours,
     /// [`BooleanError::NonFiniteSectorChord`].
     NonFiniteSectorChord,
     /// [`BooleanError::UnderflowedSectorChord`].
@@ -1546,14 +1568,30 @@ pub enum BooleanErrorKind {
 }
 
 impl BooleanError {
-    /// An escalation of a coincidence between parts of the two solids
-    /// ([`BooleanDecision::Coincidence`]). Most wrap sites use it without
-    /// naming their decision; that each should is
-    /// `work/topo/boolean-coincidence-wrap-sites-name-no-decision.md`.
-    pub(crate) fn coincidence(diag: Indeterminate) -> Self {
+    /// An escalation of the coincidence `which` between parts of the two
+    /// solids ([`BooleanDecision::Coincidence`]), the one decision whose
+    /// refusal offers a declaration. A site whose question is not a
+    /// coincidence between the two solids names its own
+    /// [`BooleanDecision`] instead.
+    pub(crate) const fn coincidence(which: Coincide, diag: Indeterminate) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::Coincidence,
+            decision: BooleanDecision::Coincidence(which),
             diag,
+        }
+    }
+
+    /// An escalation of a reading metered over a lever arm at `gate`,
+    /// routed by the rung that raised it
+    /// ([`BooleanDecision::of_lever`]): the arm is the gate's own
+    /// length, and the reading is the coincidence `reading`.
+    pub(crate) const fn of_lever(
+        gate: refusal_routes::LeverArm,
+        reading: Coincide,
+        escalation: geom_brep::LeverEscalation,
+    ) -> Self {
+        Self::Escalated {
+            decision: BooleanDecision::of_lever(gate, reading, escalation.rung),
+            diag: escalation.diag,
         }
     }
 
@@ -1621,6 +1659,7 @@ impl BooleanError {
             }
             Self::ScaffoldingOperand { .. } => BooleanErrorKind::ScaffoldingOperand,
             Self::NonMaximalFaces { .. } => BooleanErrorKind::NonMaximalFaces,
+            Self::CoplanarNeighbours { .. } => BooleanErrorKind::CoplanarNeighbours,
             Self::NonFiniteSectorChord { .. } => BooleanErrorKind::NonFiniteSectorChord,
             Self::UnderflowedSectorChord { .. } => BooleanErrorKind::UnderflowedSectorChord,
             Self::Escalated { .. } => BooleanErrorKind::Escalated,
@@ -1752,14 +1791,26 @@ impl core::fmt::Display for BooleanError {
                 "an edge of the {} operand touches or crosses a curved face of the \
                  other operand away from that face's edges, and the Boolean cannot yet \
                  settle where or whether it passes through. Recourse: \
-                 {COINCIDENCE_RECOURSE}",
+                 {}",
                 operand_word(*operand),
+                refusal_routes::DEFINITE_COINCIDENCE_RECOURSE,
             ),
-            Self::CurvedSectorSideUnsupported { .. } => write!(
+            Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
                 "where an edge pierces a curved face, the Boolean cannot be sure which \
-                 side of the face the material is on: the face curves too sharply \
-                 there for the check it has. Recourse: {COINCIDENCE_RECOURSE}"
+                 side of the face the material is on: {}. {}",
+                match verdict {
+                    geom_brep::recourse::Refused::Zero(_) => {
+                        "the edge leaves the face, at this tolerance, no more steeply than \
+                         the face bends away over the same length"
+                    }
+                    geom_brep::recourse::Refused::Negative { .. } => {
+                        "the face bends away over the edge's length by more than the edge \
+                         departs from it"
+                    }
+                },
+                refusal_routes::PIERCE_CURVATURE
+                    .recourse(verdict.arm(), geom_brep::recourse::Reading::Build)
             ),
             Self::CurvedEdgeUnsupported { operand, .. } => write!(
                 f,
@@ -1894,13 +1945,27 @@ impl core::fmt::Display for BooleanError {
                 geom_core::RANGE_RECOURSE
             ),
             Self::Escalated { decision, diag } => f.write_str(&decision.render(diag)),
-            Self::UndeclaredCoincidence { diag, pair, .. } => {
-                if pair[0].0 == pair[1].0 {
-                    write!(f, "two faces of the {} operand", operand_word(pair[0].0))?;
+            Self::CoplanarNeighbours { operand, diag, .. } => {
+                write!(
+                    f,
+                    "two neighbouring faces of the {} operand lie on one plane, or nearly (",
+                    operand_word(*operand)
+                )?;
+                if diag.margin.is_invalid() {
+                    f.write_str("their planes' offset is exactly zero")?;
                 } else {
-                    f.write_str("a face of the first operand and a face of the second")?;
+                    write!(f, "{}", diag.payload())?;
                 }
-                f.write_str(" coincide, or nearly (")?;
+                write!(
+                    f,
+                    "), with no shared source to make them one face. {}",
+                    refusal_routes::coplanar_neighbours_ending(diag)
+                )
+            }
+            Self::UndeclaredCoincidence { diag, .. } => {
+                f.write_str(
+                    "a face of the first operand and a face of the second coincide, or nearly (",
+                )?;
                 // The rung-4 definite arm synthesizes `MarginKind::Invalid`
                 // for a decided-zero offset (plane_eq keeps the decision
                 // machinery); rendering that payload verbatim would claim a
@@ -2013,10 +2078,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::RestZipUnsupported { what } => write!(
                 f,
-                "declared-REST union zip: {what} — a named \
-                 sub-frontier of the boundary-on-boundary REST lane (planar declared \
-                 contacts whose seam splits cleanly are covered); \
-                 {COINCIDENCE_RECOURSE}"
+                "the Boolean cannot yet zip the two solids along their declared resting \
+                 contact ({what}); it zips planar contacts whose seam splits cleanly. \
+                 Recourse: {}",
+                refusal_routes::REST_ZIP_LEVER
             ),
             Self::JoinDesync { what } => write!(
                 f,
@@ -2538,7 +2603,7 @@ fn verify_tangent_declaration<T: Decide>(
             // Unreachable with `declared: false`; refuse loudly anyway.
             Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Coincidence,
+                    decision: BooleanDecision::Coincidence(Coincide::Carriers),
                     diag,
                 });
             }
@@ -2571,7 +2636,7 @@ fn verify_tangent_declaration<T: Decide>(
     let (origin, dir) = match rest::tangent_locus(&sa, &sb, band) {
         Ok(rest::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(rest::TangentLocusError::Escalated(diag)) => {
-            return Err(BooleanError::coincidence(diag));
+            return Err(BooleanError::coincidence(Coincide::TangentLocus, diag));
         }
         Err(rest::TangentLocusError::NotTangent { .. }) => {
             return Err(BooleanError::ContactContradicted {
@@ -2600,8 +2665,8 @@ fn verify_tangent_declaration<T: Decide>(
             // reading as "no rim here": the two are different findings
             // and only one of them means the geometry was examined and
             // cleared.
-            let rim =
-                rim_wedge::shared_rim(a, fa, b, fb, band).map_err(BooleanError::coincidence)?;
+            let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
+                .map_err(|diag| BooleanError::coincidence(Coincide::Contact, diag))?;
             if let Some(rim) = rim {
                 // The rim's own diameter is the extent every angular
                 // margin here is metered at — the screen's, the
@@ -2705,7 +2770,7 @@ fn verify_tangent_declaration<T: Decide>(
         }
         Err(crate::contact::ContactRefusal::Escalated { diag })
         | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
-            Err(BooleanError::coincidence(diag))
+            Err(BooleanError::coincidence(Coincide::Contact, diag))
         }
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
             Err(BooleanError::UnsupportedDeclarationClass {
@@ -2904,7 +2969,7 @@ mod tests {
         // bool_plane_orient Zero path synthesizes one; S6 review,
         // MINOR-1).
         for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
-            let msg = BooleanError::coincidence(diag(margin)).to_string();
+            let msg = BooleanError::coincidence(Coincide::Planes, diag(margin)).to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
         // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
@@ -2974,18 +3039,31 @@ mod tests {
         );
     }
 
-    /// The M5 S1 sub-frontier refusal follows the two-tolerance
-    /// message shape: it names the lane and the precise sub-frontier
-    /// and composes the shared recourse exactly once.
+    /// **The M5 S1 sub-frontier refusal names the geometry alone**: the
+    /// pair is declared and verified before the zip meets its
+    /// sub-frontier, so no declaration is offered, and a definite
+    /// frontier names no tolerance. It states the sub-frontier with no
+    /// stage label, and one recourse.
     #[test]
-    fn rest_zip_unsupported_carries_the_shared_recourse_once() {
+    fn rest_zip_unsupported_names_the_geometry_and_no_declaration() {
+        use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
         let msg = BooleanError::RestZipUnsupported {
             what: "contact patch face carries rings",
         }
         .to_string();
-        assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
-        assert!(msg.contains("contact patch face carries rings"), "{msg}");
-        assert!(msg.contains("declared-REST union zip"), "{msg}");
+        assert_eq!(recourse_markers(&msg), 1, "{msg}");
+        assert!(
+            stage_prefixes(&msg, &[]).is_empty() && subjectless_escalations(&msg).is_empty(),
+            "{msg}"
+        );
+        assert!(
+            msg.contains("(contact patch face carries rings)")
+                && msg.ends_with(&format!("Recourse: {}", refusal_routes::REST_ZIP_LEVER))
+                && !msg.contains("declare the")
+                && !msg.contains("tolerance")
+                && !msg.contains("union zip:"),
+            "{msg}"
+        );
     }
 
     /// **A declared face key that resolves to no face refuses typed,
@@ -3061,7 +3139,11 @@ mod tests {
                 face,
                 kind: geom_brep::SurfaceKind::Cone,
             },
-            BooleanError::CurvedSectorSideUnsupported { band },
+            BooleanError::CurvedSectorSideUnsupported {
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1e-3),
+                },
+            },
             BooleanError::NonFiniteSectorChord {
                 vertex: VertexKey::default(),
                 face,
@@ -3092,7 +3174,12 @@ mod tests {
                 operand: Operand::A,
                 edge,
             },
-            BooleanError::coincidence(diag),
+            BooleanError::CoplanarNeighbours {
+                operand: Operand::A,
+                faces: [face, face],
+                diag,
+            },
+            BooleanError::coincidence(Coincide::VertexOnFace, diag),
             BooleanError::UndeclaredCoincidence {
                 diag,
                 pair: [(Operand::A, face), (Operand::B, face)],
@@ -3233,6 +3320,7 @@ mod tests {
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
                 BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
                 BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
+                BooleanErrorKind::CoplanarNeighbours => "CoplanarNeighbours",
                 BooleanErrorKind::NonFiniteSectorChord => "NonFiniteSectorChord",
                 BooleanErrorKind::UnderflowedSectorChord => "UnderflowedSectorChord",
                 BooleanErrorKind::Escalated => "Escalated",

@@ -203,7 +203,11 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         ),
         (
             "CurvedSectorSideUnsupported",
-            BooleanError::CurvedSectorSideUnsupported { band },
+            BooleanError::CurvedSectorSideUnsupported {
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-3.0e-4),
+                },
+            },
         ),
         (
             "CurvedEdgeUnsupported",
@@ -238,6 +242,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::NonMaximalFaces {
                 operand: Operand::B,
                 edge,
+            },
+        ),
+        (
+            "CoplanarNeighbours",
+            BooleanError::CoplanarNeighbours {
+                operand: Operand::B,
+                faces: [face, face],
+                diag,
             },
         ),
         (
@@ -291,7 +303,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "Escalated",
             BooleanError::Escalated {
-                decision: topo::BooleanDecision::Coincidence,
+                decision: topo::BooleanDecision::Coincidence(topo::Coincide::VertexOnFace),
                 diag,
             },
         ),

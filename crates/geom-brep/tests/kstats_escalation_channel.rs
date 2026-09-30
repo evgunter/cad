@@ -70,8 +70,8 @@ fn an_indeterminate_minted_after_a_definite_verdict_is_on_the_escalation_log() {
     );
     let recorded = bracket.finish();
     let escalated = out.expect_err("the predicate escalates to its caller");
-    assert_eq!(escalated.predicate, Some("enters_material_arm"));
-    assert_eq!(escalated.margin, MarginDiag::INVALID);
+    assert_eq!(escalated.diag.predicate, Some("enters_material_arm"));
+    assert_eq!(escalated.diag.margin, MarginDiag::INVALID);
     assert_eq!(
         verdicts(&recorded),
         [("enters_material_arm", Sign::Zero)],
@@ -99,7 +99,7 @@ fn the_order2_sector_arm_gate_records_its_escalation() {
     );
     let recorded = bracket.finish();
     assert_eq!(
-        out.expect_err("a collapsed arm escalates").predicate,
+        out.expect_err("a collapsed arm escalates").diag.predicate,
         Some("tangent_sector_order2_arm")
     );
     assert_eq!(
@@ -130,7 +130,7 @@ fn the_dihedral_arm_gate_records_its_escalation() {
     let out = classify_dihedral(&s1, &s2, Point3::origin(), 0.0f64, band);
     let recorded = bracket.finish();
     assert_eq!(
-        out.expect_err("a collapsed arm escalates").predicate,
+        out.expect_err("a collapsed arm escalates").diag.predicate,
         Some("dihedral_arm")
     );
     assert_eq!(verdicts(&recorded), [("dihedral_arm", Sign::Zero)]);

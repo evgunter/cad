@@ -238,6 +238,24 @@ fn a_declared_same_oriented_finding_can_still_meet_a_typed_lane_frontier() {
         "a typed lane frontier, NOT a contact contradiction — the declarations are true \
          and the op is what cannot proceed: {err:?}"
     );
+    // Every finding is declared, so the frontier offers no declaration:
+    // the geometry is its one lever, stated once, with no stage label.
+    let text = err.to_string();
+    assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+    assert!(
+        test_utils::refusal::stage_prefixes(&text, &[]).is_empty()
+            && test_utils::refusal::subjectless_escalations(&text).is_empty()
+            && text.starts_with(
+                "the Boolean cannot yet zip the two solids along their declared resting contact"
+            )
+            && text.ends_with(
+                "Recourse: move the parts so their declared contact is a planar patch whose \
+                 seam splits both faces cleanly"
+            )
+            && !text.contains("declare the")
+            && !text.contains("tolerance"),
+        "{text}"
+    );
 }
 
 // ------------------------------------------------------------------

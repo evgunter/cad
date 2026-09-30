@@ -2126,7 +2126,7 @@ fn run_checks<T: Decide>(
                             let verdict = Refused::Zero(Classified { margin, band });
                             return Err(CertifyError::NotTransverse { sample: i, verdict });
                         }
-                        Err(cause) => {
+                        Err(crate::LeverEscalation { diag: cause, .. }) => {
                             return Err(CertifyError::Escalated {
                                 check: CertCheck::Transversality,
                                 sample: i,

@@ -77,6 +77,7 @@
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
+use super::Coincide;
 use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
@@ -424,7 +425,7 @@ fn enumerate_segments<T: Decide>(
             });
         }
     }
-    let escalate = BooleanError::coincidence;
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
     let mut segments = Vec::new();
     loop {
         // Globally nearest mutually-facing unused pair (the join's

@@ -5583,7 +5583,7 @@ pub(crate) fn tier3_local_checks_marked<
                 match classify_dihedral(s_plus, s_minus, p, extent, band) {
                     Ok(DihedralClass::Transverse) => all_smooth = false,
                     Ok(DihedralClass::Smooth) => all_transverse = false,
-                    Err(cause) => {
+                    Err(geom_brep::LeverEscalation { diag: cause, .. }) => {
                         errors.push(ValidationError::SliverDihedral {
                             edge: edge_key,
                             check: WedgeCheck::Dihedral,

@@ -101,6 +101,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::BooleanDecision;
+use super::Coincide;
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
@@ -1683,7 +1684,13 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     }
                 }
             }
-            Err(diag) => return Err(BooleanError::coincidence(diag)),
+            Err(escalation) => {
+                return Err(BooleanError::of_lever(
+                    super::LeverArm::Seam,
+                    super::Coincide::SeamWedge,
+                    escalation,
+                ));
+            }
         }
     }
     Ok(())
@@ -2041,7 +2048,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     b: &Body<T>,
     band: Band,
 ) -> Result<Vec<SphereRecut<T>>, BooleanError> {
-    let esc = BooleanError::coincidence;
+    let esc = |diag| BooleanError::coincidence(Coincide::Sphere, diag);
     // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
     // NURBS face refuses before a vertex is probed — the extent test
     // is unwritable for the kind (variant docs).
@@ -2461,7 +2468,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Margin::levered(sin, r.radius),
                 band,
             )
-            .map_err(BooleanError::coincidence)?
+            .map_err(|diag| BooleanError::coincidence(Coincide::Sphere, diag))?
             {
                 Sign::Positive | Sign::Negative => {}
                 Sign::Zero => {

@@ -67,6 +67,48 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
 
+/// Which rung of a reading metered over a lever arm escalated: the arm
+/// gate or the reading itself. [`enters_material`],
+/// [`enters_material_order2`] and [`crate::classify_dihedral`] each ask
+/// two questions, and a door that wraps their escalation tells them
+/// apart by this rather than by predicate name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LeverRung {
+    /// Whether the lever arm is positive: a length to measure the
+    /// angle over. It passes only on a definitely positive arm.
+    Arm,
+    /// The reading the arm meters, once the arm has passed.
+    Reading,
+}
+
+/// An escalation of a reading metered over a lever arm, with the rung
+/// that raised it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LeverEscalation {
+    /// The rung that could not decide.
+    pub rung: LeverRung,
+    /// Its diagnostics.
+    pub diag: Indeterminate,
+}
+
+impl LeverEscalation {
+    /// The arm gate's escalation.
+    pub(crate) fn arm(diag: Indeterminate) -> Self {
+        Self {
+            rung: LeverRung::Arm,
+            diag,
+        }
+    }
+
+    /// The metered reading's escalation.
+    pub(crate) fn reading(diag: Indeterminate) -> Self {
+        Self {
+            rung: LeverRung::Reading,
+            diag,
+        }
+    }
+}
+
 /// The verdict of [`enters_material`]: where `dir` goes relative to the
 /// face's material.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -188,25 +230,29 @@ impl<T: Real> ReferenceNormal<T> {
 ///
 /// # Errors
 ///
-/// [`Indeterminate`]:
-/// - predicate `"enters_material_arm"` — the lever arm failed to
-///   classify definitely positive (collapsed, in-band, or poisoned): no
-///   angular verdict can be metered here (escalate-never-guess).
-/// - predicate `"enters_material"` — the metered margin landed in the
-///   sliver band or was poisoned (e.g. a zero `dir`).
+/// [`LeverEscalation`]:
+/// - [`LeverRung::Arm`], predicate `"enters_material_arm"` — the lever
+///   arm failed to classify definitely positive (collapsed, in-band, or
+///   poisoned): no angular verdict can be metered here
+///   (escalate-never-guess).
+/// - [`LeverRung::Reading`], predicate `"enters_material"` — the
+///   metered margin landed in the sliver band or was poisoned (e.g. a
+///   zero `dir`).
 pub fn enters_material<T: Decide>(
     dir: Vec3<T>,
     outward_normal: OutwardNormal<T>,
     arm: T,
     band: Band,
-) -> Result<EntersMaterial, Indeterminate> {
-    decide_positive("enters_material_arm", Margin::of(arm), band)?;
+) -> Result<EntersMaterial, LeverEscalation> {
+    decide_positive("enters_material_arm", Margin::of(arm), band).map_err(LeverEscalation::arm)?;
     let margin = Margin::levered(dir.normalize().dot(outward_normal.vec()), arm);
-    Ok(match decide("enters_material", margin, band)? {
-        Sign::Negative => EntersMaterial::Enters,
-        Sign::Positive => EntersMaterial::Exits,
-        Sign::Zero => EntersMaterial::Tangent,
-    })
+    Ok(
+        match decide("enters_material", margin, band).map_err(LeverEscalation::reading)? {
+            Sign::Negative => EntersMaterial::Enters,
+            Sign::Positive => EntersMaterial::Exits,
+            Sign::Zero => EntersMaterial::Tangent,
+        },
+    )
 }
 
 /// **`enters_material_order2`** — the second-order descent of the
@@ -242,8 +288,9 @@ pub fn enters_material<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`Indeterminate`]: predicate `"tangent_sector_order2_arm"` (the
-/// collapsed-arm gate, the dihedral.rs idiom) or
+/// [`LeverEscalation`]: [`LeverRung::Arm`], predicate
+/// `"tangent_sector_order2_arm"` (the collapsed-arm gate, the
+/// dihedral.rs idiom), or [`LeverRung::Reading`], predicate
 /// `"tangent_sector_order2"` (in-band or poisoned margin).
 pub fn enters_material_order2<T: Decide>(
     deriv2: Vec3<T>,
@@ -251,14 +298,17 @@ pub fn enters_material_order2<T: Decide>(
     reference_normal: ReferenceNormal<T>,
     arm: T,
     band: Band,
-) -> Result<EntersMaterial, Indeterminate> {
-    decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)?;
+) -> Result<EntersMaterial, LeverEscalation> {
+    decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)
+        .map_err(LeverEscalation::arm)?;
     let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
-    Ok(match decide("tangent_sector_order2", margin, band)? {
-        Sign::Negative => EntersMaterial::Enters,
-        Sign::Positive => EntersMaterial::Exits,
-        Sign::Zero => EntersMaterial::Tangent,
-    })
+    Ok(
+        match decide("tangent_sector_order2", margin, band).map_err(LeverEscalation::reading)? {
+            Sign::Negative => EntersMaterial::Enters,
+            Sign::Positive => EntersMaterial::Exits,
+            Sign::Zero => EntersMaterial::Tangent,
+        },
+    )
 }
 
 /// The crate-local funnel wrapper (the `geom-brep` pattern: one
@@ -327,7 +377,10 @@ mod tests {
     fn collapsed_arm_escalates() {
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let err = enters_material(n_out.vec(), n_out, 0.0, band()).unwrap_err();
-        assert_eq!(err.predicate, Some("enters_material_arm"));
+        assert_eq!(
+            (err.rung, err.diag.predicate),
+            (LeverRung::Arm, Some("enters_material_arm"))
+        );
     }
 
     /// A poisoned direction (zero vector normalizes to NaN) escalates
@@ -336,6 +389,9 @@ mod tests {
     fn zero_dir_escalates() {
         let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let err = enters_material(Vec3::zero(), n_out, 1.0, band()).unwrap_err();
-        assert_eq!(err.predicate, Some("enters_material"));
+        assert_eq!(
+            (err.rung, err.diag.predicate),
+            (LeverRung::Reading, Some("enters_material"))
+        );
     }
 }

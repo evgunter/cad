@@ -1460,6 +1460,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
         BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
+        BooleanErrorKind::CoplanarNeighbours => "coplanar_neighbours",
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",

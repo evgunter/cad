@@ -465,7 +465,7 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     // never a definite classification.
     let p = at(0.5 * eps());
     let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"));
+    assert_eq!(err.diag.predicate, Some("dihedral_arm"));
 }
 
 /// (c) FIXED (was `finding_sub_epsilon_chord_true_corner_reads_smooth`):
@@ -489,9 +489,9 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
         u_ref: Vec3::unit_y(),
     };
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"), "sub-eps extent");
+    assert_eq!(err.diag.predicate, Some("dihedral_arm"), "sub-eps extent");
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"), "zero extent");
+    assert_eq!(err.diag.predicate, Some("dihedral_arm"), "zero extent");
 }
 
 /// (c) SURVIVES: huge edges on tiny features — the curvature arm caps

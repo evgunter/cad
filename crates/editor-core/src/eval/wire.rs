@@ -3661,15 +3661,14 @@ fn refusal_menu<T: geom_core::Bounds>(
         return verb_refused(err);
     };
     // The finding orders the pair (a-side, b-side); raise sites order
-    // it by discovery. Relation is orientation-symmetric. A
-    // same-operand pair (the F7 gate) keeps its raise order.
+    // it by discovery. Relation is orientation-symmetric.
     let ordered = if pair[0].0 == topo::Operand::B && pair[1].0 == topo::Operand::A {
         [pair[1], pair[0]]
     } else {
         pair
     };
     // A finding is SITED, so the pair a caller declares back is
-    // buildable from the refusal alone, same-operand pairs included.
+    // buildable from the refusal alone.
     let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
         let (at, table) = match operand {
             topo::Operand::A => a,

@@ -28,7 +28,7 @@ use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::sectors::{BoolSector, PairRecord, side_code};
 use super::tables::{eq15_3_lump, resolve_verdict, table_ii};
-use super::{BooleanError, BooleanOp, Operand, SideCode};
+use super::{BooleanError, BooleanOp, Coincide, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
 
@@ -715,7 +715,9 @@ fn resolve_edge_edge<T: Decide>(
                                 what: "degenerate rep pair in edge-edge membership",
                             });
                         }
-                        Err(diag) => return Err(BooleanError::coincidence(diag)),
+                        Err(diag) => {
+                            return Err(BooleanError::coincidence(Coincide::EdgeOnEdge, diag));
+                        }
                     };
                     if !same {
                         inside = false; // touching, not overlapping
@@ -1010,12 +1012,12 @@ fn parallel_same_dir<T: Decide>(
     ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::coincidence(diag)),
+        Err(diag) => return Err(BooleanError::coincidence(Coincide::EdgeOnEdge, diag)),
     }
     match decide("bool_dir_same", Margin::levered(un.dot(vn), arm), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(_) => Ok(false),
-        Err(diag) => Err(BooleanError::coincidence(diag)),
+        Err(diag) => Err(BooleanError::coincidence(Coincide::EdgeOnEdge, diag)),
     }
 }
 

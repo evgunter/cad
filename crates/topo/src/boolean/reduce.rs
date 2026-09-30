@@ -53,7 +53,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::PlaneDesc;
-use super::{BooleanDecision, CrossingDecision};
+use super::{BooleanDecision, Coincide, CrossingDecision};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -632,13 +632,11 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     diag,
                 ));
             }
-            Err(super::PlaneEqError::Undeclared { diag, relation }) => {
-                // Same-operand pair (the F7 maximal-faces gate): both
-                // entries carry THIS operand's tag.
-                return Err(BooleanError::UndeclaredCoincidence {
+            Err(super::PlaneEqError::Undeclared { diag, .. }) => {
+                return Err(BooleanError::CoplanarNeighbours {
+                    operand,
+                    faces: [f1, f2],
                     diag,
-                    pair: [(operand, f1), (operand, f2)],
-                    relation,
                 });
             }
             // Unreachable with `declared: false`; kept typed.
@@ -862,7 +860,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         match decide("bool_conic_face_plane_offset", Margin::of(offset), band) {
                             Ok(Sign::Positive | Sign::Negative) => continue,
                             Ok(Sign::Zero) => {}
-                            Err(diag) => return Err(BooleanError::coincidence(diag)),
+                            Err(diag) => {
+                                return Err(BooleanError::coincidence(Coincide::EdgeOnPlane, diag));
+                            }
                         }
                         let mut hit =
                             vertex_on_face(x_is, y, u, pu, face, &plane, contacts, band, tol)?;
@@ -924,8 +924,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 band,
                             )
                         };
-                        let s1 = side(pu).map_err(BooleanError::coincidence)?;
-                        let s2 = side(pv).map_err(BooleanError::coincidence)?;
+                        let on_face =
+                            |diag| BooleanError::coincidence(Coincide::VertexOnFace, diag);
+                        let s1 = side(pu).map_err(on_face)?;
+                        let s2 = side(pv).map_err(on_face)?;
                         let mut hit = false;
                         if s1 == Sign::Zero {
                             hit |=
@@ -949,8 +951,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     band,
                 )
             };
-            let s1 = side(pu).map_err(BooleanError::coincidence)?;
-            let s2 = side(pv).map_err(BooleanError::coincidence)?;
+            let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, diag);
+            let s1 = side(pu).map_err(on_face)?;
+            let s2 = side(pv).map_err(on_face)?;
             match (s1, s2) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and
@@ -1358,7 +1361,9 @@ fn curved_face_arm<T: Decide>(
                     };
                     let mut ends = [None, None];
                     for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
-                        match side(pw).map_err(BooleanError::coincidence)? {
+                        match side(pw).map_err(|diag| {
+                            BooleanError::coincidence(Coincide::VertexOnFace, diag)
+                        })? {
                             Sign::Zero => {
                                 ends[i] = Some(vertex_on_curved_face(
                                     x_is, y, w, pw, face, contacts, band, tol,
@@ -1399,7 +1404,9 @@ fn curved_face_arm<T: Decide>(
                 Ok(Sign::Zero | Sign::Negative) | Err(_)
                     if !covered && matches!(surface, geom::Surface::Torus { .. }) => {}
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
-                Err(diag) => return Err(BooleanError::coincidence(diag)),
+                Err(diag) => {
+                    return Err(BooleanError::coincidence(Coincide::EdgeOnCurvedFace, diag));
+                }
             }
         }
         _ => return Err(frontier()),
@@ -1414,8 +1421,9 @@ fn curved_face_arm<T: Decide>(
     // The declared-cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
-    let s1 = side(pu).map_err(BooleanError::coincidence)?;
-    let s2 = side(pv).map_err(BooleanError::coincidence)?;
+    let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, diag);
+    let s1 = side(pu).map_err(on_face)?;
+    let s2 = side(pv).map_err(on_face)?;
     match (s1, s2) {
         // The declared-cover rung: a covered line with endpoint(s) ON
         // the carrier takes the planar sweep's endpoint posture — the
@@ -1737,7 +1745,7 @@ fn curved_face_arm<T: Decide>(
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
                 }
-                Err(diag) => Err(BooleanError::coincidence(diag)),
+                Err(diag) => Err(BooleanError::coincidence(Coincide::EdgeOnCurvedFace, diag)),
             }
         }
     }
@@ -1901,7 +1909,7 @@ fn wall_crossing<T: Decide>(
         } => match super::circle_torus::circle_torus_roots(
             center, axis, radius, u_ref, t0, t1, surface, band,
         )
-        .map_err(BooleanError::coincidence)?
+        .map_err(|diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, diag))?
         {
             super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
                 roots = thetas;
@@ -2037,8 +2045,10 @@ fn line_wall_root_count<T: Decide>(
             radius,
             ..
         } => match super::solid_contain::line_wall_roots(origin, dir, c_origin, axis, radius, band)
-            .map_err(BooleanError::coincidence)?
-        {
+            .map_err(|fault| BooleanError::Escalated {
+                decision: BooleanDecision::WallRoots(fault.rung),
+                diag: fault.diag,
+            })? {
             super::solid_contain::WallRoots::Two(ts) => {
                 roots[..2].copy_from_slice(&ts);
                 Ok(2)
@@ -2072,8 +2082,10 @@ fn line_wall_root_count<T: Decide>(
             minor_radius,
             band,
         )
-        .map_err(BooleanError::coincidence)?
-        {
+        .map_err(|diag| BooleanError::Escalated {
+            decision: BooleanDecision::TorusRoots,
+            diag,
+        })? {
             super::solid_contain::TorusRoots::Certified { count, ts } => {
                 *roots = ts;
                 Ok(count)
@@ -2574,6 +2586,61 @@ mod undeclared_rule_rows {
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]
 mod coplanar_conic_rows;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod wall_root_tests {
+    use super::{BooleanDecision, BooleanError, line_wall_root_count};
+    use crate::boolean::WallRung;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// **The line × wall root lane escalates as its own decision, on a
+    /// real raise**: a line across the axis of a unit cylinder, at the
+    /// distance from it that puts the discriminant `disc/(2r)² =
+    /// (r² − d²)/4r²` in the band. The refusal names the rung's
+    /// question and the one lever that reaches it, no tolerance (the
+    /// margin is no length) and no declaration: no face pair says
+    /// where an edge crosses a wall.
+    #[test]
+    fn the_wall_root_lane_escalates_as_its_own_decision() {
+        let b = Band::linear(Tol::witness()).expect("the witness band");
+        let mid = (b.zero() + b.escalate()) / 2.0;
+        let d = (1.0 - 4.0 * mid).sqrt();
+        let wall = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let mut roots = [0.0; 4];
+        let got = line_wall_root_count(
+            Point3::new(d, -2.0, 0.5),
+            Vec3::new(0.0, 1.0, 0.0),
+            &wall,
+            &mut roots,
+            b,
+        );
+        let Err(err) = got else {
+            panic!("an in-band discriminant escalates");
+        };
+        let BooleanError::Escalated { decision, diag } = err else {
+            panic!("the lane escalates: {err:?}");
+        };
+        assert_eq!(decision, BooleanDecision::WallRoots(WallRung::Discriminant));
+        assert_eq!(diag.predicate, Some("bool_ray_cylinder_disc"));
+        let text = BooleanError::Escalated { decision, diag }.to_string();
+        assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+        assert_eq!(
+            text,
+            format!(
+                "whether an edge crosses a cylinder wall, grazes it or misses it is undecided: \
+                 {}. Recourse: move the parts so the edge clearly crosses the wall or clearly \
+                 misses it",
+                diag.payload()
+            )
+        );
+    }
+}
 
 #[cfg(test)]
 mod no_pierce_tests {

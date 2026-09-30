@@ -92,7 +92,8 @@ pub use dihedral::{
 };
 pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
-    EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
+    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, enters_material,
+    enters_material_order2,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -108,7 +109,7 @@ pub use implicit::{
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
     PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
-    Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
+    Rung, SectionError, SectionRadius, SphereSphereSection, SurfaceKind, cone_cylinder_section,
     cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
     plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };

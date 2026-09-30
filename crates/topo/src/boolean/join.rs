@@ -108,7 +108,7 @@
 use geom_core::{Band, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
-use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
+use super::{BooleanDecision, BooleanError, BooleanReduction, Coincide, HalfGerm, Operand};
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
@@ -604,7 +604,7 @@ fn find_match<T: Decide>(
                     let p_e = point_of(e_he)?;
                     let chord = p_e - p_c;
                     let dist = chord.norm();
-                    let escalate = BooleanError::coincidence;
+                    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
                     match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                         Sign::Positive => {}
                         _ => continue, // coincident sites: no polygon edge
@@ -703,21 +703,39 @@ fn germ_section_frame<T: Decide>(
         germ.b_face,
         crate::param_source::SurfaceField::CylinderRadius,
     );
-    pair_section_frame(&sa, &sb, evidence, band).map_err(|e| match e {
-        FrameError::Escalated(diag) => BooleanError::coincidence(diag),
-        FrameError::Desync(what) => desync(what),
+    pair_section_frame(&sa, &sb, evidence, band)
+        .map_err(|e| frame_refusal(e, (germ.a_face, &sa), (germ.b_face, &sb)))
+}
+
+/// The Boolean's refusal for a germ pair's frame refusal, the pair
+/// being the A face `a` and the B face `b` with their surfaces: a
+/// section pose's escalation is a coincidence between the two walls,
+/// and an operand guard's is that radius's own decision, which no
+/// declaration settles.
+fn frame_refusal<T: geom_core::Real>(
+    e: FrameError,
+    a: (FaceKey, &geom::Surface<T>),
+    b: (FaceKey, &geom::Surface<T>),
+) -> BooleanError {
+    match e {
+        FrameError::Escalated(diag) => BooleanError::coincidence(Coincide::Section, diag),
+        FrameError::RadiusEscalated { radius, diag } => BooleanError::Escalated {
+            decision: BooleanDecision::Radius(radius),
+            diag,
+        },
+        FrameError::Desync(what) => BooleanError::JoinDesync { what },
         FrameError::NoArm => BooleanError::GermFrameUnsupported {
-            a_face: germ.a_face,
-            a_kind: geom_brep::SurfaceKind::of(&sa),
-            b_face: germ.b_face,
-            b_kind: geom_brep::SurfaceKind::of(&sb),
+            a_face: a.0,
+            a_kind: geom_brep::SurfaceKind::of(a.1),
+            b_face: b.0,
+            b_kind: geom_brep::SurfaceKind::of(b.1),
         },
         FrameError::IntersectingCylinderAxes { evidence } => BooleanError::GermFrameCylinderPinch {
-            a_face: germ.a_face,
-            b_face: germ.b_face,
+            a_face: a.0,
+            b_face: b.0,
             evidence,
         },
-    })
+    }
 }
 
 /// Why [`pair_section_frame`] could not name a frame. The keys and
@@ -727,6 +745,14 @@ fn germ_section_frame<T: Decide>(
 pub(super) enum FrameError {
     /// A section predicate landed in the sliver band.
     Escalated(geom_core::Indeterminate),
+    /// An operand's radius guard landed in the sliver band
+    /// ([`geom_brep::SectionError::RadiusEscalated`]).
+    RadiusEscalated {
+        /// Whose radius the guard read.
+        radius: geom_brep::SectionRadius,
+        /// The guard's diagnostics.
+        diag: geom_core::Indeterminate,
+    },
     /// The classification contradicted the germ that was minted from
     /// it — a lockstep failure, not a frontier.
     Desync(&'static str),
@@ -1045,6 +1071,7 @@ fn intersecting_cylinder_axes<T: Decide>(
         // themselves).
         Err(
             geom_brep::SectionError::WrongLane { .. }
+            | geom_brep::SectionError::RadiusEscalated { .. }
             | geom_brep::SectionError::CoaxialDeclarationContradicted
             | geom_brep::SectionError::DegenerateOperand { .. }
             | geom_brep::SectionError::CoincidentSurfaces
@@ -1116,6 +1143,9 @@ fn cs_pair_frame<T: Decide>(
             "germ pair's cylinder×sphere section is not a locus",
         )),
         Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+        Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
+            Err(FrameError::RadiusEscalated { radius, diag })
+        }
         // The undeclared / non-coaxial pose. NOT a desync: nothing is
         // contradicted, the pair simply has no exact arm at this door
         // and marches one rung down.
@@ -1149,7 +1179,7 @@ fn germs_face_each_other<T: Decide>(
     p2: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let escalate = BooleanError::coincidence;
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
     match frame {
         None => {
             let chord = p2 - p1;
@@ -1200,7 +1230,7 @@ fn loose_partners<T: Decide>(
     band: Band,
 ) -> Result<(LooseMap, LooseMap), BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let escalate = BooleanError::coincidence;
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
         let v = red
             .a
@@ -1500,7 +1530,7 @@ fn ring_run_ccw<T: Decide>(
     // The chord that closes the region (fn docs): the run is open, the
     // area it decides is not.
     perimeter = perimeter + (end - p0).norm();
-    let escalate = BooleanError::coincidence;
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
     // `normal` carries the sense, `newell` carries the traversal: one
     // factor each, never both (fn docs — the double-count hazard).
     // `/ perimeter` is the F4 metering: 2A/P, the run's mean width.
@@ -2040,10 +2070,60 @@ fn face_vertex_points<T: Decide>(
 mod frame_dispatch_tests {
     use geom_core::{Point3, Tol, Vec3};
 
-    use super::{FrameError, cs_pair_frame, pair_section_frame};
+    use super::{FrameError, cs_pair_frame, frame_refusal, pair_section_frame};
 
     fn band() -> geom_core::Band {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
+    }
+
+    /// **An operand's radius guard escalates as the radius's own
+    /// decision, on a real raise**: the declared-coaxial cylinder ×
+    /// sphere arm reads each radius before any pose, and a cylinder
+    /// whose radius lies in the band escalates there. The germ frame's
+    /// refusal names whose radius, its lever and the tolerance the
+    /// radius gives, and offers no declaration: no face pair names an
+    /// operand's own size.
+    #[test]
+    fn a_radius_guard_escalates_as_the_radius_decision() {
+        use crate::boolean::{BooleanDecision, BooleanError, SectionRadius};
+        use crate::entity::FaceKey;
+        let b = band();
+        let mid = (b.zero() + b.escalate()) / 2.0;
+        let cyl = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: mid,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let sph = sphere();
+        let Err(e) = cs_pair_frame(&cyl, &sph, geom_brep::CoaxialEvidence::Declared, b) else {
+            panic!("an in-band cylinder radius refuses the frame");
+        };
+        let face = FaceKey::default();
+        let err = frame_refusal(e, (face, &cyl), (face, &sph));
+        let BooleanError::Escalated { decision, diag } = err else {
+            panic!("the guard escalates: {err:?}");
+        };
+        assert_eq!(decision, BooleanDecision::Radius(SectionRadius::Cylinder));
+        assert_eq!(diag.predicate, Some("cs_cylinder_radius"));
+        let text = BooleanError::Escalated { decision, diag }.to_string();
+        assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+        assert!(
+            test_utils::refusal::subjectless_escalations(&text).is_empty()
+                && test_utils::refusal::stage_prefixes(&text, &[]).is_empty(),
+            "{text}"
+        );
+        let k = b.escalate() / b.zero();
+        assert!(
+            text.starts_with("whether a cylinder's radius is positive is undecided: ")
+                && text.contains(&format!(
+                    "Recourse: make the cylinder's radius clearly larger than the tolerance, \
+                     or, if this radius is intended, tighten the tolerance below {:e} m",
+                    mid / k
+                ))
+                && !text.contains("declare"),
+            "{text}"
+        );
     }
 
     fn plane() -> geom::Surface<f64> {
@@ -2534,6 +2614,7 @@ mod frame_dispatch_tests {
             Err(FrameError::NoArm) => "NoArm",
             Err(FrameError::Desync(_)) => "a desync",
             Err(FrameError::Escalated(_)) => "an escalation",
+            Err(FrameError::RadiusEscalated { .. }) => "a radius escalation",
             Err(FrameError::IntersectingCylinderAxes { .. }) => "the cylinder pinch",
         }
     }
