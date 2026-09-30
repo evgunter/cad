@@ -18,7 +18,10 @@
 //!   margin, the tolerance that decides it
 //!   (`geom_brep::recourse::SizedDecision`); a residual or a kernel
 //!   self-check its subject and the defect ending
-//!   (`geom_brep::recourse::Unsized`).
+//!   (`geom_brep::recourse::Unsized`). A decision with a decided
+//!   refusal of its own ends it from the same table: the torus
+//!   convention's (`BooleanError::DegenerateTorus`) reads
+//!   [`TorusConvention::sized`], as its escalation does.
 
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
 use geom_core::{COINCIDENCE_RECOURSE, Indeterminate, UNREADABLE_MARGIN_NOTE};

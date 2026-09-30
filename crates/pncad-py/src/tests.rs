@@ -6000,6 +6000,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
+    // One fact: a torus outside the ring convention, decided, at the
+    // Boolean's pierce and at rest (`topo::TorusConvention`'s one
+    // story at both).
+    ("degenerate_torus", 2),
     // Three, and ALL THREE are one fact: `parse_error_tag`,
     // `persist_error_tag` and `edit_error_tag` each mean "the document
     // layer's dimension checker refused", at the text door, the load

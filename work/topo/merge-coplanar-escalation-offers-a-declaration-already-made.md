@@ -2,11 +2,12 @@
 id: merge-coplanar-escalation-offers-a-declaration-already-made
 kind: issue
 title: topo: MergeCoplanarError::Escalated renders its payload whole, advising a declaration on a pair already declared
-status: dispatched
+status: review
 opened: 2026-09-29
 priority: P2
 cost: E
 branch: topo/torus-and-merge-one-story
+pr: 3506
 ---
 
 (TOPO, the §5 second pass of PR 3493. `work.py territory` gives
@@ -52,3 +53,11 @@ compute the ending from the decision and its verdict; never route by
   `merge_coplanar_faces:` label. PR 3493 gave the sibling
   `DeclarationContradicted` arm its closed type
   (`boolean::Contradiction`) the same way.
+
+## A second raise (PR 3506's receipt)
+
+The variant had a second raise the row did not name: the merged face's
+loop winding (`merge_faces::loop_winding`), which rendered the same
+"plane-identity margin escalated verifying a declared pair" text. PR
+3506 gives it its own decision (`MergeDecision::LoopWinding`); its
+definite sibling is `work/topo/merged-face-role-ambiguity-ends-in-no-recourse.md`.

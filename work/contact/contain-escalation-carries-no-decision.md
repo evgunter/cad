@@ -83,3 +83,17 @@ question the rung answered, or each caller has to map the rung to its
 own decision, as `BooleanDecision::of_normal` does for the face normal.
 Then the Boolean's `Containment` arm splits into those decisions, each
 ending as its pass set gives.
+
+## The torus trim's ring convention (TOPO, the §5 second pass of PR 3506)
+
+`boolean::solid_contain::point_on_torus_in_face`
+(`crates/topo/src/boolean/solid_contain.rs`) reads the ring convention
+through `geom::require_ring_torus`, the collapsed-arm gate: a torus
+definitely outside the convention rides `PointInSolidError::Escalated`
+with an `INVALID` margin, and an in-band one with its margin, and both
+end in `COINCIDENCE_RECOURSE`. PR 3506 gave the convention its closed
+type (`topo::TorusConvention`, whose `sized()` and `refused()` are the
+pierce's and tier 3's one story). When this row carries the decision,
+the torus trim's arm is `TorusConvention` with its verdict
+(`geom::ring_torus`/`geom::torus_tube` keep the reporting margin), not a
+containment rung.
