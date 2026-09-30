@@ -1019,6 +1019,18 @@ impl<P> Doc<P> {
         &self.order
     }
 
+    /// **Each live node's position in [`Doc::order`]**: the order the
+    /// author placed the nodes in, which is what every tie between
+    /// nodes breaks by, since an id is a digest and says nothing of
+    /// seniority.
+    pub fn positions(&self) -> BTreeMap<RecipeNodeId, usize> {
+        self.order
+            .iter()
+            .enumerate()
+            .map(|(at, &id)| (id, at))
+            .collect()
+    }
+
     /// The ordered product roots (A10): the gather order of the
     /// document's product solids.
     pub fn roots(&self) -> &[RecipeNodeId] {

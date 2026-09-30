@@ -1249,13 +1249,11 @@ fn in_document_order<V>(
     new: &Doc<ProfileProgram>,
     mut found: Vec<(RecipeNodeId, V)>,
 ) -> Vec<(RecipeNodeId, V)> {
-    let at = |doc: &Doc<ProfileProgram>, id: RecipeNodeId| {
-        doc.order()
-            .iter()
-            .position(|&n| n == id)
-            .unwrap_or(usize::MAX)
+    let (in_new, in_old) = (new.positions(), old.positions());
+    let at = |positions: &BTreeMap<RecipeNodeId, usize>, id| {
+        positions.get(&id).copied().unwrap_or(usize::MAX)
     };
-    found.sort_by_key(|&(id, _)| (at(new, id), at(old, id)));
+    found.sort_by_key(|&(id, _)| (at(&in_new, id), at(&in_old, id)));
     found
 }
 

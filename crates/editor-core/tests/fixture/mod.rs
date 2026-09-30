@@ -244,7 +244,8 @@ pub fn union_over(
     members: &[RecipeNodeId],
     declare: Option<RecipeNodeId>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let at = |id: &RecipeNodeId| doc.order().iter().position(|n| n == id);
+    let positions = doc.positions();
+    let at = |id: &RecipeNodeId| positions.get(id).copied();
     let mut inserted = members.to_vec();
     inserted.sort_by_key(at);
     let (doc, union) = insert(

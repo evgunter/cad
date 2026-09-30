@@ -1166,13 +1166,7 @@ fn solve_cluster<P: crate::ProfilePayload>(
     // placed first win, whatever ids the mint gave them. Every other
     // pair between the same two is a non-tree edge and stays
     // declaring.
-    let placed: BTreeMap<RecipeNodeId, usize> = s
-        .doc
-        .order()
-        .iter()
-        .enumerate()
-        .map(|(i, &id)| (id, i))
-        .collect();
+    let placed = s.doc.positions();
     let at = |id: RecipeNodeId| placed.get(&id).copied().unwrap_or(usize::MAX);
     let rank = |m: &Member| {
         (
