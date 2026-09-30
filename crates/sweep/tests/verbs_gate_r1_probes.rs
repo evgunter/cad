@@ -454,7 +454,7 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
                     face,
                     ..
                 } => *face == torus_face,
-                BooleanError::Escalated { diag } => diag
+                BooleanError::Escalated { diag, .. } => diag
                     .predicate
                     .is_some_and(|p| p.starts_with("bool_ray_torus")),
                 _ => false,

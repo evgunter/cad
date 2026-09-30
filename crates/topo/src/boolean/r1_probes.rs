@@ -239,6 +239,12 @@ impl Tally {
             Ok(TorusRoots::Uncertain) | Err(_) => {
                 self.undecided.push(format!("[{regime}] R={rr} r={r}"));
             }
+            Ok(TorusRoots::CountDisagrees) => {
+                self.bad.push(format!(
+                    "COUNT [{regime}] R={rr} r={r} o={o:?} d={d:?}: the constructed roots \
+                     disagree with the certified count"
+                ));
+            }
         }
     }
 

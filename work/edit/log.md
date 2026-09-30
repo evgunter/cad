@@ -1114,3 +1114,5 @@ track budgets, spec notes under `docs/doc-ledger/`.
 - `persist-edit-replay-forwards-the-edit-doors-recourse`
 - `part-refusal-over-a-store-that-will-not-scan-or-load-states-no-recourse`
 - CHROME's `viewer-own-refusals-are-held-to-no-shape-guard`
+
+- 2026-09-30 — Seam note from TOPO: PR 3493 (`topo/route-refusal-subjects`) gives `topo::decision_words` words for the containment walk's predicates, the sector rungs and `split_edge_param_interior`, read from the Boolean's closed decision types, and takes none for `bool_contact_vertex` or `bool_contact_arc`, each raised under two decisions. In your files, `edit_refusal_recourse.rs`'s `WORDLESS` drops the ten predicates that now have words and lists `bool_contact_vertex` under "one name, two decisions"; `refusal_concision_chains.rs` builds `SplitReduceError::CrossingEscalated` with a `topo::ConicRootFault`. The new counts are on `flip-reports-name-no-decision-for-most-predicates`. (TOPO implementer)

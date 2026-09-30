@@ -633,7 +633,8 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures_stop_where_union_does() {
                             diag: geom_core::Indeterminate {
                                 predicate: Some("bool_circle_curved_clearance"),
                                 ..
-                            }
+                            },
+                            ..
                         }
                 ),
                 "{name} undeclared, {op}: the crossing layer's refusal: {err:?}"
