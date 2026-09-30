@@ -2,12 +2,13 @@
 id: split-param-not-interior-offers-the-declare-menu
 kind: issue
 title: topo: split_edge's definite not-interior refusal still offers the declare menu its escalated sibling dropped
-status: review
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: E
 pr: 3493
 branch: topo/route-refusal-subjects
+closed: 2026-09-30
 ---
 
 (TOPO, the §5 second pass of PR 3493, which routed the escalated
@@ -59,3 +60,30 @@ Negative arm the lever alone, and neither offers a declaration. Drop
 the label and the key, and re-baseline
 `euler::tests::split_param_pair_carries_the_shared_recourse`, which
 pins the menu on this arm today.
+
+## Closed (2026-09-30, PR 3493)
+
+Built to D4 ¶1 (i)–(iv) as Ev ratified them in PR 3352. Each refusal
+PR 3493 touches routes through a closed decision type set at its
+raise, and its ending is an exhaustive match on (decision, verdict):
+- `Contradiction` names the fact that contradicted a declaration.
+- `BooleanDecision` routes the Boolean's escalations.
+- `split_edge`'s `split_param_ending` and `CrossingDecision` live
+  where they are decided.
+
+No predicate-name lookup remains in the routing.
+
+The tolerance arm is offered only on band-decided arms of a
+nonzero-sign-passing decision, valued and conditional. `split_edge`'s
+definite and in-band arms tell one story. `Containment` ends on its
+lever alone until the containment rung is carried (CONTACT's
+`contain-escalation-carries-no-decision`).
+
+The first version routed by predicate name, against D4 (i), and was
+reworked. The single review of the rework found two D4 breaches (the
+split pair's fork, and `Containment`'s valued tolerance on a residual
+rung). The fix pass closed both.
+
+Filed from it:
+- `boolean-coincidence-wrap-sites-name-no-decision`
+- `pierced-torus-convention-arms-tell-two-stories`
