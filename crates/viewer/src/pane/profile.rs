@@ -963,6 +963,58 @@ mod tests {
         }
     }
 
+    /// **A chain whose close is refused on its geometry draws the legs
+    /// written, and the form says the close's own refusal, quietly** —
+    /// at every shape of such a close
+    /// ([`test_support::geometry_refused_closes`]). What is painted
+    /// under the step list is the refusal the drawn loop carries, in
+    /// the weak voice, holding the commit; never the open chain's
+    /// sentence, which would hide what stops the close.
+    ///
+    /// Red if the preview draws nothing for such a chain, if the
+    /// refusal is not painted or is painted loud, or if the open
+    /// chain's sentence is said instead.
+    #[test]
+    fn a_close_refused_on_its_geometry_says_its_own_sentence_quietly() {
+        let open_chain = PreviewHold::OpenChain.to_string();
+        for fixture in test_support::geometry_refused_closes() {
+            let preview = path(fixture.steps.clone());
+            let Ok(drawn_legs) = &preview else {
+                panic!("{:?}: the legs written draw: {preview:?}", fixture.steps)
+            };
+            let refused = drawn_legs.loops[0]
+                .end
+                .unclosable()
+                .expect("the loop carries why its tip takes no close");
+            let PreviewError::Close { rendered, .. } = refused else {
+                panic!("{:?}: the close's refusal: {refused}", fixture.steps)
+            };
+            assert!(
+                refused.to_string().contains(rendered.as_str()),
+                "{:?}: in the driver's own words: {refused}",
+                fixture.steps
+            );
+            let (painted, voices, held) = drawn(&preview);
+            assert_eq!(
+                find(&painted, &refused.to_string()).ink,
+                Some(voices.weak),
+                "{:?}",
+                fixture.steps
+            );
+            assert!(
+                !painted.iter().any(|landed| landed.text == open_chain),
+                "{:?}: {:?}",
+                fixture.steps,
+                painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+            );
+            assert!(
+                held,
+                "{:?}: an unfinished chain holds the commit",
+                fixture.steps
+            );
+        }
+    }
+
     /// **A drawn preview that does not validate is loud**, and a valid
     /// one is a quiet count that holds nothing.
     #[test]

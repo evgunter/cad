@@ -2369,6 +2369,11 @@ mod tests {
     fn chain(tail: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
         let mut steps = crate::test_support::two_legs(0.0, 0.0);
         steps.extend(tail);
+        path(steps)
+    }
+
+    /// The preview of one path loop on the xy plane, which draws.
+    fn path(steps: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
         sketch::preview(
             pncad::profile::SketchPlane::xy(),
             &[ProfileShape::Path { steps }],
@@ -2544,6 +2549,84 @@ mod tests {
         let (centred, arrow) = tip_marks(&painted, [0.0, 0.0], [1.0, 0.0]);
         assert_eq!(centred.len(), 2, "the cross at the start: {centred:?}");
         assert_eq!(arrow, 0, "no arrowhead at the start");
+    }
+
+    /// **A chain whose close is refused on its geometry is painted as
+    /// the legs written and no more** — at every shape of such a close
+    /// ([`crate::test_support::geometry_refused_closes`]). Every painted
+    /// stroke longer than a tip mark is one of those legs; the leg back
+    /// to the start is painted where the author's last leg lands there,
+    /// and nowhere else; and an open tip keeps its arrowhead, since the
+    /// chain is unfinished.
+    ///
+    /// Red if such a chain paints nothing (the `expect` panics), if it
+    /// paints the close nobody wrote or a fillet resolved against it,
+    /// or if its tip is crossed.
+    #[test]
+    fn a_close_refused_on_its_geometry_is_painted_as_the_legs_written() {
+        for fixture in crate::test_support::geometry_refused_closes() {
+            let drawn = path(fixture.steps.clone());
+            let painted = painted_preview(&drawn);
+            let legs = &fixture.legs;
+            let mut written: Vec<[[f64; 2]; 2]> = legs.windows(2).map(|w| [w[0], w[1]]).collect();
+            let back = [legs[legs.len() - 1], legs[0]];
+            if fixture.closes {
+                written.push(back);
+            }
+            for [a, b] in &written {
+                assert!(joins(&painted, *a, *b), "{:?}: {a:?}-{b:?}", fixture.steps);
+            }
+            let tick = a_view()
+                .screen_metres_at(pncad::geom_core::Point3::new(0.0, 0.0, 0.0), TIP_MARK_PX)
+                .expect("a mark size");
+            for [p, q] in &painted {
+                let long = (q[0] - p[0]).hypot(q[1] - p[1]) > 2.0 * tick;
+                assert!(
+                    !long || written.iter().any(|[a, b]| joins(&[[*p, *q]], *a, *b)),
+                    "{:?}: a stroke nobody wrote, {p:?}-{q:?}",
+                    fixture.steps
+                );
+            }
+            if !fixture.closes {
+                assert!(!joins(&painted, back[0], back[1]), "{:?}", fixture.steps);
+                let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+                assert_eq!(centred.len(), 1, "{:?}: {centred:?}", fixture.steps);
+                assert_eq!(arrow, 2, "{:?}: an arrowhead", fixture.steps);
+            }
+        }
+    }
+
+    /// **The cross sits on the step that refused**, after a last leg
+    /// the close runs straight on from and after a last leg onto the
+    /// start by an entry that opens with a direction. The first is
+    /// painted to the leg's end, `(0.005, 0.005)`, crossed there; the
+    /// second is painted closed, crossed at the start.
+    ///
+    /// Red if either last leg is dropped: the cross then lands one
+    /// vertex early, on a step that is fine.
+    #[test]
+    fn the_cross_sits_on_the_step_that_refused() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let mut straight_on = crate::test_support::straight_on_to_the_start();
+        straight_on.push(Step::At(Point2::new(0.1, 0.1)));
+        let back = -core::f64::consts::FRAC_1_SQRT_2;
+        let mut onto_the_start = crate::test_support::geometry_refused_closes()
+            .into_iter()
+            .map(|fixture| fixture.steps)
+            .find(|steps| !matches!(steps[0], Step::At(_)))
+            .expect("an entry that opens with a direction");
+        onto_the_start.extend([Step::Tangent, Step::LineTo(Target::Start)]);
+        for (steps, tip, heading) in [
+            (straight_on, [0.005, 0.005], [back, back]),
+            (onto_the_start, [0.0, 0.0], [1.0, 0.0]),
+        ] {
+            let drawn = path(steps.clone());
+            assert!(drawn.loops[0].end.refusal().is_some(), "{steps:?}");
+            let (centred, arrow) = tip_marks(&painted_preview(&drawn), tip, heading);
+            assert_eq!(centred.len(), 2, "{steps:?}: the cross: {centred:?}");
+            assert_eq!(arrow, 0, "{steps:?}: no arrowhead");
+        }
     }
 
     /// **An edit of a committed profile that a step refuses hides the

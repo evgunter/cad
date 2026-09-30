@@ -388,6 +388,78 @@ pub fn two_legs(x: f64, y: f64) -> Vec<Step<f64>> {
     ]
 }
 
+/// **An unfinished chain whose provisional close is refused on its
+/// geometry**, and the drawing its own steps fix: the vertices of the
+/// legs written, and whether the last of them lands on the start and
+/// closes the loop.
+#[cfg(test)]
+pub struct RefusedClose {
+    /// The chain, every step of which replays.
+    pub steps: Vec<Step<f64>>,
+    /// The drawn loop's own vertices.
+    pub legs: Vec<[f64; 2]>,
+    /// Whether the drawn loop closes by the author's own last leg.
+    pub closes: bool,
+}
+
+/// **Every shape of close refused on its geometry**, from `(0, 0)`:
+/// a last leg onto the start point, whose close would have no length,
+/// after an entry that opens with `at` and after one that opens with a
+/// direction; and a pending `fillet` and `arc_fillet` whose arrival the
+/// close would bind, finding no corner, drawn as the legs before them.
+#[cfg(test)]
+pub fn geometry_refused_closes() -> Vec<RefusedClose> {
+    let point = |x, y| Step::LineTo(Target::Point(Point2::new(x, y)));
+    let legs_then = |tail: Step<f64>| {
+        let mut steps = two_legs(0.0, 0.0);
+        steps.extend([tail, Step::At(Point2::new(-0.005, 0.02))]);
+        steps
+    };
+    let two = vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]];
+    vec![
+        RefusedClose {
+            steps: [two_legs(0.0, 0.0), vec![point(0.0, 0.0)]].concat(),
+            legs: two.clone(),
+            closes: true,
+        },
+        RefusedClose {
+            steps: vec![
+                Step::Angle(0.0),
+                Step::At(Point2::new(0.0, 0.0)),
+                Step::Line(0.01),
+                point(0.01, 0.01),
+                point(0.0, 0.01),
+                point(0.0, 0.0),
+            ],
+            legs: vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01], [0.0, 0.01]],
+            closes: true,
+        },
+        RefusedClose {
+            steps: legs_then(Step::Fillet { radius: 0.002 }),
+            legs: two.clone(),
+            closes: false,
+        },
+        RefusedClose {
+            steps: legs_then(crate::sketch::fresh_step_at(
+                Verb::ArcFillet,
+                Some(TipState::DirectedPoint),
+            )),
+            legs: two,
+            closes: false,
+        },
+    ]
+}
+
+/// **A chain whose close would run straight on from its last leg**:
+/// [`two_legs`] from the origin, then a leg back toward it that stops
+/// half way, at `(0.005, 0.005)`.
+#[cfg(test)]
+pub fn straight_on_to_the_start() -> Vec<Step<f64>> {
+    let mut steps = two_legs(0.0, 0.0);
+    steps.push(Step::LineTo(Target::Point(Point2::new(0.005, 0.005))));
+    steps
+}
+
 /// **Every unclosable tip state** — one an unfinished chain can end on
 /// that no `line_to` leaves, so the provisional close is ill-typed
 /// there — read off the lattice table over the kernel's census of

@@ -56,8 +56,8 @@ use pncad::document::{
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, PieceRole, Profile, ProfileError, ProfileLoop,
-    ReplayError, ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
-    arc_specs_at, replay, replay_recording,
+    ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms, Step, Target,
+    TargetKind, TipState, Verb, arc_specs_at, replay, replay_recording,
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
@@ -649,10 +649,12 @@ pub enum LoopEnd {
     /// written.
     ///
     /// `None` when the whole chain is drawn under the provisional
-    /// close. A cut when its tip is **unclosable** — one no `line_to`
-    /// leaves, so the close is ill-typed there: the end-of-program
-    /// refusal naming that tip, over the prefix a refused step would
-    /// draw ([`prefix_loop`]).
+    /// close. A cut when its tip is **unclosable**, over the prefix a
+    /// refused step would draw ([`prefix_loop`]): either no `line_to`
+    /// leaves the tip, so the close is ill-typed there and the cut
+    /// carries the end-of-program refusal naming that tip; or the close
+    /// is refused on its geometry, and the cut carries that refusal
+    /// ([`PreviewError::Close`]).
     Unfinished(Option<Cut>),
     /// **Refused**: replay refused a step the author wrote, and the cut
     /// names it. What is drawn is the longest prefix before that step
@@ -701,8 +703,8 @@ impl LoopEnd {
         }
     }
 
-    /// The end-of-program refusal naming an unfinished chain's tip,
-    /// when that tip is unclosable.
+    /// Why an unfinished chain's tip takes no close, when it takes
+    /// none (the cut [`Self::Unfinished`] carries).
     #[must_use]
     pub fn unclosable(&self) -> Option<&PreviewError> {
         match self {
@@ -831,11 +833,11 @@ pub enum PreviewHold<'a> {
     /// a lattice refusal beside it.
     OpenChain,
     /// What is drawn of a loop is the prefix before a refusal, and the
-    /// sentence is that refusal's own, as [`preview`]'s `Err` would say
-    /// it: a written step's ([`LoopEnd::Refused`]), or the
-    /// end-of-program refusal naming an unclosable tip
-    /// ([`LoopEnd::Unfinished`]), where [`Self::OpenChain`]'s sentence
-    /// asks for a close the tip cannot take.
+    /// sentence is that refusal's own: a written step's
+    /// ([`LoopEnd::Refused`]), or why an unfinished chain's tip takes
+    /// no close ([`LoopEnd::unclosable`]), where [`Self::OpenChain`]'s
+    /// sentence would ask for a close the tip cannot take, or hide
+    /// what stops it.
     Refusal(&'a PreviewError),
     /// The loops closed and validation refused them.
     Invalid(&'a ProfileError),
@@ -850,8 +852,8 @@ impl PreviewHold<'_> {
     /// not wrong ([`PreviewError::is_unfinished`] states why), the
     /// same voice [`PreviewError::tone`] gives an unfinished chain
     /// that could not be drawn. [`Self::Refusal`] is the refusal's own
-    /// tone, the one it has undrawn: advisory for an unclosable tip,
-    /// which is unfinished. [`Self::Invalid`] is
+    /// tone: advisory for an unclosable tip, which is unfinished.
+    /// [`Self::Invalid`] is
     /// [`Tone::Actionable`]: the loops cross, or a hole is not inside
     /// its outer, and the commit door refuses the profile until the
     /// reader moves a step they wrote.
@@ -943,6 +945,23 @@ pub enum PreviewError {
         /// The driver's refusal, in its own words.
         rendered: String,
     },
+    /// **An unfinished chain's close, refused on its geometry** — the
+    /// driver's own rendered refusal of the provisional close
+    /// [`preview`] draws the chain under, when every step the author
+    /// wrote replayed. It names what stops the chain closing from its
+    /// tip: a close of no length, a pending fillet with no corner
+    /// against it. It blames no step anybody wrote, so it never
+    /// reaches [`LoopEnd::Refused`]; it is the cut
+    /// [`LoopEnd::Unfinished`] carries.
+    Close {
+        /// Which loop's close refused.
+        loop_: usize,
+        /// Its step: one past the chain's last, where the close would
+        /// be written.
+        step: usize,
+        /// The driver's refusal, in its own words.
+        rendered: String,
+    },
 }
 
 // The preview's sentence is about the step the author is looking at,
@@ -985,6 +1004,11 @@ impl core::fmt::Display for PreviewError {
                 loop_,
                 step,
                 rendered,
+            }
+            | Self::Close {
+                loop_,
+                step,
+                rendered,
             } => write!(f, "loop {loop_} step {step}: {rendered}"),
         }
     }
@@ -1000,15 +1024,17 @@ impl PreviewError {
     ///
     /// **Unfinished is not wrong.** [`Self::Transition`] with no verb
     /// says only that a chain has no closing verb yet, which is the
-    /// state every chain passes through while it is being written.
-    /// Every other refusal blames something somebody actually wrote —
-    /// a field that is not a number, an expression that will not
-    /// resolve, an ill-typed verb, a leg with no geometry, a point
+    /// state every chain passes through while it is being written, and
+    /// [`Self::Close`] says why the close nobody has written yet would
+    /// not take. Every other refusal blames something somebody actually
+    /// wrote — a field that is not a number, an expression that will
+    /// not resolve, an ill-typed verb, a leg with no geometry, a point
     /// whose numbers put it out of reach.
     #[must_use]
     pub fn is_unfinished(&self) -> bool {
         match self {
             Self::Transition { verb, .. } => verb.is_none(),
+            Self::Close { .. } => true,
             Self::Lowering(_)
             | Self::Resolve { .. }
             | Self::Unflattenable { .. }
@@ -1023,9 +1049,9 @@ impl PreviewError {
     /// [`Tone::Advisory`], whether it reaches a surface as a drawn
     /// [`PreviewHold::OpenChain`], as the [`PreviewHold::Refusal`] of a
     /// drawn prefix (an unclosable tip), or as [`preview`]'s `Err`
-    /// (nothing before the tip draws, or the close is refused on its
-    /// geometry, as a one- or two-point chain's is): it is the same
-    /// state each way, so it is the same voice. Every other refusal is [`Tone::Actionable`].
+    /// (nothing before the tip draws, as a one- or two-point chain's
+    /// does not): it is the same state each way, so it is the same
+    /// voice. Every other refusal is [`Tone::Actionable`].
     #[must_use]
     pub fn tone(&self) -> Tone {
         if self.is_unfinished() {
@@ -1058,17 +1084,19 @@ impl PreviewError {
 /// before the failure are what an author looks at to see what to write
 /// or change next. Nothing about the lattice is re-implemented to draw
 /// them: every drawing is the driver's own `replay` of authored steps,
-/// at most with a PROVISIONAL `line_to Start` appended (this module's,
-/// never recorded), whose leg contributes no point and is not drawn.
+/// at most with a PROVISIONAL close appended ([`provisionally_closed`],
+/// this module's, never recorded), whose leg contributes no point and
+/// is not drawn.
 ///
 /// - An **unfinished** chain ([`PreviewError::is_unfinished`]) is
 ///   replayed whole under the provisional close and ends
 ///   [`LoopEnd::Unfinished`]. What the close resolves on the way — a
 ///   pending fillet against its leg — is what closing there would
 ///   draw, and no step written says otherwise. When its tip is
-///   unclosable (no `line_to` leaves it, so the close is ill-typed
-///   there), it is drawn as the prefix a refused step would be
-///   ([`prefix_loop`]) and carries its end-of-program refusal.
+///   unclosable — the close is ill-typed there, or refused on its
+///   geometry — it is drawn as the prefix a refused step would be
+///   ([`prefix_loop`]) and carries why: its end-of-program refusal, or
+///   the close's own ([`PreviewError::Close`]).
 /// - A chain **refused** at step `k` is drawn as the longest prefix
 ///   whose drawing its own steps fix ([`prefix_loop`]) and ends
 ///   [`LoopEnd::Refused`] carrying the refusal.
@@ -1077,9 +1105,7 @@ impl PreviewError {
 ///
 /// [`PreviewError`], per arm — everything that leaves some loop with
 /// nothing to draw: a lowering or resolve refusal; a refused or
-/// unclosable loop no prefix of which can be drawn; an unfinished
-/// chain whose provisional close is refused on its geometry (its tip
-/// takes a `line_to`, so nothing walks back); and a loop with a point
+/// unclosable loop no prefix of which can be drawn; and a loop with a point
 /// no picture can put anywhere ([`PreviewError::Unflattenable`], the
 /// one refusal about the PICTURE rather than the profile). A replay
 /// refusal is always the ORIGINAL one, never one about the appended
@@ -1133,29 +1159,39 @@ pub fn preview(
         };
         let refused = refusal(index, &error);
         let unfinished = refused.is_unfinished();
-        let drawn = match unfinished.then(|| replay(&provisionally_closed(steps), tol)) {
-            Some(Ok(replayed)) => Some((replayed, LoopEnd::Unfinished(None))),
-            // Every authored step of an unfinished chain was taken, so a
-            // lattice refusal is the close's own: the tip admits no
-            // `line_to`, and the chain walks back as a refused one does.
+        // Every authored step of an unfinished chain was taken, so a
+        // refusal of its close is the close's own. Ill-typed, the tip
+        // admits no `line_to`, which the end-of-program refusal names;
+        // refused on its geometry, the refusal names what stops it.
+        // Either way the chain walks back as a refused one does.
+        let cut_by = match unfinished.then(|| provisionally_closed(steps, tol)) {
+            Some(Ok((replayed, _))) => {
+                loops.push(replayed);
+                ends.push(LoopEnd::Unfinished(None));
+                continue;
+            }
             Some(Err(ReplayError {
-                kind: ReplayErrorKind::Transition { .. },
-                ..
-            }))
-            | None => prefix_loop(steps, error.step, tol).map(|(replayed, closes)| {
-                let cut = Cut {
-                    refusal: refused.clone(),
-                    closes,
-                };
-                let end = if unfinished {
-                    LoopEnd::Unfinished(Some(cut))
-                } else {
-                    LoopEnd::Refused(cut)
-                };
-                (replayed, end)
-            }),
-            Some(Err(_)) => None,
+                step,
+                kind: ReplayErrorKind::Path(source),
+            })) => PreviewError::Close {
+                loop_: index,
+                step,
+                rendered: source.to_string(),
+            },
+            Some(Err(_)) | None => refused.clone(),
         };
+        let drawn = prefix_loop(steps, error.step, tol).map(|(replayed, closes)| {
+            let cut = Cut {
+                refusal: cut_by,
+                closes,
+            };
+            let end = if unfinished {
+                LoopEnd::Unfinished(Some(cut))
+            } else {
+                LoopEnd::Refused(cut)
+            };
+            (replayed, end)
+        });
         match drawn {
             Some((replayed, end)) => {
                 if end.refusal().is_some() {
@@ -1211,14 +1247,27 @@ pub fn preview(
     })
 }
 
-/// `steps` with the provisional close appended: a `line_to Start`
-/// this module adds to draw a chain that does not close, and never
-/// records.
-fn provisionally_closed(steps: &[Step<f64>]) -> Vec<Step<f64>> {
-    let mut closed = Vec::with_capacity(steps.len() + 1);
-    closed.extend_from_slice(steps);
-    closed.push(Step::LineTo(Target::Start));
-    closed
+/// **`steps` replayed under the provisional close** — the straight
+/// leg to the start this module appends to draw a chain that does not
+/// close, and never records — and the replay's record of which step
+/// drew which piece.
+///
+/// The straight close has two spellings, and the lattice picks by the
+/// tip: `line_to Start`, and where the close runs straight on from the
+/// last leg, `continue_to Start` (`line_to` refuses a straight closer
+/// tangent to the leg before it). A tip that takes neither is refused
+/// in `line_to Start`'s words.
+fn provisionally_closed(
+    steps: &[Step<f64>],
+    tol: Tol,
+) -> Result<(ProfileLoop<f64>, ReplayStructure), ReplayError<f64>> {
+    let closed_by = |close: fn(Target<f64>) -> Step<f64>| {
+        let mut closed = Vec::with_capacity(steps.len() + 1);
+        closed.extend_from_slice(steps);
+        closed.push(close(Target::Start));
+        replay_recording(&closed, tol)
+    };
+    closed_by(Step::LineTo).or_else(|refused| closed_by(Step::ContinueTo).map_err(|_| refused))
 }
 
 /// **The loop drawn for a chain refused at step `stop`**, or ending
@@ -1233,7 +1282,9 @@ fn provisionally_closed(steps: &[Step<f64>]) -> Vec<Step<f64>> {
 /// 2. **closed on its start** ([`closed_on_start`]) — a last leg that
 ///    lands exactly on the start point is the close in all but
 ///    spelling, and a provisional close from there would be a leg of
-///    length zero;
+///    length zero. The start is the position the loop's entry binds,
+///    its first `at`, whether the entry opens with it or with a
+///    direction;
 /// 3. **under the provisional close**, accepted only when the close
 ///    drew nothing but its own undrawn leg ([`drew_only_its_leg`]).
 ///    A close that did more completed something the author left
@@ -1246,10 +1297,10 @@ fn provisionally_closed(steps: &[Step<f64>]) -> Vec<Step<f64>> {
 /// the binder that completes it, and the prefix up to that binder ends
 /// on an arrival no `line_to` completes.
 fn prefix_loop(steps: &[Step<f64>], stop: usize, tol: Tol) -> Option<(ProfileLoop<f64>, bool)> {
-    let start = match steps.first() {
-        Some(Step::At(start)) => Some(*start),
+    let start = steps.iter().find_map(|step| match step {
+        Step::At(start) => Some(*start),
         _ => None,
-    };
+    });
     (1..=stop.min(steps.len())).rev().find_map(|end| {
         let prefix = &steps[..end];
         replay(prefix, tol)
@@ -1276,7 +1327,8 @@ fn closed_on_start(prefix: &[Step<f64>], start: Point2<f64>) -> Option<Vec<Step<
         | Step::ArcFilletArc { spec2: spec, .. } => spec_target_mut(spec)?,
         // No target the step ends on: a binder, a leg by length, a
         // pending fillet, a fused step whose spec is its INCOMING arc,
-        // a far-end point, a close, a complete loop.
+        // a close, a complete loop; or one with no `Start` spelling, a
+        // far-end anchor.
         Step::At(_)
         | Step::Angle(_)
         | Step::Toward { .. }
@@ -1309,7 +1361,7 @@ fn closed_on_start(prefix: &[Step<f64>], start: Point2<f64>) -> Option<Vec<Step<
 /// "completing something pending" is the driver's answer and not this
 /// module's.
 fn drew_only_its_leg(prefix: &[Step<f64>], tol: Tol) -> Option<ProfileLoop<f64>> {
-    let (replayed, structure) = replay_recording(&provisionally_closed(prefix), tol).ok()?;
+    let (replayed, structure) = provisionally_closed(prefix, tol).ok()?;
     let close = prefix.len();
     let drew: Vec<PieceRole> = structure
         .pieces
@@ -1834,7 +1886,8 @@ mod tests {
     use pncad::document::{EvalError, SlotId};
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{
-        ArcData, ArcSide, ProfileError, SketchPlane, Step, Target, TipState, Verb,
+        ArcData, ArcSide, ProfileError, ReplayError, ReplayErrorKind, SketchPlane, Step, Target,
+        TipState, Verb, replay,
     };
 
     use super::{
@@ -1944,7 +1997,8 @@ mod tests {
 
     /// **Every refusal's tone, by arm** — the mapping itself, over a
     /// value planted per arm. The two `Transition`s differ only in
-    /// whether a verb was written, which is the whole rule.
+    /// whether a verb was written, and `Geometry` and `Close` in
+    /// whether the refused leg was, which is the whole rule.
     #[test]
     fn a_preview_refusal_is_loud_unless_it_only_says_the_chain_is_unfinished() {
         let transition = |verb| PreviewError::Transition {
@@ -1981,6 +2035,14 @@ mod tests {
                     rendered: String::new(),
                 },
                 Tone::Actionable,
+            ),
+            (
+                PreviewError::Close {
+                    loop_: 0,
+                    step: 1,
+                    rendered: String::new(),
+                },
+                Tone::Advisory,
             ),
         ] {
             assert_eq!(error.tone(), tone, "{error:?}");
@@ -2191,27 +2253,29 @@ mod tests {
     }
 
     /// **A last leg that lands on the start point is drawn as the
-    /// close it is.** The square's fourth leg targets `(0, 0)` by
-    /// value rather than as `Start`, and a refused step follows; the
-    /// provisional close from there would be a leg of length zero, so
-    /// read only that way the fourth leg would be dropped.
+    /// close it is**, whether the entry opens with `at` or with a
+    /// direction. The last leg targets the start by value rather than
+    /// as `Start`, and a refused step follows; the provisional close
+    /// from there would be a leg of length zero, so read only that way
+    /// the last leg would be dropped.
     ///
-    /// Red if [`super::closed_on_start`] is not consulted.
+    /// Red if [`super::closed_on_start`] is not consulted, or if the
+    /// start is read only off a first step that is `at`.
     #[test]
     fn a_last_leg_on_the_start_point_is_drawn_as_the_close() {
-        let mut steps = two_legs(0.0, 0.0);
-        steps.extend([
-            line_to(0.0, 0.01),
-            line_to(0.0, 0.0),
-            Step::Tangent,
-            Step::LineTo(Target::Start),
-        ]);
-        let (drawn, _) = refused_loop(vec![steps]);
-        assert!(drawn.end.closes(), "the leg back to the start closes it");
-        assert_eq!(
-            vertex_points(&drawn),
-            vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01], [0.0, 0.01]]
-        );
+        let mut square = two_legs(0.0, 0.0);
+        square.extend([line_to(0.0, 0.01), line_to(0.0, 0.0)]);
+        let onto_the_start = crate::test_support::geometry_refused_closes()
+            .into_iter()
+            .filter(|fixture| fixture.closes)
+            .map(|fixture| (fixture.steps, fixture.legs));
+        let square_legs = vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01], [0.0, 0.01]];
+        for (mut steps, legs) in onto_the_start.chain([(square, square_legs)]) {
+            steps.extend([Step::Tangent, Step::LineTo(Target::Start)]);
+            let (drawn, _) = refused_loop(vec![steps.clone()]);
+            assert!(drawn.end.closes(), "{steps:?}: the leg back to the start");
+            assert_eq!(vertex_points(&drawn), legs, "{steps:?}");
+        }
     }
 
     /// **A refused loop blanks no other loop, and outranks an
@@ -2299,45 +2363,144 @@ mod tests {
         );
     }
 
-    /// **An unfinished chain whose provisional close is refused on its
-    /// geometry draws nothing**: its tip takes a `line_to`, so it is not
-    /// unclosable and nothing walks back. A last leg onto the start
-    /// point makes the close zero-length; a last leg the close would
-    /// continue straight on from makes a tangent junction; a pending
-    /// fillet or `arc_fillet` resolved against the close finds no
-    /// corner there. The class is filed as
-    /// `work/author/a-close-refused-on-its-geometry-draws-nothing`.
+    /// **An unfinished chain whose close is refused on its geometry
+    /// draws the legs written, and says the close's own refusal,
+    /// quietly** — at every shape of such a close
+    /// ([`crate::test_support::geometry_refused_closes`]). A last leg
+    /// onto the start point is drawn as the close it is, and a pending
+    /// fillet is not drawn against the close. The sentence is the
+    /// driver's refusal of the close this module appends, in its own
+    /// words.
     ///
-    /// Red if the walk-back is taken for any refused close rather than
-    /// only an ill-typed one.
+    /// Red if the chain draws nothing, if it draws more or fewer legs
+    /// than were written, or if what it carries is the end-of-program
+    /// refusal, a minted sentence, or a loud one.
     #[test]
-    fn a_close_refused_on_its_geometry_draws_nothing() {
-        let legs_then = |tail: Vec<Step<f64>>| [two_legs(0.0, 0.0), tail].concat();
-        let beyond = Step::At(Point2::new(-0.005, 0.02));
-        let arc_fillet = super::fresh_step_at(Verb::ArcFillet, Some(TipState::DirectedPoint));
-        for steps in [
-            legs_then(vec![line_to(0.0, 0.0)]),
-            vec![
-                Step::At(Point2::new(0.0, 0.0)),
-                line_to(0.01, 0.01),
-                line_to(0.02, 0.0),
-                line_to(0.01, 0.0),
-            ],
-            legs_then(vec![Step::Fillet { radius: 0.002 }, beyond]),
-            legs_then(vec![arc_fillet, beyond]),
-        ] {
-            let refused = previewed(vec![steps.clone()]).expect_err("nothing draws");
-            assert!(
-                matches!(
-                    refused,
-                    PreviewError::Transition {
-                        loop_: 0,
-                        verb: None,
-                        ..
-                    }
-                ),
-                "{steps:?}: {refused}"
+    fn a_close_refused_on_its_geometry_draws_the_legs_written() {
+        for fixture in crate::test_support::geometry_refused_closes() {
+            let steps = &fixture.steps;
+            let drawn = previewed(vec![steps.clone()]).expect("the legs written draw");
+            let only = &drawn.loops[0];
+            assert_eq!(vertex_points(only), fixture.legs, "{steps:?}");
+            let LoopEnd::Unfinished(Some(cut)) = &only.end else {
+                panic!("{steps:?}: unfinished, cut at its tip: {:?}", only.end)
+            };
+            assert_eq!(cut.closes, fixture.closes, "{steps:?}");
+            let close = [steps.as_slice(), &[Step::LineTo(Target::Start)]].concat();
+            let Err(ReplayError {
+                kind: ReplayErrorKind::Path(source),
+                ..
+            }) = replay(&close, Tol::witness())
+            else {
+                panic!("{steps:?}: a fixture whose close is refused on its geometry")
+            };
+            assert_eq!(
+                cut.refusal,
+                PreviewError::Close {
+                    loop_: 0,
+                    step: steps.len(),
+                    rendered: source.to_string(),
+                },
+                "{steps:?}"
             );
+            let hold = drawn.hold().expect("an unfinished chain holds the commit");
+            assert_eq!(hold.to_string(), cut.refusal.to_string(), "{steps:?}");
+            assert_eq!(hold.tone(), Tone::Advisory, "{steps:?}");
+        }
+    }
+
+    /// **A last leg the close runs straight on from is kept, and no
+    /// close is drawn**, whether the chain is unfinished or refused
+    /// after it: the close from there is `continue_to Start`, which
+    /// replays where `line_to Start` is refused as tangent. Unfinished,
+    /// the chain is merely open; refused at the ill-typed `at` after
+    /// it, the drawn tip is the leg's end.
+    ///
+    /// Red if [`super::provisionally_closed`] reads only `line_to
+    /// Start`: the last leg is then dropped, or the chain draws nothing.
+    #[test]
+    fn a_last_leg_the_close_runs_straight_on_from_is_kept() {
+        let back_along = vec![
+            Step::At(Point2::new(0.0, 0.0)),
+            line_to(0.01, 0.01),
+            line_to(0.02, 0.0),
+            line_to(0.01, 0.0),
+        ];
+        let half_way = crate::test_support::straight_on_to_the_start();
+        for steps in [back_along, half_way.clone()] {
+            let drawn = previewed(vec![steps.clone()]).expect("the legs written draw");
+            assert_eq!(drawn.loops[0].end, LoopEnd::Unfinished(None), "{steps:?}");
+            assert_eq!(
+                vertex_points(&drawn.loops[0]).len(),
+                steps.len(),
+                "{steps:?}: a vertex per leg"
+            );
+        }
+        let mut refused = half_way;
+        refused.push(Step::At(Point2::new(0.1, 0.1)));
+        let (drawn, refusal) = refused_loop(vec![refused]);
+        assert!(
+            matches!(refusal, PreviewError::Transition { step: 4, .. }),
+            "{refusal}"
+        );
+        assert!(!drawn.end.closes());
+        assert_eq!(
+            vertex_points(&drawn),
+            vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01], [0.005, 0.005]]
+        );
+    }
+
+    /// **A last leg onto the start whose step does not name the point
+    /// it ends on is walked back past**: a `line` by length, and a
+    /// `line_to` whose target is `5.5e-17` off the start. No
+    /// close replays from a tip on the start, and neither step can be
+    /// spelled as the close, so no replay of the steps written holds
+    /// that leg. The chain is drawn short of it, unfinished or refused.
+    /// Filed as
+    /// `work/paths/a-close-from-a-tip-on-its-start-is-refused-as-a-tangent-seam`;
+    /// this is the row to re-pin when it is fixed.
+    ///
+    /// Red if either leg is drawn.
+    #[test]
+    fn a_last_leg_onto_the_start_not_named_by_its_step_is_walked_back() {
+        let turned = |tail: Vec<Step<f64>>| {
+            let quarter = core::f64::consts::FRAC_PI_2;
+            let mut steps = vec![
+                Step::At(Point2::new(0.0, 0.0)),
+                Step::Toward { dx: 1.0, dy: 0.0 },
+                Step::Line(0.01),
+            ];
+            for _ in 0..3 {
+                steps.extend([Step::Turn(quarter), Step::Line(0.01)]);
+            }
+            steps.extend(tail);
+            steps
+        };
+        let off = |tail: Vec<Step<f64>>| {
+            let mut steps = two_legs(0.0, 0.0);
+            steps.extend([line_to(0.0, 0.01), line_to(5.5e-17, 0.0)]);
+            steps.extend(tail);
+            steps
+        };
+        let short = vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01], [0.0, 0.01]];
+        let ill_typed = || vec![Step::At(Point2::new(0.1, 0.1))];
+        for steps in [
+            turned(Vec::new()),
+            turned(ill_typed()),
+            off(Vec::new()),
+            off(ill_typed()),
+        ] {
+            let drawn = previewed(vec![steps.clone()]).expect("the legs before it draw");
+            let only = &drawn.loops[0];
+            assert!(!only.end.closes(), "{steps:?}");
+            let got = vertex_points(only);
+            assert_eq!(got.len(), short.len(), "{steps:?}: {got:?}");
+            for (got, want) in got.iter().zip(&short) {
+                assert!(
+                    (got[0] - want[0]).hypot(got[1] - want[1]) < 1.0e-12,
+                    "{steps:?}: {got:?}"
+                );
+            }
         }
     }
 
