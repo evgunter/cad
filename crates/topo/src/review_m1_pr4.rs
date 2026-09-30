@@ -1338,7 +1338,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
 #[test]
 fn seqgen_generates_every_op_kind_and_every_site_shape() {
     let tol = Tol::witness();
-    use crate::seqgen::{OpChoice, apply, choose_op};
+    use crate::seqgen::{Door, OpChoice, apply, choose_op};
     use std::collections::BTreeSet;
     use test_utils::fuzz;
     let expected: BTreeSet<&'static str> = [
@@ -1359,15 +1359,20 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "mekr_empty_target",
         "mekr_both_empty",
         "kfmrh",
+        "kfmrh_minting",
         "kfmrh_fuse",
+        "kfmrh_fuse_minting",
         "mfkrh",
+        "mfkrh_minting",
         "movefac",
         "ring_move",
+        "ring_move_minting",
         "split_edge",
         "split_edge_strut",
         "split_edge_self_loop",
         "kev",
         "kef",
+        "kef_minting",
         "kvfs",
     ]
     .into_iter()
@@ -1439,14 +1444,19 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Mekr(MekrSite::EmptyRing { .. }) => "mekr_empty_ring",
                 OpChoice::Mekr(MekrSite::EmptyTarget { .. }) => "mekr_empty_target",
                 OpChoice::Mekr(MekrSite::BothEmpty { .. }) => "mekr_both_empty",
-                OpChoice::Kfmrh(..) => "kfmrh",
-                OpChoice::KfmrhFuse(..) => "kfmrh_fuse",
-                OpChoice::Mfkrh(_) => "mfkrh",
+                OpChoice::Kfmrh(.., Door::KeysOnly) => "kfmrh",
+                OpChoice::Kfmrh(.., Door::Minting) => "kfmrh_minting",
+                OpChoice::KfmrhFuse(.., Door::KeysOnly) => "kfmrh_fuse",
+                OpChoice::KfmrhFuse(.., Door::Minting) => "kfmrh_fuse_minting",
+                OpChoice::Mfkrh(_, Door::KeysOnly) => "mfkrh",
+                OpChoice::Mfkrh(_, Door::Minting) => "mfkrh_minting",
                 OpChoice::Movefac(_) => "movefac",
                 OpChoice::Kev(_) => "kev",
-                OpChoice::Kef(_) => "kef",
+                OpChoice::Kef(_, Door::KeysOnly) => "kef",
+                OpChoice::Kef(_, Door::Minting) => "kef_minting",
                 OpChoice::Kvfs(_) => "kvfs",
-                OpChoice::RingMove(..) => "ring_move",
+                OpChoice::RingMove(.., Door::KeysOnly) => "ring_move",
+                OpChoice::RingMove(.., Door::Minting) => "ring_move_minting",
                 // Split by SITE SHAPE, like the other multi-shape ops:
                 // "split_edge fired at least once" is not the claim the
                 // fuzz row exists to support — `split.rs`'s surgery

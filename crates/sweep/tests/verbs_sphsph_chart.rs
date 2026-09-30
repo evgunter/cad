@@ -812,8 +812,11 @@ fn a_full_period_azimuth_window_is_served_by_the_ray_lane_and_refused_by_the_fac
 ///
 /// Planted by `kfmrh`'s band door, which re-homes the flat disc's loop
 /// as a RING of the sphere face — `kfmrh` is the one public operator
-/// that puts a ring on a curved face at all, and the sphere face is
-/// minted, so the keys-only door refuses to leave it half-minted.
+/// that puts a ring on a curved face at all. The sphere face arrives
+/// minted, so the keys-only door would refuse to leave it half-minted;
+/// the band door re-mints it with the ring walked in the sphere's
+/// chart, finds no row set that certifies, and leaves the face storing
+/// no row: unminted, never half-minted.
 #[test]
 fn a_ringed_sphere_face_refuses_at_both_doors() {
     let (b, t) = (band(), Tol::witness());
@@ -821,10 +824,36 @@ fn a_ringed_sphere_face_refuses_at_both_doors() {
     let f = sphere_faces(&planted)[0];
     let ch = chart(&planted, f);
     let disc = flat_disc(&planted);
+    let rows = |body: &Body<f64>| -> (usize, usize) {
+        let fd = body.get_face(f).unwrap();
+        let halves: Vec<_> = core::iter::once(fd.outer)
+            .chain(fd.rings.iter().copied())
+            .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+                topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
+                topo::LoopBoundary::Empty { .. } => None,
+            })
+            .flatten()
+            .collect();
+        let stored = halves
+            .iter()
+            .filter(|&&he| body.pcurve(he).is_some())
+            .count();
+        (stored, halves.len() - stored)
+    };
+    let (stored, missing) = rows(&planted);
+    assert!(
+        stored > 0 && missing == 0,
+        "the sphere face arrives complete: {stored}, {missing}"
+    );
     planted
         .kfmrh_minting(f, disc, t)
         .expect("the disc's loop re-homes as a ring");
     assert_eq!(planted.get_face(f).unwrap().rings.len(), 1);
+    assert_eq!(
+        rows(&planted).0,
+        0,
+        "the band door leaves the ringed face storing no row"
+    );
     assert_eq!(
         topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
         None

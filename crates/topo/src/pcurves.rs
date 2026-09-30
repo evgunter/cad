@@ -2423,23 +2423,26 @@ pub(crate) fn site_rows_from<T: Decide>(
         .then_some(SiteFrom { rows, open }))
 }
 
-/// **Whether a site mint writes `face`**, band-free: the part of
-/// [`site_rows`] that decides before it derives. `None` where the
-/// face is left as found ([`SiteRows::Leave`]); otherwise, per loop of
-/// `face`, whether a null edge holds it open as the door leaves it — a
-/// rewired loop no null edge holds is walked.
+/// **The loops a site mint walks on `face`**, band-free: the part of
+/// [`site_rows`] that decides before it derives, and the one reading
+/// of it. Empty where the face is left as found ([`SiteRows::Leave`]):
+/// its chart mints nothing, [`StoredRows::remints`] does not select it,
+/// or every loop the door rewires still runs through a null edge.
+/// Otherwise each rewired loop no null edge holds open as the door
+/// leaves it, in `face`'s loop order; [`site_rows`] walks exactly
+/// these and writes the face — rows, or a clear.
 ///
 /// # Errors
 ///
 /// [`SiteRowRefusal::SplineChart`] on a complete spline face a door
 /// adds half-edges to, and [`held_open`]'s.
-fn site_selects<T: Decide>(
+fn site_walks<'a, T: Decide>(
     body: &Body<T>,
-    face: &SiteFace<T>,
+    face: &'a SiteFace<T>,
     from: &SiteFrom<T>,
-) -> Result<Option<Vec<bool>>, SiteRowRefusal> {
+) -> Result<Vec<&'a [SiteHalf]>, SiteRowRefusal> {
     if !chart_mints(&face.surface) {
-        return Ok(None);
+        return Ok(Vec::new());
     }
     // A spline chart's rows derive through the fitted lane, which a
     // `Decide` door does not hold, so no loop of it is minted here and
@@ -2459,7 +2462,7 @@ fn site_selects<T: Decide>(
         return if from.open.is_empty() && !face.moved {
             Err(SiteRowRefusal::SplineChart)
         } else {
-            Ok(None)
+            Ok(Vec::new())
         };
     }
     let mut open_after = Vec::with_capacity(face.loops.len());
@@ -2476,32 +2479,34 @@ fn site_selects<T: Decide>(
         });
     }
     let released = !from.open.is_empty() && !open_after.contains(&true);
-    Ok(from
-        .rows
-        .remints(&from.open, released)
-        .then_some(open_after))
+    if !from.rows.remints(&from.open, released) {
+        return Ok(Vec::new());
+    }
+    Ok(face
+        .loops
+        .iter()
+        .zip(open_after)
+        .filter_map(|(lp, open)| match lp {
+            SiteLoop::Rewired(halves) if !open && !halves.is_empty() => Some(halves.as_slice()),
+            SiteLoop::Rewired(_) | SiteLoop::Kept(_) => None,
+        })
+        .collect())
 }
 
-/// **Whether a site mint owes `face` a row**: [`site_selects`] selects
-/// it and a loop it rewires runs through no null edge, so
-/// [`site_rows`] would walk it — and write rows, or clear the face.
-/// Band-free, for a keys-only door that refuses where it would owe
-/// one ([`SiteRowRefusal::KeysOnly`]).
+/// **Whether a site mint writes `face`**: [`site_walks`] walks a loop
+/// of it. Band-free, for a keys-only door, which refuses
+/// [`SiteRowRefusal::KeysOnly`] exactly where its `_minting` twin's
+/// [`site_rows`] would write the face.
 ///
 /// # Errors
 ///
-/// [`site_selects`]'.
+/// [`site_walks`]'.
 pub(crate) fn site_rows_owed<T: Decide>(
     body: &Body<T>,
     face: &SiteFace<T>,
     from: &SiteFrom<T>,
 ) -> Result<bool, SiteRowRefusal> {
-    Ok(site_selects(body, face, from)?.is_some_and(|open_after| {
-        face.loops
-            .iter()
-            .zip(open_after)
-            .any(|(lp, open)| matches!(lp, SiteLoop::Rewired(_)) && !open)
-    }))
+    Ok(!site_walks(body, face, from)?.is_empty())
 }
 
 /// **The rows a site mint writes onto one face**, derived before its
@@ -2578,9 +2583,10 @@ pub(crate) fn site_rows<T: Decide>(
     edge: Option<&geom_brep::EdgeCurve<T>>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
-    let Some(open_after) = site_selects(body, face, from)? else {
+    let walks = site_walks(body, face, from)?;
+    if walks.is_empty() {
         return Ok(SiteRows::Leave);
-    };
+    }
     let kept = |key: LoopKey| {
         from.rows
             .loops
@@ -2633,13 +2639,7 @@ pub(crate) fn site_rows<T: Decide>(
         }
     };
     let mut walked: Vec<Walked<T, SiteHalf>> = Vec::new();
-    for (lp, &open) in face.loops.iter().zip(&open_after) {
-        let SiteLoop::Rewired(halves) = lp else {
-            continue;
-        };
-        if open {
-            continue;
-        }
+    for halves in walks {
         let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(halves.len());
         let item = |i: usize| -> Result<WalkItem<T>, ItemFail> {
             let (carrier, t0, t1, plus) = traversal(halves[i])?;
@@ -2663,9 +2663,6 @@ pub(crate) fn site_rows<T: Decide>(
                 t1,
             },
         ));
-    }
-    if walked.is_empty() {
-        return Ok(SiteRows::Leave);
     }
     match certify_walked(walked, &face.surface, band, None) {
         Ok(rows) => Ok(SiteRows::Mint(rows)),

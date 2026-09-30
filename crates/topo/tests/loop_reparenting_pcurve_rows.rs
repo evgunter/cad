@@ -523,6 +523,59 @@ fn the_keys_only_doors_refuse_a_re_mint_they_owe_and_touch_nothing() {
     refuses(&mut s.body, up, "kef", &|b| b.kef(he).unwrap_err());
 }
 
+/// **The keys-only door refuses exactly where its twin writes.** A
+/// null edge in `kef`'s remnant holds the surviving loop open, so the
+/// site mint cannot walk it and its `_minting` twin writes nothing —
+/// on one chart, where the remnant's rows carry, and across two, where
+/// they drop. So `kef` owes nothing and proceeds, and the two doors
+/// leave one body. A keys-only refusal that read the loop's rewiring
+/// without asking whether a null edge holds it open would refuse here.
+///
+/// Adopted from the review of the loop-reparenting doors' re-mint (its
+/// `reviewer_c1x_null_edge_in_moved_run` probe).
+#[test]
+fn a_remnant_held_open_by_a_null_edge_is_owed_nothing_by_either_kef() {
+    for recharted in [false, true] {
+        let mut s = sheet();
+        let up = s.up;
+        if recharted {
+            s.body
+                .set_face_surface(
+                    up,
+                    FaceSurface::New {
+                        surface: rotated_cylinder(),
+                        sense: true,
+                    },
+                )
+                .unwrap();
+            topo::mint_pcurves_of(&mut s.body, &[up], tol()).unwrap();
+        }
+        let he = he_at(&s.body, s.low, at(U1, VM));
+        let h0 = *cycle_of(&s.body, s.low).iter().find(|&&h| h != he).unwrap();
+        s.body
+            .mev_null(
+                MevSite::Fan { he1: h0, he2: h0 },
+                topo::NewVertexSide::Above,
+            )
+            .unwrap();
+        let (up_rows, _) = rows_of(&s.body, up);
+        assert!(
+            up_rows > 0,
+            "recharted {recharted}: the survivor stores rows"
+        );
+        let (body, _) = both_doors(
+            &format!("kef, recharted {recharted}"),
+            &s.body,
+            |b| b.kef(he).map(|_| ()),
+            |b| b.kef_minting(he, tol()).map(|_| ()),
+        );
+        assert!(
+            rows_of(&body, up).1 > 0,
+            "recharted {recharted}: the survivor keeps the gaps its null edge holds open"
+        );
+    }
+}
+
 /// A ring moved back onto its own face moves nothing and keeps every
 /// row — the door's documented no-op reaches the map too.
 #[test]
@@ -676,24 +729,120 @@ fn loop_halves(body: &Body<f64>, r#loop: LoopKey) -> Vec<topo::HalfEdgeKey> {
     body.loop_cycle(first).unwrap()
 }
 
+/// Runs a keys-only door and its `_minting` twin on two clones of
+/// `body`, asserts they return the same answer and leave the same body,
+/// arenas and pcurve map alike, and hands back the keys-only door's.
+fn both_doors<R: core::fmt::Debug>(
+    door: &str,
+    body: &Body<f64>,
+    keys_only: impl FnOnce(&mut Body<f64>) -> R,
+    twin: impl FnOnce(&mut Body<f64>) -> R,
+) -> (Body<f64>, R) {
+    let (mut a, mut b) = (body.clone(), body.clone());
+    let (ra, rb) = (keys_only(&mut a), twin(&mut b));
+    assert_eq!(
+        format!("{ra:?}"),
+        format!("{rb:?}"),
+        "{door}: the two doors answer alike"
+    );
+    assert_eq!(
+        format!("{a:?}"),
+        format!("{b:?}"),
+        "{door}: the two doors leave one body"
+    );
+    (a, ra)
+}
+
+/// Swaps the row of `halves[0]` for `halves[1]`'s, so a door that
+/// re-derived the loop would restore it; returns the planted row.
+fn plant_swap(body: &mut Body<f64>, halves: &[topo::HalfEdgeKey]) -> String {
+    let neighbour = body.pcurve(halves[1]).unwrap().clone();
+    body.attach_pcurve(halves[0], neighbour.clone());
+    format!("{neighbour:?}")
+}
+
 /// **Where the moved rows stand, the door moves them and derives
 /// nothing.** Across one key with every moved half carrying a row, the
-/// rows travel as found: here one of the lower panel's rows is swapped
-/// for its neighbour's before the demotion, so a door that re-derived
-/// the loop would restore it, and the carried map still holds the swap.
+/// rows travel as found: one moved row is swapped for its neighbour's
+/// before the move, so a door that re-derived the loop would restore
+/// it, and the carried map still holds the swap. Each door that moves a
+/// loop or run is run keys-only and as its `_minting` twin, which carry
+/// alike: nothing is owed, so the two are one door.
 #[test]
 fn a_move_whose_rows_stand_carries_them_as_found() {
+    let carried = |door: &str, body: &Body<f64>, he: topo::HalfEdgeKey, planted: &str| {
+        assert_eq!(
+            format!("{:?}", body.pcurve(he).unwrap()),
+            planted,
+            "{door}: the door re-derived a row that stood"
+        );
+    };
+
+    // `kfmrh`: the lower panel's loop demoted into the upper panel.
     let mut s = sheet();
     let halves = cycle_of(&s.body, s.low);
-    let neighbour = s.body.pcurve(halves[1]).unwrap().clone();
-    s.body.attach_pcurve(halves[0], neighbour.clone());
-    s.body.kfmrh(s.up, s.low).unwrap();
-    assert_eq!(rows_of(&s.body, s.up), (8, 0));
-    assert_eq!(
-        format!("{:?}", s.body.pcurve(halves[0]).unwrap()),
-        format!("{neighbour:?}"),
-        "the door re-derived a row that stood"
+    let planted = plant_swap(&mut s.body, &halves);
+    let (up, low) = (s.up, s.low);
+    let (body, _) = both_doors(
+        "kfmrh",
+        &s.body,
+        |b| b.kfmrh(up, low).map(|_| ()),
+        |b| b.kfmrh_minting(up, low, tol()).map(|_| ()),
     );
+    assert_eq!(rows_of(&body, up), (8, 0), "kfmrh");
+    carried("kfmrh", &body, halves[0], &planted);
+
+    // `kef`: the lower panel killed into the upper across their shared
+    // rim, its remnant spliced into the upper panel's loop.
+    let mut s = sheet();
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let remnant: Vec<_> = s.body.loop_cycle(he).unwrap().into_iter().skip(1).collect();
+    let planted = plant_swap(&mut s.body, &remnant);
+    let up = s.up;
+    let (body, _) = both_doors(
+        "kef",
+        &s.body,
+        |b| b.kef(he).map(|_| ()),
+        |b| b.kef_minting(he, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, up), (6, 0), "kef");
+    carried("kef", &body, remnant[0], &planted);
+
+    // `ring_move`: the demoted ring moved on to a sibling face on the
+    // cylinder's key (as `ring_move_between_faces_on_one_surface_…`).
+    let mut s = sheet();
+    s.body.kfmrh(s.up, s.low).unwrap();
+    s.body.kfmrh_minting(s.up, s.plane, tol()).unwrap();
+    let rings = s.body.get_face(s.up).unwrap().rings.clone();
+    let sibling = s.body.mfkrh(rings[1], FaceSurface::Inherit).unwrap().face;
+    let ring_halves = loop_halves(&s.body, rings[0]);
+    let planted = plant_swap(&mut s.body, &ring_halves);
+    let (body, _) = both_doors(
+        "ring_move",
+        &s.body,
+        |b| b.ring_move(rings[0], sibling),
+        |b| b.ring_move_minting(rings[0], sibling, tol()),
+    );
+    assert_eq!(rows_of(&body, sibling), (10, 0), "ring_move");
+    carried("ring_move", &body, ring_halves[0], &planted);
+
+    // `mfkrh`: the demoted ring promoted onto the chart it is on.
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let ring_halves = loop_halves(&s.body, ring);
+    let planted = plant_swap(&mut s.body, &ring_halves);
+    let (body, made) = both_doors(
+        "mfkrh",
+        &s.body,
+        |b| b.mfkrh(ring, FaceSurface::Inherit).map(|made| made.face),
+        |b| {
+            b.mfkrh_minting(ring, FaceSurface::Inherit, tol())
+                .map(|made| made.face)
+        },
+    );
+    assert_eq!(rows_of(&body, made.unwrap()), (4, 0), "mfkrh");
+    carried("mfkrh", &body, ring_halves[0], &planted);
 }
 
 /// A carry across one surface key moves nothing: the rows on the far
@@ -1978,21 +2127,33 @@ fn kfmrh_carries_every_row_across_one_payload() {
 /// which the doors do not hold. The door neither refuses nor mints: it
 /// drops the moved rows, as on any other chart change, and leaves the
 /// destination's own rows exactly as they were — `kfmrh`'s demoted
-/// loop, `kef`'s remnant and `ring_move`'s ring alike.
+/// loop, `kef`'s remnant and `ring_move`'s ring alike, keys-only and
+/// as the `_minting` twin, which drop alike.
 #[test]
 fn a_spline_destination_keeps_the_drop() {
-    let ArcSheet { mut s, .. } = arc_sheet(false);
+    let ArcSheet { s, .. } = arc_sheet(false);
     let low_before = rows_deep(&s.body, s.low);
-    s.body.kfmrh(s.low, s.up).unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (4, 4), "kfmrh");
-    assert_eq!(rows_deep(&s.body, s.low), low_before, "kfmrh");
+    let (up, low, plane) = (s.up, s.low, s.plane);
+    let (body, _) = both_doors(
+        "kfmrh",
+        &s.body,
+        |b| b.kfmrh(low, up).map(|_| ()),
+        |b| b.kfmrh_minting(low, up, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, low), (4, 4), "kfmrh");
+    assert_eq!(rows_deep(&body, low), low_before, "kfmrh");
 
-    let ArcSheet { mut s, .. } = arc_sheet(false);
+    let ArcSheet { s, .. } = arc_sheet(false);
     let up_before = rows_deep(&s.body, s.up);
     let he = he_at(&s.body, s.low, at(U1, VM));
-    s.body.kef(he).unwrap();
-    assert_eq!(rows_of(&s.body, s.up), (3, 3), "kef");
-    let up_after = rows_deep(&s.body, s.up);
+    let (body, _) = both_doors(
+        "kef",
+        &s.body,
+        |b| b.kef(he).map(|_| ()),
+        |b| b.kef_minting(he, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, up), (3, 3), "kef");
+    let up_after = rows_deep(&body, up);
     assert!(
         up_after.iter().all(|row| up_before.contains(row)),
         "kef: the survivor keeps its own rows and gains none"
@@ -2000,19 +2161,25 @@ fn a_spline_destination_keeps_the_drop() {
 
     // The plane face's rowless loop demotes into `low`, then moves on
     // as a ring onto `up`: two complete spline destinations in turn.
-    let ArcSheet { mut s, .. } = arc_sheet(false);
+    let ArcSheet { s, .. } = arc_sheet(false);
     let (low_before, up_before) = (rows_deep(&s.body, s.low), rows_deep(&s.body, s.up));
-    s.body.kfmrh(s.low, s.plane).unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (4, 6), "kfmrh of a rowless loop");
-    assert_eq!(
-        rows_deep(&s.body, s.low),
-        low_before,
-        "kfmrh of a rowless loop"
+    let (body, _) = both_doors(
+        "kfmrh of a rowless loop",
+        &s.body,
+        |b| b.kfmrh(low, plane).map(|_| ()),
+        |b| b.kfmrh_minting(low, plane, tol()).map(|_| ()),
     );
-    let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.up).unwrap();
-    assert_eq!(rows_of(&s.body, s.up), (4, 6), "ring_move");
-    assert_eq!(rows_deep(&s.body, s.up), up_before, "ring_move");
+    assert_eq!(rows_of(&body, low), (4, 6), "kfmrh of a rowless loop");
+    assert_eq!(rows_deep(&body, low), low_before, "kfmrh of a rowless loop");
+    let ring = ring_of(&body, low);
+    let (body, _) = both_doors(
+        "ring_move",
+        &body,
+        |b| b.ring_move(ring, up),
+        |b| b.ring_move_minting(ring, up, tol()),
+    );
+    assert_eq!(rows_of(&body, up), (4, 6), "ring_move");
+    assert_eq!(rows_deep(&body, up), up_before, "ring_move");
 }
 
 /// `up` is first moved onto `low`'s key, so the demotion into `low`

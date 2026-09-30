@@ -1,6 +1,7 @@
 //! Kill-direction Euler duals — [`Body::kvfs`], [`Body::kev`] (with
-//! its describing door [`Body::kev_describing`]), [`Body::kef`] — and
-//! the ring-promotion inverse [`Body::mfkrh`] (M1 PR 4).
+//! its describing door [`Body::kev_describing`]), [`Body::kef`] (with
+//! its band twin [`Body::kef_minting`]) — and the ring-promotion
+//! inverse [`Body::mfkrh`] (with [`Body::mfkrh_minting`]) (M1 PR 4).
 //!
 //! These complete the ten-operator catalog (Mäntylä ch. 9): every
 //! make-direction operator now has its exact inverse in-tree, which is

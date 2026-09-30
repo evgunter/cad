@@ -1917,7 +1917,7 @@ fn slit_zip<T: Decide>(
                 let ring = loop_of(body, ring_half)?;
                 body.mfkrh(ring, FaceSurface::Inherit)
                     .map_err(|_| desync("REST lane: band run mfkrh refused"))?;
-                body.kef(ring_half)
+                body.kef_minting(ring_half, tol)
                     .map_err(|_| desync("REST lane: band run kef refused"))?;
             }
         }

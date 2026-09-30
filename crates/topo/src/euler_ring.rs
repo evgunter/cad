@@ -1,5 +1,7 @@
 //! Ring/genus Euler operators — [`Body::kemr`], [`Body::mekr`],
-//! [`Body::kfmrh`] — plus the [`Body::ring_move`] helper (M1 PR 3).
+//! [`Body::kfmrh`] (with its band twin [`Body::kfmrh_minting`]) — plus
+//! the [`Body::ring_move`] helper (with [`Body::ring_move_minting`])
+//! (M1 PR 3).
 //!
 //! These are the operators that create and consume **rings** (interior
 //! loops of faces) and, through `kfmrh`, **genus** — the connected sum
@@ -378,6 +380,38 @@ pub struct KfmrhResult {
     /// PR 1): `f2`'s shell, whose surviving faces were re-homed into
     /// `f1`'s shell before it died. `None` in the same-shell form.
     pub killed_shell: Option<ShellKey>,
+}
+
+/// What [`Body::kfmrh`]'s precondition phase proved and decided, for
+/// its surgery to write.
+struct KfmrhPlan<T: geom_core::Real> {
+    f1: FaceKey,
+    f2: FaceKey,
+    f1_shell: ShellKey,
+    f1_surface: SurfaceKey,
+    f2_data: crate::entity::Face,
+    s2_data: crate::entity::Shell,
+    /// The form: the fusion across two shells, or the handle within
+    /// one.
+    cross_shell: bool,
+    ring: LoopKey,
+    rows: Vec<SiteRows<T>>,
+}
+
+impl<T: geom_core::Real> KfmrhPlan<T> {
+    /// The arena shift this plan's form declares. It is read from the
+    /// plan, taken before any mutation, and never from the surgery's
+    /// effect (`killed_shell`): a shift read back out of the mutation
+    /// being checked follows the code down whichever branch it took, so
+    /// a fusion that ran when it should not have could not fail it.
+    #[cfg(debug_assertions)]
+    fn delta(&self) -> ArenaDelta {
+        ArenaDelta {
+            shells: if self.cross_shell { -1 } else { 0 },
+            faces: -1,
+            ..ArenaDelta::ZERO
+        }
+    }
 }
 
 impl<T: Decide> Body<T> {
@@ -806,7 +840,15 @@ impl<T: Decide> Body<T> {
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
     pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
-        self.kfmrh_with(f1, f2, None)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.kfmrh_plan(f1, f2, None)?;
+        #[cfg(debug_assertions)]
+        let declared = plan.delta();
+        let fused = self.kfmrh_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, declared, "kfmrh");
+        Ok(fused)
     }
 
     /// [`Body::kfmrh`] with a band: where `kfmrh` refuses
@@ -825,21 +867,25 @@ impl<T: Decide> Body<T> {
         f2: FaceKey,
         tol: Tol,
     ) -> Result<KfmrhResult, EulerOpError> {
-        self.kfmrh_with(f1, f2, Some(tol))
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.kfmrh_plan(f1, f2, Some(tol))?;
+        #[cfg(debug_assertions)]
+        let declared = plan.delta();
+        let fused = self.kfmrh_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, declared, "kfmrh_minting");
+        Ok(fused)
     }
 
-    /// [`Body::kfmrh`]'s plan and surgery, with the band its site mint
-    /// runs at, or none for the keys-only door. It declares the
-    /// postcondition, whose shift is the plan's own form decision.
-    fn kfmrh_with(
-        &mut self,
+    /// [`Body::kfmrh`]'s preconditions and site mint plan, with the band
+    /// the site mint runs at, or none for the keys-only door.
+    fn kfmrh_plan(
+        &self,
         f1: FaceKey,
         f2: FaceKey,
         tol: Option<Tol>,
-    ) -> Result<KfmrhResult, EulerOpError> {
-        #[cfg(debug_assertions)]
-        let before = self.arena_counts();
-
+    ) -> Result<KfmrhPlan<T>, EulerOpError> {
         // ---- Preconditions. ----
         let f1_data = self.get_face(f1).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(f1),
@@ -894,8 +940,33 @@ impl<T: Decide> Body<T> {
             |body| body.site_face_receiving(f1, &ring_halves),
             tol,
         )?;
+        Ok(KfmrhPlan {
+            f1,
+            f2,
+            f1_shell,
+            f1_surface,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            rows,
+        })
+    }
 
-        // ---- Mutation (infallible from here on). ----
+    /// [`Body::kfmrh`]'s surgery, from its proved plan. Infallible.
+    fn kfmrh_execute(&mut self, plan: KfmrhPlan<T>) -> KfmrhResult {
+        let KfmrhPlan {
+            f1,
+            f2,
+            f1_shell,
+            f1_surface,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            rows,
+        } = plan;
+        let f2_shell = f2_data.shell;
         // The surviving loop is repointed and demoted; nothing else at
         // the half-edge/vertex/edge level is touched.
         let Some(l) = self.get_loop_mut(ring) else {
@@ -945,39 +1016,12 @@ impl<T: Decide> Body<T> {
         let killed_surface = self
             .remove_surface_if_orphaned(f2_data.surface)
             .then_some(f2_data.surface);
-
-        #[cfg(debug_assertions)]
-        {
-            // The declared arena shift is chosen by `cross_shell` —
-            // the PLAN phase's own form decision, taken before any
-            // mutation and never written again. Choosing it on
-            // `killed_shell.is_some()` instead would read the shift
-            // back out of the mutation being checked, so the
-            // postcondition would follow the code down whichever
-            // branch it took and a fusion that ran when it should not
-            // have could not fail it. `ArenaDelta` is one operator's
-            // signed shift (`crate::euler`), and a shift a site
-            // computes from its own effect is not one.
-            let declared = if cross_shell {
-                ArenaDelta {
-                    shells: -1,
-                    faces: -1,
-                    ..ArenaDelta::ZERO
-                }
-            } else {
-                ArenaDelta {
-                    faces: -1,
-                    ..ArenaDelta::ZERO
-                }
-            };
-            self.assert_euler_postcondition(before, declared, "kfmrh");
-        }
-        Ok(KfmrhResult {
+        KfmrhResult {
             ring,
             killed_face: f2,
             killed_surface,
             killed_shell,
-        })
+        }
     }
 
     /// Reparents a ring from its face to `to_face` (same shell).
@@ -1230,18 +1274,18 @@ impl<T: Decide> Body<T> {
     /// ([`Body::plan_site_mint_of`]): the rows of `rows_from` as found
     /// decide ([`crate::pcurves::StoredRows::remints`]), and `site`
     /// describes the destination as the door leaves it, with the moved
-    /// loop rewired and [`crate::pcurves::SiteFace::moved`] set. So a
-    /// destination that was complete stays complete, walked in its own
-    /// chart; one that was unminted or half-minted, or is on a spline
-    /// chart, is left as found, its moved rows dropped. An empty `moved`
-    /// moves nothing and plans nothing.
+    /// loop rewired and [`crate::pcurves::SiteFace::moved`] set. A
+    /// complete destination on an analytic chart leaves complete, the
+    /// moved loop walked in its chart, or storing nothing where that
+    /// walk does not certify; any other destination is left as found,
+    /// its moved rows dropped. An empty `moved` moves nothing and plans
+    /// nothing.
     ///
-    /// `tol` is the band door's; `None` is the keys-only door, which
+    /// `tol` is the band door's. `None` is the keys-only door, which
     /// derives nothing and refuses
-    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] exactly where the
-    /// band door would write the destination
-    /// ([`crate::pcurves::site_rows_owed`]) — one plan, two answers to
-    /// the same question.
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] where
+    /// [`crate::pcurves::site_rows_owed`] holds: where the band door's
+    /// plan writes the destination.
     ///
     /// The face a loop LEAVES needs nothing: it loses that loop's
     /// half-edges and their rows together, its other loops and its
@@ -1263,7 +1307,7 @@ impl<T: Decide> Body<T> {
         if moved.is_empty() || stand {
             return Ok(Vec::new());
         }
-        self.plan_site_mint_of(&[rows_from], |body, _| Ok(vec![site(body)?]), None, tol)
+        self.plan_site_mint_of([Ok(rows_from)], |body, _| Ok(vec![site(body)?]), None, tol)
     }
 
     /// `face` as a door leaves it that moves the loop `halves` walk onto
@@ -1289,38 +1333,26 @@ impl<T: Decide> Body<T> {
     /// is each door's, taken once at its own site, and this takes none.
     ///
     /// **Why dropping rather than re-stating.** An image on another
-    /// chart is DERIVED, not restated — unlike
-    /// [`Body::split_edge`]'s restriction of one image to a
-    /// sub-interval of its own carrier — so the moved rows go, and what
-    /// replaces them is a derivation in the destination's chart: the
-    /// site mint a `_minting` door planned before it mutated
-    /// ([`Body::plan_moved_rows`]), which a keys-only door refuses to
-    /// owe rather than run without a band. On an ANALYTIC chart that walk is
-    /// stated under `Decide` (`crate::pcurves::site_rows`), and a
-    /// destination whose rows were complete leaves complete, or
-    /// storing nothing where the closed-form lane cannot mint it as the
-    /// door leaves it. A SPLINE chart's derivation reads its fitted
-    /// door through the [`crate::AtRestPolicy`] bound, which these
-    /// `Decide` doors do not have, and there the drop stands.
+    /// chart is DERIVED, not restated — unlike [`Body::split_edge`]'s
+    /// restriction of one image to a sub-interval of its own carrier —
+    /// so the moved rows go. What replaces them on a complete analytic
+    /// destination is the `_minting` door's site mint
+    /// ([`Body::plan_moved_rows`]); a SPLINE chart derives through the
+    /// fitted lane, which these `Decide` doors do not hold, and there
+    /// the drop stands.
     ///
-    /// **What the drop costs, and its scope.** Where the site mint
-    /// leaves the destination as found — a spline chart, or a face
-    /// that was half-minted or never minted — the drop is the whole
-    /// answer. A destination that carries rows of its own is then
-    /// INCOMPLETE, and tier 3 reports that (`MissingCache` per rowless
-    /// half-edge). One that stores none — its whole boundary the moved
-    /// loop or run, or never minted — reads as a face the minting pass
-    /// has not run on, and that pass says nothing about such a face by
-    /// design; so does a complete destination the site mint emptied.
-    /// Those rowless CURVED destinations trade a loud reading for a
-    /// silent one: before the drop the moved rows were re-certified
-    /// against the destination's chart and refused
-    /// (`PcurveMintError::Certify` per row), and after it there is
-    /// nothing to refuse. What buys it is that the body no longer
-    /// HOLDS the wrong row for `props`, the tessellator or
-    /// `chart_boundary` to read. That the pass cannot tell a
-    /// never-minted face from one a door emptied is
-    /// `work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+    /// **What the drop costs.** Where the site mint leaves the
+    /// destination as found, the drop is the whole answer. A
+    /// destination that carries rows of its own is then INCOMPLETE,
+    /// and tier 3 reports it (`MissingCache` per rowless half-edge). A
+    /// CURVED one that stores none — never minted, its whole boundary
+    /// the moved loop or run, or emptied by the site mint — reads as a
+    /// face the minting pass has not run on, about which that pass says
+    /// nothing, where before the drop its moved rows were re-certified
+    /// against its chart and refused (`PcurveMintError::Certify`). That
+    /// trade buys a body that no longer HOLDS the wrong row for
+    /// `props`, the tessellator or `chart_boundary` to read
+    /// (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
     ///
     /// A key with no row is a no-op, so a caller hands over every key
     /// it moved and none of them has to be checked first.

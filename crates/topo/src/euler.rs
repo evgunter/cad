@@ -3340,12 +3340,12 @@ impl<T: Decide> Body<T> {
     ///
     /// `touched` names the loops the door's halves are in, as the body
     /// holds them now; their faces are what [`Body::plan_site_mint_of`]
-    /// reads.
+    /// reads, each loop resolved as its face is reached.
     ///
     /// # Errors
     ///
-    /// A touched loop does not resolve ([`EulerOpError::StaleKey`]);
-    /// then [`Body::plan_site_mint_of`]'s.
+    /// [`Body::plan_site_mint_of`]'s, a touched loop that does not
+    /// resolve ([`EulerOpError::StaleKey`]) among them.
     pub(crate) fn plan_site_mint(
         &self,
         touched: &[LoopKey],
@@ -3356,24 +3356,19 @@ impl<T: Decide> Body<T> {
         edge: Option<&EdgeCurve<T>>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let mut read: Vec<FaceKey> = Vec::new();
-        for &lk in touched {
-            let face = self
-                .get_loop(lk)
+        let read = touched.iter().map(|&lk| {
+            self.get_loop(lk)
+                .map(|l| l.face)
                 .ok_or(EulerOpError::StaleKey {
                     key: EntityId::Loop(lk),
-                })?
-                .face;
-            if !read.contains(&face) {
-                read.push(face);
-            }
-        }
-        self.plan_site_mint_of(&read, faces, edge, Some(tol))
+                })
+        });
+        self.plan_site_mint_of(read, faces, edge, Some(tol))
     }
 
     /// **A site mint's plan over the faces whose rows decide it**
-    /// (`read`, as the body holds them now), decided before its door
-    /// mutates.
+    /// (`read`, as the body holds them now, a face named twice read
+    /// once), decided before its door mutates.
     ///
     /// Each face is read first, once — one walk of each face on a
     /// chart that mints — and only a face
@@ -3393,7 +3388,8 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// In this order: a face does not resolve
+    /// In this order, per face of `read` as it is reached: what `read`
+    /// raises naming it, then the face does not resolve
     /// ([`EulerOpError::StaleKey`]), or its surface does not
     /// ([`EulerOpError::StaleGeometry`]), or a half of it does not
     /// ([`EulerOpError::PcurveMint`] naming the face); then, only when a
@@ -3401,7 +3397,7 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::PcurveMint`] naming the face.
     pub(crate) fn plan_site_mint_of(
         &self,
-        read: &[FaceKey],
+        read: impl IntoIterator<Item = Result<FaceKey, EulerOpError>>,
         faces: impl FnOnce(
             &Self,
             &[(FaceKey, crate::pcurves::SiteFrom<T>)],
@@ -3410,7 +3406,13 @@ impl<T: Decide> Body<T> {
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
         let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
-        for &face in read {
+        let mut seen: Vec<FaceKey> = Vec::new();
+        for face in read {
+            let face = face?;
+            if seen.contains(&face) {
+                continue;
+            }
+            seen.push(face);
             let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
                 key: EntityId::Face(face),
             })?;
