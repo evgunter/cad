@@ -1,11 +1,14 @@
 ---
 id: mint-face-surface-and-sense-reads-key-equality-where-same-chart-reads-provenance
 kind: issue
-title: mint_face_surface_and_sense decides 'the parent's own surface' by key equality while same_chart decides one chart by key or provenance, so a Shared second key the body records as one description carries the run's rows and resets sense
-status: open
+title: A minted or re-charted face's sense is derived on the parent's chart (same_chart) and stated by the caller on any other, and a contradicting stated bit is refused
+status: closed
 opened: 2026-09-24
 priority: P1
-cost: E
+cost: M
+closed: 2026-09-29
+pr: 3467
+branch: topo/sense-reads-same-chart
 ---
 
 
@@ -62,3 +65,115 @@ keys sharing one NURBS/`Approx` payload carry rows through
 `same_chart` but reset `sense` to `true` in `mint_face_surface_and_sense`.
 The title's "where same_chart reads provenance" is no longer true.
 (ORIGIN orchestrator)
+
+## Brief (TOPO, 2026-09-29): review tier SINGLE (full)
+
+A single full review is enough: the change is one decision about an
+operator's orientation contract, with a small blast radius.
+
+1. **One question, one answer.** "Is the new face on the parent's own
+   surface" is the question `same_chart` answers for the rows. Have
+   `mint_face_surface_and_sense` inherit the parent's `sense` exactly
+   when `same_chart(surface, inherit_surface)` holds, and stamp `true`
+   otherwise.
+   - First check that `sense` and chart identity mean the same thing
+     here: the sense bit is the outward normal relative to the chart's
+     own normal. Two keys holding one `Arc` payload hold the same chart
+     with the same orientation, so the parent's bit is right for the
+     fragment.
+   - If a case turns up where the two answers must differ (a shared
+     payload with opposite orientation, or a `Shared` spec a caller
+     uses deliberately to flip), stop: keep key equality, and write in
+     the helper's doc why the sense bit is stricter than the chart,
+     with the row that shows it. Say which was found, and why.
+2. **Rows** (ordinary tests):
+   - **Red-first:** on the sheet of
+     `crates/topo/tests/loop_reparenting_pcurve_rows.rs`, give the
+     lower panel `sense: false` and split it with a `mef` whose spec is
+     `Shared(second key)`, where `second` shares the parent's `Arc`
+     payload (a NURBS/`Approx` surface: the suite's payload-`Arc`
+     fixture). On the merge base the new face's `sense` resets to
+     `true`; at the head it inherits `false`. Show both.
+   - **Controls:** `Shared(own key)` inherits; `New(...)` and a foreign
+     `Shared` key stamp `true`.
+   - Cover `mfkrh`'s promoted ring the same way.
+3. **Callers and receipt.** List every caller of the helper and every
+   production `set_face_sense(` that follows a `Shared` spec; say
+   whether each is now redundant or still needed. Remove none unless
+   the row set proves it redundant.
+4. **Docs.** The helper's doc and `same_chart`'s doc agree: one
+   sentence each, pointing to the one home. Update this item's title
+   ("where same_chart reads provenance" no longer holds).
+5. **Seams.** `euler.rs` and `euler_ring.rs` are TOPO's. Run
+   `python3 scripts/work.py territory --base origin/main` and announce
+   any crossing on the owner's log.
+
+## What PR 3467's review found (2026-09-29)
+
+The first fix (PR 3467) widened the inheritance test from key
+equality to `same_chart`. Its reviewer measured that inheritance is
+wrong for `mfkrh` under either test: on `holed_block(3, [1.5])`, the
+bore circle promoted by `mfkrh(ring, Inherit)` with the parent's
+`true` is refused by tier 3 with `LoopRoleInverted`, and validates
+with `false` (probe: the reviewer's `senser-probe.patch`). A ring is
+wound clockwise about the parent's outward normal, so promoted to an
+outer loop on the same chart it faces the other way. A `mef` fragment
+across the same face validates with the parent's bit. The defect
+predates PR 3467; production same-chart promotions override the bit
+afterwards (`crates/topo/src/shell.rs`, `crates/topo/src/splitting/finish.rs`),
+and the boolean's transient promotions (`boolean/finish.rs`,
+`boolean/rest.rs`, `splitting/reassembly.rs`) carry the wrong bit
+until they are zipped or killed.
+
+The rule is D1's fragment bullet, so the question is D1's: what
+`sense` a minted or re-charted face carries, and who decides it. The
+item's original seam (key equality against `same_chart`) is one part
+of that answer.
+
+## Ruled (2026-09-29, PR 3480)
+
+Ev took the recommendation: "i agree with your recommendation!". D1's
+bullet now reads as PR 3480 wrote it.
+- On the parent's chart (`same_chart`), the operator derives the bit:
+  `mef` takes the parent's, `mfkrh` the parent's negated.
+- On any other chart, the caller states it in the spec
+  (`FaceSurface::New { surface, sense }`, `Shared { key, sense }`). No
+  operator stamps a default.
+- A stated bit that contradicts the derived one on the parent's chart
+  is refused, typed, before mutating. The test is `same_chart`.
+- `set_face_surface` takes the same spec, and
+  `set_face_surface_and_sense` folds into it.
+
+The implementation re-aims PR 3467.
+
+## Closed (2026-09-29, PR 3467)
+
+Built to Ev's ruling (PR 3480; D1's `sense` bullet). One plan-phase
+resolver, `Body::resolve_face_surface`, takes `ParentSide::With` from
+`mef` and `Against` from `mfkrh`, and asks the chart question once
+(`same_chart`).
+- On the parent's chart, it derives the bit: the parent's, or the
+  parent's negated.
+- There, it refuses a contradicting stated bit with
+  `SenseContradictsChart`, before mutating.
+- Off the parent's chart, it writes the stated bit.
+
+The API follows the same rule:
+- `FaceSurface::New`/`Shared` carry `sense`.
+- `set_face_surface` takes the same spec, and
+  `set_face_surface_and_sense` is gone.
+- `mvfs` and `mfkrh_plug` state their provisional bit at the call.
+
+Every sweep, rim-glue, STEP-adopt and offset caller states its bit.
+No golden moved: both reviewers found byte-identical results on the
+curved boolean and split corpus.
+
+The dual review found no MAJOR. Its union fix pass pinned the
+negation on a `false` parent and the shared-payload `mfkrh` validity
+(adopting both reviewers' probes). It also cut the rule's
+restatements down to pointers and corrected the stale prose.
+
+Filed:
+- `work/zip/slit-zip-band-run-across-two-loops-is-reached-by-no-row.md`
+- `work/tess/mesh-docs-say-every-face-mints-sense-true.md`
+- `work/wire/emit-topo-says-every-face-mints-sense-true.md`

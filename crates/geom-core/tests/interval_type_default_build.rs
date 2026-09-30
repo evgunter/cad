@@ -113,7 +113,7 @@ fn dual_interval_is_nameable_in_a_default_build() {
 /// plausible bracket) is refused on its DECORATION, not on its
 /// endpoints — `MarginKind::Invalid`, where the straddling row above
 /// refuses with `MarginKind::Enclosure`. A build that compiled the
-/// arithmetic but not the poison channel would answer `Positive`.
+/// arithmetic but not the refusal channel would answer `Positive`.
 #[test]
 fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
     let band = Band::new(1e-9, 1e-8).unwrap();

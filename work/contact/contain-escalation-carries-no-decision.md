@@ -41,3 +41,64 @@ PR 3390 adds as `SizedPass::NonZero`) to quote the tolerance below
 Carry the decision as a closed type on the escalation (and through
 `Undecided`), end it through `geom_brep::recourse::SizedDecision` at
 `Reading::AtRest` in `classify_contain`, and pin the valued ending.
+
+## At the Boolean's door (TOPO, the §5 second pass of PR 3493)
+
+`PointInSolidError`'s own `Display`
+(`crates/topo/src/boolean/solid_contain.rs`, `impl Display for
+PointInSolidError`) ends its `Escalated`, `RayExhausted` and
+`Loop(RayExhausted)` arms in `COINCIDENCE_RECOURSE`. The Boolean shows
+them through `BooleanError::Containment`. "Declare the coincidence" is
+advice a face-pair declaration cannot follow there: a ray cast's
+graze, or a point near a face of the other solid, is not a pair of
+faces. PR 3493 gives the Boolean's face-containment escalations
+(`ContainError::Escalated`, through `BooleanError::Escalated`) their
+own closed decision, `boolean::BooleanDecision::Containment`, ending in
+a `SizedDecision` (`SizedPass::NonZero`) in `boolean::refusal_routes`.
+These three arms want the same change when the decision is carried.
+
+## The Boolean's containment ending, and what carrying the rung needs (TOPO, PR 3493's fix pass)
+
+PR 3493 first ended `boolean::BooleanDecision::Containment` in a
+`SizedDecision` passing on either nonzero sign. That offered a valued
+tolerance on rungs where D4 ¶1 (i) forbids one: at
+`boolean::reduce::wall_crossing` the point is a certified root on the
+wall, so `bool_curved_contain_carrier` (`contain.rs`,
+`curved_face_placement`) is a residual there (it passes only at Zero),
+and `bool_curved_contain_period` refuses a negative margin. The fix
+pass ends `Containment` on its lever alone at every wrap site
+(`reduce.rs` ×2, `ops.rs` ×1), as `validate::classify_contain` does;
+`refusal_routes::tests::a_containment_escalation_on_a_residual_rung_names_its_lever_alone`
+pins it on a real raise.
+
+Carrying the rung is more than a closed type on
+`ContainError::Escalated`. The walk's rungs are `bool_face_disc_carrier`,
+`bool_contact_vertex`, `bool_contact_arc` and its end-vertex row, the
+carrier and period rungs, the ray cast's rungs through `solid_err`, and
+every `PointInLoopError` rung. Their pass sets depend on the caller:
+the carrier rung passes on any definite sign at `curved_face_containment`
+(off the carrier is a definite `Out`), and only at Zero where the caller
+placed the point on the surface. So the carry has to say which caller's
+question the rung answered, or each caller has to map the rung to its
+own decision, as `BooleanDecision::of_normal` does for the face normal.
+Then the Boolean's `Containment` arm splits into those decisions, each
+ending as its pass set gives.
+
+## The torus trim's ring convention (TOPO, the §5 second pass of PR 3506)
+
+`boolean::solid_contain::point_on_torus_in_face`
+(`crates/topo/src/boolean/solid_contain.rs`) reads the ring convention
+through `geom::require_ring_torus`, the collapsed-arm gate: a torus
+definitely outside the convention rides `PointInSolidError::Escalated`
+with an `INVALID` margin, and an in-band one with its margin, and both
+end in `COINCIDENCE_RECOURSE`. PR 3506 gave the convention its closed
+type (`geom_brep::TorusConvention`, whose `sized()` and `refused()` are the
+pierce's and tier 3's one story). When this row carries the decision,
+the torus trim's arm is `TorusConvention` with its verdict
+(`geom::ring_torus`/`geom::torus_tube` keep the reporting margin), not a
+containment rung.
+
+The front door meets this gate before the pierce normal ever does:
+`work/contact/degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine.md`
+(PR 3506's fix pass) has the two stories a degenerate torus operand
+gets through `union`/`subtract` instead.

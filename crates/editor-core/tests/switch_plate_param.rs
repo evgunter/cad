@@ -21,7 +21,7 @@ use corpus::plate_param::{
 use corpus::{body_of, eval};
 use editor_core::{
     Dimension, DocEdit, DocParam, EvalOutcome, Node, NodeErrorKind, NodeResult, ParamName,
-    ProfileDoc, ProfilePayload, RecipeNodeId, SlotId, StepArg, apply,
+    ProfileDoc, RecipeNodeId, SlotId, StepArg, apply,
 };
 use geom_core::Tol;
 use profile::{ContactKind, PathError, ProfileError, ReplayErrorKind};
@@ -43,7 +43,7 @@ fn scene() -> Scene {
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(HOLE_R),
+            name: ParamName::from_static(HOLE_R),
             value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
         },
         Tol::witness(),
@@ -97,7 +97,7 @@ fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(HOLE_R),
+            name: ParamName::from_static(HOLE_R),
             value: DocParam::continuous(Dimension::Length, value),
         },
         Tol::witness(),
@@ -359,7 +359,7 @@ fn the_hole_radii_are_addressable_slots() {
             arg: StepArg::Radius,
         };
         assert!(
-            program.slots().contains(&slot),
+            node.slots().contains(&slot),
             "loop {loop_}'s radius should be addressable"
         );
     }

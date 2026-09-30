@@ -93,7 +93,7 @@ fn author_die() -> Die {
         doc,
         &mut log,
         TEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
+            name: ParamName::from_static("pip_depth"),
             value: DocParam::continuous(Dimension::Length, 0.002),
         },
     );
@@ -129,7 +129,7 @@ fn author_die() -> Die {
         TEdit::InsertNode {
             node: Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::param(ParamName::new("pip_depth"), Dimension::Length),
+                distance: Expr::param(ParamName::from_static("pip_depth"), Dimension::Length),
             },
         },
     );
@@ -154,12 +154,14 @@ fn author_die() -> Die {
                 doc,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Node::Transform {
-                        input: pip_extrude,
-                        translation: [len(t[0]), len(t[1]), len(t[2])],
-                        rotation_axis: [scl(rot_axis[0]), scl(rot_axis[1]), scl(rot_axis[2])],
-                        rotation_angle: ang(rot_angle),
-                    },
+                    node: Node::transform(
+                        pip_extrude,
+                        editor_core::Step::Rigid {
+                            translation: [len(t[0]), len(t[1]), len(t[2])],
+                            axis: [scl(rot_axis[0]), scl(rot_axis[1]), scl(rot_axis[2])],
+                            angle: ang(rot_angle),
+                        },
+                    ),
                 },
             );
             let (d3, cut) = step(
@@ -232,7 +234,7 @@ fn die_authors_replays_and_diffs() {
         .doc
         .apply(
             &TEdit::SetDocParam {
-                name: ParamName::new("pip_depth"),
+                name: ParamName::from_static("pip_depth"),
                 value: DocParam::continuous(Dimension::Length, 0.003),
             },
             Tol::witness(),
@@ -241,7 +243,7 @@ fn die_authors_replays_and_diffs() {
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);
     assert!(d2.nodes.is_empty());
-    assert_eq!(d2.params, vec![ParamName::new("pip_depth")]);
+    assert_eq!(d2.params, vec![ParamName::from_static("pip_depth")]);
 
     // The original document is untouched by all of the above (D2:
     // apply is pure).

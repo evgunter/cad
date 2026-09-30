@@ -31,7 +31,7 @@ use common::{chain, profile, quarter_bulge, rect, tol};
 // `lift` re-instantiates a fixture at another scalar; the only
 // remaining consumer here is the interval-lane totality test.
 use common::lift;
-use geom_core::{Point2, Sign};
+use geom_core::{Arc2, Point2, Sign};
 use profile::RawLoop;
 use profile::{
     ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, SegmentKind, SegmentRef,
@@ -76,8 +76,12 @@ fn dxf_quarter_arc_center_left_apex_right() {
     let seg0 = vp.loops()[0].segments()[0];
     match seg0.kind {
         SegmentKind::Arc {
-            center,
-            radius,
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    ..
+                },
             turn,
             ..
         } => {
@@ -546,7 +550,15 @@ fn near_full_arc_with_chord_closure_validates() {
         .find(|s| matches!(s.kind, SegmentKind::Arc { .. }))
         .expect("near-full arc must stay an arc");
     match arc.kind {
-        SegmentKind::Arc { center, radius, .. } => {
+        SegmentKind::Arc {
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    ..
+                },
+            ..
+        } => {
             assert!(center.x.abs() < 1e-9 && center.y.abs() < 1e-9);
             assert!((radius - 1.0).abs() < 1e-9);
         }

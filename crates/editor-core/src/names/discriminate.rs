@@ -187,6 +187,20 @@ pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
 /// than as the name's own.
 pub(crate) const CHORD_ON_RIM: &str = "name_chord_on_rim";
 
+/// What one of the naming layer's decisions decides, in the words a
+/// refusal or a diagnosis states in place of the predicate's name
+/// (which is routing, kept to `Debug`): a clause with no colon or dash
+/// of its own. `None` for a predicate this layer does not own.
+pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
+    match predicate {
+        SIDE_OF => Some("the side of a cut a face lies on"),
+        ORDER_ALONG => Some("the order of two pieces along an edge"),
+        ON_MEMBER_EDGE => Some("a point's place along an edge"),
+        CHORD_ON_RIM => Some("whether a chord lies on its rim"),
+        _ => None,
+    }
+}
+
 /// One candidate's extent along an oriented carrier: the certified
 /// min/max of its probe parameters (values stay HERE — only the
 /// resulting order enters names).

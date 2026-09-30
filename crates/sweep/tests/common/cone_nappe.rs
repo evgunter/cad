@@ -144,10 +144,16 @@ pub fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Su
         u_ref,
     };
     let key = body
-        .set_face_surface(group[0], topo::FaceSurface::New(moved.clone()))
+        .set_face_surface(
+            group[0],
+            topo::FaceSurface::New {
+                surface: moved.clone(),
+                sense: true,
+            },
+        )
         .expect("the face takes a re-anchored cone");
     for &other in &group[1..] {
-        body.set_face_surface(other, topo::FaceSurface::Shared(key))
+        body.set_face_surface(other, topo::FaceSurface::Shared { key, sense: true })
             .expect("its neighbours share it");
     }
     moved

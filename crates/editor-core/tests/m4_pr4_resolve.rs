@@ -17,6 +17,7 @@ use crate::fixture;
 
 use std::sync::Arc;
 
+use editor_core::NodeStanding;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
@@ -81,12 +82,14 @@ fn slide_union(tx: f64) -> Slide {
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, transform) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(tx), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            editor_core::Step::Rigid {
+                translation: [len(tx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     // The B side is read at the TRANSFORM — the boolean's operand —
     // and named in `b0`'s vocabulary, which the transform carries
@@ -707,12 +710,19 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     assert_eq!(
         resolve(ctx, &cap_a),
-        Resolution::Indeterminate(ResolveIndeterminate::TargetFailed { node: a })
+        Resolution::Indeterminate(ResolveIndeterminate {
+            standing: NodeStanding::Failed { node: a }
+        })
     );
     let union_body = minted(EntityKind::Body, u, RoleSeg::OutputBody);
     assert_eq!(
         resolve(ctx, &union_body),
-        Resolution::Indeterminate(ResolveIndeterminate::TargetPoisoned { through: a })
+        Resolution::Indeterminate(ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
+                node: u,
+                through: a
+            }
+        })
     );
 }
 
@@ -1053,12 +1063,14 @@ fn suggestions_never_offer_sideof_partner_phantoms_and_are_kind_filtered() {
     );
     let (doc, tr) = insert(
         doc,
-        Node::Transform {
-            input: band,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            band,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, sub) = insert(
         doc,
@@ -1230,21 +1242,25 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, x) = insert(
             doc,
-            Node::Transform {
-                input: if use_c { c } else { b },
-                translation: [len(0.25), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                if use_c { c } else { b },
+                editor_core::Step::Rigid {
+                    translation: [len(0.25), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         );
         let (doc, n) = insert(
             doc,
-            Node::Transform {
-                input: x,
-                translation: [len(0.0), len(0.25), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                x,
+                editor_core::Step::Rigid {
+                    translation: [len(0.0), len(0.25), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         );
         (doc, b, c, n)
     };

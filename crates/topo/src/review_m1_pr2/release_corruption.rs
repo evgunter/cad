@@ -95,7 +95,7 @@ fn pillow(
     crate::MefCreated,
 ) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -173,7 +173,7 @@ fn large_torn_body_terminates_quickly() {
     let tol = Tol::witness();
     let n: i32 = if cfg!(debug_assertions) { 500 } else { 3000 };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {

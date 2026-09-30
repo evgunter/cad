@@ -41,7 +41,7 @@
 //! `Some(FittedLane::certified())` and a dual answers `None`, and a
 //! consumer holding `None` refuses typed with
 //! [`crate::PcurveCertifyError::FittedLaneUnsupported`], naming the
-//! scalar by the name the same seam hands it.
+//! scalar by its [`geom_core::Real::NAME`].
 //!
 //! **A `None` door refuses where the door is first needed.** Every
 //! fitted cache's certificate is derived by check 4 of the fitted
@@ -58,7 +58,7 @@
 //! The shape is [`crate::OffsetFitLane`]'s, and the absence is a
 //! different fact from that one's: the offset fit's `None` is a
 //! derivation written at one scalar, this one's is certification
-//! rights. Under `work/scalar/H5.md` §RATIFIED ruling 3 the door is the
+//! rights. Under H5's ratified ruling 3 (PR 2701) the door is the
 //! parameter a mixed pass takes and the scalar seam that produces it
 //! is the per-scalar policy that cut leaves standing.
 
@@ -67,6 +67,28 @@ use geom_core::{Band, Decide, Point2, Point3, Real};
 
 use crate::PcurveCertifyError;
 use crate::ssi::SsiCertificate;
+
+/// The scalars that hold a [`FittedLane`], by their [`Real::NAME`]s —
+/// the replay list [`crate::PcurveCertifyError::FittedLaneUnsupported`]
+/// renders. Membership is the policy's answer, which this crate cannot
+/// read, so topo pins it against `AtRestPolicy::fitted_lane` at every
+/// scalar (`stated_general_image_mint.rs`). The symbolic tier holds the
+/// door over a certifying base only.
+#[cfg(not(feature = "probe"))]
+pub const FITTED_DOOR_HOLDERS: &[&str] = &[
+    <f64 as Real>::NAME,
+    <geom_core::Interval as Real>::NAME,
+    <geom_core::Sym<f64> as Real>::NAME,
+];
+
+/// The scalars that hold a [`FittedLane`] (the unprobed build's docs).
+#[cfg(feature = "probe")]
+pub const FITTED_DOOR_HOLDERS: &[&str] = &[
+    <f64 as Real>::NAME,
+    <geom_core::Probe as Real>::NAME,
+    <geom_core::Interval as Real>::NAME,
+    <geom_core::Sym<f64> as Real>::NAME,
+];
 
 /// **The fitted-pcurve door**: the three fitted-pcurve derivations the
 /// mint and the tier-3 pass reach, in one value.
@@ -204,15 +226,8 @@ impl<T: Real> FittedLane<T> {
 /// free function each field of [`FittedLane::certified`] holds, rather
 /// than what that function answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// routine that agrees on the fixture in front of it; the helper
-/// compares the stored function pointers instead, so a re-point is a
-/// failure no matter what it computes. Function-pointer identity is
-/// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
-/// (identical function bodies may be merged), which costs nothing here:
-/// the three bodies differ, and a false PASS from a merge would need
-/// the re-pointed routine to be instruction-identical to the one it
-/// replaced.
+/// Why a wiring row compares pointers rather than outputs:
+/// `crates/topo/tests/certified_enclosure_impl_census.rs`'s module doc.
 ///
 /// The helper is instantiated once per certifying scalar.
 /// `topo`'s `certified_enclosure_impl_census` counts those

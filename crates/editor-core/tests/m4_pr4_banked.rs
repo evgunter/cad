@@ -107,12 +107,14 @@ fn band_cut() -> BandCut {
     );
     let (doc, transform) = insert(
         doc,
-        Node::Transform {
-            input: band,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            band,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let (doc, sub) = insert(
         doc,
@@ -296,12 +298,14 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, transform) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(2.5), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            editor_core::Step::Rigid {
+                translation: [len(2.5), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     // M4 PR 5: the slide's flush planes are declared (the disjoint
     // position keeps the same coplanarity, so ONE declare serves both).

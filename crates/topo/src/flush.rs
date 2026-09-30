@@ -286,9 +286,9 @@ pub fn pair_finding<T: Decide>(
                 Err(diag)
             }
         }
-        Err(CarrierEqError::Escalated(diag)) => Err(diag),
+        Err(CarrierEqError::Escalated { diag, .. }) => Err(diag),
         // Unreachable with `declared: false`; kept typed.
-        Err(CarrierEqError::Contradicted(diag)) => Err(diag),
+        Err(CarrierEqError::Contradicted { diag, .. }) => Err(diag),
     }
 }
 

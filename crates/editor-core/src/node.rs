@@ -2,6 +2,8 @@
 //! here evaluates anything — the evaluation service interprets this
 //! data against the kernel ops.
 
+use core::num::NonZeroUsize;
+
 use crate::expr::{Dimension, Expr};
 use crate::names::SplitHalf;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
@@ -63,10 +65,10 @@ macro_rules! name_free_node {
 pub struct RecipeNodeId(pub u64);
 
 /// **A profile program step's identity** (`names/README.md`, "N1, the
-/// profile pieces"): minted from the document's monotone step counter
-/// when the step is authored — by `InsertNode` or `SetProgram` — never
-/// reused, never positional, and unique across the document. A
-/// profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
+/// profile pieces"): minted from the document's mint chain
+/// ([`crate::StepMint`]) when the step is authored — by `InsertNode`
+/// or `SetProgram` — never reused, never positional, and unique across
+/// the document. A profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -381,12 +383,30 @@ pub enum SlotId {
     /// [`crate::Node::Tube`] does not carry, because a solid tube has
     /// no wall to drive.
     TubeWall,
-    /// A transform's translation component (Length).
+    /// A transform's translation component (Length) — step 0 of its
+    /// placement chain ([`SlotId::rigid`]).
     Translation(Axis3),
-    /// A transform's rotation-axis component (Scalar).
+    /// A transform's rotation-axis component (Scalar) — step 0.
     RotationAxis(Axis3),
-    /// A transform's rotation angle (Angle).
+    /// A transform's rotation angle (Angle) — step 0.
     RotationAngle,
+    /// A component of a LATER rigid step in a transform's placement
+    /// chain ([`crate::Placement`]): `arg` of step `step`.
+    ///
+    /// Step 0's components keep their own three slots, so a one-step
+    /// placement is addressed exactly as a transform always was, and
+    /// the index is non-zero by type, so a component has one address
+    /// ([`SlotId::rigid`] is the one mapping, [`SlotId::rigid_arg`] its
+    /// inverse). The index is the chain's own `usize`, so every step a
+    /// chain can hold has an address. A literal step has no slot and its
+    /// index is skipped, not renumbered: the address names the step,
+    /// not its rank among the rigid ones.
+    PlacementStep {
+        /// The step's index in the chain.
+        step: NonZeroUsize,
+        /// Which of the rigid step's components.
+        arg: RigidArg,
+    },
     /// A linear pattern's instance spacing (Length).
     Spacing,
     /// A circular pattern's angular step (Angle).
@@ -430,6 +450,34 @@ pub enum SlotId {
     },
 }
 
+/// **Which component of a rigid placement step** a slot addresses —
+/// the one vocabulary [`SlotId::rigid`] maps onto a slot at any step.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum RigidArg {
+    /// A translation component (Length).
+    Translation(Axis3),
+    /// A rotation-axis component (Scalar).
+    RotationAxis(Axis3),
+    /// The rotation angle (Angle).
+    RotationAngle,
+}
+
+/// **The prose of a rigid step's component**, `noun`, at chain index
+/// `step` — the one place a step is numbered for a reader. A user
+/// counts from one, so the chain's third step reads "step 3" and a gap
+/// in the numbers is a literal step, which has nothing to edit; the
+/// first step's components keep the transform's own unnumbered names,
+/// so a one-step transform reads as it always has.
+fn rigid_label(step: usize, noun: &str) -> String {
+    if step == 0 {
+        noun.to_owned()
+    } else {
+        format!("step {} {noun}", step + 1)
+    }
+}
+
 /// A slot family whose members are the three COMPONENTS of one
 /// 3-vector — the vector-valued half of [`SlotId`], named once here so
 /// that a consumer wanting to treat `Origin(X)`, `Origin(Y)` and
@@ -470,10 +518,17 @@ pub enum VectorSlot {
     U,
     /// A datum frame's second in-plane direction ([`SlotId::V`]).
     V,
-    /// A transform's translation ([`SlotId::Translation`]).
-    Translation,
-    /// A transform's rotation axis ([`SlotId::RotationAxis`]).
-    RotationAxis,
+    /// A rigid placement step's translation — step 0's is the
+    /// transform's own ([`SlotId::rigid`]).
+    Translation {
+        /// The step's index in the chain.
+        step: usize,
+    },
+    /// A rigid placement step's rotation axis ([`SlotId::rigid`]).
+    RotationAxis {
+        /// The step's index in the chain.
+        step: usize,
+    },
 }
 
 impl VectorSlot {
@@ -486,26 +541,26 @@ impl VectorSlot {
             Self::Direction => SlotId::Direction(axis),
             Self::U => SlotId::U(axis),
             Self::V => SlotId::V(axis),
-            Self::Translation => SlotId::Translation(axis),
-            Self::RotationAxis => SlotId::RotationAxis(axis),
+            Self::Translation { step } => SlotId::rigid(step, RigidArg::Translation(axis)),
+            Self::RotationAxis { step } => SlotId::rigid(step, RigidArg::RotationAxis(axis)),
         }
     }
 
     /// The family as a prose noun — the one spelling a user-facing
     /// rendering uses.
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> String {
         match self {
-            Self::Origin => "origin",
-            Self::Normal => "normal",
-            Self::Direction => "direction",
+            Self::Origin => "origin".to_owned(),
+            Self::Normal => "normal".to_owned(),
+            Self::Direction => "direction".to_owned(),
             // The SKETCH's names for them, not the vocabulary's: a
             // reader picking a frame's axes is thinking in the 2D
             // coordinates they are about to draw, and "u" alone on a
             // panel says nothing.
-            Self::U => "x axis",
-            Self::V => "y axis",
-            Self::Translation => "translation",
-            Self::RotationAxis => "rotation axis",
+            Self::U => "x axis".to_owned(),
+            Self::V => "y axis".to_owned(),
+            Self::Translation { step } => rigid_label(step, "translation"),
+            Self::RotationAxis { step } => rigid_label(step, "rotation axis"),
         }
     }
 
@@ -548,6 +603,8 @@ impl SlotId {
             | Self::TubeWindowStart
             | Self::TubeWindowEnd => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
+            // A later step's component has its step-0 twin's dimension.
+            Self::PlacementStep { arg, .. } => SlotId::rigid(0, arg).dimension(),
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
@@ -606,7 +663,6 @@ impl SlotId {
             Self::TubeWindowStart => "tube window start".to_owned(),
             Self::TubeWindowEnd => "tube window end".to_owned(),
             Self::TubeWall => "tube wall".to_owned(),
-            Self::RotationAngle => "rotation angle".to_owned(),
             Self::Spacing => "spacing".to_owned(),
             Self::Step => "angular step".to_owned(),
             Self::Count => "count".to_owned(),
@@ -616,6 +672,12 @@ impl SlotId {
             Self::Profile { loop_, step, arg } => {
                 format!("loop {loop_} step {step} · {}", arg.label())
             }
+            // A rigid step's angle, at any step; its components were
+            // answered above.
+            Self::RotationAngle | Self::PlacementStep { .. } => match self.rigid_arg() {
+                Some((step, RigidArg::RotationAngle)) => rigid_label(step, "rotation angle"),
+                _ => String::from("component"),
+            },
             // Every component variant answered above.
             Self::Origin(_)
             | Self::Normal(_)
@@ -643,8 +705,17 @@ impl SlotId {
             Self::Direction(axis) => Some((VectorSlot::Direction, axis)),
             Self::U(axis) => Some((VectorSlot::U, axis)),
             Self::V(axis) => Some((VectorSlot::V, axis)),
-            Self::Translation(axis) => Some((VectorSlot::Translation, axis)),
-            Self::RotationAxis(axis) => Some((VectorSlot::RotationAxis, axis)),
+            Self::Translation(_) | Self::RotationAxis(_) | Self::PlacementStep { .. } => {
+                match self.rigid_arg()? {
+                    (step, RigidArg::Translation(axis)) => {
+                        Some((VectorSlot::Translation { step }, axis))
+                    }
+                    (step, RigidArg::RotationAxis(axis)) => {
+                        Some((VectorSlot::RotationAxis { step }, axis))
+                    }
+                    (_, RigidArg::RotationAngle) => None,
+                }
+            }
             Self::Distance
             | Self::Radius
             | Self::ChamferDistance
@@ -664,6 +735,35 @@ impl SlotId {
             | Self::VDegree
             | Self::Stations
             | Self::Profile { .. } => None,
+        }
+    }
+
+    /// **The slot of `arg` in step `step` of a placement chain** — the
+    /// one mapping from a chain position to its address, total and
+    /// one-to-one: step 0 answers the transform's own three slots, a
+    /// later step [`SlotId::PlacementStep`]. [`SlotId::rigid_arg`] is
+    /// its inverse, and the two are the only places step 0 is told
+    /// apart.
+    pub fn rigid(step: usize, arg: RigidArg) -> SlotId {
+        let Some(step) = NonZeroUsize::new(step) else {
+            return match arg {
+                RigidArg::Translation(axis) => SlotId::Translation(axis),
+                RigidArg::RotationAxis(axis) => SlotId::RotationAxis(axis),
+                RigidArg::RotationAngle => SlotId::RotationAngle,
+            };
+        };
+        SlotId::PlacementStep { step, arg }
+    }
+
+    /// The chain position and component a rigid step's slot addresses
+    /// — [`SlotId::rigid`]'s inverse, `None` for every other slot.
+    pub fn rigid_arg(self) -> Option<(usize, RigidArg)> {
+        match self {
+            Self::Translation(axis) => Some((0, RigidArg::Translation(axis))),
+            Self::RotationAxis(axis) => Some((0, RigidArg::RotationAxis(axis))),
+            Self::RotationAngle => Some((0, RigidArg::RotationAngle)),
+            Self::PlacementStep { step, arg } => Some((step.get(), arg)),
+            _ => None,
         }
     }
 }
@@ -974,38 +1074,56 @@ pub enum TubeWindow {
     },
 }
 
-impl TubeWindow {
-    /// This window's slots, deterministic order — empty for a full
-    /// ring, the two angles for an arc.
-    ///
-    /// The one door every "which window slots" question goes through,
-    /// so the two node kinds cannot come to disagree about it
-    /// ([`PatternKind::placements`] is the same shape for the same
-    /// reason).
-    pub fn slots(&self) -> Vec<SlotId> {
-        match self {
-            TubeWindow::Full => Vec::new(),
-            TubeWindow::Arc { .. } => vec![SlotId::TubeWindowStart, SlotId::TubeWindowEnd],
+/// **THE slot table of a tube window: which [`SlotId`] each of its
+/// expressions carries, in enumeration order** — none for a full ring,
+/// the two angles for an arc. Both tube kinds read it through
+/// `tube_rows`, so neither can come to disagree with the other about
+/// which angle is which.
+macro_rules! window_rows {
+    ($window:expr, $out:expr) => {{
+        match $window {
+            TubeWindow::Full => {}
+            TubeWindow::Arc { t0, t1 } => {
+                $out.push((SlotId::TubeWindowStart, t0));
+                $out.push((SlotId::TubeWindowEnd, t1));
+            }
         }
-    }
+    }};
+}
 
-    /// The expression in one of this window's slots.
-    pub fn expr(&self, slot: SlotId) -> Option<&Expr> {
-        match (self, slot) {
-            (TubeWindow::Arc { t0, .. }, SlotId::TubeWindowStart) => Some(t0),
-            (TubeWindow::Arc { t1, .. }, SlotId::TubeWindowEnd) => Some(t1),
-            (TubeWindow::Full | TubeWindow::Arc { .. }, _) => None,
+/// **The shared and exclusive readers of one borrow-generic row
+/// table**: `rows` and `rows_mut`, each running `$table!` over `self`
+/// under its own borrow. The table is one text and match ergonomics
+/// bind `&Expr` or `&mut Expr` from it, so the two readers list the
+/// same rows in the same order. The table is also handed the reader's
+/// own name, so a table that holds another value's table reads it
+/// through the same borrow.
+macro_rules! row_readers {
+    ($vis:vis $table:ident -> $key:ty) => {
+        /// The rows of this value's slot table, shared.
+        $vis fn rows(&self) -> Vec<($key, &Expr)> {
+            let mut out = Vec::new();
+            $table!(self, rows, out);
+            out
         }
-    }
 
-    /// Mutable access to one of this window's slots.
-    pub fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr> {
-        match (self, slot) {
-            (TubeWindow::Arc { t0, .. }, SlotId::TubeWindowStart) => Some(t0),
-            (TubeWindow::Arc { t1, .. }, SlotId::TubeWindowEnd) => Some(t1),
-            (TubeWindow::Full | TubeWindow::Arc { .. }, _) => None,
+        /// The rows of this value's slot table, exclusive.
+        $vis fn rows_mut(&mut self) -> Vec<($key, &mut Expr)> {
+            let mut out = Vec::new();
+            $table!(self, rows_mut, out);
+            out
         }
-    }
+    };
+}
+pub(crate) use row_readers;
+
+/// The expression a slot table's rows pair with `key`, `None` when no
+/// row names it — the one lookup every slot and role table is read
+/// through, for either borrow.
+pub(crate) fn find_row<K: PartialEq, E>(rows: Vec<(K, E)>, key: K) -> Option<E> {
+    rows.into_iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, expr)| expr)
 }
 
 /// A pattern's replication rule (F4: LinearPattern/CircularPattern;
@@ -1602,6 +1720,14 @@ pub enum PlacementRuleFault {
         /// The linear part's determinant.
         determinant: f64,
     },
+    /// A proper placement frame that is not definitely a rigid motion
+    /// at tolerance ([`crate::placement::FrameFault::NotRigid`]).
+    NonRigidFrame {
+        /// Its index in the placement list.
+        index: usize,
+        /// The rigidity check that refused.
+        check: &'static str,
+    },
 }
 
 // The ONE prose vocabulary for this fault set — every door that
@@ -1636,6 +1762,11 @@ impl core::fmt::Display for PlacementRuleFault {
                 crate::placement::FrameFault::Improper {
                     determinant: *determinant
                 }
+            ),
+            Self::NonRigidFrame { index, check } => write!(
+                f,
+                "placement {index} {}",
+                crate::placement::FrameFault::NotRigid { check }
             ),
         }
     }
@@ -2126,21 +2257,19 @@ pub enum Node<P> {
         declare: Option<RecipeNodeId>,
     },
     /// **A rigid placement of an upstream value** (F4: Transform):
-    /// ONE map, applied to every body the input's value carries, in
-    /// that value's own order. Shape-preserving — a body places as a
-    /// body, an `Instances` value places as `Instances` — so what
-    /// this node takes is a placer's operand and not a body seat
-    /// (`eval::wire`'s `placeable_operand`).
+    /// ONE map, its placement's motion, applied to every body the
+    /// input's value carries, in that value's own order.
+    /// Shape-preserving — a body places as a body, an `Instances`
+    /// value places as `Instances` — so what this node takes is a
+    /// placer's operand and not a body seat (`eval::wire`'s
+    /// `placeable_operand`).
     Transform {
         /// The value placed: a body, a boolean's non-empty result, or
         /// an `Instances` value taken whole.
         input: RecipeNodeId,
-        /// Translation components, Length ([`SlotId::Translation`]).
-        translation: [Expr; 3],
-        /// Rotation-axis components, Scalar ([`SlotId::RotationAxis`]).
-        rotation_axis: [Expr; 3],
-        /// Rotation angle ([`SlotId::RotationAngle`]).
-        rotation_angle: Expr,
+        /// Where it goes: a chain of rigid steps and literal frames
+        /// ([`crate::Placement`]; slots per step, [`SlotId::rigid`]).
+        placement: crate::placement::Placement,
     },
     /// **A pattern of an upstream value** with a STRUCTURAL
     /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
@@ -2543,85 +2672,233 @@ impl Axis3 {
     }
 }
 
-fn comp(v: &[Expr; 3], axis: Axis3) -> &Expr {
-    &v[axis.index()]
+/// The rows of a vector of expressions stored in [`Axis3::ALL`] order:
+/// component `ax` carries the slot `$slot(ax)`, for any family `$slot`
+/// names — a variant, or a closure over a placement step's index. A pair authored in a
+/// sketch frame's 2-D coordinates yields `X` and `Y` alone, because a
+/// point in a plane has two components and `Z` names none of them.
+/// [`axis_arity`] holds the vector to two or three components, so the
+/// zip cannot drop one.
+macro_rules! axis_rows {
+    ($slot:expr, $v:expr, $out:expr) => {{
+        let v = $v;
+        axis_arity(&*v);
+        for (ax, e) in Axis3::ALL.into_iter().zip(v) {
+            $out.push(($slot(ax), e));
+        }
+    }};
 }
 
-fn comp_mut(v: &mut [Expr; 3], axis: Axis3) -> &mut Expr {
-    &mut v[axis.index()]
+/// Compiles for an array of two or three components and nothing else:
+/// the vectors [`axis_rows`] pairs with [`Axis3::ALL`].
+const fn axis_arity<E, const N: usize>(_: &[E; N]) {
+    const {
+        assert!(
+            N == 2 || N == 3,
+            "an axis vector has two or three components"
+        )
+    }
 }
 
-/// [`comp`] for a pair authored in a sketch frame's 2-D coordinates:
-/// `Z` names no component, because a point in a plane has two.
-fn comp2(v: &[Expr; 2], axis: Axis3) -> Option<&Expr> {
-    v.get(axis.index())
-}
-
-/// [`comp2`]'s mutable twin.
-fn comp2_mut(v: &mut [Expr; 2], axis: Axis3) -> Option<&mut Expr> {
-    v.get_mut(axis.index())
-}
-
-/// A placement-rule node's slot lookup, shared by [`Node::Pattern`] and
-/// [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping, so
-/// the two nodes can never drift apart on what a slot means.
+/// **THE slot table of a placement rule**, shared by [`Node::Pattern`]
+/// and [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping,
+/// so the two nodes cannot drift apart on what a slot means.
 ///
-/// `count` is the node's structural count slot when it has one.
-/// `Explicit` answers `None` for EVERY slot including `Count`: its
-/// placements are the count and carry no expressions, which is exactly
-/// what [`Node::slots`] reports for it.
-/// A placement-rule node's slot LIST, the domain of [`rule_expr`]
-/// above the same two nodes — `has_count` says whether the node holds
-/// a count expression at all, which only [`Node::PlacedUnion`] can
-/// answer `false` to.
-///
-/// The two are one mapping read two ways, so a slot listed here is a
-/// slot `rule_expr` answers for: `Explicit` carries listed placements
-/// rather than a rule, so it has no count slot (the list's length IS
-/// the count) and no expressions (the frames are structural data, D8);
-/// and a parametric rule with no count is a node
+/// `$count` is the node's count expression when it holds one (an
+/// `Option` of it, borrowed either way); a stepped rule lists it
+/// first. `Explicit` carries listed placements rather than a rule
+/// ([`PatternKind::placements`]), so it has no count slot (the list's
+/// length IS the count) and no expressions (the frames are structural
+/// data, D8). A stepped rule with no count is a node
 /// [`Node::placement_rule_fault`] refuses, not a node with a count
 /// slot nothing can read.
-fn rule_slots(has_count: bool, kind: &PatternKind) -> Vec<SlotId> {
-    let count = has_count.then_some(SlotId::Count);
-    match kind {
-        PatternKind::Linear { .. } => count
-            .into_iter()
-            .chain(Axis3::ALL.map(SlotId::Direction))
-            .chain([SlotId::Spacing])
-            .collect(),
-        PatternKind::Circular { .. } => count.into_iter().chain([SlotId::Step]).collect(),
-        PatternKind::Explicit(_) => Vec::new(),
-    }
-}
-
-fn rule_expr<'a>(count: Option<&'a Expr>, kind: &'a PatternKind, slot: SlotId) -> Option<&'a Expr> {
-    match (kind, slot) {
-        (PatternKind::Explicit(_), _) => None,
-        (_, SlotId::Count) => count,
-        (PatternKind::Linear { direction, .. }, SlotId::Direction(ax)) => Some(comp(direction, ax)),
-        (PatternKind::Linear { spacing, .. }, SlotId::Spacing) => Some(spacing),
-        (PatternKind::Circular { step, .. }, SlotId::Step) => Some(step),
-        _ => None,
-    }
-}
-
-/// [`rule_expr`]'s mutable twin — same mapping, same `Explicit` rule.
-fn rule_expr_mut<'a>(
-    count: Option<&'a mut Expr>,
-    kind: &'a mut PatternKind,
-    slot: SlotId,
-) -> Option<&'a mut Expr> {
-    match (kind, slot) {
-        (PatternKind::Explicit(_), _) => None,
-        (_, SlotId::Count) => count,
-        (PatternKind::Linear { direction, .. }, SlotId::Direction(ax)) => {
-            Some(comp_mut(direction, ax))
+macro_rules! rule_rows {
+    ($count:expr, $kind:expr, $out:expr) => {{
+        let kind = $kind;
+        if kind.placements().is_none()
+            && let Some(count) = $count
+        {
+            $out.push((SlotId::Count, count));
         }
-        (PatternKind::Linear { spacing, .. }, SlotId::Spacing) => Some(spacing),
-        (PatternKind::Circular { step, .. }, SlotId::Step) => Some(step),
-        _ => None,
-    }
+        match kind {
+            PatternKind::Linear { direction, spacing } => {
+                axis_rows!(SlotId::Direction, direction, $out);
+                $out.push((SlotId::Spacing, spacing));
+            }
+            PatternKind::Circular { step, .. } => $out.push((SlotId::Step, step)),
+            PatternKind::Explicit(_) => {}
+        }
+    }};
+}
+
+/// The rows both tube kinds share: the reference direction, the two
+/// radii, then whatever the window carries ([`window_rows`]). The
+/// hollow kind appends its wall after them.
+macro_rules! tube_rows {
+    ($u_ref:expr, $major:expr, $minor:expr, $window:expr, $out:expr) => {{
+        axis_rows!(SlotId::Direction, $u_ref, $out);
+        $out.push((SlotId::TubeMajorRadius, $major));
+        $out.push((SlotId::TubeMinorRadius, $minor));
+        window_rows!($window, $out);
+    }};
+}
+
+/// **THE slot table of a node: which [`SlotId`] each of its
+/// expressions carries, in enumeration order** — the node's own field
+/// order, deterministic.
+///
+/// The one declaration [`Node::slots`], [`Node::expr`] and
+/// [`Node::expr_mut`] read, through [`row_readers`], so a slot the
+/// enumeration lists is a slot the addressing answers for, and the
+/// shared and exclusive borrows reach the same field. `$rows` names the
+/// reader of the borrow in hand, which the profile arm asks of its
+/// payload.
+///
+/// Exhaustive on the node vocabulary, so a new node kind is classified
+/// here or the compile breaks.
+macro_rules! node_rows {
+    ($node:expr, $rows:ident, $out:expr) => {{
+        use SlotId as S;
+        match $node {
+            Node::Datum(Datum::Plane { origin, normal }) => {
+                axis_rows!(S::Origin, origin, $out);
+                axis_rows!(S::Normal, normal, $out);
+            }
+            Node::Datum(Datum::Axis { origin, direction }) => {
+                axis_rows!(S::Origin, origin, $out);
+                axis_rows!(S::Direction, direction, $out);
+            }
+            Node::Datum(Datum::Point { position }) => axis_rows!(S::Origin, position, $out),
+            // X and Y only: the frame supplies the third coordinate,
+            // and a slot for it would be a number nobody may set.
+            Node::Datum(Datum::AxisInPlane {
+                origin, direction, ..
+            }) => {
+                axis_rows!(S::Origin, origin, $out);
+                axis_rows!(S::Direction, direction, $out);
+            }
+            Node::Datum(Datum::Frame { origin, u, v }) => {
+                axis_rows!(S::Origin, origin, $out);
+                axis_rows!(S::U, u, $out);
+                axis_rows!(S::V, v, $out);
+            }
+            // Origin and normal come off the face; the spin is the
+            // one number an author chooses.
+            Node::Datum(Datum::FaceFrame { spin, .. }) => $out.push((S::Spin, spin)),
+            // A profile's slots are its program's. The payload keys its
+            // rows by program address, so it answers `S::Profile` and
+            // no other slot.
+            Node::Profile(p) => {
+                for ((loop_, step, arg), e) in p.$rows() {
+                    $out.push((S::Profile { loop_, step, arg }, e));
+                }
+            }
+            Node::Extrude { distance, .. } => $out.push((S::Distance, distance)),
+            Node::Fillet { radius, .. } => $out.push((S::Radius, radius)),
+            Node::Chamfer { distance, .. } => $out.push((S::ChamferDistance, distance)),
+            Node::Shell { thickness, .. } => $out.push((S::ShellThickness, thickness)),
+            Node::Revolve { angle, .. } => $out.push((S::RevolveAngle, angle)),
+            Node::Tube {
+                u_ref,
+                major_radius,
+                minor_radius,
+                window,
+                ..
+            } => tube_rows!(u_ref, major_radius, minor_radius, window, $out),
+            Node::HollowTube {
+                u_ref,
+                major_radius,
+                minor_radius,
+                window,
+                wall,
+                ..
+            } => {
+                tube_rows!(u_ref, major_radius, minor_radius, window, $out);
+                $out.push((S::TubeWall, wall));
+            }
+            Node::Loft { v_degree, .. } => $out.push((S::VDegree, v_degree)),
+            Node::Sweep {
+                stations, v_degree, ..
+            } => {
+                $out.push((S::Stations, stations));
+                $out.push((S::VDegree, v_degree));
+            }
+            Node::Transform { placement, .. } => $out.extend(placement.$rows()),
+            // A pattern's count is a field, so it is always there; a
+            // placed union's is an `Option`, and a rule missing the
+            // count it needs carries no count SLOT either — the
+            // mismatch is `PlacementRuleFault::CountSpelling`, refused
+            // at both doors, and not a slot address that answers
+            // nothing.
+            Node::Pattern { count, kind, .. } => rule_rows!(Some(count), kind, $out),
+            Node::PlacedUnion { count, kind, .. } => rule_rows!(count, kind, $out),
+            // A half is recipe payload, not a number anyone sets; an
+            // index is the one structural slot the projection carries.
+            Node::Part { select, .. } => match select {
+                PartSelect::SplitHalf(_) => {}
+                PartSelect::Instance(index) => $out.push((S::Instance, index)),
+            },
+            // AQ4: an instance takes no arguments in v1 — the
+            // referenced document evaluates at its OWN parameters.
+            Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Declare { .. }
+            // A11: the alignment datum is authored geometry, not a
+            // continuous slot — a mate has no expression to drive.
+            | Node::Mate { .. }
+            | Node::InstantiatePart { .. } => {}
+            // Neither carries a SLOT. A slot's address fixes its
+            // dimension ([`SlotId::dimension`]) — that is the
+            // vocabulary's contract, read by the edit door, the load
+            // re-check and the GUI alike. A measured expression is not
+            // an `Expr` at all, and an assertion's bound takes its
+            // dimension from the MEASURE it constrains, which no slot
+            // address can state. Both are recipe payload instead, fed
+            // to the content key where a fillet's selection is fed and
+            // evaluated in their own stage.
+            Node::Measure { .. } | Node::Assertion { .. } => {}
+        }
+    }};
+}
+
+impl<P: crate::ProfilePayload> Node<P> {
+    row_readers!(pub(crate) node_rows -> SlotId);
+}
+
+/// **THE slot table of a placement**: every rigid step's components at
+/// their per-step addresses ([`SlotId::rigid`]), step by step. A
+/// literal step has no slot.
+macro_rules! placement_rows {
+    ($placement:expr, $rows:ident, $out:expr) => {{
+        let crate::placement::Placement { steps } = $placement;
+        for (k, step) in steps.into_iter().enumerate() {
+            match step {
+                crate::placement::Step::Rigid {
+                    translation,
+                    axis,
+                    angle,
+                } => {
+                    axis_rows!(
+                        |ax| SlotId::rigid(k, RigidArg::Translation(ax)),
+                        translation,
+                        $out
+                    );
+                    axis_rows!(
+                        |ax| SlotId::rigid(k, RigidArg::RotationAxis(ax)),
+                        axis,
+                        $out
+                    );
+                    $out.push((SlotId::rigid(k, RigidArg::RotationAngle), angle));
+                }
+                crate::placement::Step::Literal(_) => {}
+            }
+        }
+    }};
+}
+
+impl crate::placement::Placement {
+    row_readers!(pub(crate) placement_rows -> SlotId);
 }
 
 impl<P> Node<P> {
@@ -3011,105 +3288,12 @@ impl<P> Node<P> {
     /// their PROGRAM's slots (LIB-SWITCH §4c behavior delta 3: the
     /// formerly slot-free payload now carries one slot per continuous
     /// step argument), through the payload's own [`crate::ProfilePayload`]
-    /// implementation.
+    /// rows.
     pub fn slots(&self) -> Vec<SlotId>
     where
         P: crate::ProfilePayload,
     {
-        let vec3 = |f: fn(Axis3) -> SlotId| Axis3::ALL.map(f);
-        match self {
-            Node::Datum(Datum::Plane { .. }) => {
-                let mut s = vec3(SlotId::Origin).to_vec();
-                s.extend(vec3(SlotId::Normal));
-                s
-            }
-            Node::Datum(Datum::Axis { .. }) => {
-                let mut s = vec3(SlotId::Origin).to_vec();
-                s.extend(vec3(SlotId::Direction));
-                s
-            }
-            Node::Datum(Datum::Point { .. }) => vec3(SlotId::Origin).to_vec(),
-            // X and Y only: the frame supplies the third coordinate,
-            // and a slot for it would be a number nobody may set.
-            Node::Datum(Datum::AxisInPlane { .. }) => vec![
-                SlotId::Origin(Axis3::X),
-                SlotId::Origin(Axis3::Y),
-                SlotId::Direction(Axis3::X),
-                SlotId::Direction(Axis3::Y),
-            ],
-            Node::Datum(Datum::Frame { .. }) => {
-                let mut s = vec3(SlotId::Origin).to_vec();
-                s.extend(vec3(SlotId::U));
-                s.extend(vec3(SlotId::V));
-                s
-            }
-            // Origin and normal come off the face; the spin is the
-            // one number an author chooses.
-            Node::Datum(Datum::FaceFrame { .. }) => vec![SlotId::Spin],
-            Node::Profile(p) => p.slots(),
-            // AQ4: an instance takes no arguments in v1 — the
-            // referenced document evaluates at its OWN parameters.
-            Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Union { .. }
-            | Node::Declare { .. }
-            // A11: the alignment datum is authored geometry, not a
-            // continuous slot — a mate has no expression to drive.
-            | Node::Mate { .. }
-            | Node::InstantiatePart { .. } => Vec::new(),
-            // Neither carries a SLOT. A slot's address fixes its
-            // dimension ([`SlotId::dimension`]) — that is the
-            // vocabulary's contract, read by the edit door, the load
-            // re-check and the GUI alike. A measured expression is not
-            // an `Expr` at all, and an assertion's bound takes its
-            // dimension from the MEASURE it constrains, which no slot
-            // address can state. Both are recipe payload instead, fed
-            // to the content key where a fillet's selection is fed and
-            // evaluated in their own stage.
-            Node::Measure { .. } | Node::Assertion { .. } => Vec::new(),
-            Node::Extrude { .. } => vec![SlotId::Distance],
-            Node::Fillet { .. } => vec![SlotId::Radius],
-            Node::Chamfer { .. } => vec![SlotId::ChamferDistance],
-            Node::Shell { .. } => vec![SlotId::ShellThickness],
-            Node::Revolve { .. } => vec![SlotId::RevolveAngle],
-            // The two kinds enumerate the SAME shared head — the
-            // reference direction, then the two radii, then whatever
-            // the window carries — and the hollow kind appends its
-            // wall. Written as one arm plus one push, so the shared
-            // half cannot drift between them.
-            Node::Tube { window, .. } | Node::HollowTube { window, .. } => {
-                let mut s = vec3(SlotId::Direction).to_vec();
-                s.push(SlotId::TubeMajorRadius);
-                s.push(SlotId::TubeMinorRadius);
-                s.extend(window.slots());
-                if matches!(self, Node::HollowTube { .. }) {
-                    s.push(SlotId::TubeWall);
-                }
-                s
-            }
-            Node::Loft { .. } => vec![SlotId::VDegree],
-            Node::Sweep { .. } => vec![SlotId::Stations, SlotId::VDegree],
-            Node::Transform { .. } => {
-                let mut s = vec3(SlotId::Translation).to_vec();
-                s.extend(vec3(SlotId::RotationAxis));
-                s.push(SlotId::RotationAngle);
-                s
-            }
-            // A pattern's count is a field, so it is always there; a
-            // placed union's is an `Option`, and a rule missing the
-            // count it needs carries no count SLOT either — the
-            // mismatch is `PlacementRuleFault::CountSpelling`, refused
-            // at both doors, and not a slot address that answers
-            // nothing.
-            Node::Pattern { kind, .. } => rule_slots(true, kind),
-            Node::PlacedUnion { count, kind, .. } => rule_slots(count.is_some(), kind),
-            // A half is recipe payload, not a number anyone sets; an
-            // index is the one structural slot the projection carries.
-            Node::Part { select, .. } => match select {
-                PartSelect::SplitHalf(_) => Vec::new(),
-                PartSelect::Instance(_) => vec![SlotId::Instance],
-            },
-        }
+        self.rows().into_iter().map(|(slot, _)| slot).collect()
     }
 
     /// The expression in a named slot, `None` if this node type does
@@ -3118,97 +3302,7 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        use SlotId as S;
-        match (self, slot) {
-            (Node::Profile(p), S::Profile { .. }) => p.expr(slot),
-            (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
-                Some(comp(origin, ax))
-            }
-            (Node::Datum(Datum::Plane { normal, .. }), S::Normal(ax)) => Some(comp(normal, ax)),
-            (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
-                Some(comp(direction, ax))
-            }
-            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp(u, ax)),
-            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp(v, ax)),
-            (Node::Datum(Datum::FaceFrame { spin, .. }), S::Spin) => Some(spin),
-            // `comp2` answers None for `Z`, which is the honest
-            // "this node does not carry that slot" this match is open
-            // on — not a panic and not a silent zero.
-            (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => comp2(origin, ax),
-            (Node::Datum(Datum::AxisInPlane { direction, .. }), S::Direction(ax)) => {
-                comp2(direction, ax)
-            }
-            (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
-            (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
-            (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
-            (Node::Shell { thickness, .. }, S::ShellThickness) => Some(thickness),
-            (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
-            (Node::Tube { u_ref, .. } | Node::HollowTube { u_ref, .. }, S::Direction(ax)) => {
-                Some(comp(u_ref, ax))
-            }
-            (
-                Node::Tube { major_radius, .. } | Node::HollowTube { major_radius, .. },
-                S::TubeMajorRadius,
-            ) => Some(major_radius),
-            (
-                Node::Tube { minor_radius, .. } | Node::HollowTube { minor_radius, .. },
-                S::TubeMinorRadius,
-            ) => Some(minor_radius),
-            (Node::HollowTube { wall, .. }, S::TubeWall) => Some(wall),
-            // The window answers for its own two slots, so "which
-            // angle is which" has one home ([`TubeWindow::expr`]).
-            (Node::Tube { window, .. } | Node::HollowTube { window, .. }, s) => window.expr(s),
-            (Node::Loft { v_degree, .. }, S::VDegree)
-            | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
-            (Node::Sweep { stations, .. }, S::Stations) => Some(stations),
-            (Node::Transform { translation, .. }, S::Translation(ax)) => {
-                Some(comp(translation, ax))
-            }
-            (Node::Transform { rotation_axis, .. }, S::RotationAxis(ax)) => {
-                Some(comp(rotation_axis, ax))
-            }
-            (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
-            (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
-            (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
-            (
-                Node::Part {
-                    select: PartSelect::Instance(index),
-                    ..
-                },
-                S::Instance,
-            ) => Some(index),
-            // EXHAUSTIVE on the NODE axis, open on the slot axis: a new
-            // node kind must be classified here or the compile breaks,
-            // while "this node does not carry that slot" stays the
-            // honest answer for a slot the listed arms did not claim.
-            // `Pattern`, `PlacedUnion` and the two tube kinds are
-            // absent because their arms above already bind every slot.
-            (
-                Node::Datum(..)
-                | Node::Profile(..)
-                | Node::Extrude { .. }
-                | Node::Revolve { .. }
-                | Node::Loft { .. }
-                | Node::Sweep { .. }
-                | Node::Fillet { .. }
-                | Node::Chamfer { .. }
-                | Node::Shell { .. }
-                | Node::Split { .. }
-                | Node::Boolean { .. }
-                | Node::Union { .. }
-                | Node::Transform { .. }
-                | Node::Part { .. }
-                | Node::Declare { .. }
-                | Node::InstantiatePart { .. }
-                | Node::Mate { .. }
-                | Node::Measure { .. }
-                | Node::Assertion { .. },
-                _,
-            ) => None,
-        }
+        find_row(self.rows(), slot)
     }
 
     /// Mutable access to a named slot's expression (the edit layer's
@@ -3217,90 +3311,7 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        use SlotId as S;
-        match (self, slot) {
-            (Node::Profile(p), S::Profile { .. }) => p.expr_mut(slot),
-            (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
-            | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
-                Some(comp_mut(origin, ax))
-            }
-            (Node::Datum(Datum::Plane { normal, .. }), S::Normal(ax)) => Some(comp_mut(normal, ax)),
-            (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
-                Some(comp_mut(direction, ax))
-            }
-            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp_mut(u, ax)),
-            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp_mut(v, ax)),
-            (Node::Datum(Datum::FaceFrame { spin, .. }), S::Spin) => Some(spin),
-            (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => {
-                comp2_mut(origin, ax)
-            }
-            (Node::Datum(Datum::AxisInPlane { direction, .. }), S::Direction(ax)) => {
-                comp2_mut(direction, ax)
-            }
-            (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
-            (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
-            (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
-            (Node::Shell { thickness, .. }, S::ShellThickness) => Some(thickness),
-            (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
-            (Node::Tube { u_ref, .. } | Node::HollowTube { u_ref, .. }, S::Direction(ax)) => {
-                Some(comp_mut(u_ref, ax))
-            }
-            (
-                Node::Tube { major_radius, .. } | Node::HollowTube { major_radius, .. },
-                S::TubeMajorRadius,
-            ) => Some(major_radius),
-            (
-                Node::Tube { minor_radius, .. } | Node::HollowTube { minor_radius, .. },
-                S::TubeMinorRadius,
-            ) => Some(minor_radius),
-            (Node::HollowTube { wall, .. }, S::TubeWall) => Some(wall),
-            (Node::Tube { window, .. } | Node::HollowTube { window, .. }, s) => window.expr_mut(s),
-            (Node::Loft { v_degree, .. }, S::VDegree)
-            | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
-            (Node::Sweep { stations, .. }, S::Stations) => Some(stations),
-            (Node::Transform { translation, .. }, S::Translation(ax)) => {
-                Some(comp_mut(translation, ax))
-            }
-            (Node::Transform { rotation_axis, .. }, S::RotationAxis(ax)) => {
-                Some(comp_mut(rotation_axis, ax))
-            }
-            (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
-            (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
-            (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
-            (
-                Node::Part {
-                    select: PartSelect::Instance(index),
-                    ..
-                },
-                S::Instance,
-            ) => Some(index),
-            // EXHAUSTIVE on the NODE axis, open on the slot axis (the
-            // `expr` rule).
-            (
-                Node::Datum(..)
-                | Node::Profile(..)
-                | Node::Extrude { .. }
-                | Node::Revolve { .. }
-                | Node::Loft { .. }
-                | Node::Sweep { .. }
-                | Node::Fillet { .. }
-                | Node::Chamfer { .. }
-                | Node::Shell { .. }
-                | Node::Split { .. }
-                | Node::Boolean { .. }
-                | Node::Union { .. }
-                | Node::Transform { .. }
-                | Node::Part { .. }
-                | Node::Declare { .. }
-                | Node::InstantiatePart { .. }
-                | Node::Mate { .. }
-                | Node::Measure { .. }
-                | Node::Assertion { .. },
-                _,
-            ) => None,
-        }
+        find_row(self.rows_mut(), slot)
     }
 
     /// The [`StableName`]s this payload REFERENCES — `Declare` pairs, a
@@ -3658,6 +3669,58 @@ impl<P> Node<P> {
         })
     }
 
+    /// Builds a [`Node::Transform`] of `input` by `placement` — a
+    /// [`crate::Placement`], or one [`crate::Step`] (a rigid step's
+    /// components named, `Step::Rigid { translation, axis, angle }`).
+    pub fn transform(
+        input: RecipeNodeId,
+        placement: impl Into<crate::placement::Placement>,
+    ) -> Self {
+        Node::Transform {
+            input,
+            placement: placement.into(),
+        }
+    }
+
+    /// The first literal frame this node's PLACEMENT holds that the
+    /// admission rule refuses at `tol`, with its step index
+    /// ([`crate::Placement::frame_fault`]) — the one question the edit
+    /// door and the load door ask of a transform's literal steps.
+    /// `None` for every node without a placement.
+    pub fn placement_frame_fault(
+        &self,
+        tol: geom_core::Tol,
+    ) -> Option<(usize, crate::placement::FrameFault)> {
+        match self {
+            Node::Transform { placement, .. } => placement.frame_fault(tol),
+            // EXHAUSTIVE, as `placement_rule_fault` is: a node kind that
+            // comes to hold a placement is classified here or the
+            // compile breaks, rather than slipping past both doors.
+            Node::Datum(..)
+            | Node::Profile(..)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Loft { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
+    }
+
     /// Builds a [`Node::PlacedUnion`] over LISTED absolute frames — the
     /// count is the list's length, so there is no count slot to
     /// disagree with it.
@@ -3669,11 +3732,12 @@ impl<P> Node<P> {
         }
     }
 
-    /// What is wrong with this node's placement rule, if anything —
-    /// the ONE door the edit gate, the persist re-check and the
-    /// evaluation backstop all read, so the three can never diverge on
-    /// what a usable rule is. `None` for every non-placement node.
-    pub fn placement_rule_fault(&self) -> Option<PlacementRuleFault> {
+    /// What is wrong with this node's placement rule, if anything, with
+    /// its frames admitted at `tol` — the ONE door the edit gate, the
+    /// persist re-check and the evaluation backstop all read, so the
+    /// three can never diverge on what a usable rule is. `None` for
+    /// every non-placement node.
+    pub fn placement_rule_fault(&self, tol: geom_core::Tol) -> Option<PlacementRuleFault> {
         let (count_present, kind) = match self {
             // Pattern's count is a non-optional field, so it always
             // "has" one — which is why an explicit list there is
@@ -3732,12 +3796,15 @@ impl<P> Node<P> {
         frames
             .iter()
             .enumerate()
-            .find_map(|(index, frame)| match frame.admission_fault()? {
+            .find_map(|(index, frame)| match frame.admission_fault(tol)? {
                 crate::placement::FrameFault::NonFinite => {
                     Some(PlacementRuleFault::NonFiniteFrame { index })
                 }
                 crate::placement::FrameFault::Improper { determinant } => {
                     Some(PlacementRuleFault::ImproperFrame { index, determinant })
+                }
+                crate::placement::FrameFault::NotRigid { check } => {
+                    Some(PlacementRuleFault::NonRigidFrame { index, check })
                 }
             })
     }
@@ -3774,10 +3841,10 @@ impl<P> Node<P> {
     }
 
     /// **The slot-dimension rule, asked of this node** (spec D6):
-    /// every slot [`Node::slots`] names answers an expression, and
-    /// that expression carries the dimension [`SlotId::dimension`]
-    /// fixes for the address. `None` when the node carries no slot at
-    /// all, which is most of the assembly vocabulary.
+    /// every expression the slot table pairs with a slot carries the
+    /// dimension [`SlotId::dimension`] fixes for that address. `None`
+    /// when the node carries no slot at all, which is most of the
+    /// assembly vocabulary.
     ///
     /// One home for the question, read by the edit doors
     /// (`check_node_slots`) and by the load door's walk, each naming
@@ -3789,21 +3856,9 @@ impl<P> Node<P> {
     where
         P: crate::ProfilePayload,
     {
-        self.slots().into_iter().find_map(|slot| {
-            // `slots()` IS `expr()`'s domain — the two matches answer
-            // for the same payload — so a slot with no expression is a
-            // bug in this module, not a document a door may refuse.
-            // Pinned for every node kind by
-            // `switch_slots::every_node_kinds_slots_are_all_readable`.
-            let Some(expr) = self.expr(slot) else {
-                unreachable!(
-                    "slot {}: `Node::slots` names it and `Node::expr` does not answer for it — \
-                     the two matches in this module disagree",
-                    slot.label()
-                )
-            };
-            slot.dimension_fault(expr)
-        })
+        self.rows()
+            .into_iter()
+            .find_map(|(slot, expr)| slot.dimension_fault(expr))
     }
 
     /// What is wrong with this node's measured expression, if anything
@@ -3945,6 +4000,26 @@ impl<P: PartialEq> Node<P> {
             && !a.bit_eq(b)
         {
             return false;
+        }
+        // A literal FRAME is float payload no slot addresses, and the
+        // `PartialEq` above compares its coordinates by value: a
+        // transform's literal steps and an explicit rule's listed
+        // frames compare here, by bits.
+        match (self, other) {
+            (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. }) => {
+                if !a.bit_eq(b) {
+                    return false;
+                }
+            }
+            (Node::Pattern { kind: a, .. }, Node::Pattern { kind: b, .. })
+            | (Node::PlacedUnion { kind: a, .. }, Node::PlacedUnion { kind: b, .. }) => {
+                if let (Some(fa), Some(fb)) = (a.placements(), b.placements())
+                    && !(fa.len() == fb.len() && fa.iter().zip(fb).all(|(x, y)| x.bit_eq(y)))
+                {
+                    return false;
+                }
+            }
+            _ => {}
         }
         // Equal payloads have identical slot sets; compare each
         // slot's literal bits (slots() order is deterministic).

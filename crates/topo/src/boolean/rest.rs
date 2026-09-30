@@ -84,7 +84,7 @@ use super::ops::{
     merge_rows, remap_carried, remap_contacts, volume_backstop,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
-use super::reduce::{face_plane, face_plane_source};
+use super::reduce::{face_oriented_source, face_plane};
 use super::zip::{ZipReport, zip_seam};
 use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
@@ -424,7 +424,7 @@ fn enumerate_segments<T: Decide>(
             });
         }
     }
-    let escalate = |diag| BooleanError::Escalated { diag };
+    let escalate = BooleanError::coincidence;
     let mut segments = Vec::new();
     loop {
         // Globally nearest mutually-facing unused pair (the join's
@@ -500,7 +500,7 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 
 /// **The one flush-pair door**: the C4 verify ladder for a single
 /// cross-body face pair — descriptions through [`face_plane`]
-/// (outward, sense-folded), identity through [`face_plane_source`]
+/// (outward, sense-folded), identity through [`face_oriented_source`]
 /// (oriented sources, S10: the descriptions compared are the two
 /// faces' OUTWARD normals, so rung 1's `orient` tags carry the face
 /// senses too — REST contact is precisely the `SameOpposite`
@@ -537,7 +537,7 @@ pub fn flush_pair_relation<T: Decide>(
     band: Band,
 ) -> Option<Result<PlaneRelation, PlaneEqError>> {
     let (pa, pb) = (face_plane(a, fa)?, face_plane(b, fb)?);
-    let (ga, gb) = (face_plane_source(a, fa), face_plane_source(b, fb));
+    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
         s2: gb.as_ref(),
@@ -639,7 +639,7 @@ pub fn carrier_pair_verdict<T: Decide>(
     band: Band,
 ) -> Option<Result<(CarrierRelation, crate::contact::ContactVerdict), CarrierEqError>> {
     let (ca, cb) = (face_carrier(a, fa)?, face_carrier(b, fb)?);
-    let (ga, gb) = (face_plane_source(a, fa), face_plane_source(b, fb));
+    let (ga, gb) = (face_oriented_source(a, fa), face_oriented_source(b, fb));
     let id = PlaneIdentity {
         s1: ga.as_ref(),
         s2: gb.as_ref(),
@@ -995,7 +995,7 @@ fn verify_declared_pairs<T: Decide>(
                     what: "REST lane: declared rung returned Distinct instead of contradicting",
                 });
             }
-            Err(PlaneEqError::Contradicted(diag)) => {
+            Err(PlaneEqError::Contradicted { fact, diag }) => {
                 // C4's verify-at-use: the refusal names the pair, the
                 // CLASS that was claimed and the margin that decided —
                 // and steers to the class that would fit when the
@@ -1006,12 +1006,17 @@ fn verify_declared_pairs<T: Decide>(
                         b: fb,
                         class: ContactClass::Rest,
                     },
-                    steer: super::contact_verify::fit_steer(&diag),
+                    steer: super::contact_verify::fit_steer(fact),
+                    fact: Some(fact),
                     margin: diag,
                 });
             }
-            Err(PlaneEqError::Escalated(diag)) => {
-                return Err(BooleanError::Escalated { diag });
+            Err(PlaneEqError::Escalated { rung, diag }) => {
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    super::PlaneDoor::Declared,
+                    diag,
+                ));
             }
             Err(PlaneEqError::Undeclared { diag, relation }) => {
                 // Unreachable with declared=true; refuse loudly anyway.
@@ -2031,7 +2036,10 @@ fn zip_folded<T: Decide>(
             FaceSurface::Inherit,
             tol,
         )?;
-        body.kev(made.he_plus)
+        // The fuse merges the b copy into the a copy across a certified
+        // circle: the merged fan keeps its carriers, re-certified at the
+        // a copy under the run's band.
+        body.kev_describing(made.he_plus, &[], tol)
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
         report.vertex_merges.push((eb, sa));
         report.seam_edges.push(edge_of(body, ha)?);

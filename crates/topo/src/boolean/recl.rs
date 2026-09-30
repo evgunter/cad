@@ -60,10 +60,12 @@ fn carrier_of<T: Decide>(
 /// The geometrically-ON sector pair's carrier identity check, with the
 /// M4 PR 5 evidence: the two faces' recipe sources (N6) plus the
 /// consuming op's declared face pairs (F5). The sources are the
-/// ORIENTED ones ([`super::reduce::face_plane_source`]): rung 1
-/// decides Same± from `orient`, and the descriptions it decides about
-/// are material sides, so the face senses must be composed in or a
-/// same-surface opposite-sense pair reads SameOriented.
+/// ORIENTED ones ([`super::reduce::face_oriented_source`]): the plane
+/// rung 1 decides Same± from `orient`, and the descriptions it decides
+/// about are material sides, so the face senses must be composed in or
+/// a same-surface opposite-sense pair reads SameOriented. A curved pair's
+/// rung reads the carriers' `outward` bits instead (that function's
+/// docs).
 ///
 /// C8: a CURVED sector pair descends the ladder only under a declared
 /// `Rest` pair — an undeclared on-carrier curved pair keeps the typed
@@ -121,8 +123,8 @@ fn require_same<T: Decide>(
         }
     }
     let (g1, g2) = (
-        super::reduce::face_plane_source(body1, s1.face),
-        super::reduce::face_plane_source(body2, s2.face),
+        super::reduce::face_oriented_source(body1, s1.face),
+        super::reduce::face_oriented_source(body2, s2.face),
     );
     let id = super::PlaneIdentity {
         s1: g1.as_ref(),
@@ -134,7 +136,11 @@ fn require_same<T: Decide>(
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
         Ok(rel) => Ok(rel),
-        Err(PlaneEqError::Escalated(diag)) => Err(BooleanError::Escalated { diag }),
+        Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
+            rung,
+            super::PlaneDoor::of(declared_rest),
+            diag,
+        )),
         Err(PlaneEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
                 diag,
@@ -142,8 +148,8 @@ fn require_same<T: Decide>(
                 relation,
             })
         }
-        Err(PlaneEqError::Contradicted(diag)) => {
-            Err(BooleanError::DeclarationContradicted { diag })
+        Err(PlaneEqError::Contradicted { fact, .. }) => {
+            Err(BooleanError::DeclarationContradicted { fact })
         }
     }
 }
@@ -709,7 +715,7 @@ fn resolve_edge_edge<T: Decide>(
                                 what: "degenerate rep pair in edge-edge membership",
                             });
                         }
-                        Err(diag) => return Err(BooleanError::Escalated { diag }),
+                        Err(diag) => return Err(BooleanError::coincidence(diag)),
                     };
                     if !same {
                         inside = false; // touching, not overlapping
@@ -1004,12 +1010,12 @@ fn parallel_same_dir<T: Decide>(
     ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::Escalated { diag }),
+        Err(diag) => return Err(BooleanError::coincidence(diag)),
     }
     match decide("bool_dir_same", Margin::levered(un.dot(vn), arm), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(_) => Ok(false),
-        Err(diag) => Err(BooleanError::Escalated { diag }),
+        Err(diag) => Err(BooleanError::coincidence(diag)),
     }
 }
 
@@ -1068,7 +1074,7 @@ mod tests {
         assert!(
             matches!(
                 resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0)),
-                Err(BooleanError::Escalated { diag })
+                Err(BooleanError::Escalated { diag, .. })
                     if diag.predicate == Some("bool_sector_bisector_side")
             ),
             "the graze between two Out keys refuses"

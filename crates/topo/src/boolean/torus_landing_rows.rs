@@ -126,8 +126,14 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
             minor_radius: r,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        body.set_face_surface(face, crate::euler::FaceSurface::New(surface.clone()))
-            .unwrap();
+        body.set_face_surface(
+            face,
+            crate::euler::FaceSurface::New {
+                surface: surface.clone(),
+                sense: true,
+            },
+        )
+        .unwrap();
         let drawn = (0..400).map(|k| {
             let o = Point3::new(
                 rng.range(-(big_r + r), big_r + r),

@@ -252,12 +252,15 @@ fn r1_e2e_direct_door_over_one_of_two_with_an_unmintable_neighbour() {
     let victim = faces_of(&pair, bx)[0];
     pair.set_face_surface(
         victim,
-        topo::FaceSurface::New(geom::Surface::Cylinder {
-            origin: Point3::new(10.5, 0.5, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 0.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Cylinder {
+                origin: Point3::new(10.5, 0.5, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 0.5,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .expect("the chart attaches");
     let mut probe = pair.clone();

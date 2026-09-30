@@ -32,7 +32,8 @@ use crate::common;
 
 use common::{ang, len, len3, plate_index, scl3, session_insert};
 use pncad::document::{
-    Dimension, Doc, Node, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId, SlotId,
+    Dimension, Doc, Node, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId,
+    SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
@@ -520,12 +521,16 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
         "expected a selection-resolve refusal, got {:?}",
         error.kind
     );
-    let rows = tree::rows(session.committed_doc(), Some(eval));
+    let rows = tree::rows(
+        session.committed_doc(),
+        Some(eval),
+        &viewer::parts::PartFiles::default(),
+    );
     let row = rows
         .iter()
         .find(|row| row.id == fillet)
         .expect("the fillet has a tree row");
-    let RowStatus::Failed { message } = &row.status else {
+    let RowStatus::Failed { message, .. } = &row.status else {
         panic!("the authored blend badges FAILED, got {:?}", row.status);
     };
     assert_eq!(
@@ -563,13 +568,17 @@ fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
         "the kernel's own refusal, carried unaltered: {:?}",
         error.kind
     );
-    let rows = tree::rows(session.committed_doc(), Some(eval));
+    let rows = tree::rows(
+        session.committed_doc(),
+        Some(eval),
+        &viewer::parts::PartFiles::default(),
+    );
     let row = rows
         .iter()
         .find(|row| row.id == fillet)
         .expect("the fillet has a tree row");
     assert!(
-        matches!(&row.status, RowStatus::Failed { message } if *message == error.to_string()),
+        matches!(&row.status, RowStatus::Failed { message, .. } if *message == error.to_string()),
         "the badge renders the typed refusal: {:?}",
         row.status
     );
@@ -1001,7 +1010,8 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
 /// **Nothing landed is not "it is gone"**, and a target that failed
 /// outright costs no picks: the strand test needs an evaluation with
 /// an answer, and a run that has none says nothing rather than
-/// emptying the set.
+/// emptying the set. Loading all its edges refuses under its
+/// standing, not as a body with no edges.
 #[test]
 fn the_strand_check_is_not_asked_without_an_answer() {
     let tol = Tol::witness();
@@ -1009,6 +1019,9 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let mut tools = picked_all(&session, target);
+    // The picture's index from the run in which the target built: a
+    // run with a failed root indexes nothing.
+    let index = plate_index(&session);
 
     // No landed pair at all.
     assert!(
@@ -1017,9 +1030,8 @@ fn the_strand_check_is_not_asked_without_an_answer() {
     );
     assert_eq!(blend(&tools).count(), BOX_EDGES);
 
-    // A target that FAILS: the extrude's distance goes to zero, the
-    // node has no value, and `all_edges` answers empty for a reason
-    // that is not "the body lost every edge".
+    // A target that FAILS: the extrude's distance goes to zero and the
+    // node has no value.
     assert!(
         session
             .perform(SessionOp::SetSlot {
@@ -1043,6 +1055,36 @@ fn the_strand_check_is_not_asked_without_an_answer() {
         "a failed run costs no picks"
     );
     assert_eq!(blend(&tools).count(), BOX_EDGES, "the set is intact");
+
+    let standing = NodeStanding::Failed { node: target };
+    let refused = tools
+        .blend_mut()
+        .expect("the blend tool is open")
+        .load_all_edges(
+            whole(target),
+            session.evaluation().expect("the inline seam landed"),
+            &index,
+        );
+    assert_eq!(
+        refused,
+        Some(BlendEvent::TargetHasNoValue {
+            target: whole(target),
+            standing
+        }),
+        "the load says the target's standing"
+    );
+    assert_eq!(
+        refused.map(|event| event.to_string()),
+        Some(format!(
+            "{} has no edges to select: {standing}",
+            whole(target)
+        )),
+    );
+    assert_eq!(
+        blend(&tools).count(),
+        BOX_EDGES,
+        "a refused load costs no held edge"
+    );
 }
 
 /// **Un-picking the last edge releases the target**, so the next click

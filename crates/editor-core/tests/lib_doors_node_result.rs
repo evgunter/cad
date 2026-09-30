@@ -164,8 +164,11 @@ fn refusals_render_as_prose_not_debug_guts() {
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
     // bindings raise it under an error class that already says Edit),
-    // so the sentence states the problem and nothing else.
-    assert_eq!(edit.to_string(), "node 7 is not live");
+    // so the sentence states the problem and its recourse, nothing else.
+    assert_eq!(
+        edit.to_string(),
+        "node 7 is not live. Recourse: aim the edit at a node the document holds"
+    );
 
     let literal = Expr::literal(f64::NAN, Dimension::Length).expect_err("NaN refuses");
     assert!(matches!(literal, DimensionError::NonFiniteLiteral));
@@ -506,7 +509,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
     };
     let cases: Vec<(String, &[&str])> = vec![
         (
-            EvalError::UnknownParam(ParamName::new("width")).to_string(),
+            EvalError::UnknownParam(ParamName::from_static("width")).to_string(),
             &[
                 "parameter width",
                 "has no binding",
@@ -521,7 +524,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::Vanished {
                 name: name(EntityKind::Face),
                 diagnosis: Diagnosis::PredicateFlip {
-                    predicate: "coincidence",
+                    predicate: "name_frag_side_of",
                     from: geom_core::Sign::Zero,
                     to: geom_core::Sign::Positive,
                     source: editor_core::FlipSource::VerdictLog,
@@ -532,7 +535,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             &[
                 "face name minted by node 5",
                 "no longer resolves",
-                "predicate coincidence flipped",
+                "the margin deciding the side of a cut a face lies on flipped from zero to positive",
             ],
         ),
         (

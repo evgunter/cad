@@ -81,8 +81,8 @@ fn numeric_lane() -> DriveConfig {
     }
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
 /// The ε-scaled half-width every parametric row here uses — M10-5's
@@ -113,7 +113,7 @@ fn eval_over<T: editor_core::EvalScalar>(
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
 
-fn one_axis(n: &str, h: f64) -> ParamBox {
+fn one_axis(n: &'static str, h: f64) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(name(n), BoxAxis::Varying { lo: -h, hi: h });
     ParamBox::from_axes(axes)
@@ -156,16 +156,18 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         profile,
         distance: len(2.0),
     });
-    let placed = r.insert(Node::Transform {
-        input: solid,
-        translation: [
-            Expr::param(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let placed = r.insert(Node::transform(
+        solid,
+        editor_core::Step::Rigid {
+            translation: [
+                Expr::param(name("place"), Dimension::Length),
+                len(0.0),
+                len(0.0),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     // The two facing walls of the unit square: their distance is 1.0.
     let measure = r.insert(
         Node::measure(

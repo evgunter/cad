@@ -2,10 +2,13 @@
 id: the-exhaustive-argument-is-restated-in-the-viewer-suites
 kind: issue
 title: The exhaustive-match argument is restated in four viewer suites, two of them beside a variant count that has gone stale
-status: open
+status: closed
 opened: 2026-09-24
 priority: P4
 cost: E
+closed: 2026-09-29
+branch: chrome/create-residue
+pr: 3450
 ---
 
 
@@ -40,3 +43,15 @@ compiler-held roster is a second claim with nothing holding it.
 `grep -rniE 'exhaustive|wildcard' crates/viewer/tests`, read. The
 other hits there are about an exhaustive WALK (`pick3_acceptance.rs`,
 `index_memo.rs`), a different sense of the word.
+
+## Closed 2026-09-29 (`chrome/create-residue`, PR 3450)
+
+Cut in `panel_edits.rs` (the `f6_variants!` roster doc; the
+"nineteenth arm" bullet), `combine_ops.rs` (`open_flags`) and
+`gesture_table.rs` (the module doc, `expected`,
+`cancels_a_gesture`, `replaces_the_document`, and the free-move row's
+doc). Each keeps its local half, and all four "forty-third" ordinals
+are gone. The sweep found one more stale count beside the roster
+(`replaces_the_document`'s preamble said the value table had *25
+refusals*, *24* of them moving and `ProbeBounds` the *twenty-fifth*;
+`expected` holds 29). It is now worded without numbers.

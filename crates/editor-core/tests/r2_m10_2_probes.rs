@@ -830,12 +830,14 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
             ),
             (
                 "transform",
-                Node::Transform {
-                    input: victim,
-                    translation: [len(1.0), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                },
+                Node::transform(
+                    victim,
+                    editor_core::Step::Rigid {
+                        translation: [len(1.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                ),
             ),
             (
                 "extrude-profile",
@@ -1042,12 +1044,14 @@ fn r2_a_transform_has_no_emission_to_measure() {
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Transform {
-                input: b,
-                translation: [len(100.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            node: Node::transform(
+                b,
+                editor_core::Step::Rigid {
+                    translation: [len(100.0), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         },
     );
     let ev = eval(&d3);
@@ -1397,7 +1401,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let d0 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::from_static("s"),
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
@@ -1411,7 +1415,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(ParamName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar is a Length");
     let (d2, id) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
@@ -1425,7 +1429,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
                 profile: RecipeNodeId(1),
                 distance: Expr::div(
                     len(13.0),
-                    Expr::param(ParamName::new("s"), Dimension::Scalar),
+                    Expr::param(ParamName::from_static("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
             },
@@ -1464,7 +1468,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let d0 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::from_static("s"),
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
@@ -1478,7 +1482,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(ParamName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);

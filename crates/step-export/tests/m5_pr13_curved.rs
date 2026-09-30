@@ -726,7 +726,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
     // names the frontier.
     let mut skeleton = topo::Body::<f64>::new();
     skeleton
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap();
     match step_string(&skeleton, &StepOptions::default(), Tol::witness()) {
         Err(StepExportError::UnsupportedSurface { kind, .. }) => {

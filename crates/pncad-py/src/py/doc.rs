@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 24] {
+) -> [(&'static str, Py<PyAny>); 25] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -74,7 +74,7 @@ fn edit_fields(
         ("input", node(payload.input)),
         ("referenced_by", node(payload.referenced_by)),
         ("slot", word(payload.slot)),
-        ("param", word(payload.param.map(|p| p.0.as_str()))),
+        ("param", word(payload.param.map(|p| p.as_str()))),
         (
             "name",
             opt(payload.name.map(|n| name_text(py, n).map(|s| text(&s)))),
@@ -113,6 +113,10 @@ fn edit_fields(
             num(payload.determinant.map(|v| infallible(v.into_pyobject(py)))),
         ),
         (
+            "index",
+            num(payload.index.map(|n| infallible(n.into_pyobject(py)))),
+        ),
+        (
             "path",
             opt(payload.path.map(|p| {
                 pyo3::types::PyTuple::new(py, p.iter().map(|i| u32::from(*i)))
@@ -143,13 +147,22 @@ fn edit_fields(
 /// where it holds none, and the rest is the arm's payload
 /// (`crate::edit_payload`). All of them are always present.
 pub(crate) fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
+    // `EditError` implements `Display`: the human message is real
+    // prose; the machine payload is the `variant` tag (see
+    // `crate::tags`) and the arm's fields.
+    edit_err_saying(py, err, err.to_string())
+}
+
+/// [`edit_err`] with a message of the raising door's own: a door that
+/// raises an `EditError` arm for a refusal that is not an edit states
+/// the arm's problem (`EditError::problem`) and its own recourse,
+/// since the edit door's recourse is about an edit nobody made. The
+/// tag and payload are the arm's, as at every other site.
+fn edit_err_saying(py: Python<'_>, err: &d::EditError, message: String) -> PyErr {
     typed_err(
         py,
         ErrorClass::Edit,
-        // `EditError` implements `Display`: the human message is real
-        // prose; the machine payload is the `variant` tag (see
-        // `crate::tags`) and the arm's fields.
-        err.to_string(),
+        message,
         &edit_fields(
             py,
             edit_error_tag(err),
@@ -342,7 +355,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             word(crate::tags::distribution_fault_tag(fault)),
             none(),
             none(),
-            text(&p.0),
+            text(p.as_str()),
             none(),
             none(),
             none(),
@@ -363,7 +376,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&p.0),
+            text(p.as_str()),
             dim(*measures),
             dim(*was),
             none(),
@@ -715,15 +728,6 @@ pub(crate) fn piece_text(piece: &pncad::select::ProfileEdgeRef) -> PyResult<Stri
     })
 }
 
-/// Read a profile piece back from [`piece_text`]'s output.
-pub(crate) fn piece_from_text(text: &str) -> PyResult<pncad::select::ProfileEdgeRef> {
-    serde_json::from_str(text).map_err(|err| {
-        pyo3::exceptions::PyValueError::new_err(format!(
-            "not a profile piece: {text:?} ({err}) — pieces come from `Doc.pieces`"
-        ))
-    })
-}
-
 /// Read a stable name back from [`name_text`]'s output.
 ///
 /// Text that is not a name at all is a boundary `ValueError` — the
@@ -776,9 +780,9 @@ pub(crate) fn face_name_from_text(
 /// carry is a different question and belongs to the kernel, which
 /// answers it as `unknown_slot` naming the slot the node lacks.
 ///
-/// `profile` is a word of the alphabet with no slot to read back:
-/// the rest of its address is two integers and an argument role that
-/// the word does not carry, so it refuses in its own sentence rather
+/// `profile` and `placement_step` are words of the alphabet with no
+/// slot to read back: the rest of each address holds an integer the
+/// word does not carry, so each refuses in its own sentence rather
 /// than as a misspelling.
 fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
     if let Some(slot) = crate::slot_word::slot_from_word(word) {
@@ -789,6 +793,11 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
             "`profile` addresses one expression inside a profile program, and the rest of \
          that address — a loop index, a step index and which argument — is not carried \
          by the word: a profile's numbers are re-authored, not edited at a slot"
+                .to_owned()
+        } else if word == "placement_step" {
+            "`placement_step` addresses one expression of a later step of a transform's \
+         placement, and the rest of that address — the step index and which component — \
+         is an integer the word does not carry, so no slot word here writes at it"
                 .to_owned()
         } else {
             format!(
@@ -1059,16 +1068,66 @@ impl Doc {
     }
 
     /// **The minted id of every step of the profile at `profile`**, one
-    /// list per loop in program order — what `DocEdit.set_program`
-    /// keeps a step by.
+    /// list per loop in program order.
+    ///
+    /// The positional reading, for a caller that holds no handle;
+    /// `Doc.step` reaches one step's id from the handle its authoring
+    /// call returned.
     ///
     /// Raises `ValueError` for a node that is not a profile.
-    fn step_ids(&self, profile: &NodeId) -> PyResult<Vec<Vec<u64>>> {
+    fn step_ids(&self, profile: &NodeId) -> PyResult<Vec<Vec<super::step::StepId>>> {
         Ok(profile_of(&self.inner, profile)?
             .ids
             .iter()
-            .map(|loop_| loop_.iter().map(|s| s.0).collect())
+            .map(|loop_| loop_.iter().copied().map(super::step::StepId).collect())
             .collect())
+    }
+
+    /// **The id the profile at `profile` minted for the step `h`
+    /// addresses** in its loop `loop`, which the author states: `h` is
+    /// the `.step` of the chain state (or closed loop) the step's verb
+    /// returned.
+    ///
+    /// Raises `StepHandleError` `handle_off_program` where the loop's
+    /// program has no step at that index with that shape up to it — a
+    /// handle is valid for the program it was authored for, and a
+    /// value edit keeps it valid — and `ValueError` for a node that is
+    /// not a profile.
+    #[pyo3(signature = (profile, r#loop, h))]
+    fn step(
+        &self,
+        py: Python<'_>,
+        profile: &NodeId,
+        r#loop: u32,
+        h: &super::step::AuthoredStep,
+    ) -> PyResult<super::step::StepId> {
+        profile_of(&self.inner, profile)?
+            .step(r#loop, &h.0)
+            .map(super::step::StepId)
+            .map_err(|refusal| super::step::handle_err(py, &refusal))
+    }
+
+    /// **The piece `role` of an authored step** of the profile at
+    /// `profile`, in its loop `loop`: `role` is a handle's role
+    /// accessor (`h.leg`, `h.run_out`, `h.piece(k)`).
+    ///
+    /// A role the step's verb draws is a piece whether or not the
+    /// current values draw it; a name on one they do not resolves
+    /// `Vanished` until they do.
+    ///
+    /// Raises what `Doc.step` raises.
+    #[pyo3(signature = (profile, r#loop, role))]
+    fn piece(
+        &self,
+        py: Python<'_>,
+        profile: &NodeId,
+        r#loop: u32,
+        role: &super::step::StepRole,
+    ) -> PyResult<super::step::Piece> {
+        let edge = profile_of(&self.inner, profile)?
+            .piece(r#loop, &role.step, role.role)
+            .map_err(|refusal| super::step::handle_err(py, &refusal))?;
+        super::step::Piece::of_edge(&edge)
     }
 
     /// **The piece every canonical segment of the profile at `profile`
@@ -1077,17 +1136,15 @@ impl Doc {
     /// the loop's canonical traversal from its authored start — under
     /// the document's current parameter values.
     ///
-    /// A piece is opaque text, as a name is: the step that drew the
-    /// segment, by its minted id, and its role in that step's list. It
-    /// is what `band`, `band_pi`, `band_rim` and `meridian_vertex` take,
-    /// and it stays the name of that piece whatever later moves the
-    /// segment — a value edit, a hole becoming the outer loop, a
-    /// `set_program` that keeps the step. The vertex a piece STARTS at
-    /// is spelled by the same text.
+    /// The positional reading, for a caller that holds no handle;
+    /// `Doc.piece` spells a piece from the handle its authoring call
+    /// returned. A piece stays the name of that piece whatever later
+    /// moves the segment — a value edit, a hole becoming the outer
+    /// loop, a `set_program` that keeps the step.
     ///
     /// Raises `ValueError` for a node that is not a profile, or whose
     /// program does not replay and validate under the current values.
-    fn pieces(&self, profile: &NodeId) -> PyResult<Vec<Vec<String>>> {
+    fn pieces(&self, profile: &NodeId) -> PyResult<Vec<Vec<super::step::Piece>>> {
         let program = profile_of(&self.inner, profile)?;
         let pieces = program
             .pieces(&self.inner.param_env::<f64>(), Tol::witness())
@@ -1100,7 +1157,7 @@ impl Doc {
         pieces
             .edges
             .iter()
-            .map(|loop_| loop_.iter().map(piece_text).collect())
+            .map(|loop_| loop_.iter().map(super::step::Piece::of_edge).collect())
             .collect()
     }
 
@@ -1208,7 +1265,14 @@ impl Doc {
         self.inner
             .node(node.0)
             .map(crate::node_kind::node_kind)
-            .ok_or_else(|| edit_err(py, &d::EditError::UnknownNode { id: node.0 }))
+            .ok_or_else(|| {
+                let err = d::EditError::UnknownNode { id: node.0 };
+                let message = format!(
+                    "{}. Recourse: ask for the kind of a node this document holds",
+                    err.problem()
+                );
+                edit_err_saying(py, &err, message)
+            })
     }
 
     /// Insert a node and return its minted id — the common case,
@@ -2497,6 +2561,9 @@ impl Node {
     /// `translation`'s slots are `Length`s; the axis's are
     /// dimensionless, matching `SlotId::RotationAxis`'s `Scalar`; the
     /// angle's is an `Angle`.
+    ///
+    /// `Node.transform_by(input, Placement.rigid(...))`, spelled with
+    /// its three components; the checks are that door's.
     #[staticmethod]
     fn transform(
         py: Python<'_>,
@@ -2505,17 +2572,33 @@ impl Node {
         rotation_axis: (super::expr::Expr, super::expr::Expr, super::expr::Expr),
         rotation_angle: &super::expr::Expr,
     ) -> PyResult<Self> {
-        let translation = direction_expr(py, d::VectorSlot::Translation, &translation)?;
-        let rotation_axis = direction_expr(py, d::VectorSlot::RotationAxis, &rotation_axis)?;
-        let rotation_angle = slot_expr(py, d::SlotId::RotationAngle, rotation_angle)?;
-        Ok(Self {
-            inner: d::Node::Transform {
-                input: input.0,
-                translation,
-                rotation_axis,
-                rotation_angle,
-            },
-        })
+        Self::transform_by(
+            py,
+            input,
+            &super::place::Placement::rigid(translation, rotation_axis, rotation_angle),
+        )
+    }
+
+    /// A placement of an upstream body by a `Placement` chain — rigid
+    /// steps a parameter can drive, literal frames, or both.
+    /// `Node.transform` is this with one rigid step.
+    ///
+    /// Every rigid step's components are checked against the slot
+    /// they land in, so a refusal names that step's own slot: an angle
+    /// handed to a later step's translation says which step.
+    #[staticmethod]
+    fn transform_by(
+        py: Python<'_>,
+        input: &NodeId,
+        placement: &super::place::Placement,
+    ) -> PyResult<Self> {
+        let inner = d::Node::transform(input.0, placement.0.clone());
+        for slot in inner.slots() {
+            if let Some(expr) = inner.expr(slot) {
+                slot_expr(py, slot, &super::expr::Expr(expr.clone()))?;
+            }
+        }
+        Ok(Self { inner })
     }
 
     /// A Boolean of two upstream solids.
@@ -2923,28 +3006,34 @@ impl Node {
     }
 }
 
-/// A document-level parameter name (guide §3.2) — a plain string
-/// newtype, the same name the recipe's expressions reference. NOT an
-/// arena key: recipe vocabulary, meaningful in any document.
+/// A document-level parameter name (guide §3.2): one identifier, the
+/// same name the recipe's expressions reference. NOT an arena key:
+/// recipe vocabulary, meaningful in any document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct ParamName(pub(crate) d::ParamName);
 
 #[pymethods]
 impl ParamName {
+    /// Refuses typed (`EditError.variant == "param_name_not_an_identifier"`)
+    /// a text no expression could read back as this parameter — blank,
+    /// padded, not one identifier: the document layer's one rule for a
+    /// name, asked at the boundary that turns text into one.
     #[new]
-    fn new(name: &str) -> Self {
-        Self(d::ParamName::new(name))
+    fn new(py: Python<'_>, name: &str) -> PyResult<Self> {
+        d::ParamName::new(name).map(Self).map_err(|fault| {
+            boundary_edit_err(py, BoundaryEdit::ParamName(&fault), fault.to_string())
+        })
     }
 
     /// The name itself.
     #[getter]
     fn name(&self) -> String {
-        self.0.0.clone()
+        self.0.as_str().to_owned()
     }
 
     fn __repr__(&self) -> String {
-        format!("ParamName({:?})", self.0.0)
+        format!("ParamName({:?})", self.0.as_str())
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -3825,12 +3914,15 @@ impl DocEdit {
     /// `outline` is the profile description `Node.profile` takes —
     /// one closed loop, or `[outer, hole, hole]` in that order — read
     /// through the same door, so what this writes is what that mints.
-    /// `ids` is one list per new loop, in `outline`'s order, with one
-    /// entry per authored step: the minted id of the OLD step that step
-    /// keeps (`Doc.step_ids` reads them), or `None` for a new step,
-    /// which the door mints. The editor that reshaped the program is
-    /// the one party that knows which leg it inserted, so the door is
-    /// told rather than guessing.
+    /// `keep` is one dict per new loop, in `outline`'s order, mapping
+    /// the handle of a step of that loop's NEW program (the `.step` its
+    /// verb returned) to the `StepId` of the old step it keeps
+    /// (`Doc.step` reads them). A step no entry names is new, and the
+    /// door mints it; a loop that keeps nothing is `{}`. Equal handles
+    /// are one key, so two steps of one shaped prefix cannot both be
+    /// named. The editor that
+    /// reshaped the program is the one party that knows which leg it
+    /// inserted, so the door is told rather than guessing.
     ///
     /// A name on a profile piece spells its step's id, so a name on a
     /// kept step keeps denoting its piece and is not touched. A step
@@ -3840,9 +3932,14 @@ impl DocEdit {
     /// and is reported as a `strand` or a `stranded_appearance` until
     /// `DocEdit.rebind` repairs it.
     ///
-    /// Refuses `step_ids_refused` before the program is replayed —
-    /// `inner_variant` says which way the ids are wrong (`shape`,
-    /// `not_this_profiles`, `repeated`) — `set_program_on_non_profile`
+    /// Raises `StepHandleError` `handle_off_program` for a handle that
+    /// is not a step of its loop's new program. Refuses
+    /// `step_ids_refused` before the program is replayed —
+    /// `inner_variant` says which way the ids are wrong (`loop_count`,
+    /// `shape`, `not_this_profiles`, `repeated`, or `collides` for a new
+    /// id the document's mint log already holds; `not_minted`, an id the
+    /// log lacks, is the load door's word for the same family) —
+    /// `set_program_on_non_profile`
     /// for a node holding no program, and then everything an insert
     /// refuses of a profile: `slot_unknown_doc_param` and its siblings
     /// over every argument, `profile_program_refused` for a program
@@ -3852,16 +3949,29 @@ impl DocEdit {
         py: Python<'_>,
         node: &NodeId,
         outline: &Bound<'_, PyAny>,
-        ids: Vec<Vec<Option<u64>>>,
+        keep: Vec<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        let loops = loops_from_outline(py, outline)?;
+        let keep = keep
+            .iter()
+            .map(|kept| {
+                kept.iter()
+                    .map(|(h, id)| {
+                        Ok((
+                            h.extract::<super::step::AuthoredStep>()?.0,
+                            id.extract::<super::step::StepId>()?.0,
+                        ))
+                    })
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let ids =
+            d::keep_grid(&loops, &keep).map_err(|refusal| super::step::handle_err(py, &refusal))?;
         Ok(Self {
             inner: d::DocEdit::SetProgram {
                 node: node.0,
-                loops: loops_from_outline(py, outline)?,
-                ids: ids
-                    .into_iter()
-                    .map(|steps| steps.into_iter().map(|s| s.map(d::StepId)).collect())
-                    .collect(),
+                loops,
+                ids,
             },
         })
     }

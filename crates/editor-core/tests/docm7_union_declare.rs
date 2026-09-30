@@ -70,12 +70,14 @@ pub(crate) fn block(
 fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(dx), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(dx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     )
 }
 
@@ -482,7 +484,10 @@ fn a_declared_name_that_denotes_nothing_refuses() {
     // does not have: the site routes, the lookup finds nothing.
     let named2 = vec![(
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-        SitedRef::new(b, fname(b, RoleSeg::Lateral(crate::fixture::no_piece()))),
+        SitedRef::new(
+            b,
+            fname(b, RoleSeg::Lateral(crate::fixture::no_piece_of(&doc))),
+        ),
     )];
     let (doc, union, _) = declared_union(doc, &[a, b], named2);
     let ev = run(&doc);

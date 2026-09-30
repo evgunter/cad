@@ -458,6 +458,12 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
         } else {
             bhp
         };
+        // The sliver's `kef` left the near piece a spur at `v`, so `v`
+        // has valence one and the keys-only kill merges no fan.
+        debug_assert!(
+            body.kev_merged_members(spur).is_ok_and(|m| m.is_empty()),
+            "cap vertex kev: the near piece is a spur at the old vertex"
+        );
         body.kev(spur).map_err(|e| op("cap vertex kev", e))?;
         rec.dead.vertices.push(v);
     }

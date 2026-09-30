@@ -71,12 +71,12 @@ use pncad::topo::Body;
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
-use crate::docio::{self, DirResolver};
+use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
-use crate::parts;
+use crate::parts::{self, PartFiles};
 use crate::pickcache;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::sketch;
@@ -380,8 +380,8 @@ pub struct DocSession {
     /// The document seam: the opened file's own directory, consulted
     /// lazily (the directory rule and the scan-at-resolution posture
     /// are [`DirResolver`]'s docs). A session over an in-memory
-    /// document carries no resolver, and its instantiate nodes refuse
-    /// typed. Replaced — never inherited — on every `Open`, so a
+    /// document carries none, and its instantiate nodes refuse through
+    /// [`NoFile`]. Replaced — never inherited — on every `Open`, so a
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
@@ -601,6 +601,12 @@ struct LandedRun {
     /// changing the shape; do not trust the figures to have stayed
     /// true.
     body: Option<Arc<Body<f64>>>,
+    /// **The part files the run's resolver could name** — one scan of
+    /// the session's directory, taken at landing ([`PartFiles`]'s doc
+    /// says why then): the file names the tree names this pair's
+    /// instances and their carried lines by. Unscanned for a document that
+    /// instantiates nothing, which never asks.
+    files: PartFiles,
 }
 
 /// Exhaustive by destructuring; the shared rule is
@@ -625,11 +631,13 @@ impl core::fmt::Debug for LandedRun {
             at_rest,
             checks,
             body,
+            files,
         } = self;
         let mut out = f.debug_struct("LandedRun");
         out.field("generation", generation)
             .field("fault", fault)
-            .field("at_rest", at_rest);
+            .field("at_rest", at_rest)
+            .field("files", files);
         match checks {
             Some(report) => out.field(
                 "checks",
@@ -669,9 +677,11 @@ pub enum AtRestBadge {
         minted: usize,
     },
     /// The gate refused — its own rendering, never a sentence composed
-    /// here.
+    /// here, except that a gather refusal about a root the feature tree
+    /// draws downstream of another row carries the tree's pointer
+    /// ([`crate::tree::product_refusal_wording`]).
     Refused {
-        /// The typed refusal's `Display`.
+        /// The typed refusal's `Display`, or that pointer.
         message: String,
     },
 }
@@ -839,8 +849,8 @@ impl DocSession {
     /// selection)** — recomputed, never cached, so it cannot be stale
     /// with respect to the state it describes. A face's verdict comes
     /// from the shipped `resolve` door; nothing here re-implements the
-    /// resolution ladder or interprets its answer beyond arranging it
-    /// beside the other two selection kinds.
+    /// resolution ladder, and the one reading made of its answer is the
+    /// feature tree's, of which node an indeterminate verdict waits on.
     pub fn standing(&self) -> Standing {
         match &self.derived.selection {
             Selection::None => Standing::Empty,
@@ -865,10 +875,15 @@ impl DocSession {
 
     /// One picked name's verdict against the landed run — the shipped
     /// `resolve` door, asked once and spelled once for both entity
-    /// kinds.
+    /// kinds, with the node it waits on named as the feature tree
+    /// names it ([`crate::tree::resolution_as_drawn`]).
     fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
-        self.landed_pair()
-            .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, name)))
+        self.landed_pair().map(|(doc, eval)| {
+            Box::new(crate::tree::resolution_as_drawn(
+                resolve(RunCtx { doc, eval }, name),
+                eval,
+            ))
+        })
     }
 
     /// The most recent evaluation that answered the current document.
@@ -984,18 +999,20 @@ impl DocSession {
     /// way the landed evaluation resolved it.
     pub fn eval_options(&self) -> EvalOptions {
         EvalOptions {
-            resolver: self.resolver_seam(),
+            resolver: Some(self.resolver_seam()),
             ..EvalOptions::default()
         }
     }
 
     /// **The session's resolver as the document seam** — the directory
     /// rule's resolver, widened to the trait every door that resolves
-    /// a part takes; `None` when the session has no directory.
-    fn resolver_seam(&self) -> Option<Arc<dyn PartResolver>> {
-        self.resolver
-            .as_ref()
-            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>)
+    /// a part takes; [`NoFile`] when the session has no directory, so a
+    /// part's refusal states the viewer's way through.
+    fn resolver_seam(&self) -> Arc<dyn PartResolver> {
+        match &self.resolver {
+            Some(dir) => Arc::clone(dir) as Arc<dyn PartResolver>,
+            None => NoFile::seam(),
+        }
     }
 
     /// The generation the session is waiting for a result on.
@@ -1075,11 +1092,12 @@ impl DocSession {
         // one function away from the fix that introduced it. While a
         // run is outstanding the tree therefore shows the picture's
         // document, which is what the viewport shows too.
-        match self.landed_pair() {
-            Some((doc, eval)) => tree::rows(doc, Some(eval)),
+        match &self.derived.landed {
+            Some(run) => tree::rows(&run.doc, Some(&run.evaluation), &run.files),
             // Nothing has landed: the shown document with no
-            // evaluation, which renders every row `Unevaluated`.
-            None => tree::rows(self.doc(), None),
+            // evaluation, which renders every row `Unevaluated`, and
+            // no scan of the directory, which names a part as unread.
+            None => tree::rows(self.doc(), None, &PartFiles::Unscanned),
         }
     }
 
@@ -1218,10 +1236,17 @@ impl DocSession {
                     })
                     .flatten();
                 let at_rest = (assembly_shaped && !no_body).then(|| AtRestBadge::Refused {
-                    message: AssemblyError::product_refusal(&fault),
+                    message: crate::tree::product_refusal_wording(&fault, &done.evaluation),
                 });
                 (Some(fault), checks, at_rest, None)
             }
+        };
+        // Only a document that instantiates a part has a part to name,
+        // so only it pays the scan.
+        let files = if assembly_shaped {
+            PartFiles::scanned(self.resolver.as_deref())
+        } else {
+            PartFiles::Unscanned
         };
         // The landed pair and its verdicts become the session's as ONE
         // value, which is the same value `Derived::none` clears.
@@ -1233,6 +1258,7 @@ impl DocSession {
             at_rest,
             checks,
             body,
+            files,
         });
         Landing::Landed
     }
@@ -1909,7 +1935,7 @@ impl DocSession {
                 // and lazy — a slot gesture moves no gauge, so what a
                 // tick pays for it is the construction and nothing
                 // more.
-                let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
+                let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
                 let applied = apply(&gesture.base, &edit, tol, &reach)
                     .map_err(|error| Refusal::Edit(Box::new(error)))?;
                 // **The display layer's identity, held rather than
@@ -2275,7 +2301,7 @@ impl DocSession {
             return Ok(Vec::new());
         };
         let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         apply(self.committed_doc(), &edit, self.tol, &reach)
             .map(|applied| applied.maintenance)
             .map_err(|error| Refusal::Edit(Box::new(error)))
@@ -2394,8 +2420,17 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
+        // Total, as the other lowerings are: slot dimensions are the
+        // edit door's question.
         self.commit(DocEdit::InsertNode {
-            node: combine::transform_node(input, translation, rotation_axis, rotation_angle),
+            node: Node::transform(
+                input,
+                pncad::document::Step::Rigid {
+                    translation,
+                    axis: rotation_axis,
+                    angle: rotation_angle,
+                },
+            ),
         })
     }
 
@@ -2748,7 +2783,7 @@ impl DocSession {
         // maintenance asks it only when a cluster's gauge moves, and
         // what it decided rides the logged entry into the history.
         let resolver = self.resolver_seam();
-        let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
         // Threaded rather than cloned up front: the first `apply`
         // reads the history's value in place, and each later one reads
         // its predecessor's output, so a group of one costs exactly
@@ -2822,7 +2857,7 @@ impl DocSession {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: self.resolver_seam(),
+            resolver: Some(self.resolver_seam()),
         });
     }
 }
@@ -2834,7 +2869,41 @@ impl DocSession {
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
     doc.order()
         .iter()
-        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+        .filter_map(|&id| doc.node(id))
+        .any(puts_an_instance)
+}
+
+/// Whether a node puts an instance of another document's part into
+/// this one — what [`assembly_shaped`] asks of every node.
+fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
+    match node {
+        Node::InstantiatePart { .. } => true,
+        // Placements of a prototype drawn in THIS document: the rest
+        // between them is the placement rule's, not a crossing.
+        Node::PlacedUnion { .. } | Node::Pattern { .. } | Node::Part { .. } => false,
+        // Relates instances some other node put in the document.
+        Node::Mate { .. } => false,
+        // Declares contacts between faces of a consumer's operands,
+        // and puts no body of its own in.
+        Node::Declare { .. } => false,
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => false,
+    }
 }
 
 /// One A5 verdict as the badge that shows it — the gate's own

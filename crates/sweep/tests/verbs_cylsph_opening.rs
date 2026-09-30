@@ -360,9 +360,10 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
-        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(
-            geom::NurbsSurface::placeholder(),
-        ))),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder())),
+            sense: true,
+        },
     )
     .unwrap();
     let err = topo::union(&a, &b, Tol::witness())

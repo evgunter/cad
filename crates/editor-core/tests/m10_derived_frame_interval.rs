@@ -54,9 +54,9 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn param_doc(name: &str, nominal: f64, half: f64, r: &mut Recorder) {
+fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new(name),
+        name: ParamName::from_static(name),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
@@ -128,7 +128,9 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
     ev.order
         .iter()
         .filter_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            Some(NodeResult::Failed(e)) => {
+                Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+            }
             Some(NodeResult::Poisoned { through }) => {
                 Some(format!("node {} poisoned through {}", id.0, through.0))
             }
@@ -151,7 +153,7 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
     );
     let cube = r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::param(ParamName::new("h"), Dimension::Length),
+        distance: Expr::param(ParamName::from_static("h"), Dimension::Length),
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: cube,
@@ -180,7 +182,7 @@ pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNo
         origin: [
             len(0.0),
             len(0.0),
-            Expr::param(ParamName::new("z0"), Dimension::Length),
+            Expr::param(ParamName::from_static("z0"), Dimension::Length),
         ],
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
@@ -212,16 +214,18 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         profile: p,
         distance: len(1.0),
     });
-    let lifted = r.insert(Node::Transform {
-        input: cube,
-        translation: [
-            len(0.0),
-            len(0.0),
-            Expr::param(ParamName::new("lift"), Dimension::Length),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let lifted = r.insert(Node::transform(
+        cube,
+        editor_core::Step::Rigid {
+            translation: [
+                len(0.0),
+                len(0.0),
+                Expr::param(ParamName::from_static("lift"), Dimension::Length),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: lifted,
         face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
@@ -362,7 +366,7 @@ fn measured_replay(
     };
 
     for name in box_.axes().keys() {
-        name_param(&name.0);
+        name_param(name.as_str());
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),

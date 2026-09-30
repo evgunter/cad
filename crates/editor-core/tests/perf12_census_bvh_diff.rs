@@ -323,7 +323,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
     apply(
         &entry.doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("fins"),
+            name: ParamName::from_static("fins"),
             value: DocParam::Count { value: fins },
         },
         Tol::witness(),
