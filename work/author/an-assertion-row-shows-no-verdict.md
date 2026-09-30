@@ -2,7 +2,7 @@
 id: an-assertion-row-shows-no-verdict
 kind: issue
 title: an Assertion row shows that it exists and never its verdict
-status: open
+status: dispatched
 opened: 2026-09-30
 priority: P0
 cost: M
@@ -38,5 +38,7 @@ Three choices are open, and none of them has a home yet:
   row, so the same kernel sentence would be drawn twice, one row apart.
 
 `AssertionVerdict::label` (`Holds`/`Violated`/`Unevaluated`) is the
-kernel's word for the state. `Reading` in `tree.rs` is the variant
-this would extend.
+kernel's word for the state. `Measured` in `tree.rs` (AUTH-7 renamed it from `Reading`) is the
+enum this would extend.
+
+Dispatched 2026-09-30 as **AUTH-8** (`docs/AUTH-8-SPEC.md`, branch `author/assertion-verdict`). Checked first: `UnevaluatedReason` has more arms than listed above (`Indeterminate`, `MeasureUnavailable`, a carrier-endpoint arm), and the assertion names its measure by id, so the verdict's numbers can take the measure's `dim`.
