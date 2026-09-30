@@ -4775,3 +4775,58 @@ Filed to Read in `euler::removal_census`. `movefac` reuses
 `kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove`
 is `design: true`. Before any fork, I'll check whether one of its two
 shapes keeps the ratified decisions as they stand.
+
+## PR 3513 fix pass 3 reviewed: NOT-MERGEABLE-AS-IS; fix pass 4 dispatched (2026-09-30)
+
+A focused review ran on the frozen head `aae266107f`, where CI run
+36775092792 is green and the merge state is clean.
+
+**The declaration half now holds.** Pass 3 constructs the declaration
+read. The reviewer declared the offered class through the real door at
+`vtxfac` and at the `recl` ON door, and both built.
+
+**The tolerance half does not.** The reviewer re-ran each offer at ε
+just below the offered value. It is false at six arms:
+- `vtxfac` coplanar Sectors: a `ClassificationInvariant` at 5e-10,
+  then `VertexOnFace`;
+- the negative line-clearance and curved-endpoint arms: they reach
+  `WallRoots(Discriminant)`;
+- `LeverArm(SectorSide)`: the offer is too large by 1/sin(elevation);
+- curved-flank FlankSense: `CurvedBooleanUnsupported`;
+- two declared doors: they end at a frontier.
+
+Sphere `Apart`'s decided zero says the spheres "cross". That is false,
+and it offers no tolerance. Four MINORs remain: an unhonoured
+curved-flank Settles, `Settling` not bound to its question, a possibly
+reachable `SelfCheck(GermLine)`, and surviving mutants W3/W3b. Report
+archived.
+
+**Ruling (orchestrator): what a tolerance offer promises.** D4 ¶1 (i)
+offers the tolerance only where "a smaller ε decides it". Read against
+the op, as the user meets it, an offer is true when, re-run at 0.9×
+the offer, either:
+- (T1) the op passes; or
+- (T2) the op refuses on a *different* decision that tells its own true
+  story, and whose own offer is true, ending in a pass.
+
+It is false if the same decision refuses again (F1), if the re-run
+reaches a defect or invariant (F2), or if it reaches a frontier with no
+pass at any ε (F3). F3 is D4's pass set applied along the op's path:
+that side does not pass.
+
+Withdrawing a valued tolerance is always D4-compliant, since (i)
+restricts the offer and never obliges it. This reading keeps D4 as it
+stands, so there is no `[ev]` question (the PR 3156 lesson).
+
+**Root fix.** Four rounds have found the same class. Each review found
+offers pinned only against `want()`, never executed. Pass 4 therefore
+adds one harness that executes every tolerance offer through its real
+raise, with completeness enforced from the closed decision type, and
+mutants that inflate or re-offer one. The harness is seeded from the
+reviewer's C1 table. Arms that cannot be made true locally are
+withdrawn, and the residue is filed.
+
+The `vtxfac` invariant is reachable from user geometry. That makes it a
+bug, to be fixed at its source.
+
+Dispatched on the loopanchor target. The brief is `coinc-fix4-brief.md`.
