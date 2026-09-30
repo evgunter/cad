@@ -1042,8 +1042,12 @@ fn verify_declared_pairs<T: Decide>(
                     margin: diag,
                 });
             }
-            Err(PlaneEqError::Escalated(diag)) => {
-                return Err(BooleanError::coincidence(diag));
+            Err(PlaneEqError::Escalated { rung, diag }) => {
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    super::PlaneDoor::Declared,
+                    diag,
+                ));
             }
             Err(PlaneEqError::Undeclared { diag, relation }) => {
                 // Unreachable with declared=true; refuse loudly anyway.
