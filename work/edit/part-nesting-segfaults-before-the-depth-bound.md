@@ -2,7 +2,8 @@
 id: part-nesting-segfaults-before-the-depth-bound
 kind: issue
 title: editor-core: a chain of a few hundred nested parts kills the process with SIGSEGV before instantiation reaches MAX_DEPTH, so DepthExceeded never renders
-status: review
+status: closed
+closed: 2026-09-30
 opened: 2026-09-29
 priority: P1
 cost: M
