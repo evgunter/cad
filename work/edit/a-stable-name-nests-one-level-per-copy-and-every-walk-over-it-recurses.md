@@ -4,6 +4,7 @@ kind: issue
 title: editor-core: a StableName nests one NameRef per pattern copy, part instance or merge, and its drop, Debug and descent walks recurse without bound
 status: review
 branch: edit/name-nesting-stack-safe
+pr: 3512
 opened: 2026-09-30
 priority: P1
 cost: M
