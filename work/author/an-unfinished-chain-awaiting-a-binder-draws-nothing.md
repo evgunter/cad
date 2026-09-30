@@ -9,6 +9,7 @@ design: true
 refs: [path-preview-draws-nothing-for-a-refused-step]
 opened: 2026-09-29
 branch: author/binder-prefix
+pr: 3563
 ---
 
 
