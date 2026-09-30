@@ -4456,6 +4456,59 @@ mod tests {
         );
     }
 
+    /// **An intersection edge through a cone's apex escalates the
+    /// transversality's arm, not its wedge**: the plane `x = 0` cuts the
+    /// cone along a generator, and the edge runs along it through the
+    /// apex, where the cone's radius of curvature, and with it the arm
+    /// the wedge is metered over, is zero. The middle sample lands on the
+    /// apex, so certification escalates there as
+    /// [`CertCheck::TransversalityArm`] (the samples before it are
+    /// transverse). PR 3513's second fix pass: the rung-to-check mapping
+    /// had no raise, so reading the arm as `Transversality` survived.
+    #[test]
+    fn an_intersection_through_a_cone_apex_escalates_the_arm() {
+        let half = std::f64::consts::FRAC_PI_6;
+        let (keys, lookup) = table(vec![
+            Surface::Cone {
+                apex: Point3::origin(),
+                axis: Vec3::unit_z(),
+                half_angle: half,
+                u_ref: Vec3::unit_x(),
+            },
+            Surface::Plane {
+                origin: Point3::origin(),
+                normal: Vec3::unit_x(),
+                u_ref: Vec3::unit_y(),
+            },
+        ]);
+        let dir = Vec3::new(0.0, half.sin(), half.cos());
+        let reach = 1.0 / half.cos();
+        let p0 = Point3::origin() - dir * reach;
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: keys[0],
+                s2: keys[1],
+                witness: p0 + dir * (reach / 2.0),
+            },
+            carrier: Curve3::Line { origin: p0, dir },
+            param_start: 0.0,
+            param_end: 2.0 * reach,
+        };
+        let p1 = spec.carrier.eval(2.0 * reach);
+        let err = EdgeCurve::certify(spec, p0, p1, &lookup, band()).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CertifyError::Escalated {
+                    check: CertCheck::TransversalityArm,
+                    sample: 4,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+    }
+
     /// **The transversality margin's lever arm ends as a length, not an
     /// angle**: an escalation of the arm the wedge is metered over names
     /// that edge's length and its faces' bend, and offers the tolerance

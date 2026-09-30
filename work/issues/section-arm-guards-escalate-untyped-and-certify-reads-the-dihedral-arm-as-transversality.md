@@ -69,7 +69,12 @@ less tightly there", with the tolerance the arm gives), which the
 Boolean's seam gate (`BooleanDecision::LeverArm(LeverArm::Seam)`)
 shares. The fix pass had made both render a decided-zero arm as "if
 this angle is intended, tighten the tolerance below …", valued from
-the arm's length. What remains of this row: the section arms' other
+the arm's length. Each reader's mapping has a row on a real
+escalation: certify's on an intersection edge through a cone's apex
+(`certify::tests::an_intersection_through_a_cone_apex_escalates_the_arm`),
+the rim screen's through `WedgeCheck::of_rung`
+(`validate::tests::a_dihedral_escalation_ends_as_the_rung_it_escalated_on`).
+What remains of this row: the section arms' other
 operand guards, and `must_carry_over_edge`, `topo::census`, the
 splitting rules, neighbourhood and finish, and `sweep::extrude` and
 `sweep::revolve::upgrade`, which still read `.diag` and drop the rung

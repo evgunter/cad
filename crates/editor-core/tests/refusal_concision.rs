@@ -343,6 +343,26 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 diag: in_band,
             },
         ),
+        // The longest escalation of every decision in band, and the
+        // longest coincidence (rendered over `every_decision` in PR
+        // 3513's second fix pass: F7's in-band bend rendered 77).
+        (
+            "Escalated (Neighbours(Parallel), in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Neighbours(topo::PlaneRung::Parallel),
+                diag: in_band,
+            },
+        ),
+        (
+            "Escalated (TangentSide, declared, in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::TangentSide,
+                    topo::DeclarationRead::Spent(ContactClass::Tangent),
+                ),
+                diag: in_band,
+            },
+        ),
         (
             "UndeclaredCoincidence",
             BooleanError::UndeclaredCoincidence {

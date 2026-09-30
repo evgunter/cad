@@ -2132,6 +2132,17 @@ pub enum WedgeCheck {
 }
 
 impl WedgeCheck {
+    /// The check a first-order wedge escalation names, by the rung of
+    /// [`geom_brep::classify_dihedral`] that escalated: its arm is a
+    /// length, which ends as one ([`WedgeCheck::Arm`]), and its reading
+    /// the wedge's angle ([`WedgeCheck::Dihedral`]).
+    const fn of_rung(rung: geom_brep::LeverRung) -> Self {
+        match rung {
+            geom_brep::LeverRung::Arm => Self::Arm,
+            geom_brep::LeverRung::Reading => Self::Dihedral,
+        }
+    }
+
     /// What could not be decided, in the words of a person at the viewer.
     fn lead(self) -> &'static str {
         match self {
@@ -5601,10 +5612,7 @@ pub(crate) fn tier3_local_checks_marked<
                     Err(geom_brep::LeverEscalation { rung, diag: cause }) => {
                         errors.push(ValidationError::SliverDihedral {
                             edge: edge_key,
-                            check: match rung {
-                                geom_brep::LeverRung::Arm => WedgeCheck::Arm,
-                                geom_brep::LeverRung::Reading => WedgeCheck::Dihedral,
-                            },
+                            check: WedgeCheck::of_rung(rung),
                             cause,
                         });
                         escalated = true;
@@ -9761,6 +9769,59 @@ mod tests {
         for (row, error, ending) in rows {
             let text = error.to_string();
             assert!(text.ends_with(&ending), "{row}: {text}");
+        }
+    }
+
+    /// **The wedge check reads the rung the dihedral escalated on**:
+    /// `classify_dihedral`'s real escalations, taken through
+    /// [`WedgeCheck::of_rung`] as the edge loop takes them, end as the
+    /// rung's own decision. An in-band arm and the cone apex's decided
+    /// zero arm name the edge's length and bend, never an angle; a
+    /// near-tangent wedge keeps the angle. (PR 3513's second fix pass:
+    /// the mapping had no row, so sending the arm to `Dihedral` survived.)
+    #[test]
+    fn a_dihedral_escalation_ends_as_the_rung_it_escalated_on() {
+        use geom_core::Vec3;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let plane = |normal: Vec3<f64>, u_ref| Surface::Plane {
+            origin: Point3::origin(),
+            normal,
+            u_ref,
+        };
+        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
+        let wall = plane(Vec3::unit_x(), Vec3::unit_y());
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let theta = 3.0 * Tol::witness().get().eps;
+        let tilted = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
+        let in_band_arm = (band.zero() + band.escalate()) / 2.0;
+        let rows = [
+            ("an in-band arm", &floor, &wall, in_band_arm, true),
+            ("the cone apex", &cone, &floor, 1.0, true),
+            ("a near-tangent wedge", &floor, &tilted, 1.0, false),
+        ];
+        for (row, s1, s2, extent, arm) in rows {
+            let escalation = classify_dihedral(s1, s2, Point3::origin(), extent, band)
+                .expect_err("each pose escalates");
+            let text = ValidationError::SliverDihedral {
+                edge: EdgeKey::default(),
+                check: WedgeCheck::of_rung(escalation.rung),
+                cause: escalation.diag,
+            }
+            .to_string();
+            let reads_the_arm = text.contains("whether an edge is long enough")
+                && text.contains("move the geometry so that edge is clearly longer")
+                && !text.contains("angle is intended");
+            let reads_the_angle = text.contains("the angle between two faces at an edge");
+            assert_eq!(
+                (reads_the_arm, reads_the_angle),
+                (arm, !arm),
+                "{row}: {text}"
+            );
         }
     }
 

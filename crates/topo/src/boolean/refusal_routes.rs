@@ -877,7 +877,7 @@ impl BooleanDecision {
             // passes.
             Self::Neighbours(PlaneRung::Parallel) => sized(
                 NEIGHBOUR_LEVER,
-                "bend between the two faces over their shared edge's chord",
+                "bend across their shared edge",
                 SizedPass::Positive,
             ),
             // Asked only once the angle read flat over the chord; either
