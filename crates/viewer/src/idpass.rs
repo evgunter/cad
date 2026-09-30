@@ -392,3 +392,43 @@ pub fn disagreement(
         from_ray: from_ray.to_vec(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use pncad::prelude::{CapEnd, EntityKind, NameRef, RecipeNodeId, RoleSeg};
+
+    /// A disagreement renders both halves of every name, the role path
+    /// whole, on the wasm32 build's stack however deep the name nests:
+    /// a name's rendering walks its nesting from its own stack.
+    #[test]
+    fn a_disagreement_over_a_name_nested_past_every_stack_renders_on_the_smallest_stack() {
+        const DEEP: usize = 20_000;
+        let shown = std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(|| {
+                let leaf = StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(1),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                };
+                let deep = (0..DEEP).fold(leaf, |n, _| StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(2),
+                    path: vec![RoleSeg::FromA(NameRef::new(n))],
+                });
+                Disagreement {
+                    from_gpu: IdAnswer::Named(deep.clone()),
+                    from_ray: vec![deep],
+                }
+                .to_string()
+            })
+            .expect("the thread starts")
+            .join()
+            .expect("the rendering returns");
+        assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
+        assert_eq!(shown.matches("face name minted by node 2").count(), 2);
+    }
+}
