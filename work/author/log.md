@@ -1540,3 +1540,24 @@ Fourteen units closed. The container restarted mid-unit. The lane, target and pu
 **Lesson:** the class a unit fixes is the class to grep its own diff for. `unwrap_or_default` and a truncating `zip` are the Option-collapse shapes.
 
 The lane filed CHROME's badge-channel row at P1. That looks high for a three-field consolidation, but it is CHROME's to triage, so I left it.
+
+## 2026-09-30 — boolean-judge fork: converged after one round; `[ev]` #3587
+
+Designer pair on `the-boolean-door-evaluates-its-boolean-twice` (byte on `analysis/design-fork/author-boolean-judge-2026-09-30`).
+
+**First reports agreed on the spine:** stop judging at the door; commit every boolean; the seam evaluates it once; the offer goes on the row.
+**They split on the recourse:**
+- A: replace a consumer-less boolean, leaving DM6 untouched.
+- B: attach a declaration to a live boolean, narrowing DM6.
+
+**Round 1.** Both measured `find_flush_candidates`. It is a strict superset (two blocks apart on one ground plane report 4 pairs, and the union builds undeclared), so neither kept it as a pre-commit prompt.
+- A moved to attach. A declaration is name-inert and operand-bound, so DM6's splice reasons don't reach it. Replace dead-ends mid-chain and strands appearance keys. The kernel's own recourse already prescribes attach.
+- B kept attach as the final state and added replace as an interim.
+
+**Converged on the final state;** not a crossover, because B never left attach. The shape (A1: a DM6 exception; A2: declared pairs as payload, a DM4 shape change) is Ev's, with both leaning A2 and unsure. The later-flush row travels on the same PR. Fork-log row 24.
+
+**Sequencing, my call:** no interim replace. The current door gives correct answers at a frame cost; it doesn't give wrong ones. The viewer unit waits on the shape.
+
+**Filed off the question:**
+- ZIP: `a-boolean-reports-one-undeclared-contact-per-refusal`.
+- VSEAM `ui-thread-work-after-the-index-seam`: evidence for `session::probe` as a fourth frame-thread evaluation.
