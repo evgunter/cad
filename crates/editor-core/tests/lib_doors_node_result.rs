@@ -524,10 +524,9 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::Vanished {
                 name: name(EntityKind::Face),
                 diagnosis: Diagnosis::PredicateFlip {
-                    predicate: "name_frag_side_of",
+                    predicate: "name_frag_order_along",
                     from: geom_core::Sign::Zero,
                     to: geom_core::Sign::Positive,
-                    source: editor_core::FlipSource::VerdictLog,
                 },
                 last_good: None,
             }
@@ -535,7 +534,8 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             &[
                 "face name minted by node 5",
                 "no longer resolves",
-                "the margin deciding the side of a cut a face lies on flipped from zero to positive",
+                "the margin deciding the order of two pieces along an edge flipped from zero to \
+                 positive",
             ],
         ),
         (

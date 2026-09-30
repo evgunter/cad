@@ -14,9 +14,10 @@ use geom_core::{Decide, Margin, Point3, Sign, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
+use super::borders::Obstacles;
 use super::canonical;
 use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
-use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
+use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along};
 use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
     rims_between, vertex_point,
@@ -44,11 +45,10 @@ struct Side<'a, T: Decide> {
 /// [`OutwardNormal::from_chart`], unwrapped at this door because every
 /// consumer reads it as geometry — not the raw chart normal.
 /// Every consumer uses the direction as an *oriented reference* whose
-/// sign lands in a stable name — [`side_of_face`] turns it into a
-/// `Qualifier::SideOf` verdict vector, and `n_a × n_b` orients the
-/// carrier [`order_along`] ranks fragments along
-/// (`Qualifier::OrderAlong`). Reading the chart normal raw would let a
-/// sense flip silently swap Positive↔Negative and reverse every rank,
+/// sign lands in a stable name — `n_a × n_b` orients the carrier
+/// [`order_along`] ranks fragments along (`Qualifier::OrderAlong`).
+/// Reading the chart normal raw would let a sense flip silently
+/// reverse every rank,
 /// renaming fragments that did not move: an N4 covariance break, since
 /// a face's orientation sense is part of the geometry names are
 /// covariant *with*, not a private encoding detail the naming layer
@@ -60,6 +60,21 @@ pub(super) fn face_plane<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>), NamingError> {
+    carrier_plane(body, f)?.ok_or(NamingError::Emission {
+        what: "face_plane: non-planar carrier in planar pipeline",
+    })
+}
+
+/// A point on a carrier plane and its outward normal ([`face_plane`]).
+pub(super) type OrientedPlane<T> = (Point3<T>, Vec3<T>);
+
+/// [`face_plane`] for a caller that has a rule of its own for a face
+/// whose carrier is not a plane: `None` there, the same oriented plane
+/// otherwise.
+pub(super) fn carrier_plane<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<Option<OrientedPlane<T>>, NamingError> {
     let bug = |what| NamingError::Emission { what };
     let face = body
         .get_face(f)
@@ -68,11 +83,11 @@ pub(super) fn face_plane<T: Decide>(
         .get_surface(face.surface)
         .ok_or_else(|| bug("face_plane: dangling surface"))?
     {
-        Surface::Plane { origin, normal, .. } => Ok((
+        Surface::Plane { origin, normal, .. } => Ok(Some((
             *origin,
             OutwardNormal::from_chart(*normal, face.sense).vec(),
-        )),
-        _ => Err(bug("face_plane: non-planar carrier in planar pipeline")),
+        ))),
+        _ => Ok(None),
     }
 }
 
@@ -547,6 +562,14 @@ impl<K: Copy> OpSide<K> {
         }
     }
 
+    /// The operand and the key.
+    fn of_operand(self) -> (topo::Operand, K) {
+        match self {
+            OpSide::A(k) => (topo::Operand::A, k),
+            OpSide::B(k) => (topo::Operand::B, k),
+        }
+    }
+
     /// Which operand this is, without the key — the kernel's own
     /// dataless side ([`topo::Operand`]).
     fn operand(self) -> topo::Operand {
@@ -616,6 +639,67 @@ fn operand_key<K: Copy + Ord>(
     }
 }
 
+/// **Which operand face each face of a boolean result descends from**,
+/// by entity: the operand and the root face in that operand's space,
+/// read through the graft rows and the fragment rows. A union's fold
+/// reads it step by step to follow each face to the member faces it
+/// descends from.
+pub(super) struct FaceDescent<'n> {
+    naming: &'n topo::BooleanNaming,
+    inv_faces: BTreeMap<FaceKey, FaceKey>,
+    a_rows: BTreeMap<FaceKey, FaceKey>,
+    b_rows: BTreeMap<FaceKey, FaceKey>,
+}
+
+impl<'n> FaceDescent<'n> {
+    pub(super) fn of(naming: &'n topo::BooleanNaming) -> Self {
+        Self {
+            naming,
+            inv_faces: naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect(),
+            a_rows: naming.face_fragments_a.iter().copied().collect(),
+            b_rows: naming.face_fragments_b.iter().copied().collect(),
+        }
+    }
+
+    /// The operand face result face `f` descends from. A merged face
+    /// descends from each face it absorbed as well: see
+    /// [`FaceDescent::merged`].
+    pub(super) fn result_face(&self, f: FaceKey) -> Result<(topo::Operand, FaceKey), NamingError> {
+        let (operand, k) = operand_key(self.naming, &self.inv_faces, f)?.0.of_operand();
+        Ok((operand, self.clone_face(operand, k)?))
+    }
+
+    /// The operand face a face in `operand`'s CLONE keys is a fragment
+    /// of (a discarded face's key is one).
+    pub(super) fn clone_face(
+        &self,
+        operand: topo::Operand,
+        f: FaceKey,
+    ) -> Result<FaceKey, NamingError> {
+        match operand {
+            topo::Operand::A => chase(&self.a_rows, f),
+            topo::Operand::B => chase(&self.b_rows, f),
+        }
+    }
+
+    /// Merged result face → every face it holds, itself first, in
+    /// result keys before the merge.
+    pub(super) fn merged(&self) -> BTreeMap<FaceKey, Vec<FaceKey>> {
+        self.naming
+            .merge_groups
+            .iter()
+            .map(|(kept, absorbed)| {
+                (
+                    *kept,
+                    core::iter::once(*kept)
+                        .chain(absorbed.iter().copied())
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+}
+
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
@@ -681,6 +765,8 @@ pub(crate) fn name_boolean<T: Decide>(
     // descend from it too, so they are members of its group
     // (`names::groups`).
     let mut merged_into: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
+    // Merged face → its name, the parent a `Borders` wall cites.
+    let mut merged_names: BTreeMap<FaceKey, StableName> = BTreeMap::new();
     for (kept, absorbed) in &naming.merge_groups {
         if body.get_face(*kept).is_none() {
             return Err(bug("merge kept face not live"));
@@ -734,11 +820,14 @@ pub(crate) fn name_boolean<T: Decide>(
         for d in parents {
             merged_into.entry(d).or_default().push(*kept);
         }
+        let merged =
+            canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
+        merged_names.insert(*kept, merged.clone());
         put(
             &mut t,
             &mut tie,
             from_tie,
-            canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents))),
+            merged,
             ent(0, EntityKey::Face(*kept)),
         )?;
         handled.insert(*kept);
@@ -754,6 +843,23 @@ pub(crate) fn name_boolean<T: Decide>(
     for d in merged_into.keys() {
         groups.entry(*d).or_default();
     }
+    let mut obstacles = Obstacles::new();
+    obstacles.record(naming, body, |operand, f| {
+        Ok(BTreeSet::from([match operand {
+            topo::Operand::A => OpSide::A(chase(&a_rows, f)?),
+            topo::Operand::B => OpSide::B(chase(&b_rows, f)?),
+        }]))
+    })?;
+    // A wall is cited by its parent's name: a merged face's, or the
+    // name of the operand face it descends from in its operand, the
+    // space the pair reads its operands in (a union's fold collapses it
+    // like any other embedded name).
+    let wall = |g: FaceKey| -> Result<StableName, NamingError> {
+        if let Some(n) = merged_names.get(&g) {
+            return Ok(n.clone());
+        }
+        Ok((*operand_face_name(descend_face(g)?)?.name).clone())
+    };
     for (d, members) in groups {
         let root_name = operand_face_name(d)?;
         let from_tie = root_name.tied;
@@ -777,19 +883,11 @@ pub(crate) fn name_boolean<T: Decide>(
                 base,
                 ent(0, EntityKey::Face(*one)),
             )?,
-            _ => name_fragment_group(
-                &mut t,
-                &mut tie,
-                from_tie,
-                body,
-                &base,
-                &members,
-                &seam_set,
-                &inc,
-                &descend_face,
-                &operand_face_name,
-                bnd,
-            )?,
+            _ => {
+                let split =
+                    obstacles.split(body, &BTreeSet::from([d]), &members, &in_merged, &wall)?;
+                name_split_group(&mut t, &mut tie, from_tie, &base, split)?;
+            }
         }
     }
     tie.flush(&mut t)?;
@@ -832,74 +930,22 @@ pub(crate) fn name_boolean<T: Decide>(
     Ok(Emitted::new(t, rec))
 }
 
-/// Qualifies a multi-fragment descent group (N2): sign vectors of
-/// `name_frag_side_of` against the seam partners' carriers; equal
-/// vectors tie.
-#[allow(clippy::too_many_arguments)]
-fn name_fragment_group<T: Decide>(
+/// Mints a split face's pieces (N2): `base` + `Fragment(Borders)` over
+/// each set of divider walls [`Obstacles::split`] found; the pieces one
+/// set does not tell apart are the tie. The union's end pass mints its
+/// split parents through here too.
+pub(super) fn name_split_group(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,
-    body: &Body<T>,
     base: &StableName,
-    members: &[FaceKey],
-    seam_set: &BTreeSet<EdgeKey>,
-    inc: &Incidence,
-    descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
-    operand_face_name: &impl Fn(OpSide<FaceKey>) -> Result<Upstream, NamingError>,
-    bnd: geom_core::Band,
+    split: BTreeMap<Vec<StableName>, Vec<FaceKey>>,
 ) -> Result<(), NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    // Partners: operand faces across the members' seam edges.
-    let mut partners: BTreeMap<NameRef, FaceKey> = BTreeMap::new();
-    for &m in members {
-        for he in face_half_edges(body, m)? {
-            let e = body
-                .get_half_edge(he)
-                .ok_or_else(|| bug("fragment partner walk: dangling half-edge"))?
-                .edge;
-            if !seam_set.contains(&e) {
-                continue;
-            }
-            let faces = inc
-                .edge_faces
-                .get(&e)
-                .ok_or_else(|| bug("fragment partner walk: seam edge without faces"))?;
-            for &other in faces {
-                if other != m {
-                    let d = descend_face(other)?;
-                    // The partner name is a discriminator LABEL here,
-                    // so a tied partner is admissible unchanged. Its
-                    // representative face is the first in BTreeMap
-                    // order (review NOTE-1): arbitrary among tied
-                    // candidates, never nondeterministic.
-                    partners.entry(operand_face_name(d)?.name).or_insert(other);
-                }
-            }
-        }
-    }
-    if partners.is_empty() {
-        return Err(bug("multi-fragment group with no seam partners"));
-    }
-    let mut by_vector: BTreeMap<Vec<(StableName, super::role::SideVerdict)>, Vec<FaceKey>> =
-        BTreeMap::new();
-    for &m in members {
-        let mut vector = Vec::with_capacity(partners.len());
-        for (pname, &pface) in &partners {
-            let (origin, normal) = face_plane(body, pface)?;
-            let verdict = side_of_face(body, m, origin, normal, bnd)?;
-            vector.push(((**pname).clone(), verdict));
-        }
-        by_vector.entry(vector).or_default().push(m);
-    }
-    for (vector, faces) in by_vector {
+    for (walls, faces) in split {
         let mut name = base.clone();
-        name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vector)));
-        let name = canonical::minted(name);
-        // Several with one sign vector are the N2 tie:
-        // equally-admissible symmetric candidates.
+        name.path.push(RoleSeg::Fragment(Qualifier::Borders(walls)));
         let ents = faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect();
-        mint_candidates(t, tie, from_tie, name, ents)?;
+        mint_candidates(t, tie, from_tie, canonical::minted(name), ents)?;
     }
     Ok(())
 }
