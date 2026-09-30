@@ -59,14 +59,13 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real,
-    Sign, Tol, Vec2,
+    Affine3, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real, Sign,
+    Tol, Vec2,
 };
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
 use crate::swept::Traversed;
-use profile::SegmentKind;
 
 /// The traversed window of the spine arc.
 #[derive(Clone, Copy, Debug)]
@@ -509,28 +508,10 @@ fn circle_traversal<T: Real>(
         Point2::new(centre.x - radius, T::zero()),
         Point2::new(centre.x + radius, T::zero()),
     );
-    // The half-turn, spelled as the arc lowering spells a unit-bulge
-    // arc's sweep (`4·atan 1`), not as `T::pi()`: the certifier
-    // samples it at fractions `i/8`, and the symbolic tier folds the
-    // trig of `q·atan 1` in closed form (rule D) where a fraction of
-    // `π` other than a half-multiple stays an atom.
-    let half = Arc2 {
-        centre,
-        radius,
-        sweep: T::from_f64(4.0) * T::one().atan(),
-    };
-    let traversed = match turn {
-        Sign::Positive | Sign::Zero => half,
-        Sign::Negative => half.reversed(),
-    };
-    // The traversal's own orientation, stated: `turn` is its sense.
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        kind: Traversed::stated(SegmentKind::Arc {
-            arc: traversed,
-            turn,
-        }),
+        kind: Traversed::half_turn(centre, radius, turn),
         canonical_vertex,
         canonical_segment,
     };

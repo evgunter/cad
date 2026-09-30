@@ -9,7 +9,7 @@
 //! certify, how many the profile validation refuses (escalations on
 //! the shallow arcs, before any sweep runs), and how many the extrude
 //! refuses. The census is main's, cell for cell, under the chord-scale
-//! apex (`sweep::swept::arc_apex`); a cap-plane change that makes a
+//! apex (`geom_core::Arc2::apex`); a cap-plane change that makes a
 //! flat arc refuse where it certified shows up as a count moving out of
 //! `ok`. The nine extrude refusals at 1e-12 predate the apex and are
 //! main's too.

@@ -27,7 +27,7 @@ use profile::{
 pub fn quarter_tan(segment: &Segment<f64>) -> f64 {
     match segment {
         Segment::Line => 0.0,
-        Segment::Arc(arc) => (arc.sweep / 4.0).tan(),
+        Segment::Arc(arc) => arc.quarter_tan(),
     }
 }
 
@@ -440,7 +440,7 @@ pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
 /// circle rebuilt from its chord, and the largest of their misses is
 /// compared against the run's escalation threshold Kε — the point
 /// deviation production's `PendingRunOut::rides` decides, in the same
-/// convention (the apex is `seg::ChordFrame::apex`'s), and for the same
+/// convention (the apex is `Arc2::apex`'s), and for the same
 /// reason: it rounds at ε·R whatever the run's length, and samples a
 /// quarter turn apart see a long arc whose ends alone look right.
 pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {

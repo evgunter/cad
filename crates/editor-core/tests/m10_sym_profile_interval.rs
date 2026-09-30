@@ -300,51 +300,22 @@ const PLATE_MAX_TERMS: usize = 288;
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
 ///
-/// Re-captured when validation began keeping each loop's authored
-/// start (`profile` README V3): the plate's holes are authored
-/// counter-clockwise and reversed into canonical sense, and a reversed
-/// loop now starts where it was authored rather than at its lex-min
-/// vertex, so the walks meet the same forms in another order. Every
-/// count is unchanged; only the digest chains moved.
-///
-/// Re-captured again when the sketch pushforward began reading the
-/// segment's stored carrier and sweep (`geom_brep::SketchSegment`), and
-/// a cap's arc apex began reading the sweep (`mid − n̂·σ·(len/2)·
-/// tan(|Δθ|/4)`) rather than the bulge: plain and early decision forms
-/// +16 each, door forms −20, one fewer assertion form. Calls, frozen
-/// counts and every decision count are unchanged.
-///
-/// Re-captured again when validation gained an arc's three consistency
-/// checks and the arc's registrations moved to its construction (PATHS
-/// 5a): decision calls +16 in the plain and early walks and +32 at the
-/// door, assertion calls +8 and door assertions +24 — the new checks'
-/// residuals and the lowering's endpoint registrations, with the
-/// sweep's rim and span become rigidity's rim and landing. Frozen
-/// counts are unchanged, and the three ε rows capture one ledger.
-///
-/// Re-captured in the same unit when `arc_diameter_clearance` began
-/// reading the carrier (2r·(1 − sin(|Δθ|/4))) rather than the
-/// chord-scale apex: plain decision forms +48, plain assertion forms
-/// −47, early assertion forms −23, door decision forms −22. Calls,
-/// frozen counts and every decision count are unchanged.
-///
-/// Re-captured once more when the guided door stopped deciding the
-/// consistency checks of loops the guided replay constructed (D1: a
-/// constructed arc is verified at its construction): plain and early
-/// decision calls −16 and assertion calls −8, back to their counts
-/// before the checks; door decision and assertion calls −16 and −8,
-/// leaving +16 each over those counts, which are the lowering's
-/// endpoint registrations (lowering with no registration returns the
-/// door to 330 and 190). Deciding the checks under guidance again
-/// reproduces the previous capture exactly.
+/// The walks meet the plate's arcs through the stored carrier and sweep
+/// the sketch pushforward reads, each cap's apex (`Arc2::apex`), the
+/// diameter clearance validation decides on the carrier, and the
+/// registrations the lowering (`Arc2::register_endpoints`) and the
+/// sweep (`register_rigidity`, `register_placed_carrier_end`) state, so
+/// a change to any of those spellings moves the forms and digests here.
+/// The door's calls include the lowering's endpoint registrations: 16
+/// decisions and 16 assertions.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15119 frozen 672 digest ea3b143c0dc5fd88e5b1029ea0eef939\n\
-     Plain/Assertion calls 462 forms 2525 frozen 372 digest 96ac8f747aa6d2f7f476c83832d84269\n\
+     Plain/Decision calls 951 forms 15090 frozen 672 digest 40bb43a79461c5a97aff872142b624de\n\
+     Plain/Assertion calls 462 forms 2525 frozen 372 digest 2e14336f6eaba7e011317ac4ab863fac\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7993 frozen 8 digest 548181b64aaf9934580e0ed65b57a603\n\
-     Early/Assertion calls 462 forms 3388 frozen 104 digest 1556a53bd9783a851a0e7c04056f1549\n\
+     Early/Decision calls 320 forms 7964 frozen 8 digest 89d17038f6d91fe3575b640c9350806c\n\
+     Early/Assertion calls 462 forms 3388 frozen 104 digest 24eece643fd0281869c7ad25fd6e84fb\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 346 forms 11928 frozen 104 digest 1b112575a9b10929236c22f61fc5527c\n\
+     Door/Decision calls 346 forms 12046 frozen 104 digest 2e2d7bc050d03fe51f4feaa4ab3037a4\n\
      Door/Assertion calls 206 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

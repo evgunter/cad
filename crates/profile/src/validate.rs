@@ -169,7 +169,9 @@ pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the ori
      not re-read it";
 
 use crate::path::num;
-use crate::seg::{self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, build_seg};
+use crate::seg::{
+    self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_seg,
+};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
@@ -722,12 +724,24 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
     ),
     (
         "arc_carrier_resolution",
-        "the magnitude an arc's consistency difference was read at, against the one where f64 \
-         rounding reaches the band",
+        "the magnitude an arc's consistency difference was read at, against the one where its \
+         f64 rounding reaches the band",
+    ),
+    (
+        "arc_landing",
+        "how far a table arc's start, turned by its sweep, lands from its end",
     ),
     (
         "arc_span",
         "an arc's span, as the clearance between its chord's reach and its apex",
+    ),
+    (
+        "arc_start_on_carrier",
+        "how far a table arc's start lies off its carrier circle",
+    ),
+    (
+        "arc_sweep_range",
+        "a table arc's sweep against a full turn, levered by its radius",
     ),
     (
         "canonical_order_x",
@@ -2114,32 +2128,40 @@ fn build_loop_segs<T: Decide>(
                     loop_index,
                     segment_index: k,
                 };
-                match issue {
-                    SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
-                    SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
-                    SegIssue::Inconsistent { check, .. } => {
-                        ProfileError::InconsistentArc { at, check }
-                    }
-                    SegIssue::BelowSceneResolution {
-                        check,
-                        margin,
-                        headroom,
-                        ..
-                    } => ProfileError::ArcBelowSceneResolution {
-                        at,
-                        check,
-                        margin,
-                        headroom,
-                    },
-                    SegIssue::Escalated(source) => ProfileError::Escalated {
-                        site: EscalationSite::Segment(at),
-                        source,
-                    },
-                }
+                seg_refusal(issue, at, |source| ProfileError::Escalated {
+                    site: EscalationSite::Segment(at),
+                    source,
+                })
             })?,
         );
     }
     Ok(segs)
+}
+
+/// The refusal of the segment at `at` for `issue`, with `escalated`
+/// naming where an escalation is reported — the one map from a
+/// segment's refusal to the profile's.
+fn seg_refusal<T: Real>(
+    issue: SegIssue<T>,
+    at: SegmentRef,
+    escalated: impl FnOnce(Indeterminate) -> ProfileError,
+) -> ProfileError {
+    match issue {
+        SegIssue::Shape(ShapeIssue::Degenerate { .. }) => ProfileError::DegenerateSegment(at),
+        SegIssue::Shape(ShapeIssue::NearFull { .. }) => ProfileError::NearFullArc(at),
+        SegIssue::Shape(ShapeIssue::Escalated(source)) => escalated(source),
+        SegIssue::Inconsistent { check } => ProfileError::InconsistentArc { at, check },
+        SegIssue::BelowSceneResolution {
+            check,
+            margin,
+            headroom,
+        } => ProfileError::ArcBelowSceneResolution {
+            at,
+            check,
+            margin,
+            headroom,
+        },
+    }
 }
 
 /// Judges one segment pair: classifies contacts and applies the
@@ -2469,38 +2491,22 @@ fn canonicalize_loop<T: Decide>(
                 loop_index,
                 segment_index: k,
             };
-            match issue {
-                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
-                SegIssue::Inconsistent { check, .. } => ProfileError::InconsistentArc { at, check },
-                SegIssue::BelowSceneResolution {
-                    check,
-                    margin,
-                    headroom,
-                    ..
-                } => ProfileError::ArcBelowSceneResolution {
-                    at,
-                    check,
-                    margin,
-                    headroom,
-                },
-                // The recorded shape is a consumed decision, so a
-                // guided pass names the segment whose classification
-                // went unconfirmed instead of the bare segment site.
-                SegIssue::Escalated(source) => match recorded {
-                    Some(_) => ProfileError::Structure(StructureRefusal::indeterminate(
-                        Decision::SegmentShape {
-                            loop_: loop_index,
-                            segment: k,
-                        },
-                        source,
-                    )),
-                    None => ProfileError::Escalated {
-                        site: EscalationSite::Segment(at),
-                        source,
+            // The recorded shape is a consumed decision, so a guided
+            // pass names the segment whose classification went
+            // unconfirmed instead of the bare segment site.
+            seg_refusal(issue, at, |source| match recorded {
+                Some(_) => ProfileError::Structure(StructureRefusal::indeterminate(
+                    Decision::SegmentShape {
+                        loop_: loop_index,
+                        segment: k,
                     },
+                    source,
+                )),
+                None => ProfileError::Escalated {
+                    site: EscalationSite::Segment(at),
+                    source,
                 },
-            }
+            })
         })?;
         let kind = match &s.kind {
             SegKind::Line => SegmentKind::Line,

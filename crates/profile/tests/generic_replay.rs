@@ -488,13 +488,14 @@ fn the_stored_form_names_are_segs_own() {
     let code = test_utils::source::code_only(&seg);
     let with_literals = test_utils::source::code_and_literals(&seg);
     // The predicates the DOOR's read can fire are exactly those of the
-    // four bodies it calls — `build_seg` for the stored segment, and
+    // four bodies it calls — `classify` for the stored segment (the
+    // body `build_constructed_seg` runs, with no consistency check), and
     // `joint_tangency` with the two helpers it dispatches to. `seg.rs`
     // fires others (the pair contacts, the ray cast); they are not this
     // exemption's business and the scan does not take them.
     let mut fired: Vec<String> = Vec::new();
     for name in [
-        "fn build_seg",
+        "fn classify",
         "fn joint_tangency",
         "fn line_circle_joint",
         "fn chord_side",

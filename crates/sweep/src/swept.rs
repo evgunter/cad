@@ -38,16 +38,16 @@
 //! **One qualifier, and it is load-bearing: `from a validated loop`.**
 //! `revolve::tube` mints its two-arc traversal directly from the
 //! caller's intent values, because its whole purpose is to store the
-//! given centre and radii bit-exactly rather than reconstruct them
-//! from bulges — so it cannot take a `ValidatedLoop` and cannot come
-//! through here. It applies the same reversal convention by hand and
+//! given centre and radii bit-exactly, with no loop to validate — so it
+//! cannot take a `ValidatedLoop` and cannot come through here. It
+//! applies the same reversal convention by hand and
 //! **says so at its own site**; that marker is the only thing tying
 //! the two together, and it is deliberately not deleted.
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
 use geom_core::{
-    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::SegmentKind;
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
@@ -122,8 +122,9 @@ pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
 /// A type of its own, not the canonical kind: a validated segment's
 /// kind is oriented by the profile's canonical winding, and a body that
 /// reads a traversal's orientation must not be handed that one. The
-/// only mints are the two traversals below, so a canonical kind reaches
-/// a traversal's reader through [`swept_segments`] or not at all.
+/// mints are the two traversals below and [`Traversed::half_turn`],
+/// which takes no kind, so a canonical kind reaches a traversal's
+/// reader through [`swept_segments`] or not at all.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Traversed<T: Real>(SegmentKind<T>);
 
@@ -148,12 +149,28 @@ impl<T: Real> Traversed<T> {
         })
     }
 
-    /// A traversal's kind its caller states directly, already in that
-    /// traversal's orientation — for a builder with no validated loop
-    /// to traverse (`revolve::tube`, which stores its caller's centre
-    /// and radius), whose own site says which orientation it states.
-    pub(crate) fn stated(kind: SegmentKind<T>) -> Self {
-        Self(kind)
+    /// The half turn about `centre` of radius `radius`, traversed in
+    /// the sense `turn` — for a builder with no validated loop to
+    /// traverse (`revolve::tube`, which stores its caller's centre and
+    /// radius). It takes no kind, so a canonical one cannot pass through
+    /// it: the traversal is built here, in `turn`'s own orientation.
+    ///
+    /// The half-turn is spelled as the arc lowering spells a unit-bulge
+    /// arc's sweep (`4·atan 1`), not as `T::pi()`: the certifier samples
+    /// it at fractions `i/8`, and the symbolic tier folds the trig of
+    /// `q·atan 1` in closed form (rule D) where a fraction of `π` other
+    /// than a half-multiple stays an atom.
+    pub(crate) fn half_turn(centre: Point2<T>, radius: T, turn: Sign) -> Self {
+        let half = Arc2 {
+            centre,
+            radius,
+            sweep: T::from_f64(4.0) * T::one().atan(),
+        };
+        let arc = match turn {
+            Sign::Positive | Sign::Zero => half,
+            Sign::Negative => half.reversed(),
+        };
+        Self(SegmentKind::Arc { arc, turn })
     }
 
     /// The carrier class, in this traversal's orientation.
@@ -294,39 +311,6 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
         SegmentKind::Line => SketchSegment::Line { a, b },
         SegmentKind::Arc { arc, .. } => SketchSegment::Arc { a, b, arc },
     }
-}
-
-/// The arc apex: the carrier point at mid-sweep — an on-carrier
-/// interior point of the segment, and the point that keeps a 2-vertex
-/// loop plane-determining.
-///
-/// It is the chord midpoint moved off the chord by the sagitta:
-/// `mid − n̂·σ·(len/2)·tan(|Δθ|/4)`, with `n̂` the unit left normal of
-/// the chord `a → b` and σ the turn's sign (a counterclockwise arc bows
-/// to the right of its chord, a clockwise one to the left). Over the
-/// reals it is `centre − n̂·σ·radius`, for every `|Δθ| < 2π`.
-///
-/// **Chord-scale, not radius-scale**, which is why it is not written
-/// through the carrier. At `Interval` the carrier's centre carries the
-/// chord's relative width amplified by the radius (∝ 1/b for a flat
-/// arc), so `centre − n̂·σ·radius` is that wide too (3.6e-12 at unit
-/// chord and b = 1e-4, measured), while the sagitta form stays at the
-/// endpoints' own scale. And it is rational in the endpoints plus one
-/// tangent of the sweep, not the sweep's sine and cosine: the apex is a
-/// fit point of a cap plane, and trig of the half-sweep in every cap
-/// plane is what cost r1_annulus its certification ceiling.
-pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, arc: Arc2<T>, turn: Sign) -> Point2<T> {
-    let chord = b - a;
-    let len = chord.norm();
-    let u = chord / len;
-    let nhat = Vec2::new(T::zero() - u.y, u.x);
-    let mid = a.lerp(b, T::from_f64(0.5));
-    let sagitta = len * T::from_f64(0.5) * (arc_span(turn, arc) * T::from_f64(0.25)).tan();
-    let bow = match turn {
-        Sign::Positive | Sign::Zero => sagitta,
-        Sign::Negative => T::zero() - sagitta,
-    };
-    mid - nhat * bow
 }
 
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
@@ -559,8 +543,8 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     let mut pts = Vec::with_capacity(segs.len() * 2);
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
-        if let SegmentKind::Arc { arc, turn } = s.kind().get() {
-            let apex = arc_apex(s.a(), s.b(), arc, turn);
+        if let SegmentKind::Arc { arc, .. } = s.kind().get() {
+            let apex = arc.apex(s.a(), s.b());
             pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
         }
     }
@@ -732,7 +716,7 @@ mod tests {
                 let profile::Segment::Arc(arc) = lp.segments()[0] else {
                     panic!("a nonzero bulge lowers to an arc");
                 };
-                let apex = arc_apex(a, e, arc, Sign::Positive);
+                let apex = arc.apex(a, e);
                 let width = (apex.x.hi() - apex.x.lo()).max(apex.y.hi() - apex.y.lo());
                 assert!(
                     width <= 16.0 * f64::EPSILON * l,

@@ -123,6 +123,35 @@ impl<T: Real> Arc2<T> {
         self.point_from(a, T::one())
     }
 
+    /// tan(Δθ/4), spelled `sin(Δθ/4) / cos(Δθ/4)`: the signed sagitta
+    /// over the half-chord, the chord-scale reading of how far the arc
+    /// bows. The quotient rather than `tan` because the symbolic tier
+    /// folds `sin` and `cos` of a lowered sweep's `atan` (rule D) and
+    /// holds `tan` as an opaque atom.
+    pub fn quarter_tan(self) -> T {
+        let quarter = self.sweep * T::from_f64(0.25);
+        quarter.sin() / quarter.cos()
+    }
+
+    /// **The apex of this arc between `a` and `b`**: its midpoint, the
+    /// chord's midpoint moved off the chord by the sagitta
+    /// `L·tan(Δθ/4)/2` against the chord's left unit normal (a
+    /// counterclockwise arc bows to the right of its chord). Over the
+    /// reals it is `centre − n̂·sign(Δθ)·radius` for every |Δθ| < 2π.
+    /// The one spelling of an arc's apex.
+    ///
+    /// **Chord-scale, not radius-scale**, which is why it is not written
+    /// through the carrier: at `Interval` the centre carries the chord's
+    /// relative width amplified by the radius (∝ 1/b for a flat arc),
+    /// while the sagitta form stays at the endpoints' own scale.
+    pub fn apex(self, a: Point2<T>, b: Point2<T>) -> Point2<T> {
+        let len = a.distance(b);
+        let unit = (b - a) / len;
+        let mid = a.lerp(b, T::from_f64(0.5));
+        let normal = Vec2::new(-unit.y, unit.x);
+        mid - normal * (len * self.quarter_tan() * T::from_f64(0.5))
+    }
+
     /// The carrier's point at the end of the sweep, reached from the
     /// direction of `a`: `centre + radius·R(sweep)·(a − centre)/‖a − centre‖`.
     ///

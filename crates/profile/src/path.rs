@@ -1975,9 +1975,6 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     Some(
                         "vertex_separation"
                         | "segment_straightness"
-                        | "arc_start_on_carrier"
-                        | "arc_landing"
-                        | "arc_sweep_range"
                         | "arc_diameter_clearance"
                         | "chord_side"
                         | "carrier_line_circle"
@@ -3162,16 +3159,15 @@ impl<T: Decide> Core<T> {
         for &(leaving, radius) in &self.fillet_arcs {
             let stored = |i: usize| {
                 let ((start, bulge), end) = (self.verts[i], self.verts[(i + 1) % n].0);
-                seg::build_seg(
+                // The arc was lowered here, which registered its
+                // endpoint identities: it is the construction's own
+                // output, verified at its construction (D1), and this
+                // re-read asks what validation asks of its shape and
+                // joints, not its consistency.
+                seg::build_constructed_seg(
                     start,
                     end,
                     crate::lower_to(start, bulge, end, Some(tol)),
-                    // The arc was lowered here, which registered its
-                    // endpoint identities: it is the construction's own
-                    // output, verified at its construction (D1), and
-                    // this re-read asks what validation asks of its
-                    // shape and joints, not its consistency.
-                    seg::Consistency::ByConstruction,
                     band,
                 )
             };
@@ -3199,38 +3195,14 @@ impl<T: Decide> Core<T> {
                 };
             let arc = match stored(leaving) {
                 Ok(arc) => arc,
-                Err(seg::SegIssue::Escalated(source)) => {
+                Err(seg::ShapeIssue::Escalated(source)) => {
                     return Err(PathError::Escalated { source });
                 }
                 Err(
-                    issue @ (seg::SegIssue::Degenerate { margin }
-                    | seg::SegIssue::NearFull { margin }),
+                    issue @ (seg::ShapeIssue::Degenerate { margin }
+                    | seg::ShapeIssue::NearFull { margin }),
                 ) => {
                     return Err(flattened(issue.predicate(), margin));
-                }
-                // Not produced here: the re-read runs
-                // `Consistency::ByConstruction`, which decides no
-                // consistency check. Mapped rather than asserted so the
-                // arm stays typed: a carrier that disagreed with its own
-                // vertex at the run's band would be a difference of the
-                // scene's magnitudes the lowering could not read, which
-                // is the scene's resolution.
-                Err(
-                    issue @ (seg::SegIssue::Inconsistent { margin, .. }
-                    | seg::SegIssue::BelowSceneResolution { value: margin, .. }),
-                ) => {
-                    let (from, to) = (self.verts[leaving].0, self.verts[arc_seg % n].0);
-                    let scale = radius.max(seg::reach(from)).max(seg::reach(to));
-                    return Err(PathError::FilletCarrierBelowSceneResolution {
-                        turn,
-                        radius,
-                        scale,
-                        // `f64::EPSILON` for the reason the joint arm
-                        // below states.
-                        resolution: scale * T::from_f64(f64::EPSILON),
-                        predicate: issue.predicate(),
-                        margin,
-                    });
                 }
             };
             // The stored segment came back an arc, or it did not: that
@@ -5783,7 +5755,7 @@ mod fillet_stored_form {
         // The stored sweep's quarter tangent: the sagitta's lever, as
         // validation reads it.
         let bulge = match lp.segments()[s] {
-            crate::Segment::Arc(arc) => seg::quarter_tan(arc.sweep),
+            crate::Segment::Arc(arc) => arc.quarter_tan(),
             crate::Segment::Line => 0.0,
         };
         let chord = vs[s].distance(vs[(s + 1) % n]);
