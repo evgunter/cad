@@ -19,6 +19,7 @@
 //! Layering (D1, G1): the kernel never sees a `StableName` — ops emit
 //! birth facts; THIS module (editor-core) names things.
 
+pub mod borders_probe_log;
 mod attribute;
 mod canonical;
 mod defer;

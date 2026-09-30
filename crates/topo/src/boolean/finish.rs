@@ -55,6 +55,121 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub vertex_map: SecondaryMap<VertexKey, VertexKey>,
     /// The B-side graft bridge (contact-record remapping).
     pub graft: GraftMap,
+    /// PROBE: the discarded fragments (`BooleanNaming::discards`).
+    pub discards: Vec<super::ops::DiscardRow>,
+}
+
+/// PROBE: the discarded face fragments of one operand solid, with the
+/// kept fragments each bordered across the section.
+#[allow(clippy::too_many_arguments)]
+fn discard_rows<T: Decide>(
+    body: &Body<T>,
+    solid: SolidKey,
+    kept: &[ShellKey],
+    sides: &SecondaryMap<FaceKey, SideCode>,
+    null_edges: &[super::BoolNullEdgeRecord<T>],
+    operand: Operand,
+    graft: Option<&GraftMap>,
+) -> Result<Vec<super::ops::DiscardRow>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let mut other: std::collections::BTreeMap<VertexKey, VertexKey> =
+        std::collections::BTreeMap::new();
+    for r in null_edges.iter().filter(|r| r.operand == operand) {
+        other.insert(r.attr.below_end, r.attr.above_end);
+        other.insert(r.attr.above_end, r.attr.below_end);
+    }
+    let map_v = |v: VertexKey| -> Option<VertexKey> {
+        match graft {
+            None => Some(v),
+            Some(g) => g.vertices.get(v).copied(),
+        }
+    };
+    let mut out = Vec::new();
+    let shells = body
+        .shells_of_solid(solid)
+        .ok_or_else(|| desync("probe: solid no longer resolves"))?
+        .to_vec();
+    for shell in shells {
+        if kept.contains(&shell) {
+            continue;
+        }
+        let faces = body
+            .get_shell(shell)
+            .ok_or_else(|| desync("probe: shell no longer resolves"))?
+            .faces
+            .clone();
+        for face in faces {
+            if sides.contains_key(face) {
+                continue;
+            }
+            let fd = body
+                .get_face(face)
+                .ok_or_else(|| desync("probe: face no longer resolves"))?;
+            let mut row = super::ops::DiscardRow {
+                operand_b: operand == Operand::B,
+                face,
+                boundary_chains: Vec::new(),
+                bordered: Vec::new(),
+            };
+            for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+                let LoopBoundary::Cycle { first } = body
+                    .get_loop(l)
+                    .ok_or_else(|| desync("probe: loop no longer resolves"))?
+                    .boundary
+                else {
+                    continue;
+                };
+                for he in body
+                    .loop_cycle(first)
+                    .ok_or_else(|| desync("probe: loop not walkable"))?
+                {
+                    let h = body
+                        .get_half_edge(he)
+                        .ok_or_else(|| desync("probe: half-edge"))?;
+                    let edge = body.get_edge(h.edge).ok_or_else(|| desync("probe: edge"))?;
+                    let mate = if edge.he_plus == he {
+                        edge.he_minus
+                    } else {
+                        edge.he_plus
+                    };
+                    let mate_face = body
+                        .get_loop(
+                            body.get_half_edge(mate)
+                                .ok_or_else(|| desync("probe: mate"))?
+                                .parent_loop,
+                        )
+                        .ok_or_else(|| desync("probe: mate loop"))?
+                        .face;
+                    if sides.contains_key(mate_face) {
+                        let u = h.start;
+                        let w = body
+                            .half_edge_end(he)
+                            .ok_or_else(|| desync("probe: half-edge end"))?;
+                        let seg = match (other.get(&u), other.get(&w)) {
+                            (Some(&u2), Some(&w2)) => map_v(u2).zip(map_v(w2)),
+                            _ => None,
+                        };
+                        row.bordered.push(seg);
+                    } else {
+                        let mut chain = vec![h.edge];
+                        let mut at = h.edge;
+                        for _ in 0..100_000 {
+                            match body.edge_provenance_of(at) {
+                                Some(crate::provenance::Provenance::SplitEdge { edge: p }) => {
+                                    at = *p;
+                                    chain.push(at);
+                                }
+                                _ => break,
+                            }
+                        }
+                        row.boundary_chains.push(chain);
+                    }
+                }
+            }
+            out.push(row);
+        }
+    }
+    Ok(out)
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -394,10 +509,30 @@ pub(super) fn setopfinish<T: Decide>(
         }
     }
 
+    let mut discards = discard_rows(
+        &red.a,
+        a_solid,
+        &a_kept_shells,
+        &a_sides,
+        &red.null_edges,
+        Operand::A,
+        None,
+    )?;
+    discards.extend(discard_rows(
+        &red.b,
+        b_solid,
+        &b_kept_shells,
+        &b_sides,
+        &red.null_edges,
+        Operand::B,
+        Some(&graft),
+    )?);
+
     Ok(FinishOut {
         body,
         seams,
         vertex_map,
         graft,
+        discards,
     })
 }

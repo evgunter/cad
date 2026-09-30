@@ -121,7 +121,7 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 pub(crate) use contain::{LoopShape, loop_shape};
 pub use join::CompletedPolygonPair;
 pub use ops::{
-    BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
+    BooleanBody, BooleanNaming, DiscardRow, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
     intersect, intersect_with, subtract, subtract_with, union, union_with,
 };
 pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};

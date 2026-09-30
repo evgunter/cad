@@ -642,3 +642,5 @@ mod emit_union_dividing;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "borders_probe.rs"]
+mod borders_probe;

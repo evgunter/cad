@@ -1,0 +1,458 @@
+# borders_probe results (scratch measurement, emit/borders-mechanism-probe)
+# run: BORDERS_PROBE_LOG=1 BORDERS_DETAIL=1 cargo test -p editor-core --test all borders_probe_{corpus,constructed} -- --ignored --nocapture
+
+## corpus
+ROW row                      runs= 24 refused= 24 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW rowids                   runs= 24 refused= 24 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW abg                      runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW abgids                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW abglow                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW abc                      runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW abgg2                    runs= 24 refused= 16 groups=  24 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  8 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 24 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  8 orderDep=0
+ROW cross                    runs= 24 refused= 24 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam000                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW fam001                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW fam002                   runs=  6 refused=  2 groups=  16 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 16 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres= 16 orderDep=0
+ROW fam010                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam011                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam012                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW fam020                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam021                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam022                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW fam100                   runs=  6 refused=  4 groups=   4 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  4 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  2 orderDep=0
+ROW fam101                   runs=  6 refused=  4 groups=   4 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  4 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  2 orderDep=0
+ROW fam102                   runs=  6 refused=  4 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  8 orderDep=0
+ROW fam110                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam111                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam112                   runs=  6 refused=  4 groups=   4 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  4 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  2 orderDep=0
+ROW fam120                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam121                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam122                   runs=  6 refused=  4 groups=   4 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  4 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  2 orderDep=0
+ROW fam200                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW fam201                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW fam202                   runs=  6 refused=  2 groups=  16 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 16 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres= 16 orderDep=0
+ROW fam210                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam211                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam212                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW fam220                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam221                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW fam222                   runs=  6 refused=  2 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  4 orderDep=0
+ROW r1two                    runs=  6 refused=  0 groups=  18 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  6 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 18 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW r1three                  runs= 24 refused= 24 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW r1flush                  runs= 24 refused= 18 groups=  18 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  6 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 18 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  6 orderDep=0
+ROW r2ends                   runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW r2endsg                  runs= 24 refused=  8 groups=  32 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 32 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres= 16 orderDep=0
+ROW r4tri                    runs=  6 refused=  2 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW r4trig                   runs= 24 refused= 12 groups=  24 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 24 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres= 12 orderDep=0
+ROW r4touch                  runs=  6 refused=  0 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW r3nest                   runs=  8 refused=  0 groups=   8 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  8 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW r3nest2                  runs= 24 refused=  0 groups=  36 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff= 12 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 36 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+STEP PATHS (runs with a split group) corpus: {"crossings": 226, "none": 64}
+RECORD NOTES (per group read) corpus: {"step 0: unresolved segment: no edge joins the live ends": 1024, "step 1: unresolved segment: no edge joins the live ends": 976, "step 2: unresolved segment: no edge joins the live ends": 384}
+TOTAL corpus: runs=434 refused=198 groups=304 island=0 pinchP=0 pinchV=0 walkSplit=0 walkPartDiff=0 walkBordDiff=0 fpPartDiff=0 fpBordDiff=0 fppPartDiff=32 fppBordDiff=0 rimConf=0 exclW=0 unk=0 unsup=0 orderDepCases=0 fpNoDiv=0 | rec groups=304 partDiff=0 bordDiff=0 missing=0 spurious=0 unres=134 orderDepCases=0
+
+## constructed
+ROW tube_on_plate            runs=  2 refused=  2 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW ptube_on_plate           runs=  2 refused=  0 groups=   2 island=  2 pinchP=  0 pinchV=  0 walkSplit=  2 walkPartDiff=  2 walkBordDiff=  2 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  2 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW ptube_slab               runs=  6 refused=  0 groups=  30 island=  6 pinchP=  0 pinchV=  0 walkSplit=  6 walkPartDiff=  6 walkBordDiff=  6 fpPartDiff=  6 fpBordDiff=  0 fppPartDiff=  6 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 30 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW ptube_tall_slab          runs=  6 refused=  0 groups=  42 island=  6 pinchP=  0 pinchV=  0 walkSplit=  6 walkPartDiff=  6 walkBordDiff=  6 fpPartDiff=  6 fpBordDiff=  0 fppPartDiff=  6 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 42 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW tube_slab                runs=  6 refused=  6 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW ring_rib                 runs=  2 refused=  0 groups=   2 island=  2 pinchP=  0 pinchV=  0 walkSplit=  2 walkPartDiff=  2 walkBordDiff=  2 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  2 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW slab_boss                runs=  6 refused=  0 groups=  12 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 12 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW three_strips             runs= 24 refused=  0 groups= 120 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=120 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW aligned_boss             runs= 24 refused=  0 groups=  48 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 48 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW t_junction               runs=  6 refused=  0 groups=  12 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 12 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW staircase                runs=  2 refused=  0 groups=   4 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  4 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW staircase3               runs= 24 refused=  0 groups=  24 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 24 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW overhang                 runs=  6 refused=  0 groups=  12 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  6 fpBordDiff=  6 fppPartDiff=  6 fppBordDiff=  6 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 12 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW overhang4                runs= 24 refused=  0 groups=  48 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff= 24 fpBordDiff= 24 fppPartDiff= 24 fppBordDiff= 24 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 48 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW arch_over_slab           runs=  6 refused=  0 groups=  12 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  6 fpBordDiff=  6 fppPartDiff=  6 fppBordDiff=  6 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups= 12 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW cup_on_plate             runs=  6 refused=  0 groups=  12 island= 12 pinchP=  0 pinchV=  0 walkSplit= 12 walkPartDiff= 12 walkBordDiff= 12 fpPartDiff= 12 fpBordDiff= 12 fppPartDiff= 12 fppBordDiff= 12 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv= 12 | rec groups= 12 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW pinch                    runs=  6 refused=  2 groups=   4 island=  0 pinchP=  4 pinchV=  4 walkSplit=  0 walkPartDiff=  4 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  4 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  4 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW sub_through_slot         runs=  1 refused=  0 groups=   4 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  4 fpBordDiff=  4 fppPartDiff=  4 fppBordDiff=  4 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  4 | rec groups=  4 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW sub_blind_slot           runs=  1 refused=  0 groups=   1 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  1 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW sub_two_through_slots    runs=  1 refused=  0 groups=   4 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  4 fpBordDiff=  4 fppPartDiff=  4 fppBordDiff=  4 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  4 | rec groups=  4 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW sub_through_pring_groove runs=  1 refused=  0 groups=   2 island=  2 pinchP=  0 pinchV=  0 walkSplit=  2 walkPartDiff=  2 walkBordDiff=  2 fpPartDiff=  2 fpBordDiff=  2 fppPartDiff=  2 fppBordDiff=  2 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  2 | rec groups=  2 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW sub_blind_pring_groove   runs=  1 refused=  0 groups=   1 island=  1 pinchP=  0 pinchV=  0 walkSplit=  1 walkPartDiff=  1 walkBordDiff=  1 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  1 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW pair_union_round_tube    runs=  1 refused=  1 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW round_boss_slab          runs=  6 refused=  6 groups=   0 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  0 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW pair_union_slab          runs=  1 refused=  0 groups=   2 island=  0 pinchP=  0 pinchV=  0 walkSplit=  0 walkPartDiff=  0 walkBordDiff=  0 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  2 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+ROW pair_union_ptube         runs=  1 refused=  0 groups=   1 island=  1 pinchP=  0 pinchV=  0 walkSplit=  1 walkPartDiff=  1 walkBordDiff=  1 fpPartDiff=  0 fpBordDiff=  0 fppPartDiff=  0 fppBordDiff=  0 rimConf=  0 exclW=  0 unk=  0 unsup=  0 orderDep=0 fpNoDiv=  0 | rec groups=  1 partDiff=  0 bordDiff=  0 missing=  0 spurious=  0 unres=  0 orderDep=0
+STEP PATHS (runs with a split group) constructed: {"crossings": 361, "none": 32}
+RECORD NOTES (per group read) constructed: {}
+TOTAL constructed: runs=172 refused=17 groups=399 island=32 pinchP=4 pinchV=4 walkSplit=32 walkPartDiff=36 walkBordDiff=32 fpPartDiff=70 fpBordDiff=58 fppPartDiff=74 fppBordDiff=58 rimConf=0 exclW=0 unk=0 unsup=0 orderDepCases=0 fpNoDiv=22 | rec groups=399 partDiff=0 bordDiff=0 missing=0 spurious=0 unres=0 orderDepCases=0
+
+## constructed: divergent groups (detail)
+  ptube_on_plate [0, 1] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      walk  [[], []]
+  ptube_on_plate [1, 0] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      walk  [[], []]
+  ptube_slab [0, 1, 2] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_slab [0, 1, 2] m8.Cap(End) pieces=3 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(17)"], ["m5.Lat(26)", "m5.Lat(34)"], ["m5.Lat(9)"]]
+  ptube_slab [0, 2, 1] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_slab [0, 2, 1] m8.Cap(End) pieces=3 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(17)"], ["m5.Lat(26)", "m5.Lat(34)"], ["m5.Lat(9)"]]
+  ptube_slab [1, 0, 2] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_slab [1, 0, 2] m8.Cap(End) pieces=3 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(17)"], ["m5.Lat(26)", "m5.Lat(34)"], ["m5.Lat(9)"]]
+  ptube_slab [1, 2, 0] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_slab [1, 2, 0] m8.Cap(End) pieces=3 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(17)"], ["m5.Lat(26)", "m5.Lat(34)"], ["m5.Lat(9)"]]
+  ptube_slab [2, 0, 1] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_slab [2, 0, 1] m8.Cap(End) pieces=3 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(17)"], ["m5.Lat(26)", "m5.Lat(34)"], ["m5.Lat(9)"]]
+  ptube_slab [2, 1, 0] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_slab [2, 1, 0] m8.Cap(End) pieces=3 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(17)"], ["m5.Lat(26)", "m5.Lat(34)"], ["m5.Lat(9)"]]
+  ptube_tall_slab [0, 1, 2] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_tall_slab [0, 1, 2] m5.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m8.Lat(41)"], ["m8.Lat(43)"]]
+  ptube_tall_slab [0, 2, 1] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_tall_slab [0, 2, 1] m5.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m8.Lat(41)"], ["m8.Lat(43)"]]
+  ptube_tall_slab [1, 0, 2] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_tall_slab [1, 0, 2] m5.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m8.Lat(41)"], ["m8.Lat(43)"]]
+  ptube_tall_slab [1, 2, 0] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_tall_slab [1, 2, 0] m5.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m8.Lat(41)"], ["m8.Lat(43)"]]
+  ptube_tall_slab [2, 0, 1] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_tall_slab [2, 0, 1] m5.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m8.Lat(41)"], ["m8.Lat(43)"]]
+  ptube_tall_slab [2, 1, 0] m2.Cap(End) pieces=4 obst=1 div=1 isl=2 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)", "m8.Lat(41)"], ["m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m8.Lat(43)"]]
+      walk  [[], [], ["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(9)", "m8.Lat(43)"], ["m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)", "m8.Lat(41)"]]
+  ptube_tall_slab [2, 1, 0] m5.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m8.Lat(41)"], ["m8.Lat(43)"]]
+  ring_rib [0, 1] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)"], ["m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"]]
+      walk  [[], []]
+  ring_rib [1, 0] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)"], ["m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"]]
+      walk  [[], []]
+  overhang [0, 1, 2] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+  overhang [0, 2, 1] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+  overhang [1, 0, 2] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+  overhang [1, 2, 0] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+  overhang [2, 0, 1] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+  overhang [2, 1, 0] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(16)"]]
+  overhang4 [0, 1, 2, 3] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [0, 1, 3, 2] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [0, 2, 1, 3] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [0, 2, 3, 1] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [0, 3, 1, 2] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [0, 3, 2, 1] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [1, 0, 2, 3] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [1, 0, 3, 2] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [1, 2, 0, 3] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [1, 2, 3, 0] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [1, 3, 0, 2] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [1, 3, 2, 0] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [2, 0, 1, 3] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [2, 0, 3, 1] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [2, 1, 0, 3] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [2, 1, 3, 0] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [2, 3, 0, 1] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [2, 3, 1, 0] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [3, 0, 1, 2] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [3, 0, 2, 1] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [3, 1, 0, 2] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [3, 1, 2, 0] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [3, 2, 0, 1] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  overhang4 [3, 2, 1, 0] m2.Cap(End) pieces=2 obst=2 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+      fpp   [["m5.Lat(7)"], ["m5.Lat(9)", "m8.Lat(11)", "m8.Lat(12)", "m8.Lat(13)", "m8.Lat(14)"]]
+  arch_over_slab [0, 1, 2] m2.Cap(End) pieces=2 obst=3 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+      fpp   [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+  arch_over_slab [0, 2, 1] m2.Cap(End) pieces=2 obst=3 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+      fpp   [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+  arch_over_slab [1, 0, 2] m2.Cap(End) pieces=2 obst=3 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+      fpp   [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+  arch_over_slab [1, 2, 0] m2.Cap(End) pieces=2 obst=3 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+      fpp   [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+  arch_over_slab [2, 0, 1] m2.Cap(End) pieces=2 obst=3 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+      fpp   [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+  arch_over_slab [2, 1, 0] m2.Cap(End) pieces=2 obst=3 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)"], ["m5.Lat(9)"]]
+      fp    [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+      fpp   [["m5.Lat(7)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(14)", "m8.Lat(16)"], ["m5.Lat(9)", "m8.Cap(End)", "m8.Cap(Start)", "m8.Lat(12)", "m8.Lat(18)"]]
+  cup_on_plate [0, 1, 2] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [0, 1, 2] m8.Cap(Start) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [0, 2, 1] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [0, 2, 1] m8.Cap(Start) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [1, 0, 2] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [1, 0, 2] m8.Cap(Start) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [1, 2, 0] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [1, 2, 0] m8.Cap(Start) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [2, 0, 1] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [2, 0, 1] m8.Cap(Start) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [2, 1, 0] m2.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  cup_on_plate [2, 1, 0] m8.Cap(Start) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(10)", "m5.Lat(11)", "m5.Lat(12)", "m5.Lat(13)", "m5.Lat(14)", "m5.Lat(15)", "m5.Lat(16)", "m5.Lat(17)", "m5.Lat(18)", "m5.Lat(19)", "m5.Lat(20)", "m5.Lat(21)", "m5.Lat(6)", "m5.Lat(7)", "m5.Lat(8)", "m5.Lat(9)"], ["m5.Lat(23)", "m5.Lat(24)", "m5.Lat(25)", "m5.Lat(26)", "m5.Lat(27)", "m5.Lat(28)", "m5.Lat(29)", "m5.Lat(30)", "m5.Lat(31)", "m5.Lat(32)", "m5.Lat(33)", "m5.Lat(34)", "m5.Lat(35)", "m5.Lat(36)", "m5.Lat(37)", "m5.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+thread 'borders_probe::borders_probe_constructed' (14162) panicked at crates/mesh/src/tessellate.rs:594:9:
+chord segment Some((24, 32)) is an edge of 1 face triangles; a watertight emission uses every chord segment exactly 2 times. The census counts and cannot say why. Known causes: the faces meeting on that edge emitted the segment under different ids, a face there emitted no triangle along it, or a patch used it more than once (issue 897)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: tessellate_impl
+             at /root/.local/share/cad-work/emit-borders-probe/crates/mesh/src/tessellate.rs:594:9
+   3: tessellate
+             at /root/.local/share/cad-work/emit-borders-probe/crates/mesh/src/tessellate.rs:154:5
+   4: all::borders_probe::tessellate
+             at ./tests/borders_probe.rs:432:5
+   5: probe_body
+             at ./tests/borders_probe.rs:466:13
+   6: all::borders_probe::borders_probe_constructed::{closure#1}::{closure#0}
+             at ./tests/borders_probe.rs:1574:82
+   7: <all::borders_probe::borders_probe_constructed::{closure#1}::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   8: <core::panic::unwind_safe::AssertUnwindSafe<all::borders_probe::borders_probe_constructed::{closure#1}::{closure#0}> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panic/unwind_safe.rs:275:9
+   9: do_call<core::panic::unwind_safe::AssertUnwindSafe<all::borders_probe::borders_probe_constructed::{closure#1}::{closure_env#0}>, alloc::vec::Vec<all::borders_probe::GroupReport, alloc::alloc::Global>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:581:40
+  10: __rust_try
+  11: catch_unwind<alloc::vec::Vec<all::borders_probe::GroupReport, alloc::alloc::Global>, core::panic::unwind_safe::AssertUnwindSafe<all::borders_probe::borders_probe_constructed::{closure#1}::{closure_env#0}>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:544:19
+  12: catch_unwind<core::panic::unwind_safe::AssertUnwindSafe<all::borders_probe::borders_probe_constructed::{closure#1}::{closure_env#0}>, alloc::vec::Vec<all::borders_probe::GroupReport, alloc::alloc::Global>>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panic.rs:359:14
+  13: {closure#1}
+             at ./tests/borders_probe.rs:1574:25
+  14: fixture_runs<all::borders_probe::borders_probe_constructed::{closure_env#1}>
+             at ./tests/borders_probe.rs:1354:9
+  15: all::borders_probe::borders_probe_constructed
+             at ./tests/borders_probe.rs:1571:9
+  16: all::borders_probe::borders_probe_constructed::{closure#0}
+             at ./tests/borders_probe.rs:1564:31
+  17: <all::borders_probe::borders_probe_constructed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+  18: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+  pinch [0, 1, 2] m2.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=1 pinchV=1 walkSplit=0 walkDiff=true fpDiff=false fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)", "m8.Lat(11)", "m8.Lat(12)"], ["m5.Lat(8)", "m5.Lat(9)", "m8.Lat(14)"]]
+  pinch [0, 2, 1] m2.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=1 pinchV=1 walkSplit=0 walkDiff=true fpDiff=false fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)", "m8.Lat(11)", "m8.Lat(12)"], ["m5.Lat(8)", "m5.Lat(9)", "m8.Lat(14)"]]
+  pinch [1, 0, 2] m2.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=1 pinchV=1 walkSplit=0 walkDiff=true fpDiff=false fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)", "m8.Lat(11)", "m8.Lat(12)"], ["m5.Lat(8)", "m5.Lat(9)", "m8.Lat(14)"]]
+  pinch [2, 0, 1] m2.Cap(End) pieces=2 obst=2 div=2 isl=0 pinchP=1 pinchV=1 walkSplit=0 walkDiff=true fpDiff=false fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["m5.Lat(7)", "m8.Lat(11)", "m8.Lat(12)"], ["m5.Lat(8)", "m5.Lat(9)", "m8.Lat(14)"]]
+  sub_through_slot [0,1] A.Cap(End) pieces=2 obst=1 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(7)"], ["B.Lat(9)"]]
+      fp    [[], []]
+      fpp   [[], []]
+  sub_through_slot [0,1] A.Cap(Start) pieces=2 obst=1 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(7)"], ["B.Lat(9)"]]
+      fp    [[], []]
+      fpp   [[], []]
+  sub_through_slot [0,1] A.Lat(1) pieces=2 obst=1 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(7)"], ["B.Lat(9)"]]
+      fp    [[], []]
+      fpp   [[], []]
+  sub_through_slot [0,1] A.Lat(3) pieces=2 obst=1 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(7)"], ["B.Lat(9)"]]
+      fp    [[], []]
+      fpp   [[], []]
+  sub_two_through_slots [0,1] A.Cap(End) pieces=2 obst=1 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(7)"], ["B.Lat(9)"]]
+      fp    [[], []]
+      fpp   [[], []]
+  sub_two_through_slots [0,1] A.Cap(Start) pieces=2 obst=1 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(7)"], ["B.Lat(9)"]]
+      fp    [[], []]
+      fpp   [[], []]
+  sub_two_through_slots [0,1] A.Lat(1) pieces=2 obst=1 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(7)"], ["B.Lat(9)"]]
+      fp    [[], []]
+      fpp   [[], []]
+  sub_two_through_slots [0,1] A.Lat(3) pieces=2 obst=1 div=1 isl=0 pinchP=0 pinchV=0 walkSplit=0 walkDiff=false fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(7)"], ["B.Lat(9)"]]
+      fp    [[], []]
+      fpp   [[], []]
+  sub_through_pring_groove [0,1] A.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(10)", "B.Lat(11)", "B.Lat(12)", "B.Lat(13)", "B.Lat(14)", "B.Lat(15)", "B.Lat(16)", "B.Lat(17)", "B.Lat(18)", "B.Lat(19)", "B.Lat(20)", "B.Lat(21)", "B.Lat(6)", "B.Lat(7)", "B.Lat(8)", "B.Lat(9)"], ["B.Lat(23)", "B.Lat(24)", "B.Lat(25)", "B.Lat(26)", "B.Lat(27)", "B.Lat(28)", "B.Lat(29)", "B.Lat(30)", "B.Lat(31)", "B.Lat(32)", "B.Lat(33)", "B.Lat(34)", "B.Lat(35)", "B.Lat(36)", "B.Lat(37)", "B.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  sub_through_pring_groove [0,1] A.Cap(Start) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=true fppDiff=true rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(10)", "B.Lat(11)", "B.Lat(12)", "B.Lat(13)", "B.Lat(14)", "B.Lat(15)", "B.Lat(16)", "B.Lat(17)", "B.Lat(18)", "B.Lat(19)", "B.Lat(20)", "B.Lat(21)", "B.Lat(6)", "B.Lat(7)", "B.Lat(8)", "B.Lat(9)"], ["B.Lat(23)", "B.Lat(24)", "B.Lat(25)", "B.Lat(26)", "B.Lat(27)", "B.Lat(28)", "B.Lat(29)", "B.Lat(30)", "B.Lat(31)", "B.Lat(32)", "B.Lat(33)", "B.Lat(34)", "B.Lat(35)", "B.Lat(36)", "B.Lat(37)", "B.Lat(38)"]]
+      fp    [[], []]
+      fpp   [[], []]
+      walk  [[], []]
+  sub_blind_pring_groove [0,1] A.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(10)", "B.Lat(11)", "B.Lat(12)", "B.Lat(13)", "B.Lat(14)", "B.Lat(15)", "B.Lat(16)", "B.Lat(17)", "B.Lat(18)", "B.Lat(19)", "B.Lat(20)", "B.Lat(21)", "B.Lat(6)", "B.Lat(7)", "B.Lat(8)", "B.Lat(9)"], ["B.Lat(23)", "B.Lat(24)", "B.Lat(25)", "B.Lat(26)", "B.Lat(27)", "B.Lat(28)", "B.Lat(29)", "B.Lat(30)", "B.Lat(31)", "B.Lat(32)", "B.Lat(33)", "B.Lat(34)", "B.Lat(35)", "B.Lat(36)", "B.Lat(37)", "B.Lat(38)"]]
+      walk  [[], []]
+  pair_union_ptube [0,1] A.Cap(End) pieces=2 obst=1 div=1 isl=1 pinchP=0 pinchV=0 walkSplit=1 walkDiff=true fpDiff=false fppDiff=false rimConf=0 exclW=0 unk=0
+      truth [["B.Lat(10)", "B.Lat(11)", "B.Lat(12)", "B.Lat(13)", "B.Lat(14)", "B.Lat(15)", "B.Lat(16)", "B.Lat(17)", "B.Lat(18)", "B.Lat(19)", "B.Lat(20)", "B.Lat(21)", "B.Lat(6)", "B.Lat(7)", "B.Lat(8)", "B.Lat(9)"], ["B.Lat(23)", "B.Lat(24)", "B.Lat(25)", "B.Lat(26)", "B.Lat(27)", "B.Lat(28)", "B.Lat(29)", "B.Lat(30)", "B.Lat(31)", "B.Lat(32)", "B.Lat(33)", "B.Lat(34)", "B.Lat(35)", "B.Lat(36)", "B.Lat(37)", "B.Lat(38)"]]
+      walk  [[], []]

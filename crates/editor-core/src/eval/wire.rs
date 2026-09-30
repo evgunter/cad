@@ -2759,6 +2759,17 @@ fn wire_boolean<
                 contacts,
                 naming,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
+            if names::borders_probe_log::enabled() {
+                names::borders_probe_log::record_step(
+                    id,
+                    0,
+                    &names::borders_probe_log::Space::Pair(a, b),
+                    &naming,
+                    &out.body,
+                    &a_table,
+                    &b_table,
+                );
+            }
             let emitted = (verb.emitter)(
                 id,
                 &out.body,
@@ -2940,6 +2951,17 @@ fn wire_union<
                     }));
                 };
                 last = Some((kind, Arc::new(contacts)));
+                if names::borders_probe_log::enabled() {
+                    names::borders_probe_log::record_step(
+                        id,
+                        step,
+                        &names::borders_probe_log::Space::Union(id),
+                        &naming,
+                        &out.body,
+                        &acc_table,
+                        &member_table,
+                    );
+                }
                 // Minted under THIS node's id, which tells an
                 // intermediate row from a member's own name when the
                 // chain is collapsed. Both operand contexts name this

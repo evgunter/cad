@@ -1533,9 +1533,19 @@ fn name_by_parents<T: geom_core::Decide>(
                         )?;
                         continue;
                     }
-                    return Err(bug(
-                        "a union holds a parent as several faces no seam divides",
-                    ));
+                    // PROBE ONLY (emit/borders-mechanism-probe): publish
+                    // the pieces under placeholder ranks so the finished
+                    // body stays measurable where the SideOf rule refuses.
+                    let n = faces.len() as u32;
+                    for (i, &f) in faces.iter().enumerate() {
+                        let mut name = pname.clone();
+                        name.path.push(RoleSeg::Fragment(Qualifier::OrderAlong {
+                            rank: i as u32,
+                            of: n,
+                        }));
+                        put(&mut out, &mut tie, false, name, ent(0, EntityKey::Face(f)))?;
+                    }
+                    continue;
                 }
                 // A curved partner has no plane to side against. It is set
                 // aside, and only refuses where the planar partners leave

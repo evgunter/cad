@@ -244,6 +244,31 @@ pub struct BooleanNaming {
     /// naming layer reads even when one side's key was consumed
     /// (`BooleanBody::contacts` drops such rows by design).
     pub reduction_contacts: ContactRecords,
+    /// PROBE (emit/borders-mechanism-probe): every face fragment the
+    /// crossings path discarded, per operand, with the kept pieces it
+    /// bordered across the section. Empty on every other path.
+    pub discards: Vec<DiscardRow>,
+    /// PROBE: which path built the result (`"crossings"`, `"rest"`, or
+    /// empty for the no-crossing paths).
+    pub probe_path: &'static str,
+}
+
+/// PROBE: one discarded face fragment of a boolean (see
+/// [`BooleanNaming::discards`]).
+#[derive(Debug, Clone)]
+pub struct DiscardRow {
+    /// `true` for a B-side fragment.
+    pub operand_b: bool,
+    /// The fragment, in its operand's CLONE keys (chase
+    /// `face_fragments_a/b` for its operand face).
+    pub face: FaceKey,
+    /// Each non-section boundary edge of the fragment with its split
+    /// ancestors, clone keys, the edge first.
+    pub boundary_chains: Vec<Vec<EdgeKey>>,
+    /// Each section segment it bordered a KEPT fragment along: the kept
+    /// side's two end vertices, in pre-zip result keys (map them through
+    /// `vertex_merges`). `None` where a section vertex had no copy.
+    pub bordered: Vec<Option<(VertexKey, VertexKey)>>,
 }
 
 /// The typed result of a boolean op: a body, or the typed empty
@@ -647,6 +672,8 @@ fn boolean_op_recut<
         face_fragments_a: connected.a_fragments,
         face_fragments_b: connected.b_fragments,
         reduction_contacts,
+        discards: fin.discards,
+        probe_path: "crossings",
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,

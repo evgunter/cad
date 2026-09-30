@@ -358,6 +358,8 @@ pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         face_fragments_a: a_fragments,
         face_fragments_b: b_fragments,
         reduction_contacts,
+        discards: Vec::new(),
+        probe_path: "rest",
     };
     Ok(Some(BooleanResult::Body(BooleanBody {
         body,

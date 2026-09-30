@@ -395,7 +395,7 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
     BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
     CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
-    ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
+    ContactRecords, ContainError, CurveContact, DiscardRow, FaceContainment, FacePairDeclaration,
     NullEdgePairRecord, Operand, OperandKeys, PairRefusalSite, PairSite, PatchContact,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
     SideCode, SolidContainment, SolidFaces, SweepStrategy, SweepTrace, TangentLocus,
