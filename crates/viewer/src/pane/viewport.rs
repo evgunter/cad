@@ -7,13 +7,14 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use eframe::egui;
-use pncad::document::Evaluation;
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::display::DisplayView;
+use crate::drafts::ProfileDoors;
 use crate::frame;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
@@ -144,6 +145,45 @@ fn push_preview(
             segment(tip, at_offset(0.2, 0.45));
             segment(tip, at_offset(0.2, -0.45));
         }
+    }
+}
+
+/// **The committed profiles, placed and appended to a lane**: every
+/// loop [`sketch::committed`] draws, leaving out `edited` — the node
+/// the edit door is previewing in its place
+/// ([`crate::drafts::Drafts::edited_in_place`]). Answers how many
+/// profiles could not be drawn.
+pub(crate) fn push_committed(
+    lane: &mut marks::LegLane,
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    edited: Option<RecipeNodeId>,
+) -> usize {
+    let committed = sketch::committed(doc, evaluation, chord, edited);
+    for profile in &committed.drawn {
+        for polyline in &profile.loops {
+            push_loop(lane, &profile.plane, polyline);
+        }
+    }
+    committed.undrawn.len()
+}
+
+/// **Each door's preview that drew, appended to a lane**
+/// ([`push_preview`]). A door with no preview taken, or whose preview
+/// has nothing to draw, adds nothing; the form says why.
+pub(crate) fn push_previews(
+    lane: &mut marks::LegLane,
+    previews: &ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>,
+    view: Option<datums::View>,
+) {
+    let drawn = previews
+        .as_ref()
+        .into_array()
+        .into_iter()
+        .filter_map(|preview| preview.as_ref()?.as_ref().ok());
+    for drawn in drawn {
+        push_preview(lane, drawn, view);
     }
 }
 
@@ -793,22 +833,21 @@ impl ViewerBehavior<'_> {
         // nothing else would draw it. Not behind the datum toggle: a
         // profile is authored content, not construction geometry.
         //
-        // `except`: the profile the edit door is previewing, if any
+        // Left out: the profile the edit door is previewing, if any
         // ([`ViewerBehavior::profile_edited`]) — drawn by its live
-        // preview below and not also as it was committed, which would
-        // show two shapes where there is one. The create door's
+        // preview below, or by nothing while that preview has nothing
+        // to draw, and never also as it was committed. The create door's
         // profile is not a node while it is composed, and comes to
         // rest when its add is accepted (`Drafts::accepted`), so it
         // has nothing to leave out.
         if let Some((doc, evaluation)) = self.session.landed_pair() {
-            let committed =
-                sketch::committed(doc, evaluation, self.delta.get(), self.profile_edited);
-            *self.profiles_undrawn = committed.undrawn.len();
-            for profile in &committed.drawn {
-                for polyline in &profile.loops {
-                    push_loop(&mut profiles, &profile.plane, polyline);
-                }
-            }
+            *self.profiles_undrawn = push_committed(
+                &mut profiles,
+                doc,
+                evaluation,
+                self.delta.get(),
+                self.profile_edited,
+            );
         }
         // **The profile being authored, drawn where it would land.**
         //
@@ -827,20 +866,12 @@ impl ViewerBehavior<'_> {
         // with nothing to draw says why in the form.
         // Both doors of the one profile editor draw the same way: the
         // add-profile form's loops and an edit's, each where it lands.
-        let previews = self
-            .profile_previews
-            .as_ref()
-            .into_array()
-            .into_iter()
-            .filter_map(|preview| preview.as_ref()?.as_ref().ok());
         // The marks are sized in pixels, read at each vertex's own
         // depth — the same door the datum glyphs go through. A window
         // this camera has no view of draws the chain and no marks; the
         // projection refusal below is what says why.
         let view = datum_view(self.camera, viewport).ok();
-        for drawn in previews {
-            push_preview(&mut preview, drawn, view);
-        }
+        push_previews(&mut preview, self.profile_previews, view);
 
         edges.datums = datums.into_segments();
         edges.profiles = profiles.into_segments();
@@ -994,8 +1025,9 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        RayQuestion, button_events, cursor_news, drawn_index, egui_buttons, land, push_loop,
-        push_preview, push_segment, ray_asked_at, scroll_event, viewer_button, viewer_modifiers,
+        RayQuestion, button_events, cursor_news, drawn_index, egui_buttons, land, push_committed,
+        push_loop, push_preview, push_previews, push_segment, ray_asked_at, scroll_event,
+        viewer_button, viewer_modifiers,
     };
     use crate::camera::{self, Camera, CameraOp, fold_recorded};
     use crate::display::DisplayView;
@@ -2363,5 +2395,129 @@ mod tests {
         let (centred, arrow) = tip_marks(&painted, [0.0, 0.0], [1.0, 0.0]);
         assert_eq!(centred.len(), 2, "the cross at the start: {centred:?}");
         assert_eq!(arrow, 0, "no arrowhead at the start");
+    }
+
+    /// **An edit of a committed profile that a step refuses hides the
+    /// committed shape, whether or not anything before the refusal
+    /// draws** — Ev's ruling of 2026-09-30. A square on the xy frame,
+    /// held by the edit door; the drive is the frame's own, in order:
+    /// the edit door's preview, [`crate::drafts::Drafts::edited_in_place`]
+    /// on it, then the two lanes the viewport paints
+    /// ([`push_committed`], [`push_previews`]) and the form's sentence
+    /// ([`crate::pane::profile::preview_verdict`], headless).
+    ///
+    /// - Refused at step 1, nothing before it draws: no committed leg
+    ///   and no preview leg is painted, and the form says the refusal.
+    ///   Red if a preview with nothing to draw leaves the committed
+    ///   drawing up (the flip the ruling fixed).
+    /// - Refused at step 3, after two legs: no committed leg; the two
+    ///   legs are painted. Red if a refused preview stops standing in
+    ///   for the node.
+    #[test]
+    fn a_refused_edit_hides_the_committed_profile_with_or_without_a_prefix() {
+        use pncad::document::{CancelToken, Doc, EvalOptions, evaluate};
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, TipState, Verb};
+
+        use crate::drafts::{Drafts, ProfileDoors};
+        use crate::session::ProfilePlane;
+
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let side = 0.02;
+        let (doc, profile) = crate::test_support::framed_square(
+            &Doc::empty_derived("c5-refused-edit", tol),
+            side,
+            tol,
+        );
+        let evaluation = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let mut drafts = Drafts::default();
+        drafts
+            .profile_edit(&doc, profile)
+            .expect("the square is held");
+        let frame = match drafts.door_loops().edit.and_then(|held| held.plane) {
+            Some(ProfilePlane::Existing(frame)) => Some(frame),
+            _ => None,
+        }
+        .expect("the edit door draws on the square's own frame");
+        let placement = sketch::frame_placement(&doc, &evaluation, frame).expect("placed");
+        let segments = |lane: &marks::LegLane| -> Vec<[[f64; 2]; 2]> {
+            lane.segments()
+                .chunks_exact(2)
+                .map(|pair| pair_2d([pair[0], pair[1]]))
+                .collect()
+        };
+        // One frame with `loops` held by the edit door: its preview,
+        // the committed lane, the preview lane.
+        let mut frame_with = |loops: Vec<Step<f64>>| {
+            drafts.profile_edit.as_mut().expect("held").loops = vec![loops];
+            let held = drafts.door_loops().edit.expect("held");
+            let preview = sketch::preview(placement, &held.loops, tol, chord);
+            let previews = ProfileDoors {
+                create: None,
+                edit: Some(preview.clone()),
+            };
+            let edited = drafts.edited_in_place(previews.edit.as_ref());
+            let mut committed = marks::LegLane::default();
+            let undrawn = push_committed(&mut committed, &doc, &evaluation, chord, edited);
+            assert_eq!(undrawn, 0, "the square draws when it is drawn at all");
+            let mut drawn = marks::LegLane::default();
+            push_previews(&mut drawn, &previews, None);
+            (preview, segments(&committed), segments(&drawn))
+        };
+
+        let mut control = marks::LegLane::default();
+        push_committed(&mut control, &doc, &evaluation, chord, None);
+        let control = segments(&control);
+        assert!(
+            joins(&control, [0.0, 0.0], [side, 0.0]),
+            "the control: the square is painted when nothing edits it: {control:?}"
+        );
+
+        let fused = |state| sketch::fresh_step_at(Verb::ArcFilletArc, state);
+        let (preview, committed, drawn) = frame_with(vec![
+            Step::At(Point2::origin()),
+            fused(Some(TipState::PlainPoint)),
+        ]);
+        let refusal = preview
+            .as_ref()
+            .expect_err("a fixture refused at step 1 with nothing to draw");
+        assert!(
+            committed.is_empty(),
+            "refused at step 1: the committed square is hidden: {committed:?}"
+        );
+        assert!(
+            drawn.is_empty(),
+            "refused at step 1: nothing is drawn: {drawn:?}"
+        );
+        let said = crate::pane::headless::painted_text(|ui| {
+            crate::pane::profile::preview_verdict(ui, crate::theme::Theme::DEFAULT, Some(&preview));
+        });
+        assert!(
+            said.contains(&refusal.to_string()),
+            "refused at step 1: the form says the refusal: {said:?}"
+        );
+
+        let mut steps = crate::test_support::two_legs(0.0, 0.0);
+        steps.push(fused(Some(TipState::DirectedPoint)));
+        let (preview, committed, drawn) = frame_with(steps);
+        assert!(
+            matches!(&preview, Ok(p) if p.loops[0].end.refusal().is_some()),
+            "a fixture refused at step 3 with two legs before it: {preview:?}"
+        );
+        assert!(
+            committed.is_empty(),
+            "refused at step 3: the committed square is hidden: {committed:?}"
+        );
+        assert!(
+            joins(&drawn, [0.0, 0.0], [0.01, 0.0]) && joins(&drawn, [0.01, 0.0], [0.01, 0.01]),
+            "refused at step 3: the legs before it are painted: {drawn:?}"
+        );
     }
 }
