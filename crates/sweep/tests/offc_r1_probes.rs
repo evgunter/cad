@@ -360,7 +360,7 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
         |_, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
     )
     .unwrap();
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(planted)),
@@ -438,7 +438,7 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
 
     let mut a = unit_box();
     let face = top_face(&a);
-    a.set_face_surface(
+    a.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
             surface: approx,

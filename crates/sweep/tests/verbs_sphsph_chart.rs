@@ -711,7 +711,7 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
         let disc = flat_disc(&planted);
         let sense = planted.get_face(disc).unwrap().sense;
         let plane_key = planted
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 disc,
                 topo::FaceSurface::New {
                     surface: geom::Surface::Plane {
