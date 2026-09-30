@@ -26,20 +26,18 @@ use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
 use viewer::frame::Tone;
 use viewer::tree::{self, RowStatus};
 
-/// A small block, as a whole part document: frame, profile, extrude,
-/// so the extrude is `fixture::resolver::PART_BODY`.
-fn block(label: &str, tol: Tol) -> ProfileDoc {
+/// A small block, as a whole part document, and its body.
+fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, profile) = common::framed_square(&doc, 0.02, tol);
-    let (doc, _) = common::inserted(
+    common::inserted(
         &doc,
         Node::Extrude {
             profile,
             distance: common::len(0.02),
         },
         tol,
-    );
-    doc
+    )
 }
 
 /// **The finding's document, through the tree the chrome draws.**
@@ -50,8 +48,8 @@ fn block(label: &str, tol: Tol) -> ProfileDoc {
 fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let tol = Tol::witness();
     let mut store = PartStore::default();
-    let leg = store.insert(block("msolve3-view-leg", tol), tol);
-    let top = store.insert(block("msolve3-view-top", tol), tol);
+    let (leg, leg_body) = store.insert_part(block("msolve3-view-leg", tol), tol);
+    let (top, top_body) = store.insert_part(block("msolve3-view-top", tol), tol);
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive("msolve3-view"), tol);
     let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
@@ -81,10 +79,10 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
-                    of: in_part(legs, CapEnd::End).into(),
+                    of: in_part(legs, leg_body, CapEnd::End).into(),
                 }],
             }),
-            b: common::head(in_part(cap, CapEnd::Start)),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -197,8 +195,8 @@ struct Copies {
 
 fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies {
     let mut store = PartStore::default();
-    let leg = store.insert(block(&format!("{label}-leg"), tol), tol);
-    let top = store.insert(block(&format!("{label}-top"), tol), tol);
+    let (leg, leg_body) = store.insert_part(block(&format!("{label}-leg"), tol), tol);
+    let (top, top_body) = store.insert_part(block(&format!("{label}-top"), tol), tol);
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
@@ -234,7 +232,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         node: pattern,
         path: vec![RoleSeg::Instance {
             i: copy,
-            of: in_part(legs, CapEnd::End).into(),
+            of: in_part(legs, leg_body, CapEnd::End).into(),
         }],
     };
     let a = match part {
@@ -253,7 +251,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         &doc,
         Node::Mate {
             a,
-            b: common::head(in_part(cap, CapEnd::Start)),
+            b: common::head(in_part(cap, top_body, CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
