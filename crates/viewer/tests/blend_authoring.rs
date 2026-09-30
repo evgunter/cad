@@ -926,6 +926,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
             op: pncad::document::BooleanOp::Union,
             a,
             b,
+            declare: Vec::new(),
         },
     );
     session.pump();
