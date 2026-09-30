@@ -78,7 +78,10 @@
 //! | predicate | margin | lever arm |
 //! |---|---|---|
 //! | `vertex_separation` | chord length | direct displacement |
-//! | `segment_straightness` | sagitta L·b/2 | half-chord (bulge → meters) |
+//! | `segment_straightness` | sagitta (L/2)·tan(Δθ/4) | half-chord (tan(Δθ/4) → meters) |
+//! | `arc_start_on_carrier` | ‖a − c‖ − r | direct |
+//! | `arc_landing` | ‖a turned by Δθ about c − b‖ | direct |
+//! | `arc_sweep_range` | r·\|Δθ\|·(2π − \|Δθ\|)/2π | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
@@ -185,6 +188,46 @@ impl fmt::Display for ContactKind {
             Self::Crossing => "crossing",
             Self::Touch => "endpoint contact",
             Self::Overlap => "overlap",
+        })
+    }
+}
+
+/// Which of validation's three consistency checks of a stored arc
+/// against its vertices refused it ([`ProfileError::InconsistentArc`]).
+/// The stored form is redundant (D1): an arc's carrier and sweep are
+/// held beside its two vertices, and these are the conditions under
+/// which the two describe one arc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArcCheck {
+    /// The start vertex does not lie on the stored carrier
+    /// (`arc_start_on_carrier`: ‖a − c‖ − r).
+    OnCarrier,
+    /// The start, turned by the stored sweep about the stored centre,
+    /// does not land on the end vertex (`arc_landing`).
+    Landing,
+    /// The stored sweep is not in 0 < |Δθ| < 2π, signed as its sagitta
+    /// turns (`arc_sweep_range`).
+    SweepRange,
+}
+
+impl ArcCheck {
+    /// The predicate name the check decides under.
+    #[must_use]
+    pub fn predicate(self) -> &'static str {
+        match self {
+            Self::OnCarrier => "arc_start_on_carrier",
+            Self::Landing => "arc_landing",
+            Self::SweepRange => "arc_sweep_range",
+        }
+    }
+}
+
+impl fmt::Display for ArcCheck {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::OnCarrier => "its start vertex is off its carrier circle",
+            Self::Landing => "its sweep does not carry its start vertex onto its end vertex",
+            Self::SweepRange => "its sweep is not between zero and a full turn",
         })
     }
 }
@@ -477,9 +520,9 @@ pub const FILLET_FIT_RECOURSE: &str =
 
 /// **The recourse for a fillet arc too shallow to be STORED as an arc.**
 ///
-/// A profile stores an arc as its vertices plus a carrier and sweep
-/// lowered from the chord and the bulge, and validation classifies the
-/// segment through `segment_straightness`, whose margin is the sagitta
+/// A profile stores an arc as its vertices plus a carrier and sweep,
+/// and validation classifies the segment through
+/// `segment_straightness`, whose margin is the sagitta
 /// `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε the stored arc is
 /// read as a line and the carrier the door computed is simply not in
 /// the validated loop, so the tangency the fillet declares has nothing
@@ -810,6 +853,9 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "arc_apex_identity" => "whether two arc apexes are one point",
         "arc_span" => "whether a point falls inside an arc's span",
         "arc_diameter_clearance" => "whether an arc stops short of a full circle",
+        "arc_landing" => "whether an arc's sweep carries its start onto its end",
+        "arc_start_on_carrier" => "whether an arc's start lies on its carrier circle",
+        "arc_sweep_range" => "whether an arc's sweep lies between zero and a full turn",
         "canonical_order_x" => "which of two points comes first along x",
         "canonical_order_y" => "which of two points comes first along y",
         "carrier_circles_external" => "whether two circles touch from outside",
@@ -891,6 +937,16 @@ pub enum ProfileError {
     /// review fix). Split the arc at another vertex; a full circle is
     /// two arcs by construction.
     NearFullArc(SegmentRef),
+    /// A stored arc disagrees with its own vertices: one of the three
+    /// consistency checks ([`ArcCheck`]) decided it definitely off. The
+    /// stored form is redundant and validation verifies it rather than
+    /// trusting it (D1).
+    InconsistentArc {
+        /// The offending segment.
+        at: SegmentRef,
+        /// The check that refused it.
+        check: ArcCheck,
+    },
     /// Two segments meet where they may not (any contact other than
     /// adjacent segments' shared vertex).
     NonSimple {
@@ -1013,6 +1069,11 @@ impl fmt::Display for ProfileError {
                 f,
                 "{s} is within tolerance of a full circle — split the arc at another \
                  vertex (a full circle is two arcs by construction)"
+            ),
+            Self::InconsistentArc { at, check } => write!(
+                f,
+                "{at} stores an arc that disagrees with its vertices: {check} — author the \
+                 arc through the path lattice, which stores a carrier consistent with its ends"
             ),
             Self::NonSimple {
                 first,
@@ -1174,8 +1235,8 @@ pub enum SegmentKind<T: Real> {
         /// The carrier (sketch coordinates) and the signed sweep Δθ from
         /// the segment's start to its end, positive counterclockwise.
         arc: Arc2<T>,
-        /// The turn sense: `Positive` = counterclockwise sweep
-        /// (positive bulge), `Negative` = clockwise. Never `Zero` (that
+        /// The turn sense: `Positive` = counterclockwise sweep,
+        /// `Negative` = clockwise. Never `Zero` (that
         /// classification is a `Line`).
         turn: Sign,
     },
@@ -1188,50 +1249,27 @@ pub struct ValidatedSegment<T: Real> {
     pub start: Point2<T>,
     /// End point.
     pub end: Point2<T>,
-    /// The bulge the segment was lowered from, in canonical traversal
-    /// (reversal negated it if the input wound the other way) — see
-    /// [`crate::ProfileLoop::bulges`] for why it is kept beside the
-    /// canonical form. **Consumers select carriers by
-    /// [`ValidatedSegment::kind`], never by the bulge** — a
-    /// sub-tolerance bulge classifies as `Line` while retaining its
-    /// value. Nothing downstream of validation reads it: the sweep's
-    /// arc span and apex and the `geom-brep` sketch segment read the
-    /// kind's carrier and sweep. What still reads it is this crate's
-    /// lift (the carrier at a certified scalar is rebuilt from it) and
-    /// the readers `store-constructed-carriers` retires.
-    pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
     pub kind: SegmentKind<T>,
 }
 
 impl ValidatedSegment<f64> {
-    /// The `f64` segment embedded at `U`: the endpoints and the bulge
-    /// through `from_f64`, the classification and turn carried, and an
-    /// arc's carrier and sweep REBUILT at `U` from the embedded
-    /// endpoints and bulge through the arc lowering
-    /// ([`crate::lower_arc`]: [`seg::arc_carrier`] on the segment's
-    /// [`seg::ChordFrame`], and Δθ = 4·atan(b)) — the carrier
-    /// and sweep are derived data, not stored values, and at a
-    /// certified scalar the derivation is what mints their enclosure.
-    /// See [`ValidatedProfile::lift_onto`].
+    /// The `f64` segment embedded at `U`: every stored field through
+    /// `from_f64` — the endpoints, and an arc's carrier and sweep
+    /// ([`Arc2::map`]) — and the classification and turn carried.
+    /// Nothing is re-derived. See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedSegment<U> {
-        let (start, end, bulge) = (
-            self.start.map(U::from_f64),
-            self.end.map(U::from_f64),
-            U::from_f64(self.bulge),
-        );
         let kind = match self.kind {
             SegmentKind::Line => SegmentKind::Line,
-            SegmentKind::Arc { turn, .. } => SegmentKind::Arc {
-                arc: crate::lower_arc(start, end, bulge),
+            SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
+                arc: arc.map(U::from_f64),
                 turn,
             },
         };
         ValidatedSegment {
-            start,
-            end,
-            bulge,
+            start: self.start.map(U::from_f64),
+            end: self.end.map(U::from_f64),
             kind,
         }
     }
@@ -1421,7 +1459,7 @@ pub struct BlendArc<T: Real> {
 /// - **Loop order**: the outer boundary first, then holes in input
 ///   (discovery) order.
 /// - **Traversal**: the outer loop runs counterclockwise, holes run
-///   clockwise, *in sketch coordinates* (reversal negates bulges — the
+///   clockwise, *in sketch coordinates* (reversal negates sweeps — the
 ///   involution of the crate docs).
 /// - **Starting vertex**: each loop starts at its AUTHORED vertex 0.
 ///   Reversal keeps vertex 0 in place ([`ProfileLoop::reversed`]), so
@@ -1468,11 +1506,8 @@ impl<T: Real> ValidatedProfile<T> {
 
 impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
-    /// stored scalar — each vertex's position, each segment's endpoints
-    /// and the bulge it was lowered from — through [`Real::from_f64`];
-    /// each arc's carrier and sweep, which are DERIVED data, rebuilt at
-    /// `U` from the embedded endpoints and bulge through the lowering's
-    /// own arithmetic; the
+    /// stored scalar — each vertex's position, each segment's endpoints,
+    /// each arc's carrier and sweep — through [`Real::from_f64`]; the
     /// plane taken as given (validation is 2-D and reads nothing of it
     /// — [`ValidatedProfile::plane`]); everything else carried. No
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
@@ -1876,22 +1911,21 @@ fn build_loop_segs<T: Decide>(
     let mut segs = Vec::with_capacity(n);
     for k in 0..n {
         let (a, b) = (lp.vertices[k], lp.vertices[(k + 1) % n]);
-        segs.push(
-            build_seg(a, b, lp.segments[k], lp.bulges[k], band).map_err(|issue| {
-                let at = SegmentRef {
-                    loop_index,
-                    segment_index: k,
-                };
-                match issue {
-                    SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
-                    SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
-                    SegIssue::Escalated(source) => ProfileError::Escalated {
-                        site: EscalationSite::Segment(at),
-                        source,
-                    },
-                }
-            })?,
-        );
+        segs.push(build_seg(a, b, lp.segments[k], band).map_err(|issue| {
+            let at = SegmentRef {
+                loop_index,
+                segment_index: k,
+            };
+            match issue {
+                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
+                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
+                SegIssue::Inconsistent { check, .. } => ProfileError::InconsistentArc { at, check },
+                SegIssue::Escalated(source) => ProfileError::Escalated {
+                    site: EscalationSite::Segment(at),
+                    source,
+                },
+            }
+        })?);
     }
     Ok(segs)
 }
@@ -2147,7 +2181,7 @@ fn lex_min_index<T: Decide>(
 /// vertex moves.
 ///
 /// Orientation is the **`loop_orientation`** predicate — margin:
-/// 2·A/P, the loop's mean width (meters): A is the bulge-polygon signed
+/// 2·A/P, the loop's mean width (meters): A is the arc-polygon signed
 /// area (shoelace about the loop's first vertex — the ch. 13
 /// translate-to-origin accuracy fix — plus per-arc circular-segment
 /// corrections (r²/2)·(θ − sin θ), θ the arc's sweep); P is the true
@@ -2191,7 +2225,7 @@ fn canonicalize_loop<T: Decide>(
     // canonical one.
     let chain = if reversed { lp.reversed() } else { lp.clone() };
     let n = chain.vertices.len();
-    let (vertices, lowered, bulges) = (chain.vertices, chain.segments, chain.bulges);
+    let (vertices, stored) = (chain.vertices, chain.segments);
     // Declared joints: reversal already remapped them in `reversed()`,
     // and indices are in range — validated at entry. Sorted +
     // deduplicated: canonical.
@@ -2217,7 +2251,7 @@ fn canonicalize_loop<T: Decide>(
     let mut shapes = Vec::with_capacity(n);
     for k in 0..n {
         let (a, b) = (vertices[k], vertices[(k + 1) % n]);
-        let s = build_seg(a, b, lowered[k], bulges[k], band).map_err(|issue| {
+        let s = build_seg(a, b, stored[k], band).map_err(|issue| {
             let at = SegmentRef {
                 loop_index,
                 segment_index: k,
@@ -2225,6 +2259,7 @@ fn canonicalize_loop<T: Decide>(
             match issue {
                 SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
                 SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
+                SegIssue::Inconsistent { check, .. } => ProfileError::InconsistentArc { at, check },
                 // The recorded shape is a consumed decision, so a
                 // guided pass names the segment whose classification
                 // went unconfirmed instead of the bare segment site.
@@ -2279,7 +2314,6 @@ fn canonicalize_loop<T: Decide>(
         segments.push(ValidatedSegment {
             start: s.a,
             end: s.b,
-            bulge: s.bulge,
             kind,
         });
     }

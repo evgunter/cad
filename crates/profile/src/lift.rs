@@ -1,8 +1,9 @@
 //! **The v1 → program lift** (PROFILES-V2 §V5, LIB-SWITCH §7).
 //!
 //! A development-side authoring tool: it takes a v1-form
-//! [`ProfileLoop`] — vertices, bulges, and the declared-tangent joint
-//! set — and mints an equivalent chain- (or carrier-) vocabulary
+//! [`ProfileLoop`] — vertices, canonical segments, and the
+//! declared-tangent joint set — and mints an equivalent chain- (or
+//! carrier-) vocabulary
 //! program. It is **not a load path and never runs at load** (LQ7a's
 //! clean break: a v1-form document predates the `id:` header line, so
 //! the persistence door refuses it `PersistError::HeaderId` with the
@@ -68,21 +69,20 @@
 //! is ever minted, so the `sin_cos` quantization class cannot enter a
 //! lifted program. `.toward` is likewise unnecessary here (it earns its
 //! place at authoring time, where a direction is what the author
-//! means).
-
-use geom_core::{Point2, Vec2};
+//! means). An arc is written about its stored centre
+//! (`arc_to(Center)`), in the winding its stored sweep turns.
 
 use crate::path::PathError;
-use crate::path::program::{ReplayError, ReplayErrorKind, Step, Target, replay};
-use crate::{ProfileLoop, Segment};
+use crate::path::program::{ArcData, ReplayError, ReplayErrorKind, Step, Target, replay};
+use crate::{ArcSweep, ProfileLoop, Segment};
 use geom_core::Tol;
 
 /// How faithfully a lifted program reproduces its source loop, up to
 /// the reported seam rotation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fidelity {
-    /// Every vertex coordinate and bulge matches bit for bit, and the
-    /// declared-joint sets agree.
+    /// Every vertex coordinate and stored segment field matches bit for
+    /// bit, and the declared-joint sets agree.
     BitIdentical,
     /// The shape agrees but some DERIVED value differs in its last
     /// bits — the F10/W1 classes of PROFILES-V2 §V5. The lifted program
@@ -101,8 +101,9 @@ pub enum LiftRefusal {
         /// How many the loop carried.
         vertices: usize,
     },
-    /// A coordinate or bulge is not finite. Authored data must be
-    /// real numbers before any spelling question arises.
+    /// A coordinate, or a stored arc's centre, radius or sweep, is not
+    /// finite. Authored data must be real numbers before any spelling
+    /// question arises.
     NonFinite {
         /// The offending vertex index.
         vertex: usize,
@@ -138,7 +139,7 @@ impl std::fmt::Display for LiftRefusal {
             Self::NonFinite { vertex } => {
                 write!(
                     f,
-                    "vertex {vertex} carries a non-finite coordinate or bulge"
+                    "vertex {vertex} carries a non-finite coordinate or arc field"
                 )
             }
             Self::JointIndexOutOfRange { joint, vertices } => write!(
@@ -306,8 +307,14 @@ fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<(Vec<Step<f64>>, us
     if n < 2 {
         return Err(LiftRefusal::TooFewVertices { vertices: n });
     }
-    for (i, (v, b)) in loop_.vertices.iter().zip(&loop_.bulges).enumerate() {
-        if !(v.x.is_finite() && v.y.is_finite() && b.is_finite()) {
+    for (i, (v, segment)) in loop_.vertices.iter().zip(&loop_.segments).enumerate() {
+        let arc_finite = match segment {
+            Segment::Line => true,
+            Segment::Arc(arc) => [arc.centre.x, arc.centre.y, arc.radius, arc.sweep]
+                .iter()
+                .all(|x| x.is_finite()),
+        };
+        if !(v.x.is_finite() && v.y.is_finite() && arc_finite) {
             return Err(LiftRefusal::NonFinite { vertex: i });
         }
     }
@@ -360,10 +367,10 @@ fn carrier_form(loop_: &ProfileLoop<f64>, tol: Tol) -> Option<(Vec<Step<f64>>, u
     let mut best: Option<(Vec<Step<f64>>, usize, u64)> = None;
     for r in 0..n {
         let a = loop_.vertices[r];
-        let b = loop_.vertices[(r + 1) % n];
-        let Some((centre, radius)) = arc_carrier(a, b, loop_.bulges[r]) else {
+        let Segment::Arc(arc) = loop_.segments[r] else {
             continue;
         };
+        let (centre, radius) = (arc.centre, arc.radius);
         let phase = (a.y - centre.y).atan2(a.x - centre.x);
         let want = rotated(loop_, r);
         let mut candidates = Vec::with_capacity(2);
@@ -450,13 +457,17 @@ fn chain_form(
             }
         } else {
             origin.push(src);
-            program.push(if line {
-                Step::LineTo(target)
-            } else {
-                Step::ArcTo(crate::path::program::ArcData::Bulge {
+            program.push(match loop_.segments[src] {
+                Segment::Line => Step::LineTo(target),
+                Segment::Arc(arc) => Step::ArcTo(ArcData::Center {
+                    c: arc.centre,
+                    winding: if arc.sweep > 0.0 {
+                        ArcSweep::Ccw
+                    } else {
+                        ArcSweep::Cw
+                    },
                     target,
-                    b: loop_.bulges[src],
-                })
+                }),
             });
         }
     }
@@ -473,9 +484,8 @@ fn chain_form(
 /// the one trigger left. The re-spelling is the lattice's own: the
 /// leg becomes `.tangent().tangent_arc_to(p)`, its joint DECLARED and
 /// its arc derived from the inherited tangent and the authored target
-/// — which mints the raw run's vertex and the same bulge bits, the
-/// tangent-chord derivation being the one the raw run's own carrier
-/// satisfies. Whether the derived arc reproduces the raw one is the
+/// — which mints the raw run's vertex and a carrier the raw run's own
+/// satisfies, the tangent-chord derivation being one it meets. Whether the derived arc reproduces the raw one is the
 /// census's comparison, as for every lift. The substitution is kept
 /// only if it makes PROGRESS (the next refusal, if any, is later in
 /// the program), so a wall this spelling does not move is left in the
@@ -501,7 +511,7 @@ fn repair_same_carrier(
             return Ok(program);
         }
         match program.get(error.step) {
-            Some(Step::ArcTo(crate::path::program::ArcData::Bulge {
+            Some(Step::ArcTo(ArcData::Center {
                 target: Target::Point(p),
                 ..
             })) => {
@@ -518,7 +528,7 @@ fn repair_same_carrier(
                     Err(_) => return Ok(saved),
                 }
             }
-            Some(Step::ArcTo(crate::path::program::ArcData::Bulge {
+            Some(Step::ArcTo(ArcData::Center {
                 target: Target::Start,
                 ..
             })) => {
@@ -549,24 +559,24 @@ fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
 // Comparison
 // ------------------------------------------------------------------
 
-/// The source loop re-seamed at `rotation`: its input chain reindexed
-/// and lowered again. Each segment's lowering reads only its own chord
-/// and bulge, which the reindexing carries verbatim, so every stored
-/// bit survives.
+/// The source loop re-seamed at `rotation`: its (vertex, segment)
+/// chain reindexed, every stored bit carried verbatim.
 fn rotated(loop_: &ProfileLoop<f64>, rotation: usize) -> ProfileLoop<f64> {
     let n = loop_.vertices.len();
     if rotation == 0 || n == 0 {
         return loop_.clone();
     }
     let r = rotation % n;
-    let input: Vec<_> = loop_.input_chain().collect();
-    let chain: Vec<_> = (0..n).map(|k| input[(r + k) % n]).collect();
+    let chain = (0..n).map(|k| {
+        let i = (r + k) % n;
+        (loop_.vertices[i], loop_.segments[i])
+    });
     let tangent_joints = loop_
         .tangent_joints
         .iter()
         .map(|&j| (j % n + n - r) % n)
         .collect();
-    ProfileLoop::lower(&chain, tangent_joints)
+    ProfileLoop::from_chain(chain, tangent_joints)
 }
 
 /// The differential verdict for one loop pair.
@@ -612,14 +622,30 @@ fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
         worst_ulps: 0,
         worst_abs: 0.0,
     };
+    // Each vertex with its leaving segment's stored fields: a line
+    // stores none, an arc its centre, radius and sweep. Two loops whose
+    // segments differ in kind do not correspond.
     let rows = |l: &ProfileLoop<f64>| {
         l.vertices
             .iter()
-            .zip(&l.bulges)
-            .map(|(p, &b)| [p.x, p.y, b])
+            .zip(&l.segments)
+            .map(|(p, segment)| match segment {
+                Segment::Line => vec![p.x, p.y],
+                Segment::Arc(arc) => {
+                    vec![p.x, p.y, arc.centre.x, arc.centre.y, arc.radius, arc.sweep]
+                }
+            })
             .collect::<Vec<_>>()
     };
-    for (w, g) in rows(want).into_iter().zip(rows(got)) {
+    let (want_rows, got_rows) = (rows(want), rows(got));
+    if want_rows
+        .iter()
+        .zip(&got_rows)
+        .any(|(w, g)| w.len() != g.len())
+    {
+        return Verdict::incomparable();
+    }
+    for (w, g) in want_rows.into_iter().zip(got_rows) {
         for (x, y) in w.into_iter().zip(g) {
             if x.to_bits() != y.to_bits() {
                 verdict.bit_identical = false;
@@ -659,27 +685,4 @@ fn ulps(a: f64, b: f64) -> u64 {
         }
     };
     key(a).abs_diff(key(b))
-}
-
-/// The carrier circle a chord and its bulge imply (the crate docs'
-/// closed form, arithmetic only — no predicate is fired, so this adds
-/// no call site to the `k_stats` funnel).
-fn arc_carrier(a: Point2<f64>, b: Point2<f64>, bulge: f64) -> Option<(Point2<f64>, f64)> {
-    if bulge == 0.0 || !bulge.is_finite() {
-        return None;
-    }
-    let chord = b - a;
-    let len = chord.norm_squared().sqrt();
-    if len <= 0.0 || !len.is_finite() {
-        return None;
-    }
-    let unit = chord / len;
-    let normal = Vec2::new(-unit.y, unit.x);
-    let b2 = bulge.powi(2);
-    let four_b = 4.0 * bulge;
-    let mid = a.lerp(b, 0.5);
-    Some((
-        mid + normal * (len * (1.0 - b2) / four_b),
-        (len * (1.0 + b2) / four_b).abs(),
-    ))
 }

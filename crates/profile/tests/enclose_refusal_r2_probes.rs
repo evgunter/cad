@@ -188,7 +188,7 @@ fn fillet_endpoints(lp: &ProfileLoop<f64>, r: f64) -> Option<(Point2<f64>, Point
     for i in 0..n {
         let a = lp.vertices()[i];
         let b = lp.vertices()[(i + 1) % n];
-        let bulge = lp.bulges()[i];
+        let bulge = crate::common::quarter_tan(&lp.segments()[i]);
         if bulge == 0.0 {
             continue;
         }

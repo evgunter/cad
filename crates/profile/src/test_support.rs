@@ -10,10 +10,12 @@ use crate::ProfileLoop;
 ///
 /// It forwards to the lowering the lattice's emission layer uses for
 /// `arc_to(Bulge)` and computes nothing of its own, so a loop written
-/// here stores the same vertices, segments and bulges, bit for bit, as
-/// the same chain emitted by the lattice. A bulge of exactly zero
+/// here stores the same vertices and segments, bit for bit, as the same
+/// chain emitted by the lattice. It holds no run tolerance, so unlike
+/// the lattice it registers none of the lowered arcs' endpoint facts
+/// (`crate::lower_arc`). A bulge of exactly zero
 /// (either sign) is a line; any other bulge is an arc, finite or not,
 /// and [`crate::Profile::validate`] decides what the table is.
 pub fn bulge_loop<T: Real>(chain: Vec<(Point2<T>, T)>) -> ProfileLoop<T> {
-    ProfileLoop::lower(&chain, Vec::new())
+    ProfileLoop::from_chain(crate::lower_chain(&chain, None), Vec::new())
 }

@@ -36,12 +36,18 @@
 //! row that measures a retired walk against the door that replaced it
 //! is exactly as informative now as it was then. `loft.rs::end_profile`
 //! is the surviving production caller.
+//!
+//! **Third adoption note (the stored bulge retired).** Both walks
+//! re-lowered each segment from the bulge the loop kept beside it; with
+//! that bulge gone the door carries every stored field through `f` and
+//! derives nothing, so the one walk left to measure it against is that
+//! field-by-field embedding, written out by hand (`field_walk`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Real, Tol};
+use geom_core::{Arc2, Point2, Real, Tol};
 use profile::{
-    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, Step, Target, lift_checked,
+    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Segment, Start, Step, Target, lift_checked,
     test_support::bulge_loop,
 };
 
@@ -60,33 +66,23 @@ fn awkward() -> ProfileLoop<f64> {
     .reversed()
 }
 
-/// `sweep/src/loft.rs::end_profile`'s walk before the unit, verbatim.
-fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    bulge_loop(
-        lp.vertices()
-            .iter()
-            .zip(lp.bulges())
-            .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
-            .collect(),
-    )
-    .with_tangent_joints(lp.tangent_joints().to_vec())
-}
-
-/// `editor-core/src/eval/anchor.rs::embed_profile`'s walk before the
-/// unit, verbatim.
-fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    bulge_loop(
-        lp.vertices()
-            .iter()
-            .zip(lp.bulges())
-            .map(|(vx, &b)| {
-                (
-                    Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)),
-                    T::from_f64(b),
-                )
-            })
-            .collect(),
-    )
+/// Every stored field of the table carried through `from_f64` one at a
+/// time — the vertices, each segment's kind and an arc's centre, radius
+/// and sweep — written out by hand beside the door.
+fn field_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
+    <ProfileLoop<T> as RawLoop<T>>::new(lp.vertices().iter().zip(lp.segments()).map(
+        |(vx, segment)| {
+            let segment = match *segment {
+                Segment::Line => Segment::Line,
+                Segment::Arc(arc) => Segment::Arc(Arc2 {
+                    centre: Point2::new(T::from_f64(arc.centre.x), T::from_f64(arc.centre.y)),
+                    radius: T::from_f64(arc.radius),
+                    sweep: T::from_f64(arc.sweep),
+                }),
+            };
+            (Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)), segment)
+        },
+    ))
     .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
@@ -97,8 +93,8 @@ fn table<T: Real + std::fmt::Debug>(lp: &ProfileLoop<T>) -> String {
     let vs: Vec<String> = lp
         .vertices()
         .iter()
-        .zip(lp.bulges())
-        .map(|(v, b)| format!("{:?},{:?};{:?}", v.x, v.y, b))
+        .zip(lp.segments())
+        .map(|(v, s)| format!("{:?},{:?};{:?}", v.x, v.y, s))
         .collect();
     format!("{} | {:?}", vs.join(" "), lp.tangent_joints())
 }
@@ -118,28 +114,14 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
         "reversal remapped the joints"
     );
     let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
-    let loft = loft_walk::<f64>(&src);
-    let anchor = anchor_walk::<f64>(&src);
-    for (i, ((d, l), a)) in door
-        .vertices()
-        .iter()
-        .zip(loft.vertices())
-        .zip(anchor.vertices())
-        .enumerate()
-    {
-        assert_eq!(d.x.to_bits(), l.x.to_bits(), "vertex {i} x vs loft");
-        assert_eq!(d.y.to_bits(), l.y.to_bits(), "vertex {i} y vs loft");
+    let walk = field_walk::<f64>(&src);
+    for (i, (d, w)) in door.vertices().iter().zip(walk.vertices()).enumerate() {
+        assert_eq!(d.x.to_bits(), w.x.to_bits(), "vertex {i} x vs the walk");
+        assert_eq!(d.y.to_bits(), w.y.to_bits(), "vertex {i} y vs the walk");
         assert_eq!(
-            door.bulges()[i].to_bits(),
-            loft.bulges()[i].to_bits(),
-            "vertex {i} bulge vs loft"
-        );
-        assert_eq!(d.x.to_bits(), a.x.to_bits(), "vertex {i} x vs anchor");
-        assert_eq!(d.y.to_bits(), a.y.to_bits(), "vertex {i} y vs anchor");
-        assert_eq!(
-            door.bulges()[i].to_bits(),
-            anchor.bulges()[i].to_bits(),
-            "vertex {i} bulge vs anchor"
+            format!("{:?}", door.segments()[i]),
+            format!("{:?}", walk.segments()[i]),
+            "segment {i} vs the walk"
         );
     }
     // `reversed` keeps vertex 0 in place, so the signed zero is at 0.
@@ -148,8 +130,7 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
         (-0.0f64).to_bits(),
         "the signed zero travels"
     );
-    assert_eq!(table(&door), table(&loft));
-    assert_eq!(table(&door), table(&anchor));
+    assert_eq!(table(&door), table(&walk));
 }
 
 /// The door is total: a poisoned table crosses unexamined, bit for
@@ -162,8 +143,11 @@ fn r1_embed_is_total_on_a_poisoned_table() {
     ])
     .with_tangent_joints(vec![usize::MAX]);
     let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
-    assert_eq!(table(&door), table(&loft_walk::<f64>(&src)));
-    assert!(door.bulges()[0].is_nan());
+    assert_eq!(table(&door), table(&field_walk::<f64>(&src)));
+    assert!(
+        matches!(door.segments()[0], Segment::Arc(arc) if arc.sweep.is_nan()),
+        "a NaN bulge lowers to an arc of NaN sweep, and it crosses as one"
+    );
     assert_eq!(door.tangent_joints(), [usize::MAX]);
 }
 
@@ -175,17 +159,27 @@ fn r1_embed_is_both_former_walks_at_interval() {
     use geom_core::Interval;
     let src = awkward();
     let door: ProfileLoop<Interval> = src.map_scalar(Interval::from_f64);
-    let loft = loft_walk::<Interval>(&src);
-    let anchor = anchor_walk::<Interval>(&src);
-    assert_eq!(table(&door), table(&loft), "door vs loft.rs's walk");
-    assert_eq!(table(&door), table(&anchor), "door vs anchor.rs's walk");
+    assert_eq!(
+        table(&door),
+        table(&field_walk::<Interval>(&src)),
+        "door vs the walk"
+    );
     // And the coordinates are point intervals of the stored bits.
     let table_scalar = |x: &dyn std::fmt::Debug| format!("{x:?}");
     for (d, s) in door.vertices().iter().zip(src.vertices()) {
         assert_eq!(table_scalar(&d.x), format!("{:?}", Interval::from_f64(s.x)));
     }
-    for (d, s) in door.bulges().iter().zip(src.bulges()) {
-        assert_eq!(table_scalar(d), format!("{:?}", Interval::from_f64(*s)));
+    for (d, s) in door.segments().iter().zip(src.segments()) {
+        if let (Segment::Arc(d), Segment::Arc(s)) = (d, s) {
+            assert_eq!(
+                table_scalar(&d.sweep),
+                format!("{:?}", Interval::from_f64(s.sweep))
+            );
+            assert_eq!(
+                table_scalar(&d.radius),
+                format!("{:?}", Interval::from_f64(s.radius))
+            );
+        }
     }
 }
 
@@ -229,14 +223,10 @@ fn r1_the_all_declared_loop_lifts_at_every_seam() {
     let source = stadium();
     let n = source.vertices().len();
     for r in 0..n {
-        let reseamed: ProfileLoop<f64> = bulge_loop(
-            (0..n)
-                .map(|k| {
-                    let j = (k + r) % n;
-                    (source.vertices()[j], source.bulges()[j])
-                })
-                .collect(),
-        )
+        let reseamed: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new((0..n).map(|k| {
+            let j = (k + r) % n;
+            (source.vertices()[j], source.segments()[j])
+        }))
         .with_tangent_joints((0..n).collect());
         match lift_checked(&reseamed, Tol::witness()) {
             LiftOutcome::Lifted {

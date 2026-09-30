@@ -86,11 +86,13 @@ fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
         .zip(iv.loop_.vertices())
         .enumerate()
     {
-        for (what, exact, enc) in [
-            ("x", a.x, b.x),
-            ("y", a.y, b.y),
-            ("bulge", f.loop_.bulges()[k], iv.loop_.bulges()[k]),
-        ] {
+        let mut channels = vec![("x", a.x, b.x), ("y", a.y, b.y)];
+        if let (profile::Segment::Arc(e), profile::Segment::Arc(i)) =
+            (f.loop_.segments()[k], iv.loop_.segments()[k])
+        {
+            channels.push(("sweep", e.sweep, i.sweep));
+        }
+        for (what, exact, enc) in channels {
             let w = enc.hi() - enc.lo();
             assert!(
                 w <= 1e-12,

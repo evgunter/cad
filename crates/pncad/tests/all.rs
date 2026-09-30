@@ -1026,12 +1026,12 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
     let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
 
-    let want: Vec<(Point2<f64>, f64)> = table.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect();
+    let want: Vec<Point2<f64>> = table.iter().map(|&(x, y)| p2(x, y)).collect();
     let got = loop_.vertices();
     assert_eq!(got.len(), want.len(), "one vertex per authored point");
-    for (i, (g, (pos, bulge))) in got.iter().zip(&want).enumerate() {
+    for (i, (g, pos)) in got.iter().zip(&want).enumerate() {
         assert_eq!((g.x, g.y), (pos.x, pos.y), "vertex {i}");
-        assert_eq!(loop_.bulges()[i], *bulge, "vertex {i} bulge");
+        assert_eq!(format!("{:?}", loop_.segments()[i]), "Line", "segment {i}");
     }
     assert!(
         loop_.tangent_joints().is_empty(),
@@ -1053,7 +1053,11 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     assert_eq!(hand.len(), got.len());
     for (i, (g, h)) in got.iter().zip(hand).enumerate() {
         assert_eq!((g.x, g.y), (h.x, h.y), "vertex {i}");
-        assert_eq!(loop_.bulges()[i], chain.bulges()[i], "vertex {i} bulge");
+        assert_eq!(
+            format!("{:?}", loop_.segments()[i]),
+            format!("{:?}", chain.segments()[i]),
+            "segment {i}"
+        );
     }
     assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
 }
@@ -2188,8 +2192,8 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         assert_eq!(got.x.to_bits(), want.x.to_bits());
         assert_eq!(got.y.to_bits(), want.y.to_bits());
     }
-    for (got, want) in replayed.bulges().iter().zip(authored.loop_.bulges()) {
-        assert_eq!(got.to_bits(), want.to_bits());
+    for (got, want) in replayed.segments().iter().zip(authored.loop_.segments()) {
+        assert_eq!(format!("{got:?}"), format!("{want:?}"));
     }
 
     // And it evaluates as a document node.

@@ -59,18 +59,18 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
             out.extend([v.x, v.y]);
         }
         for s in lp.segments() {
-            out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
+            out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);
             if let SegmentKind::Arc {
                 arc:
                     Arc2 {
-                        centre: center,
+                        centre,
                         radius,
                         sweep,
                     },
                 ..
             } = s.kind
             {
-                out.extend([center.x, center.y, radius, sweep]);
+                out.extend([centre.x, centre.y, radius, sweep]);
             }
         }
     }

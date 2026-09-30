@@ -16,8 +16,26 @@ use geom_core::{Arc2, Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
-    PathError, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
+    PathError, Profile, ProfileLoop, Segment, SketchPlane, Start, test_support::bulge_loop,
 };
+
+/// The quarter tangent `tan(Δθ/4)` a stored segment's sweep reads as —
+/// zero for a line: the bulge the segment would be written with. It is
+/// DERIVED from the stored sweep, so it rounds away from an authored
+/// bulge (`1` comes back `0.9999999999999999`); a comparison of stored
+/// bits belongs on [`segment_bits`].
+pub fn quarter_tan(segment: &Segment<f64>) -> f64 {
+    match segment {
+        Segment::Line => 0.0,
+        Segment::Arc(arc) => (arc.sweep / 4.0).tan(),
+    }
+}
+
+/// Every stored field of a segment, spelled bit for bit: the kind, and
+/// an arc's centre, radius and sweep.
+pub fn segment_bits<T: Real>(segment: &Segment<T>) -> String {
+    format!("{segment:?}")
+}
 
 /// **The one accessor**: a refusal's corner entries, in the order the
 /// kernel reported them (nearest the bracketing anchors first), or the
@@ -511,7 +529,11 @@ pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
                     let (hx, hy) = ((e.x - a.x) / 2.0, (e.y - a.y) / 2.0);
                     Point2::new(a.x + hx + hy * b, a.y + hy - hx * b)
                 };
-                let (a, e, bulge) = (verts[k], verts[(k + 1) % n], closed.loop_.bulges()[k]);
+                let (a, e, bulge) = (
+                    verts[k],
+                    verts[(k + 1) % n],
+                    quarter_tan(&closed.loop_.segments()[k]),
+                );
                 let mid = apex(a, e, bulge);
                 let quarter = bulge / (1.0 + (1.0 + bulge * bulge).sqrt());
                 let samples = [
@@ -610,9 +632,9 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
         assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
         assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
         assert_eq!(
-            lowered.bulges()[i].to_bits(),
-            replayed.bulges()[i].to_bits(),
-            "vertex {i} bulge"
+            segment_bits(&lowered.segments()[i]),
+            segment_bits(&replayed.segments()[i]),
+            "segment {i}"
         );
     }
     let mut la = lowered.tangent_joints().to_vec();

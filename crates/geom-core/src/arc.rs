@@ -8,8 +8,9 @@
 //! sketch segment's `a` and `b`), which is why its one evaluation,
 //! [`Arc2::point_from`], takes the start point as an argument.
 
-use crate::Real;
 use crate::linalg::{Point2, Vec2};
+use crate::real::SymRegistration;
+use crate::{Real, Tol};
 
 /// A circular arc in the plane, without its endpoints: the carrier
 /// circle (`centre`, `radius`) and the signed sweep Δθ from the arc's
@@ -103,6 +104,71 @@ impl<T: Real> Arc2<T> {
         let v = a - centre;
         a + Vec2::new(v.x * cos_m1 - v.y * sin, v.x * sin + v.y * cos_m1)
     }
+
+    /// The distance from `p` to the carrier's centre, `‖p − centre‖`:
+    /// the rim at `p`, which is `radius` exactly when `p` lies on the
+    /// carrier. The one spelling of it, so a consumer that asks about
+    /// an endpoint's rim builds the node a registrant stated
+    /// ([`Arc2::register_endpoints`]).
+    pub fn rim(self, p: Point2<T>) -> T {
+        (p - self.centre).norm()
+    }
+
+    /// Where this arc started at `a` ends: [`Arc2::point_from`] at
+    /// `s = 1`. For a consistent arc from `a` to `b` it is `b` over the
+    /// reals; the one spelling of that landing, for the same reason as
+    /// [`Arc2::rim`].
+    pub fn landing(self, a: Point2<T>) -> Point2<T> {
+        self.point_from(a, T::one())
+    }
+
+    /// **Registers the four endpoint facts** of this arc between `a`
+    /// and `b` ([`Real::register_equal`]): the rim at each end is the
+    /// radius, the landing from `a` is `b`, and the reversed arc's
+    /// landing from `b` is `a` — the last two per component, which is
+    /// what a consumer's `distance` asks of them. Each derived node is
+    /// registered against the held one (`rim` against `radius`, a
+    /// landing against its endpoint), and each answer is handed back
+    /// with the fact it states, for the caller to handle by arm.
+    ///
+    /// **An axiom, not a check.** The door's witness cannot tell an
+    /// identity from a coincidence, so this is sound only where the
+    /// CALLER built the arc so that the four facts hold over the reals
+    /// at every value of its inputs, and its doc comment carries that
+    /// proof. The type states the facts in its own spelling
+    /// ([`Arc2::rim`], [`Arc2::landing`], [`Arc2::reversed`]) and
+    /// proves none of them.
+    #[must_use = "a registration can be REFUSED, and a refusal a caller \
+                  drops is a lie nobody sees"]
+    pub fn register_endpoints(
+        self,
+        a: Point2<T>,
+        b: Point2<T>,
+        tol: Tol,
+    ) -> [(&'static str, SymRegistration); 6] {
+        let forward = self.landing(a);
+        let backward = self.reversed().landing(b);
+        [
+            (
+                "the rim at the start",
+                self.rim(a).register_equal(self.radius, tol),
+            ),
+            (
+                "the rim at the end",
+                self.rim(b).register_equal(self.radius, tol),
+            ),
+            ("the landing's x", forward.x.register_equal(b.x, tol)),
+            ("the landing's y", forward.y.register_equal(b.y, tol)),
+            (
+                "the reversed landing's x",
+                backward.x.register_equal(a.x, tol),
+            ),
+            (
+                "the reversed landing's y",
+                backward.y.register_equal(a.y, tol),
+            ),
+        ]
+    }
 }
 
 #[cfg(test)]
@@ -148,5 +214,101 @@ mod tests {
         let p1 = arc.point_from(a, 1.0);
         let want = arc.centre + Vec2::new(arc.sweep.cos(), arc.sweep.sin()) * arc.radius;
         assert!(p1.distance(want) < 1e-15, "s = 1: {p1:?} vs {want:?}");
+    }
+
+    /// The first quarter of the unit circle about the origin, from
+    /// (1, 0) to (0, 1): every coordinate and the sweep enclose their
+    /// reals, so the four endpoint facts hold on the enclosures.
+    fn quarter_circle<T: Real>() -> (Arc2<T>, Point2<T>, Point2<T>) {
+        let arc = Arc2 {
+            centre: Point2::new(T::zero(), T::zero()),
+            radius: T::one(),
+            sweep: T::pi() / T::from_f64(2.0),
+        };
+        let (a, b) = (
+            Point2::new(T::one(), T::zero()),
+            Point2::new(T::zero(), T::one()),
+        );
+        (arc, a, b)
+    }
+
+    /// **A planted lie is refused by the exact witness, typed.** The
+    /// quarter circle's facts meet at `Interval`; a radius off by a half
+    /// is disjoint from both rims and nothing else, and swapping the
+    /// ends sends both landings to the wrong vertex.
+    #[test]
+    fn register_endpoints_refuses_a_planted_lie_at_the_exact_witness() {
+        let answers = |arc: Arc2<Interval>, a, b| {
+            arc.register_endpoints(a, b, Tol::witness())
+                .map(|(_, answer)| answer)
+        };
+        let (arc, a, b) = quarter_circle::<Interval>();
+        assert!(
+            answers(arc, a, b)
+                .iter()
+                .all(|&r| r == SymRegistration::Witnessed),
+            "a consistent arc is witnessed on every fact"
+        );
+        let wide = Arc2 {
+            radius: Interval::from_f64(1.5),
+            ..arc
+        };
+        let got = answers(wide, a, b);
+        assert_eq!(
+            got[..2],
+            [SymRegistration::Contradicted; 2],
+            "both rims against a planted radius"
+        );
+        assert!(
+            got[2..].iter().all(|&r| r == SymRegistration::Witnessed),
+            "the landings never read the radius: {got:?}"
+        );
+        let got = answers(arc, b, a);
+        assert_eq!(
+            [got[2], got[4]],
+            [SymRegistration::Contradicted; 2],
+            "a sweep that turns the wrong end onto the other: {got:?}"
+        );
+    }
+
+    /// **A registered rim discharges through the Sym tier**, as a
+    /// registered identity and inside a larger expression too.
+    #[test]
+    fn a_registered_rim_decides_zero_through_the_tier() {
+        use crate::predicate::{Band, Sign};
+        use crate::sym::with_session_rules;
+        use crate::{Decide, ParamSymbol, Sym, SymBudget, SymRules};
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let ((after, inside), counts) = with_session_rules(budget, SymRules::shipped(), || {
+            let rho = Sym::param(ParamSymbol::of("rho"), Interval::from_bounds(1.0, 1.25));
+            let zero = <Sym<Interval> as Real>::zero();
+            let arc = Arc2 {
+                centre: Point2::new(zero, zero),
+                radius: rho,
+                sweep: <Sym<Interval> as Real>::pi(),
+            };
+            let (a, b) = (Point2::new(rho, zero), Point2::new(zero - rho, zero));
+            let sign = |m: Sym<Interval>| m.sign_within(band).map(|d| d.sign).ok();
+            for (what, answer) in arc.register_endpoints(a, b, Tol::witness()) {
+                assert!(
+                    matches!(answer, SymRegistration::Recorded | SymRegistration::Already),
+                    "{what}: {answer:?}"
+                );
+            }
+            let after = sign(arc.rim(a) - arc.radius);
+            let inside = sign((arc.rim(a) + rho) * rho - (arc.radius + rho) * rho);
+            (after, inside)
+        });
+        assert_eq!(after, Some(Sign::Zero), "the registered rim: {counts:?}");
+        assert_eq!(
+            inside,
+            Some(Sign::Zero),
+            "inside a larger expression: {counts:?}"
+        );
+        assert!(counts.registered >= 2, "counted as registered: {counts:?}");
     }
 }

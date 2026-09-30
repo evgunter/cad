@@ -149,9 +149,10 @@ the document vocabulary does not spell yet
 
 **V5 — The v1-form → program lift is a development tool.** `profile::lift`
 mints a chain- or carrier-vocabulary program from a lowered loop (its
-vertices and the bulge each segment was lowered from) with declared
+vertices and stored segments) with declared
 joints: declared junctions become `.tangent()`, every
-other junction a sharp `line_to`/`arc_to`, the seam rotated to the first
+other junction a sharp `line_to`/`arc_to` (an arc about its stored
+centre, `arc_to(Center)`), the seam rotated to the first
 undeclared joint — and when there is none, seamed at 0 with the closing
 target carrying joint 0's declaration (`Start.arrives_tangent()`); no
 director is ever emitted, so no
@@ -246,7 +247,7 @@ corner" one: the corner exists; a fillet of it at this radius does not.
 ## The fillet door never mints a joint the verify layer refuses
 
 A fillet's declared tangency is a claim about the carriers the loop
-STORES, and a loop stores an arc as its chord and a bulge. Two things can
+STORES, and a loop stores an arc as its chord and a carrier. Two things can
 happen to that claim between the door's arithmetic and the stored form,
 and both are refused at the door rather than left for validation. A
 fillet whose sagitta `r(1 − cos(θ/2))` sits at or below ε is read back as
@@ -256,7 +257,8 @@ or a larger radius). A fillet whose stored arc IS an arc can still lose
 its joint to arithmetic: a carrier clearance is a difference of lengths
 at the scene's own magnitude, so it resolves only to about that
 magnitude times 2⁻⁵², and past the radius or the distance from the origin
-where that floor is coarser than ε the joint cannot be classified at all
+where that floor is coarser than ε the joint cannot be classified at all,
+nor the stored carrier read against its own vertex
 (`PathError::FilletCarrierBelowSceneResolution`; the levers run the other
 way — a smaller radius, or the geometry nearer the origin). Both read
 back through `seg::build_seg` and `seg::joint_tangency`, the verify

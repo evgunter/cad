@@ -69,9 +69,9 @@ fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
         assert_eq!(u.x.to_bits(), v.x.to_bits(), "{what} vertex {i} x");
         assert_eq!(u.y.to_bits(), v.y.to_bits(), "{what} vertex {i} y");
         assert_eq!(
-            a.bulges()[i].to_bits(),
-            b.bulges()[i].to_bits(),
-            "{what} vertex {i} b"
+            format!("{:?}", a.segments()[i]),
+            format!("{:?}", b.segments()[i]),
+            "{what} segment {i}"
         );
     }
     assert_eq!(a.tangent_joints(), b.tangent_joints(), "{what}: joints");

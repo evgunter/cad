@@ -411,7 +411,8 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
             assert!(
                 a.x.to_bits() == b.x.to_bits()
                     && a.y.to_bits() == b.y.to_bits()
-                    && lowered.bulges()[i].to_bits() == raw.bulges()[i].to_bits(),
+                    && crate::common::segment_bits(&lowered.segments()[i])
+                        == crate::common::segment_bits(&raw.segments()[i]),
                 "shoulder {shoulder} vertex {i}: {a:?} vs {b:?}"
             );
         }

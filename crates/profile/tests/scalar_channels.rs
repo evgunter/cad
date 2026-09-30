@@ -17,7 +17,8 @@ use geom_core::{Dual, Dual64, Sign};
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
 
 /// The decision skeleton of a canonical form: roles, per-segment kind
-/// and turn, and the value-channel bits of every canonical vertex — the
+/// and turn, and the value-channel bits of every canonical vertex and
+/// arc sweep — the
 /// part that must agree bit-for-bit across scalar instantiations.
 type Skeleton = Vec<(bool, Vec<(u64, u64, u64, i8)>)>;
 
@@ -34,7 +35,10 @@ fn skeleton_f64(vp: &ValidatedProfile<f64>) -> Skeleton {
                         (
                             v.x.to_bits(),
                             v.y.to_bits(),
-                            s.bulge.to_bits(),
+                            match s.kind {
+                                SegmentKind::Arc { arc, .. } => arc.sweep.to_bits(),
+                                SegmentKind::Line => 0,
+                            },
                             kind_code(&s.kind),
                         )
                     })
@@ -57,7 +61,10 @@ fn skeleton_dual(vp: &ValidatedProfile<Dual64>) -> Skeleton {
                         (
                             v.x.value.to_bits(),
                             v.y.value.to_bits(),
-                            s.bulge.value.to_bits(),
+                            match s.kind {
+                                SegmentKind::Arc { arc, .. } => arc.sweep.value.to_bits(),
+                                SegmentKind::Line => 0,
+                            },
                             dual_kind_code(&s.kind),
                         )
                     })

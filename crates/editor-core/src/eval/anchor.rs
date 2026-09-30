@@ -30,11 +30,11 @@
 //!
 //! The match is exact: canonical loops are EXACT reindexings of their
 //! input (validate's own contract), starting at the authored vertex 0.
-//! Uniqueness needs positions AND bulges — the bulge sign pins the
+//! Uniqueness needs positions AND arcs — an arc's sweep sign pins the
 //! orientation parity, which positions alone cannot decide at n = 2
 //! (see `derive_naming`).
 
-use profile::{Profile, ProfileLoop, ValidatedProfile};
+use profile::{Profile, ProfileLoop, Segment, SegmentKind, ValidatedProfile};
 
 use crate::names::{
     NamingError, PieceRole, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
@@ -446,33 +446,39 @@ pub(crate) struct ProfilePre {
     pub structure: profile::ProfileStructure,
 }
 
+/// An arc's stored fields as bits — centre, radius, sweep — for the
+/// anchor's exact match.
+fn arc_bits(arc: geom_core::Arc2<f64>) -> [u64; 4] {
+    [
+        arc.centre.x.to_bits(),
+        arc.centre.y.to_bits(),
+        arc.radius.to_bits(),
+        arc.sweep.to_bits(),
+    ]
+}
+
 /// Derives the anchor by bit-matching the canonical f64 loops against
 /// the replayed program-order f64 loops. `None` on a failed match —
 /// an internal invariant break (validate's exact-reindexing contract),
 /// surfaced typed by the caller, never a panic.
 ///
-/// The match covers vertex POSITIONS, the BULGE each segment was
-/// lowered from, and the declared joint set. Positions alone are NOT
-/// enough (PR #291 review MAJOR-1, both reviewers, executed): on a
-/// 2-vertex loop the forward and reversed maps agree on every position
-/// (index arithmetic mod 2), so a reversed hole circle — `circle()`
-/// lowers CCW, canonicalization orients holes CW — would recover
-/// `reversed: false` and swap the two semicircles' program names.
-/// Bulges disambiguate the parity exactly: canonicalization's reversal
-/// NEGATES bulges (bit-exact sign flip) and reindexes them (canonical
-/// segment k = program segment n−1−k traversed backward), while the
-/// identity carries them verbatim — so the bulge condition holds for
-/// precisely one orientation whenever any segment is an arc. (An
-/// all-straight loop has ±0.0 bulges either way, but needs n ≥ 3 to
-/// close, where positions already decide.) The bulge is the datum
-/// matched rather than an arc's sweep because it is present on every
-/// segment of both loops: a sub-tolerance arc is a validated `Line`
-/// with no sweep. Matching positions and bulges matches the stored
-/// segments too, because every stored segment is lowered from exactly
-/// those: its kind by the exact-zero rule (a line iff its bulge is
-/// ±0, which negation preserves) and an arc's carrier and sweep from
-/// its two positions and bulge alone. Declared joints
-/// ride the same maps and are checked as sets.
+/// The match covers vertex POSITIONS, each validated segment's KIND and
+/// an arc's carrier and sweep, and the declared joint set. Positions
+/// alone are NOT enough (PR #291 review MAJOR-1, both reviewers,
+/// executed): on a 2-vertex loop the forward and reversed maps agree on
+/// every position (index arithmetic mod 2), so a reversed hole circle —
+/// `circle()` lowers CCW, canonicalization orients holes CW — would
+/// recover `reversed: false` and swap the two semicircles' program
+/// names. The arcs disambiguate the parity exactly: canonicalization's
+/// reversal copies each stored carrier and NEGATES its sweep
+/// (bit-exact) and reindexes the segments (canonical segment k =
+/// program segment n−1−k traversed backward), while the identity
+/// carries them verbatim — so the condition holds for precisely one
+/// orientation whenever any validated segment is an arc. A validated
+/// `Line` matches either stored kind, because a sub-tolerance stored
+/// arc classifies as one and keeps no carrier to compare; a loop with
+/// no validated arc needs n ≥ 3 to close, where positions already
+/// decide. Declared joints ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
     program_loops: &[ProfileLoop<f64>],
@@ -504,14 +510,24 @@ pub(crate) fn derive_naming(
                 if !positions_ok {
                     continue;
                 }
-                // Bulges: verbatim forward, negated under reversal —
-                // bit-exact either way.
-                let bulges_ok = (0..n).all(|k| {
-                    let pb = pl.bulges()[smap(k)];
-                    let want = if reversed { -pb } else { pb };
-                    vl.segments()[k as usize].bulge.to_bits() == want.to_bits()
+                // Segments: verbatim forward, retraced under reversal
+                // (the carrier copied, the sweep negated) — bit-exact
+                // either way. A validated line may be a stored arc the
+                // classifier read as straight, so it matches either
+                // stored kind; a validated arc matches only its own
+                // carrier and sweep.
+                let segments_ok = (0..n).all(|k| {
+                    let stored = pl.segments()[smap(k)];
+                    match (vl.segments()[k as usize].kind, stored) {
+                        (SegmentKind::Line, _) => true,
+                        (SegmentKind::Arc { arc, .. }, Segment::Arc(p)) => {
+                            let want = if reversed { p.reversed() } else { p };
+                            arc_bits(arc) == arc_bits(want)
+                        }
+                        (SegmentKind::Arc { .. }, Segment::Line) => false,
+                    }
                 });
-                if !bulges_ok {
+                if !segments_ok {
                     continue;
                 }
                 // Declared joints as SETS under the vertex map

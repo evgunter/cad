@@ -24,7 +24,11 @@ fn record(out: &mut String, key: &str, lp: &Result<ProfileLoop<f64>, PathError<f
     match lp {
         Ok(lp) => {
             let _ = write!(out, "{key} BUILT joints={:?}", lp.tangent_joints());
-            for (v, b) in lp.vertices().iter().zip(lp.bulges()) {
+            for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                let b = match s {
+                    profile::Segment::Line => 0.0,
+                    profile::Segment::Arc(arc) => arc.sweep,
+                };
                 let _ = write!(
                     out,
                     " [{:016x},{:016x},{:016x}]",

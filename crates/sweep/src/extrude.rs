@@ -79,8 +79,7 @@ use geom_brep::{
     newell_plane,
 };
 use geom_core::{
-    Affine3, Arc2, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol,
-    Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
@@ -434,7 +433,7 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     fn b(&self) -> Point2<T> {
         self.chord.b
     }
-    fn kind(&self) -> SegmentKind<T> {
+    fn kind(&self) -> swept::Traversed<T> {
         self.chord.kind
     }
 }
@@ -1137,7 +1136,7 @@ fn side_surface<T: Decide>(
             return Ok(FaceSurface::Shared { key, sense });
         }
     }
-    match segs[j].chord.kind {
+    match segs[j].chord.kind.get() {
         SegmentKind::Line => {
             // Quad corners in the side loop's next order starting at
             // the swept start vertex: v_j′, v_j, v_{j+1}, v_{j+1}′.
@@ -1152,17 +1151,9 @@ fn side_surface<T: Decide>(
                 sense,
             })
         }
-        SegmentKind::Arc {
-            arc:
-                Arc2 {
-                    centre: center,
-                    radius,
-                    ..
-                },
-            turn,
-        } => {
-            // The carrier axis line is the arc's center extruded:
-            // `place · (center, 0)` — the same computation the rim
+        SegmentKind::Arc { arc, turn } => {
+            // The carrier axis line is the arc's centre extruded:
+            // `place · (centre, 0)` — the same computation the rim
             // carrier makes, so cylinder and BOTTOM rim circle agree
             // bit-identically. TOP rim centers are computed through
             // `top_place = translation(w) ∘ place`, which associates
@@ -1170,18 +1161,18 @@ fn side_surface<T: Decide>(
             // ulp-level, not bitwise (M2 PR 4 review, A7). Certified
             // and deterministic either way: the residual gates bound
             // the drift and identical inputs replay identical bits.
-            let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
+            let c_world = place.transform_point(Point3::new(arc.centre.x, arc.centre.y, T::zero()));
             let rim = qs[j] - c_world;
-            // The SAME rim identity the bottom rim carrier registers,
-            // at the same guarantee and through the same helper: this
+            // The SAME rigidity the bottom rim carrier registers, at
+            // the same guarantee and through the same helper: this
             // wall's `u_ref` is built from the same lamina vertex and
-            // the same extruded center (`swept::register_rim_identity`).
-            crate::swept::register_rim_identity(rim, radius, tol);
+            // the same extruded centre (`swept::register_rigidity`).
+            crate::swept::register_rigidity(rim, arc, segs[j].chord.a, tol);
             Ok(FaceSurface::New {
                 surface: Surface::Cylinder {
                     origin: c_world,
                     axis: turn_axis(turn, normal),
-                    radius,
+                    radius: arc.radius,
                     u_ref: rim.normalize(),
                 },
                 sense,

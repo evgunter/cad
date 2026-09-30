@@ -540,7 +540,7 @@ fn fillet_segment(
     for i in 0..n {
         let a = lp.vertices()[i];
         let b = lp.vertices()[(i + 1) % n];
-        let bl = lp.bulges()[i];
+        let bl = crate::common::quarter_tan(&lp.segments()[i]);
         if bl == 0.0 {
             continue;
         }

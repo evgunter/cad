@@ -1825,7 +1825,7 @@ transition_table! {
     } = "circle" bind { centre, radius } rows {
         free {
             /// The circle primitive (G1 constructor 1): a **one-step complete-loop
-            /// program form**, not a chain — `circle(center, r)` IS the whole loop,
+            /// program form**, not a chain — `circle(centre, r)` IS the whole loop,
             /// so it returns the lowered [`ProfileLoop`] directly and there is
             /// nothing to continue, close, or bind.
             ///
@@ -1836,7 +1836,7 @@ transition_table! {
             /// at all. The conventional split — two semicircles at the ±x poles,
             /// counterclockwise — is the primitive's PRIVATE lowering, exactly the
             /// M2 closed-carrier precedent: a detail of how a closed carrier
-            /// reaches a vertex+bulge document, not a junction anyone said. The two
+            /// reaches a vertex-and-segment document, not a junction anyone said. The two
             /// joints are same-carrier identities, so nothing is declared tangent
             /// (there is no tangency to declare — it is one circle).
             ///
@@ -1846,21 +1846,18 @@ transition_table! {
             /// mix circle loops and chain loops freely (per-loop wholesale, which
             /// is the mixed-authoring rule of §6 read at loop granularity).
             fn circle [<T: Decide>(
-                center: Point2<T>,
+                centre: Point2<T>,
                 radius: T,
                 tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
-                let loop_ = super::circle_kernel(center, radius, tol)?;
+                let loop_ = super::circle_kernel(centre, radius, tol)?;
                 Ok(ClosedLoop {
                     // A closed carrier resolves no fillet: no gate, no
                     // ladder, nothing discrete to record but the one
                     // step's reach, which is the whole loop.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
                     loop_,
-                    program: vec![Step::Circle {
-                        centre: center,
-                        radius,
-                    }],
+                    program: vec![Step::Circle { centre, radius }],
                 })
                 .inspect(|closed| closed.structure.check_role_lists(&closed.program))
             }
@@ -1895,7 +1892,7 @@ transition_table! {
             /// (the boss corpus document is the recorded use case).
             ///
             /// Numerics, stated plainly: vertex `k` sits at
-            /// `center + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
+            /// `centre + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
             /// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
             /// trig (D9-deterministic; no exactness promise at axis crossings, the
             /// same posture as `.angle(θ)` directors).
@@ -1905,13 +1902,13 @@ transition_table! {
             /// — a one-vertex full turn has no bulge representation). `n` is
             /// structural (a count, never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
-                center: Point2<T>,
+                centre: Point2<T>,
                 radius: T,
                 n: usize,
                 phase: T,
                 tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
-                let loop_ = super::circle_split_kernel(center, radius, n, phase, tol)?;
+                let loop_ = super::circle_split_kernel(centre, radius, n, phase, tol)?;
                 Ok(ClosedLoop {
                     // Structural subdivisions of one carrier: still no
                     // fillet resolution anywhere in the form, and the
@@ -1919,7 +1916,7 @@ transition_table! {
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
                     loop_,
                     program: vec![Step::CircleSplit {
-                        centre: center,
+                        centre,
                         radius,
                         n,
                         phase,

@@ -463,7 +463,8 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
         j: usize,
         x: T,
         y: T,
-        bulge: T,
+        /// The leaving segment's stored sweep; zero for a line.
+        sweep: T,
     },
     /// Fixture program `i` refused at this scalar.
     FixtureRefused(usize),
@@ -572,10 +573,10 @@ where
             d.text("ok");
             d.u64(vertices as u64);
         }
-        Seen::FixtureVertex { x, y, bulge, .. } => {
+        Seen::FixtureVertex { x, y, sweep, .. } => {
             scalar(&mut d, x);
             scalar(&mut d, y);
-            scalar(&mut d, bulge);
+            scalar(&mut d, sweep);
         }
         Seen::FixtureRefused(_) => d.text("refused"),
         Seen::Document(name) => d.text(name),
@@ -665,13 +666,17 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
                     i,
                     vertices: lp.vertices().len(),
                 });
-                for (j, (v, &bulge)) in lp.vertices().iter().zip(lp.bulges()).enumerate() {
+                for (j, (v, s)) in lp.vertices().iter().zip(lp.segments()).enumerate() {
+                    let sweep = match s {
+                        profile::Segment::Line => T::zero(),
+                        profile::Segment::Arc(arc) => arc.sweep,
+                    };
                     seen(Seen::FixtureVertex {
                         i,
                         j,
                         x: v.x,
                         y: v.y,
-                        bulge,
+                        sweep,
                     });
                 }
             }

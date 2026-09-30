@@ -96,8 +96,9 @@ pub use ::profile::{
 // `ValidatedLoop::blend_arcs` hands back — a read-back door on a type
 // this list carries, whose return type a caller must be able to name.
 pub use ::profile::{
-    BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
-    ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+    ArcCheck, BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole,
+    NoCornerReason, ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile,
+    ValidatedSegment,
 };
 
 // **The structure record and the guided doors.** One vocabulary, and

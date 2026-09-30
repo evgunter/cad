@@ -5374,6 +5374,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_segment",
             "empty_profile",
             "escalated",
+            "inconsistent_arc",
             "multiple_outer_loops",
             "near_full_arc",
             "nesting_too_deep",

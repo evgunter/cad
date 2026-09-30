@@ -292,11 +292,13 @@ fn vesica_near_pick_agrees_with_the_f64_lane_at_interval() {
         .zip(iv.loop_.vertices())
         .enumerate()
     {
-        for (what, exact, enc) in [
-            ("x", a.x, b.x),
-            ("y", a.y, b.y),
-            ("bulge", f.loop_.bulges()[k], iv.loop_.bulges()[k]),
-        ] {
+        let mut channels = vec![("x", a.x, b.x), ("y", a.y, b.y)];
+        if let (profile::Segment::Arc(e), profile::Segment::Arc(i)) =
+            (f.loop_.segments()[k], iv.loop_.segments()[k])
+        {
+            channels.push(("sweep", e.sweep, i.sweep));
+        }
+        for (what, exact, enc) in channels {
             assert!(
                 enc.lo() <= exact && exact <= enc.hi(),
                 "vertex {k}: the {what} enclosure [{}, {}] excludes the f64 lane's {exact}",

@@ -71,16 +71,27 @@ fn the_corpus_replays_at_dual_with_bit_identical_values() {
                 b.y.value.to_bits(),
                 "row {i} vertex {k}: y value channel"
             );
-            assert_eq!(
-                base.bulges()[k].to_bits(),
-                dual.bulges()[k].value.to_bits(),
-                "row {i} vertex {k}: bulge value channel"
-            );
-            for (what, d) in [
-                ("x", b.x.deriv),
-                ("y", b.y.deriv),
-                ("bulge", dual.bulges()[k].deriv),
-            ] {
+            let mut tangents = vec![("x", b.x.deriv), ("y", b.y.deriv)];
+            match (base.segments()[k], dual.segments()[k]) {
+                (profile::Segment::Line, profile::Segment::Line) => {}
+                (profile::Segment::Arc(f), profile::Segment::Arc(d)) => {
+                    for (what, f, d) in [
+                        ("centre x", f.centre.x, d.centre.x),
+                        ("centre y", f.centre.y, d.centre.y),
+                        ("radius", f.radius, d.radius),
+                        ("sweep", f.sweep, d.sweep),
+                    ] {
+                        assert_eq!(
+                            f.to_bits(),
+                            d.value.to_bits(),
+                            "row {i} segment {k}: {what} value channel"
+                        );
+                        tangents.push((what, d.deriv));
+                    }
+                }
+                (f, d) => panic!("row {i} segment {k}: {f:?} at f64 vs {d:?} at Dual"),
+            }
+            for (what, d) in tangents {
                 assert_eq!(
                     d, 0.0,
                     "row {i} vertex {k}: {what} tangent — a constant-seeded \
@@ -126,11 +137,13 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
             "row {i}: vertex count"
         );
         for (k, (a, b)) in base.vertices().iter().zip(iv.vertices()).enumerate() {
-            for (what, exact, enc) in [
-                ("x", a.x, b.x),
-                ("y", a.y, b.y),
-                ("bulge", base.bulges()[k], iv.bulges()[k]),
-            ] {
+            let mut channels = vec![("x", a.x, b.x), ("y", a.y, b.y)];
+            if let (profile::Segment::Arc(f), profile::Segment::Arc(e)) =
+                (base.segments()[k], iv.segments()[k])
+            {
+                channels.push(("sweep", f.sweep, e.sweep));
+            }
+            for (what, exact, enc) in channels {
                 assert!(
                     enc.lo() <= exact && exact <= enc.hi(),
                     "row {i} vertex {k}: the {what} enclosure [{}, {}] excludes the \
@@ -408,13 +421,13 @@ fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
         let mut widest = 0.0f64;
         let mut widest_rel = 0.0f64;
         for (k, v) in iv.vertices().iter().enumerate() {
-            for (what, enc, is_length) in [
-                ("x", v.x, true),
-                ("y", v.y, true),
-                // The bulge is a TANGENT — dimensionless, so it does not
-                // scale and is measured against 1, not against `scale`.
-                ("bulge", iv.bulges()[k], false),
-            ] {
+            let mut channels = vec![("x", v.x, true), ("y", v.y, true)];
+            // The sweep is an ANGLE — dimensionless, so it does not
+            // scale and is measured against 1, not against `scale`.
+            if let profile::Segment::Arc(arc) = iv.segments()[k] {
+                channels.push(("sweep", arc.sweep, false));
+            }
+            for (what, enc, is_length) in channels {
                 let w = enc.hi() - enc.lo();
                 let unit = if is_length { scale } else { 1.0 };
                 let rel = w / unit;

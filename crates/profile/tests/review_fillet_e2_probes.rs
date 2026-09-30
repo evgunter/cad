@@ -8,7 +8,7 @@
 //! exact. What the measurement behind that finding showed is that the
 //! door's carrier is tangent to within a couple of ulps at every one of
 //! those turns, and the loss is in the STORED form: a profile holds an
-//! arc as a chord and a bulge, and a fillet whose sagitta
+//! arc as a chord and a carrier, and a fillet whose sagitta
 //! `r(1 − cos(θ/2))` sits at or below ε is read back as a straight
 //! segment, with no arc carrier for the declaration to be about.
 //!
@@ -60,7 +60,7 @@ fn small_bends_refuse_at_the_path_door_rather_than_building_what_validate_contra
         );
         let shown = err.to_string();
         assert!(
-            shown.contains("a chord and a bulge") && shown.contains("turn the corner further"),
+            shown.contains("a chord and a carrier") && shown.contains("turn the corner further"),
             "c = {c}, theta = {theta:e}: the sentence says what was lost and what to move, got \
              {shown}"
         );

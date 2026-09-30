@@ -239,12 +239,17 @@ pub use ::profile::{
 //   `PathError::Escalated`, whose Display selects the gate's own
 //   recourse from the predicate name rather than from a site
 //   discriminant.
-// - `SegmentRef` is the rung under that one, and under four arms
-//   besides: `DegenerateSegment` and `NearFullArc` carry one,
-//   `NonSimple` and `TangentialContact` two apiece. It is where in
+// - `SegmentRef` is the rung under that one, and under five arms
+//   besides: `DegenerateSegment`, `NearFullArc` and `InconsistentArc`
+//   carry one, `NonSimple` and `TangentialContact` two apiece. It is where in
 //   the INPUT profile a refusal points — a loop index and a segment
 //   index, in the input's own ordering — so a caller that cannot name
 //   it cannot hold the site it was handed.
+// - `ArcCheck` is `InconsistentArc`'s: which of the three
+//   consistency conditions a stored arc failed against its vertices —
+//   its start off the carrier, its sweep landing off its end, or its
+//   sweep out of range. Three conditions, and the arm is the only
+//   place the profile says which.
 // - `FilletLeg` is which side of a corner a fillet did not fit,
 //   incoming or outgoing: `CornerReason` names it in two arms and
 //   `PathError` in a third, and it is the one thing a caller
@@ -286,7 +291,7 @@ pub use ::profile::{
 // first. Stated so the next curation pass re-measures rather than
 // re-derives.
 pub use ::profile::{
-    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
+    ArcCheck, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, NoCornerReason, SegmentRef,
 };
 
 // --- 3. The four body operations ------------------------------

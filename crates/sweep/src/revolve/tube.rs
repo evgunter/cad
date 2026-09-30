@@ -65,6 +65,7 @@ use geom_core::{
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
+use crate::swept::Traversed;
 use profile::SegmentKind;
 
 /// The traversed window of the spine arc.
@@ -471,16 +472,15 @@ fn build<T: Decide + topo::AtRestPolicy>(
     Ok(out)
 }
 
-/// The circle of `radius` about `center` as a two-arc swept
+/// The circle of `radius` about `centre` as a two-arc swept
 /// traversal: the half-circle from `(cx + radius, 0)` to
-/// `(cx - radius, 0)` and the one back, with `center` and `radius`
+/// `(cx - radius, 0)` and the one back, with `centre` and `radius`
 /// stored as given.
 ///
 /// A hand-written COPY OF `swept::swept_segments` for a known two-arc
-/// input instead of a call: that builder takes a `ValidatedLoop`,
-/// whose arc centre and radius come back from bulge arithmetic, and
-/// storing the caller's numbers instead of reconstructing them is
-/// this door's entire reason to exist (module docs). So the
+/// input instead of a call: that builder takes a `ValidatedLoop`, and
+/// this door has none — it stores the caller's numbers as given, which
+/// is its entire reason to exist (module docs). So the
 /// convention is shared with `swept_segments` and the code is not:
 /// **a change to that builder is a change to this function.**
 /// (Phrased with the marker vocabulary on purpose: a duplication
@@ -500,36 +500,37 @@ fn build<T: Decide + topo::AtRestPolicy>(
 /// hole loop (canonical clockwise, reversed with the outer) is
 /// `(Positive, true)`.
 fn circle_traversal<T: Real>(
-    center: Point2<T>,
+    centre: Point2<T>,
     radius: T,
     turn: Sign,
     reversed: bool,
 ) -> Vec<SweptSeg<T>> {
     let (lo, hi) = (
-        Point2::new(center.x - radius, T::zero()),
-        Point2::new(center.x + radius, T::zero()),
+        Point2::new(centre.x - radius, T::zero()),
+        Point2::new(centre.x + radius, T::zero()),
     );
     // The half-turn, spelled as the arc lowering spells a unit-bulge
     // arc's sweep (`4·atan 1`), not as `T::pi()`: the certifier
     // samples it at fractions `i/8`, and the symbolic tier folds the
     // trig of `q·atan 1` in closed form (rule D) where a fraction of
     // `π` other than a half-multiple stays an atom.
-    let half_turn = T::from_f64(4.0) * T::one().atan();
-    let sweep = match turn {
-        Sign::Positive | Sign::Zero => half_turn,
-        Sign::Negative => T::zero() - half_turn,
+    let half = Arc2 {
+        centre,
+        radius,
+        sweep: T::from_f64(4.0) * T::one().atan(),
     };
+    let traversed = match turn {
+        Sign::Positive | Sign::Zero => half,
+        Sign::Negative => half.reversed(),
+    };
+    // The traversal's own orientation, stated: `turn` is its sense.
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        kind: SegmentKind::Arc {
-            arc: Arc2 {
-                centre: center,
-                radius,
-                sweep,
-            },
+        kind: Traversed::stated(SegmentKind::Arc {
+            arc: traversed,
             turn,
-        },
+        }),
         canonical_vertex,
         canonical_segment,
     };

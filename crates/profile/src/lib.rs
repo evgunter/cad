@@ -2,13 +2,10 @@
 //! trilean validation into [`ValidatedProfile`] (M2 PR 2).
 //!
 //! A profile is the *input* to sweeps (M2 PR 4/5): closed 2-D loops on a
-//! [`SketchPlane`], stored as plain data. The one consistency
-//! condition the stored form has — an arc's carrier and sweep agree
-//! with its two vertices — holds by construction: every loop is lowered
-//! from its chords and bulges, and validation reads the carrier without
-//! re-checking it. A predicate that verifies a stored carrier against
-//! its vertices is owed once carriers are stored rather than derived.
-//! Sweeps accept only a
+//! [`SketchPlane`], stored as plain data. The stored form is redundant
+//! — an arc's carrier and sweep agree with its two vertices — and
+//! validation verifies that agreement per arc as ε-decisions rather
+//! than trusting it. Sweeps accept only a
 //! [`ValidatedProfile`], the canonicalized output of
 //! [`Profile::validate`]; arcs lower to `geom` circle carriers at
 //! sweep time — this crate stays 2-D and depends on `geom-core` only.
@@ -25,16 +22,16 @@
 //!   plus a signed interval on it: a [`Segment::Line`] (the chord), or
 //!   a [`Segment::Arc`] (centre, radius, and the signed sweep Δθ,
 //!   positive counterclockwise). The vertices are authoritative;
-//!   an arc's carrier and sweep agree with them, and validation reads
-//!   the carrier rather than re-deriving it.
-//! - **The bulge input form.** The lattice's emission layer writes a
-//!   loop as a chain of (position, bulge) pairs — vertex k's bulge
-//!   describes the segment leaving it — and LOWERS it to the stored
-//!   form once: a bulge of exactly zero (either sign) is a line, and any
-//!   other an arc whose
-//!   carrier is the closed form below and whose sweep is
-//!   Δθ = 4·atan(b). The bulge each segment was lowered from is kept
-//!   beside it ([`ProfileLoop::bulges`]).
+//!   an arc's carrier and sweep are stored beside them and carried
+//!   verbatim, never re-derived from them, and validation verifies that
+//!   the two agree (the start on the carrier, the swept start landing on
+//!   the end, and 0 < |Δθ| ≤ 2π).
+//! - **The bulge input form.** The lattice's bulge mode writes a
+//!   segment as a (position, bulge) pair — vertex k's bulge describes
+//!   the segment leaving it — and LOWERS it to the stored form once: a
+//!   bulge of exactly zero (either sign) is a line, and any other an arc
+//!   whose carrier is the closed form below and whose sweep is
+//!   Δθ = 4·atan(b). The bulge is not stored.
 //! - **Bulge semantics (DXF-compatible, ratified).** For the segment
 //!   from vertex A to vertex B, `bulge` b = tan(θ/4) where θ is the
 //!   arc's signed included angle; b = 0 is a straight line segment.
@@ -57,15 +54,15 @@
 //!   - signed sagitta (apex offset): apex = midpoint − n̂·(L·b/2);
 //!   - signed apothem: center = midpoint + n̂·(L·(1 − b²)/(4b));
 //!   - radius r = L·(1 + b²)/(4|b|); included angle θ = 4·atan(b).
-//! - **Reversal is an involution.** Reversing a chain maps each
-//!   segment's b ↦ −b (same locus, opposite traversal), so an arc
-//!   keeps its carrier and its sweep changes sign;
-//!   [`ProfileLoop::reversed`] implements the reindexing and
-//!   `reversed ∘ reversed` is the identity, bit-exactly (negation is
-//!   exact). Under test.
-//! - **|Δθ| < 2π**: b = tan(θ/4) is finite, so no segment the bulge
-//!   input form writes closes a full period, and validation refuses a
-//!   loop of fewer than **2 vertices**: the minimal circle is two arcs.
+//! - **Reversal is an involution.** Reversing a chain retraces each
+//!   segment (same locus, opposite traversal): an arc keeps its carrier
+//!   and its sweep changes sign; [`ProfileLoop::reversed`] implements
+//!   the reindexing and `reversed ∘ reversed` is the identity,
+//!   bit-exactly (negation is exact). Under test.
+//! - **|Δθ| < 2π in the bulge form**: b = tan(θ/4) is finite, so no
+//!   segment the bulge input form writes closes a full period, and
+//!   validation refuses a loop of fewer than **2 vertices**: the
+//!   minimal circle is two arcs.
 //! - **Winding is invisible.** There is no direction concept in the
 //!   API: users write loops in either traversal; [`Profile::validate`]
 //!   derives nesting from containment and canonicalizes traversal
@@ -142,7 +139,7 @@
 //! poison only when its input was — a bulge or coordinate that is not
 //! finite, which validation refuses typed — or when a tiny finite bulge
 //! overflows its radius, which is a sub-tolerance arc that validation
-//! classifies a line before any carrier is read.
+//! classifies a line before any carrier is checked.
 
 mod fillet_select;
 pub mod lift;
@@ -154,7 +151,8 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
+use geom_core::sym::SymRegistration;
+use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Tol, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -174,9 +172,9 @@ pub use structure::{
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
-    BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
-    ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
-    decision_subject,
+    ArcCheck, BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole,
+    NoCornerReason, ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile,
+    ValidatedSegment, decision_subject,
 };
 /// The fillet recourse sentences and the map that selects one, under
 /// `test-support` only.
@@ -213,11 +211,10 @@ pub use validate::{
 /// vertices themselves are stored verbatim beside it and are
 /// authoritative, so a segment carries no endpoint.
 ///
-/// **The stored kind is exact, not a tolerance decision.** A segment
-/// is stored as a `Line` exactly when the bulge it was lowered from is
-/// exactly zero, of either sign, so a stored `Arc` is never built from
-/// b = 0 and its carrier is always the finite-bulge closed form. A
-/// stored `Arc` may still be sub-tolerance: whether it is too shallow
+/// **The stored kind is exact, not a tolerance decision.** The bulge
+/// mode stores a `Line` exactly when the bulge it lowers is exactly
+/// zero, of either sign, so it never builds a stored `Arc` from b = 0.
+/// A stored `Arc` may still be sub-tolerance: whether it is too shallow
 /// to be an arc is validation's ε-decision, and a
 /// [`ValidatedSegment`]'s [`SegmentKind`] may classify it `Line`.
 #[derive(Clone, Copy, Debug)]
@@ -231,32 +228,108 @@ pub enum Segment<T: Real> {
     Arc(Arc2<T>),
 }
 
-/// **The lowering rule** every loop is built by: the canonical segment
-/// that the segment leaving `start` with `bulge` and ending at `end`
-/// lowers to — a [`Segment::Line`] exactly when the bulge is exactly
-/// zero (either sign), and otherwise the arc [`lower_arc`] builds.
-pub(crate) fn lower_to<T: Real>(start: Point2<T>, bulge: T, end: Point2<T>) -> Segment<T> {
+/// **The bulge mode's lowering rule**: the canonical segment that the
+/// segment leaving `start` with `bulge` and ending at `end` lowers to —
+/// a [`Segment::Line`] exactly when the bulge is exactly zero (either
+/// sign), and otherwise the arc [`lower_arc`] builds, registered at
+/// `tol` when there is one.
+pub(crate) fn lower_to<T: Real>(
+    start: Point2<T>,
+    bulge: T,
+    end: Point2<T>,
+    tol: Option<Tol>,
+) -> Segment<T> {
     if is_exact_zero(bulge) {
         return Segment::Line;
     }
-    Segment::Arc(lower_arc(start, end, bulge))
+    Segment::Arc(lower_arc(start, end, bulge, tol))
+}
+
+/// The bulge mode's lowering over a whole chain: each (position,
+/// bulge) pair becomes its vertex and the [`lower_to`] segment on its
+/// chord to the next pair's position, the last one's closing back to
+/// the first.
+pub(crate) fn lower_chain<T: Real>(
+    chain: &[(Point2<T>, T)],
+    tol: Option<Tol>,
+) -> Vec<(Point2<T>, Segment<T>)> {
+    let n = chain.len();
+    (0..n)
+        .map(|k| {
+            let ((start, bulge), end) = (chain[k], chain[(k + 1) % n].0);
+            (start, lower_to(start, bulge, end, tol))
+        })
+        .collect()
 }
 
 /// **The arc lowering**: the carrier [`seg::arc_carrier`] puts on the
-/// chord `start → end` for `bulge`, and the sweep Δθ = 4·atan(b).
+/// chord `start → end` for `bulge`, and the sweep Δθ = 4·atan(b) — and,
+/// given the run's ε, the arc's four endpoint facts registered on the
+/// values it built ([`Arc2::register_endpoints`]). Without one (a
+/// fixture holds no witness) nothing is registered and the arc is the
+/// same.
+///
+/// **The proof the registrations rest on.** With `L` the chord length,
+/// `mid` its midpoint and `n̂` its unit left normal, the carrier is
+/// `centre = mid + n̂·L(1 − b²)/(4b)` and `radius = |L(1 + b²)/(4b)|`.
+/// Each endpoint sits `L/2` from `mid` along the chord, so
+/// `‖q − centre‖² = (L/2)² + L²(1 − b²)²/(16b²) = L²(1 + b²)²/(16b²)
+/// = radius²`, an identity of rational functions at every `b ≠ 0`; both
+/// sides are non-negative, so the rim at each end IS the radius. The
+/// centre lies on the chord's perpendicular bisector, so the angle
+/// about it from `start` to `end` is the included angle θ whose
+/// quarter-tangent the bulge is by definition (crate docs), and
+/// `4·atan(b)` is that θ for every finite `b` (|θ| < 2π): turning
+/// `start` about the centre by the sweep lands on `end`, and turning
+/// `end` back by the negated sweep lands on `start`. Each is a theorem
+/// of the reals at every value of `start`, `end` and a nonzero finite
+/// `b`, which is what the door's axiom asks of its registrant; a lie
+/// the exact witness disproves aborts here, live in release.
 ///
 /// Pure arithmetic over its inputs, so it is the same expression at
-/// every scalar: [`lower_to`] mints a stored arc
-/// through it, and the validated form's lift rebuilds a validated
-/// arc's carrier and sweep through it at the target scalar. A bulge of
-/// exactly zero has no carrier (its centre is at infinity), and the
-/// lowering rule sends it to a line before it reaches here.
-pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> Arc2<T> {
+/// every scalar. A bulge of exactly zero has no carrier (its centre is
+/// at infinity), and the lowering rule sends it to a line before it
+/// reaches here.
+pub(crate) fn lower_arc<T: Real>(
+    start: Point2<T>,
+    end: Point2<T>,
+    bulge: T,
+    tol: Option<Tol>,
+) -> Arc2<T> {
     let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
-    Arc2 {
+    let arc = Arc2 {
         centre: carrier.center,
         radius: carrier.radius,
         sweep: T::from_f64(4.0) * bulge.atan(),
+    };
+    if let Some(tol) = tol {
+        for (fact, answer) in arc.register_endpoints(start, end, tol) {
+            handle_registration(answer, fact);
+        }
+    }
+    arc
+}
+
+/// What the lowering does with the door's typed answer, by arm: a
+/// `Contradicted` is the EXACT witness's proof that the lowering's
+/// theorem failed on the values it was handed, and is loud (live in
+/// release — this workspace ships `debug-assertions = true` there);
+/// every other arm is a record, a no-op, or an inexact witness's
+/// refusal, which is counted in the session's receipt and never
+/// asserted. Exhaustive by hand, so a new arm is a compile error here.
+fn handle_registration(answer: SymRegistration, fact: &'static str) {
+    match answer {
+        SymRegistration::Contradicted => debug_assert!(
+            !matches!(answer, SymRegistration::Contradicted),
+            "the EXACT witness separated {fact} of a lowered arc: either the lowering's \
+             theorem is false for its inputs, or an upstream enclosure does not contain its real"
+        ),
+        SymRegistration::Disputed
+        | SymRegistration::Recorded
+        | SymRegistration::Already
+        | SymRegistration::Witnessed
+        | SymRegistration::Unwitnessed
+        | SymRegistration::Cyclic => {}
     }
 }
 
@@ -272,8 +345,8 @@ pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> 
 /// whether a nonzero bulge is too shallow to be an arc is validation's
 /// `segment_straightness` question, asked of the bulge itself.
 ///
-/// At `f64` the read is exactly `b == 0.0`, so a stored segment's kind
-/// is the reading every consumer of the bulge form makes.
+/// At `f64` the read is exactly `b == 0.0`, so a lowered segment's
+/// kind is the reading every consumer of the bulge form makes.
 fn is_exact_zero<T: Real>(b: T) -> bool {
     !(b * T::zero()).is_poison() && (b * (T::one() / b)).is_poison()
 }
@@ -290,14 +363,16 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 /// writing coordinates down. **This is the one home for what mints a
 /// loop; everywhere else points here.**
 ///
-/// A shipped build has one PRIVATE constructor, the lowering, and two
-/// public doors reach it:
+/// A shipped build has one PRIVATE constructor, which stores a chain
+/// of (vertex, canonical segment) pairs verbatim, and two public doors
+/// reach it:
 ///
 /// - **the authoring door** — the [`path`] lattice's emission layer.
 ///   It classifies every junction and declares every tangency as the
-///   chain is written, then calls the crate's private lowering
-///   (`ProfileLoop::lower`). The
-///   only door on the presented surface.
+///   chain is written, lowers each segment in its authored mode, and
+///   hands the crate's private constructor (`ProfileLoop::from_chain`)
+///   the (vertex, segment) chain. The only door on the presented
+///   surface.
 /// - **the materialization door** — [`ProfileLoop::map_scalar`]: a
 ///   table that already exists, read at another scalar. It authors
 ///   nothing; there is no table it can make that did not exist a moment
@@ -307,7 +382,7 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 ///   build it is a crate-private item, so a link from this public page
 ///   would name something the page's reader does not have), which
 ///   writes the canonical form verbatim, and `test_support::bulge_loop`,
-///   which hands a bulge chain to the lowering. Both are exported under
+///   which hands a bulge chain to the bulge mode's lowering. Both are exported under
 ///   `test`/`test-support` only. In a shipped build the trait item
 ///   itself is `pub(crate)`, so no re-export of it compiles and no
 ///   downstream build can name it, and the helper's module does not
@@ -338,7 +413,6 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 /// let _: ProfileLoop<f64> = ProfileLoop {
 ///     vertices: Vec::<Point2<f64>>::new(),
 ///     segments: Vec::<Segment<f64>>::new(),
-///     bulges: Vec::new(),
 ///     tangent_joints: Vec::new(),
 /// };
 /// ```
@@ -370,9 +444,6 @@ pub struct ProfileLoop<T: Real> {
     vertices: Vec<Point2<T>>,
     /// The canonical segments, segment `k` leaving vertex `k`.
     segments: Vec<Segment<T>>,
-    /// The bulge each segment was lowered from — see
-    /// [`ProfileLoop::bulges`].
-    bulges: Vec<T>,
     /// Declared-tangent joints, as vertex indices — see
     /// [`ProfileLoop::tangent_joints`] for the normative semantics.
     tangent_joints: Vec<usize>,
@@ -443,15 +514,8 @@ macro_rules! raw_door {
             /// Nothing is lowered and nothing is checked, so a fixture
             /// can write any table the stored form can hold — a
             /// one-segment full circle included — and
-            /// [`Profile::validate`] is what decides it. The bulge kept
-            /// beside each segment ([`ProfileLoop::bulges`]) is zero for
-            /// a line and tan(Δθ/4) for an arc; the readers that lower a
-            /// loop again ([`ProfileLoop::map_scalar`],
-            /// [`ProfileLoop::reversed`]) re-derive the carrier from it,
-            /// so a given carrier comes back off in its last bits, and a
-            /// one-segment full circle (a zero chord) comes back with a
-            /// NaN centre and zero radius. Retiring the kept bulge
-            /// removes both.
+            /// [`Profile::validate`] is what decides it. Every reader
+            /// carries the given carrier verbatim.
             ///
             /// The one method of this trait that is NOT gated, so the
             /// trait has the same shape in both arms.
@@ -477,20 +541,7 @@ macro_rules! raw_door {
 
         impl<T: Real> RawLoop<T> for ProfileLoop<T> {
             fn new(chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>) -> Self {
-                let (vertices, segments): (Vec<_>, Vec<_>) = chain.into_iter().unzip();
-                let bulges = segments
-                    .iter()
-                    .map(|segment| match *segment {
-                        Segment::Line => T::zero(),
-                        Segment::Arc(Arc2 { sweep, .. }) => (sweep / T::from_f64(4.0)).tan(),
-                    })
-                    .collect();
-                Self {
-                    vertices,
-                    segments,
-                    bulges,
-                    tangent_joints: Vec::new(),
-                }
+                Self::from_chain(chain, Vec::new())
             }
 
             #[cfg(any(test, feature = "test-support"))]
@@ -533,62 +584,53 @@ impl<T: Real> ProfileLoop<T> {
     /// This is re-materialization, not authoring. The table already
     /// exists — it was emitted by the lattice, or read back from a
     /// validated profile — and an evaluation at another scalar needs the
-    /// same table in that scalar's arithmetic. The positions, the bulges
-    /// the segments were lowered from and the declared tangent joints
-    /// travel; each segment is DERIVED data, so it is lowered again at
-    /// `U` from the mapped endpoints and bulge — its kind by the one
-    /// lowering rule (a line exactly at a zero bulge, which `from_f64`
-    /// preserves), an arc's carrier and sweep by the arc lowering (at a
-    /// certified scalar, that derivation is what mints their
-    /// enclosure). The declarations are
-    /// re-verified in the evaluation scalar by [`Profile::validate`], so
-    /// nothing is taken on trust by crossing.
+    /// same table in that scalar's arithmetic. Every stored field
+    /// travels through `f` and nothing is derived: the positions, each
+    /// segment's kind, an arc's carrier and sweep ([`Arc2::map`]) and
+    /// the declared tangent joints. The carrier's consistency with its
+    /// vertices is re-verified in the evaluation scalar by
+    /// [`Profile::validate`], so nothing is taken on trust by crossing.
     ///
     /// With `U::from_f64` — the widening direction, which never refuses
-    /// — the crossing is total, and for a loop the lowering built and
-    /// any `U` whose `from_f64` is exact on `f64` (`f64` itself
-    /// included) bit-identical.
+    /// — the crossing is total, and bit-identical for any `U` whose
+    /// `from_f64` is exact on `f64` (`f64` itself included).
     ///
     /// This door and the [`path`] lattice's emission layer are the whole
     /// production population; see [`ProfileLoop`]'s own docs for the two
     /// anticipated doors that do not exist.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ProfileLoop<U> {
-        let chain: Vec<(Point2<U>, U)> = self
-            .input_chain()
-            .map(|(pos, bulge)| (pos.map(&f), f(bulge)))
-            .collect();
-        ProfileLoop::lower(&chain, self.tangent_joints.clone())
+        ProfileLoop::from_chain(
+            self.vertices
+                .iter()
+                .zip(&self.segments)
+                .map(|(pos, segment)| {
+                    let segment = match *segment {
+                        Segment::Line => Segment::Line,
+                        Segment::Arc(arc) => Segment::Arc(arc.map(&f)),
+                    };
+                    (pos.map(&f), segment)
+                }),
+            self.tangent_joints.clone(),
+        )
     }
 
-    /// **The lowering** — the one constructor every `ProfileLoop` comes
-    /// out of but the fixture door's canonical one: a chain of
-    /// (position, bulge) pairs in the bulge input form becomes verbatim
-    /// vertices and one canonical segment per edge ([`lower_to`]), the
-    /// bulges kept beside them. The emission layer, the fixture
-    /// helper `test_support::bulge_loop`, [`Self::map_scalar`],
-    /// [`Self::reversed`] and the lift's re-seaming all build through
-    /// it, so every segment they store is the lowering of its own chord
-    /// and bulge.
-    pub(crate) fn lower(chain: &[(Point2<T>, T)], tangent_joints: Vec<usize>) -> Self {
-        let n = chain.len();
+    /// **The constructor** every `ProfileLoop` comes out of: a chain of
+    /// (vertex, canonical segment) pairs stored verbatim, segment `k`
+    /// leaving vertex `k`. The emission layer, the fixture doors,
+    /// [`Self::map_scalar`], [`Self::reversed`] and the lift's
+    /// re-seaming all build through it; none of them derives a segment
+    /// from its vertices here.
+    pub(crate) fn from_chain(
+        chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>,
+        tangent_joints: Vec<usize>,
+    ) -> Self {
+        let (vertices, segments) = chain.into_iter().unzip();
         Self {
-            vertices: chain.iter().map(|&(pos, _)| pos).collect(),
-            segments: (0..n)
-                .map(|k| lower_to(chain[k].0, chain[k].1, chain[(k + 1) % n].0))
-                .collect(),
-            bulges: chain.iter().map(|&(_, bulge)| bulge).collect(),
+            vertices,
+            segments,
             tangent_joints,
         }
-    }
-
-    /// The input chain this loop was lowered from: each vertex with the
-    /// bulge of its leaving segment.
-    pub(crate) fn input_chain(&self) -> impl Iterator<Item = (Point2<T>, T)> + '_ {
-        self.vertices
-            .iter()
-            .zip(&self.bulges)
-            .map(|(&pos, &bulge)| (pos, bulge))
     }
 }
 
@@ -603,30 +645,10 @@ impl<T: Real> ProfileLoop<T> {
     /// vertex `k + 1 (mod n)`: a line, or an arc's carrier and signed
     /// sweep.
     ///
-    /// A stored `Line` is exactly a segment lowered from a zero bulge,
-    /// so a stored `Arc` never comes from b = 0; a stored `Arc` may
-    /// still be sub-tolerance, and validation may classify it a line
-    /// (see [`Segment`]).
+    /// A stored `Arc` may be sub-tolerance, and validation may classify
+    /// it a line (see [`Segment`]).
     pub fn segments(&self) -> &[Segment<T>] {
         &self.segments
-    }
-
-    /// The bulge each segment was lowered from, segment `k`'s at `k`
-    /// (a line's is zero, of either sign).
-    ///
-    /// **Kept beside the canonical form, not a second description of
-    /// it.** Every arc's carrier and sweep are the lowering of its
-    /// endpoints and this bulge, so the two cannot disagree. The value
-    /// is kept because a derived bulge does not reproduce it —
-    /// `tan(Δθ/4)` rounds away from `b` (the literal `1` of a circle
-    /// comes back `0.9999999999999999`) — and three kinds of reader
-    /// need the value itself: arithmetic written in the bulge (the
-    /// sagitta `L·b/2` and the apex it places, which are margins the K
-    /// stream records), the lift of a stored segment to another scalar
-    /// (which re-derives the carrier from it), and the `geom-brep`
-    /// sketch-segment boundary, whose form is still the bulge.
-    pub fn bulges(&self) -> &[T] {
-        &self.bulges
     }
 
     /// **Declared-tangent joints** (the #101 discipline): vertex
@@ -685,22 +707,13 @@ impl<T: Real> ProfileLoop<T> {
     ///
     /// Reindexing: the reversed chain visits `v0, v(n−1), v(n−2), …,
     /// v1`, and each segment retraces the original segment
-    /// `(n−k−1) mod n` backwards with its bulge **negated** (b ↦ −b,
-    /// the reversal involution of the crate docs). Negation keeps a zero
-    /// bulge zero, so a line stays a line; an arc keeps its carrier
-    /// circle and radius, and its sweep changes sign
-    /// (4·atan(−b) = −4·atan(b), atan being odd).
-    ///
-    /// The reversed chain is LOWERED like any other, so an arc's centre
-    /// is derived on the reversed chord — whose midpoint `b + (a − b)/2`
-    /// can differ from `a + (b − a)/2` in its last bit — rather than
-    /// copied from the forward one. That keeps every stored carrier the
-    /// lowering of its own chord and bulge, which is what validation
-    /// and the scalar lift re-derive.
+    /// `(n−k−1) mod n` backwards: a line stays a line, and an arc keeps
+    /// its carrier circle and radius, copied, with its sweep negated
+    /// ([`Arc2::reversed`]). Nothing is re-derived from the retraced
+    /// chord.
     ///
     /// `reversed ∘ reversed` is the identity bit-exactly (the
-    /// reindexing round-trips, IEEE negation is exact, and the lowering
-    /// is a function of the chain) — under test.
+    /// reindexing round-trips and IEEE negation is exact) — under test.
     ///
     /// Declared-tangent joints travel with their vertex: joint j maps
     /// to (n − j) mod n, the reversed chain's index of the same
@@ -712,10 +725,13 @@ impl<T: Real> ProfileLoop<T> {
         if n == 0 {
             return self.clone();
         }
-        let input: Vec<(Point2<T>, T)> = self.input_chain().collect();
-        let chain: Vec<(Point2<T>, T)> = (0..n)
-            .map(|k| (input[(n - k) % n].0, -input[(n - k - 1) % n].1))
-            .collect();
+        let chain = (0..n).map(|k| {
+            let segment = match self.segments[(n - k - 1) % n] {
+                Segment::Line => Segment::Line,
+                Segment::Arc(arc) => Segment::Arc(arc.reversed()),
+            };
+            (self.vertices[(n - k) % n], segment)
+        });
         // Out-of-range indices (garbage data) pass through untouched —
         // total code; validation refuses them typed.
         let tangent_joints = self
@@ -723,7 +739,7 @@ impl<T: Real> ProfileLoop<T> {
             .iter()
             .map(|&j| if j < n { (n - j) % n } else { j })
             .collect();
-        Self::lower(&chain, tangent_joints)
+        Self::from_chain(chain, tangent_joints)
     }
 }
 
@@ -1014,6 +1030,7 @@ impl<T: Real> Profile<T> {
 #[allow(clippy::panic)]
 mod lowering_tests {
     use super::*;
+    use geom_core::Bounds;
     use geom_core::interval::certification::Certification;
     use geom_core::{Dual, Dual64, DualInterval, Interval};
 
@@ -1023,6 +1040,7 @@ mod lowering_tests {
             Point2::new(T::zero(), T::zero()),
             b,
             Point2::new(T::one(), T::zero()),
+            Some(Tol::witness()),
         ) {
             Segment::Line => "line",
             Segment::Arc(..) => "arc",
@@ -1086,10 +1104,10 @@ mod lowering_tests {
         }
     }
 
-    /// A loop whose second segment's centre, derived on the reversed
-    /// chord, differs from the forward centre in its last bits: the
-    /// chord's two endpoints are three orders of magnitude apart in x,
-    /// so `a + (b − a)/2` and `b + (a − b)/2` round differently.
+    /// A loop of three arcs and a line, the arcs' chords three orders
+    /// of magnitude apart in x — where a centre re-derived on the
+    /// retraced chord would differ from the forward one in its last
+    /// bits.
     fn discriminating() -> Vec<(Point2<f64>, f64)> {
         vec![
             (Point2::new(0.1, 0.3), 0.37),
@@ -1100,59 +1118,81 @@ mod lowering_tests {
     }
 
     /// Asserts that `back` is `lp` reversed segment by segment: each
-    /// reversed segment is BIT-identical to a fresh lowering of the
-    /// retraced chord with the negated bulge, its sweep is the forward
-    /// sweep negated and its radius the forward radius. Returns how many
-    /// arcs' centres differ from the forward centre, which a copied
-    /// centre would have matched.
-    fn check_reversal<T: Real>(lp: &ProfileLoop<T>, back: &ProfileLoop<T>) -> usize {
+    /// reversed segment is the forward one retraced, its carrier copied
+    /// bit for bit and its sweep negated.
+    fn check_reversal<T: Real>(lp: &ProfileLoop<T>, back: &ProfileLoop<T>) {
         let bits = |x: &dyn core::fmt::Debug| format!("{x:?}");
         let n = lp.segments().len();
-        let mut moved = 0;
         for k in 0..n {
             let j = (n - k - 1) % n;
-            let (a, b) = (back.vertices()[k], back.vertices()[(k + 1) % n]);
-            let relowered = lower_to(a, -lp.bulges()[j], b);
-            assert_eq!(bits(&back.segments()[k]), bits(&relowered), "segment {k}");
+            assert_eq!(
+                bits(&back.vertices()[k]),
+                bits(&lp.vertices()[(n - k) % n]),
+                "vertex {k}"
+            );
             match (lp.segments()[j], back.segments()[k]) {
                 (Segment::Line, Segment::Line) => {}
-                (
-                    Segment::Arc(Arc2 {
-                        centre: c,
-                        radius: r,
-                        sweep: s,
-                    }),
-                    Segment::Arc(Arc2 {
-                        centre: cb,
-                        radius: rb,
-                        sweep: sb,
-                    }),
-                ) => {
-                    assert_eq!(bits(&sb), bits(&-s), "segment {k} sweep");
-                    assert_eq!(bits(&rb), bits(&r), "segment {k} radius");
-                    if bits(&cb) != bits(&c) {
-                        moved += 1;
-                    }
+                (Segment::Arc(f), Segment::Arc(r)) => {
+                    assert_eq!(bits(&r.centre), bits(&f.centre), "segment {k} centre");
+                    assert_eq!(bits(&r.radius), bits(&f.radius), "segment {k} radius");
+                    assert_eq!(
+                        bits(&r.sweep),
+                        bits(&(T::zero() - f.sweep)),
+                        "segment {k} sweep"
+                    );
                 }
                 (f, r) => panic!("segment {k}: {f:?} reversed to {r:?}"),
             }
         }
-        moved
     }
 
-    /// **Reversal lowers the retraced chords again**, at `f64` and at
-    /// `Interval`: every reversed segment is the lowering of its own
-    /// chord and negated bulge, bit for bit, so a forward centre copied
-    /// across would fail on the fixture's discriminating chord.
+    /// **Reversal copies the carrier and negates the sweep**, at `f64`
+    /// and at `Interval`, and reversing twice is the identity bit for
+    /// bit.
     #[test]
     fn reversal_negates_the_sweep_and_keeps_the_carrier() {
-        let lp = ProfileLoop::lower(&discriminating(), Vec::new());
-        let moved = check_reversal(&lp, &lp.reversed());
-        assert!(
-            moved > 0,
-            "the fixture no longer tells a copied centre apart"
+        let lp = ProfileLoop::from_chain(
+            lower_chain(&discriminating(), Some(Tol::witness())),
+            Vec::new(),
         );
+        let bits = |l: &ProfileLoop<f64>| format!("{:?}", (l.vertices(), l.segments()));
+        check_reversal(&lp, &lp.reversed());
+        assert_eq!(bits(&lp.reversed().reversed()), bits(&lp), "an involution");
         let lp = lp.map_scalar(Interval::from_f64);
         check_reversal(&lp, &lp.reversed());
+    }
+
+    /// **The scalar lift copies the stored fields**: a carrier that is
+    /// not the lowering of its chord — here the forward centre moved by
+    /// an ulp — comes back at `Interval` as the degenerate enclosure of
+    /// the stored value, not of a re-derived one.
+    #[test]
+    fn map_scalar_carries_the_stored_carrier() {
+        let chain = lower_chain(&discriminating(), Some(Tol::witness()));
+        let nudged: Vec<_> = chain
+            .into_iter()
+            .map(|(pos, segment)| match segment {
+                Segment::Arc(arc) => {
+                    let centre =
+                        Point2::new(f64::from_bits(arc.centre.x.to_bits() + 1), arc.centre.y);
+                    (pos, Segment::Arc(Arc2 { centre, ..arc }))
+                }
+                Segment::Line => (pos, segment),
+            })
+            .collect();
+        let lp = ProfileLoop::from_chain(nudged, Vec::new());
+        let lifted = lp.map_scalar(Interval::from_f64);
+        for (k, (f, i)) in lp.segments().iter().zip(lifted.segments()).enumerate() {
+            match (f, i) {
+                (Segment::Line, Segment::Line) => {}
+                (Segment::Arc(f), Segment::Arc(i)) => {
+                    let lohi = |x: Interval| (x.lo(), x.hi());
+                    assert_eq!(lohi(i.centre.x), (f.centre.x, f.centre.x), "segment {k}");
+                    assert_eq!(lohi(i.radius), (f.radius, f.radius), "segment {k}");
+                    assert_eq!(lohi(i.sweep), (f.sweep, f.sweep), "segment {k}");
+                }
+                (f, i) => panic!("segment {k}: {f:?} lifted to {i:?}"),
+            }
+        }
     }
 }

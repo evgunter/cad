@@ -300,7 +300,7 @@ pub fn segment_curve(
             b,
             arc:
                 Arc2 {
-                    centre: center,
+                    centre,
                     radius,
                     sweep: theta,
                 },
@@ -316,7 +316,7 @@ pub fn segment_curve(
             }
             // The segment's own carrier and signed sweep; the start
             // angle is read off the stored start vertex.
-            let start = (a.y - center.y).atan2(a.x - center.x);
+            let start = (a.y - centre.y).atan2(a.x - centre.x);
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let m = ((theta.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
             #[allow(clippy::cast_precision_loss)]
@@ -326,14 +326,14 @@ pub fn segment_curve(
             let on = |ang: f64| {
                 let (s, c) = ang.sin_cos();
                 world(Point2::new(
-                    radius.mul_add(c, center.x),
-                    radius.mul_add(s, center.y),
+                    radius.mul_add(c, centre.x),
+                    radius.mul_add(s, centre.y),
                 ))
             };
             let tangent_point = |ang: f64| {
                 let (s, c) = ang.sin_cos();
                 let r = radius / half_w;
-                world(Point2::new(r.mul_add(c, center.x), r.mul_add(s, center.y)))
+                world(Point2::new(r.mul_add(c, centre.x), r.mul_add(s, centre.y)))
             };
             let mut control = vec![on(start)];
             let mut weights = vec![1.0f64];
@@ -768,7 +768,7 @@ pub type Section = Vec<ProfileLoop<f64>>;
 /// selected by the validated segment's kind; an arc crosses into the
 /// sketch-segment form with its carrier and sweep.
 fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
-    crate::swept::sketch_segment(&lp.segments()[j])
+    crate::swept::sketch_segment(&crate::swept::SweptSeg::forward(lp, j))
 }
 
 /// Validates every section at the door: each section runs

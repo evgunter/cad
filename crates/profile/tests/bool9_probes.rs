@@ -69,9 +69,9 @@ fn the_materialization_door_reproduces_the_table_bit_for_bit() {
         assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
         assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
         assert_eq!(
-            source.bulges()[i].to_bits(),
-            crossed.bulges()[i].to_bits(),
-            "vertex {i} bulge"
+            crate::common::segment_bits(&source.segments()[i]),
+            crate::common::segment_bits(&crossed.segments()[i]),
+            "segment {i}"
         );
     }
     assert_eq!(
@@ -153,27 +153,26 @@ fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
     let n = source.vertices().len();
     // The same stadium re-seamed one vertex on, so the CLOSING leg is a
     // straight side rather than an end cap. Pure reindexing: every
-    // stored bit survives, which is what lets the row below ask for
-    // bit-identity.
-    let reseamed: ProfileLoop<f64> = bulge_loop(
-        (0..n)
-            .map(|k| {
-                let j = (k + 1) % n;
-                (source.vertices()[j], source.bulges()[j])
-            })
-            .collect(),
-    )
+    // stored bit survives.
+    let reseamed: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new((0..n).map(|k| {
+        let j = (k + 1) % n;
+        (source.vertices()[j], source.segments()[j])
+    }))
     .with_tangent_joints((0..n).collect());
 
     match lift_checked(&reseamed, Tol::witness()) {
         LiftOutcome::Lifted {
             program,
             fidelity,
-            worst_ulps,
+            worst_abs,
             ..
         } => {
-            assert_eq!(fidelity, Fidelity::BitIdentical);
-            assert_eq!(worst_ulps, 0);
+            // The entry declares nothing, so the arc leaving it is
+            // written about its stored centre (`arc_to(Center)`), whose
+            // replay re-derives the sweep from the endpoint angles:
+            // value-equal, in the last bits.
+            assert_eq!(fidelity, Fidelity::ValueEqual);
+            assert!(worst_abs < 1e-15, "{worst_abs:e}");
             assert!(
                 matches!(
                     program.last(),
