@@ -4830,3 +4830,30 @@ The `vtxfac` invariant is reachable from user geometry. That makes it a
 bug, to be fixed at its source.
 
 Dispatched on the loopanchor target. The brief is `coinc-fix4-brief.md`.
+
+## Container restart: three lanes recovered; PR 3580 closes its rows (2026-09-30)
+
+A container restart stopped all three lanes.
+
+**The kill-proofs lane** (PR 3592) had pushed only its first commit. I
+pushed the rest from its worktree. They include the rows set to review,
+but the PR body is still a stub. Re-dispatched with `killproof2b-brief.md`
+to validate, write the body and take it out of draft.
+
+**PR 3513's fix pass 4** had one unpushed commit, "execute every
+tolerance offer", which I pushed. It also left an uncommitted harness
+diff (460 lines, mostly `offer_rows.rs`), saved as `prerestart.patch`.
+Re-dispatched with `coinc-fix4b-brief.md`.
+
+**PR 3580's fix pass** had finished and pushed before the restart: the
+`## Fix pass` section is written and CI run 36785175107 went green on
+`8e8026761e`. My read of the describing door confirms the ruled shape:
+- a superset of the keys-only door, through `Rechart::new` and
+  `Rechart::shared`;
+- no default carry: an unlisted stranded edge is refused
+  `RechartUndescribed` before any write;
+- `carried_redescriptions` is a separate, optional public read;
+- every precondition resolves ahead of the infallible mutation.
+
+The body reports the composer dump identical, 1,041 sections. I closed
+both rows on the branch (`0707c8ae10`) and merge after CI.
