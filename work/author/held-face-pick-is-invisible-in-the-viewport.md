@@ -8,6 +8,7 @@ priority: P1
 cost: D
 refs: [face-pick-cannot-name-which-face, 2955]
 branch: author/held-face-mark
+pr: 3556
 ---
 
 ## What
