@@ -4119,3 +4119,32 @@ PR 3546 merged (`19477d8632`) after CI run 36715545721 went green, and
 `revert-anchors-trust-a-torn-next-or-prev` is closed. Its follow-up,
 `revert-writes-each-start-through-an-unproven-next` (P3, E), waits for
 the walk target, which the snapshot lane is using.
+
+## The deep snapshot delivered as PR 3557; row closed on the branch (2026-09-30)
+
+The continuation lane took 164,826 tokens, 77 tools and 2,595 s. It
+applied the pre-restart patch after checking it. Head `29af49417b` is
+green on CI run 36719464234.
+
+**What changed.** One `fixtures::deep_snapshot`:
+- `review_m1_pr2`'s copy had no callers at all. The row was wrong
+  there; a `#![allow(dead_code)]` hid it, and that allow is gone too.
+- `review_m1_pr3`'s 7 call sites now read the one copy.
+- The copies walked the same arenas, so the union gained nothing.
+
+**Pinned.** The new row moves the snapshot for every arena and every
+provenance record, and kills 17 mutants.
+
+**Filed:**
+- `tint/topo-integration-tests-hand-write-partial-body-unchanged-walks`
+  (P3): four hand walks in `tests/`.
+- `deep-snapshot-does-not-walk-the-body-side-tables`. **Raised to P2**
+  on the branch. Every `assert_err_deep_unchanged` row is blind to a
+  failed op's writes to pcurves, null-face records, origins and
+  sources. That is the atomicity claim every site-mint unit (PR 3500,
+  3508 and 3531) rests on.
+
+The orchestrator read the diff and accepted it. The row closes at
+`2ccf366f48`; merge after CI. Next on the walk target: the side-tables
+row (P2), once PR 3557 merges, since it needs the one snapshot. Then
+`revert-writes-each-start-through-an-unproven-next`.
