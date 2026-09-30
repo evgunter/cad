@@ -4197,3 +4197,36 @@ door. `mfkrh` was keys-only before this PR and its twin is additive,
 so no finding requires the signature change.
 
 The fix pass is out on the rebase target.
+
+## Side tables delivered as PR 3559; revert-starts dispatched (2026-09-30)
+
+The side-tables lane took 186,393 tokens, 130 tools and 2,591 s. Head
+`0f69daa872` is green on CI run 36726547214.
+
+**What changed.** `deep_snapshot` walks all 24 tables on `Body`. It
+destructures `Body` with no `..`, so a new field fails to compile
+until the snapshot walks it. Provenance is walked as a table, so a row
+left for a dead key now shows.
+
+**No atomicity row newly reds:**
+- topo's whole suite, slow set included: 1815;
+- sweep `ci`: 1763.
+
+So no D1 defect is hiding behind the side tables in today's rows. All
+24 mutants are killed.
+
+**Filed (P3):**
+- `refusal-rows-that-count-instead-of-snapshot`: three refusal rows
+  that check counts only;
+- `deep-snapshot-cannot-see-a-consumed-key-slot`: D1's "consumes no
+  key slots" is not observed.
+
+The orchestrator read the diff and accepted it. The row closes at
+`72bb7ff7b8`; merge after CI.
+
+**Dispatched on the walk target:**
+`revert-writes-each-start-through-an-unproven-next` (P3, E), branch
+`topo/revert-starts`.
+- It follows PR 3546's precedent and proves the starts.
+- It first splits the `prev` tears into renamed faults and written
+  faults.
