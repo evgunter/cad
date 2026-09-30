@@ -4674,3 +4674,42 @@ from AUTH-13 on main, fails at ε 1e-6 and 1e-12.
   fmt and gates are clean, and the seam note is on author's log.
 - I ported it into PR 3570 by merging the branch (`08e65af424`). Merge
   both after CI.
+
+## PR 3513's third fix pass delivered; the focused fix-pass-3 review out (2026-09-30)
+
+The third fix pass took 138,514 tokens, 400 tools and 15,895 s.
+
+**Both root-cause changes are taken:**
+- **Per-question pass sets.** `Coincide::ending` states each question's
+  own pass set. Questions with mixed sites are split, and
+  non-coincidence questions move to their own decisions:
+  `Sphere(SphereQuestion)`, `SelfCheck`, `SeamWedge` and
+  `ArcTorusRoots`.
+- **A constructed declaration read.** `DeclarationRead::Settles(Settling)`
+  has a private field and one constructor, `DeclaredPairs::read`, which
+  goes through `Coincide::settled_by`. A site stating `Settles` is a
+  compile error. "Declare" is now offered at exactly three sites.
+
+**What else changed:**
+- The sphere lanes are five true questions.
+- `SpheresMeet` is a new refusal kind.
+- The escalation-log hole is closed by `decide_nonzero_reported`.
+- A poisoned norm is `SelfCheck(Normals)`.
+- A budget row renders every decision × read × payload.
+- 50 mutants, all red except R1a, which the lane calls equivalent.
+
+**CI.** It was red only on main's viewer ε-row test. PR 3590 is ported
+(`aae266107f`).
+
+**The disk trim was denied.** When asked to trim its own target, the
+lane's deletion was denied by the permission classifier. It did not
+work around it, and I have not deleted anything there on its behalf.
+Reported to Ev. The disk is at about 5.4 GB free.
+
+**The focused fix-pass-3 review,** frozen at `aae266107f`, decides
+whether the class is closed. For every tolerance offer, it re-runs the
+real raise just below the offered ε, which must pass. For each
+`Settles` site, it declares through the real door, which must pass.
+It also tries to lie to the type, checks the split questions' pass
+sets, the `SelfCheck` reachability and `SpheresMeet`'s wiring, and
+runs mutants.
