@@ -3921,3 +3921,45 @@ target.
 
 Disk is at 2.8 GB free. The build lanes are asked to trim their own
 targets.
+
+## The reparent re-mint delivered as PR 3531; sent back to keep the kills keys-only (2026-09-30)
+
+The implementer took 562,013 tokens, 313 tools and 9,139 s. Head
+`9cbec20cdf` is green on CI run 36701279775.
+
+**Measured at base.** `kef` moved a remnant across a chart onto a
+complete analytic face 1,011 times, leaving it half-minted every time.
+`kfmrh` did so twice.
+
+**At head:**
+- 723 of those destinations go complete and 316 are emptied (a failed
+  walk).
+- The whole-body mints meet 2 half-minted faces instead of 659.
+
+**The rule** is one predicate, `StoredRows::remints`, applied to the
+face the door finds. The same chart with every row present moves its
+rows. A spline destination keeps the drop.
+
+**The lane's Deviation 1** gave `kef`, `kfmrh`, `mfkrh`,
+`mfkrh_plug` and `ring_move` a `tol` argument, rippling to about 280
+call sites. It asked whether that needs Ev.
+
+**Ruled: no, and reshape.**
+- PR 2527's ruling (`kevs-fan-merge-needs-a-re-describing-kill-door`
+  `## Ruled`, Ev: "(c) sounds good then!") keeps the kill family
+  keys-only. A band-taking sibling door takes geometry, and the
+  keys-only kill refuses typed where it would leave stale state.
+- Two doors keep that ruling and "a half-minted face becomes a state
+  no door can produce" together, so under the PR 3156 lesson the
+  choice is mine.
+- `kef` and `kfmrh` stay keys-only and refuse typed, before mutating,
+  where a re-mint is owed. Band-taking sibling doors re-mint.
+- The make and move operators take `tol` only if they decide against
+  ε.
+- The signature ripple reverts wherever the keys-only door suffices.
+
+Deviations 2 (a failed walk empties the face, which widens PCERT's
+silent case) and 3 (a spline destination keeps the drop, filed as a
+question) are accepted for the review to check.
+
+The lane is resumed with its context. The review follows the rework.
