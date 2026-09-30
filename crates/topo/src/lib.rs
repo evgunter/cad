@@ -491,7 +491,8 @@ pub use instance::{
     graft_disjoint_all_onto_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup, SkippedMerge,
+    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup,
+    OutlineVerdict, SkippedMerge,
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};

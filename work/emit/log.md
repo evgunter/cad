@@ -1139,3 +1139,19 @@ The union's declaration door refuses `ConsumedByFold{Split}` on that shape. That
 No names-only rule recovers both. They are owned by the new design row `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
 
 N3 (a retired name never resolves to a face) now holds in every step table and every published table over 434 union runs.
+
+## 2026-09-30 — a curved seam chain refuses as a missing rule (PR 3542)
+
+A pair boolean whose seam chain runs along a curved face (a cylinder across a plate top, unioned) refused `Emission`, the emission-bug category, on a legal recipe. It now refuses `SplitReference { curved: true }`, the missing-rule refusal the union already raised for the same `n_a × n_b` ranking. Both seam rankers read a side's normal through `seam_side_normal`, and one constructor serves them and the union. No ranking direction was chosen.
+
+**Review.** Nothing blocking. The fixes folded in:
+- the union's refusal is traced to the fold's pair step, and the test compares seam sides as a set because `a`/`b` follow member order;
+- the refusal's `group` now names the group actually being ranked;
+- stale `face_plane` citations are fixed.
+
+`seam_line_dir`'s curved refusal is still untested: no cheap fixture reaches it.
+
+**Filed:**
+- `curved-seam-pieces-have-no-ranking-direction` (P0, design): the open question.
+- `a-plane-split-of-a-curved-face-refuses-as-an-emission-bug` (P0, design): the split ranker's sibling.
+- `a-slot-across-a-sunk-cylinder-boss-refuses-duplicate-merged-face-name` (P0): found while looking for a fixture.
