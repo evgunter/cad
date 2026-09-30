@@ -51,7 +51,7 @@
 
 use geom_core::{Band, Decide, Margin, Sign};
 
-use super::Coincide;
+use super::{Coincide, DeclarationRead};
 use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
@@ -212,7 +212,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // declaration would change its verdict.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         if let (Some(diag), None) = (in_band, class) {
-            return Err(BooleanError::coincidence(Coincide::Sectors, diag));
+            return Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::of(class),
+                diag,
+            ));
         }
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
@@ -327,7 +331,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 Err(PlaneEqError::Escalated { rung, diag }) => {
                     return Err(BooleanError::plane_identity(
                         rung,
-                        super::PlaneDoor::of(declared_rest),
+                        super::PlaneDoor::of(class),
                         diag,
                     ));
                 }
@@ -695,7 +699,13 @@ fn pierce_germ_dir<T: Decide>(
                 what: "pierce transition on a coplanar sector",
             });
         }
-        Err(diag) => return Err(BooleanError::coincidence(Coincide::Sectors, diag)),
+        Err(diag) => {
+            return Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            ));
+        }
     }
     let d = int.normalize();
     let plus = super::sectors::within(s, d, false, band)?;

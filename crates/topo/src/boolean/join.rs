@@ -108,7 +108,9 @@
 use geom_core::{Band, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
-use super::{BooleanDecision, BooleanError, BooleanReduction, Coincide, HalfGerm, Operand};
+use super::{
+    BooleanDecision, BooleanError, BooleanReduction, Coincide, DeclarationRead, HalfGerm, Operand,
+};
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
@@ -604,7 +606,7 @@ fn find_match<T: Decide>(
                     let p_e = point_of(e_he)?;
                     let chord = p_e - p_c;
                     let dist = chord.norm();
-                    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
+                    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
                     match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                         Sign::Positive => {}
                         _ => continue, // coincident sites: no polygon edge
@@ -719,7 +721,9 @@ fn frame_refusal<T: geom_core::Real>(
     b: (FaceKey, &geom::Surface<T>),
 ) -> BooleanError {
     match e {
-        FrameError::Escalated(diag) => BooleanError::proximity(Coincide::Section, diag),
+        FrameError::Escalated(diag) => {
+            BooleanError::coincidence(Coincide::Section, DeclarationRead::Moot, diag)
+        }
         FrameError::RadiusEscalated { radius, diag } => BooleanError::Escalated {
             decision: BooleanDecision::Radius(radius),
             diag,
@@ -1180,7 +1184,7 @@ fn germs_face_each_other<T: Decide>(
     p2: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     match frame {
         None => {
             let chord = p2 - p1;
@@ -1231,7 +1235,7 @@ fn loose_partners<T: Decide>(
     band: Band,
 ) -> Result<(LooseMap, LooseMap), BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
         let v = red
             .a
@@ -1531,7 +1535,7 @@ fn ring_run_ccw<T: Decide>(
     // The chord that closes the region (fn docs): the run is open, the
     // area it decides is not.
     perimeter = perimeter + (end - p0).norm();
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
     // `normal` carries the sense, `newell` carries the traversal: one
     // factor each, never both (fn docs — the double-count hazard).
     // `/ perimeter` is the F4 metering: 2A/P, the run's mean width.

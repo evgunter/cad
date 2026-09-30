@@ -90,7 +90,7 @@ use super::{
     BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
     BooleanReduction, BooleanResult, BooleanResultKind, FacePairDeclaration, Operand, OperandKeys,
 };
-use super::{Coincide, RestZipFrontier};
+use super::{Coincide, DeclarationRead, RestZipFrontier};
 use crate::body::Body;
 use crate::contact::ContactClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
@@ -456,7 +456,13 @@ fn enumerate_segments<T: Decide>(
             });
         }
     }
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, diag);
+    let escalate = |diag| {
+        BooleanError::coincidence(
+            Coincide::Join,
+            DeclarationRead::Spent(ContactClass::Rest),
+            diag,
+        )
+    };
     let mut segments = Vec::new();
     loop {
         // Globally nearest mutually-facing unused pair (the join's
@@ -1046,7 +1052,7 @@ fn verify_declared_pairs<T: Decide>(
             Err(PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
-                    super::PlaneDoor::Declared,
+                    super::PlaneDoor::of(Some(ContactClass::Rest)),
                     diag,
                 ));
             }

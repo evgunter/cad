@@ -45,8 +45,9 @@
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::{BooleanDecision, BooleanError, Coincide, LeverArm, Operand, SideCode};
+use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode};
 use crate::body::Body;
+use crate::contact::ContactClass;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
@@ -335,7 +336,7 @@ pub(super) fn sector_face<T: Decide>(
 
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Proximity(Coincide::Sectors),
+        decision: BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Moot),
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::INVALID,
             band,
@@ -352,7 +353,7 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
 /// known: the reading lies within `±zero`.
 pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Proximity(Coincide::Sectors),
+        decision: BooleanDecision::BisectorSide,
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
             band,
@@ -459,7 +460,13 @@ pub(super) fn side_code<T: Decide>(
                 Ok(Sign::Negative) => SideCode::In,
                 Ok(Sign::Positive) => SideCode::Out,
                 Ok(Sign::Zero) => return Ok(SideCode::On),
-                Err(diag) => return Err(BooleanError::proximity(Coincide::SectorSide, diag)),
+                Err(diag) => {
+                    return Err(BooleanError::coincidence(
+                        Coincide::SectorSide,
+                        DeclarationRead::Moot,
+                        diag,
+                    ));
+                }
             };
             (verdict, offset.abs(), (far - base).norm())
         }
@@ -472,6 +479,7 @@ pub(super) fn side_code<T: Decide>(
                     return Err(BooleanError::of_lever(
                         LeverArm::SectorSide,
                         Coincide::SectorSide,
+                        DeclarationRead::Moot,
                         escalation,
                     ));
                 }
@@ -565,7 +573,11 @@ pub(super) fn tangent_lump<T: Decide>(
     let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
         Ok(TangentLocus::Line { dir, .. }) => dir,
         Err(TangentLocusError::Escalated(diag)) => {
-            return Err(BooleanError::coincidence(Coincide::TangentLocus, diag));
+            return Err(BooleanError::coincidence(
+                Coincide::TangentLocus,
+                DeclarationRead::Spent(ContactClass::Tangent),
+                diag,
+            ));
         }
         // The sector pair read geometrically ON while the carriers are
         // definitely apart or crossing: the same self-contradiction
@@ -655,7 +667,8 @@ pub(super) fn tangent_relative_side<T: Decide>(
         Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
         Err(escalation) => Err(BooleanError::of_lever(
             LeverArm::SectorCurving,
-            Coincide::SectorSide,
+            Coincide::TangentSide,
+            DeclarationRead::Spent(ContactClass::Tangent),
             escalation,
         )),
     }
@@ -692,7 +705,8 @@ pub(super) fn within<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
     let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let escalate = |diag| BooleanError::proximity(Coincide::Sectors, diag);
+    let escalate =
+        |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let t1 = decide("bool_sector_within", c1, band).map_err(escalate)?;
     let t2 = decide("bool_sector_within", c2, band).map_err(escalate)?;
     Ok(if strict {
@@ -713,13 +727,44 @@ fn parallel_same<T: Decide>(
     match decide("bool_dir_parallel", cross_margin, band) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::proximity(Coincide::Sectors, diag)),
+        Err(diag) => {
+            return Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            ));
+        }
     }
-    match decide("bool_dir_same", Margin::levered(u.dot(v), arm), band) {
-        Ok(Sign::Positive) => Ok(true),
-        Ok(Sign::Negative) => Ok(false),
-        Ok(Sign::Zero) => Err(invalid_escalation(band, "bool_dir_same")),
-        Err(diag) => Err(BooleanError::proximity(Coincide::Sectors, diag)),
+    direction_sense(u, v, arm, band)
+}
+
+/// Whether two directions read parallel point the same way (`true`)
+/// or opposite ways, their cosine levered at `arm`
+/// ([`BooleanDecision::DirectionSense`]). A decided zero refuses with
+/// its decided margin, as the in-band arm does: both say the arm is
+/// too short to tell.
+pub(super) fn direction_sense<T: Decide>(
+    u: Vec3<T>,
+    v: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let refuse = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::DirectionSense,
+        diag,
+    };
+    let decided =
+        crate::validate::decide_reported("bool_dir_same", Margin::levered(u.dot(v), arm), band)
+            .map_err(refuse)?;
+    match decided.sign {
+        Sign::Positive => Ok(true),
+        Sign::Negative => Ok(false),
+        Sign::Zero => Err(refuse(geom_core::Indeterminate {
+            margin: decided.margin,
+            band,
+            predicate: Some("bool_dir_same"),
+            terminal_sliver: false,
+        })),
     }
 }
 
@@ -800,7 +845,13 @@ pub(super) fn pair_search<T: Decide>(
                 Ok(Sign::Negative) => {
                     return Err(invalid_escalation(band, "bool_faces_parallel"));
                 }
-                Err(diag) => return Err(BooleanError::proximity(Coincide::Sectors, diag)),
+                Err(diag) => {
+                    return Err(BooleanError::coincidence(
+                        Coincide::Sectors,
+                        DeclarationRead::Moot,
+                        diag,
+                    ));
+                }
             };
             let hit = if coplanar {
                 sector_overlap(sa, sb, band)?
@@ -993,8 +1044,9 @@ mod tests {
     /// unit sphere's sector against a plane it touches, read over an arm
     /// at which the relative curvature's sagitta lies in the band. The
     /// arm clears its gate, so the reading refuses; the pair is declared
-    /// already, so the refusal names which side a corner's edge leaves
-    /// on, the geometry and the tolerance, and no declaration.
+    /// already, so the refusal names which way the face curves away from
+    /// the other, the move that decides it and the tolerance, and no
+    /// declaration.
     #[test]
     fn a_tangent_pair_side_escalates_as_the_side_it_reads() {
         let b = band();
@@ -1021,15 +1073,23 @@ mod tests {
         let BooleanError::Escalated { decision, diag } = err else {
             panic!("the reading escalates: {err:?}");
         };
-        assert_eq!(decision, BooleanDecision::Proximity(Coincide::SectorSide));
+        assert_eq!(
+            decision,
+            BooleanDecision::Coincidence(
+                Coincide::TangentSide,
+                DeclarationRead::Spent(ContactClass::Tangent)
+            )
+        );
         assert_eq!(diag.predicate, Some("tangent_sector_order2"));
         let text = BooleanError::Escalated { decision, diag }.to_string();
         assert!(
             text.starts_with(
-                "which side of a face of the other solid a corner's edge leaves on is undecided: "
+                "which way a face of one solid curves away from a face of the other that it \
+                 touches is undecided: "
             ) && text.contains(
-                "Recourse: move the parts so they clearly meet or clearly stand \
-                               apart there, or, if this gap is intended, tighten the tolerance"
+                "Recourse: make one face clearly curve away from the other where they touch, or \
+                 make both curve alike there, or, if this difference in bend is intended, \
+                 tighten the tolerance"
             ) && !text.contains("declare"),
             "{text}"
         );
@@ -1079,8 +1139,8 @@ mod tests {
                 "whether an edge at a corner is long enough to read which side of a face it \
                  leaves on is undecided: "
             ) && text.ends_with(&format!(
-                "Recourse: make the edges at that corner clearly longer than the tolerance, or, \
-                 if this edge length is intended, tighten the tolerance below {:e} m",
+                "Recourse: make the edges at the corner where the two faces meet clearly longer \
+                 than the tolerance, or, if this edge length is intended, tighten the tolerance below {:e} m",
                 mid / (e / z)
             )) && !text.contains("declare"),
             "{text}"
@@ -1127,7 +1187,10 @@ mod tests {
             matches!(
                 err,
                 BooleanError::Escalated {
-                    decision: BooleanDecision::Proximity(Coincide::SectorSide),
+                    decision: BooleanDecision::Coincidence(
+                        Coincide::SectorSide,
+                        DeclarationRead::Moot
+                    ),
                     ..
                 }
             ),

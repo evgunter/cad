@@ -28,7 +28,7 @@ use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::sectors::{BoolSector, PairRecord, side_code};
 use super::tables::{eq15_3_lump, resolve_verdict, table_ii};
-use super::{BooleanError, BooleanOp, Coincide, Operand, SideCode};
+use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
 
@@ -102,6 +102,7 @@ fn require_same<T: Decide>(
     let c1 = carrier_of(body1, o1, s1)?;
     let c2 = carrier_of(body2, o2, s2)?;
     let declared_rest = declared.declares_rest(o1, s1.face, o2, s2.face);
+    let class = declared.class_of(o1, s1.face, o2, s2.face);
     if !declared_rest {
         let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
         let refusal = if curved(&c1) {
@@ -138,7 +139,7 @@ fn require_same<T: Decide>(
         Ok(rel) => Ok(rel),
         Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
             rung,
-            super::PlaneDoor::of(declared_rest),
+            super::PlaneDoor::of(class),
             diag,
         )),
         Err(PlaneEqError::Undeclared { diag, relation }) => {
@@ -705,18 +706,34 @@ fn resolve_edge_edge<T: Decide>(
                 SideCode::In => {}
                 SideCode::Out => inside = false,
                 SideCode::On => {
-                    // On the flanking plane: overlap-tie or touch.
-                    let same = match decide("bool_dir_same", Margin::levered(w.dot(ow), arm), band)
-                    {
-                        Ok(Sign::Positive) => true,
-                        Ok(Sign::Negative) => false,
-                        Ok(Sign::Zero) => {
-                            return Err(BooleanError::ClassificationInvariant {
-                                what: "degenerate rep pair in edge-edge membership",
-                            });
-                        }
-                        Err(diag) => {
-                            return Err(BooleanError::coincidence(Coincide::EdgeOnEdge, diag));
+                    // On the flanking plane: overlap-tie or touch. A
+                    // declared-`Tangent` flanking pair short-circuits
+                    // this membership (below, read before it runs), so
+                    // a declaration settles the question here, and a
+                    // decided zero refuses as the in-band arm does.
+                    let refuse = |diag| {
+                        BooleanError::coincidence(
+                            Coincide::EdgeOnEdge,
+                            DeclarationRead::Settles,
+                            diag,
+                        )
+                    };
+                    let decided = crate::validate::decide_reported(
+                        "bool_dir_same",
+                        Margin::levered(w.dot(ow), arm),
+                        band,
+                    )
+                    .map_err(refuse)?;
+                    let same = match decided.sign {
+                        Sign::Positive => true,
+                        Sign::Negative => false,
+                        Sign::Zero => {
+                            return Err(refuse(geom_core::Indeterminate {
+                                margin: decided.margin,
+                                band,
+                                predicate: Some("bool_dir_same"),
+                                terminal_sliver: false,
+                            }));
                         }
                     };
                     if !same {
@@ -1012,13 +1029,15 @@ fn parallel_same_dir<T: Decide>(
     ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::proximity(Coincide::EdgeOnEdge, diag)),
+        Err(diag) => {
+            return Err(BooleanError::coincidence(
+                Coincide::EdgeOnEdge,
+                DeclarationRead::Moot,
+                diag,
+            ));
+        }
     }
-    match decide("bool_dir_same", Margin::levered(un.dot(vn), arm), band) {
-        Ok(Sign::Positive) => Ok(true),
-        Ok(_) => Ok(false),
-        Err(diag) => Err(BooleanError::proximity(Coincide::EdgeOnEdge, diag)),
-    }
+    super::sectors::direction_sense(un, vn, arm, band)
 }
 
 #[cfg(test)]

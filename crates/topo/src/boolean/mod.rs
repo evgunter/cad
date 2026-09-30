@@ -93,8 +93,9 @@ pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
-    BooleanDecision, Coincide, Contradiction, CrossingDecision, LeverArm, NeighbourOffset,
-    PlaneRung, RestZipFrontier, SectionRadius, SectorRung, TorusConvention, WallRung,
+    BooleanDecision, Coincide, Contradiction, CrossingDecision, DeclarationRead, LeverArm,
+    NeighbourOffset, PlaneRung, RestZipFrontier, SectionRadius, SectorRung, TorusConvention,
+    WallRung,
 };
 mod rest;
 mod rim_wedge;
@@ -1577,23 +1578,18 @@ pub enum BooleanErrorKind {
 
 impl BooleanError {
     /// An escalation of the coincidence `which` between parts of the two
-    /// solids at a site that reads a face-pair declaration ahead of it
-    /// ([`BooleanDecision::Coincidence`]), the one decision whose refusal
-    /// offers a declaration. A site whose question is not a coincidence
-    /// between the two solids names its own [`BooleanDecision`] instead.
-    pub(crate) const fn coincidence(which: Coincide, diag: Indeterminate) -> Self {
+    /// solids, at a site whose door read the pair's declaration as
+    /// `read` ahead of it ([`BooleanDecision::Coincidence`]): the refusal
+    /// offers a declaration exactly where `read` says one would settle
+    /// the question. A site whose question is not a coincidence between
+    /// the two solids names its own [`BooleanDecision`] instead.
+    pub(crate) const fn coincidence(
+        which: Coincide,
+        read: DeclarationRead,
+        diag: Indeterminate,
+    ) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::Coincidence(which),
-            diag,
-        }
-    }
-
-    /// An escalation of the coincidence `which` at a site that reads no
-    /// declaration ahead of it ([`BooleanDecision::Proximity`]), so none
-    /// would change the verdict.
-    pub(crate) const fn proximity(which: Coincide, diag: Indeterminate) -> Self {
-        Self::Escalated {
-            decision: BooleanDecision::Proximity(which),
+            decision: BooleanDecision::Coincidence(which, read),
             diag,
         }
     }
@@ -1601,14 +1597,16 @@ impl BooleanError {
     /// An escalation of a reading metered over a lever arm at `gate`,
     /// routed by the rung that raised it
     /// ([`BooleanDecision::of_lever`]): the arm is the gate's own
-    /// length, and the reading is the coincidence `reading`.
+    /// length, and the reading is the coincidence `reading`, read as
+    /// `read` at the gate's door.
     pub(crate) const fn of_lever(
         gate: refusal_routes::LeverArm,
         reading: Coincide,
+        read: DeclarationRead,
         escalation: geom_brep::LeverEscalation,
     ) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::of_lever(gate, reading, escalation.rung),
+            decision: BooleanDecision::of_lever(gate, reading, read, escalation.rung),
             diag: escalation.diag,
         }
     }
@@ -2559,7 +2557,7 @@ fn verify_rest_declaration<T: Decide>(
             })
         }
         Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => Err(
-            BooleanError::plane_identity(rung, PlaneDoor::Declared, diag),
+            BooleanError::plane_identity(rung, PlaneDoor::of(Some(ContactClass::Rest)), diag),
         ),
         // Unreachable with `declared: true`; refuse loudly anyway.
         Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
@@ -2640,14 +2638,14 @@ fn verify_tangent_declaration<T: Decide>(
             Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
-                    PlaneDoor::Undeclared,
+                    PlaneDoor::of(Some(ContactClass::Tangent)),
                     diag,
                 ));
             }
             // Unreachable with `declared: false`; refuse loudly anyway.
             Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Coincidence(Coincide::Carriers),
+                    decision: BooleanDecision::Coincidence(Coincide::Carriers, DeclarationRead::Spent(ContactClass::Tangent)),
                     diag,
                 });
             }
@@ -2680,7 +2678,7 @@ fn verify_tangent_declaration<T: Decide>(
     let (origin, dir) = match rest::tangent_locus(&sa, &sb, band) {
         Ok(rest::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(rest::TangentLocusError::Escalated(diag)) => {
-            return Err(BooleanError::coincidence(Coincide::TangentLocus, diag));
+            return Err(BooleanError::coincidence(Coincide::TangentLocus, DeclarationRead::Spent(ContactClass::Tangent), diag));
         }
         Err(rest::TangentLocusError::NotTangent { .. }) => {
             return Err(BooleanError::ContactContradicted {
@@ -2710,7 +2708,7 @@ fn verify_tangent_declaration<T: Decide>(
             // and only one of them means the geometry was examined and
             // cleared.
             let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
-                .map_err(|diag| BooleanError::coincidence(Coincide::Contact, diag))?;
+                .map_err(|diag| BooleanError::coincidence(Coincide::Contact, DeclarationRead::Spent(ContactClass::Tangent), diag))?;
             if let Some(rim) = rim {
                 // The rim's own diameter is the extent every angular
                 // margin here is metered at — the screen's, the
@@ -2814,7 +2812,7 @@ fn verify_tangent_declaration<T: Decide>(
         }
         Err(crate::contact::ContactRefusal::Escalated { diag })
         | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
-            Err(BooleanError::coincidence(Coincide::Contact, diag))
+            Err(BooleanError::coincidence(Coincide::Contact, DeclarationRead::Spent(ContactClass::Tangent), diag))
         }
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
             Err(BooleanError::UnsupportedDeclarationClass {
@@ -3013,7 +3011,7 @@ mod tests {
         // bool_plane_orient Zero path synthesizes one; S6 review,
         // MINOR-1).
         for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
-            let msg = BooleanError::coincidence(Coincide::Planes, diag(margin)).to_string();
+            let msg = BooleanError::coincidence(Coincide::Planes, DeclarationRead::Settles, diag(margin)).to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
         // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
@@ -3239,7 +3237,7 @@ mod tests {
                 faces: [face, face],
                 offset: NeighbourOffset::Undecided(diag),
             },
-            BooleanError::coincidence(Coincide::VertexOnFace, diag),
+            BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Settles, diag),
             BooleanError::UndeclaredCoincidence {
                 diag,
                 pair: [(Operand::A, face), (Operand::B, face)],

@@ -107,8 +107,7 @@ impl PlaneRung {
 /// the rest-contact verifications the fixed 1 m arm, which a readable
 /// cosine always decides, so only an unreadable margin refuses there.
 pub const PLANE_ORIENTATION: SizedDecision = SizedDecision {
-    lever: "make the edges at the corner where the two faces meet clearly longer than the \
-            tolerance",
+    lever: super::refusal_routes::CORNER_EDGES,
     size: "length of the corner's shorter edge",
     passes: SizedPass::NonZero,
     stored: StoredDefinite::Lever,

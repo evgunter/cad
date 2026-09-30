@@ -54,7 +54,7 @@ use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::{LadderRefusal, PlaneDesc};
 use super::refusal_routes::NeighbourOffset;
-use super::{BooleanDecision, Coincide, CrossingDecision};
+use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -866,7 +866,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                             Ok(Sign::Positive | Sign::Negative) => continue,
                             Ok(Sign::Zero) => {}
                             Err(diag) => {
-                                return Err(BooleanError::proximity(Coincide::EdgeOnPlane, diag));
+                                return Err(BooleanError::coincidence(
+                                    Coincide::EdgeOnPlane,
+                                    DeclarationRead::Moot,
+                                    diag,
+                                ));
                             }
                         }
                         let mut hit =
@@ -929,7 +933,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 band,
                             )
                         };
-                        let on_face = |diag| BooleanError::proximity(Coincide::VertexOnFace, diag);
+                        let on_face = |diag| {
+                            BooleanError::coincidence(
+                                Coincide::VertexOnFace,
+                                DeclarationRead::Moot,
+                                diag,
+                            )
+                        };
                         let s1 = side(pu).map_err(on_face)?;
                         let s2 = side(pv).map_err(on_face)?;
                         let mut hit = false;
@@ -955,7 +965,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     band,
                 )
             };
-            let on_face = |diag| BooleanError::proximity(Coincide::VertexOnFace, diag);
+            let on_face = |diag| {
+                BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
+            };
             let s1 = side(pu).map_err(on_face)?;
             let s2 = side(pv).map_err(on_face)?;
             match (s1, s2) {
@@ -1187,16 +1199,15 @@ fn curved_face_arm<T: Decide>(
     // The declared cover (docs above): one of the edge's parent faces
     // is declared against `face` under a class the door VERIFIED —
     // the on-carrier claim the numeric rows then certify per
-    // incidence.
-    let covered = {
-        [
-            x.face_of_half_edge(edge.he_plus),
-            x.face_of_half_edge(edge.he_minus),
-        ]
-        .into_iter()
-        .flatten()
-        .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
-    };
+    // incidence. `cover` is that class, the declaration the arm reads.
+    let cover = [
+        x.face_of_half_edge(edge.he_plus),
+        x.face_of_half_edge(edge.he_minus),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(|f| declared.class_of(x_is, f, x_is.other(), face));
+    let covered = cover.is_some();
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
     // but the boolean's CROSSING layer for the kind — edge×NURBS-face
@@ -1366,7 +1377,11 @@ fn curved_face_arm<T: Decide>(
                     let mut ends = [None, None];
                     for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
                         match side(pw).map_err(|diag| {
-                            BooleanError::coincidence(Coincide::VertexOnFace, diag)
+                            BooleanError::coincidence(
+                                Coincide::VertexOnFace,
+                                DeclarationRead::of(cover),
+                                diag,
+                            )
                         })? {
                             Sign::Zero => {
                                 ends[i] = Some(vertex_on_curved_face(
@@ -1408,15 +1423,22 @@ fn curved_face_arm<T: Decide>(
                 Ok(Sign::Zero | Sign::Negative) | Err(_)
                     if !covered && matches!(surface, geom::Surface::Torus { .. }) => {}
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
-                // A declared pair reads no further declaration; an
+                // A declared pair's declaration is spent here. An
                 // undeclared one, declared `Rest` on this face's
                 // carrier, is on it by the carrier-identity rung above,
-                // read ahead of the enclosures.
-                Err(diag) if covered => {
-                    return Err(BooleanError::proximity(Coincide::EdgeOnCurvedFace, diag));
-                }
+                // and takes the covered arm, whose endpoint sides then
+                // refuse the same in-band pose: no declaration settles
+                // it.
                 Err(diag) => {
-                    return Err(BooleanError::coincidence(Coincide::EdgeOnCurvedFace, diag));
+                    let read = match cover {
+                        Some(class) => DeclarationRead::Spent(class),
+                        None => DeclarationRead::Moot,
+                    };
+                    return Err(BooleanError::coincidence(
+                        Coincide::EdgeOnCurvedFace,
+                        read,
+                        diag,
+                    ));
                 }
             }
         }
@@ -1432,7 +1454,8 @@ fn curved_face_arm<T: Decide>(
     // The declared-cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
-    let on_face = |diag| BooleanError::proximity(Coincide::VertexOnFace, diag);
+    let on_face =
+        |diag| BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag);
     let s1 = side(pu).map_err(on_face)?;
     let s2 = side(pv).map_err(on_face)?;
     match (s1, s2) {
@@ -1756,7 +1779,11 @@ fn curved_face_arm<T: Decide>(
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
                 }
-                Err(diag) => Err(BooleanError::proximity(Coincide::EdgeOnCurvedFace, diag)),
+                Err(diag) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnCurvedFace,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
             }
         }
     }
@@ -1920,7 +1947,10 @@ fn wall_crossing<T: Decide>(
         } => match super::circle_torus::circle_torus_roots(
             center, axis, radius, u_ref, t0, t1, surface, band,
         )
-        .map_err(|diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, diag))?
+        .map_err(|diag| BooleanError::Escalated {
+            decision: BooleanDecision::TorusRoots,
+            diag,
+        })?
         {
             super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
                 roots = thetas;
@@ -2734,7 +2764,7 @@ mod declaration_order_rows {
             let BooleanError::Escalated { decision, .. } = err else {
                 panic!("{class:?}: an escalation: {err:?}");
             };
-            assert_eq!(*decision, BooleanDecision::Proximity(which), "{class:?}");
+            assert_eq!(*decision, BooleanDecision::Coincidence(which, crate::boolean::DeclarationRead::Moot), "{class:?}");
             let text = err.to_string();
             assert!(
                 text.starts_with(&format!("{subject} is undecided: ")) && !text.contains("declare"),
