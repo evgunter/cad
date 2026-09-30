@@ -229,7 +229,8 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
-        | SessionOp::AddInstance { .. } => None,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => None,
     }
 }
 
