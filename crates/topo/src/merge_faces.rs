@@ -2514,11 +2514,8 @@ impl<T: Decide> Body<T> {
     /// - no positive winding and a zero one:
     ///   [`MergeCoplanarError::Escalated`] ([`MergeDecision::LoopWinding`],
     ///   the zero winding's own margin), the winding decision's
-    ///   band-decided refusal. It is named before a loop the kernel
-    ///   does not wind, which already counts as not positive: beside
-    ///   one positive loop such a loop is taken for a hole and the
-    ///   merge proceeds, so it is a tighter tolerance (deciding the
-    ///   zero winding) that would change the answer;
+    ///   band-decided refusal, named before a loop the kernel does not
+    ///   wind, which counts as not positive;
     /// - no positive or zero winding and a loop the kernel does not
     ///   wind: [`OutlineVerdict::UnsupportedWinding`];
     /// - otherwise every loop is negative or a lone vertex:
