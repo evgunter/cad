@@ -571,11 +571,17 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
 #: names it.
 DEPTH_BOUND = 1024
 
+#: The most causes a raised chain links (`LINKED_LEVELS` in the binding):
+#: deeper levels fold into the last one, one line each.
+LINKED_CAUSES = 256
+
 #: The child process `TestNestingPastTheBound` runs: a chain of
 #: `DEPTH_BOUND + 1` documents over the post, each instantiating the one
-#: below, stored in a `Workspace` and evaluated from the top on a
-#: `threading.Thread`. It prints what the top instance's refusal chain
-#: says, one JSON object; a crash prints nothing and exits nonzero.
+#: below, stored in a `Workspace` and evaluated from the top. In mode
+#: `thread` it evaluates on a `threading.Thread` and prints what the
+#: top instance's refusal chain says, one JSON object; in mode
+#: `uncaught` it lets the refusal reach the interpreter's own
+#: excepthook. A crash prints nothing and dies on a signal.
 _PAST_THE_BOUND = """
 import json, shutil, sys, tempfile, threading
 from pathlib import Path
@@ -583,7 +589,7 @@ from pathlib import Path
 import bench_scene
 from pncad import DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
 
-levels = int(sys.argv[1])
+levels, mode = int(sys.argv[1]), sys.argv[2]
 directory = Path(tempfile.mkdtemp())
 try:
     store = Workspace(str(directory))
@@ -598,6 +604,8 @@ try:
         below = doc
     top = Doc("pncad-depth-top")
     instance = top.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+    if mode == "uncaught":
+        evaluate(top, resolver=store).value(instance)
     said = {}
 
     def descend():
@@ -610,7 +618,7 @@ try:
             said["top"] = chain[0].kind
             said["causes"] = len(chain) - 1
             said["last"] = chain[-1].kind
-            said["sentence"] = str(chain[-1])
+            said["last_lines"] = str(chain[-1]).splitlines()
             said["in_the_first_level"] = chain[-1].document.id == first.id
 
     thread = threading.Thread(target=descend)
@@ -631,15 +639,18 @@ class TestNestingPastTheBound(unittest.TestCase):
     if it ran here.
     """
 
-    def test_a_chain_one_past_the_bound_refuses_depth_exceeded_on_a_thread(self):
-        child = subprocess.run(
-            [sys.executable, "-c", _PAST_THE_BOUND, str(DEPTH_BOUND)],
+    def past_the_bound(self, mode):
+        return subprocess.run(
+            [sys.executable, "-c", _PAST_THE_BOUND, str(DEPTH_BOUND), mode],
             cwd=Path(__file__).resolve().parent,
             capture_output=True,
             text=True,
             timeout=600,
             check=False,
         )
+
+    def test_a_chain_one_past_the_bound_refuses_depth_exceeded_on_a_thread(self):
+        child = self.past_the_bound("thread")
         self.assertEqual(
             child.returncode,
             0,
@@ -649,19 +660,45 @@ class TestNestingPastTheBound(unittest.TestCase):
         self.assertEqual(said["top"], "part_root_failed")
         self.assertEqual(
             said["causes"],
-            DEPTH_BOUND,
-            "one cause per document the refusal was carried up through",
+            LINKED_CAUSES,
+            "the chain links as many causes as every interpreter can print",
         )
         self.assertEqual(said["last"], "part_depth_exceeded")
         self.assertTrue(
             said["in_the_first_level"],
-            "the refusal is raised by the document at the bound, the one "
-            "instantiating the post",
+            "the last cause is raised for the refusing node, in the document "
+            "at the bound, the one instantiating the post",
         )
-        self.assertIn(f"deeper than {DEPTH_BOUND} documents", said["sentence"])
+        sentence, *above = said["last_lines"]
+        self.assertIn(f"deeper than {DEPTH_BOUND} documents", sentence)
         self.assertIn(
             "Recourse: flatten the assembly so its parts nest fewer documents deep",
-            said["sentence"],
+            sentence,
+        )
+        self.assertEqual(
+            len(above) + LINKED_CAUSES,
+            DEPTH_BOUND,
+            "the last cause holds one line for each document it stands for",
+        )
+
+    def test_an_uncaught_refusal_one_past_the_bound_prints_every_level(self):
+        """The interpreter's own excepthook prints the whole refusal: the
+        sentence, and one line per document it was carried up through.
+        CPython 3.11's excepthook recurses once per linked cause and
+        prints nothing past its recursion limit; this row runs on the
+        interpreter the suite runs on."""
+        child = self.past_the_bound("uncaught")
+        self.assertEqual(child.returncode, 1, child.stderr[-2000:])
+        self.assertNotIn("lost sys.stderr", child.stderr)
+        self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
+        self.assertEqual(
+            child.stderr.count("the part's node 0 failed"),
+            DEPTH_BOUND,
+            "one line for the instance and one for each document above the bound",
+        )
+        self.assertTrue(
+            child.stderr.rstrip().splitlines()[-1].startswith("pncad.EvaluationError: node 0 failed"),
+            "the traceback ends at the refusal that was raised",
         )
 
 
