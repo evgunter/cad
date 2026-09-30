@@ -719,7 +719,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
         let created = self.mekr_with(site, NewCurve::Chord, tol)?;
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr_chord");
+        self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
         Ok(created)
     }
 

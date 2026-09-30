@@ -1843,7 +1843,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
         let created = self.mev_with(site, point, NewCurve::Chord, tol)?;
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, ArenaDelta::MEV, "mev_line");
+        self.assert_euler_postcondition(before, ArenaDelta::MEV, "mev");
         Ok(created)
     }
 
@@ -2012,7 +2012,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
         let created = self.mef_with(site, NewCurve::Chord, FaceSurface::Inherit, tol)?;
         #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef_chord");
+        self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
         Ok(created)
     }
 
