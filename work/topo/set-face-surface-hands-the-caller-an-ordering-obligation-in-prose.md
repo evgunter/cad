@@ -2,11 +2,13 @@
 id: set-face-surface-hands-the-caller-an-ordering-obligation-in-prose
 kind: issue
 title: set_face_surface's certification note is a prose-held caller obligation: attach surfaces before upgrading edge descriptions
-status: open
+status: review
 opened: 2026-09-14
 refs: [S93, 713, set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left]
 priority: P3
 cost: E
+pr: 3580
+branch: topo/set-face-surface-proves-edges
 ---
 
 ## What
@@ -68,3 +70,30 @@ but they refuse different things and neither subsumes the other.
 
 The first is the one that retires the class rather than documenting it;
 its cost is a walk over the face's edges at every surface attach.
+
+## Delivered (PR 3580)
+
+The first shape, as a mechanism on the `kev` precedent (Ev's ruling on
+PR 2527, `kevs-fan-merge-needs-a-re-describing-kill-door`):
+
+- `Body::set_face_surface` stays keys-only and refuses
+  `EulerOpError::RechartStrandsDescriptions`, before mutating, naming
+  every edge whose description is adjacency-coherent now and would name
+  a surface neither of its faces wears after the swap — the at-rest
+  `DescriptionNotAdjacent` it used to leave. A description names its
+  surfaces by key and the swap mints a fresh one, so what goes false is
+  the adjacency; the certificate against the old key stays true, which
+  is also why the keys-only door needs no band to decide.
+- `Body::set_face_surfaces_describing(charts, redescriptions, tol)`
+  re-charts several faces at once (an edge between two moving charts
+  certifies on neither mixed pair), certifies listed specs against the
+  moved charts, carries every unlisted edge onto the chart its face
+  moves to under the band (re-certified; a chart image re-derived), and
+  refuses typed naming the edge where one would go stale
+  (`RechartFalsifies`). Measured need: `replace_face_offset`,
+  `offset_charts_together`, `offset_axial` and the split finish all
+  swapped and then re-described.
+- The prose clause is gone; fixtures that build a stranded body on
+  purpose take the test-only `set_face_surface_stranding_for_tests`.
+
+Residue filed: `mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move`.

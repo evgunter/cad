@@ -133,7 +133,7 @@ fn main() {
         (c.carrier().clone(), a, b)
     };
     let plane = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -170,7 +170,7 @@ fn main() {
     let widened = widened_u_chart(&old_chart);
     let bowed_face = body.faces().find(|(_, f)| f.surface == bowed).unwrap().0;
     let new_key = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             bowed_face,
             FaceSurface::New {
                 surface: widened,
