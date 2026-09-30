@@ -963,16 +963,17 @@ which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
 fault, the budget's δ, the store that keeps no preferences, the datums
-this view draws nothing of, the committed profiles it cannot draw, and
+this view draws nothing of, the committed profiles it cannot draw, the
+held edges the index cannot name, and
 the three display seams that hold a refusal (scene, pick index,
 projection) — each a function of the typed value it reads, so each
-one's SILENCE is a row a test can write. The datums and profiles
-counts are the two members that HOLD nothing: each writer re-takes its
-count every frame and the application zeroes it whether or not the
-viewport drew, so it says what the last frame found. The toolbar draws
+one's SILENCE is a row a test can write. The datums, profiles and
+held-edges reads are the three members that HOLD nothing: each writer
+re-takes its read every frame and the application zeroes it whether or
+not the viewport drew, so it says what the last frame found. The toolbar draws
 before the panes, so it trails the view it describes by one frame and
 no more — a bounded lag, where a latch with no sweeper is unbounded. **The population is every
-`frame` function returning `Option<Badge>`** — ten — and that rule
+`frame` function returning `Option<Badge>`** — eleven — and that rule
 ranges over the property rather than over the `_badge` naming
 convention it happens to agree with today; it is complete because
 `Badge`'s fields and its three constructors are private to `frame`, so

@@ -488,7 +488,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     let meta_edit = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: RecipeNodeId(1),
+            node: doc.order()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
@@ -582,7 +582,7 @@ fn metadata_convention_doors_refuse_typed() {
     let (doc, _) = small();
     let name = editor_core::StableName {
         kind: editor_core::EntityKind::Body,
-        node: RecipeNodeId(1),
+        node: doc.order()[1],
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     // No "v" field → refused at the edit door (D7 convention).
@@ -650,10 +650,10 @@ fn program_structure_doors_refuse_typed_at_load() {
     // notation, so leaving `"m"` beside an `Angle` dim would be caught
     // one door earlier as a display-unit mismatch, and this row is
     // about the SLOT's role dimension, not the literal's own coherence.
-    v["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["dim"] =
-        serde_json::Value::String("Angle".into());
-    v["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["unit"] =
-        serde_json::Value::String("rad".into());
+    v["snapshot"]["nodes"][circle.0.to_string()]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]
+        ["dim"] = serde_json::Value::String("Angle".into());
+    v["snapshot"]["nodes"][circle.0.to_string()]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]
+        ["unit"] = serde_json::Value::String("rad".into());
     let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
     // A program slot is a slot like any other, so the document-wide
     // slot walk decides it — the same `Node::slot_dimension_fault` the
@@ -680,7 +680,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     let text2 = save(&doc2, &[], Tol::witness()).expect("save");
     let (header2, body2) = text2.split_once('\n').expect("id line");
     let mut v2: serde_json::Value = serde_json::from_str(body2).expect("body parses");
-    let steps = v2["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Chain"]
+    let steps = v2["snapshot"]["nodes"][chain.0.to_string()]["Profile"]["loops"][0]["Chain"]
         .as_array_mut()
         .expect("chain steps");
     steps.pop(); // drop the closing LineTo(Start)
@@ -767,7 +767,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     let bad = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: RecipeNodeId(1),
+            node: doc.order()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),

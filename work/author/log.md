@@ -1493,3 +1493,50 @@ No reconciliation round was needed. Both corrected the row's premises: role word
 - AUTHOR: `committed-nodes-do-not-light-the-faces-they-reference`.
 - Already on file: the flush refusal's `Debug` face keys (`work/issues/flush-in-band-refusal-advises-widening-the-tolerance`).
 - Folded into the design, not filed: `descent_leaf` and `SegOrigin` listing the carry-through wrappers twice, and `SelectRefusal`'s hand-spelled `named` helper.
+
+## 2026-09-30 — AUTH-12 MERGED (`0c9f05e1`): every tool is reachable, and a row says so
+
+Twelve units closed. **The trap fired a twelfth time, test-side only:** kind→section was written twice in one test module. The one style review (the tier chosen at dispatch) caught it, together with copied section headings. The fix pass also took the commit-button duplication the lane had filed as P3, which turned out to be the same one-function fix. It left one row: the mate and blend commit rows restate `tool_commit_row`'s shape.
+
+The premise the row was parked on ("no test can build `ViewerBehavior`") had been stale for five days, since the whole-app harness landed on 2026-09-25. I only caught it by reading the tree before specifying.
+
+## 2026-09-30 — AUTH-13 dispatched: a geometry-refused close still draws what was written
+
+Two P2 rows as one unit: `a-close-refused-on-its-geometry-draws-nothing` (filed by AUTH-11) and `a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at` (filed by AUTH-5's review). They share one open question, what a last leg onto the start means, and one walk-back.
+
+Review tier: correctness + style. This is the third change to the preview's semantics, and the draw-no-more-than-was-written invariant is what a review must attack.
+
+The P0 (negative extrude, #3551) and the P1 face-naming row (#3571) are with Ev. The other P1s stay blocked on MSOLVE and CLEAR rows, both still open.
+
+## 2026-09-30 — AUTH-13 MERGED (`f60af7d1`): a geometry-refused close still draws what was written
+
+Thirteen units closed. **The duplication trap fired a thirteenth time**, as a second error variant (`Close` beside `Geometry`) whose sentence was built in three places. The style review caught it.
+
+**A correctness MAJOR the review ran, and the reason to re-verify every fix pass that reaches semantics.** The first head read the loop's start from the first `at` *anywhere* in the chain. For a fused `arc_fillet` entry, whose start the kernel seeds with no `at`, that is a mid-chain anchor, so the preview drew a close nobody wrote. It was a regression against main. The fix reads the start from the entry, the same field the kernel seeds. The re-verification then showed the fix pass's own claim ("the kind restriction is inert by construction") false with a witness, and found two re-spellings that did not compose. Both were fixed and pinned before merge.
+
+**Where this leaves the preview:**
+- A geometry-refused close walks back like a refused step and says the kernel's own reason, advisory.
+- A decided tangency is re-spelled (`continue_to`, a declared seam, or both), and the re-spelling is never painted.
+- An escalation says "too close to call".
+- A last leg onto the start is the close when its own step names the start.
+- The residue is `a-last-leg-no-close-can-follow-is-dropped` (P3).
+
+Review tier: correctness + style, then two correctness re-verifications.
+
+## 2026-09-30 — AUTH-14 dispatched: a blend target whose edges cannot be named says so
+
+`blend-swallows-the-edge-name-fault-the-index-calls-loud` (P2). The index's loud `EdgeNameFault` arms are collapsed to "no edges" and to a silently shorter mark. Review tier: **one FULL review** (correctness claims alongside the style questions). The change is small and readable, but reaching the loud arms at all is the part a reader cannot simply believe.
+
+Not taken yet:
+- `the-boolean-door-evaluates-its-boolean-twice` (P2, a performance row, AUTH-9's cost).
+- `a-seated-tools-held-node-is-drawn-nowhere` and `a-union-that-becomes-flush-later-…` (both design; the second is the DM6 question for Ev).
+
+## 2026-09-30 — AUTH-14 MERGED (`cd6cc9a0`): a blend target whose edges cannot be named says so
+
+Fourteen units closed. The container restarted mid-unit. The lane, target and pushed commit survived, and resuming the same implementer from its transcript lost nothing.
+
+**One FULL review** (the tier chosen at dispatch) found no MAJOR, but it did show a badge that latches passing every row. **My own read before merging found the unit re-minting the defect it was removing:** `named_in` read a window with `.get(range).unwrap_or_default()` and `zip`, so a broken index would again read as "no edges". Before merging, the lane made it an `unreachable!` stating the invariant, and fixed `in_target`'s identical collapse on the way.
+
+**Lesson:** the class a unit fixes is the class to grep its own diff for. `unwrap_or_default` and a truncating `zip` are the Option-collapse shapes.
+
+The lane filed CHROME's badge-channel row at P1. That looks high for a three-field consolidation, but it is CHROME's to triage, so I left it.
