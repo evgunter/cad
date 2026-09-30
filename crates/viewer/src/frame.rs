@@ -3636,4 +3636,41 @@ mod tests {
         // rather than asserted of each constructor.
         assert_eq!(Withdrawal::all(&PruneReport::default()).count(), 0);
     }
+
+    /// **Only a pin that no longer holds offers the accept**, naming
+    /// the part by the file the scan found. Red if another way a
+    /// reference fails offers it, or the offer names another part.
+    #[test]
+    fn only_a_pin_that_no_longer_holds_offers_the_accept() {
+        use crate::test_support::{REFUSED_PART_FILE, part_refused};
+        let unresolved = |fault| PartFault::Unresolved {
+            fault,
+            message: "the store's own words".to_owned(),
+        };
+        let (kind, files) = part_refused(unresolved(ResolveFault::PinMismatch));
+        let NodeErrorKind::Part { doc_ref, .. } = &kind else {
+            unreachable!("the fixture is a part refusal")
+        };
+        let offer = version_offer(&kind, &files).expect("a pin mismatch offers the accept");
+        assert!(
+            matches!(offer.accept(), SessionOp::AcceptPartVersion { id } if id == doc_ref.id),
+            "{:?}",
+            offer.accept()
+        );
+        assert!(
+            Refusal::version_question(&offer).contains(REFUSED_PART_FILE),
+            "{}",
+            Refusal::version_question(&offer)
+        );
+        for fault in [
+            unresolved(ResolveFault::EpsilonSeam),
+            unresolved(ResolveFault::Unresolved),
+            PartFault::NoResolver,
+            PartFault::DepthExceeded,
+            PartFault::NotEntered,
+        ] {
+            let (kind, files) = part_refused(fault);
+            assert_eq!(version_offer(&kind, &files), None, "{kind:?}");
+        }
+    }
 }

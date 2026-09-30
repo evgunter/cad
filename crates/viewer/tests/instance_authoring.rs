@@ -767,3 +767,183 @@ fn every_unresolved_part_badge_meets_the_refusal_standard() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+// --- accepting a part's updated version ----------------------------
+//
+// The bench holds two instances of the post and one of the shelf, so
+// moving the post's pin gives one part with two refusing sites beside
+// one that still resolves. The session is opened AFTER the move: the
+// memo keys an instance on its reference, not on the store, so an open
+// session would not see the file change (the badge rows above reopen
+// for the same reason).
+
+/// The bench, its post moved on disk, opened fresh.
+fn bench_with_the_post_moved(tag: &str, tol: Tol) -> (asm::Bench, DocSession) {
+    let bench = asm::bench(tag, tol);
+    move_the_posts_pin(&bench, tol);
+    let session = asm::open_bench(&bench, tol);
+    (bench, session)
+}
+
+/// The row `node` draws on.
+fn row_of(session: &DocSession, node: RecipeNodeId) -> tree::TreeRow {
+    session
+        .tree_rows()
+        .into_iter()
+        .find(|row| row.id == node)
+        .unwrap_or_else(|| panic!("node {} has a row", node.0))
+}
+
+/// **Offer → accept → one undo**, on the real session over the bench's
+/// directory. Red if a pin-mismatched instance offers nothing, or an
+/// offer names another part or file; if the resolving shelf offers
+/// anything; if accepting commits anything but `update_to_store`'s
+/// edits, or as more than one history step; if the posts do not then
+/// evaluate; or if one undo does not bring back the document, the
+/// mismatch and the offer.
+#[test]
+fn a_pin_mismatched_instance_offers_the_accept_and_accepting_is_one_undo() {
+    let tol = Tol::witness();
+    let (bench, mut session) = bench_with_the_post_moved("auth15-accept", tol);
+    let post_file_name = post_file(&bench)
+        .file_name()
+        .expect("the post's file has a name")
+        .to_string_lossy()
+        .into_owned();
+
+    let offered = |session: &DocSession| {
+        [bench.post_a, bench.post_b].map(|post| {
+            let row = row_of(session, post);
+            assert_eq!(row.status.badge(), "FAILED", "the post refuses: {row:?}");
+            let offer = row
+                .version_offer
+                .clone()
+                .unwrap_or_else(|| panic!("a pin-mismatched instance offers the accept: {row:?}"));
+            assert!(
+                matches!(offer.accept(), SessionOp::AcceptPartVersion { id } if id == bench.post.id),
+                "the accept names the post: {:?}",
+                offer.accept()
+            );
+            offer
+        })
+    };
+    let [offer, other] = offered(&session);
+    assert_eq!(offer, other, "both sites of one part offer one accept");
+    assert!(
+        Refusal::version_question(&offer).contains(&post_file_name),
+        "the question names the post's file: {}",
+        Refusal::version_question(&offer)
+    );
+    let shelf = row_of(&session, bench.shelf_i);
+    assert_eq!(shelf.status, RowStatus::Ok, "the shelf still resolves");
+    assert_eq!(
+        shelf.version_offer, None,
+        "a resolving instance offers nothing"
+    );
+
+    let before = session.committed_doc().clone();
+    let steps = session.history().len();
+    let kernel = pncad::workspace::update_to_store(
+        &before,
+        bench.post.id,
+        &Workspace::open(&bench.dir).expect("the directory scans"),
+        tol,
+    )
+    .expect("the store holds a newer post");
+    assert_eq!(kernel.len(), 2, "the premise: one edit per post instance");
+
+    let outcome = session.perform(offer.accept());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        outcome.committed, kernel,
+        "accepting commits the kernel's edits, in its order"
+    );
+    assert_eq!(session.history().len(), steps + 1, "as one action");
+    session.pump();
+    let rows = session.tree_rows();
+    assert!(!tree::has_faults(&rows), "the posts now evaluate: {rows:?}");
+    assert!(
+        rows.iter().all(|row| row.version_offer.is_none()),
+        "and nothing offers any more"
+    );
+
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo restores the old pins"
+    );
+    session.pump();
+    let [again, _] = offered(&session);
+    assert_eq!(again, offer, "and with them the mismatch and its offer");
+}
+
+/// **What the store answers is said as-is**: accepting when every
+/// reference already holds the store's version, and after the part's
+/// file has gone from under an offer. Red if either commits, or if the
+/// status line says anything but the kernel's own refusal; and red if
+/// an instance whose file is gone offers the accept.
+#[test]
+fn accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal() {
+    let tol = Tol::witness();
+    let said = |session: &mut DocSession, bench: &asm::Bench| {
+        let before = session.committed_doc().clone();
+        let steps = session.history().len();
+        let refusal = session
+            .perform(SessionOp::AcceptPartVersion { id: bench.post.id })
+            .refusal
+            .expect("the accept refuses");
+        assert!(session.committed_doc().bit_eq(&before), "commits nothing");
+        assert_eq!(session.history().len(), steps, "and records no step");
+        let kernel = pncad::workspace::update_to_store(
+            &before,
+            bench.post.id,
+            &Workspace::open(&bench.dir).expect("the directory scans"),
+            tol,
+        )
+        .expect_err("the kernel refuses too");
+        assert_eq!(
+            viewer::frame::refusal_message(&refusal).text(),
+            kernel.to_string(),
+            "the status line is the kernel's sentence"
+        );
+        kernel
+    };
+
+    // Every reference already names the store's version.
+    let bench = asm::bench("auth15-current", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    assert!(
+        session
+            .tree_rows()
+            .iter()
+            .all(|row| row.version_offer.is_none()),
+        "a resolving assembly offers nothing"
+    );
+    let kernel = said(&mut session, &bench);
+    assert!(
+        matches!(
+            kernel,
+            pncad::workspace::WorkspaceError::Update {
+                error: pncad::document::UpdateError::AlreadyPinned { .. }
+            }
+        ),
+        "{kernel:?}"
+    );
+
+    // An offer drawn, then its part's file removed.
+    let (bench, mut session) = bench_with_the_post_moved("auth15-gone", tol);
+    assert!(row_of(&session, bench.post_a).version_offer.is_some());
+    std::fs::remove_file(post_file(&bench)).expect("the post is removed");
+    let kernel = said(&mut session, &bench);
+    assert!(
+        matches!(kernel, pncad::workspace::WorkspaceError::UnknownId { .. }),
+        "{kernel:?}"
+    );
+    // Opened now, the instance does not resolve at all, and no version
+    // of a part with no file is on offer.
+    let reopened = asm::open_bench(&bench, tol);
+    let gone = row_of(&reopened, bench.post_a);
+    assert_eq!(gone.status.badge(), "FAILED");
+    assert_eq!(gone.version_offer, None, "a missing part offers nothing");
+}

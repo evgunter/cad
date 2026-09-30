@@ -1212,4 +1212,73 @@ mod tests {
             "the premise: an instance row draws one: {with:?}"
         );
     }
+
+    /// **An instance row whose pin no longer holds draws the accept its
+    /// failure offers, and the button is that offer's operation.**
+    ///
+    /// The row is the one `tree::rows` builds from the failure: its
+    /// words, and the offer `frame::version_offer` reads off it. Red if
+    /// the question or the button is not drawn, if clicking the button
+    /// answers anything but the offer's op or also selects, or if a row
+    /// with no offer draws either.
+    #[test]
+    fn a_pin_mismatched_instance_row_draws_the_accept_and_its_button_is_the_offer() {
+        use pncad::document::{PartFault, ResolveFault};
+
+        use crate::session::{Refusal, SessionOp};
+        use crate::test_support::part_refused;
+
+        let (kind, files) = part_refused(PartFault::Unresolved {
+            fault: ResolveFault::PinMismatch,
+            message: "the store's own words".to_owned(),
+        });
+        let offer = crate::frame::version_offer(&kind, &files).expect("a pin mismatch offers");
+        let row = TreeRow {
+            status: RowStatus::Failed {
+                message: kind.to_string(),
+                carried: Vec::new(),
+            },
+            version_offer: Some(offer.clone()),
+            ..instance_row()
+        };
+        const BUTTON: &str = "Accept updated version";
+
+        let drawn = painted_text(|ui| feature_row_drawn(ui, &row));
+        assert!(
+            drawn.contains(&Refusal::version_question(&offer)) && drawn.contains(BUTTON),
+            "{drawn}"
+        );
+
+        let clicked = core::cell::RefCell::new(None);
+        let mut selected = None;
+        painted_after_clicking(BUTTON, |ui| {
+            let clicks = feature_row_ui(ui, &row, false, false, &Theme::DEFAULT);
+            selected = selected.or(clicks.select);
+            if let Some(op) = clicks.accept {
+                *clicked.borrow_mut() = Some(op);
+            }
+        });
+        let clicked = clicked.into_inner();
+        assert!(
+            matches!(
+                (&clicked, offer.accept()),
+                (
+                    Some(SessionOp::AcceptPartVersion { id }),
+                    SessionOp::AcceptPartVersion { id: offered },
+                ) if *id == offered
+            ),
+            "{clicked:?}"
+        );
+        assert_eq!(selected, None, "the button selects nothing");
+
+        let unoffered = TreeRow {
+            version_offer: None,
+            ..row
+        };
+        let drawn = painted_text(|ui| feature_row_drawn(ui, &unoffered));
+        assert!(
+            !drawn.contains(BUTTON) && !drawn.contains("accept the updated version"),
+            "{drawn}"
+        );
+    }
 }

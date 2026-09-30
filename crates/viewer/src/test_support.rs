@@ -21,9 +21,10 @@
 #![allow(clippy::panic)]
 
 use pncad::document::{
-    BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions,
-    Evaluation, Expr, LoopProgram, Node, ParamName, ProfileProgram, RecipeNodeId, RefusingReach,
-    ValuePayload, apply, evaluate,
+    BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocParam, DocRef,
+    DocumentId, EditError, EvalOptions, Evaluation, Expr, LoopProgram, Node, NodeErrorKind,
+    ParamName, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, apply,
+    evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -32,6 +33,7 @@ use pncad::profile::{PathErrorKind, TipState, Verb};
 use pncad::profile::{Step, Target};
 
 use crate::generation::Generation;
+use crate::parts::PartFiles;
 use crate::pickindex::{PickIndex, PictureKey};
 use crate::scene::DisplayTolerance;
 
@@ -343,6 +345,23 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
     pncad::topo::mass_properties(body, tol)
         .expect("mass properties")
         .volume
+}
+
+// --- a part reference the evaluation refused ------------------------
+
+/// The file [`part_refused`]'s scan names its part by.
+pub const REFUSED_PART_FILE: &str = "post.pncad";
+
+/// **An instance whose reference refused with `fault`**, as the
+/// evaluation carries it, and one scan of the directory that names the
+/// part [`REFUSED_PART_FILE`].
+pub fn part_refused(fault: PartFault) -> (NodeErrorKind, PartFiles) {
+    let doc_ref = DocRef {
+        id: DocumentId::derive("refused-part"),
+        pin: ContentPin::of_bytes(b"refused-part v1"),
+    };
+    let files = PartFiles::Scanned([(doc_ref.id, REFUSED_PART_FILE.to_owned())].into());
+    (NodeErrorKind::Part { doc_ref, fault }, files)
 }
 
 // --- the display tolerances the suites index at ---------------------
