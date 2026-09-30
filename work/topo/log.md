@@ -4088,3 +4088,29 @@ revert both ways.
 
 Single tier, orchestrator read, no DR row. The row closes on the
 branch (`db70c234a2`). Merge after CI.
+
+## Container restart: three lanes recovered (2026-09-30)
+
+A container restart stopped three lanes. I inspected their worktrees
+and branches before clearing them.
+
+- **PR 3513's second fix pass.**
+  - The lane had pushed five commits past `472122ca57`. It took the
+    root-cause change: `DeclarationRead`, carried to every
+    coincidence raise.
+  - One committed but unpushed commit (`7875062bcb`: rows, filings,
+    seam notes) was pushed by me.
+  - The only uncommitted edits were the reviewer's probe hooks
+    (`zz_coincfr_*`), which I discarded.
+  - Not yet done: `## Fix pass 2`, the rewritten table, the mutant
+    re-run, and a conflict with main.
+  - A continuation lane is dispatched. Its brief is the original
+    prefixed with this state.
+- **PR 3531's review.** It is read-only, so nothing was lost but time.
+  Re-dispatched on the same brief.
+- **The deep snapshot.** Nothing was pushed. I saved the uncommitted
+  diff (389 lines) to the lane's scratch as `prerestart.patch`; the new
+  lane may apply it.
+
+All three stale worktrees are removed, and the targets survived. PR
+3546's CI is still running on `db70c234a2`.
