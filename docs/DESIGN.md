@@ -398,8 +398,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
   carrier is one edge. The form is redundant (the vertices lie on the
   carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
-  consistency conditions are verified at validate as ε-decisions at the
-  validating scalar, never trusted; a stored carrier is carried
+  consistency conditions are never trusted: a table's arcs are verified
+  at validate as ε-decisions at the validating scalar, and an arc the
+  guided replay constructs is verified at its construction, at that
+  scalar (by the construction's own predicate, or by the exact witness
+  of the identity it registers), which validation then does not
+  re-decide; a stored carrier is carried
   verbatim, including across scalars, and never re-derived from its
   vertices. The authored shape lives in the program, which is what a
   document stores and edits; the loop is its canonical cache, rebuilt

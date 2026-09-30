@@ -8,6 +8,7 @@ priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 branch: claude/clever-bardeen-4itqb3
+needs_ev: true
 ---
 
 
