@@ -1277,7 +1277,7 @@ mod tests {
         };
         let drawn = painted_text(|ui| feature_row_drawn(ui, &unoffered));
         assert!(
-            !drawn.contains(BUTTON) && !drawn.contains("accept the updated version"),
+            !drawn.contains(BUTTON) && !drawn.contains(&Refusal::version_question(&offer)),
             "{drawn}"
         );
     }
