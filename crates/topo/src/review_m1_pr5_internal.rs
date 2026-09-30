@@ -236,9 +236,6 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
 /// row is the only other reader; this table stays this guard's.
 pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // ---- Sugar: delegates to an asserting operator. ----
-    ("mev_line", "derives the spec, then calls `mev`"),
-    ("mef_chord", "derives the spec, then calls `mef`"),
-    ("mekr_chord", "derives the spec, then calls `mekr`"),
     ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
     (
         "insert_void",

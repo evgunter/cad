@@ -2,8 +2,11 @@
 id: loop-cycle-broken-display-names-one-of-its-causes
 kind: issue
 title: LoopCycleBroken's Display says the walk never reaches the second half-edge, which is one of the three faults the variant now names
-status: open
+status: closed
 opened: 2026-09-29
+pr: 3511
+branch: topo/walk-proofs
+closed: 2026-09-30
 ---
 
 
