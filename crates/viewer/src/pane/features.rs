@@ -749,7 +749,7 @@ mod tests {
     impl MeasureFixture {
         /// What `id` evaluated to.
         fn payload(&self, id: RecipeNodeId) -> Option<&pncad::document::ValuePayload<f64>> {
-            self.evaluation.value(id).map(|value| &value.payload)
+            self.evaluation.usable(id).ok().map(|value| &value.payload)
         }
 
         fn row(&self, id: RecipeNodeId) -> TreeRow {

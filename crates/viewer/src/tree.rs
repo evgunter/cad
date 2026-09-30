@@ -754,7 +754,7 @@ fn measured_of(
     node: &Node<ProfileProgram>,
     evaluation: &Evaluation<f64>,
 ) -> Option<Measured> {
-    match &evaluation.value(id)?.payload {
+    match &evaluation.usable(id).ok()?.payload {
         ValuePayload::Measure { value, dim } => Some(Measured::Value(computed_text(*dim, *value))),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Measured::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => {
@@ -782,7 +782,7 @@ fn asserted(
     let Node::Assertion { measure, dir, .. } = node else {
         unreachable!("only an assertion node evaluates to a verdict")
     };
-    let dim = || match evaluation.value(*measure).map(|value| &value.payload) {
+    let dim = || match evaluation.usable(*measure).ok().map(|value| &value.payload) {
         Some(ValuePayload::Measure { dim, .. }) => *dim,
         other => unreachable!(
             "a verdict with numbers compared a measured value, yet its measure holds {:?}",
