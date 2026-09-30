@@ -2,7 +2,7 @@
 id: kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names
 kind: issue
 title: kvfs removes its Empty loop and lone vertex without proving no half-edge names them: a torn parent_loop or start leaves DanglingTopology through Ok
-status: dispatched
+status: open
 opened: 2026-09-30
 priority: P3
 cost: E

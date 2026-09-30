@@ -4,8 +4,6 @@ kind: issue
 title: topo: BooleanError::coincidence is a one-word default, so a new escalation gets the declare menu without naming its decision
 status: open
 opened: 2026-09-30
-priority: P2
-cost: M
 ---
 
 
