@@ -3487,3 +3487,25 @@ and 82 min (harness); archived privately.
     filed.
 
 The fix pass runs on the warm target.
+
+## The walk-proofs unit delivered as PR 3511; its single review out (2026-09-30)
+
+PR 3511 is green at `1e1534bb16` (394,273 tokens, 243 tools, 1 h 54 m,
+harness). The run before it was red on two gates, both fixed: an
+ambient env read in the probe, and the spent-graft `kef` count.
+- **The shared helper.** `Body::require_run_of(members, from,
+  RunExtent, killed)` is `KillRun`'s check lifted out. It serves `kef`
+  and `kemr`, `mef_chords`, `mekr_cycles`, `mekr_empty_target` and
+  `kvfs`. The `Whole` extent also refuses a loop still claimed outside
+  its walk.
+- **The probe.** Every cell goes to 0, except one `kev` cell, which is
+  filed and admitted by name in `FILED_CELLS`.
+- **The message.** `LoopCycleBroken`'s `Display` is one message, true
+  for every cause, ending "(malformed body)" like its siblings. Moving
+  the whole corruption class to a defect ending is filed.
+- **Re-baseline.** `SPENT_GRAFT_EXPOSURE` for `kef` goes 40 → 16, and
+  the review is asked to confirm all 24 lost kills are torn.
+- **Filed:** six rows (topo ×5, REACH ×1).
+
+Tier SINGLE, full. The reviewer is on the lane's warm target, and its
+brief names D1's atomic contract and D4 (i).
