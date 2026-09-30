@@ -215,6 +215,101 @@ pub(crate) fn land(
     frame::deliver(notices, status, frame::fold_status(folded));
 }
 
+pub(crate) use composed::{Composed, frame_marks};
+
+/// **The marks a frame draws, and the one door that makes them.** A
+/// module of its own so that its fields are private even to the rest
+/// of this pane: [`Composed`] has no public constructor and no
+/// `Default`, so a frame cannot hand the renderer marks it did not
+/// gather held picks for.
+mod composed {
+    use crate::display::DisplayView;
+    use crate::drafts::Drafts;
+    use crate::marks::{self, EdgeOverlay, Highlight};
+    use crate::pickindex::PickIndex;
+    use crate::session::DocSession;
+    use crate::tools::Tools;
+
+    /// **What a frame marks, as the renderer takes it** — minted only by
+    /// [`frame_marks`]. A value per frame, never kept.
+    #[derive(Debug)]
+    pub(crate) struct Composed {
+        highlight: Highlight,
+        edges: EdgeOverlay,
+    }
+
+    impl Composed {
+        /// The patch marks.
+        pub(crate) fn highlight(&self) -> &Highlight {
+            &self.highlight
+        }
+
+        /// The edge marks and the other world-space lanes.
+        pub(crate) fn edges(&self) -> &EdgeOverlay {
+            &self.edges
+        }
+
+        /// Add the lanes a pick implies nothing about — the datums,
+        /// the committed profiles and the preview — which the pane
+        /// composes itself.
+        pub(crate) fn with_lanes(
+            mut self,
+            datums: Vec<[f32; 3]>,
+            profiles: Vec<[f32; 3]>,
+            preview: Vec<[f32; 3]>,
+        ) -> Self {
+            self.edges.datums = datums;
+            self.edges.profiles = profiles;
+            self.edges.preview = preview;
+            self
+        }
+
+        /// Nothing marked and no lanes, for the renderer's own rows —
+        /// a test door, so a frame cannot reach it.
+        #[cfg(test)]
+        pub(crate) fn nothing() -> Self {
+            Self {
+                highlight: Highlight::default(),
+                edges: EdgeOverlay::default(),
+            }
+        }
+    }
+
+    /// **Everything this frame marks about picks**: [`marks::compose`]
+    /// over the session's selection and hover, and every pick a form or
+    /// a tool holds — gathered here and nowhere else.
+    ///
+    /// With no index for the picture on screen there is nothing to mark
+    /// against, and nothing is lit.
+    ///
+    /// The seated tools hold NODES, and no mark draws a held node
+    /// (`work/author/a-seated-tools-held-node-is-drawn-nowhere`).
+    pub(crate) fn frame_marks(
+        on_screen: Option<&PickIndex>,
+        display: &DisplayView,
+        session: &DocSession,
+        tools: &Tools,
+        drafts: &Drafts,
+    ) -> Composed {
+        let Some(index) = on_screen else {
+            return Composed {
+                highlight: Highlight::default(),
+                edges: EdgeOverlay::default(),
+            };
+        };
+        let [a, b] = tools
+            .mate()
+            .map_or([None, None], |tool| tool.state().picks());
+        let held = marks::Held {
+            faces: [drafts.held_face(), a, b],
+            edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),
+        };
+        let (highlight, edges) =
+            marks::compose(index, display, session.selection(), session.hover(), &held);
+        Composed { highlight, edges }
+    }
+}
+
 /// The index the picture on screen was drawn FROM, or `None` when the
 /// index in hand describes some other picture.
 ///
@@ -266,7 +361,10 @@ pub(crate) fn land(
 /// nothing to say; the pick path refuses TYPED, because a click is an
 /// act the user made and got nothing for
 /// ([`crate::pickcache::NotIndexed::AnotherPicture`]).
-fn drawn_index(index: Option<&PickIndex>, scene_key: Option<PictureKey>) -> Option<&PickIndex> {
+pub(crate) fn drawn_index(
+    index: Option<&PickIndex>,
+    scene_key: Option<PictureKey>,
+) -> Option<&PickIndex> {
     index.filter(|index| index.current_for(scene_key))
 }
 
@@ -728,22 +826,16 @@ impl ViewerBehavior<'_> {
             self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
-        // What to mark, as a pure function of what is drawn and what is
-        // selected. Recomputed every frame; nothing retains it.
-        let highlight = on_screen
-            .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
-        // The edge half of the same question, and the same discipline:
-        // recomputed every frame from state that lives in one place.
-        let mut edges = on_screen
-            .map(|index| {
-                marks::edge_overlay(
-                    index,
-                    self.display,
-                    self.session.selection(),
-                    self.session.hover(),
-                )
-            })
-            .unwrap_or_default();
+        // What to mark, as a pure function of what is drawn, what is
+        // selected and what is held. Recomputed every frame; nothing
+        // retains it.
+        let composed = frame_marks(
+            on_screen,
+            self.display,
+            self.session,
+            self.tools,
+            self.drafts,
+        );
         // **The three lanes this pane composes itself**, each as the
         // value that owns the display seam's rule
         // ([`marks::LegLane`]) rather than as a bare `Vec` each block
@@ -758,20 +850,6 @@ impl ViewerBehavior<'_> {
         let mut datums = marks::LegLane::default();
         let mut profiles = marks::LegLane::default();
         let mut preview = marks::LegLane::default();
-        // **The open blend tool's held set is marked too** — all of
-        // it, because the set IS what the user is composing and a
-        // count alone cannot tell them WHICH twelve edges they hold.
-        //
-        // Marked as SELECTED, the mark meaning "a choice you have
-        // made". `BlendTool::mark_segments` applies the same (node,
-        // body) narrowing a single selection gets — one pass over the
-        // target's drawn edges, so the cost is the body's edge count
-        // and not its square.
-        if let (Some(index), Some(tool)) = (on_screen, self.tools.blend()) {
-            edges
-                .selected
-                .extend(tool.mark_segments(index, self.display));
-        }
         // **The document's construction geometry.** Which lane is drawn
         // over which is `marks::EdgeLane::DRAW_ORDER`'s, not the order
         // these blocks fill them in. Sized against the VIEW
@@ -873,9 +951,11 @@ impl ViewerBehavior<'_> {
         let view = datum_view(self.camera, viewport).ok();
         push_previews(&mut preview, self.profile_previews, view);
 
-        edges.datums = datums.into_segments();
-        edges.profiles = profiles.into_segments();
-        edges.preview = preview.into_segments();
+        let marks = composed.with_lanes(
+            datums.into_segments(),
+            profiles.into_segments(),
+            preview.into_segments(),
+        );
 
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere
@@ -1000,8 +1080,7 @@ impl ViewerBehavior<'_> {
                 theme: self.theme,
                 viewport_px,
                 pixels_per_point: point_scale,
-                highlight: highlight.unwrap_or_default(),
-                edges,
+                marks,
                 id_query,
             },
         ));

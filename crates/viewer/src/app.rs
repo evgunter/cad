@@ -1156,6 +1156,7 @@ impl ViewerApp {
         for op in ops {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
+            let replaced = opened || matches!(op, SessionOp::NewDocument { .. });
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
@@ -1187,7 +1188,9 @@ impl ViewerApp {
                     self.fit_on_scene = true;
                     self.fit_delta_on_scene = true;
                     self.budget_delta = None;
+                    self.drafts.document_replaced();
                 }
+                None if replaced => self.drafts.document_replaced(),
                 // A modal tool closes when its edit actually
                 // COMMITS, not when its button is clicked — a refusal
                 // leaves the tool open with its picks held, to be
@@ -3509,10 +3512,7 @@ mod properties_pane_tests {
         // The startup document's last node is its body (`plate_with_hole`).
         let body = *app.session.doc().order().last().expect("a startup body");
         app.tools.open(tool);
-        let ops: Vec<SessionOp> = picks(body).into_iter().map(SessionOp::Select).collect();
-        let declined = app.tools.feed(app.session.doc(), &ops);
-        assert!(declined.is_empty(), "{declined:?}");
-        app.perform_batch(ops);
+        clicked(&mut app, picks(body));
         let mut landed = Vec::new();
         for _ in 0..3000 {
             landed = paint(&mut app, Vec::new());
@@ -3575,15 +3575,7 @@ mod properties_pane_tests {
     #[test]
     fn the_mate_panel_shows_its_held_picks() {
         let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, None, |body| {
-            vec![Selection::Face(crate::session::FaceSelection {
-                name: pncad::prelude::StableName {
-                    kind: pncad::prelude::EntityKind::Face,
-                    node: body,
-                    path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End)],
-                },
-                node: body,
-                body: 0,
-            })]
+            vec![Selection::Face(cap_of(body, pncad::prelude::CapEnd::End))]
         });
         let line = format!(
             "pick a: face of {}; pick b: —",
@@ -4261,11 +4253,11 @@ mod properties_pane_tests {
         texts
     }
 
-    /// Which of three held reasons the app paints — the frame prompt,
+    /// Which of three withholding reasons the app paints — the frame prompt,
     /// the empty chain's, the bore's refusal — with `plane` picked,
     /// `shape` chosen, a bore planted as wide as the radius and the
     /// chain planted empty.
-    fn held_reason_said(
+    fn withheld_reason_said(
         plane: Option<crate::session::ProfilePlane>,
         shape: crate::forms::ShapeKind,
     ) -> Vec<&'static str> {
@@ -4290,7 +4282,7 @@ mod properties_pane_tests {
             .collect()
     }
 
-    /// **The add-profile form says one held reason, and which one is
+    /// **The add-profile form says one withholding reason, and which one is
     /// decided once**: with no frame and an empty chain, the frame
     /// prompt, which comes first in the form; with an over-wide bore, the
     /// refusal, picked frame or not.
@@ -4299,22 +4291,296 @@ mod properties_pane_tests {
         use crate::forms::ShapeKind;
         use crate::session::ProfilePlane;
         assert_eq!(
-            held_reason_said(None, ShapeKind::Path),
+            withheld_reason_said(None, ShapeKind::Path),
             ["pick a frame to draw on"]
         );
         assert_eq!(
-            held_reason_said(None, ShapeKind::Circle),
+            withheld_reason_said(None, ShapeKind::Circle),
             ["the bore must be smaller than the radius"]
         );
         assert_eq!(
-            held_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Circle),
+            withheld_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Circle),
             ["the bore must be smaller than the radius"]
         );
         // The empty chain is said once the frame is picked, so the
         // first case above held it back rather than never drawing it.
         assert_eq!(
-            held_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Path),
+            withheld_reason_said(Some(ProfilePlane::NewXy), ShapeKind::Path),
             ["add a step to the chain"]
+        );
+    }
+
+    /// A cap of `node`'s one body, as a face pick on it.
+    fn cap_of(node: RecipeNodeId, end: pncad::prelude::CapEnd) -> crate::session::FaceSelection {
+        crate::session::FaceSelection {
+            name: pncad::prelude::StableName {
+                kind: pncad::prelude::EntityKind::Face,
+                node,
+                path: vec![pncad::prelude::RoleSeg::Cap(end)],
+            },
+            node,
+            body: 0,
+        }
+    }
+
+    /// **`selections` as the viewport's clicks deliver them**: fed to
+    /// the open tool (`Tools::feed`, none declined), then performed as
+    /// the frame's batch.
+    fn clicked(app: &mut ViewerApp, selections: Vec<Selection>) {
+        let ops: Vec<SessionOp> = selections.into_iter().map(SessionOp::Select).collect();
+        let declined = app.tools.feed(app.session.doc(), &ops);
+        assert!(declined.is_empty(), "{declined:?}");
+        app.perform_batch(ops);
+    }
+
+    impl Driven {
+        /// The index the picture on screen was drawn from — the one
+        /// the viewport marks against (`pane::viewport::drawn_index`).
+        fn on_screen(&self) -> &crate::pickindex::PickIndex {
+            crate::pane::viewport::drawn_index(self.app.picks.index(), self.app.scene_key)
+                .expect("the settled app draws from an index")
+        }
+
+        /// **What the viewport marks, over this app's own state**:
+        /// `pane::viewport::frame_marks`, the one door the frame draws
+        /// its marks from, handed what the frame hands it.
+        fn marks(&self) -> crate::pane::viewport::Composed {
+            crate::pane::viewport::frame_marks(
+                Some(self.on_screen()),
+                &self.app.session.display_view(),
+                &self.app.session,
+                &self.app.tools,
+                &self.app.drafts,
+            )
+        }
+
+        /// The held faces' ids the viewport marks.
+        fn held(&self) -> [u32; crate::marks::HELD_FACES] {
+            self.marks().highlight().held
+        }
+
+        /// The patch `face` names, which a mark of it must light.
+        fn patch_of(&self, face: &crate::session::FaceSelection) -> u32 {
+            let ids = self.on_screen().ids_of_target(face);
+            assert_eq!(ids.len(), 1, "{face:?} is drawn once");
+            ids[0]
+        }
+
+        /// Deliver `selections` as clicks ([`clicked`]), then settle.
+        fn click_through(&mut self, selections: Vec<Selection>) {
+            clicked(&mut self.app, selections);
+            self.quiet();
+        }
+
+        /// One click's selection, delivered and settled.
+        fn select(&mut self, selection: Selection) {
+            self.click_through(vec![selection]);
+        }
+
+        /// Perform `op`, then settle.
+        fn perform(&mut self, op: SessionOp) {
+            self.app.perform_batch(vec![op]);
+            self.quiet();
+        }
+
+        /// The add-datum form on its frame-on-face kind, opened, with
+        /// the startup extrude's top cap latched by its own rows and the
+        /// selection then cleared.
+        fn holding_the_top_cap() -> (Self, crate::session::FaceSelection) {
+            let mut driven = Self::with_seams(Vec::new(), |app| {
+                app.drafts.datum_kind = crate::forms::DatumKindChoice::FaceFrame;
+            });
+            driven.settle();
+            driven.click("Add feature");
+            let top = cap_of(EXTRUDE, pncad::prelude::CapEnd::End);
+            driven.select(Selection::Face(top.clone()));
+            assert_eq!(
+                driven.app.drafts.datum_face.as_ref(),
+                Some(&top),
+                "the rows latched it"
+            );
+            driven.select(Selection::None);
+            (driven, top)
+        }
+    }
+
+    /// **The add-datum form's held face is marked after the selection
+    /// moves on, and only while the form holds it.**
+    ///
+    /// Driven through the form itself: the pick is latched by the
+    /// frame-on-face rows the Properties pane draws, not written into
+    /// the drafts by this row.
+    #[test]
+    fn the_add_datum_forms_held_face_is_marked_until_the_form_lets_it_go() {
+        use crate::pickindex::IdMap;
+        use pncad::prelude::CapEnd;
+        const NONE: u32 = IdMap::NOTHING;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        let bottom = cap_of(EXTRUDE, CapEnd::Start);
+        let (top_id, bottom_id) = (driven.patch_of(&top), driven.patch_of(&bottom));
+        let marked = driven.marks();
+        assert_eq!(
+            (marked.highlight().selected, marked.highlight().held),
+            (NONE, [top_id, NONE, NONE]),
+            "the held face is marked once nothing is selected"
+        );
+
+        // A second face pick moves the seat, and the mark with it.
+        driven.select(Selection::Face(bottom.clone()));
+        let marked = driven.marks();
+        assert_eq!(
+            (marked.highlight().selected, marked.highlight().held),
+            (bottom_id, [bottom_id, NONE, NONE]),
+            "held and selected at once"
+        );
+        driven.select(Selection::None);
+        assert_eq!(
+            driven.held(),
+            [bottom_id, NONE, NONE],
+            "the mark moved with the seat"
+        );
+
+        // Another kind releases the pick without clearing the latch;
+        // the face-frame kind holds it again.
+        driven.click("plane");
+        driven.quiet();
+        assert_eq!(
+            driven.app.drafts.datum_face.as_ref(),
+            Some(&bottom),
+            "kept, not cleared"
+        );
+        assert_eq!(driven.held(), [NONE; 3], "a released pick is not marked");
+        driven.click("frame on face");
+        driven.quiet();
+        assert_eq!(driven.held(), [bottom_id, NONE, NONE], "held again");
+    }
+
+    /// **A held face a later feature consumed is neither marked nor
+    /// committed against.** The pick still RESOLVES in the landed
+    /// evaluation — the extrude is still evaluated, under the
+    /// transform — but the picture draws the transform's copy, so the
+    /// mark goes and the form refuses with the fault that says why,
+    /// and a click on the withheld button adds nothing.
+    #[test]
+    fn the_add_datum_button_refuses_a_held_face_the_picture_does_not_draw() {
+        use crate::session::FaceFrameFault;
+        use crate::test_support::{ang, len, scl};
+        let not_drawn = FaceFrameFault::NotDrawn.to_string();
+        let (mut driven, _top) = Driven::holding_the_top_cap();
+        let said = |driven: &mut Driven| {
+            driven
+                .quiet()
+                .into_iter()
+                .any(|(text, _)| text == not_drawn)
+        };
+        assert!(!said(&mut driven), "a drawn held face is not refused");
+        driven.perform(SessionOp::AddTransform {
+            input: EXTRUDE,
+            translation: [len(0.05), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        });
+        assert_eq!(driven.held(), [crate::pickindex::IdMap::NOTHING; 3]);
+        assert!(
+            said(&mut driven),
+            "the form says why it withholds the button"
+        );
+        let nodes = driven.app.session.doc().order().len();
+        driven.click("Add datum");
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.doc().order().len(),
+            nodes,
+            "the withheld button committed a datum"
+        );
+    }
+
+    /// **A document that replaces this one drops the form's held face**:
+    /// the pick is a (node, name) of the document it was made in, and
+    /// the next document's same-numbered node would be marked and
+    /// committed against. Both doors that replace a document.
+    #[test]
+    fn a_replaced_document_drops_the_held_face() {
+        let (mut driven, _top) = Driven::holding_the_top_cap();
+        driven.perform(SessionOp::NewDocument {
+            name: "fresh".to_owned(),
+        });
+        assert_eq!(driven.app.drafts.datum_face, None, "new document");
+
+        let (mut driven, _top) = Driven::holding_the_top_cap();
+        let path = std::env::temp_dir().join(format!(
+            "held face across open {}.pncad",
+            std::process::id()
+        ));
+        driven
+            .app
+            .perform_batch(vec![SessionOp::Save(path.clone())]);
+        driven.perform(SessionOp::Open(path.clone()));
+        let removed = std::fs::remove_file(&path);
+        assert_eq!(driven.app.drafts.datum_face, None, "open");
+        removed.expect("the row removes the document it saved");
+    }
+
+    /// **The mate tool's two picks are marked once the selection moves
+    /// on, and not once the tool closes.**
+    #[test]
+    fn the_mate_tools_held_picks_are_marked_until_it_closes() {
+        use crate::pickindex::IdMap;
+        use pncad::prelude::CapEnd;
+        const NONE: u32 = IdMap::NOTHING;
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let a = cap_of(EXTRUDE, CapEnd::End);
+        let b = cap_of(EXTRUDE, CapEnd::Start);
+        let (a_id, b_id) = (driven.patch_of(&a), driven.patch_of(&b));
+        driven.app.tools.open(crate::tools::ToolKind::Mate);
+        driven.click_through(vec![
+            Selection::Face(a),
+            Selection::Face(b),
+            Selection::None,
+        ]);
+        let marked = driven.marks();
+        assert_eq!(
+            (marked.highlight().selected, marked.highlight().held),
+            (NONE, [NONE, a_id, b_id])
+        );
+        driven.app.tools.close();
+        driven.quiet();
+        assert_eq!(driven.held(), [NONE; 3], "a closed tool holds nothing");
+    }
+
+    /// **The blend tool's held edges are drawn in the held lane**, not
+    /// the selected one, once the selection moves on — and not once
+    /// the tool closes.
+    #[test]
+    fn the_blend_tools_held_edges_are_drawn_in_the_held_lane() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let edge = {
+            let index = driven.on_screen();
+            let id = *index
+                .edges_in(EXTRUDE, 0)
+                .first()
+                .expect("the extrude draws edges");
+            crate::session::EdgeSelection {
+                name: index
+                    .edge_name_of(id)
+                    .expect("a drawn edge is named")
+                    .clone(),
+                node: EXTRUDE,
+                body: 0,
+            }
+        };
+        driven.app.tools.open(crate::tools::ToolKind::Blend);
+        driven.click_through(vec![Selection::Edge(edge), Selection::None]);
+        let marked = driven.marks();
+        assert!(marked.edges().selected.is_empty(), "nothing is selected");
+        assert!(!marked.edges().held.is_empty(), "the held edge is drawn");
+        driven.app.tools.close();
+        driven.quiet();
+        assert!(
+            driven.marks().edges().held.is_empty(),
+            "a closed tool holds nothing"
         );
     }
 }
