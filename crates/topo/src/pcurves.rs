@@ -3454,16 +3454,13 @@ mod polar_shift_tests {
         };
         assert_eq!(p0.y, 0.4 + 3.0 * period);
         assert_eq!(p0.x, 0.3);
-        assert_eq!((pa, pb, pl), (harmonic_pa(), harmonic_pb(), harmonic_pl()));
-    }
-
-    fn harmonic_pa() -> Vec2<f64> {
-        Vec2::new(1.0, 0.25)
-    }
-    fn harmonic_pb() -> Vec2<f64> {
-        Vec2::new(-0.5, 1.0)
-    }
-    fn harmonic_pl() -> Vec2<f64> {
-        Vec2::new(0.125, -0.375)
+        // `Vec2` is deliberately not `PartialEq` (a geometric vector
+        // is not a thing this kernel compares with `==`), so the three
+        // untouched coefficients are read componentwise.
+        assert_eq!(
+            [pa.x, pa.y, pb.x, pb.y, pl.x, pl.y],
+            [1.0, 0.25, -0.5, 1.0, 0.125, -0.375],
+            "the trigonometric and linear coefficients are not a branch"
+        );
     }
 }
