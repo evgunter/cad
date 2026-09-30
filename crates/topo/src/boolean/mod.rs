@@ -2153,12 +2153,12 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
 ///
 /// The reduction's or the join's refusal.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn through_the_join<T: Decide + Bounds>(
+pub(crate) fn through_the_join(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &Body<f64>,
+    b: &Body<f64>,
     tol: Tol,
-) -> Result<(Body<T>, Body<T>), BooleanError> {
+) -> Result<(Body<f64>, Body<f64>), BooleanError> {
     let band = Band::linear(tol)?;
     let mut red = boolean_reduce_declared_strategy(
         op,

@@ -299,12 +299,12 @@ pub mod test_support {
     /// # Errors
     ///
     /// The reduction's or the join's refusal.
-    pub fn boolean_through_the_join<T: geom_core::Decide + geom_core::Bounds>(
+    pub fn boolean_through_the_join(
         op: crate::BooleanOp,
-        a: &Body<T>,
-        b: &Body<T>,
+        a: &Body<f64>,
+        b: &Body<f64>,
         tol: geom_core::Tol,
-    ) -> Result<(Body<T>, Body<T>), crate::BooleanError> {
+    ) -> Result<(Body<f64>, Body<f64>), crate::BooleanError> {
         crate::boolean::through_the_join(op, a, b, tol)
     }
 
