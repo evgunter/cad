@@ -662,6 +662,7 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
             .collect();
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
+                let lp = lp.as_loop();
                 seen(Seen::FixtureLoop {
                     i,
                     vertices: lp.vertices().len(),

@@ -147,7 +147,7 @@ fn the_guided_pass_compares_the_cusps_against_the_record() {
     let program = lune_closed().program;
     let (pass1, record) = replay_recording(&program, Tol::witness()).unwrap();
     let guided_loop = replay_guided(&program, &record, Tol::witness()).unwrap();
-    let p = Profile::new(SketchPlane::xy(), vec![pass1]);
+    let p = ReplayedProfile::new(SketchPlane::xy(), vec![pass1]);
     let replayed = ReplayedProfile::new(SketchPlane::xy(), vec![guided_loop]);
     let (recorded, mut canonical) = p.validate_recording(Tol::witness()).unwrap();
     assert_eq!(canonical.loops[0].cusp_joints, vec![2]);

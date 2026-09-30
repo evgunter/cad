@@ -87,9 +87,10 @@ fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
 fn guided_replay_at_f64_reproduces_plain_replay_bitwise() {
     for (i, closed) in coverage_corpus().into_iter().enumerate() {
         let plain = replay(&closed.program, tol()).expect("the corpus replays");
+        let plain = plain.as_loop();
         let (recorded, structure) =
             replay_recording(&closed.program, tol()).expect("and records while it does");
-        same_bits(&plain, &recorded, &format!("row {i}: recording"));
+        same_bits(plain, recorded.as_loop(), &format!("row {i}: recording"));
         // The chain's OWN record — written as it lowered — must be the
         // one a replay of its program rebuilds.
         assert_eq!(
@@ -98,7 +99,7 @@ fn guided_replay_at_f64_reproduces_plain_replay_bitwise() {
         );
         let guided = replay_guided(&closed.program, &structure, tol())
             .expect("and the record it just wrote guides it");
-        same_bits(&plain, guided.as_loop(), &format!("row {i}: guided"));
+        same_bits(plain, guided.as_loop(), &format!("row {i}: guided"));
     }
 }
 
@@ -260,6 +261,7 @@ fn every_entry_verb_installs_the_guide() {
 fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
     let program = vesica_lens(0.0);
     let (nominal, structure) = replay_recording(&program, tol()).expect("the lens replays");
+    let nominal = nominal.into_loop();
     assert_eq!(structure.fillets.len(), 1, "one fused resolution");
     let d = &structure.fillets[0];
     assert_eq!(
@@ -512,6 +514,7 @@ fn a_lying_step_span_on_a_carrier_form_refuses_typed() {
         phase: 0.0,
     }];
     let (loop_, structure) = replay_recording(&program, tol()).expect("the carrier replays");
+    let loop_ = loop_.into_loop();
     assert_eq!(structure.steps.len(), 1, "one authored step");
     assert_eq!(
         structure.steps[0],

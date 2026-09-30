@@ -5375,6 +5375,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "profile_error_tag",
         values: &[
+            "arc_below_scene_resolution",
             "band",
             "degenerate_segment",
             "empty_profile",

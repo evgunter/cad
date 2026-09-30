@@ -139,9 +139,17 @@ use core::fmt;
 
 use geom_core::k_stats::decide;
 use geom_core::{
-    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
-    Tol, Vec2,
+    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, MarginDiag, Point2,
+    Real, Sign, Tol, Vec2,
 };
+
+/// The recourse of [`ProfileError::ArcBelowSceneResolution`]: the arc's
+/// carrier is stored at a magnitude whose `f64` rounding the tolerance
+/// cannot see past, so bring the magnitude down or the tolerance up.
+pub(crate) const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
+     arc with a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
+     also reads it, and an arc authored through the path lattice is verified at its construction \
+     and not re-read here";
 
 use crate::path::num;
 use crate::seg::{self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, build_seg};
@@ -696,6 +704,11 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "two arc apexes told apart by their separation",
     ),
     (
+        "arc_carrier_resolution",
+        "the magnitude an arc's consistency difference was read at, against the one where f64 \
+         rounding reaches the band",
+    ),
+    (
         "arc_span",
         "an arc's span, as the clearance between its chord's reach and its apex",
     ),
@@ -851,6 +864,9 @@ pub const UNNAMED_DECISION: &str = geom_core::UNNAMED_DECISION;
 pub fn decision_subject(predicate: &str) -> Option<&'static str> {
     Some(match predicate {
         "arc_apex_identity" => "whether two arc apexes are one point",
+        "arc_carrier_resolution" => {
+            "whether the scene can read an arc's difference from its vertices at its magnitude"
+        }
         "arc_span" => "whether a point falls inside an arc's span",
         "arc_diameter_clearance" => "whether an arc stops short of a full circle",
         "arc_landing" => "whether an arc's sweep carries its start onto its end",
@@ -946,6 +962,24 @@ pub enum ProfileError {
         at: SegmentRef,
         /// The check that refused it.
         check: ArcCheck,
+    },
+    /// A consistency check read a stored arc off its vertices, but at a
+    /// magnitude where `f64` rounding alone is past the band
+    /// (`arc_carrier_resolution`): the reading is the scene's
+    /// resolution, not a statement about the input, so the arc is
+    /// refused as unreadable here rather than as inconsistent.
+    ArcBelowSceneResolution {
+        /// The segment.
+        at: SegmentRef,
+        /// The check whose difference could not be read.
+        check: ArcCheck,
+        /// What that check classified.
+        margin: MarginDiag,
+        /// What `arc_carrier_resolution` classified: K·ε/2⁻⁵² less the
+        /// check's magnitude, meters — how far the magnitude sits below
+        /// the one where `f64` rounding reaches the escalation band
+        /// (not positive here).
+        headroom: MarginDiag,
     },
     /// Two segments meet where they may not (any contact other than
     /// adjacent segments' shared vertex).
@@ -1069,6 +1103,18 @@ impl fmt::Display for ProfileError {
                 f,
                 "{s} is within tolerance of a full circle — split the arc at another \
                  vertex (a full circle is two arcs by construction)"
+            ),
+            Self::ArcBelowSceneResolution {
+                at,
+                check,
+                margin,
+                headroom,
+            } => write!(
+                f,
+                "{at} stores an arc whose {check} reads {margin} off its vertices, a difference \
+                 this scene's magnitude cannot resolve (the largest magnitude whose f64 \
+                 rounding stays inside the tolerance band, less the one it was read at: \
+                 {headroom}). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}"
             ),
             Self::InconsistentArc { at, check } => write!(
                 f,
@@ -1511,8 +1557,9 @@ impl ValidatedProfile<f64> {
     /// plane taken as given (validation is 2-D and reads nothing of it
     /// — [`ValidatedProfile::plane`]); everything else carried. No
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
-    /// minted by [`Profile::validate`], [`Profile::validate_recording`]
-    /// and [`Profile::validate_guided`] from a raw profile, and by this
+    /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
+    /// from a raw profile, by [`ReplayedProfile`]'s three validations
+    /// from a replayed one, and by this
     /// from an `f64` one; nothing else mints one.
     ///
     /// # What is carried, and on whose authority
@@ -1583,8 +1630,17 @@ impl<T: Decide> Profile<T> {
     /// escalation (in-band margin, poisoned coordinate) surfaces as
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
+    ///
+    /// A `Profile` is a table: its arcs had no construction, so their
+    /// three consistency checks are decided here (D1). A profile of
+    /// loops a replay constructed validates through
+    /// [`ReplayedProfile::validate`] instead.
     pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
-        self.validate_with(tol, &mut CanonGuide::Recording(Vec::new()))
+        self.validate_with(
+            tol,
+            &mut CanonGuide::Recording(Vec::new()),
+            Consistency::Decide,
+        )
     }
 
     /// [`validate`](Self::validate) keeping the structure record it
@@ -1602,8 +1658,18 @@ impl<T: Decide> Profile<T> {
         &self,
         tol: Tol,
     ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
+        self.recording_with(tol, Consistency::Decide)
+    }
+
+    /// [`validate_recording`](Self::validate_recording) at a chosen
+    /// [`Consistency`].
+    fn recording_with(
+        &self,
+        tol: Tol,
+        consistency: Consistency,
+    ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
         let mut guide = CanonGuide::Recording(Vec::new());
-        let vp = self.validate_with(tol, &mut guide)?;
+        let vp = self.validate_with(tol, &mut guide, consistency)?;
         let CanonGuide::Recording(loops) = guide else {
             unreachable!("the guide was constructed Recording two lines above")
         };
@@ -1614,6 +1680,7 @@ impl<T: Decide> Profile<T> {
         &self,
         tol: Tol,
         guide: &mut CanonGuide,
+        consistency: Consistency,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
         // The exact-order band for the containment representative
@@ -1628,7 +1695,7 @@ impl<T: Decide> Profile<T> {
         // classification.
         let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(self.loops.len());
         for (li, lp) in self.loops.iter().enumerate() {
-            loop_segs.push(build_loop_segs(lp, li, guide.consistency(), band)?);
+            loop_segs.push(build_loop_segs(lp, li, consistency, band)?);
             // Declared-tangent joints must name vertices of their loop
             // (set semantics — duplicates are harmless, order is not
             // significant; see `ProfileLoop::tangent_joints`). Checked
@@ -1797,7 +1864,7 @@ impl<T: Decide> Profile<T> {
                 &input_cusps[li],
                 role,
                 li,
-                guide.consistency(),
+                consistency,
                 band,
                 guide.loop_at(li),
             )?;
@@ -1826,30 +1893,70 @@ impl<T: Decide> Profile<T> {
     }
 }
 
-/// A profile whose loops a guided replay constructed
-/// ([`crate::replay_guided`]): the only input
-/// [`validate_guided`](Self::validate_guided) takes.
+/// A profile whose loops a replay constructed ([`crate::replay`],
+/// [`crate::replay_recording`], [`crate::replay_guided`]).
 ///
-/// The type is the provenance. Guided validation does not decide an
-/// arc's three consistency checks, because D1 verifies a constructed
-/// arc at its construction, at that scalar; a table's arcs have had no
-/// construction, so a [`Profile`] of them cannot reach this door and
+/// The type is the provenance. Its validations do not decide an arc's
+/// three consistency checks, because D1 verifies a constructed arc at
+/// its construction, at that scalar; a table's arcs have had no
+/// construction, so a [`Profile`] of them cannot reach these doors and
 /// goes through [`Profile::validate`], which decides the checks.
 #[derive(Clone, Debug)]
 pub struct ReplayedProfile<T: Real>(Profile<T>);
 
 impl<T: Real> ReplayedProfile<T> {
-    /// Builds the profile from a plane and loops the guided replay
-    /// constructed, in the record's loop order.
+    /// Builds the profile from a plane and loops a replay constructed
+    /// (under guidance, in the record's loop order).
     pub fn new(plane: SketchPlane<T>, loops: Vec<ReplayedLoop<T>>) -> Self {
         Self(Profile::new(
             plane,
             loops.into_iter().map(ReplayedLoop::into_loop).collect(),
         ))
     }
+
+    /// The profile, read-only: its plane and loops as data.
+    pub fn profile(&self) -> &Profile<T> {
+        &self.0
+    }
+
+    /// The profile, giving up the provenance: a `Profile` validates as
+    /// a table.
+    pub fn into_profile(self) -> Profile<T> {
+        self.0
+    }
 }
 
 impl<T: Decide> ReplayedProfile<T> {
+    /// [`Profile::validate`] of loops a replay constructed: the same
+    /// checks, except an arc's three consistency checks, which its
+    /// construction verified (D1) and which are not decided again
+    /// ([`Consistency::ByConstruction`]).
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`], as [`Profile::validate`].
+    pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
+        self.0.validate_with(
+            tol,
+            &mut CanonGuide::Recording(Vec::new()),
+            Consistency::ByConstruction,
+        )
+    }
+
+    /// [`Profile::validate_recording`] of loops a replay constructed,
+    /// deciding no consistency check ([`validate`](Self::validate)):
+    /// the evaluator's f64 pass 1.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`], as [`Profile::validate`].
+    pub fn validate_recording(
+        &self,
+        tol: Tol,
+    ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
+        self.0.recording_with(tol, Consistency::ByConstruction)
+    }
+
     /// **Guided validation**: canonicalize at this scalar while
     /// CONSUMING `structure`'s decisions instead of remaking them.
     ///
@@ -1895,8 +2002,11 @@ impl<T: Decide> ReplayedProfile<T> {
                 self.0.loops.len(),
             )));
         }
-        self.0
-            .validate_with(tol, &mut CanonGuide::Guided(structure.clone()))
+        self.0.validate_with(
+            tol,
+            &mut CanonGuide::Guided(structure.clone()),
+            Consistency::ByConstruction,
+        )
     }
 }
 
@@ -1917,17 +2027,6 @@ impl CanonGuide {
         match self {
             Self::Recording(_) => None,
             Self::Guided(s) => s.loops.get(li),
-        }
-    }
-
-    /// Whether this pass decides the arcs' consistency checks: a
-    /// recording pass validates a table and decides them; a guided pass
-    /// validates the loops a guided replay constructed, verified at
-    /// that construction (D1), and does not.
-    fn consistency(&self) -> Consistency {
-        match self {
-            Self::Recording(_) => Consistency::Decide,
-            Self::Guided(_) => Consistency::ByConstruction,
         }
     }
 
@@ -1969,6 +2068,17 @@ fn build_loop_segs<T: Decide>(
                     SegIssue::Inconsistent { check, .. } => {
                         ProfileError::InconsistentArc { at, check }
                     }
+                    SegIssue::BelowSceneResolution {
+                        check,
+                        margin,
+                        headroom,
+                        ..
+                    } => ProfileError::ArcBelowSceneResolution {
+                        at,
+                        check,
+                        margin,
+                        headroom,
+                    },
                     SegIssue::Escalated(source) => ProfileError::Escalated {
                         site: EscalationSite::Segment(at),
                         source,
@@ -2311,6 +2421,17 @@ fn canonicalize_loop<T: Decide>(
                 SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
                 SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
                 SegIssue::Inconsistent { check, .. } => ProfileError::InconsistentArc { at, check },
+                SegIssue::BelowSceneResolution {
+                    check,
+                    margin,
+                    headroom,
+                    ..
+                } => ProfileError::ArcBelowSceneResolution {
+                    at,
+                    check,
+                    margin,
+                    headroom,
+                },
                 // The recorded shape is a consumed decision, so a
                 // guided pass names the segment whose classification
                 // went unconfirmed instead of the bare segment site.

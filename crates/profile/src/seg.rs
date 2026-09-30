@@ -19,8 +19,8 @@
 //! carrier), or nothing. Ray casting ([`ray_crossings`]) reuses the same
 //! carrier closed forms for the containment forest's parity test.
 
-use geom_core::k_stats::decide;
-use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
+use geom_core::k_stats::{decide, decide_reported};
+use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, MarginDiag, Point2, Real, Sign, Vec2};
 
 use crate::Segment;
 use crate::validate::ArcCheck;
@@ -102,6 +102,25 @@ pub(crate) enum SegIssue<T: Real> {
         /// The margin that check classified, meters.
         margin: T,
     },
+    /// A difference check (`arc_start_on_carrier`, `arc_landing`)
+    /// classified the stored arc off its vertices, at a magnitude whose
+    /// `f64` rounding is itself past the band: the scene cannot read
+    /// that difference, so the reading is not a statement about the
+    /// input (`arc_carrier_resolution` classified the headroom Zero or
+    /// Negative).
+    BelowSceneResolution {
+        /// Which check read the difference.
+        check: ArcCheck,
+        /// The difference that check read, meters.
+        value: T,
+        /// What that check classified.
+        margin: MarginDiag,
+        /// What `arc_carrier_resolution` classified: K·ε/2⁻⁵² − scale,
+        /// how far the check's magnitude sits below the one where
+        /// `f64` rounding reaches the escalation band (here, not below
+        /// it).
+        headroom: MarginDiag,
+    },
     /// A classification landed in the ambiguity band or was poisoned.
     Escalated(Indeterminate),
 }
@@ -115,6 +134,7 @@ impl<T: Real> SegIssue<T> {
             Self::Degenerate { .. } => "vertex_separation",
             Self::NearFull { .. } => "arc_diameter_clearance",
             Self::Inconsistent { check, .. } => check.predicate(),
+            Self::BelowSceneResolution { .. } => "arc_carrier_resolution",
             Self::Escalated(source) => source.predicate.unwrap_or("<unnamed>"),
         }
     }
@@ -210,15 +230,16 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
 /// checks are not decided again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Consistency {
-    /// Decide the three checks (a table: plain validation, the
-    /// recording pass, the fixture door, a pinned lift).
+    /// Decide the three checks (a table: data no construction produced
+    /// — the fixture door, a hand-built loop, `map_scalar`, a pinned
+    /// lift).
     Decide,
     /// The arc is the construction's own output, verified there: by the
     /// construction's own predicate (a `Center` arc's
     /// `path_arc_center_equidistant`), or by the exact witness of the
-    /// identities the lowering registers. Passed by the guided
-    /// validation of a replayed loop and by the path door's re-read of
-    /// the fillet arcs it has just lowered.
+    /// identities the lowering registers. Passed by every validation of
+    /// a replayed loop ([`crate::ReplayedProfile`]) and by the path
+    /// door's re-read of the fillet arcs it has just lowered.
     ByConstruction,
 }
 
@@ -343,6 +364,41 @@ pub(crate) fn build_seg<T: Decide>(
     })
 }
 
+/// **`arc_carrier_resolution`** — whether a difference a consistency
+/// check read at magnitude `scale` is one the scene can read at all.
+/// Margin: K·ε/2⁻⁵² − scale (meters): how far the check's magnitude
+/// sits below the one at which an `f64`'s rounding, scale·2⁻⁵², reaches
+/// the escalation band K·ε. Written on magnitudes rather than on the
+/// two resolutions so the margin is at the scene's scale, where the
+/// band is no lever on it. Positive ⇒ the check's definite answer
+/// stands; Zero or Negative ⇒ the answer is the representation's
+/// rounding, and the refusal is [`SegIssue::BelowSceneResolution`], not
+/// an inconsistency.
+///
+/// `2⁻⁵²` (`f64::EPSILON`) at every scalar, for the reason the path
+/// door's `FilletCarrierBelowSceneResolution` gives: every scalar this
+/// kernel ships carries an `f64` value channel.
+fn resolves<T: Decide>(
+    check: ArcCheck,
+    value: T,
+    margin: MarginDiag,
+    scale: T,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
+    let headroom = T::from_f64(band.escalate() / f64::EPSILON) - scale;
+    let gate = decide_reported("arc_carrier_resolution", Margin::of(headroom), band)
+        .map_err(SegIssue::Escalated)?;
+    match gate.sign {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(SegIssue::BelowSceneResolution {
+            check,
+            value,
+            margin,
+            headroom: gate.margin,
+        }),
+    }
+}
+
 /// Validation's three consistency checks of a stored arc against its
 /// endpoints `a → b`, decided in order at the run's band ([`build_seg`]
 /// states each margin). `span` is the sweep signed by the arc's decided
@@ -355,17 +411,41 @@ fn check_carrier<T: Decide>(
     band: Band,
 ) -> Result<(), SegIssue<T>> {
     let refuse = |check: ArcCheck, margin: T| Err(SegIssue::Inconsistent { check, margin });
+    // A difference check's definite answer is a statement about the
+    // input only where the scene's `f64` can read a difference that
+    // small at the magnitude it was taken at ([`resolves`]).
+    let scale = arc.radius.max(reach(arc.centre));
     let on_carrier = arc.rim(a) - arc.radius;
-    match decide("arc_start_on_carrier", Margin::of(on_carrier), band)
-        .map_err(SegIssue::Escalated)?
-    {
+    let read = decide_reported("arc_start_on_carrier", Margin::of(on_carrier), band)
+        .map_err(SegIssue::Escalated)?;
+    match read.sign {
         Sign::Zero => {}
-        Sign::Positive | Sign::Negative => return refuse(ArcCheck::OnCarrier, on_carrier),
+        Sign::Positive | Sign::Negative => {
+            resolves(
+                ArcCheck::OnCarrier,
+                on_carrier,
+                read.margin,
+                scale.max(reach(a)),
+                band,
+            )?;
+            return refuse(ArcCheck::OnCarrier, on_carrier);
+        }
     }
     let landing = arc.landing(a).distance(b);
-    match decide("arc_landing", Margin::of(landing), band).map_err(SegIssue::Escalated)? {
+    let read =
+        decide_reported("arc_landing", Margin::of(landing), band).map_err(SegIssue::Escalated)?;
+    match read.sign {
         Sign::Zero => {}
-        Sign::Positive | Sign::Negative => return refuse(ArcCheck::Landing, landing),
+        Sign::Positive | Sign::Negative => {
+            resolves(
+                ArcCheck::Landing,
+                landing,
+                read.margin,
+                scale.max(reach(b)),
+                band,
+            )?;
+            return refuse(ArcCheck::Landing, landing);
+        }
     }
     let tau = T::tau();
     let ratio = span * (tau - span) / tau;

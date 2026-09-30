@@ -55,9 +55,9 @@ use pncad::document::{
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
-    ArcData, ArcMode, ArcSide, ArcSweep, PieceRole, Profile, ProfileError, ProfileLoop,
-    ReplayError, ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
-    arc_specs_at, replay, replay_recording,
+    ArcData, ArcMode, ArcSide, ArcSweep, PieceRole, ProfileError, ReplayError, ReplayErrorKind,
+    ReplayedLoop, ReplayedProfile, SketchPlane, SpecForms, Step, Target, TargetKind, TipState,
+    Verb, arc_specs_at, replay, replay_recording,
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
@@ -610,7 +610,7 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 ///
 /// The pair is one value because the two facts are one drawing
 /// decision. A closed loop's last point joins its first, which is what
-/// [`ProfileLoop`] means by being closed by construction; an OPEN
+/// [`ProfileLoop`](pncad::profile::ProfileLoop) means by being closed by construction; an OPEN
 /// one's must not, and a consumer handed a bare point list has nothing
 /// to read that from — it would either invent a leg nobody authored or
 /// drop one that was.
@@ -1077,7 +1077,7 @@ pub fn preview(
     let env = ParamEnv::default();
     let resolved = resolve_loops(&programs, &env)
         .map_err(|(slot, source)| PreviewError::Resolve { slot, source })?;
-    let mut loops: Vec<ProfileLoop<f64>> = Vec::with_capacity(resolved.len());
+    let mut loops: Vec<ReplayedLoop<f64>> = Vec::with_capacity(resolved.len());
     let mut ends: Vec<LoopEnd> = Vec::with_capacity(resolved.len());
     // Every refusal met, in loop order: the refused loops' and the
     // undrawable loops' alike, so the one said is chosen over all.
@@ -1134,6 +1134,7 @@ pub fn preview(
         .zip(ends)
         .enumerate()
         .map(|(loop_, (lp, end))| {
+            let lp = lp.as_loop();
             let arcs = lp.segments().iter().map(|s| match *s {
                 pncad::profile::Segment::Line => None,
                 pncad::profile::Segment::Arc(arc) => Some(arc),
@@ -1155,7 +1156,9 @@ pub fn preview(
     // writing; through a provisional close it would report on a leg
     // nobody wrote.
     let invalid = if whole {
-        Profile::new(plane, loops).validate(tol).err()
+        // The loops are the replay's own construction, so validation
+        // decides no arc's consistency checks (D1).
+        ReplayedProfile::new(plane, loops).validate(tol).err()
     } else {
         None
     };
@@ -1199,7 +1202,7 @@ fn provisionally_closed(steps: &[Step<f64>]) -> Vec<Step<f64>> {
 /// be one no close may leave: a fused step's arc arrival is refused AT
 /// the binder that completes it, and the prefix up to that binder ends
 /// on an arrival no `line_to` completes.
-fn prefix_loop(steps: &[Step<f64>], stop: usize, tol: Tol) -> Option<(ProfileLoop<f64>, bool)> {
+fn prefix_loop(steps: &[Step<f64>], stop: usize, tol: Tol) -> Option<(ReplayedLoop<f64>, bool)> {
     let start = match steps.first() {
         Some(Step::At(start)) => Some(*start),
         _ => None,
@@ -1262,7 +1265,7 @@ fn closed_on_start(prefix: &[Step<f64>], start: Point2<f64>) -> Option<Vec<Step<
 /// replay's record of which step drew which piece, so what counts as
 /// "completing something pending" is the driver's answer and not this
 /// module's.
-fn drew_only_its_leg(prefix: &[Step<f64>], tol: Tol) -> Option<ProfileLoop<f64>> {
+fn drew_only_its_leg(prefix: &[Step<f64>], tol: Tol) -> Option<ReplayedLoop<f64>> {
     let (replayed, structure) = replay_recording(&provisionally_closed(prefix), tol).ok()?;
     let close = prefix.len();
     let drew: Vec<PieceRole> = structure

@@ -2664,14 +2664,19 @@ spec_dispatch! {
 /// (`common::pinned`), and per-verb reachability by the
 /// replay-coverage census (see the module docs).
 ///
+/// The loop comes back as a [`ReplayedLoop`]: its arcs are the ones
+/// this replay constructed, verified at their construction (D1), and
+/// [`crate::ReplayedProfile`] validates it without deciding their
+/// consistency checks again.
+///
 /// # Errors
 ///
 /// [`ReplayError`], carrying the offending step index.
 pub fn replay<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
-    drive(steps, tol, Guide::recording()).map(|closed| closed.loop_)
+) -> Result<ReplayedLoop<T>, ReplayError<T>> {
+    drive(steps, tol, Guide::recording()).map(|closed| ReplayedLoop(closed.loop_))
 }
 
 /// [`replay`] keeping the STRUCTURE RECORD it built: the discrete
@@ -2689,8 +2694,9 @@ pub fn replay<T: ArcCarrierScalar>(
 pub fn replay_recording<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> Result<(ProfileLoop<T>, ReplayStructure), ReplayError<T>> {
-    drive(steps, tol, Guide::recording()).map(|closed| (closed.loop_, closed.structure))
+) -> Result<(ReplayedLoop<T>, ReplayStructure), ReplayError<T>> {
+    drive(steps, tol, Guide::recording())
+        .map(|closed| (ReplayedLoop(closed.loop_), closed.structure))
 }
 
 /// **Guided replay**: elaborate `steps` at this scalar while CONSUMING
@@ -2816,16 +2822,16 @@ pub fn replay_guided<T: ArcCarrierScalar>(
     Ok(ReplayedLoop(closed.loop_))
 }
 
-/// A loop the guided replay constructed: the loop, and the fact that
-/// every arc in it was verified at its construction, at this scalar
-/// (D1) — a `Center` arc by `path_arc_center_equidistant`, decided
-/// inline by the path door, and a lowered arc by the exact witness of
-/// the endpoint identities its lowering registers.
+/// A loop a replay constructed: the loop, and the fact that every arc
+/// in it was verified at its construction, at this scalar (D1) — a
+/// `Center` arc by `path_arc_center_equidistant`, decided inline by the
+/// path door, and a lowered arc by its lowering, the bulge form's one
+/// conversion, whose endpoint identities it registers.
 ///
-/// Minted only by [`replay_guided`] (the field is private to this
-/// module), and the one loop [`crate::ReplayedProfile`] is built from,
-/// so a table cannot reach the guided validation that consumes that
-/// fact.
+/// Minted only by [`replay`], [`replay_recording`] and
+/// [`replay_guided`] (the field is private to this module), and the one
+/// loop [`crate::ReplayedProfile`] is built from, so a table cannot
+/// reach the validation that consumes that fact.
 #[derive(Clone, Debug)]
 pub struct ReplayedLoop<T: Real>(ProfileLoop<T>);
 

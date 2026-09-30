@@ -451,7 +451,9 @@ fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
         ],
         "the joint is declared, the arc derived from the inherited tangent"
     );
-    let replayed = replay(&program, Tol::witness()).expect("the declared spelling replays");
+    let replayed = replay(&program, Tol::witness())
+        .expect("the declared spelling replays")
+        .into_loop();
     let n = raw.vertices().len();
     assert_eq!(replayed.vertices().len(), n);
     for k in 0..n {

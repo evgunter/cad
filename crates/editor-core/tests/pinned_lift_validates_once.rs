@@ -160,7 +160,13 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
                 .resolve(&env)
                 .expect("the corpus program resolves at f64")
                 .iter()
-                .map(|steps| embed::<T>(&profile::replay(steps, tol).expect("replays at f64")))
+                .map(|steps| {
+                    embed::<T>(
+                        profile::replay(steps, tol)
+                            .expect("replays at f64")
+                            .as_loop(),
+                    )
+                })
                 .collect();
             let revalidated = Profile::new(plane, loops)
                 .validate(tol)

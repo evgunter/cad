@@ -2185,8 +2185,9 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     let steps = lifted
         .resolve(&ParamEnv::<f64>::default(), 0)
         .expect("literal arguments resolve");
-    let replayed =
-        pncad::profile::replay(&steps, Tol::witness()).expect("the lifted program replays");
+    let replayed = pncad::profile::replay(&steps, Tol::witness())
+        .expect("the lifted program replays")
+        .into_loop();
     assert_eq!(replayed.vertices().len(), authored.loop_.vertices().len());
     for (got, want) in replayed.vertices().iter().zip(authored.loop_.vertices()) {
         assert_eq!(got.x.to_bits(), want.x.to_bits());

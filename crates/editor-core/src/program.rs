@@ -1985,7 +1985,7 @@ impl ProfileProgram {
         env: &ParamEnv<f64>,
         tol: Tol,
     ) -> Result<(profile::ValidatedProfile<f64>, Replayed), ProgramRefusal> {
-        let (loops, records) = self.replay_records(env, tol)?;
+        let (replayed, records) = self.replay_records(env, tol)?;
         // **The identity plane, and the check is honest about why.**
         // Validation is 2-D — `profile::validate` says so itself, and
         // the plane rides through it as conventional data — so what
@@ -1995,10 +1995,11 @@ impl ProfileProgram {
         // document, and the frame is a node in one. A profile whose
         // frame reference does not denote a frame is refused where
         // every other operand's kind is, at evaluation.
-        let validated = profile::Profile::new(profile::SketchPlane::xy(), loops.clone())
-            .validate(tol)
-            .map_err(ProgramRefusal::Validate)?;
-        Ok((validated, (loops, records)))
+        // The loops are the replay's own construction, so validation
+        // decides no arc's consistency checks (D1).
+        let replayed = profile::ReplayedProfile::new(profile::SketchPlane::xy(), replayed);
+        let validated = replayed.validate(tol).map_err(ProgramRefusal::Validate)?;
+        Ok((validated, (replayed.into_profile().loops, records)))
     }
 
     /// **The piece every canonical position of this program is**, under
@@ -2081,7 +2082,17 @@ impl ProfileProgram {
     /// loop recording — and what they produce: the replayed loops and
     /// each loop's structure record. Validation is the third rung,
     /// [`ProfileProgram::validated`]'s.
-    fn replay_records(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<Replayed, ProgramRefusal> {
+    fn replay_records(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<
+        (
+            Vec<profile::ReplayedLoop<f64>>,
+            Vec<profile::ReplayStructure>,
+        ),
+        ProgramRefusal,
+    > {
         let resolved = self
             .resolve(env)
             .map_err(|(slot, source)| ProgramRefusal::Resolve { slot, source })?;

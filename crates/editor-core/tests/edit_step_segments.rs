@@ -105,7 +105,7 @@ fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
     let mut replay = Vec::new();
     for steps in &resolved {
         let (lp, record) = profile::replay_recording(steps, tol()).expect("the corpus replays");
-        loops.push(lp);
+        loops.push(lp.into_loop());
         replay.push(record);
     }
     let assembled = profile::Profile::new(SketchPlane::xy(), loops);

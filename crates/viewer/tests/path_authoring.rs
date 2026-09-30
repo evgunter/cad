@@ -999,9 +999,11 @@ fn a_vertexs_second_coordinate_is_asked_the_question_too() {
 /// midpoint is `a + (b − a)/2`, which does not overflow), so the
 /// flattener evaluates the arc from it and the loop draws. The
 /// coordinates there round at ~1e292 m against a `6.25e-4` m radius,
-/// so the stored centre cannot be read against the arc's own vertex:
-/// validation refuses the table `InconsistentArc`, carried beside the
-/// drawing as every validation verdict is. `COARSE_CHORD` keeps the
+/// the loop is the replay's own construction, so validation does not
+/// re-read the arc against its vertices (D1), and what it refuses is
+/// the next segment: the line back to `1.0e307` has a chord whose
+/// length overflows, a poisoned `segment_straightness` margin, carried
+/// beside the drawing as every validation verdict is. `COARSE_CHORD` keeps the
 /// arc at one subdivision, the regime the row was written for.
 #[test]
 fn a_far_millimetre_arc_draws_and_its_validation_refuses() {
@@ -1020,9 +1022,7 @@ fn a_far_millimetre_arc_draws_and_its_validation_refuses() {
     // The stored carrier is the lowering's, whose chord midpoint is
     // `a + (b − a)/2` and does not overflow: its centre IS a point,
     // so the flattener draws the arc from it. What refuses is the
-    // validation beside the picture — at `1.6e308` the coordinates
-    // round at ~1e292 m, so the stored centre cannot be read against
-    // the arc's own vertex at any ε.
+    // validation beside the picture, on the overflowing line.
     let drawn = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
@@ -1030,12 +1030,11 @@ fn a_far_millimetre_arc_draws_and_its_validation_refuses() {
         COARSE_CHORD,
     )
     .expect("the stored carrier is finite, so the arc draws");
-    assert!(
-        matches!(
-            drawn.invalid,
-            Some(pncad::profile::ProfileError::InconsistentArc { .. })
-        ),
-        "{:?}",
-        drawn.invalid,
-    );
+    match &drawn.invalid {
+        Some(pncad::profile::ProfileError::Escalated { source, .. }) => {
+            assert_eq!(source.predicate, Some("segment_straightness"));
+            assert!(source.margin.is_invalid(), "{source:?}");
+        }
+        other => panic!("expected the overflowing line's poisoned margin, got {other:?}"),
+    }
 }

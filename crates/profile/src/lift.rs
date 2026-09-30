@@ -274,7 +274,7 @@ pub fn lift_checked(loop_: &ProfileLoop<f64>, tol: Tol) -> LiftOutcome {
         }
     };
     let want = rotated(loop_, rotation);
-    let verdict = compare(&want, &replayed);
+    let verdict = compare(&want, replayed.as_loop());
     if verdict.equal {
         LiftOutcome::Lifted {
             program,
@@ -387,7 +387,7 @@ fn carrier_form(loop_: &ProfileLoop<f64>, tol: Tol) -> Option<(Vec<Step<f64>>, u
             let Ok(replayed) = replay(&program, tol) else {
                 continue;
             };
-            let verdict = compare(&want, &replayed);
+            let verdict = compare(&want, replayed.as_loop());
             if !verdict.equal {
                 continue;
             }

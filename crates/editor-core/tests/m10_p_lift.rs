@@ -194,7 +194,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     use editor_core::ParamName;
     use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
-    fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ProfileLoop<f64>> {
+    fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ReplayedLoop<f64>> {
         resolved
             .iter()
             .map(|steps| profile::replay(steps, Tol::witness()).expect("the nominal replays"))
@@ -247,7 +247,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // from a `SketchPlane`, and the node id is not one. Read from the
     // document, so this is the plane the evaluator would build too.
     let plane = fixture::plane_of(&doc.doc, program.plane);
-    let (_, canonical) = profile::Profile::new(plane, nominal_loops(&nominal))
+    let (_, canonical) = profile::ReplayedProfile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");
     // The sketch plane at the lane scalar lifts as constants: VQ8 keeps

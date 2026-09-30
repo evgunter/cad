@@ -3215,7 +3215,10 @@ impl<T: Decide> Core<T> {
                 // vertex at the run's band would be a difference of the
                 // scene's magnitudes the lowering could not read, which
                 // is the scene's resolution.
-                Err(issue @ seg::SegIssue::Inconsistent { margin, .. }) => {
+                Err(
+                    issue @ (seg::SegIssue::Inconsistent { margin, .. }
+                    | seg::SegIssue::BelowSceneResolution { value: margin, .. }),
+                ) => {
                     let (from, to) = (self.verts[leaving].0, self.verts[arc_seg % n].0);
                     let scale = radius.max(seg::reach(from)).max(seg::reach(to));
                     return Err(PathError::FilletCarrierBelowSceneResolution {

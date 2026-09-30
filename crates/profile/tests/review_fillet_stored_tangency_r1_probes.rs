@@ -513,13 +513,15 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
                 "R1 h corpus row {i}: replay refused: {}",
                 short(&e.to_string())
             ),
-            Ok(lp) => match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
-                Ok(_) => println!("R1 h corpus row {i}: built and VALIDATES"),
-                Err(e) => println!(
-                    "R1 h corpus row {i}: built, VALIDATE refused: {}",
-                    short(&e.to_string())
-                ),
-            },
+            Ok(lp) => {
+                match profile::ReplayedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+                    Ok(_) => println!("R1 h corpus row {i}: built and VALIDATES"),
+                    Err(e) => println!(
+                        "R1 h corpus row {i}: built, VALIDATE refused: {}",
+                        short(&e.to_string())
+                    ),
+                }
+            }
         }
     }
 
@@ -561,13 +563,15 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
                 "R1 h lens {name}: replay refused: {}",
                 short(&e.to_string())
             ),
-            Ok(lp) => match Profile::new(SketchPlane::xy(), vec![lp.into_loop()]).validate(tol()) {
-                Ok(_) => println!("R1 h lens {name}: built and VALIDATES"),
-                Err(e) => println!(
-                    "R1 h lens {name}: built, VALIDATE refused: {}",
-                    short(&e.to_string())
-                ),
-            },
+            Ok(lp) => {
+                match profile::ReplayedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+                    Ok(_) => println!("R1 h lens {name}: built and VALIDATES"),
+                    Err(e) => println!(
+                        "R1 h lens {name}: built, VALIDATE refused: {}",
+                        short(&e.to_string())
+                    ),
+                }
+            }
         }
     }
 }

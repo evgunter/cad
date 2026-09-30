@@ -399,8 +399,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   carrier is one edge. The form is redundant (the vertices lie on the
   carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
   consistency conditions are never trusted: a table's arcs are verified
-  at validate as ε-decisions at the validating scalar, and an arc the
-  guided replay constructs is verified at its construction, at that
+  at validate as ε-decisions at the validating scalar, and an arc a
+  replay constructs is verified at its construction, at that
   scalar (by the construction's own predicate, or by the exact witness
   of the identity it registers), which validation then does not
   re-decide; a stored carrier is carried

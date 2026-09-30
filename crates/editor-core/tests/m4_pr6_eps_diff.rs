@@ -11,7 +11,7 @@
 //! in-process engine, via one shared core.
 //!
 //! The fixture is margin-thin by design: a profile segment with
-//! sagitta 9.5e-7 (bulge 1.9e-6 on a unit chord). At ε = 1e-9 the
+//! sagitta 7.5e-7 (bulge 1.5e-6 on a unit chord). At ε = 1e-9 the
 //! `segment_straightness` predicate decides POSITIVE (a real arc); at
 //! ε = 1e-4 it decides ZERO (straight). Both ε values keep the margin
 //! far outside the escalation band (K = 10), so both runs stay Ok;
@@ -19,11 +19,14 @@
 //! reshaped decision structure as loud divergence rows — is goldened
 //! below, field by field.
 //!
-//! The sagitta sits 5% inside ε = 1e-6 rather than on it, so the suite's
+//! The sagitta sits 25% inside ε = 1e-6 rather than on it, so the suite's
 //! own ε = 1e-6 row reads the fixture as a line with room to spare. At
 //! sagitta 1e-6 (bulge 2e-6) that row read the margin exactly at the
 //! band's edge, and an ulp of the sagitta's `sin/cos` spelling of the
-//! stored sweep escalated it.
+//! stored sweep escalated it. (At bulge 1.9e-6 the ε = 1e-12 row
+//! refuses the loop `NonSimple` instead: the arc's carrier sits at
+//! r ≈ 1.3e5, where a line/arc contact point is rounded past the band.
+//! 1.5e-6 is clear of both.)
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -40,13 +43,13 @@ use geom_core::Tol;
 /// The env var carrying the child probe's output path.
 const PROBE_OUT: &str = "M4_PR6_EPS_PROBE_OUT";
 
-/// The two audit ε values (chosen so the 9.5e-7 sagitta is definite on
+/// The two audit ε values (chosen so the 7.5e-7 sagitta is definite on
 /// both sides — no escalation-band contact at K = 10).
 const EPS_OLD: &str = "1e-9";
 const EPS_NEW: &str = "1e-4";
 
 /// The margin-thin fixture: one profile whose third segment carries
-/// bulge 1.9e-6 (sagitta 9.5e-7 on the unit chord) — a single
+/// bulge 1.5e-6 (sagitta 7.5e-7 on the unit chord) — a single
 /// `segment_straightness` margin between the two audit ε values.
 fn thin_profile_doc() -> ProfileDoc {
     let (doc, plane) = insert(
@@ -68,7 +71,7 @@ fn thin_profile_doc() -> ProfileDoc {
                 // The (1,1) → (0,1) segment's thin bulge.
                 ProgramStep::ArcTo(ProgramArcData::Bulge {
                     target: ProgramTarget::Point(len2([0.0, 1.0])),
-                    b: scl(1.9e-6),
+                    b: scl(1.5e-6),
                 }),
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])];
@@ -183,23 +186,8 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
-                predicate: "arc_landing".into(),
-                old_count: 2,
-                new_count: 0,
-            },
-            editor_core::SummaryDivergence {
                 predicate: "arc_span".into(),
                 old_count: 6,
-                new_count: 0,
-            },
-            editor_core::SummaryDivergence {
-                predicate: "arc_start_on_carrier".into(),
-                old_count: 2,
-                new_count: 0,
-            },
-            editor_core::SummaryDivergence {
-                predicate: "arc_sweep_range".into(),
-                old_count: 2,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {

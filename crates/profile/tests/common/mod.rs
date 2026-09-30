@@ -189,7 +189,7 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
 /// sweep and can move bits.
 pub fn replayed<T: profile::ArcCarrierScalar>(
     p: &Profile<f64>,
-) -> (Profile<f64>, profile::ReplayedProfile<T>) {
+) -> (profile::ReplayedProfile<f64>, profile::ReplayedProfile<T>) {
     let mut recorded = Vec::with_capacity(p.loops.len());
     let mut guided = Vec::with_capacity(p.loops.len());
     for (li, lp) in p.loops.iter().enumerate() {
@@ -205,7 +205,7 @@ pub fn replayed<T: profile::ArcCarrierScalar>(
         recorded.push(rec);
     }
     (
-        Profile::new(p.plane, recorded),
+        profile::ReplayedProfile::new(p.plane, recorded),
         profile::ReplayedProfile::new(p.plane.map(T::from_f64), guided),
     )
 }
@@ -217,7 +217,7 @@ pub fn try_replay_at<T: profile::ArcCarrierScalar>(
     program: &[profile::Step<f64>],
 ) -> Result<ProfileLoop<T>, profile::ReplayError<T>> {
     let lifted: Vec<profile::Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
-    profile::replay(&lifted, tol())
+    profile::replay(&lifted, tol()).map(profile::ReplayedLoop::into_loop)
 }
 
 /// A loop from `(x, y, bulge)` triples.
@@ -384,7 +384,7 @@ pub fn near_tangent_hole(eps: f64) -> Profile<f64> {
 /// was already asserting on the loop.
 pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
     let replayed = match profile::replay(&closed.program, Tol::witness()) {
-        Ok(lp) => lp,
+        Ok(lp) => lp.into_loop(),
         Err(e) => panic!("the recorded program refused at replay: {e}"),
     };
     assert_bit_identical(&closed.loop_, &replayed);

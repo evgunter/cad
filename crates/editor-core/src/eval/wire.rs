@@ -1373,10 +1373,13 @@ pub(crate) fn prepare_profile(
         loops.push(lp);
         replay_records.push(record);
     }
-    let profile_f64 = profile::Profile::new(plane, loops);
-    let (validated_f64, canonical) = profile_f64
+    // The loops are the replay's own construction, so validation
+    // decides no arc's consistency checks (D1).
+    let replayed = profile::ReplayedProfile::new(plane, loops);
+    let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
+    let profile_f64 = replayed.into_profile();
     let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
         // A canonical loop matched no program loop: an internal break.
         // The loop coordinate is not recoverable; 0 names the walk.
