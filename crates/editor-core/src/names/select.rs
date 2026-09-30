@@ -661,43 +661,40 @@ impl Drop for NamePat {
 
 impl Clone for NamePat {
     fn clone(&self) -> Self {
-        use super::nest::{Family, Shallow, Walk, shallow};
-        if shallow(Walk::Clone, Family::Pattern) {
-            return NamePat::default();
-        }
-        let _shallow = Shallow::enter(Walk::Clone, Family::Pattern);
-        // Level order, as `StableName`'s clone: each source's held
-        // patterns follow it as one run, whose first index `runs` keeps.
-        let mut sources: Vec<&NamePat> = vec![self];
-        let mut copies: Vec<Option<NamePat>> = Vec::new();
-        let mut runs: Vec<usize> = Vec::new();
-        let mut i = 0;
-        while let Some(&source) = sources.get(i) {
-            runs.push(sources.len());
-            copies.push(Some(NamePat {
-                kind: source.kind,
-                node: source.node,
-                path: source.path.clone(),
-            }));
-            sources.extend(source.held());
-            i += 1;
-        }
-        for i in (0..copies.len()).rev() {
-            let Some(mut copy) = copies.get_mut(i).and_then(Option::take) else {
-                continue;
-            };
-            let mut next = runs.get(i).copied().unwrap_or(usize::MAX);
-            for slot in copy.path.iter_mut().flatten().flat_map(|s| &mut s.args) {
-                if let Some(done) = copies.get_mut(next).and_then(Option::take) {
-                    *slot = done;
+        // Depth first from this walk's own stack, each pattern copied
+        // once the patterns it holds are: those copies are then the
+        // last ones made, in order.
+        let mut stack: Vec<(&NamePat, bool)> = vec![(self, false)];
+        let mut done: Vec<NamePat> = Vec::new();
+        while let Some((pat, held_done)) = stack.pop() {
+            let segs = pat.path.as_deref().unwrap_or_default();
+            if !held_done {
+                stack.push((pat, true));
+                for s in segs.iter().rev() {
+                    stack.extend(s.args.iter().rev().map(|p| (p, false)));
                 }
-                next += 1;
+                continue;
             }
-            if let Some(cell) = copies.get_mut(i) {
-                *cell = Some(copy);
-            }
+            let held: usize = segs.iter().map(|s| s.args.len()).sum();
+            let first = done.len().saturating_sub(held);
+            let mut copies = done.drain(first..);
+            let path = pat.path.as_ref().map(|segs| {
+                segs.iter()
+                    .map(|s| SegPat {
+                        tag: s.tag,
+                        side: s.side,
+                        args: copies.by_ref().take(s.args.len()).collect(),
+                    })
+                    .collect()
+            });
+            drop(copies);
+            done.push(NamePat {
+                kind: pat.kind,
+                node: pat.node,
+                path,
+            });
         }
-        copies.into_iter().next().flatten().unwrap_or_default()
+        done.pop().unwrap_or_default()
     }
 }
 
