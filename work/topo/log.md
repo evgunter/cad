@@ -3252,3 +3252,43 @@ verdict carried on `Escalated`.
 Tier SINGLE, full. The brief names D4 (i)/(iv) and PR 3352, and asks
 for D1's provenance. It dispatches when PR 3495's fix pass frees its
 target (6.1 GB free).
+
+## PR 3495's fix pass delivered; the item closes on the branch. PR 3506's review out (2026-09-30)
+
+**PR 3495.** The fix pass took 410,115 tokens, 183 tools and 1 h 57 m
+(harness). Head `9ba68703be` passed `gate ok` on run 36662523817.
+
+The orchestrator read the fix:
+- **The anchor proof.** `require_kill_anchors` now takes `KillAnchor`
+  writes (`Step`, `Merged`, `Lone`).
+  - The `Empty` clause requires a `Lone` write and uniqueness at its
+    vertex (S8).
+  - Every `Lone` write must be held by an `Empty` loop (S9, with
+    `kemr`'s minted ring listed).
+  - Both halves are built, so nothing needed filing. S11 now refuses
+    `OrbitBroken`.
+- **Q1.** `KefSplice` and `KevUnsplice::loop_writes` each decide their
+  arm once, and `shared_loop` is the one comparison.
+- **Rows.** The `kev` rows drive the corrupting public door
+  (`kev_describing` with chords) first, through a new
+  `fixtures::assert_kill_refuses`.
+- **The probe.**
+  - A non-ignored slice (0.7 s) guards the columns in CI. The
+    deterministic rows pin what two seeds cannot see.
+  - The probe gains two bodies and counts only unplanted faults.
+  - Every loop and vertex column is 0 across four tear kinds. The
+    `StartForeign` class (1,442 / 2,506 / 2,884 at the reviewed head)
+    is now closed too.
+  - `kef` refuses about 2,000 torn `StartForeign` bodies it used to
+    heal by accident. These are tier-1-invalid inputs; the
+    over-refusal sweep of valid bodies stays clean.
+- **Filed:** `kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names`,
+  and evidence on the `mef-and-mekr`, `kef-and-mekr` and mate-edge
+  rows.
+
+The item closes on the branch. Merge after CI on `127aba7e89`. Single
+tier, so there is no DR row.
+
+**PR 3506.** Its implementer took 414,034 tokens, 275 tools and 85 min
+(harness). The single full reviewer is dispatched on frozen
+`80f2c8cd80`, on the freed loop-anchor target.
