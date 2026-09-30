@@ -821,6 +821,8 @@ class TestTheMemoIsObservable(CorpusCase):
         store, docs = opened()
         layout = evaluate(docs["layout"], resolver=store)
         stand = evaluate(docs["stand"], resolver=store, prior=layout)
+        shared = [n for n in stand.order() if n in layout.order()]
+        self.assertTrue(shared, "the two share an id, so the memo could have hit")
         self.assertEqual(failures(stand), {})
         self.assertEqual(stand.reused, 0, "no cross-document reuse, by construction")
         self.assertEqual(stand.recomputed, len(stand.order()))
