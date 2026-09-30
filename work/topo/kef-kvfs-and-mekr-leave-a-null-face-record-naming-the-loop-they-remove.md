@@ -79,3 +79,32 @@ is F9's (`crate::null` module docs) and not the kill's to settle alone.
 Either shape adds the null-face column to
 `review_d18::kill_anchors_on_torn_bodies` (a record naming a dead loop)
 and requires it 0, and pins the three witnesses above as rows.
+
+## Ruled (orchestrator, 2026-09-30): F9's ratified text settles it
+
+`crate::null`'s module docs record F9's ratified answer (M3 PR 1, fork
+F9). They define:
+- a null face as "one face, two coincident loops";
+- its record as a typed annotation of "loop roles on an otherwise
+  complete face";
+- its maintenance as "the same kill-op hygiene as provenance records (a
+  record never outlives its face)".
+
+Read against that text, neither shape is a new semantic decision:
+
+- **A record names its own face's two loops.** The `kef` and `kvfs`
+  witnesses need a record on one face naming another face's loop, a
+  state F9 does not describe. `Body::set_null_face_pair` refuses it
+  typed, before it writes, which makes the state unrepresentable at the
+  door (D2 row 0). Tier 1's pass 13 may check the same, if cheap.
+- **A kill that leaves a null face with fewer than its two loops drops
+  the record,** by F9's kill-op hygiene. This is the `mekr` witness,
+  which joins the ring into the outer. The face is no longer a null
+  face, so its annotation falls with the loop, as a provenance record
+  falls with its entity. Every kill stays `Ok`, and the body stays tier-1
+  valid.
+
+No `[ev]` question: the reading keeps the ratified decision as it stands
+(the PR 3156 lesson). The lane measures who calls `set_null_face_pair`
+with loops not the face's own. If a production caller does so on
+purpose, it stops and reports, because that would be a real fork.
