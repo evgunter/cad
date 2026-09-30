@@ -1239,16 +1239,9 @@ pub struct SymCounts {
     /// The attribution is NECESSITY, not contact: a decision counts
     /// here only when the plain form and the early form have BOTH
     /// declined and the same walk with the registry applied answers
-    /// (`Session::forms_door`). So a decision the door takes is one
-    /// the numeric channel left undecided or read as zero — never one
-    /// it proved non-zero (E12, ratified: the numeric channel runs
-    /// first), and never one the tier's own theorems answered. Over the
-    /// decisions a door-on and a door-off replay both reach, the door
-    /// moves decisions out of `numeric` only; the two replays need not
-    /// reach the same decisions, because a replay the door carries past
-    /// a refusal decides more (an arc's consistency checks at validation
-    /// can rest on the lowering's registrations, so with the door shut a
-    /// replay can stop there).
+    /// (`Session::forms_door`). So the door can only ever move
+    /// decisions out of `numeric` — never out of `symbolic_zero` or
+    /// `sign_gated`, whose counts are M10-8's on every document.
     pub registered: u64,
     /// **Registrations the door REFUSED** — `Contradicted` or
     /// `Disputed` (the lane scalar's witness separated the two values,

@@ -68,33 +68,22 @@ pub(crate) struct Study {
 }
 
 /// The five, in the order every row here reports them.
-///
-/// `registered` and `symbolic_zero` were re-pinned when validation
-/// gained an arc's three consistency checks (PATHS 5a), by exactly
-/// what those checks decide over each document's certifying box, the
-/// same at every ε row: `arc_start_on_carrier` registered (the
-/// lowering's rim), `arc_landing` a theorem (the bracket's three
-/// fillet arcs registered, through the lowering's landing), and
-/// `arc_sweep_range` numeric — plate, annulus and link +8/+8, the
-/// bracket +14/+8. The pad's +16/+10 is the same census, not split
-/// by predicate (its shape-report replay did not finish in 13 min).
-/// On the four split, no decision the tier answered before moved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
             name: "two_hole_plate",
             certifies_at: 7.811e2,
             refuses_at: 7.814e2,
-            registered: 148,
-            symbolic_zero: 811,
+            registered: 140,
+            symbolic_zero: 803,
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
             name: "r1_annulus",
             certifies_at: 7.805e2,
             refuses_at: 7.810e2,
-            registered: 148,
-            symbolic_zero: 336,
+            registered: 140,
+            symbolic_zero: 328,
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -111,19 +100,19 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // walk was cancelling over reshaped, then re-taken by the
             // registry). `frozen` is 1060 either way, nothing is
             // refused or contradicted, and no ceiling moves.
-            registered: 118,
-            symbolic_zero: 513,
+            registered: 110,
+            symbolic_zero: 505,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
             name: "r2_filleted_bracket",
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
-            registered: 158,
+            registered: 144,
             // One of these is the bracket's fillet run out read against
             // its arrival carrier (`path_run_out_carrier`), a margin the
             // tier proves zero rather than measuring it.
-            symbolic_zero: 1092,
+            symbolic_zero: 1084,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -179,11 +168,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // so their pins here hold. Every rule-reached edge on the
             // five reads `JetDeterminate` with the gate and without,
             // so the document the replay builds is the same one.
-            registered: 144,
+            registered: 128,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
-            symbolic_zero: 895,
+            symbolic_zero: 885,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -306,28 +295,19 @@ fn m10_9_the_door_is_inert_on_straight_geometry() {
     );
 }
 
-/// **THE MECHANISM, decision by decision.** A replay of the plate past
-/// its ceiling with the door SHUT registers nothing; the same replay
-/// with the door OPEN discharges through the registry. Two claims are
-/// held, and they are different in kind:
+/// **THE MECHANISM, in the receipt.** A replay of the plate past its
+/// ceiling with the door SHUT registers nothing; the same replay with
+/// the door OPEN discharges through the registry — BOTH endpoint
+/// pinnings (the rim identity `‖q − c‖ = r` and the span identity
+/// `carrier.eval(param_end) = q_to`, the arc carrier's two same-object
+/// identities) — and only out of `numeric`: `symbolic_zero` and
+/// `sign_gated` are identical door open and shut.
 ///
-/// - **(a) E12's ratified property** (Ev, #1712): the numeric channel
-///   runs first, so no registration turns a margin the enclosure proved
-///   non-zero into a `Zero`. Read two ways: the door-open run counts no
-///   `registrations_contradicted`, and every decision it answers
-///   `Registered` is, in the door-shut run, numerically undecided or a
-///   numeric zero — never a definite sign.
-/// - **(b) The count claim, over what both replays reach.** The two
-///   replays decide in one order until the earlier stops, so over that
-///   common prefix every theorem and sign-gated decision is the same
-///   decision with the same answer. Past it the runs are different
-///   populations: each replay's stop point is reported, not asserted
-///   equal. With the door shut the plate now stops in validation (an
-///   arc's consistency checks at `Sym<Interval>` can rest on the
-///   lowering's registrations), with it open in certification.
+/// The name the drive stops on is deliberately NOT read: past the
+/// ceiling several predicates are over the band at once and the name
+/// is evaluation order.
 #[test]
 fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
-    use geom_core::sym::report::ShapeOutcome;
     let tol = Tol::witness();
     let eps = tol.eps();
     // Past the measured ceiling (`[7.811e2, 7.814e2] · ε`,
@@ -335,73 +315,32 @@ fn m10_9_the_rim_registrant_discharges_the_plates_endpoint_identity() {
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.6e3 * eps, 1.0e-5 * 1.6e3 * eps, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
-    let (shut_shapes, shut_refusal, shut) =
-        crate::m10_8_arc_family_interval::replay(&doc, &box_, closed(), tol);
-    let (open_shapes, open_refusal, open) =
-        crate::m10_8_arc_family_interval::replay(&doc, &box_, opened(), tol);
+    let (shut_refusal, shut) = replay_counts(&doc, &box_, closed(), tol);
+    let (open_refusal, open) = replay_counts(&doc, &box_, opened(), tol);
     println!(
-        "   door shut {shut:?}\n     stops after {} decisions: {shut_refusal:?}\n   \
-         door open {open:?}\n     stops after {} decisions: {open_refusal:?}",
-        shut_shapes.len(),
-        open_shapes.len()
+        "   door shut {shut:?} -> {shut_refusal:?}\n   door open {open:?} -> {open_refusal:?}"
     );
     assert_eq!(shut.registered, 0, "M10-8's tier registers nothing");
     assert!(
         open.registered > 0,
         "the rim registrant discharges on the plate: {open:?}"
     );
-    // (a), as the door-open run counts it.
     assert_eq!(
-        open.registrations_contradicted, 0,
-        "no registered zero met a definite numeric sign: {open:?}"
+        (open.symbolic_zero, open.sign_gated),
+        (shut.symbolic_zero, shut.sign_gated),
+        "the door moves decisions out of `numeric` and out of nothing else: {open:?} vs {shut:?}"
     );
-    // (a) and (b), decision by decision over the common prefix: the
-    // decisions both replays reach, in their one order, up to where a
-    // different answer sent them different ways.
-    let common = open_shapes
-        .iter()
-        .zip(&shut_shapes)
-        .take_while(|(on, off)| on.predicate == off.predicate)
-        .count();
-    let mut registered_in_common = 0;
-    for (k, (on, off)) in open_shapes
-        .iter()
-        .zip(&shut_shapes)
-        .take(common)
-        .enumerate()
-    {
-        match on.outcome {
-            ShapeOutcome::Registered => {
-                registered_in_common += 1;
-                assert!(
-                    matches!(
-                        off.outcome,
-                        ShapeOutcome::NumericZero | ShapeOutcome::Indeterminate
-                    ),
-                    "decision {k} ({}): registered with the door open, {:?} with it shut — \
-                     a registration may only take a decision the enclosure left open",
-                    on.predicate,
-                    off.outcome
-                );
-            }
-            ShapeOutcome::Theorem | ShapeOutcome::SignGated => assert_eq!(
-                on.outcome, off.outcome,
-                "decision {k} ({}): the tier's own theorems do not move with the door",
-                on.predicate
-            ),
-            _ => assert!(
-                !matches!(off.outcome, ShapeOutcome::Theorem | ShapeOutcome::SignGated),
-                "decision {k} ({}): a door-shut theorem the open run lost",
-                on.predicate
-            ),
-        }
-    }
-    println!(
-        "   {registered_in_common} registered decision(s) inside the common prefix of {common}"
-    );
+    // NOT "and `numeric` shrank": a REFUSING replay stops at its first
+    // refusal, so the two runs do not decide the same population — the
+    // door lets this one get further, and the decisions past the old
+    // refusal are decisions the shut run never reached. The
+    // out-of-`numeric`-and-nothing-else claim is pinned where every
+    // site decides: at the scalar
+    // (`geom_core::sym`'s `a_registered_identity_decides_zero_and_is_counted_apart`)
+    // and at each document's nominal (the census's table).
     assert!(
-        registered_in_common > 0,
-        "the door takes decisions both replays reach, before either stops"
+        open.decisions() >= shut.decisions(),
+        "the door can only carry a replay further, never less far: {open:?} vs {shut:?}"
     );
     assert!(
         shut_refusal.is_some() && open_refusal.is_some(),

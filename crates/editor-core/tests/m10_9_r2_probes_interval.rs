@@ -239,16 +239,11 @@ pub(crate) fn fixtures(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
     ]
 }
 
-/// **Claim 1 / claim 5 at document scale, on every fixture**, as two
-/// claims of different kind: (a) E12's ratified property (Ev, #1712) —
-/// the door-on drive counts no registered zero against a definite
-/// numeric sign — on every fixture; and (b) where the door-on and
-/// door-off drives decide the same population (every verdict line
-/// identical), the receipts differ only by the door's columns and
-/// `numeric` pays for `registered` exactly. With the door off an arc's
-/// consistency checks at `Sym<Interval>` can refuse a leaf earlier, so
-/// where the populations differ the stop points are reported, not
-/// asserted equal.
+/// **Claim 1 / claim 5 at document scale, on every fixture**: a drive
+/// with the door on and the same drive with it off serialize the SAME
+/// leaves, verdict-vector keys, witness vector, masses and refusals —
+/// only the receipt's `decisions` line may differ, and it may differ
+/// only by a `registered=` field.
 #[test]
 fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
     let tol = Tol::witness();
@@ -292,11 +287,13 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
             "",
             off_dec.as_deref().unwrap_or("(no tier line)")
         );
-        println!("      on  {}", on_body.first().cloned().unwrap_or_default());
-        println!(
-            "      off {}",
-            off_body.first().cloned().unwrap_or_default()
+        println!("      {}", on_body.first().cloned().unwrap_or_default());
+        assert_eq!(
+            on_body, off_body,
+            "{name}: every line but the receipt is byte-identical door on and off"
         );
+        // The receipt may differ ONLY by `registered=`, and numeric
+        // must shrink by exactly that count.
         let fields = |l: &Option<String>| -> BTreeMap<String, u64> {
             l.as_deref()
                 .map(|l| {
@@ -316,55 +313,44 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
             0,
             "{name}: the door-off receipt registers nothing"
         );
-        // (a) E12's ratified property (Ev, #1712): the numeric channel
-        // runs first, so no registered zero meets a definite numeric
-        // sign in the door-on drive.
-        assert_eq!(
-            g(&fon, "registrations_contradicted"),
-            0,
-            "{name}: a registration turned a margin the enclosure proved non-zero into Zero"
-        );
-        // (b) The count claim holds over what both drives reach. Only a
-        // drive whose leaves all certify, door on and off alike, decides
-        // one population in both — a leaf refused in both can have
-        // stopped at different points (with the door off an arc's
-        // consistency checks at `Sym<Interval>` can refuse before the
-        // certification the door-on drive reaches), and its verdict
-        // line does not say where. There the door moves decisions out
-        // of `numeric` and out of nothing else; elsewhere the stop
-        // points are reported, not asserted equal.
-        let refused = |body: &[String]| {
-            body.first()
-                .and_then(|l| l.split(' ').find_map(|w| w.strip_prefix("refused=")))
-                .and_then(|v| v.parse::<u64>().ok())
-                .unwrap_or(0)
-        };
-        if on_body == off_body && refused(&on_body) == 0 {
-            for k in ["symbolic_zero", "sign_gated"] {
-                assert_eq!(
-                    g(&fon, k),
-                    g(&foff, k),
-                    "{name}: `{k}` is the door-off count"
-                );
-            }
+        for k in ["symbolic_zero", "sign_gated"] {
+            assert_eq!(
+                g(&fon, k),
+                g(&foff, k),
+                "{name}: `{k}` is the door-off count"
+            );
+        }
+        // `frozen` is a plain-walk count and the two replays decide the
+        // same population only when every leaf certifies (below).
+        if g(&fon, "frozen") != g(&foff, "frozen") {
+            println!(
+                "      NOTE {name}: frozen moved with the door: on {} vs off {}",
+                g(&fon, "frozen"),
+                g(&foff, "frozen")
+            );
+        }
+        // On a drive whose leaves all certify, the two replays decide
+        // the same population and `numeric` shrinks by exactly the
+        // registered count. On a REFUSING drive the door-on replay
+        // gets past the discharged identity and decides more before it
+        // refuses, so only the inequalities hold (the unit's own pin
+        // says the same).
+        let refused_leaves = on_body
+            .first()
+            .and_then(|l| l.split(' ').find_map(|w| w.strip_prefix("refused=")))
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(0);
+        if refused_leaves == 0 {
             assert_eq!(
                 g(&fon, "numeric") + g(&fon, "registered"),
                 g(&foff, "numeric"),
                 "{name}: the door moves decisions out of `numeric` and out of nothing else"
             );
         } else {
-            println!(
-                "      NOTE {name}: the drives stop at different points (refused on {} / off \
-                 {}); counts on {fon:?} vs off {foff:?}",
-                refused(&on_body),
-                refused(&off_body)
-            );
-        }
-        if g(&fon, "frozen") != g(&foff, "frozen") {
-            println!(
-                "      NOTE {name}: frozen moved with the door: on {} vs off {}",
-                g(&fon, "frozen"),
-                g(&foff, "frozen")
+            assert!(
+                g(&fon, "numeric") <= g(&foff, "numeric")
+                    && g(&fon, "numeric") + g(&fon, "registered") >= g(&foff, "numeric"),
+                "{name}: refusing drive — {fon:?} vs {foff:?}"
             );
         }
     }
