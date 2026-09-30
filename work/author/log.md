@@ -1530,3 +1530,13 @@ Review tier: correctness + style, then two correctness re-verifications.
 Not taken yet:
 - `the-boolean-door-evaluates-its-boolean-twice` (P2, a performance row, AUTH-9's cost).
 - `a-seated-tools-held-node-is-drawn-nowhere` and `a-union-that-becomes-flush-later-…` (both design; the second is the DM6 question for Ev).
+
+## 2026-09-30 — AUTH-14 MERGED (`cd6cc9a0`): a blend target whose edges cannot be named says so
+
+Fourteen units closed. The container restarted mid-unit. The lane, target and pushed commit survived, and resuming the same implementer from its transcript lost nothing.
+
+**One FULL review** (the tier chosen at dispatch) found no MAJOR, but it did show a badge that latches passing every row. **My own read before merging found the unit re-minting the defect it was removing:** `named_in` read a window with `.get(range).unwrap_or_default()` and `zip`, so a broken index would again read as "no edges". Before merging, the lane made it an `unreachable!` stating the invariant, and fixed `in_target`'s identical collapse on the way.
+
+**Lesson:** the class a unit fixes is the class to grep its own diff for. `unwrap_or_default` and a truncating `zip` are the Option-collapse shapes.
+
+The lane filed CHROME's badge-channel row at P1. That looks high for a three-field consolidation, but it is CHROME's to triage, so I left it.
