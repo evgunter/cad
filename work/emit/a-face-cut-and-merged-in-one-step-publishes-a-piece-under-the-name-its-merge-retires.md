@@ -12,7 +12,7 @@ closed: 2026-09-30
 ---
 
 
-## Closed — fixed by this row's PR
+## Closed — fixed by PR 3526
 
 Still live after #3241 in the pair boolean's own table, and so in every
 fold step's table. #3241's union end pass renames the published union
