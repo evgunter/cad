@@ -3172,3 +3172,29 @@ and asks for `git log -S` provenance first.
   declaration is offered on a declared pair.
 
 It runs on a fresh target beside the two fix passes.
+
+## PR 3500's fix pass delivered; the item closes on the branch (2026-09-30)
+
+The fix pass took 254,077 tokens, 123 tools and 43 min (harness).
+Head `f0e2934c0c` passed `gate ok` on run 36659015155.
+
+The orchestrator read the diff:
+- **The predicate.** `StoredRows::remints_at_description` holds when
+  the face stores a row, every loop walks, and no other null edge is
+  on the face. It replaces `complete_except`. P1 and P2 are rowed and
+  end byte for byte the closing pass's.
+- **One face loop.** `plan_site_rows_as` serves both the operators
+  and the description. The spline decision is one site, with the
+  caller choosing through `SiteMint`. `SiteHalf::Described(he)` says
+  what it is.
+- **Mutants.** All ten adapted mutants red.
+- **The fourth posture.** `Posture::Completes` is accepted. The
+  lane flagged earlier resistance to a fourth posture: that was
+  TRIM's 2026-09-14 fix pass declining to call `revert` one (a
+  producer, not a mutation door), a lane's call rather than Ev's. The
+  posture set lives only in `pcurves`' docs, not in ratified text.
+  `set_edge_curve`'s null arm now writes rows, so `Neither` was
+  false; TRIM should see this in the merged diff.
+
+The item closes on the branch. Merge after CI on `382771bfce`. Single
+tier, so there is no DR row.
