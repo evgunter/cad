@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: H
-refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist]
+refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist, m9-3-semantic-residues, a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence]
 ---
 
 
@@ -47,10 +47,37 @@ since AUTH-9 the declared union is one the GUI authors in one click.
 This scene lands the `Declare` and the union and then the union's row
 fails with the sentence above.
 
-Two things about that sentence are worth a look beside the frontier
-itself: its recourse says "declare the coincidence" to a boolean whose
-coincidence is declared, and the flush side walls were never reported
-as a second undeclared contact, so it is not known whether declaring
-them as well would reach a different rung. Not tried here: their names
-come from no refusal, and constructing them by hand would be exactly
-the guessed declaration the offer exists to avoid.
+**The same refusal text, found before.** `work/tang/m9-3-semantic-residues.md`
+§2 (R1 NOTE-4) meets "seam chord between two isolated pierce points" as
+the refusal that shadows `glue_pair`'s ring-count gate on the natural
+mismatch fixture. That row's configuration and this one's may share a
+cause, and whoever takes either should look at both.
+
+**Its recourse is a separate row.** The sentence tells the author to
+"declare the coincidence" to a boolean whose coincidence is already
+declared. That is true of every refusal in this lane:
+`a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence`.
+
+**Folded here: the flush side walls were never reported as a second
+contact.** The boss's +x wall and the block's are coplanar and
+co-oriented, yet declaring the resting pair moves the refusal into the
+zip rather than to a second `UndeclaredContact` naming the walls. So
+it is not known whether declaring them as well would reach a different
+rung. This was not tried: their names come from no refusal, and
+constructing them by hand would be exactly the guessed declaration the
+boolean tool's offer exists to avoid. Whether coplanar co-oriented
+walls in a union are a contact the census should report is a detection
+question, and it belongs with this scene.
+
+## A second declared-flush union past its declaration (AUTH-9's review, 2026-09-30)
+
+Block ∪ a cylinder through it whose two caps sit flush with the
+block's top and bottom. The boolean tool offers both cap pairs, one
+refusal at a time. After both are accepted, the union commits and its
+row fails with "the solids do not cross … every test ray grazed …
+Recourse: declare the coincidence". So the declared pairs reach a
+classification rung that cannot place the operands, rather than the
+zip. The same operands evaluate correctly as subtract
+(V = 7.2146e-6 m³) and intersect (7.854e-7 m³). This is a different
+rung from the seam chord above, reached by the same gesture, and it
+carries the same recourse.

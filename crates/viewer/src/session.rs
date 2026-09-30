@@ -72,7 +72,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator, evaluate_beside};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
@@ -94,7 +94,8 @@ pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, admits, face_frame_seat,
+    DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
+    admits, face_frame_seat,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -368,6 +369,10 @@ pub struct DocSession {
     /// landed pair and the outstanding request name the SAME document
     /// value for as long as they agree, which is most of the time.
     requested_doc: Arc<Doc<ProfileProgram>>,
+    /// The resolver that request resolves through — the landed run's
+    /// memo is only a memo for a run under the same one
+    /// ([`DocSession::memo_under`]).
+    requested_resolver: Option<Arc<dyn PartResolver>>,
     /// Everything this session knows *because of* the document under
     /// it — one value, so that replacing that document is one
     /// assignment ([`DocSession::clear_for_new_document`]).
@@ -533,6 +538,8 @@ impl core::fmt::Debug for Derived {
 /// else here is present whenever the gather was.
 struct LandedRun {
     evaluation: Arc<Evaluation<f64>>,
+    /// The resolver [`LandedRun::evaluation`] resolved through.
+    resolver: Option<Arc<dyn PartResolver>>,
     /// The document [`LandedRun::evaluation`] answers.
     ///
     /// **Resolution is a question about a PAIR.** `resolve` reads the
@@ -625,6 +632,7 @@ impl core::fmt::Debug for LandedRun {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             evaluation: _,
+            resolver: _,
             doc: _,
             generation,
             fault,
@@ -737,6 +745,7 @@ impl DocSession {
             // than a clone of `doc` because a clone here would be a
             // second copy nobody ever looks at.
             requested_doc: Arc::new(Doc::empty_derived("unsubmitted", tol)),
+            requested_resolver: None,
             history: History::new(doc),
             tol,
             gesture: g1::Slot::closed(),
@@ -998,10 +1007,25 @@ impl DocSession {
     /// a suite reading the solve back) resolves each mated part the
     /// way the landed evaluation resolved it.
     pub fn eval_options(&self) -> EvalOptions {
-        EvalOptions {
-            resolver: Some(self.resolver_seam()),
-            ..EvalOptions::default()
-        }
+        crate::evalseam::options(&self.run_resolver())
+    }
+
+    /// **The resolver every evaluation of this session's documents runs
+    /// under** — the seam's runs and the ones taken beside it alike.
+    fn run_resolver(&self) -> Option<Arc<dyn PartResolver>> {
+        Some(self.resolver_seam())
+    }
+
+    /// **The landed run as a memo for a run under `resolver`**, or
+    /// `None` when it resolved through another seam — the seam's own
+    /// priming rule ([`crate::evalseam::same_resolver`]), for the runs
+    /// taken beside it.
+    fn memo_under(&self, resolver: &Option<Arc<dyn PartResolver>>) -> Option<Arc<Evaluation<f64>>> {
+        self.derived
+            .landed
+            .as_ref()
+            .filter(|run| crate::evalseam::same_resolver(&run.resolver, resolver))
+            .map(|run| Arc::clone(&run.evaluation))
     }
 
     /// **The session's resolver as the document seam** — the directory
@@ -1252,6 +1276,7 @@ impl DocSession {
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
             evaluation: done.evaluation,
+            resolver: self.requested_resolver.clone(),
             doc: Arc::clone(&self.requested_doc),
             generation: done.generation,
             fault,
@@ -1635,15 +1660,8 @@ impl DocSession {
         // candidate is judged against, so a probe cannot seed from one
         // document and search another.
         let base = self.doc().clone();
-        let prior = self
-            .derived
-            .landed
-            .as_ref()
-            .map(|run| Arc::clone(&run.evaluation));
-        let resolver = self
-            .resolver
-            .as_ref()
-            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>);
+        let resolver = self.run_resolver();
+        let prior = self.memo_under(&resolver);
         match probe::probe_bounds(&base, target, prior.as_deref(), &resolver, self.tol) {
             Ok(reading) => {
                 self.derived.bounds = Some(reading);
@@ -2387,10 +2405,15 @@ impl DocSession {
         // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        //
-        // `declare_node` refuses only an empty slice, which is the
-        // declare-nothing case.
-        let declaration = declare_node(&declare).ok();
+        let declaration = if declare.is_empty() {
+            None
+        } else {
+            Some(declare_node(&declare).unwrap_or_else(|error| {
+                unreachable!(
+                    "`declare_node` refuses only an empty list, and this one is not: {error}"
+                )
+            }))
+        };
         let boolean = |declare| DocEdit::InsertNode {
             node: Node::Boolean { op, a, b, declare },
         };
@@ -2409,17 +2432,14 @@ impl DocSession {
         };
         // Judged before it is recorded: the one recourse to a contact
         // refusal is a declaration in the same action, which cannot be
-        // added to a committed node. The landed run is the memo, so
-        // only what this run added is computed.
-        let judged = probe::evaluate_with(
-            &staged.doc,
-            self.evaluation(),
-            &Some(self.resolver_seam()),
-            self.tol,
-        );
-        if let Some(refused) = combine::UndeclaredContact::read(&judged, node, op, [a, b], declare)
+        // added to a committed node.
+        let resolver = self.run_resolver();
+        let memo = self.memo_under(&resolver);
+        let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
+        if let Some(refused) =
+            RefusedBoolean::read(&judged, node, (op, [a, b]), declare, self.generation)
         {
-            return OpOutcome::refused(Refusal::UndeclaredContact(Box::new(refused)));
+            return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
         }
         self.record_run(staged)
     }
@@ -2906,11 +2926,12 @@ impl DocSession {
         // takes a value so a worker owns its copy) and is not a
         // retained copy — the session keeps exactly one.
         self.requested_doc = Arc::new(self.doc().clone());
+        self.requested_resolver = self.run_resolver();
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: Some(self.resolver_seam()),
+            resolver: self.requested_resolver.clone(),
         });
     }
 }
@@ -3035,6 +3056,7 @@ impl core::fmt::Debug for DocSession {
             eval: _,
             generation,
             requested_doc: _,
+            requested_resolver: _,
             derived,
             path,
             display: _,

@@ -15,11 +15,12 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, Evaluation, Node,
-    ParamName, ParseError, ProfileProgram, RecipeNodeId, SlotId, ValuePayload,
+    BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
+    Evaluation, Node, NodeErrorKind, ParamName, ParseError, ProfileProgram, RecipeNodeId, SlotId,
+    ValuePayload,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
-use pncad::select::{InterrogateError, face_carrier_kind};
+use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
 use pncad::workspace::WorkspaceError;
 
 // The recourse this module's `NoSuchParam` arm ends on, read from its
@@ -34,9 +35,10 @@ use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::frame::Tone;
+use crate::generation::Generation;
 use crate::history::History;
 use crate::props::{self, SlotValue};
-use crate::session::FaceSelection;
+use crate::session::{FaceSelection, SessionOp};
 
 /// The node kind a creation op's seat requires — the payload of
 /// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
@@ -315,13 +317,12 @@ pub enum Refusal {
     /// not one body with a width ([`combine::DuplicateFault`]).
     Duplicate(combine::DuplicateFault),
     /// The boolean the door evaluated refused a contact nobody
-    /// declared, so it was not committed
-    /// ([`combine::UndeclaredContact`]): the kernel's refusal and the
-    /// attempt it answered, which is what makes the offer to declare
-    /// it ([`Refusal::declare_offer`]).
+    /// declared, so it was not committed ([`RefusedBoolean`]): the
+    /// kernel's refusal and the attempt it answered, which is what
+    /// makes the offer to declare it (`frame::declare_offer`).
     ///
     /// Boxed for [`Refusal::Edit`]'s reason.
-    UndeclaredContact(Box<combine::UndeclaredContact>),
+    Contact(Box<RefusedBoolean>),
     /// `apply` refused the edit — the door's own sentence, forwarded.
     ///
     /// **Layer 3 adds a frame and never a second opinion.** Every
@@ -448,40 +449,9 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
-            | Self::UndeclaredContact(_)
+            | Self::Contact(_)
             | Self::Edit(_)
             | Self::Dimension(_)
-            | Self::NoGesture
-            | Self::GestureInFlight
-            | Self::WrongGesture
-            | Self::Io(_)
-            | Self::NothingToDo { .. }
-            | Self::Display(_)
-            | Self::SlotUnit(_)
-            | Self::NoDocumentDirectory
-            | Self::Workspace(_)
-            | Self::SelfInstance { .. }
-            | Self::ProfileEditStale { .. } => None,
-        }
-    }
-
-    /// **The offer to declare the contact a boolean refused** — `Some`
-    /// exactly for [`Refusal::UndeclaredContact`], and the one reading
-    /// the frame loop hands the tool panel.
-    pub fn declare_offer(&self) -> Option<combine::DeclareOffer> {
-        match self {
-            Self::UndeclaredContact(refused) => Some(refused.offer()),
-            Self::DrivenByExpression { .. }
-            | Self::NoSuchSlot { .. }
-            | Self::NoSuchParam(_)
-            | Self::ParamNotANumber { .. }
-            | Self::ParamExists { .. }
-            | Self::EmptyName
-            | Self::WrongNodeKind { .. }
-            | Self::Duplicate(_)
-            | Self::Edit(_)
-            | Self::Dimension(_)
-            | Self::Parse(_)
             | Self::NoGesture
             | Self::GestureInFlight
             | Self::WrongGesture
@@ -521,7 +491,7 @@ impl Refusal {
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
-            | Self::UndeclaredContact(_)
+            | Self::Contact(_)
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -695,6 +665,31 @@ impl Refusal {
     pub fn offer_wording(name: &ParamName) -> String {
         format!("create parameter {}?", name.as_str())
     }
+
+    /// The declare-offer question, and its one home — shown over the
+    /// pairs the offer declares, in the boolean tool.
+    pub fn declare_question(offer: &DeclareOffer) -> String {
+        let what = match offer.findings.len() {
+            1 => "this contact",
+            _ => "these contacts",
+        };
+        format!("declare {what} and commit the boolean?")
+    }
+
+    /// **One pair an offer declares, as the panel names it**: each
+    /// side's operand through the chrome's one spelling of a node, and
+    /// the class the declaration asserts. The face within each operand
+    /// has no prose name (`work/author/face-pick-cannot-name-which-face.md`),
+    /// so the line says "a face of" rather than inventing one.
+    pub fn declare_pair_wording(finding: &FlushFinding) -> String {
+        let (one, other) = &finding.pair;
+        format!(
+            "a face of {} against a face of {} — {} contact",
+            crate::tree::node_number(one.at),
+            crate::tree::node_number(other.at),
+            finding.class.name()
+        )
+    }
 }
 
 impl core::fmt::Display for Refusal {
@@ -756,7 +751,7 @@ impl core::fmt::Display for Refusal {
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
             Self::Duplicate(fault) => write!(f, "{fault}"),
-            Self::UndeclaredContact(refused) => write!(f, "{refused}"),
+            Self::Contact(refused) => write!(f, "{refused}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
@@ -788,6 +783,189 @@ impl core::fmt::Display for Refusal {
 }
 
 impl core::error::Error for Refusal {}
+
+/// **A boolean the session door evaluated and did not commit, because
+/// it refused a contact nobody declared** — [`Refusal::Contact`]'s
+/// payload, and the one source of the offer to declare that contact.
+///
+/// It holds the attempt — the operation, its two operands, the findings
+/// it already declared, the generation it was judged at — beside the
+/// kernel's refusal as the kernel raised it, so the sentence a person
+/// reads is the kernel's own and the offer declares exactly the pair
+/// that sentence is about.
+#[derive(Debug)]
+pub struct RefusedBoolean {
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    declared: Vec<FlushFinding>,
+    at: Generation,
+    /// Always the kernel's `NodeErrorKind::UndeclaredContact`: the one
+    /// constructor admits nothing else.
+    refused: NodeErrorKind,
+}
+
+impl RefusedBoolean {
+    /// **What the boolean `op` of `a` and `b`, evaluated as `node` in
+    /// `eval` with `declared` already declared, refused** — `None` when
+    /// the node has no failure of its own ([`crate::tree::own_error`]:
+    /// a poisoned node's cause is an ancestor's, sited at that
+    /// ancestor's operands), or fails for any reason but an undeclared
+    /// contact the node can declare.
+    ///
+    /// A contact between two faces of ONE operand is not one it can:
+    /// the pair boolean resolves a declared pair only across its two
+    /// operands, so declaring it would commit a boolean that refuses
+    /// the declaration instead. That refusal stays the node's own.
+    pub(crate) fn read(
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        attempt: (BooleanOp, [RecipeNodeId; 2]),
+        declared: Vec<FlushFinding>,
+        at: Generation,
+    ) -> Option<Self> {
+        Self::of(
+            &crate::tree::own_error(node, eval)?.kind,
+            attempt,
+            declared,
+            at,
+        )
+    }
+
+    /// [`Self::read`]'s judgement of the node's own error `refused`.
+    fn of(
+        refused: &NodeErrorKind,
+        (op, [a, b]): (BooleanOp, [RecipeNodeId; 2]),
+        declared: Vec<FlushFinding>,
+        at: Generation,
+    ) -> Option<Self> {
+        let NodeErrorKind::UndeclaredContact {
+            finding,
+            merged,
+            diag,
+        } = refused
+        else {
+            return None;
+        };
+        if finding.pair.0.at == finding.pair.1.at {
+            return None;
+        }
+        Some(Self {
+            op,
+            a,
+            b,
+            declared,
+            at,
+            refused: NodeErrorKind::UndeclaredContact {
+                finding: finding.clone(),
+                merged: merged.clone(),
+                diag: *diag,
+            },
+        })
+    }
+
+    /// The finding the kernel refused: the pair and the class a
+    /// declaration of it asserts.
+    pub fn finding(&self) -> &FlushFinding {
+        let NodeErrorKind::UndeclaredContact { finding, .. } = &self.refused else {
+            unreachable!("`RefusedBoolean::read` admits only an undeclared contact")
+        };
+        finding
+    }
+
+    /// **Whether the kernel refused a pair the attempt already
+    /// declared** — its own declaration, which no further declaring can
+    /// answer.
+    fn re_raised(&self) -> bool {
+        self.declared.contains(self.finding())
+    }
+
+    /// **The offer this refusal makes**: the same boolean again,
+    /// declaring what the attempt declared and the finding it refused.
+    /// `None` when the finding is one the attempt already declared.
+    pub fn offer(&self) -> Option<DeclareOffer> {
+        (!self.re_raised()).then(|| DeclareOffer {
+            at: self.at,
+            op: self.op,
+            a: self.a,
+            b: self.b,
+            findings: self
+                .declared
+                .iter()
+                .chain([self.finding()])
+                .cloned()
+                .collect(),
+        })
+    }
+}
+
+impl core::fmt::Display for RefusedBoolean {
+    /// The kernel's sentence, whole — it names what refused and why,
+    /// and adds no opening of its own. A pair the attempt already
+    /// declared says so after it: that is the kernel refusing its own
+    /// declaration, which no recourse in the sentence can answer.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.refused)?;
+        if self.re_raised() {
+            write!(
+                f,
+                " — but that pair is already declared on this boolean. {}",
+                pncad::geom_core::KERNEL_DEFECT_ENDING
+            )?;
+        }
+        Ok(())
+    }
+}
+
+/// **The offer a [`RefusedBoolean`] makes** — a value, so the panel
+/// shows every pair accepting it declares before anything is
+/// committed.
+///
+/// The class of each pair is the finding's, confirmed rather than
+/// chosen: the author accepts the contact the kernel detected, and a
+/// class it did not detect is not on offer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DeclareOffer {
+    at: Generation,
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    findings: Vec<FlushFinding>,
+}
+
+impl DeclareOffer {
+    /// Every finding accepting the offer declares, in the order the
+    /// refusals reported them.
+    pub fn findings(&self) -> &[FlushFinding] {
+        &self.findings
+    }
+
+    /// **Whether the offer still stands**: the session is at the
+    /// generation the boolean was refused at — no edit, undo or open
+    /// since — and the tool holds the same operation over the same two
+    /// picks. An offer failing either is about a document or a pair of
+    /// operands nobody is looking at.
+    pub fn is_for(
+        &self,
+        now: Generation,
+        op: BooleanOp,
+        a: Option<RecipeNodeId>,
+        b: Option<RecipeNodeId>,
+    ) -> bool {
+        self.at == now && self.op == op && a == Some(self.a) && b == Some(self.b)
+    }
+
+    /// **Accepting the offer**: the boolean again, declaring every
+    /// finding — one action at the session door, so one undo.
+    pub fn accept(&self) -> SessionOp {
+        SessionOp::AddBoolean {
+            op: self.op,
+            a: self.a,
+            b: self.b,
+            declare: self.findings.clone(),
+        }
+    }
+}
 
 /// **"Nothing is picked yet", for a frame on a face — one string, two
 /// readers.**
@@ -1020,5 +1198,109 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
+    }
+}
+
+/// **What a boolean's contact refusal offers, judged on the kernel's own
+/// refusal** — the two cases no scene through the session door reaches:
+/// a pair the attempt already declares, and a pair between two faces of
+/// one operand. Each starts from the boss scene's plain union, the real
+/// refusal, and changes the one thing its case is about.
+#[cfg(test)]
+mod refused_boolean {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use pncad::document::{BooleanOp, Node, NodeErrorKind, RecipeNodeId};
+    use pncad::geom_core::{KERNEL_DEFECT_ENDING, Tol};
+
+    use super::RefusedBoolean;
+    use crate::generation::Generation;
+    use crate::test_support::{boss_on_block, evaluated_insert};
+
+    /// The boss scene's union refusal as the kernel raised it, handed
+    /// to `with` — its evaluation lives only as long as this call.
+    fn with_refusal<R>(with: impl FnOnce(&NodeErrorKind, [RecipeNodeId; 2]) -> R) -> R {
+        let tol = Tol::witness();
+        let (doc, block, boss) = boss_on_block("refused-boolean", tol);
+        let (eval, union) = evaluated_insert(
+            &doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: block,
+                b: boss,
+                declare: None,
+            },
+            tol,
+        );
+        let kind = &crate::tree::own_error(union, &eval)
+            .expect("the plain union fails on its own")
+            .kind;
+        with(kind, [block, boss])
+    }
+
+    /// **A pair the attempt already declares is not offered again**: the
+    /// kernel refusing its own declaration is a defect, and the refusal
+    /// says so. Red if the offer repeats the pair, or the sentence does
+    /// not name the defect.
+    #[test]
+    fn a_pair_already_declared_is_refused_as_a_defect_not_offered() {
+        with_refusal(|kind, operands| {
+            let first = RefusedBoolean::of(
+                kind,
+                (BooleanOp::Union, operands),
+                Vec::new(),
+                Generation::FIRST,
+            )
+            .expect("the premise: the plain union's refusal is offerable");
+            assert!(first.offer().is_some(), "the premise: it offers");
+            let again = RefusedBoolean::of(
+                kind,
+                (BooleanOp::Union, operands),
+                vec![first.finding().clone()],
+                Generation::FIRST,
+            )
+            .expect("still a contact refusal");
+            assert_eq!(again.offer(), None, "no offer of a pair already declared");
+            assert!(
+                again.to_string().ends_with(KERNEL_DEFECT_ENDING),
+                "and it says whose defect it is: {again}"
+            );
+        });
+    }
+
+    /// **A contact between two faces of one operand is not offered**: the
+    /// pair boolean resolves a declared pair only across its operands, so
+    /// the refusal stays the node's own. Red if it is offered.
+    #[test]
+    fn a_same_operand_pair_is_not_offered() {
+        with_refusal(|kind, operands| {
+            let NodeErrorKind::UndeclaredContact {
+                finding,
+                merged,
+                diag,
+            } = kind
+            else {
+                panic!("the premise: an undeclared contact, got {kind:?}");
+            };
+            let mut same = (**finding).clone();
+            same.pair.1.at = same.pair.0.at;
+            let one_operand = NodeErrorKind::UndeclaredContact {
+                finding: Box::new(same),
+                merged: merged.clone(),
+                diag: *diag,
+            };
+            assert!(
+                RefusedBoolean::of(
+                    &one_operand,
+                    (BooleanOp::Union, operands),
+                    Vec::new(),
+                    Generation::FIRST
+                )
+                .is_none(),
+                "a one-operand pair is left to the node's own row"
+            );
+        });
     }
 }

@@ -131,42 +131,69 @@ this row closes.
 
 The plan parked this row until EDIT's vocabulary existed. EDIT closed that dependency on 2026-09-19: `a-declared-union-has-no-one-pass-authoring-path`, #2809, Ev's ruling, "a declaration is authored in one pass". Nothing needs to attach a declaration after the fact, because the declared union is authored as `Declare` then `Boolean` in one action. So this is now a door rather than only a doc fix: the flush boss-on-face union AUTH-1 measured refusing `UndeclaredContact` becomes a union the author can declare and land. Dispatched as **AUTH-9** (`docs/AUTH-9-SPEC.md`, branch `author/declared-union`).
 
-## Built (2026-09-30, AUTH-9)
+## Built (2026-09-30, AUTH-9; PR #3543, fix pass included)
 
 **The flush union is a refusal with an offer, and accepting it is one
-action.** `SessionOp::AddBoolean` carries `declare: Vec<FlushFinding>`.
-The session door stages the run (a `Node::Declare` of those findings
-from `names::declare_node`, then the boolean naming it; the boolean
-alone when the list is empty), evaluates the staged document outside
-the seam with the landed run as its memo, and records it only if the
-boolean does not refuse an undeclared contact of its own. If it does,
-nothing is committed and `Refusal::UndeclaredContact` carries the
-kernel's `NodeErrorKind` whole beside the attempt. Its offer
-(`combine::DeclareOffer`) is the same op with the kernel's finding
-appended, drawn under the boolean tool's commit row; `Declare` queues
-it and `Decline` drops it. The doc on `AddBoolean` now says this.
+action.**
 
-**The three checks.** The pair boolean's refusal is
-`NodeErrorKind::UndeclaredContact { finding, merged, diag }` from
-`eval::wire::refusal_menu`, where `finding` is
-`topo::flush::FlushFinding<(SitedRef, SitedRef)>` (generic, so
-`pub struct FlushFinding` does not grep; `names::FlushFinding` is the
-alias). Each side is sited at the operand that holds it and the class
-rides the finding, so the `Declare` is built from the refusal alone.
-One refusal reports ONE pair (`BooleanError::UndeclaredCoincidence`
-carries one), so a second contact is a second refusal; the offer
-carries every pair already accepted, and nothing is committed until
-the union evaluates. The class is the finding's: `refusal_menu` sets
-`Rest` because the coincidence ladder that raises the refusal is the
-`Rest` ladder, and the author confirms it rather than picks one.
+- `SessionOp::AddBoolean` carries `declare: Vec<FlushFinding>`.
+- The session door stages the run: a `Node::Declare` of those findings
+  (`names::declare_node`) and then the boolean naming it, or the boolean
+  alone when the list is empty.
+- It evaluates the staged document beside the seam
+  (`evalseam::evaluate_beside`). The memo is the landed run, used only
+  if it resolved through the same seam (`memo_under`, `same_resolver`).
+- It records the run unless the boolean fails with an undeclared
+  contact of its own that it can declare (`tree::own_error`). If it
+  does, nothing is committed.
 
-**Rows** (`crates/viewer/src/pane/create.rs`, `declared_union`): the
-flush union refuses and commits nothing; the refusal renders the
-kernel's own sentence; the panel paints the offer; `Declare` queues
-the accept, which lands one `Declare` and one union in one history
-step, evaluating to block plus boss; one undo returns the refused-on
-document; `Decline` queues nothing and drops the offer; an offer the
-picks or an edit moved past is dropped unshown; a second contact is
-offered with the first kept and both land together; a union poisoned
-by an upstream contact refusal commits and offers nothing; a
-non-flush union lands with `declare: None` and no `Declare`.
+The refusal is `Refusal::Contact(RefusedBoolean)` in `session::refuse`.
+It renders the kernel's sentence whole, and carries the attempt and the
+generation it was judged at. Its offer (`DeclareOffer`, read by
+`frame::declare_offer` beside `creation_offer`) is the same op with the
+finding appended. The offer is drawn under the boolean tool's commit
+row, with its wording in `Refusal::declare_question` /
+`declare_pair_wording` beside `offer_wording`. It stands only at that
+generation, for that op and those picks.
+
+Two cases are deliberately not offered:
+- **A pair between two faces of one operand.** The pair boolean has no
+  declared step for it, so it stays the node's own refusal.
+- **A pair the attempt already declared.** That is a kernel defect, and
+  the refusal says so.
+
+**The three checks.**
+1. **What the refusal carries.** The pair boolean's refusal is
+   `NodeErrorKind::UndeclaredContact { finding, merged, diag }` from
+   `eval::wire::refusal_menu`. `finding` is
+   `topo::flush::FlushFinding<(SitedRef, SitedRef)>`; the struct is
+   generic, so `pub struct FlushFinding` does not grep. It carries both
+   sites and the class.
+2. **How many contacts one refusal reports.** One pair per refusal
+   (`UndeclaredCoincidence` carries one). The offer keeps every pair
+   already accepted, and nothing is committed until the union
+   evaluates.
+3. **Where the class comes from.** The finding: `Rest`, set by the
+   coincidence ladder. The author confirms it rather than picks it.
+
+**Rows.**
+- Panel rows in `crates/viewer/src/pane/create.rs`, `declared_union`:
+  - refusal → offer → Declare → one undo;
+  - Decline drops the offer;
+  - the offer is dropped once the picks, the op or the document move
+    past it.
+- Door rows in `crates/viewer/tests/combine_ops.rs`:
+  - a poisoned boolean commits and offers nothing;
+  - two contacts land as one action, at the exact volume;
+  - a non-flush union authors no `Declare`.
+- Unit rows in `session/refuse.rs`, `refused_boolean`: a re-raised pair
+  is a defect, not an offer; a same-operand pair is not offered.
+
+**Left open, filed:**
+- `the-boolean-door-evaluates-its-boolean-twice`
+- `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added`
+  (design)
+- ZIP's `a-boss-flush-with-a-block-edge-refuses-its-declared-union`
+- ZIP's `a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence`
+- OFFER's `a-refusal-offers-no-action-in-the-viewer` (evidence: the
+  doubled recourse)

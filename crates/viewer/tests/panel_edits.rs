@@ -675,7 +675,7 @@ test_utils::f6_variants! {
         EmptyName,
         WrongNodeKind,
         Duplicate,
-        UndeclaredContact,
+        Contact,
         Edit,
         Dimension,
         Parse,

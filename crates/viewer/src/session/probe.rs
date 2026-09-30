@@ -14,13 +14,14 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, DocParam, EvalOptions, Evaluation, ParamName, PartReach,
-    PartResolver, ProfileProgram, RecipeNodeId, SlotId, apply, evaluate,
+    Dimension, Doc, DocEdit, DocParam, Evaluation, ParamName, PartReach, PartResolver,
+    ProfileProgram, RecipeNodeId, SlotId, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
 use crate::bounds;
+use crate::evalseam::evaluate_beside;
 use crate::props::{self, SlotValue};
 use crate::session::refuse::Refusal;
 
@@ -107,7 +108,7 @@ pub(super) fn probe_bounds(
     // baseline" compares two runs of one function rather than a run
     // against the landed evaluation, which may have been taken at a
     // different memo state.
-    let baseline = bounds::Verdict::of(&evaluate_with(base, prior, resolver, tol));
+    let baseline = bounds::Verdict::of(&evaluate_beside(base, prior, resolver, tol));
     // A probe's edit is a slot value on one node — it never moves a
     // cluster's gauge — but the door is the session's, so it levers
     // through the session's own seam like every other edit.
@@ -120,7 +121,7 @@ pub(super) fn probe_bounds(
             };
             match apply(base, &edit, tol, &reach) {
                 Ok(applied) => {
-                    let eval = evaluate_with(&applied.doc, prior, resolver, tol);
+                    let eval = evaluate_beside(&applied.doc, prior, resolver, tol);
                     bounds::Verdict::of(&eval).no_worse_than(&baseline)
                 }
                 // The edit door refused: at this value there is no
@@ -259,35 +260,4 @@ fn probe_edit(
             ))
         }
     }
-}
-
-/// One evaluation of one document, outside the seam.
-///
-/// **The seam is for the PICTURE**; this is for a question asked about
-/// a document nobody is going to look at (a range probe's candidate, a
-/// boolean the session door has not yet committed).
-/// Routing it through the seam would cancel the run the viewport is
-/// waiting for — the seam's ruled cancel-and-restart policy — which is
-/// exactly the wrong trade for a query the user asked for BESIDE the
-/// picture rather than instead of it.
-///
-/// A fresh `CancelToken` per call, never set: these runs are bounded by
-/// the probe's sample cap or are one run each, and nothing exists to
-/// cancel them from.
-pub(crate) fn evaluate_with(
-    doc: &Doc<ProfileProgram>,
-    prior: Option<&Evaluation<f64>>,
-    resolver: &Option<Arc<dyn PartResolver>>,
-    tol: Tol,
-) -> Evaluation<f64> {
-    evaluate(
-        doc,
-        prior,
-        &CancelToken::new(),
-        &EvalOptions {
-            resolver: resolver.clone(),
-            ..EvalOptions::default()
-        },
-        tol,
-    )
 }

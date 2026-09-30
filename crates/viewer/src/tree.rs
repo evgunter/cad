@@ -895,6 +895,17 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
     }
 }
 
+/// **`id`'s own failure, as this tree reads it**: `Some` exactly when
+/// its row is drawn from its own error, off the same [`standing`] as
+/// [`status_of`]. A poisoned node answers `None` — its cause is an
+/// ancestor's, and so is the row the tree sends a reader to.
+pub fn own_error(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<&NodeError> {
+    match standing(id, Some(evaluation)) {
+        Standing::Failed(error) => Some(error),
+        Standing::Status(_) => None,
+    }
+}
+
 /// **A kernel standing, re-read as this tree draws its node** (the
 /// module header's second section).
 ///

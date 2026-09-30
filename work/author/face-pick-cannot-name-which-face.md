@@ -97,9 +97,16 @@ The boolean tool's offer to declare a refused contact names each side
 of the pair as `a face of feature N` (`combine::DeclareOffer::pair_line`,
 drawn by `pane::create::declare_offer_rows`). The node half goes
 through `tree::node_number`; the face half is the same gap as the
-held face pick. For the boss-on-a-face union the two operands are
-enough to know the contact, but a pair of bodies that touch at two
-faces gets two lines that read alike until one of them can say which
-face. Answer 2 above reaches this site too: each side is a `SitedRef`
+held face pick (the line's composer is now
+`Refusal::declare_pair_wording`, `session/refuse.rs`). For the
+boss-on-a-face union the two operands are enough to know the contact,
+but a pair of bodies that touch at two faces gets two lines that read
+alike.
+
+**Measured by AUTH-9's review:** a block and a cylinder through it
+whose two caps sit flush with the block's top and bottom. The offer's
+second round shows `a face of feature 2 against a face of feature 5 —
+Rest contact` twice, once for the cylinder's `Cap(Start)` and once for
+its `Cap(End)`, and the author cannot tell which line is which. Answer 2 above reaches this site too: each side is a `SitedRef`
 at an operand the landed run has drawn, so the pose read is the same
 question asked of the offer's pair instead of the add-datum pick.

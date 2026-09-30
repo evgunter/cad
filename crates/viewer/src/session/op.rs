@@ -576,11 +576,13 @@ pub enum SessionOp {
     /// one commits a `Node::Declare` of exactly those findings and then
     /// the boolean naming it — one action, one undo. The door evaluates
     /// the boolean before recording it, and one that refuses an
-    /// undeclared contact is not committed:
-    /// [`Refusal::UndeclaredContact`] carries the kernel's finding
-    /// back, and its offer is this op again with that finding added.
-    /// So every declared pair is one a refusal reported and the author
-    /// accepted — never guessed at here.
+    /// undeclared contact of its own is not committed:
+    /// [`Refusal::Contact`] carries the kernel's finding back, and its
+    /// offer is this op again with that finding added. The door
+    /// declares what it is handed and guesses nothing; that the boolean
+    /// tool hands it only pairs a refusal reported and the author
+    /// accepted is the tool's gesture, not a property of the findings'
+    /// type.
     AddBoolean {
         /// The operation — the KERNEL's enum, which the recipe node
         /// carries unconverted.
@@ -589,8 +591,7 @@ pub enum SessionOp {
         a: RecipeNodeId,
         /// The second operand: the body a subtraction removes.
         b: RecipeNodeId,
-        /// The contacts declared, each a finding this door's refusal
-        /// carried.
+        /// The contacts declared, in the refusals' own finding shape.
         declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
