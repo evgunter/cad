@@ -3198,3 +3198,27 @@ The orchestrator read the diff:
 
 The item closes on the branch. Merge after CI on `382771bfce`. Single
 tier, so there is no DR row.
+
+## PR 3500 merged; the null-kill unit out (2026-09-30)
+
+PR 3500 merged (`9f38f0eb1f`), closing
+`mev-null-leaves-a-complete-curved-face-half-minted`. It was a
+single-tier review, so there is no DR row.
+
+Dispatched **`a-null-edge-that-is-killed-leaves-its-face-half-minted`**
+(P2, M; tier SINGLE, full): the production half of Ev's PR 2527
+ruling.
+- **Measure first:** which door kills each null edge, what the face
+  looks like after the last kill, and whether the closing mint then
+  mints it cleanly.
+- **Then build one of two shapes:**
+  - (a) the kill removing a face's last null edge re-mints under
+    `remints_at_description`'s rule;
+  - (b) the joins mint the loops clear of null edges.
+- The face must leave with the closing pass's rows before that pass
+  runs.
+- The closing mint is not removed in this unit. The lane re-measures
+  what it still does.
+
+It runs on the freed warm target, with the stale artifacts trimmed
+first.
