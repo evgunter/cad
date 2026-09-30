@@ -90,7 +90,11 @@ fn a_chain_of_patterns_names_past_every_stack_through_every_door_on_the_smallest
         let top = *patterns.last().expect("a pattern");
         let ev = run(&doc, &EvalOptions::default());
         let faces = all_faces(&ev, top);
-        assert_eq!(faces.len(), 6, "the top pattern's one copy has a block's faces");
+        assert_eq!(
+            faces.len(),
+            6,
+            "the top pattern's one copy has a block's faces"
+        );
         let shown = format!("{:?}", faces[0]);
         assert_eq!(
             shown.matches("Instance").count(),
@@ -117,7 +121,10 @@ fn a_chain_of_patterns_names_past_every_stack_through_every_door_on_the_smallest
             canonical_bytes(&doc, tol).unwrap(),
             "and pins the same bytes"
         );
-        assert_eq!(content_pin(&loaded.doc, tol).unwrap(), content_pin(&doc, tol).unwrap());
+        assert_eq!(
+            content_pin(&loaded.doc, tol).unwrap(),
+            content_pin(&doc, tol).unwrap()
+        );
         let resaved = save(&loaded.doc, &[], tol).expect("the loaded document saves");
         assert_eq!(resaved, text, "and saves the same text");
         drop((doc, loaded, deep));
@@ -134,7 +141,9 @@ fn a_split_remaps_a_name_past_every_stack_on_the_smallest_stack() {
             path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
         };
         let name = (0..depth).fold(leaf, |n, level| in_copy(RecipeNodeId(2 + level % 3), 0, n));
-        let map = (1..=4).map(|n| (RecipeNodeId(n), RecipeNodeId(n + 100))).collect();
+        let map = (1..=4)
+            .map(|n| (RecipeNodeId(n), RecipeNodeId(n + 100)))
+            .collect();
         let moved = remap_name(&name, &map, &Default::default()).expect("every id is mapped");
         let expect = (0..depth).fold(
             StableName {
@@ -144,6 +153,9 @@ fn a_split_remaps_a_name_past_every_stack_on_the_smallest_stack() {
             },
             |n, level| in_copy(RecipeNodeId(102 + level % 3), 0, n),
         );
-        assert!(moved == expect, "every level moves to the other document's ids");
+        assert!(
+            moved == expect,
+            "every level moves to the other document's ids"
+        );
     });
 }

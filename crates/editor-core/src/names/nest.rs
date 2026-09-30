@@ -5,7 +5,7 @@
 //! copy its master's ([`RoleSeg::Instance`]), an instantiated part's
 //! entity its name in the part ([`RoleSeg::InPart`]), and so on down
 //! the chain. Nothing bounds the depth: a part nested
-//! [`MAX_DEPTH`](crate::eval::MAX_DEPTH) documents deep puts that many
+//! [`MAX_DEPTH`](crate::eval::parts::MAX_DEPTH) documents deep puts that many
 //! `InPart` levels into every name its top instance carries, and a
 //! document of a thousand booleans nests its survivors a thousand deep.
 //! A walk that recursed once per level would need a stack proportional
@@ -1230,7 +1230,8 @@ pub(super) mod tests {
         for seg in every_segment(&x, &y) {
             out.push(named(EntityKind::Face, 10, vec![seg]));
         }
-        let over = |n: &StableName| named(EntityKind::Face, 10, vec![RoleSeg::FromA(n.clone().into())]);
+        let over =
+            |n: &StableName| named(EntityKind::Face, 10, vec![RoleSeg::FromA(n.clone().into())]);
         let (a, b) = (over(&x), over(&y));
         let rank = RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 });
         for (p, q) in [(&a, &b), (&b, &a)] {
@@ -1277,7 +1278,11 @@ pub(super) mod tests {
             );
             let copy = a.clone();
             assert!(derived(|| copy == *a), "a clone equals its source: {shown}");
-            assert_eq!(hash(&copy), hash(a), "a clone hashes as its source: {shown}");
+            assert_eq!(
+                hash(&copy),
+                hash(a),
+                "a clone hashes as its source: {shown}"
+            );
             let text = a.to_json().unwrap();
             assert_eq!(
                 text,
@@ -1387,9 +1392,12 @@ pub(super) mod tests {
                 4,
                 vec![RoleSeg::Merged(vec![leaf(1), leaf(2)])],
             );
-            let constituents = super::super::merged::constituents_through_wrappers(
-                &wrapped(merged, DEEP, 6, RoleSeg::FromA),
-            )
+            let constituents = super::super::merged::constituents_through_wrappers(&wrapped(
+                merged,
+                DEEP,
+                6,
+                RoleSeg::FromA,
+            ))
             .expect("a merged face under its wrappers");
             assert_eq!(
                 constituents,
@@ -1445,7 +1453,10 @@ pub(super) mod tests {
             let any = nest(NamePat::any());
             let copy = any.clone();
             assert!(copy == any, "a clone equals its source");
-            assert!(any.matches(&face), "a pattern as deep as the name matches it");
+            assert!(
+                any.matches(&face),
+                "a pattern as deep as the name matches it"
+            );
             let edges = nest(NamePat::of_kind(EntityKind::Edge));
             assert!(any != edges, "patterns differing at the bottom differ");
             assert!(!edges.matches(&face), "and the bottom decides the match");
@@ -1461,7 +1472,8 @@ pub(super) mod tests {
     #[test]
     fn a_nested_name_the_door_cannot_read_refuses_in_the_derived_words() {
         let text = leaf(1).to_json().unwrap();
-        let wrap = |inner: &str| format!(r#"{{"kind":"Face","node":3,"path":[{{"FromA":{inner}}}]}}"#);
+        let wrap =
+            |inner: &str| format!(r#"{{"kind":"Face","node":3,"path":[{{"FromA":{inner}}}]}}"#);
         let refused = |t: &str| StableName::from_json(t).unwrap_err().to_string();
         assert!(
             refused(&wrap(&text.replace("\"Cap\"", "\"Cop\""))).contains("unknown variant `Cop`"),

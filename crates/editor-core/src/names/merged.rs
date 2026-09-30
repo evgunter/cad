@@ -34,10 +34,11 @@ pub(crate) const NESTED_MERGED: &str =
 pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<StableName>> {
     // The wrappers peeled, outermost first, each with its level's node;
     // the foot's constituents are re-wrapped innermost first.
-    let mut wrappers: Vec<(fn(NameRef) -> RoleSeg, crate::node::RecipeNodeId)> = Vec::new();
+    type Side = fn(NameRef) -> RoleSeg;
+    let mut wrappers: Vec<(Side, crate::node::RecipeNodeId)> = Vec::new();
     let mut at = name;
     let foot = loop {
-        let (side, inner): (fn(NameRef) -> RoleSeg, &NameRef) = match at.path.as_slice() {
+        let (side, inner): (Side, &NameRef) = match at.path.as_slice() {
             [RoleSeg::Merged(cs)] => break cs,
             [RoleSeg::FromA(inner)] => (RoleSeg::FromA, inner),
             [RoleSeg::FromB(inner)] => (RoleSeg::FromB, inner),
