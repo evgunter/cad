@@ -839,4 +839,48 @@ mod tests {
             "a bisector between mixed bounds resolves"
         );
     }
+
+    /// **The pierce germ line is the kernel's own re-reading**: a
+    /// sector whose face parts from the pierced face by an in-band angle
+    /// at its reach escalates as [`SelfCheck::GermLine`], a defect (a
+    /// transition sector reads this margin positive whenever K > 3).
+    #[test]
+    fn an_in_band_pierce_germ_line_is_the_kernels_own_check() {
+        use super::super::sectors::{BoolSector, Reach};
+        use geom_brep::OutwardNormal;
+        use geom_core::{KERNEL_DEFECT_ENDING, Point3, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let s = BoolSector {
+            he: HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + x,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + y,
+            },
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            arm: 1.0,
+        };
+        let err =
+            pierce_germ_dir(&s, Vec3::new(mid.sin(), 0.0, mid.cos()), band).expect_err("in band");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::SelfCheck(SelfCheck::GermLine),
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
+    }
 }

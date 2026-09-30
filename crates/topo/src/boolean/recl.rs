@@ -1416,6 +1416,99 @@ mod tests {
         );
     }
 
+    /// **`recl`'s plane door offers the declaration that settles it**:
+    /// two planar faces read on one another whose planes part by an
+    /// in-band angle at the door's arm. Undeclared, the parallelism rung
+    /// escalates through the door the lookup read (`on_pair_door`):
+    /// `Rest`, which the door admits for two planar faces, would bridge
+    /// it, and no nonzero sign passes there, so it ends in the
+    /// declaration and the geometry alone. Declared `Rest`, the rung
+    /// bridges it and the carriers are one.
+    #[test]
+    fn the_on_pair_plane_door_offers_the_declaration_that_settles_it() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{
+            BooleanDecision, BooleanDeclarations, DeclaredPairs, FacePairDeclaration,
+        };
+        use crate::contact::ContactClass;
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let tilted = Vec3::new(0.0, mid.sin(), mid.cos());
+        let plane =
+            |n: Vec3<f64>| crate::test_support_fixtures::plane(&[o, o + x, o + n.cross(x)], tol);
+        let (b1, f1) = face_on(plane(z));
+        let (b2, f2) = face_on(plane(tilted));
+        let sector = |face, normal: Vec3<f64>| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + x,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + y,
+            },
+            face,
+            normal: OutwardNormal::from_chart(normal, true),
+            arm: 1.0,
+        };
+        let (s1, s2) = (sector(f1, z), sector(f2, tilted));
+        let run = |class: Option<ContactClass>| {
+            let decls = BooleanDeclarations {
+                coincident_faces: class
+                    .map(|class| vec![FacePairDeclaration::new(f1, f2, class)])
+                    .unwrap_or_default(),
+                ..BooleanDeclarations::none()
+            };
+            let declared = DeclaredPairs::build(&decls, Default::default());
+            require_same(
+                &b1,
+                Operand::A,
+                &s1,
+                &b2,
+                Operand::B,
+                &s2,
+                &declared,
+                1.0,
+                band,
+            )
+        };
+        let err = run(None).expect_err("an in-band parallelism refuses undeclared");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::Coincidence(
+                        Coincide::OnPlanes,
+                        DeclarationRead::Settles(s)
+                    ),
+                    ..
+                } if s.class() == ContactClass::Rest
+            ),
+            "{err:?}"
+        );
+        assert!(
+            err.to_string()
+                .ends_with("Recourse: declare the coincidence, or move the geometry"),
+            "{err}"
+        );
+        assert!(
+            run(Some(ContactClass::Rest)).is_ok(),
+            "declared Rest, the rung bridges the residue"
+        );
+    }
+
     /// A body whose one skeletal face carries `surface`.
     fn face_on(surface: geom::Surface<f64>) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
         let st = crate::fixtures::mvfs_state();

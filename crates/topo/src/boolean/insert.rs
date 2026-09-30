@@ -760,4 +760,52 @@ mod tests {
         crate::validate::validate(&abody).unwrap();
         crate::validate::validate(&bbody).unwrap();
     }
+
+    /// **The germ line is the kernel's own re-reading**: two sector
+    /// faces whose normals part by an in-band angle at the sectors' arm
+    /// escalate as [`SelfCheck::GermLine`], ending as a defect (their
+    /// crossing record needed this margin definitely positive upstream),
+    /// never as a coincidence with a tolerance.
+    #[test]
+    fn an_in_band_germ_line_is_the_kernels_own_check() {
+        use super::super::sectors::Reach;
+        use geom_brep::OutwardNormal;
+        use geom_core::{KERNEL_DEFECT_ENDING, Point3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let sector = |normal: Vec3<f64>| BoolSector {
+            he: HalfEdgeKey::default(),
+            start: x,
+            end: y,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + x,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + y,
+            },
+            face: FaceKey::default(),
+            normal: OutwardNormal::from_chart(normal, true),
+            arm: 1.0,
+        };
+        let (sa, sb) = (
+            sector(Vec3::new(0.0, 0.0, 1.0)),
+            sector(Vec3::new(mid.sin(), 0.0, mid.cos())),
+        );
+        let err = germ_dir(&sa, &sb, DeclarationRead::Moot, band).expect_err("in band");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::SelfCheck(SelfCheck::GermLine),
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
+    }
 }
