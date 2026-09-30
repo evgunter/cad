@@ -3726,10 +3726,20 @@ fn asm_r2b_child_crossing_probe() {
     // A mated pair (the minting subject), then a THIRD instance
     // carrying an authored crossing record (the wire subject).
     let (doc, ids) = asm_r2a_mated_assembly("asm-r2b-probe-asm", doc_ref, body);
+    // The `outer` is this document's name for a face: the first
+    // instance's end cap, worn under the instance that placed it.
+    let outer = FaceName::new(StableName {
+        kind: EntityKind::Face,
+        node: ids[0],
+        path: vec![RoleSeg::InPart {
+            of: (*face(CapEnd::End)).clone().into(),
+        }],
+    })
+    .expect("a crossing's references are face names");
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(CapEnd::End),
+            outer,
             inner: face(CapEnd::Start),
         }],
     };

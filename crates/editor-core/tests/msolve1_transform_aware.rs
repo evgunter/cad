@@ -782,7 +782,8 @@ fn a5_two_operands_over_one_instance_are_two_members() {
 /// and a free direction never got the chance to absorb anything.
 #[test]
 fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
-    let residual = |label: &str, lift: bool| -> MateFault {
+    // Each document's refusal, with its `(base, top)` instances.
+    let residual = |label: &str, lift: bool| -> (MateFault, [RecipeNodeId; 2]) {
         let mut store = PartStore::default();
         let (base_ref, base_body) =
             store.insert_part(block(&format!("{label}-base"), 1.0), Tol::witness());
@@ -811,14 +812,15 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
             resolver: Some(Arc::new(store)),
             ..EvalOptions::default()
         };
-        solve(&doc, &o, Tol::witness())
+        let fault = solve(&doc, &o, Tol::witness())
             .fault(mate.unwrap())
             .cloned()
-            .expect("a residual tree edge refuses")
+            .expect("a residual tree edge refuses");
+        (fault, [base, top])
     };
     let plain = residual("msolve1-a6-plain", false);
     let lifted = residual("msolve1-a6-lifted", true);
-    for (what, fault) in [("plain", &plain), ("lifted", &lifted)] {
+    for (what, (fault, _)) in [("plain", &plain), ("lifted", &lifted)] {
         let MateFault::Under { residual, .. } = fault else {
             panic!("A6 {what}: expected Under, got {fault:?}");
         };
@@ -827,16 +829,25 @@ fn a6_a_residual_tree_edge_refuses_under_with_or_without_the_transform() {
             "A6 {what}: the residual is the prismatic one, got {residual:?}"
         );
     }
-    // The two refusals differ only in the mate's own node id (the
-    // lifted document has one node more): same parent, same child,
-    // same residual. A mate that never places is blind to nothing.
-    let parts = |f: &MateFault| match f {
+    // The two refusals differ only in the mate's own node: the same
+    // parent and child, each read as its document's `base` or `top`,
+    // and the same residual. A mate that never places is blind to
+    // nothing.
+    let parts = |(f, instances): &(MateFault, [RecipeNodeId; 2])| match f {
         MateFault::Under {
             parent,
             child,
             residual,
             ..
-        } => (*parent, *child, format!("{residual:?}")),
+        } => {
+            let role = |id: &RecipeNodeId| {
+                instances
+                    .iter()
+                    .position(|i| i == id)
+                    .expect("A6: the refusal names one of the document's two instances")
+            };
+            (role(parent), role(child), format!("{residual:?}"))
+        }
         other => panic!("expected Under, got {other:?}"),
     };
     assert_eq!(

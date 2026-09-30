@@ -187,7 +187,8 @@ id order, which becomes arbitrary, or order by position in `Doc::order`.
   Unit 2 must tie-break by position in `Doc::order`.
 - The mate solve's spanning tree takes the first pair by id:
   `msolve1_transform_aware::a5_*` and `msolve2_member_chain::a3b_*` ("the
-  first pair is the tree edge").
+  first pair is the tree edge"); `msolve2_member_chain::a2a_*` too,
+  under a probe salted per document.
 - Which member holds a flush stretch of a shared rim:
   `emit_union_rim_piece_ranks::fam010_*` and
   `emit_shared_rim_several::the_chord_is_named_as_the_rim_piece_it_lies_on`.
@@ -209,8 +210,12 @@ id order, which becomes arbitrary, or order by position in `Doc::order`.
 The probe keeps every coincidence between documents that the counter
 has: the n-th insert of any document gets the same id. A digest does
 not keep it where the minting edits differ.
-`work/emit/part-suites-name-every-parts-body-by-one-constant.md` is the
-one known case: `PART_BODY`, 329 occurrences in 34 files. Rows that
-compare two documents built by the same edits are safe under D9. Those
-the probe fixed read ids from each document, but the premise needs
-unit 2's mint to confirm it.
+A variant salted per document does break those coincidences, and its
+run is in `work/emit/part-suites-name-every-parts-body-by-one-constant.md`:
+the part suites' one body constant is gone, and what it still fails
+beyond the unsalted probe is one more id-order row (above) and a recipe
+replayed under another document id, which a mint of the edit bytes
+keeps. Rows that compare two
+documents built by the same edits are safe under D9. Those the probe
+fixed read ids from each document, but the premise needs unit 2's mint
+to confirm it.
