@@ -2,7 +2,8 @@
 id: addboolean-doc-names-a-vocabulary-that-does-not-exist
 kind: issue
 title: SessionOp::AddBoolean's doc promises a declaration vocabulary that no DocEdit provides
-status: dispatched
+status: review
+branch: author/declared-union
 opened: 2026-09-15
 refs: [a-declared-union-has-no-one-pass-authoring-path]
 priority: P0
@@ -129,3 +130,43 @@ this row closes.
 ## Unblocked and dispatched (2026-09-30)
 
 The plan parked this row until EDIT's vocabulary existed. EDIT closed that dependency on 2026-09-19: `a-declared-union-has-no-one-pass-authoring-path`, #2809, Ev's ruling, "a declaration is authored in one pass". Nothing needs to attach a declaration after the fact, because the declared union is authored as `Declare` then `Boolean` in one action. So this is now a door rather than only a doc fix: the flush boss-on-face union AUTH-1 measured refusing `UndeclaredContact` becomes a union the author can declare and land. Dispatched as **AUTH-9** (`docs/AUTH-9-SPEC.md`, branch `author/declared-union`).
+
+## Built (2026-09-30, AUTH-9)
+
+**The flush union is a refusal with an offer, and accepting it is one
+action.** `SessionOp::AddBoolean` carries `declare: Vec<FlushFinding>`.
+The session door stages the run (a `Node::Declare` of those findings
+from `names::declare_node`, then the boolean naming it; the boolean
+alone when the list is empty), evaluates the staged document outside
+the seam with the landed run as its memo, and records it only if the
+boolean does not refuse an undeclared contact of its own. If it does,
+nothing is committed and `Refusal::UndeclaredContact` carries the
+kernel's `NodeErrorKind` whole beside the attempt. Its offer
+(`combine::DeclareOffer`) is the same op with the kernel's finding
+appended, drawn under the boolean tool's commit row; `Declare` queues
+it and `Decline` drops it. The doc on `AddBoolean` now says this.
+
+**The three checks.** The pair boolean's refusal is
+`NodeErrorKind::UndeclaredContact { finding, merged, diag }` from
+`eval::wire::refusal_menu`, where `finding` is
+`topo::flush::FlushFinding<(SitedRef, SitedRef)>` (generic, so
+`pub struct FlushFinding` does not grep; `names::FlushFinding` is the
+alias). Each side is sited at the operand that holds it and the class
+rides the finding, so the `Declare` is built from the refusal alone.
+One refusal reports ONE pair (`BooleanError::UndeclaredCoincidence`
+carries one), so a second contact is a second refusal; the offer
+carries every pair already accepted, and nothing is committed until
+the union evaluates. The class is the finding's: `refusal_menu` sets
+`Rest` because the coincidence ladder that raises the refusal is the
+`Rest` ladder, and the author confirms it rather than picks one.
+
+**Rows** (`crates/viewer/src/pane/create.rs`, `declared_union`): the
+flush union refuses and commits nothing; the refusal renders the
+kernel's own sentence; the panel paints the offer; `Declare` queues
+the accept, which lands one `Declare` and one union in one history
+step, evaluating to block plus boss; one undo returns the refused-on
+document; `Decline` queues nothing and drops the offer; an offer the
+picks or an edit moved past is dropped unshown; a second contact is
+offered with the first kept and both land together; a union poisoned
+by an upstream contact refusal commits and offers nothing; a
+non-flush union lands with `declare: None` and no `Declare`.

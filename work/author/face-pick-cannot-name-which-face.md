@@ -90,3 +90,16 @@ is a change AUTHOR can make alone. The first reverses a ruling written
 into `crates/editor-core/src/names/role.rs`; the second needs a
 re-export on the `pncad` facade. Either way the unit that takes this
 row opens with a question for whoever owns that ground.
+
+## A fourth site since AUTH-9 (2026-09-30): the declare offer
+
+The boolean tool's offer to declare a refused contact names each side
+of the pair as `a face of feature N` (`combine::DeclareOffer::pair_line`,
+drawn by `pane::create::declare_offer_rows`). The node half goes
+through `tree::node_number`; the face half is the same gap as the
+held face pick. For the boss-on-a-face union the two operands are
+enough to know the contact, but a pair of bodies that touch at two
+faces gets two lines that read alike until one of them can say which
+face. Answer 2 above reaches this site too: each side is a `SitedRef`
+at an operand the landed run has drawn, so the pose read is the same
+question asked of the offer's pair instead of the add-datum pick.
