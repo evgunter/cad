@@ -415,8 +415,12 @@ pub enum MergeCoplanarError {
     /// declaration contradicts the geometry; refused loudly, never
     /// glued (M4 PR 5; `plane_eq` rung 2's verification direction).
     DeclarationContradicted {
-        /// The contradicting predicate's diagnostics.
-        diag: Indeterminate,
+        /// The fact that contradicted the declaration: `PlanesNotParallel`
+        /// or `PlanesApart`, the two the declared plane rung raises. The
+        /// field keeps the rung's own type (`PlaneEqError` is
+        /// `CarrierEqError`), which a narrower one would convert from
+        /// fallibly at the one raise site.
+        fact: crate::boolean::Contradiction,
     },
     /// A declared face pair meets with OPPOSITE orientations at a
     /// shared edge — no valid closed solid merges such a pair; the
@@ -557,10 +561,12 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: invalid declared pair at surface {surface:?}: {what}"
             ),
-            Self::DeclarationContradicted { diag } => write!(
+            Self::DeclarationContradicted { fact } => write!(
                 f,
-                "merge_coplanar_faces: declared coincidence contradicts the geometry ({diag}) \
-                 — fix the declaration or the geometry, the op never glues a lie"
+                "a declared coincidence contradicts the geometry: {}, and the merge never \
+                 glues a lie. {}",
+                fact.fact(),
+                crate::contact::CONTRADICTION_RECOURSE
             ),
             Self::DeclaredOppositeOrientation { f1, f2 } => write!(
                 f,
@@ -1865,8 +1871,8 @@ impl<T: Decide> Body<T> {
                 }
                 // Unreachable through the declared rung; kept typed.
                 Ok(PlaneRelation::Distinct) => Ok(false),
-                Err(PlaneEqError::Contradicted(diag)) => {
-                    Err(MergeCoplanarError::DeclarationContradicted { diag })
+                Err(PlaneEqError::Contradicted { fact, .. }) => {
+                    Err(MergeCoplanarError::DeclarationContradicted { fact })
                 }
                 Err(PlaneEqError::Escalated(diag) | PlaneEqError::Undeclared { diag, .. }) => {
                     Err(MergeCoplanarError::Escalated { diag })
@@ -3602,17 +3608,16 @@ mod tests {
             group.contains("unmerged") && group.contains("run continues"),
             "a group's own gate says the run survives it: {group}"
         );
+        let contradicted = rendered(&MergeCoplanarError::DeclarationContradicted {
+            fact: crate::boolean::Contradiction::PlanesApart,
+        });
         assert!(
-            rendered(&MergeCoplanarError::DeclarationContradicted {
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::value(0.0),
-                    band: Band::linear(Tol::witness()).expect("the witness band"),
-                    predicate: Some("merge_declared_plane_eq"),
-                    terminal_sliver: false,
-                },
-            })
-            .contains("fix the declaration or the geometry"),
-            "the declared-pair contradiction carries its recourse"
+            contradicted.contains("the declared planes are parallel but apart")
+                && contradicted.ends_with(
+                    "Recourse: correct or remove the declaration, or move the geometry so it holds"
+                ),
+            "the declared-pair contradiction names its fact and ends on its recourse: \
+             {contradicted}"
         );
         let split = |other_kind| {
             rendered(&MergeCoplanarError::GroupKindSplit {

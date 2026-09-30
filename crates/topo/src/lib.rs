@@ -392,19 +392,19 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
-    BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
-    CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
-    ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
-    NullEdgePairRecord, Operand, OperandKeys, PairRefusalSite, PairSite, PatchContact,
-    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError,
-    SideCode, SolidContainment, SolidFaces, SweepStrategy, SweepTrace, TangentLocus,
-    TangentLocusError, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
-    VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, intersect_with, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_locus,
-    tangent_pair_relation, union, union_with,
+    BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
+    BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
+    CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation,
+    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact,
+    FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
+    PairRefusalSite, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneIdentity, PlaneRelation, PointInSolidError, SectorRung, SideCode, SolidContainment,
+    SolidFaces, SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with,
+    boolean_reduce, boolean_reduce_declared, carrier_eq, contfp, curved_face_containment,
+    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    intersect_with, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
+    subtract, subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -490,10 +490,11 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ArcWindowCase, LoopContainment, NullEdgeRecord, PlaneSide, PointInLoopError, Section,
-    SectionPolygon, SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError,
-    SplitPart, SplitPlane, SplitReduceError, SplitReduction, SplitResult, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ArcWindowCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord, PlaneSide,
+    PointInLoopError, Section, SectionPolygon, SectorEntry, SectorEntryKind, SplitError,
+    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
+    SplitResult, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
+    vertex_sides,
 };
 pub use transform::{
     TransformError, check_rigid, not_rigid_reading, transform_rigid, transform_rigid_via,

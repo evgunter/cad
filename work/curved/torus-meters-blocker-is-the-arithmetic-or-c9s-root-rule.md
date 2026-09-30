@@ -7,7 +7,6 @@ opened: 2026-09-29
 priority: P3
 cost: M
 design: true
-refs: [ring-3-residue-outside-its-fence]
 ---
 
 

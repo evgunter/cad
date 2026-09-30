@@ -257,7 +257,7 @@ fn digest() -> String {
 /// regression as the baseline — not to make a pinned number a
 /// contract. A branch re-cuts on itself exactly when its own change is
 /// what moved the table AND the new reading is the right answer, with
-/// the cause named at the cut: `work/scalar/H5.md` ruling 2 (a
+/// the cause named at the cut: H5's ratified ruling 2 (PR 2701) (a
 /// certified bound that gets tighter re-baselines like any other move)
 /// and `memories/output-stability-as-justification.md`. Anything else
 /// — a move the branch cannot explain, or one in the wrong direction —

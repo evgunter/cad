@@ -273,7 +273,7 @@ use crate::entity::{
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
-use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
+use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteMint, SiteRows};
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
 use crate::test_support_impl::ArenaCounts;
@@ -883,6 +883,9 @@ pub enum EulerOpError {
     SplitParamNotInterior {
         /// The edge whose interval excludes the parameter.
         edge: EdgeKey,
+        /// The sub-span's verdict: within the zero band of an end, with
+        /// the margin it classified, or definitely outside the edge.
+        verdict: geom_brep::recourse::Refused,
     },
     /// [`Body::split_edge`]'s interiority test escalated: a sub-span
     /// margin fell in the tolerance band (the split point is
@@ -917,10 +920,14 @@ pub enum EulerOpError {
     /// on a spline chart, the fitted frontier, or a half-edge of a loop
     /// the op rewires does not resolve). Raised before any mutation, so
     /// the body is untouched — these three operators leave no complete
-    /// face half-minted.
+    /// face half-minted. Also raised by [`Body::set_edge_curve`] on a
+    /// null edge's first description, which re-mints the faces the
+    /// edge's halves are on through the same site mint, where a
+    /// half-edge of such a face does not resolve.
     PcurveMint {
-        /// The face the new half-edge would join; for `mef`'s new face,
-        /// the face it is carved from.
+        /// The face whose rows were being re-minted: the face the new
+        /// half-edge would join (for `mef`'s new face, the face it is
+        /// carved from), or a face a described null edge's half is on.
         face: FaceKey,
         /// Why the row cannot be minted.
         refusal: crate::pcurves::SiteRowRefusal,
@@ -1108,21 +1115,28 @@ impl EulerOpError {
                 "curve {curve:?} is null-edge scaffolding (no carrier by \
                  type); the operation requires a certified carrier"
             ),
-            // Definite at ANY magnitude (a parameter far outside the
-            // interval fires this same arm), so the coincidence levers
-            // are offered conditionally — the unconditional fix is a
-            // strictly interior parameter (S6 review, MINOR-2).
-            Self::SplitParamNotInterior { edge } => format!(
-                "split_edge: the parameter is definitely not interior to \
-                 edge {edge:?}'s certified interval (it coincides with an \
-                 endpoint, or lies outside) — pick a parameter strictly \
-                 inside the interval; if it was meant to land exactly on \
-                 an endpoint, {}",
-                geom_core::COINCIDENCE_RECOURSE
+            // The split's two interiority arms are one decision, so both
+            // end in its one ending; every door that splits an edge at a
+            // crossing (the split, the blend, the Boolean) forwards them
+            // whole.
+            Self::SplitParamNotInterior { verdict, .. } => format!(
+                "{}. {}",
+                match verdict {
+                    geom_brep::recourse::Refused::Zero(_) => {
+                        "a crossing lands on an end of its edge at this tolerance, not \
+                         strictly inside it"
+                    }
+                    geom_brep::recourse::Refused::Negative { .. } => {
+                        "a crossing lands outside its edge"
+                    }
+                },
+                crate::split::split_param_ending(verdict.arm())
             ),
-            Self::SplitParamEscalated { edge, diag } => format!(
-                "split_edge: interiority test on edge {edge:?} escalated \
-                 ({diag})"
+            Self::SplitParamEscalated { diag, .. } => format!(
+                "{} is undecided: {}. {}",
+                crate::split::CROSSING_INTERIOR,
+                diag.payload(),
+                crate::split::split_param_ending(geom_brep::recourse::RefusedArm::Undecided(diag))
             ),
             Self::PcurveSplit {
                 edge,
@@ -1249,7 +1263,12 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::NullScaffoldCurve {
             curve: CurveKey::default(),
         },
-        EulerOpError::SplitParamNotInterior { edge: ek },
+        EulerOpError::SplitParamNotInterior {
+            edge: ek,
+            verdict: geom_brep::recourse::Refused::Negative {
+                margin: geom_core::MarginDiag::value(-0.25),
+            },
+        },
         EulerOpError::SplitParamEscalated {
             edge: ek,
             diag: geom_core::Indeterminate {
@@ -2160,7 +2179,7 @@ impl<T: Decide> Body<T> {
             (w, he2_loop),
             &provenance,
         );
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
 
         // Splice. Derived (module docs) rather than transcribed; the two
         // cases are the sequential "insert before he1, then before he2"
@@ -2285,7 +2304,7 @@ impl<T: Decide> Body<T> {
         let (curve, w) = self.mint_mev_vertex_and_curve(point_key, v, mint, &provenance);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (w, loop_key), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // The two halves form the whole cycle: v → w → v.
         self.link_half_edges(he_plus, he_minus);
         self.link_half_edges(he_minus, he_plus);
@@ -2477,7 +2496,7 @@ impl<T: Decide> Body<T> {
             (u2, new_loop),
             &provenance,
         );
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
 
         // Splice (derivation in the module docs — Mäntylä's tail swap,
         // re-derived): he_minus closes he1's side into the new loop,
@@ -2598,7 +2617,7 @@ impl<T: Decide> Body<T> {
         let (new_loop, new_face) =
             self.mint_loop_and_face(surface, resolved.sense, shell_key, &provenance);
         let (he_plus, he_minus) = self.mint_halves(edge, (v, loop_key), (v, new_loop), &provenance);
-        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
         // Both halves are one-half-edge loops at v: the old loop keeps
         // he_plus, the new face's outer loop gets he_minus (the same
         // association as Chords — he1's "side" is the new loop).
@@ -3095,30 +3114,56 @@ impl<T: Decide> Body<T> {
     }
 
     /// **The pcurve rows the surgery's new halves need**, one plan per
-    /// face they land on, decided before the surgery mutates.
+    /// face they land on, decided before the surgery mutates: the site
+    /// mint as an Euler operator runs it ([`SiteMint::Operator`]), over
+    /// [`Body::plan_site_rows_as`]. `faces` describes the faces as the
+    /// surgery will leave them.
+    pub(crate) fn plan_site_rows(
+        &self,
+        touched: &[LoopKey],
+        faces: impl FnOnce(&Self) -> Result<Vec<SiteFace<T>>, EulerOpError>,
+        edge: &EdgeCurve<T>,
+        tol: Tol,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        self.plan_site_rows_as(
+            SiteMint::Operator,
+            touched,
+            |body, _| faces(body),
+            edge,
+            tol,
+        )
+    }
+
+    /// **A site mint's plan**: which faces it re-mints, and the rows it
+    /// writes onto each, decided before its door mutates.
     ///
-    /// `touched` names the loops the new halves are spliced into, as
-    /// the body holds them now. Their faces are read first, and only a
-    /// face whose rows are complete on a minting chart is re-minted
+    /// `touched` names the loops the door's halves are in, as the body
+    /// holds them now. Their faces are read first, once each, and only
+    /// a face `mint` selects is re-minted
     /// ([`crate::pcurves::site_rows_from`]); every other face is left
-    /// as found. So whether the op reads more than those faces, and
+    /// as found. So whether the door reads more than those faces, and
     /// whether it can refuse here, depends on the touched faces alone —
-    /// never on rows held elsewhere in the body — and when none of them
-    /// is complete, `faces` does not run and the op pays for no walk.
-    /// `faces` then describes the faces as the surgery will leave them,
-    /// and [`crate::pcurves::site_rows`] decides each one.
+    /// never on rows held elsewhere in the body — and when none is
+    /// selected, `faces` does not run and the door pays for no walk.
+    /// `faces` is handed the selected faces with their rows as found and
+    /// describes the faces as the door leaves them;
+    /// [`crate::pcurves::site_rows`] decides each one.
     ///
     /// # Errors
     ///
     /// In this order: a touched loop or its face does not resolve
     /// ([`EulerOpError::StaleKey`]), or the face's surface does not
-    /// ([`EulerOpError::StaleGeometry`]); then, only when a touched face
-    /// is complete, what `faces` raises; then
-    /// [`EulerOpError::PcurveMint`] naming the face.
-    pub(crate) fn plan_site_rows(
+    /// ([`EulerOpError::StaleGeometry`]); then, only when a face is
+    /// selected, what `faces` raises; then [`EulerOpError::PcurveMint`]
+    /// naming the face.
+    pub(crate) fn plan_site_rows_as(
         &self,
+        mint: SiteMint,
         touched: &[LoopKey],
-        faces: impl FnOnce(&Self) -> Result<Vec<SiteFace<T>>, EulerOpError>,
+        faces: impl FnOnce(
+            &Self,
+            &[(FaceKey, crate::pcurves::StoredRows<T>)],
+        ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         edge: &EdgeCurve<T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
@@ -3143,7 +3188,7 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleGeometry {
                         key: GeomRef::Surface(face_data.surface),
                     })?;
-            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface) {
+            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface, mint) {
                 minted.push((face, rows));
             }
         }
@@ -3153,13 +3198,13 @@ impl<T: Decide> Body<T> {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        faces(self)?
+        faces(self, &minted)?
             .iter()
             .map(|face| {
                 let Some((_, from)) = minted.iter().find(|(f, _)| *f == face.rows_from) else {
                     return Ok(SiteRows::Leave);
                 };
-                crate::pcurves::site_rows(self, face, from, edge, band).map_err(|refusal| {
+                crate::pcurves::site_rows(self, face, from, edge, band, mint).map_err(|refusal| {
                     EulerOpError::PcurveMint {
                         face: face.rows_from,
                         refusal,
@@ -3169,7 +3214,7 @@ impl<T: Decide> Body<T> {
             .collect()
     }
 
-    /// `face` as a surgery leaves it, for [`Body::plan_site_rows`]: its
+    /// `face` as a surgery leaves it, for [`Body::plan_site_rows_as`]: its
     /// chart, and its loops outer first — each loop named in `rewired`
     /// replaced by the half-edge sequence given there, `killed` gone,
     /// every other loop kept.
@@ -5580,35 +5625,63 @@ mod tests {
         }
     }
 
-    /// S6 (two-tolerance, D4 ¶1 addendum): both `split_edge`
-    /// interiority refusal arms describe one user situation — the
-    /// definite arm composes the shared recourse directly, the
-    /// escalated arm carries it through the `Indeterminate` Display.
+    /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),
+    /// each on a real raise: the crossing within the zero band of an
+    /// end, the one outside the edge, and the one in the band. All three
+    /// end in the one lever every splitting door has, and none offers a
+    /// declaration. The band-decided arms (the zero one and the
+    /// undecided one) of this decision, which passes on a positive
+    /// margin, offer the tolerance their margin gives; the sign-certain
+    /// arm offers none.
     #[test]
-    fn split_param_pair_carries_the_shared_recourse() {
-        let edge = EdgeKey::default();
-        let not_interior = EulerOpError::SplitParamNotInterior { edge };
-        let msg = not_interior.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
-
-        let escalated = EulerOpError::SplitParamEscalated {
-            edge,
-            diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::value(5e-9),
-                band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("split_edge_param_interior"),
-                terminal_sliver: false,
-            },
+    fn split_param_arms_tell_one_story() {
+        use geom_brep::recourse::{Classified, Refused};
+        const LEVER: &str =
+            "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let k = band.escalate() / band.zero();
+        let raise = |t: f64| {
+            let cube = crate::test_support_fixtures::declined_cube::<f64>(tol);
+            let mut body = cube.body;
+            body.split_edge(cube.mevs[0].edge, t, tol).unwrap_err()
         };
-        let msg = escalated.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
+        let offered = |text: &str| {
+            text.split_once(
+                ", or, if this distance from the edge's end is intended, tighten \
+                             the tolerance below ",
+            )
+            .map(|(_, v)| v.strip_suffix(" m").unwrap().parse::<f64>().unwrap())
+        };
+        let value = |m: geom_core::MarginDiag| {
+            m.diagnostic_f64_for_error_text()
+                .value()
+                .expect("a point margin")
+        };
+        let zero = raise(0.5 * band.zero());
+        let outside = raise(1.5);
+        let undecided = raise((band.zero() + band.escalate()) * 0.5);
+        let want = match (&zero, &outside, &undecided) {
+            (
+                EulerOpError::SplitParamNotInterior {
+                    verdict: Refused::Zero(Classified { margin: z, .. }),
+                    ..
+                },
+                EulerOpError::SplitParamNotInterior {
+                    verdict: Refused::Negative { .. },
+                    ..
+                },
+                EulerOpError::SplitParamEscalated { diag, .. },
+            ) => [Some(value(*z) / k), None, Some(value(diag.margin) / k)],
+            other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
+        };
+        for (err, want) in [zero, outside, undecided].iter().zip(want) {
+            let text = err.to_string();
+            assert!(
+                text.contains(LEVER) && !text.contains("declare"),
+                "the one lever, and no declaration: {text}"
+            );
+            assert_eq!(offered(&text), want, "the tolerance its arm gives: {text}");
+        }
     }
 }

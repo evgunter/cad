@@ -6,7 +6,6 @@ status: closed
 opened: 2026-09-24
 priority: P4
 cost: E
-refs: [ring-4-interval-feature-dropped]
 closed: 2026-09-24
 ---
 

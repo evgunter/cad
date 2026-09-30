@@ -397,8 +397,23 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   Δθ, |Δθ| ≤ 2π). Vertices are stored verbatim and are authoritative; a
   full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
   carrier is one edge. The form is redundant (the vertices lie on the
-  carrier, Δθ agrees with them mod 2π), and those consistency
-  conditions are verified at validate, never trusted. Bulge
+  carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
+  consistency conditions are verified at validate as ε-decisions at the
+  validating scalar, never trusted; a stored carrier is carried
+  verbatim, including across scalars, and never re-derived from its
+  vertices. The authored shape lives in the program, which is what a
+  document stores and edits; the loop is its canonical cache, rebuilt
+  from it and never persisted, and each arc mode's lowering is that
+  mode's one conversion into this form. Each construction lowers what
+  the user wrote into this form in the
+  shape's own algebra (the radius as authored, the sweep as one
+  `4·atan` of a quantity algebraic in the authored data, never an
+  angle difference), so the symbolic tier, replaying the program, reads
+  the authored shape through the stored fields. An identity the
+  algebra does not close is registered by the construction that proves
+  it, on the values it built; nothing about it is stored on the arc,
+  and a copied or embedded arc claims nothing. The arc carrier is one
+  type shared by the profile and the B-rep sketch segment. Bulge
   (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
   modes, lowered into this form once, at the algebra — not the
   storage. Winding is invisible to users (roles derive from

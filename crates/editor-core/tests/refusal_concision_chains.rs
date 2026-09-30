@@ -1376,7 +1376,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ("CurvedEdgeUnsupported", R::CurvedEdgeUnsupported { edge }),
         (
             "CrossingEscalated",
-            R::CrossingEscalated { edge, diag: diag() },
+            R::CrossingEscalated {
+                edge,
+                fault: topo::ConicRootFault::CrossingInterior(diag()),
+            },
         ),
         (
             "TangencyUnsupported",

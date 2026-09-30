@@ -604,7 +604,7 @@ fn find_match<T: Decide>(
                     let p_e = point_of(e_he)?;
                     let chord = p_e - p_c;
                     let dist = chord.norm();
-                    let escalate = |diag| BooleanError::Escalated { diag };
+                    let escalate = BooleanError::coincidence;
                     match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                         Sign::Positive => {}
                         _ => continue, // coincident sites: no polygon edge
@@ -704,7 +704,7 @@ fn germ_section_frame<T: Decide>(
         crate::param_source::SurfaceField::CylinderRadius,
     );
     pair_section_frame(&sa, &sb, evidence, band).map_err(|e| match e {
-        FrameError::Escalated(diag) => BooleanError::Escalated { diag },
+        FrameError::Escalated(diag) => BooleanError::coincidence(diag),
         FrameError::Desync(what) => desync(what),
         FrameError::NoArm => BooleanError::GermFrameUnsupported {
             a_face: germ.a_face,
@@ -1149,7 +1149,7 @@ fn germs_face_each_other<T: Decide>(
     p2: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let escalate = |diag| BooleanError::Escalated { diag };
+    let escalate = BooleanError::coincidence;
     match frame {
         None => {
             let chord = p2 - p1;
@@ -1200,7 +1200,7 @@ fn loose_partners<T: Decide>(
     band: Band,
 ) -> Result<(LooseMap, LooseMap), BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let escalate = |diag| BooleanError::Escalated { diag };
+    let escalate = BooleanError::coincidence;
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
         let v = red
             .a
@@ -1500,7 +1500,7 @@ fn ring_run_ccw<T: Decide>(
     // The chord that closes the region (fn docs): the run is open, the
     // area it decides is not.
     perimeter = perimeter + (end - p0).norm();
-    let escalate = |diag| BooleanError::Escalated { diag };
+    let escalate = BooleanError::coincidence;
     // `normal` carries the sense, `newell` carries the traversal: one
     // factor each, never both (fn docs — the double-count hazard).
     // `/ perimeter` is the F4 metering: 2A/P, the run's mean width.
