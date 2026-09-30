@@ -718,7 +718,7 @@ fn germ_section_frame<T: Decide>(
 /// asked on the pair's parameter-source evidence and no face-pair
 /// declaration, and an operand guard's is that radius's own decision.
 /// No declaration settles either.
-fn frame_refusal<T: geom_core::Real>(
+pub(super) fn frame_refusal<T: geom_core::Real>(
     e: FrameError,
     a: (FaceKey, &geom::Surface<T>),
     b: (FaceKey, &geom::Surface<T>),
@@ -1128,7 +1128,7 @@ fn intersecting_cylinder_axes<T: Decide>(
 /// call's third argument. When a coaxiality declaration exists, it
 /// enters HERE, and the `Declared` path below is what it reaches.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
-fn cs_pair_frame<T: Decide>(
+pub(super) fn cs_pair_frame<T: Decide>(
     cyl: &geom::Surface<T>,
     sph: &geom::Surface<T>,
     evidence: geom_brep::CoaxialEvidence,
@@ -1179,7 +1179,7 @@ fn cs_pair_frame<T: Decide>(
 /// radial germ — malformed germ data, a loud desync, never a silent
 /// non-match; its in-band sibling escalates through the funnel
 /// (`bool_join_arc_facing`), the two-tolerance pair.
-fn germs_face_each_other<T: Decide>(
+pub(super) fn germs_face_each_other<T: Decide>(
     frame: Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>,
     g1: &HalfGerm<T>,
     g2: &HalfGerm<T>,

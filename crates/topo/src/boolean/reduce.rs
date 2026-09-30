@@ -2206,7 +2206,7 @@ pub(super) enum CurvedEvent<T: geom_core::Real> {
 /// one thing refuses at a frontier for a pair that has no incidence to
 /// begin with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Placement {
+pub(super) enum Placement {
     /// A contact record was written for this endpoint.
     Recorded,
     /// The point is definitely not on this face and coincides with no
@@ -2292,7 +2292,7 @@ impl Placement {
 /// trim, so nothing at all is known and the caller's typed frontier is
 /// the only honest answer.
 #[allow(clippy::too_many_arguments)]
-fn vertex_on_curved_face<T: Decide>(
+pub(super) fn vertex_on_curved_face<T: Decide>(
     x_is: Operand,
     y: &mut Body<T>,
     vx: VertexKey,

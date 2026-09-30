@@ -1626,8 +1626,8 @@ pub(super) fn describe_minted_edges<T: Decide>(
         } else {
             (p0.lerp(p1, T::from_f64(0.5)), p0.distance(p1))
         };
-        match geom_brep::classify_dihedral(surf1, surf2, witness, extent, band) {
-            Ok(geom_brep::DihedralClass::Transverse) => {
+        match seam_class(surf1, surf2, witness, extent, band)? {
+            geom_brep::DihedralClass::Transverse => {
                 let spec = if curved {
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
@@ -1652,7 +1652,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                         what: "minted-edge description failed certification",
                     })?;
             }
-            Ok(geom_brep::DihedralClass::Smooth) => {
+            geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
                 // smooth-adjacency edge whose existing
                 // `Intersection`/`Seam` description no longer cites
@@ -1785,16 +1785,28 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     }
                 }
             }
-            Err(escalation) => {
-                return Err(BooleanError::of_lever(
-                    super::LeverArm::Seam,
-                    BooleanDecision::SeamWedge,
-                    escalation,
-                ));
-            }
         }
     }
     Ok(())
+}
+
+/// **A seam edge of the result, as its re-description reads it**: the
+/// dihedral of its two surfaces at `witness` over `extent`, whose arm
+/// rung is the seam's own lever and whose reading is the seam's wedge.
+pub(super) fn seam_class<T: Decide>(
+    surf1: &geom::Surface<T>,
+    surf2: &geom::Surface<T>,
+    witness: Point3<T>,
+    extent: T,
+    band: Band,
+) -> Result<geom_brep::DihedralClass, BooleanError> {
+    geom_brep::classify_dihedral(surf1, surf2, witness, extent, band).map_err(|escalation| {
+        BooleanError::of_lever(
+            super::LeverArm::Seam,
+            BooleanDecision::SeamWedge,
+            escalation,
+        )
+    })
 }
 
 /// How one operand's keys map into the result body.

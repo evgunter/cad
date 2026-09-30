@@ -415,8 +415,9 @@ pub enum Coincide {
     /// bounds in line, the order of a strut's germs. Every verdict
     /// passes.
     Sectors,
-    /// Whether an edge of one solid runs along an edge of the other:
-    /// every verdict passes.
+    /// Whether an edge of one solid runs along an edge of the other
+    /// (`bool_ee_collinear`, a norm): along it passes, and so does a
+    /// clear angle.
     EdgeOnEdge,
     /// Whether plane faces of the two solids along an edge they share
     /// overlap or only touch (`bool_dir_same`, the membership tie): the
@@ -546,15 +547,17 @@ impl Coincide {
             | Self::EdgeOnPlane
             | Self::SectorSide
             | Self::Sectors
-            | Self::EdgeOnEdge
             | Self::Rim
             | Self::Join => Ending::Sized(proximity(SizedPass::AnySign)),
+            // The two edges' directions' cross, a norm levered at the
+            // arm: collinear passes, and so does a clear angle.
+            Self::EdgeOnEdge => Ending::Sized(proximity(SizedPass::NonNegative)),
             Self::EdgeOnCurvedFace | Self::VertexOnCurvedFace => Ending::Sized(CURVED_CLEARANCE),
             Self::VertexOnCoveredFace => Ending::Lever(COVERED_VERTEX_LEVER, LeverPass::ByArm),
             Self::ArcClearsCurvedFace => Ending::Sized(ARC_CLEARANCE),
             Self::ArcOnCoveredFace => Ending::Sized(COVERED_ARC),
             Self::TangentSide => Ending::Sized(TANGENT_SIDE),
-            Self::FlankSense => Ending::Sized(CORNER_SENSE),
+            Self::FlankSense => Ending::Sized(FLANK_SENSE),
             Self::CurvedFlankSense => Ending::Lever(CORNER_EDGES, LeverPass::Frontier),
             Self::TangentLocus => Ending::Lever(
                 "move the parts so the declared faces clearly touch along one line",
@@ -703,6 +706,16 @@ pub(crate) const CORNER_SENSE: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
+/// The membership tie on plane flanks ([`Coincide::FlankSense`]): either
+/// sense passes the tie, but flanks that overlap lie on one plane, which
+/// the door then asks to be the same face (an undeclared pair refuses
+/// there, `UndeclaredCoincidence`, whatever tolerance decided the tie),
+/// so a smaller tolerance is offered on the side where they only touch.
+const FLANK_SENSE: SizedDecision = SizedDecision {
+    passes: SizedPass::Negative,
+    ..CORNER_SENSE
+};
+
 /// The one move that lengthens the arm a corner's reading is metered
 /// over: shared by every decision whose margin, once its direction has
 /// read, measures that arm ([`LeverArm`]'s corner gates,
@@ -738,9 +751,9 @@ pub enum SphereQuestion {
     /// decides a margin passing.
     EscapeParallel,
     /// Whether the sphere's stored polar axis leans away from the escape
-    /// normal it is re-charted onto (`bool_sphere_recut_align`): either
-    /// definite lean passes, and a decided zero refuses with its decided
-    /// margin.
+    /// normal it is re-charted onto (`bool_sphere_recut_align`, the
+    /// axes' cross levered at the radius): a definite lean passes, and a
+    /// decided zero refuses with its decided margin.
     RecutAlign,
 }
 
@@ -768,8 +781,10 @@ impl SphereQuestion {
             Self::AgainstPlane => Ending::Sized(SPHERE_AGAINST_PLANE),
             Self::Apart | Self::Nested => Ending::Sized(SPHERES),
             Self::EscapeParallel => Ending::Lever(EXTENT_LEVER, LeverPass::ZeroOnly),
+            // The lean is the axes' cross, a norm levered at the radius.
             Self::RecutAlign => Ending::Sized(SizedDecision {
                 size: "lean of the sphere's polar axis",
+                passes: SizedPass::Positive,
                 ..SPHERE_AGAINST_PLANE
             }),
         }
@@ -1321,7 +1336,11 @@ impl BooleanDecision {
                 which.settled()
             }
             Self::Coincidence(which, _) => which.ending(),
-            Self::PlaneOrientation => Ending::Sized(CORNER_SENSE),
+            // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
+            // and the offset rung asks next: a declared `Rest` pair's
+            // bridges, an undeclared pair's refuses as an undeclared
+            // coincidence or a carrier contradiction at every tolerance.
+            Self::PlaneOrientation => Ending::Lever(CORNER_EDGES, LeverPass::ByArm),
             // The margin is the normals' sine over the shared edge's
             // chord, and a definitely positive one (a clear angle)
             // passes.
@@ -1392,7 +1411,17 @@ impl BooleanDecision {
             // is a size a smaller tolerance decides positive
             // (`geom_brep::enters`'s arm gate carries its margin).
             Self::LeverArm(gate) => gate.ending(),
-            Self::Radius(radius) => Ending::Sized(radius.sized()),
+            Self::Radius(SectionRadius::Cylinder) => {
+                Ending::Sized(SectionRadius::Cylinder.sized())
+            }
+            // The cylinder's guard asks first, and a cylinder meeting a
+            // coaxial sphere is the narrower, so an in-band sphere radius
+            // here belongs to a pair that does not meet, which the frame
+            // refuses at every smaller tolerance.
+            Self::Radius(SectionRadius::Sphere) => Ending::Lever(
+                SectionRadius::Sphere.sized().lever,
+                LeverPass::Frontier,
+            ),
             // A positive `|d⊥|²/2r` has roots to find; a zero one is a
             // constant residual, which every edge-sweep arm refuses at
             // the frontier. The margin is 1/m, ledger row F2 (debt
@@ -1807,8 +1836,10 @@ mod tests {
                 SizedPass::AnySign,
             ),
             Coincide::Sectors => Ending::Sized(MEET, SizedPass::AnySign),
-            Coincide::EdgeOnEdge => Ending::Sized(MEET, SizedPass::AnySign),
-            Coincide::FlankSense => Ending::Sized(LONGER, SizedPass::NonZero),
+            Coincide::EdgeOnEdge => Ending::Sized(MEET, SizedPass::NonNegative),
+            // Overlapping plane flanks go on to the undeclared coplanar
+            // pair's refusal: the offer is the touching side's alone.
+            Coincide::FlankSense => Ending::Sized(LONGER, SizedPass::Negative),
             // Either sense goes on to a curved flank the Boolean cannot
             // yet meet.
             Coincide::CurvedFlankSense => Ending::Lever(LONGER, LeverPass::Frontier),
@@ -1917,9 +1948,9 @@ mod tests {
             ),
             BooleanDecision::Radius(SectionRadius::Sphere) => (
                 "whether a sphere's radius is positive",
-                Ending::Sized(
+                Ending::Lever(
                     "Recourse: make the sphere's radius clearly larger than the tolerance",
-                    SizedPass::Positive,
+                    LeverPass::Frontier,
                 ),
             ),
             BooleanDecision::WallRoots(WallRung::AxisParallel) => (
@@ -1980,7 +2011,7 @@ mod tests {
             ),
             BooleanDecision::Sphere(SphereQuestion::RecutAlign) => (
                 "whether a sphere's polar axis leans away from the face it pokes through",
-                Ending::Sized(AGAINST, SizedPass::NonZero),
+                Ending::Sized(AGAINST, SizedPass::Positive),
             ),
             BooleanDecision::SelfCheck(SelfCheck::GermLine) => (
                 "whether two faces meeting at a corner cross along a line",
@@ -2022,7 +2053,7 @@ mod tests {
             ),
             BooleanDecision::PlaneOrientation => (
                 "whether the two planes face the same way or opposite ways",
-                Ending::Sized(LONGER, SizedPass::NonZero),
+                Ending::Lever(LONGER, LeverPass::ByArm),
             ),
             BooleanDecision::Neighbours(PlaneRung::Parallel) => (
                 NEIGHBOURS,
@@ -2942,7 +2973,7 @@ mod tests {
     /// re-described on the plane `plane` gives from the diagonal's first
     /// end, its unit direction and its length. The new surface has no
     /// shared source with its neighbour.
-    fn top_split_redescribed(
+    pub(super) fn top_split_redescribed(
         plane: impl FnOnce(Point3<f64>, Vec3<f64>, f64) -> crate::Surface<f64>,
     ) -> crate::body::Body<f64> {
         let tol = Tol::witness();

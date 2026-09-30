@@ -171,7 +171,101 @@ cases! {
         "the germ line is read at a transition sector whose vertices stand off their own face, \
          which a public raise does not place",
     ), Valued => pierce_germ_line();
+    // The rest of the census, one per arm and side.
+    vertex_hovering_over_a_face: "Coincidence(VertexOnFace)", true, Public, Valued =>
+        block_on_a_block(1.0 + D);
+    vertex_sunk_into_a_face: "Coincidence(VertexOnFace)", false, Public, Valued =>
+        block_on_a_block(1.0 - D);
+    edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", true, CORNER_SITE, Valued =>
+        super::super::recl::parallel_same_dir(
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), 1.0, band()
+        ).map(|_| ());
+    direction_along_a_short_arm: "DirectionSense", true, CORNER_SITE, Valued =>
+        super::super::sectors::direction_sense(
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), D, band()
+        ).map(|_| ());
+    direction_against_a_short_arm: "DirectionSense", false, CORNER_SITE, Valued =>
+        super::super::sectors::direction_sense(
+            Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0), D, band()
+        ).map(|_| ());
+    direction_just_outside_a_sector: "Coincidence(Sectors)", false, CORNER_SITE, Valued =>
+        within_a_quarter(Vec3::new(1.0, -D, 0.0));
+    tangent_side_curving_away: "Coincidence(TangentSide)", true, SECTOR_SITE, Valued =>
+        tangent_side_of(1.0);
+    corner_with_a_short_arm: "Corner(Arm)", true, CORNER_SITE, Valued =>
+        corner(Vec3::new(D, 0.0, 0.0), at_degrees(90.0, 1.0), false);
+    corner_folding_back_at_the_band: "Corner(Straight { full_circle: false })", false, CORNER_SITE, Valued =>
+        corner(Vec3::new(ARM, 0.0, 0.0), at_degrees(135.0, ARM), false);
+    circle_corner_folding_forward: "Corner(Straight { full_circle: true })", true, CORNER_SITE, Valued =>
+        corner(Vec3::new(ARM, 0.0, 0.0), at_degrees(45.0, ARM), true);
+    circle_corner_folding_back: "Corner(Straight { full_circle: true })", false, CORNER_SITE, Valued =>
+        corner(Vec3::new(ARM, 0.0, 0.0), at_degrees(135.0, ARM), true);
+    torus_with_a_thin_tube: "Torus(Tube)", true, NORMAL_SITE, Valued =>
+        pierced_torus(1.0, D);
+    horn_torus_at_the_band: "Torus(Ring)", true, NORMAL_SITE, Valued =>
+        pierced_torus(1.0, 1.0 - D);
+    coaxial_thin_cylinder: "Radius(Cylinder)", true, FRAME_SITE, Valued =>
+        coaxial_frame(D, 1.0);
+    coaxial_tiny_sphere: "Radius(Sphere)", true, FRAME_SITE, Valued =>
+        coaxial_frame(0.5, D);
+    arc_root_just_inside_its_span: "Crossing(OnEdge)", true, ROOT_SITE, Valued =>
+        circle_roots(1.0 - D);
+    arc_root_just_outside_its_span: "Crossing(OnEdge)", false, ROOT_SITE, Valued =>
+        circle_roots(1.0 + D);
+    vertex_near_a_vertex_of_a_curved_face: "VertexOnVertex", true, CURVED_ARM_SITE, Valued =>
+        vertex_near_a_sheet_corner();
+    rims_a_hair_wider: "Coincidence(Rim)", true, RIM_SITE, Valued => rims(1.0 - D);
+    rims_a_hair_narrower: "Coincidence(Rim)", false, RIM_SITE, Valued => rims(1.0 + D);
+    germs_nearly_facing: "Coincidence(Join)", true, JOIN_SITE, Valued => germ_facing(D);
+    germs_nearly_turned_away: "Coincidence(Join)", false, JOIN_SITE, Valued => germ_facing(-D);
+    flanks_along_a_short_arm: "Coincidence(FlankSense)", true, FLANK_SITE, Valued =>
+        planar_flank_membership(false);
+    flanks_against_a_short_arm: "Coincidence(FlankSense)", false, FLANK_SITE, Valued =>
+        planar_flank_membership(true);
+    neighbours_bent_at_the_band: "Neighbours(Parallel)", true, GATE_SITE, Valued =>
+        bent_neighbours(D);
+    neighbours_offset_above: "CoplanarNeighbours", false, GATE_SITE, Valued =>
+        offset_neighbours(D);
+    neighbours_offset_below: "CoplanarNeighbours", true, GATE_SITE, Valued =>
+        offset_neighbours(-D);
+    neighbours_offset_within_the_zero_band: "CoplanarNeighbours", false, GATE_SITE, Valued =>
+        offset_neighbours(Z);
 }
+
+/// An arm just above the band's escalation edge at [`DESIGN_EPS`], so a
+/// corner's straightness reads in band once its wideness has not
+/// decided.
+const ARM: f64 = 1.2e-8;
+
+const CORNER_SITE: Door = Door::Site(
+    "a corner's own readings are taken inside the vertex neighbourhood walk, where the arm \
+     and the directions are set directly",
+);
+const NORMAL_SITE: Door = Door::Site(
+    "a pierced face's normal is read at the pierce door, on a face whose torus is set \
+     directly",
+);
+const FRAME_SITE: Door = Door::Site(
+    "the radius guards run on the declared-coaxial cylinder and sphere frame, which no public \
+     door passes",
+);
+const ROOT_SITE: Door = Door::Site(
+    "the conic root lane is asked of a carrier and a plane, set directly",
+);
+const RIM_SITE: Door = Door::Site(
+    "the rim identity is read inside a declared-Tangent verification, on two wall sheets' rims \
+     set directly",
+);
+const JOIN_SITE: Door = Door::Site(
+    "the join's facing is read on germs the reduction left, set directly",
+);
+const FLANK_SITE: Door = Door::Site(
+    "the membership tie is read inside the edge-edge resolution, on hand-built sectors",
+);
+const GATE_SITE: Door = Door::Site(
+    "the maximal-faces gate is asked of the operand directly: a solid whose neighbours are bent \
+     at the band has a vertex off its face at a smaller tolerance",
+);
 
 // ------------------------------------------------------------------
 // The raises.
@@ -457,6 +551,297 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
     };
     super::super::vtxfac::pierce_germ_dir(&s, Vec3::new(D.sin(), 0.0, D.cos()), band())
         .map(|_| ())
+}
+
+/// `A` a block `[0, 2]² × [0, 1]`, `B` a unit block standing over its
+/// middle with its bottom at `z0`: their union.
+fn block_on_a_block(z0: f64) -> Result<(), BooleanError> {
+    use crate::test_support_fixtures::brick;
+    let tol = Tol::witness();
+    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
+    let b = brick::<f64>((0.5, 1.5), (0.5, 1.5), (z0, 2.0), tol);
+    super::super::union(&a, &b, tol).map(|_| ())
+}
+
+/// `dir` against the quarter sector from `x` to `y` about `z`, arm 1.
+fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
+    use super::super::sectors::BoolSector;
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let s = BoolSector {
+        he: crate::entity::HalfEdgeKey::default(),
+        start: x,
+        end: y,
+        start_reach: Reach::Chord { base: o, far: o + x },
+        end_reach: Reach::Chord { base: o, far: o + y },
+        face: crate::entity::FaceKey::default(),
+        normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+        arm: 1.0,
+    };
+    super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
+}
+
+/// A declared-`Tangent` ball touching a floor at the origin from the
+/// side `side` (`+1` above), at the arm whose sagitta is `D`.
+fn tangent_side_of(side: f64) -> Result<(), BooleanError> {
+    let (p, d) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+    let ball = geom::Surface::Sphere {
+        center: Point3::new(0.0, 0.0, side),
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let floor = crate::test_support_fixtures::plane(
+        &[p, Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)],
+        Tol::witness(),
+    );
+    let accel = |s: &geom::Surface<f64>| {
+        -geom_brep::implicit_hessian_form(s, p, d) / geom_brep::implicit_gradient(s, p).dot(n.vec())
+    };
+    let arm = (2.0 * D / (accel(&ball) - accel(&floor)).abs()).sqrt();
+    let read = DeclarationRead::Spent(ContactClass::Tangent);
+    tangent_relative_side(&ball, &floor, n, p, d, arm, read, band()).map(|_| ())
+}
+
+/// A direction in the `z = 0` plane at `degrees` from `x`, of length
+/// `len`.
+fn at_degrees(degrees: f64, len: f64) -> Vec3<f64> {
+    let t = degrees.to_radians();
+    Vec3::new(t.cos(), t.sin(), 0.0) * len
+}
+
+/// A corner between chords `own` and `next` about `z`, read as the
+/// vertex neighbourhood walk reads it.
+fn corner(own: Vec3<f64>, next: Vec3<f64>, full_circle: bool) -> Result<(), BooleanError> {
+    use crate::sector_shape::{SectorFault, sector_shape};
+    let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+    sector_shape(own, next, n, full_circle, band())
+        .map(|_| ())
+        .map_err(|fault| match fault {
+            SectorFault::Rung { rung, diag } => BooleanError::Escalated {
+                decision: BooleanDecision::Corner(rung),
+                diag,
+            },
+            other => panic!("the corner's chords are finite: {other:?}"),
+        })
+}
+
+/// One face on a torus of radii `major`, `minor`, its normal read at
+/// the tube's outer equator.
+fn pierced_torus(major: f64, minor: f64) -> Result<(), BooleanError> {
+    let st = crate::fixtures::mvfs_state();
+    let mut body = st.body;
+    body.set_face_surface(
+        st.face,
+        crate::euler::FaceSurface::New {
+            surface: geom::Surface::Torus {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major_radius: major,
+                minor_radius: minor,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    let p = Point3::new(major + minor, 0.0, 0.0);
+    crate::face_normal::face_outward_normal_at(&body, st.face, p, band())
+        .map(|_| ())
+        .map_err(|refusal| BooleanError::of_pierced_normal(refusal, Operand::B, st.face))
+}
+
+/// The declared-coaxial frame of a cylinder of radius `cyl` and a
+/// sphere of radius `sph` on one axis.
+fn coaxial_frame(cyl: f64, sph: f64) -> Result<(), BooleanError> {
+    use super::super::join::{cs_pair_frame, frame_refusal};
+    let c = geom::Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: cyl,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let s = geom::Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius: sph,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let face = crate::entity::FaceKey::default();
+    cs_pair_frame(&c, &s, geom_brep::CoaxialEvidence::Declared, band())
+        .map(|_| ())
+        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+}
+
+/// The arc `[0, 1]` of the unit circle about `z` against the plane
+/// `x = cos(t)`: a root at `t`, the conic root lane's.
+fn circle_roots(t: f64) -> Result<(), BooleanError> {
+    let circle = geom::Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    match crate::splitting::conic_plane_crossing_roots(
+        &circle,
+        0.0,
+        1.0,
+        Point3::new(t.cos(), 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        band(),
+    ) {
+        Ok(crate::splitting::ConicPlaneMeet::Roots(Err(fault))) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
+            diag: fault.diag(),
+        }),
+        Ok(_) => Ok(()),
+        Err(()) => panic!("a circle is a conic"),
+    }
+}
+
+/// A point on a unit wall sheet's carrier well outside its trim, `D`
+/// from a corner of a second sheet in the same body.
+fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
+    use super::super::reduce::vertex_on_curved_face;
+    let tol = Tol::witness();
+    let mut y: crate::body::Body<f64> = crate::body::Body::new();
+    let face = cyl_wall_sheet(&mut y, CylFrame::canonical(1.0), None, (0.0, 1.0), (0.0, 1.0), tol);
+    cyl_wall_sheet(&mut y, CylFrame::canonical(1.0), None, (3.0 + D, 4.0), (0.5, 1.0), tol);
+    let px = Point3::new(3.0_f64.cos(), 3.0_f64.sin(), 0.5);
+    let mut acc = ContactAcc::default();
+    vertex_on_curved_face(
+        Operand::A,
+        &mut y,
+        VertexKey::default(),
+        px,
+        face,
+        &mut acc,
+        band(),
+        tol,
+    )
+    .map(|_| ())
+}
+
+/// The rims of a unit wall sheet and of one of radius `r` about the
+/// same axis and over the same heights, read for a shared rim.
+fn rims(r: f64) -> Result<(), BooleanError> {
+    let tol = Tol::witness();
+    let mut a: crate::body::Body<f64> = crate::body::Body::new();
+    let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), None, (0.0, 1.0), (0.0, 1.0), tol);
+    let mut b: crate::body::Body<f64> = crate::body::Body::new();
+    let fb = cyl_wall_sheet(&mut b, CylFrame::canonical(r), None, (0.0, 1.0), (0.0, 1.0), tol);
+    super::super::rim_wedge::shared_rim(&a, fa, &b, fb, band())
+        .map(|_| ())
+        .map_err(|diag| {
+            BooleanError::coincidence(
+                Coincide::Rim,
+                DeclarationRead::Spent(ContactClass::Tangent),
+                diag,
+            )
+        })
+}
+
+/// Two germs a metre apart along `x`, the second facing the first, the
+/// first leaning off the chord so its facing reads `lean` metres.
+fn germ_facing(lean: f64) -> Result<(), BooleanError> {
+    use super::super::HalfGerm;
+    let germ = |dir| HalfGerm {
+        he: crate::entity::HalfEdgeKey::default(),
+        a_face: crate::entity::FaceKey::default(),
+        b_face: crate::entity::FaceKey::default(),
+        dir,
+    };
+    let (p1, p2) = (Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    let g1 = germ(Vec3::new(lean, 1.0, 0.0).normalize());
+    let g2 = germ(Vec3::new(-1.0, 0.0, 0.0));
+    super::super::join::germs_face_each_other(None, &g1, &g2, p1, p2, band()).map(|_| ())
+}
+
+/// The membership tie on two prisms' shared side plane `x = 1`, each
+/// corner's flanker along `x` (or against it, for the second corner,
+/// where `against`), at an arm of `D`.
+fn planar_flank_membership(against: bool) -> Result<(), BooleanError> {
+    use super::super::recl::resolve_edge_edge;
+    use super::super::sectors::{BoolSector, PairRecord};
+    use super::super::SideCode::{In, On, Out};
+    let tol = Tol::witness();
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let (x, y, z) = (
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    );
+    let square = |x0: f64| [(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)];
+    let pa = prism_z::<f64>(&square(0.0), 0.0, 1.0, tol);
+    let pb = prism_z::<f64>(&square(1.0), 0.0, 1.0, tol);
+    let (fa, fb) = (pa.side_faces[1], pb.side_faces[3]);
+    let sector = |start: Vec3<f64>, end: Vec3<f64>, face| BoolSector {
+        he: crate::entity::HalfEdgeKey::default(),
+        start,
+        end,
+        start_reach: Reach::Chord {
+            base: o,
+            far: o + start,
+        },
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + end,
+        },
+        face,
+        normal: OutwardNormal::from_chart(y, true),
+        arm: D,
+    };
+    let records = [PairRecord {
+        a: 0,
+        b: 0,
+        sa: (On, Out),
+        sb: (Out, In),
+        intersect: true,
+    }];
+    let flank = if against { -x } else { x };
+    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    resolve_edge_edge(
+        &records,
+        &[sector(z, x, fa), sector(x, z, fa)],
+        &[sector(z, flank, fb), sector(flank, z, fb)],
+        &pa.body,
+        &pb.body,
+        super::super::BooleanOp::Union,
+        &declared,
+        band(),
+        0,
+        0,
+    )
+    .map(|_| ())
+}
+
+/// A unit prism's top split on its diagonal, one half bent about it by
+/// an angle whose sine over the diagonal is `margin`: the operand's
+/// maximal-faces gate.
+fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
+    let body = super::tests::top_split_redescribed(|p0, along, diagonal| {
+        let theta = margin / diagonal;
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        crate::Surface::Plane {
+            origin: p0,
+            normal: up * theta.cos() + along.cross(up) * theta.sin(),
+            u_ref: along,
+        }
+    });
+    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+}
+
+/// The same, the half re-described on the parallel plane `offset`
+/// above.
+fn offset_neighbours(offset: f64) -> Result<(), BooleanError> {
+    let up = Vec3::new(0.0, 0.0, 1.0);
+    let body = super::tests::top_split_redescribed(|p0, along, _| crate::Surface::Plane {
+        origin: p0 + up * offset,
+        normal: up,
+        u_ref: along,
+    });
+    super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
 // ------------------------------------------------------------------

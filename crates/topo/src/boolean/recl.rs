@@ -1034,7 +1034,7 @@ fn resolve_bisector_graze<T: Decide>(
     })
 }
 
-fn parallel_same_dir<T: Decide>(
+pub(super) fn parallel_same_dir<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: T,
