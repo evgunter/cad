@@ -2,10 +2,12 @@
 id: path-preview-draws-nothing-for-a-refused-step
 kind: issue
 title: viewer: the add-profile path preview draws nothing once any authored step refuses, so the author cannot see what to fix
-status: dispatched
+status: review
 opened: 2026-09-18
 priority: P0
-cost: D
+cost: M
+branch: author/path-preview-prefix
+pr: 3440
 ---
 
 Reported by Ev from the viewer (2026-09-18): "arc_fillet_arc and other such paths should try to display something even when invalid, so the user can figure out how to fix them."
@@ -15,3 +17,7 @@ Reported by Ev from the viewer (2026-09-18): "arc_fillet_arc and other such path
 **What is owed.** When a replay refuses at step `k`, draw the longest prefix that does replay, which is `steps[..k]` under the same provisional close the unfinished-chain arm already uses, marked open. Keep the refusal sentence beside it, and mark the drawn tip as the place step `k` failed. For a fused step, the parts that DID resolve (the incoming arc, the arrival carrier) are what would show why the fillet does not fit. Drawing those needs a hook from the driver (the carriers a step bound before it refused), so it is a second, larger step. It is split out as the design item `work/round/refused-fused-step-reports-no-partial-geometry.md` and waits on that item's ruling. This item's prefix drawing does not. As with the provisional close, nothing about the lattice is re-implemented: the prefix goes through the same `replay`.
 
 Dispatched 2026-09-29 as **AUTH-5** (`docs/AUTH-5-SPEC.md`, branch `author/path-preview-prefix`): the prefix half only. The split-out design item moved from `work/paths/` to `work/round/`; the citation above is corrected.
+
+## Ev's ruling on the edit door (2026-09-30)
+
+Review found that a refused edit of a COMMITTED profile flipped on something the author cannot see: refused at step 1 (nothing drawable, an `Err`) it kept the committed drawing, and refused after a leg (a prefix, `Ok`) it hid the committed loop and drew the leg. Ev chose to hide the committed shape during a refused edit, consistently: `Drafts::edited_in_place` now leaves the node out whenever the edit door took a preview, so a refusal with no prefix hides it too and the form says the refusal. The faint "ghost" of the committed shape behind the edit is the follow-up row `work/vgeom/an-edited-profile-shows-no-ghost-of-its-committed-shape.md`.
