@@ -806,7 +806,7 @@ pub enum Qualifier {
     ///
     /// The carrier's orientation is load-bearing — reversing it
     /// reverses every rank — so where it is built from face normals
-    /// those are **outward** normals (M5 S10, `emit_topo::face_plane`),
+    /// those are **outward** normals (M5 S10, `emit_topo::carrier_plane`),
     /// never raw chart normals.
     OrderAlong {
         /// This fragment's rank (0-based) along the carrier — for a
