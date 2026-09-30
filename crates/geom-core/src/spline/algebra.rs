@@ -425,14 +425,14 @@ pub fn insert_knot_plan(
 /// on the ground that it "folds `Interval` coefficients with an
 /// outward-rounding quotient and has no weights to form `λ` from" —
 /// which is a description of [`CurvePlan::apply_certified`], so the argument
-/// no longer separates them. What still does is the SHAPE of the
+/// no longer separates them, and neither does the coefficient
+/// arithmetic any more: both combine in the convex form with `α` and
+/// `β` re-derived from their knots. What still does is the SHAPE of the
 /// schedule each needs: that one inserts to full interior multiplicity
 /// over a raw knot list, deliberately never rebuilding a [`KnotVector`]
-/// per step, where a plan chain rebuilds one per insertion; and it
-/// combines in the lerp form, which a unification would have to change
-/// (and which would move every composite bound). Filed on PROPS'
-/// `f64-refinement-inside-an-enclosure-has-five-more-sites`, with that
-/// width measurement; not done here.
+/// per step, where a plan chain rebuilds one per insertion. Filed on
+/// PROPS' `f64-refinement-inside-an-enclosure-has-five-more-sites`;
+/// not done here.
 fn insert_once(kv: &KnotVector, weights: &[f64], u: f64) -> CurvePlan {
     let p = kv.degree();
     let knots = kv.knots();

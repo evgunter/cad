@@ -20,9 +20,12 @@
 //!    the weight channel `W_i = w_i`.
 //! 2. Bézier-decompose each channel: knot insertion to full interior
 //!    multiplicity, **structure** (positions, counts) read from the
-//!    `f64` knot vector, **coefficients** combined in certification arithmetic with the
-//!    insertion `α` formed as a ring quotient of knot enclosures (an
-//!    `f64`-rounded `α` would silently drop its rounding error).
+//!    `f64` knot vector, **coefficients** combined in certification arithmetic in the
+//!    convex form `c_{i−1}·β + c_i·α`, with BOTH barycentric ratios
+//!    formed as ring quotients of knot enclosures (an `f64`-rounded
+//!    ratio would silently drop its rounding error, and the lerp form
+//!    `c_{i−1} + (c_i − c_{i−1})·α` would read `c_{i−1}` twice and
+//!    multiply its dust up once per insertion).
 //! 3. Per span, exact Bernstein products: degree `da × db → da + db`
 //!    with the binomial weights `C(da,i)·C(db,j)/C(da+db,k)` computed
 //!    as ring quotients (several are not `f64`-representable).
@@ -271,9 +274,40 @@ impl BernsteinSpans {
 
 /// One Boehm insertion of `u` into the raw knot list `knots` (degree
 /// `p`, current multiplicity `s` of `u`), coefficients combined in the
-/// ring: `Q_i = c_{i−1} + (c_i − c_{i−1})·α_i` with
-/// `α_i = (u − U_i)/(U_{i+p} − U_i)` formed as a **ring quotient** of
-/// knot enclosures (module docs step 2). Fixed ascending index order.
+/// ring in the **convex form** `Q_i = c_{i−1}·β_i + c_i·α_i`, with
+/// `Δ_i = U_{i+p} − U_i` and both barycentric coefficients formed as
+/// **ring quotients** of knot enclosures from the knots they are made
+/// of (module docs step 2):
+///
+/// ```text
+/// α_i = (u − U_i)/Δ_i        β_i = (U_{i+p} − u)/Δ_i
+/// ```
+///
+/// Fixed ascending index order.
+///
+/// **`β` is derived from the knots, not computed as `1 − α`, and the
+/// two are not required to sum to exactly one.** Each encloses its own
+/// true ratio by outward rounding, which is the whole of what the
+/// enclosure needs: with `λ` the exact real ratio, `α ∋ λ` and
+/// `β ∋ 1 − λ`, so the combination contains `(1 − λ)·c_{i−1} + λ·c_i`
+/// for any values in the input enclosures. `1 − α` would instead
+/// inherit `α`'s rounding and add its own, and route the argument
+/// through a subtraction rather than through the knots.
+///
+/// **The convex form reads each coefficient ONCE, and that is WIDTH.**
+/// `c_{i−1} + (c_i − c_{i−1})·α` reads `c_{i−1}` twice, so an interval
+/// coefficient's own dust enters with coefficient `1 + α` and a fold of
+/// insertions multiplies it up step by step;
+/// [`to_bezier_spans_extra`] inserts to full interior multiplicity, so
+/// that fold is `p` deep per interior knot. Read once each, the width
+/// grows only by the ratios' own rounding
+/// (`the_convex_form_does_not_inflate_the_fold`).
+///
+/// It does NOT hold a slot inside the hull of its two sources: `α` and
+/// `β` round outward independently, so `α_hi + β_hi > 1` and a
+/// constant column comes out as a bracket around its point rather than
+/// the point. That is outward, and so sound; what it is not is
+/// variation-diminishing in the exact sense the reals give.
 ///
 /// **The Boehm structure is shared with `algebra::insert_once` (private
 /// there, so this is a name and not a link); the coefficient arithmetic
@@ -282,11 +316,11 @@ impl BernsteinSpans {
 /// insert one knot at `k + 1`. There the weights are `f64` and the
 /// output is a replayable `CurvePlan` of `Step`s whose `λ` is formed
 /// from those weights; here there are no weights at all — one
-/// homogeneous channel of `Interval`s, folded in place, with `α` a
-/// ring quotient that rounds **outward** under D9's fixed association.
-/// A shared body would have to make that widening conditional on the
-/// scalar, which is the one thing certification arithmetic exists to
-/// make unconditional.
+/// homogeneous channel of `Interval`s, folded in place, with `α` and
+/// `β` ring quotients that round **outward** under D9's fixed
+/// association. A shared body would have to make that widening
+/// conditional on the scalar, which is the one thing certification
+/// arithmetic exists to make unconditional.
 fn insert_once_ring(
     knots: &mut Vec<f64>,
     p: usize,
@@ -310,9 +344,15 @@ fn insert_once_ring(
             out.push(coeffs[i]);
         } else if i + s <= k {
             // Window k−p+1 ..= k−s: interval arithmetic combination.
-            let alpha = (up - Interval::point(knots[i]))
-                / (Interval::point(knots[i + p]) - Interval::point(knots[i]));
-            out.push(coeffs[i - 1] + (coeffs[i] - coeffs[i - 1]) * alpha);
+            // `Δ > 0` because U_i < u (i ≤ k − s, below the copy run)
+            // and U_{i+p} ≥ U_{k+1} > u (span k is nonempty), so
+            // neither quotient refuses. Fixed association (D9):
+            // `β·c_{i−1} + α·c_i`.
+            let (lo, hi) = (Interval::point(knots[i]), Interval::point(knots[i + p]));
+            let span = hi - lo;
+            let alpha = (up - lo) / span;
+            let beta = (hi - up) / span;
+            out.push(coeffs[i - 1] * beta + coeffs[i] * alpha);
         } else {
             // Q_i = c_{i−1} (carry above the window; i ≥ 1 here because
             // k ≥ s for an interior u with multiplicity s).
@@ -1042,6 +1082,9 @@ mod tests {
     use super::*;
     use crate::real::Bounds;
     use crate::spline::basis;
+    use num_bigint::BigInt;
+    use num_integer::Integer;
+    use num_traits::ToPrimitive;
 
     /// f64 rational-curve oracle: `x_d(t)` via A2.2 basis values —
     /// independent of every ring/decomposition code path.
@@ -1123,6 +1166,432 @@ mod tests {
         // Full multiplicity everywhere: four segments over degree 3.
         assert_eq!(knots.len(), 2 * (p + 1) + 3 * p);
         assert_eq!(coeffs.len(), 4 * p + 1);
+    }
+
+    // -----------------------------------------------------------------
+    // The insertion combination: containment against exact rationals
+    // -----------------------------------------------------------------
+
+    /// An exact rational, `num/den` with `den > 0`, normalized. Only the
+    /// operations the Boehm combination needs — the point is that the
+    /// SHADOW of the ring fold carries no rounding at all, so a ring
+    /// bound that fails to contain it is unsound by construction.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct Q {
+        num: BigInt,
+        den: BigInt,
+    }
+
+    impl Q {
+        fn new(num: BigInt, den: BigInt) -> Self {
+            assert!(
+                den != BigInt::from(0),
+                "exact rational with zero denominator"
+            );
+            let (num, den) = if den < BigInt::from(0) {
+                (-num, -den)
+            } else {
+                (num, den)
+            };
+            let g = num.gcd(&den);
+            if g == BigInt::from(0) {
+                return Self { num, den };
+            }
+            Self {
+                num: num / &g,
+                den: den / &g,
+            }
+        }
+
+        /// Exact: an `f64` IS a dyadic rational, so this loses nothing.
+        fn from_f64(x: f64) -> Self {
+            assert!(x.is_finite(), "exact rational from {x}");
+            if x == 0.0 {
+                return Self {
+                    num: BigInt::from(0),
+                    den: BigInt::from(1),
+                };
+            }
+            let bits = x.to_bits();
+            let sign = if bits >> 63 == 1 { -1i32 } else { 1 };
+            let raw_exp = ((bits >> 52) & 0x7ff) as i32;
+            let frac = bits & ((1u64 << 52) - 1);
+            // Subnormals carry no implicit leading bit and sit one
+            // exponent up; the fixture families below reach them.
+            let (mant, exp) = if raw_exp == 0 {
+                (frac, -1074i32)
+            } else {
+                (frac | (1u64 << 52), raw_exp - 1075)
+            };
+            let m = BigInt::from(mant) * BigInt::from(sign);
+            if exp >= 0 {
+                Self::new(m << (exp as usize), BigInt::from(1))
+            } else {
+                Self::new(m, BigInt::from(1) << ((-exp) as usize))
+            }
+        }
+
+        fn add(&self, o: &Self) -> Self {
+            Self::new(&self.num * &o.den + &o.num * &self.den, &self.den * &o.den)
+        }
+
+        fn sub(&self, o: &Self) -> Self {
+            Self::new(&self.num * &o.den - &o.num * &self.den, &self.den * &o.den)
+        }
+
+        fn mul(&self, o: &Self) -> Self {
+            Self::new(&self.num * &o.num, &self.den * &o.den)
+        }
+
+        fn div(&self, o: &Self) -> Self {
+            assert!(o.num != BigInt::from(0), "exact division by zero");
+            Self::new(&self.num * &o.den, &self.den * &o.num)
+        }
+
+        fn cmp_f64(&self, x: f64) -> core::cmp::Ordering {
+            let y = Self::from_f64(x);
+            (&self.num * &y.den).cmp(&(&y.num * &self.den))
+        }
+
+        fn to_f64_approx(&self) -> f64 {
+            let (n, d) = (
+                self.num.to_f64().unwrap_or(f64::NAN),
+                self.den.to_f64().unwrap_or(f64::NAN),
+            );
+            n / d
+        }
+    }
+
+    /// One coefficient's TRUE value set: an exact rational interval.
+    /// The Boehm combination is affine with both barycentric
+    /// coefficients in `(0, 1)`, so it is monotone in each source and
+    /// the extremes of the true set are attained at the sources' own
+    /// endpoints — which is why two rationals describe it exactly.
+    #[derive(Clone, Debug)]
+    struct QInt {
+        lo: Q,
+        hi: Q,
+    }
+
+    /// The exact shadow of one [`insert_once_ring`] step, over the same
+    /// `f64` knot list the ring fold reads: `λ` is the exact ratio of
+    /// exact knot differences, and nothing here rounds.
+    fn insert_once_exact(knots: &[f64], p: usize, s: usize, coeffs: &[QInt], u: f64) -> Vec<QInt> {
+        let k = find_span_in(knots, p, u);
+        let n_old = coeffs.len();
+        let uq = Q::from_f64(u);
+        let one = Q::new(BigInt::from(1), BigInt::from(1));
+        let mut out = Vec::with_capacity(n_old + 1);
+        for i in 0..=n_old {
+            if i + p <= k {
+                out.push(coeffs[i].clone());
+            } else if i + s <= k {
+                let lo = Q::from_f64(knots[i]);
+                let hi = Q::from_f64(knots[i + p]);
+                let lam = uq.sub(&lo).div(&hi.sub(&lo));
+                let co = one.sub(&lam);
+                out.push(QInt {
+                    lo: co.mul(&coeffs[i - 1].lo).add(&lam.mul(&coeffs[i].lo)),
+                    hi: co.mul(&coeffs[i - 1].hi).add(&lam.mul(&coeffs[i].hi)),
+                });
+            } else {
+                out.push(coeffs[i - 1].clone());
+            }
+        }
+        out
+    }
+
+    /// The fixture families, chosen to BREAK containment rather than to
+    /// flatter it: `(name, degree, knot vector, coefficient endpoints)`.
+    /// Each name says what it attacks.
+    #[allow(clippy::type_complexity)]
+    fn containment_fixtures() -> Vec<(&'static str, usize, Vec<f64>, Vec<(f64, f64)>)> {
+        let pts = |v: &[f64]| -> Vec<(f64, f64)> { v.iter().map(|x| (*x, *x)).collect() };
+        let mut out: Vec<(&'static str, usize, Vec<f64>, Vec<(f64, f64)>)> = Vec::new();
+
+        // λ is 1/3 and 2/3 — not representable in f64, so the quotient
+        // rounds on every step and outwardness is the only thing
+        // keeping the truth inside.
+        out.push((
+            "non-dyadic ratios",
+            3,
+            vec![0.0, 0.0, 0.0, 0.0, 3.0, 6.0, 9.0, 9.0, 9.0, 9.0],
+            pts(&[1.0, -2.0, 4.0, 8.0, -16.0, 32.0]),
+        ));
+
+        // Knots one ulp apart at 1.0: Δ is exact by Sterbenz but tiny,
+        // so the quotient's relative rounding is at its worst.
+        let e = f64::EPSILON;
+        out.push((
+            "ulp-scale knot spans",
+            2,
+            vec![
+                1.0,
+                1.0,
+                1.0,
+                1.0 + e,
+                1.0 + 2.0 * e,
+                1.0 + 3.0 * e,
+                1.0 + 3.0 * e,
+                1.0 + 3.0 * e,
+            ],
+            pts(&[1.0, -1.0, 1.0, -1.0, 1.0]),
+        ));
+
+        // Cancelling coefficients of huge magnitude: the combination's
+        // true value is ~0 while its inputs are ~1e17, so any width the
+        // form invents is astronomically larger than the answer — and
+        // any width it FAILS to carry loses containment outright.
+        out.push((
+            "catastrophic cancellation",
+            3,
+            vec![0.0, 0.0, 0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0, 1.0, 1.0],
+            pts(&[1e17, -1e17, 1e17, -1e17, 1e17, -1e17]),
+        ));
+
+        // λ within an ulp of 0 and of 1: the near-degenerate ends of
+        // the barycentric range, where `1 − α` and a knot-derived `β`
+        // differ most.
+        out.push((
+            "ratios at the ends",
+            3,
+            vec![0.0, 0.0, 0.0, 0.0, 1e-300, 1.0 - 1e-16, 1.0, 1.0, 1.0, 1.0],
+            pts(&[3.0, 5.0, 7.0, 11.0, 13.0, 17.0]),
+        ));
+
+        // Subnormal coefficients: the one regime where an ulp is
+        // absolute rather than relative.
+        out.push((
+            "subnormal coefficients",
+            2,
+            vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0],
+            pts(&[5e-324, -1e-320, 3e-322, 0.0, 7e-323, -5e-324]),
+        ));
+
+        // Already-WIDE inputs, of both signs and mixed magnitudes: the
+        // fold then has real dust to carry, which is the case the lerp
+        // form multiplies up and the case a too-clever contraction
+        // would lose.
+        out.push((
+            "wide inputs",
+            3,
+            vec![0.0, 0.0, 0.0, 0.0, 0.1, 0.3, 0.7, 1.0, 1.0, 1.0, 1.0],
+            vec![
+                (-1.0, 1.0),
+                (0.999_999_999, 1.000_000_001),
+                (-1e8, 1e8),
+                (2.0, 2.0),
+                (-3e-7, 5e-7),
+                (1e10, 1.000_000_1e10),
+                (-7.0, -6.999_999),
+            ],
+        ));
+
+        // Degree 5 over an irregular, clustered knot vector at a knot
+        // that already has multiplicity 2 — a deep fold with the window
+        // arm entered at several `s`, which is where the accumulated
+        // dust is largest.
+        out.push((
+            "deep irregular fold",
+            5,
+            vec![
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.017, 0.017, 0.33, 0.9, 0.999_9, 1.0, 1.0, 1.0, 1.0,
+                1.0, 1.0,
+            ],
+            pts(&[
+                1.0, -0.5, 0.25, -0.125, 6.0, -7.0, 8.0, -9.0, 10.0, 11.0, -12.0,
+            ]),
+        ));
+
+        out
+    }
+
+    /// **The claim this unit exists to establish: the convex form still
+    /// ENCLOSES the true inserted coefficient.**
+    ///
+    /// The failure mode is a bound that comes out TIGHTER THAN TRUTH,
+    /// which reads as an improvement and is an unsound certificate. A
+    /// narrower bound is the expected outcome of the change and is
+    /// therefore not evidence for it; containment is, and containment
+    /// is what this asserts — against exact rational arithmetic, on
+    /// families chosen to break it (non-dyadic ratios, ulp-scale knot
+    /// spans, cancelling 1e17 coefficients, ratios an ulp from either
+    /// end, subnormals, already-wide inputs, a degree-5 fold over a
+    /// clustered vector).
+    ///
+    /// The shadow folds the SAME schedule the ring fold does, over the
+    /// same `f64` knot list, with `λ` the exact ratio of exact knot
+    /// differences. Its per-coefficient value set is exactly an
+    /// interval because the combination is affine with coefficients in
+    /// `(0, 1)`, so it is monotone in each source; the extremes are
+    /// therefore attained at the sources' endpoints and two rationals
+    /// describe the set with nothing left over.
+    #[test]
+    fn the_ring_fold_encloses_the_exact_refined_net() {
+        let mut worst_slack_ulps = f64::INFINITY;
+        let mut checked = 0usize;
+        for (name, p, knot_list, coeff_ends) in containment_fixtures() {
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            assert_eq!(
+                kv.control_count(),
+                coeff_ends.len(),
+                "{name}: fixture coefficient count does not match the knot vector"
+            );
+            let mut knots = kv.knots().to_vec();
+            let mut ring: Vec<Interval> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| Interval::from_bounds(*lo, *hi))
+                .collect();
+            let mut exact: Vec<QInt> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| QInt {
+                    lo: Q::from_f64(*lo),
+                    hi: Q::from_f64(*hi),
+                })
+                .collect();
+            let interior: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+            for (v, m) in &interior {
+                for step in *m..p {
+                    exact = insert_once_exact(&knots, p, step, &exact, v.value());
+                    insert_once_ring(&mut knots, p, step, &mut ring, *v);
+                    assert_eq!(ring.len(), exact.len(), "{name}: the two folds left step");
+                    for (i, (r, x)) in ring.iter().zip(exact.iter()).enumerate() {
+                        assert!(
+                            r.is_certified(),
+                            "{name}: slot {i} refused after inserting {} (step {step})",
+                            v.value()
+                        );
+                        // Containment, in exact arithmetic: the ring
+                        // bracket must reach at or past the true set on
+                        // BOTH sides. A tighter bound fails here, which
+                        // is the whole point of the row.
+                        assert!(
+                            x.lo.cmp_f64(r.lo()) != core::cmp::Ordering::Less,
+                            "{name}: slot {i} after inserting {} (step {step}) is TIGHTER \
+                             THAN TRUTH below — ring lo {:e} is above the exact lo {:e}",
+                            v.value(),
+                            r.lo(),
+                            x.lo.to_f64_approx()
+                        );
+                        assert!(
+                            x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
+                            "{name}: slot {i} after inserting {} (step {step}) is TIGHTER \
+                             THAN TRUTH above — ring hi {:e} is below the exact hi {:e}",
+                            v.value(),
+                            r.hi(),
+                            x.hi.to_f64_approx()
+                        );
+                        checked += 1;
+                        // How much room the enclosure has left over the
+                        // truth, in ulps of the slot's own scale. It is
+                        // reported, not asserted tight: this row is
+                        // about the sound direction only.
+                        let scale = r.lo().abs().max(r.hi().abs());
+                        if scale > 0.0 && scale.is_finite() {
+                            let slack = (r.hi() - x.hi.to_f64_approx())
+                                .min(x.lo.to_f64_approx() - r.lo())
+                                / (scale * f64::EPSILON);
+                            if slack.is_finite() {
+                                worst_slack_ulps = worst_slack_ulps.min(slack);
+                            }
+                        }
+                    }
+                }
+            }
+            println!("{name}: contained through the fold to full multiplicity");
+        }
+        assert!(
+            checked > 400,
+            "only {checked} slot comparisons — the fixture families stopped folding"
+        );
+        println!(
+            "{checked} exact containment comparisons; tightest side left {worst_slack_ulps:.2} \
+             ulps of slack over the truth"
+        );
+    }
+
+    /// **The width the lerp form gives away, asserted as a ceiling the
+    /// lerp form cannot meet.**
+    ///
+    /// With point inputs the only width in the answer is the ratios'
+    /// own outward rounding, so it accumulates ADDITIVELY — a few ulps
+    /// of the coefficient scale per insertion. The lerp form reads
+    /// `c_{i−1}` twice, so its dust is multiplied by `1 + α` per step
+    /// and grows GEOMETRICALLY with the fold's depth. The ceiling is
+    /// therefore stated against the insertion COUNT: a per-step growth
+    /// factor blows through it, an additive one does not.
+    ///
+    /// `to_bezier_spans_extra` inserts to full interior multiplicity,
+    /// so the deep fold this pins is the one the composite bounds
+    /// actually pay: degree 6, sixteen interior knots, six insertions
+    /// each.
+    #[test]
+    fn the_convex_form_does_not_inflate_the_fold() {
+        // (degree, interior count). The first is TESS-2's measuring
+        // shape — degree 2, thirty insertions; the last is the deep
+        // full-multiplicity fold the decomposition actually runs.
+        let cases: &[(usize, usize)] = &[(2, 30), (3, 16), (6, 16)];
+        let mut worst_excess = f64::NEG_INFINITY;
+        for &(p, m) in cases {
+            let mut knot_list = vec![0.0; p + 1];
+            #[allow(clippy::cast_precision_loss)]
+            for j in 1..=m {
+                knot_list.push(j as f64 / (m + 1) as f64);
+            }
+            knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let n = kv.control_count();
+            // Both signs and O(1) magnitudes, so a sign error in either
+            // ratio shows as an escape rather than as width.
+            #[allow(clippy::cast_precision_loss)]
+            let coeffs: Vec<f64> = (0..n)
+                .map(|i| {
+                    if i % 2 == 0 {
+                        1.0 + i as f64
+                    } else {
+                        -(1.0 + i as f64)
+                    }
+                })
+                .collect();
+            let scale = coeffs.iter().fold(0.0f64, |a, c| a.max(c.abs()));
+            let mut knots = kv.knots().to_vec();
+            let mut ring: Vec<Interval> = coeffs.iter().copied().map(Interval::point).collect();
+            let mut insertions = 0usize;
+            for (v, s) in kv.interior_knot_runs().collect::<Vec<_>>() {
+                for step in s..p {
+                    insert_once_ring(&mut knots, p, step, &mut ring, v);
+                    insertions += 1;
+                }
+            }
+            let worst = ring.iter().fold(0.0f64, |a, r| {
+                assert!(r.is_certified(), "p={p}: refused slot in the fold");
+                a.max(r.hi() - r.lo())
+            });
+            let ulps = worst / (scale * f64::EPSILON);
+            #[allow(clippy::cast_precision_loss)]
+            let allowance = 2.0 + 0.5 * insertions as f64;
+            worst_excess = worst_excess.max(ulps - allowance);
+            #[allow(clippy::cast_precision_loss)]
+            let per_insertion = ulps / insertions as f64;
+            println!(
+                "p={p}, {insertions} insertions: widest slot {worst:.3e} ({ulps:.1} ulps of \
+                 the coefficient scale, {per_insertion:.2} per insertion, allowance \
+                 {allowance:.1})"
+            );
+        }
+        // The allowance is LINEAR in the insertion count, and that is
+        // the whole content of the claim: two outward-rounded quotients
+        // and one combination add a fraction of an ulp per step, so a
+        // line through them holds at any depth. A form that reads a
+        // coefficient twice multiplies its dust by `1 + α` per step
+        // instead, and no line holds a geometric series — the lerp form
+        // clears this by 473.7 ulps against 42.0 on the p=6 row.
+        assert!(
+            worst_excess < 0.0,
+            "a fold ran {worst_excess:.1} ulps of width past a linear-in-depth allowance, so \
+             the width is no longer the two ratios rounding outward once per step — a form \
+             that reads a coefficient twice multiplies its dust up instead of adding to it"
+        );
     }
 
     fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
