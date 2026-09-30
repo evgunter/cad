@@ -1562,7 +1562,10 @@ fn kill_anchors_on_torn_bodies() {
         std::thread::scope(|scope| {
             let handles: Vec<_> = pair
                 .iter()
-                .map(|&tear| scope.spawn(|| kill_anchor_rows(tear, &seeds)))
+                .map(|&tear| {
+                    let seeds = &seeds;
+                    scope.spawn(move || kill_anchor_rows(tear, seeds))
+                })
                 .collect();
             for (row, handle) in rows.iter_mut().zip(handles) {
                 *row = handle.join().unwrap();
