@@ -315,7 +315,8 @@ impl<T: Decide> Body<T> {
     /// named). Then per moved face in order onto a plane that is not its
     /// old chart, per loop (outer, then rings) and half-edge in cycle
     /// order: its start vertex, then its edge's interior samples, lie on
-    /// the plane ([`EulerOpError::RechartOffBoundary`] /
+    /// the plane, as does an empty loop's lone vertex
+    /// ([`EulerOpError::RechartOffBoundary`] /
     /// [`EulerOpError::RechartBoundaryEscalated`]). `StaleKey` /
     /// `StaleGeometry` where a key a walk follows does not resolve, and
     /// [`EulerOpError::LoopCycleBroken`] where a moved face's loop does
@@ -550,14 +551,19 @@ impl<T: Decide> Body<T> {
             key: EntityId::Face(m.face),
         })?;
         for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-            let LoopBoundary::Cycle { first } = self
+            let first = match self
                 .get_loop(lk)
                 .ok_or(EulerOpError::StaleKey {
                     key: EntityId::Loop(lk),
                 })?
                 .boundary
-            else {
-                continue;
+            {
+                LoopBoundary::Cycle { first } => first,
+                // A lone vertex bounds the face too.
+                LoopBoundary::Empty { vertex } => {
+                    on_plane(self.resolve_vertex_point(vertex)?, EntityId::Vertex(vertex))?;
+                    continue;
+                }
             };
             let cycle = self
                 .loop_cycle(first)
