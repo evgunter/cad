@@ -1522,3 +1522,11 @@ Thirteen units closed. **The duplication trap fired a thirteenth time**, as a se
 - The residue is `a-last-leg-no-close-can-follow-is-dropped` (P3).
 
 Review tier: correctness + style, then two correctness re-verifications.
+
+## 2026-09-30 — AUTH-14 dispatched: a blend target whose edges cannot be named says so
+
+`blend-swallows-the-edge-name-fault-the-index-calls-loud` (P2). The index's loud `EdgeNameFault` arms are collapsed to "no edges" and to a silently shorter mark. Review tier: **one FULL review** (correctness claims alongside the style questions). The change is small and readable, but reaching the loud arms at all is the part a reader cannot simply believe.
+
+Not taken yet:
+- `the-boolean-door-evaluates-its-boolean-twice` (P2, a performance row, AUTH-9's cost).
+- `a-seated-tools-held-node-is-drawn-nowhere` and `a-union-that-becomes-flush-later-…` (both design; the second is the DM6 question for Ev).
