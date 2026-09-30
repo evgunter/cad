@@ -4270,3 +4270,32 @@ review, frozen at `dba0ffb29a`, on the loop-anchor target. The review:
 
 PR 3559 merged (`685dc36544`) after CI run 36728287648 went green,
 closing `deep-snapshot-does-not-walk-the-body-side-tables`.
+
+## revert-starts delivered as PR 3562; row closed on the branch (2026-09-30)
+
+The implementer took 208,608 tokens, 117 tools and 2,607 s. Head
+`b80f9797d0` is green on CI run 36732202326.
+
+**The `prev` split, measured at base.** Of the `prev` tears that gain a
+validator kind:
+- 7,704 are renames: the `next`↔`prev` swap handing the same link to
+  another field.
+- 164 are written faults. A `prev` at the anchor naming another member
+  of the same loop passed PR 3546's `LoopMember` check, and the anchor
+  moved there.
+
+**The new proofs.**
+- `RevertLink::Start`: each half-edge's end is its mate's start.
+- `RevertLink::LoopPredecessor`: `prev(first).next == first`.
+
+Every written fault on eight bodies goes to 0. Every `Ok` from a
+`next` or `prev` tear equals the tear's image, and the renames are
+pinned per tear kind.
+
+The orchestrator read the diff and accepted it. The row closes at
+`9c47ba020f`; merge after CI.
+
+**Filed:** `tint/topo-tests-fail-clippy-with-debug-assertions-off`
+(P3, E). Two lanes in a row hit eight dead-code errors in
+`loop_reparenting_pcurve_rows.rs` with debug assertions off; CI does
+not lint that config.
