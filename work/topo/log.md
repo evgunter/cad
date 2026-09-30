@@ -4267,3 +4267,6 @@ review, frozen at `dba0ffb29a`, on the loop-anchor target. The review:
   rather than stated;
 - re-runs the mutants and adds its own;
 - counts the words of every decision rendered in band.
+
+PR 3559 merged (`685dc36544`) after CI run 36728287648 went green,
+closing `deep-snapshot-does-not-walk-the-body-side-tables`.
