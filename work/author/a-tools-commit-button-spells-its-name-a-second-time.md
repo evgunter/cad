@@ -2,10 +2,12 @@
 id: a-tools-commit-button-spells-its-name-a-second-time
 kind: issue
 title: a tool's commit button spells the tool's name a second time, beside the ToolKind that already carries it
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: E
+closed: 2026-09-30
+pr: 3573
 ---
 
 
@@ -31,12 +33,18 @@ name by hand, a second time.
 Renaming a tool in `ToolKind::label` renames its activation button and
 its sentences, and leaves its commit button saying the old name.
 
-## Why it was not fixed in AUTH-12
+## Built (AUTH-12's fix pass, PR 3573)
 
-The commit words are the name *without* `" tool"`, and `label()`
-returns the name *with* it. So one spelling needs a choice about how
-the name is split: a bare noun that `label()` composes from, or a
-commit form derived from `label()`. A second name function beside
-`label()` is the duplication AUTH-12 was told not to mint. Choosing
-between those two is the work. It is `E` once the choice is made:
-nine call sites, and `tool_commit_row` loses its `label` parameter.
+`ToolKind::label` had exactly two readers, `says` and `button`, and
+both `format!`. So the match now holds the bare noun ("mate", …,
+"projection"), and each spelling is a composer over it: `says` adds
+`" tool: "`, `button` capitalises and adds `" tool…"`, and the new
+`ToolKind::commit` prefixes `"Commit "`. `tool_commit_row` lost its
+`label` parameter and reads `kind.commit()`. The mate and blend commit
+buttons read `ToolKind::Mate.commit()` and `ToolKind::Blend.commit()`.
+The painted text does not change.
+
+What this row does not cover, and what is still open: `blend_commit_row`
+and the mate panel's commit row repeat `tool_commit_row`'s
+commit/Cancel/close shape by hand. That is
+`work/author/the-mate-and-blend-commit-rows-restate-tool-commit-row`.

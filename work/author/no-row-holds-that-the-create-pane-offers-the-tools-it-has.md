@@ -111,3 +111,11 @@ for its two panels and for the seven that shipped before them, is that
 - The sweep's second pass filed
   `work/author/a-tools-commit-button-spells-its-name-a-second-time` and
   `work/chrome/the-mate-tools-refusal-names-the-mate-tool-twice`.
+- Fix pass: which section hosts a kind has one home in the test
+  module, `properties_pane_tests::section_of`. It is read by the census
+  and by `painted_with_tool`, which lost its `section` parameter. The
+  census also reddens when a button is painted before its section
+  opens. The section headings and the add-datum and add-profile button
+  words are `pane::create` consts. `ToolKind::label` is now the bare
+  noun, with `says`, `button` and `commit` composing over it, which
+  closed `a-tools-commit-button-spells-its-name-a-second-time`.
