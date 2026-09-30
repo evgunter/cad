@@ -212,11 +212,12 @@ pub(crate) fn wedge_decided<T: Decide>(
     let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
     let arm = folded_lever_arm(s1, s2, p, extent);
     // The collapsed-arm gate (module docs): the wedge margin is only
-    // meaningful through a definitely-positive arm. A Zero (or, for a
-    // true magnitude, unreachable Negative) arm escalates as Invalid —
-    // "the question was never validly posed here" — and an in-band or
-    // poisoned arm escalates through `decide` itself via `?`.
-    decide_positive("dihedral_arm", Margin::of(arm), band).map_err(LeverEscalation::arm)?;
+    // meaningful through a definitely-positive arm. A Zero arm escalates
+    // with its decided margin, a (for a true magnitude, unreachable)
+    // Negative one as Invalid, and an in-band or poisoned arm as the
+    // funnel's own escalation.
+    crate::enters::decide_arm("dihedral_arm", Margin::of(arm), band)
+        .map_err(LeverEscalation::arm)?;
     let margin = Margin::levered(sin_theta, arm);
     let Decided { sign, margin } =
         decide_reported("dihedral_wedge", margin, band).map_err(LeverEscalation::reading)?;
@@ -798,10 +799,12 @@ mod tests {
         assert_eq!(c, DihedralClass::Transverse);
     }
 
-    /// At the cone apex the gradient is poison and the classification
-    /// escalates as Invalid — never a guess, never a chart normal.
+    /// At the cone apex the radius of curvature, and with it the folded
+    /// lever arm, is zero: the arm gate escalates with that decided zero
+    /// before the poisoned gradient is read — never a guess, never a
+    /// chart normal.
     #[test]
-    fn cone_apex_escalates_as_poison() {
+    fn cone_apex_escalates_at_the_arm_gate() {
         let cone = Surface::Cone {
             apex: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -810,7 +813,14 @@ mod tests {
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let err = classify_dihedral(&cone, &s1, Point3::origin(), 1.0, band()).unwrap_err();
-        assert_eq!(err.diag.margin, geom_core::MarginDiag::INVALID);
+        assert_eq!(
+            (err.rung, err.diag.predicate, err.diag.margin),
+            (
+                crate::LeverRung::Arm,
+                Some("dihedral_arm"),
+                geom_core::MarginDiag::value(0.0)
+            )
+        );
     }
 
     /// Two coplanar faces on one tangent plane: material sides agree

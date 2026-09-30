@@ -1012,12 +1012,12 @@ fn parallel_same_dir<T: Decide>(
     ) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::coincidence(Coincide::EdgeOnEdge, diag)),
+        Err(diag) => return Err(BooleanError::proximity(Coincide::EdgeOnEdge, diag)),
     }
     match decide("bool_dir_same", Margin::levered(un.dot(vn), arm), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(_) => Ok(false),
-        Err(diag) => Err(BooleanError::coincidence(Coincide::EdgeOnEdge, diag)),
+        Err(diag) => Err(BooleanError::proximity(Coincide::EdgeOnEdge, diag)),
     }
 }
 

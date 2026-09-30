@@ -630,6 +630,39 @@ pub fn decide_positive<T: Decide>(
     })
 }
 
+/// [`decide_positive`] for a gate whose `Zero` is band-decided: the
+/// quantity is a size the user may intend, and a smaller tolerance
+/// decides a zero-band one positive (D4 ¶1 (i)). A decided `Zero`
+/// escalates carrying the margin the classifier decided, so the ending
+/// can offer the tolerance it gives; a definite `Negative` is no size
+/// and keeps [`MarginKind::Invalid`](crate::MarginKind::Invalid). Both
+/// are recorded as [`decide_positive`] records them.
+///
+/// # Errors
+///
+/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin; for
+/// a decided `Zero`, an [`Indeterminate`] carrying the decided margin
+/// under `name`; for a definite `Negative`, one carrying
+/// [`MarginKind::Invalid`](crate::MarginKind::Invalid).
+pub fn decide_positive_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    let Decided { sign, margin } = classify(name, margin.value(), band)?;
+    let margin = match sign {
+        Sign::Positive => return Ok(()),
+        Sign::Zero => margin,
+        Sign::Negative => MarginDiag::INVALID,
+    };
+    Err(record_escalation(Indeterminate {
+        margin,
+        band,
+        predicate: Some(name),
+        terminal_sliver: false,
+    }))
+}
+
 /// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
 /// one of its values, which is what lets a caller match the gate's
 /// outcome exhaustively without an arm for an answer the gate escalated.

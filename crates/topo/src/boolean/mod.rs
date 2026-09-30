@@ -93,8 +93,8 @@ pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
-    BooleanDecision, Coincide, Contradiction, CrossingDecision, LeverArm, PlaneRung, SectionRadius,
-    SectorRung, TorusConvention, WallRung,
+    BooleanDecision, Coincide, Contradiction, CrossingDecision, LeverArm, NeighbourOffset,
+    PlaneRung, RestZipFrontier, SectionRadius, SectorRung, TorusConvention, WallRung,
 };
 mod rest;
 mod rim_wedge;
@@ -175,6 +175,12 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
+        // The coincidences whose every raise asks one `Coincide`.
+        "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
+        "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
+        "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
+        "bool_sector_within" => Coincide::Sectors.subject(),
+        "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
@@ -949,9 +955,8 @@ pub enum BooleanError {
         operand: Operand,
         /// The two faces.
         faces: [FaceKey; 2],
-        /// The offset rung's diagnostics: a decided zero carries an
-        /// `INVALID` margin, synthesized by the plane ladder.
-        diag: Indeterminate,
+        /// The offset the plane ladder's offset rung refused.
+        offset: NeighbourOffset,
     },
     /// A vertex sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -1373,11 +1378,12 @@ pub enum BooleanError {
     /// configuration is a named sub-frontier the lane does not cover
     /// (no speculative region algebra is built for it); refused
     /// typed, never a laundered catch-all (the `SkippedMerge`
-    /// precedent). The pair is declared and verified already, so the
-    /// geometry is the one lever ([`refusal_routes::REST_ZIP_LEVER`]).
+    /// precedent). The pair is declared and verified already, so no
+    /// declaration is offered; each sub-frontier ends as
+    /// [`RestZipFrontier::ending`] gives it.
     RestZipUnsupported {
         /// The precise sub-frontier.
-        what: &'static str,
+        what: RestZipFrontier,
     },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
@@ -1571,13 +1577,23 @@ pub enum BooleanErrorKind {
 
 impl BooleanError {
     /// An escalation of the coincidence `which` between parts of the two
-    /// solids ([`BooleanDecision::Coincidence`]), the one decision whose
-    /// refusal offers a declaration. A site whose question is not a
-    /// coincidence between the two solids names its own
-    /// [`BooleanDecision`] instead.
+    /// solids at a site that reads a face-pair declaration ahead of it
+    /// ([`BooleanDecision::Coincidence`]), the one decision whose refusal
+    /// offers a declaration. A site whose question is not a coincidence
+    /// between the two solids names its own [`BooleanDecision`] instead.
     pub(crate) const fn coincidence(which: Coincide, diag: Indeterminate) -> Self {
         Self::Escalated {
             decision: BooleanDecision::Coincidence(which),
+            diag,
+        }
+    }
+
+    /// An escalation of the coincidence `which` at a site that reads no
+    /// declaration ahead of it ([`BooleanDecision::Proximity`]), so none
+    /// would change the verdict.
+    pub(crate) const fn proximity(which: Coincide, diag: Indeterminate) -> Self {
+        Self::Escalated {
+            decision: BooleanDecision::Proximity(which),
             diag,
         }
     }
@@ -1795,7 +1811,7 @@ impl core::fmt::Display for BooleanError {
                  settle where or whether it passes through. Recourse: \
                  {}",
                 operand_word(*operand),
-                refusal_routes::DEFINITE_COINCIDENCE_RECOURSE,
+                geom_core::DEFINITE_COINCIDENCE_RECOURSE,
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
@@ -1947,19 +1963,15 @@ impl core::fmt::Display for BooleanError {
                 geom_core::RANGE_RECOURSE
             ),
             Self::Escalated { decision, diag } => f.write_str(&decision.render(diag)),
-            Self::CoplanarNeighbours { operand, diag, .. } => {
-                write!(
-                    f,
-                    "two neighbouring faces of the {} operand lie on one plane, or nearly (",
-                    operand_word(*operand)
-                )?;
-                if diag.margin.is_invalid() {
-                    f.write_str("their planes' offset is exactly zero")?;
-                } else {
-                    write!(f, "{}", diag.payload())?;
-                }
-                write!(f, "). {}", refusal_routes::coplanar_neighbours_ending(diag))
-            }
+            Self::CoplanarNeighbours {
+                operand, offset, ..
+            } => write!(
+                f,
+                "two neighbouring faces of the {} operand lie on one plane, or nearly ({}). {}",
+                operand_word(*operand),
+                offset.reported().payload(),
+                offset.ending()
+            ),
             Self::UndeclaredCoincidence { diag, .. } => {
                 f.write_str(
                     "a face of the first operand and a face of the second coincide, or nearly (",
@@ -2077,9 +2089,9 @@ impl core::fmt::Display for BooleanError {
             Self::RestZipUnsupported { what } => write!(
                 f,
                 "the Boolean cannot yet zip the two solids along their declared resting \
-                 contact ({what}); it zips planar contacts whose seam splits cleanly. \
-                 Recourse: {}",
-                refusal_routes::REST_ZIP_LEVER
+                 contact ({}); it zips planar contacts whose seam splits cleanly. {}",
+                what.what(),
+                what.ending()
             ),
             Self::JoinDesync { what } => write!(
                 f,
@@ -3037,31 +3049,47 @@ mod tests {
         );
     }
 
-    /// **The M5 S1 sub-frontier refusal names the geometry alone**: the
-    /// pair is declared and verified before the zip meets its
-    /// sub-frontier, so no declaration is offered, and a definite
-    /// frontier names no tolerance. It states the sub-frontier with no
-    /// stage label, and one recourse.
+    /// **Every M5 S1 sub-frontier refusal ends in its own lever or the
+    /// frontier's ending, and offers no declaration**: the pair is
+    /// declared and verified before the zip meets its sub-frontier, and
+    /// a definite frontier names no tolerance. Each states its
+    /// sub-frontier with no stage label, and one recourse; the holes'
+    /// mismatches name the move that matches them, and the rest (the
+    /// Euler operators' own refusals, and seam configurations a contact
+    /// already planar can meet) say there is no way through yet.
     #[test]
-    fn rest_zip_unsupported_names_the_geometry_and_no_declaration() {
+    fn every_rest_zip_frontier_ends_in_its_own_lever_and_no_declaration() {
+        use strum::IntoEnumIterator as _;
         use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
-        let msg = BooleanError::RestZipUnsupported {
-            what: "contact patch face carries rings",
+        const HOLES: &str = "Recourse: make the holes inside the declared contact match, one \
+                             for one and corner for corner, across the two parts";
+        for what in RestZipFrontier::iter() {
+            let msg = BooleanError::RestZipUnsupported { what }.to_string();
+            assert_eq!(recourse_markers(&msg), 1, "{what:?}: {msg}");
+            assert!(
+                stage_prefixes(&msg, &[]).is_empty() && subjectless_escalations(&msg).is_empty(),
+                "{what:?}: {msg}"
+            );
+            let holes = matches!(
+                what,
+                RestZipFrontier::HoleCountsDiffer
+                    | RestZipFrontier::HoleVertexUnmatched
+                    | RestZipFrontier::HoleCyclesIncongruent
+            );
+            let ending = if holes {
+                HOLES
+            } else {
+                geom_core::NOT_YET_ENDING
+            };
+            assert!(
+                msg.contains(&format!("({})", what.what()))
+                    && msg.ends_with(ending)
+                    && !msg.contains("declare the")
+                    && !msg.contains("tolerance")
+                    && !msg.contains("union zip:"),
+                "{what:?}: {msg}"
+            );
         }
-        .to_string();
-        assert_eq!(recourse_markers(&msg), 1, "{msg}");
-        assert!(
-            stage_prefixes(&msg, &[]).is_empty() && subjectless_escalations(&msg).is_empty(),
-            "{msg}"
-        );
-        assert!(
-            msg.contains("(contact patch face carries rings)")
-                && msg.ends_with(&format!("Recourse: {}", refusal_routes::REST_ZIP_LEVER))
-                && !msg.contains("declare the")
-                && !msg.contains("tolerance")
-                && !msg.contains("union zip:"),
-            "{msg}"
-        );
     }
 
     /// **A declared face key that resolves to no face refuses typed,
@@ -3175,7 +3203,7 @@ mod tests {
             BooleanError::CoplanarNeighbours {
                 operand: Operand::A,
                 faces: [face, face],
-                diag,
+                offset: NeighbourOffset::Undecided(diag),
             },
             BooleanError::coincidence(Coincide::VertexOnFace, diag),
             BooleanError::UndeclaredCoincidence {
@@ -3253,7 +3281,7 @@ mod tests {
                 source: crate::pcurves::PcurveMintError::Corrupt,
             },
             BooleanError::RestZipUnsupported {
-                what: "a sub-frontier",
+                what: RestZipFrontier::SlitFaceHoles,
             },
             BooleanError::JoinDesync { what: "a lockstep" },
             BooleanError::TornComponent {

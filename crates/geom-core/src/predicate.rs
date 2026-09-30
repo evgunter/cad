@@ -1331,8 +1331,22 @@ pub struct Indeterminate {
 /// payload), or through [`Indeterminate`]'s own Display for escalated
 /// arms. Message-pinning tests pin the fragment with `contains`, never
 /// with full-string pins that rot.
-pub const COINCIDENCE_RECOURSE: &str =
-    "declare the coincidence, move the geometry, or lower the tolerance";
+pub const COINCIDENCE_RECOURSE: &str = concat!(
+    crate::coincidence_declare_arm!(),
+    ", ",
+    crate::coincidence_move_arm!(),
+    ", or lower the tolerance"
+);
+
+/// [`COINCIDENCE_RECOURSE`] on a DEFINITE verdict of a coincidence a
+/// declaration settles: its declaration and geometry arms, without the
+/// tolerance, which a definite verdict gives no size to tighten below
+/// (D4 ¶1 (i)). The two are one spelling of the arms.
+pub const DEFINITE_COINCIDENCE_RECOURSE: &str = concat!(
+    crate::coincidence_declare_arm!(),
+    ", or ",
+    crate::coincidence_move_arm!()
+);
 
 /// The one recourse for a quantity the floating-point format cannot
 /// hold — a length that overflows the norm or underflows to zero while
@@ -1428,6 +1442,26 @@ pub const KERNEL_LIMIT_RECOURSE: &str = concat!(
 macro_rules! kernel_defect_ending {
     () => {
         "There is no way through: this is a kernel defect; report it"
+    };
+}
+
+/// [`COINCIDENCE_RECOURSE`]'s declaration arm as a literal, for
+/// `concat!`; see `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! coincidence_declare_arm {
+    () => {
+        "declare the coincidence"
+    };
+}
+
+/// [`COINCIDENCE_RECOURSE`]'s geometry arm as a literal, for `concat!`;
+/// see `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! coincidence_move_arm {
+    () => {
+        "move the geometry"
     };
 }
 

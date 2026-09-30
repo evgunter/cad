@@ -68,3 +68,13 @@ closed types ride under refusals the prelude does not reach as
 payloads: `PlaneRung` (under `CarrierEqError::Escalated`,
 `MergeDecision::DeclaredPlanes` and `BooleanDecision::Neighbours`) and
 `MergeDecision` (under `MergeCoplanarError::Escalated`).
+
+## More rungs (TOPO, PR 3513)
+
+PR 3513 adds, re-exported beside `BooleanDecision`: `Coincide`,
+`LeverArm`, `WallRung` and `SectionRadius` one rung under
+`BooleanDecision`; `NeighbourOffset`, carried by
+`BooleanError::CoplanarNeighbours { offset, .. }`; and
+`RestZipFrontier`, carried by `BooleanError::RestZipUnsupported { what }`.
+The last two are payload rungs of `BooleanError` itself, so the sweep
+counts them, and their disposition is this row.

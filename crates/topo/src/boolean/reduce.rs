@@ -52,7 +52,8 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
 use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
-use super::plane_eq::PlaneDesc;
+use super::plane_eq::{LadderRefusal, PlaneDesc};
+use super::refusal_routes::NeighbourOffset;
 use super::{BooleanDecision, Coincide, CrossingDecision};
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
@@ -617,7 +618,12 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             s2: o2.as_ref(),
             declared: false,
         };
-        match super::oriented_plane_eq(&p1, &p2, id, arm, band) {
+        let coplanar = |offset| BooleanError::CoplanarNeighbours {
+            operand,
+            faces: [f1, f2],
+            offset,
+        };
+        match super::plane_eq::plane_eq_typed(&p1, &p2, id, arm, band) {
             Ok(super::PlaneRelation::Distinct) => {}
             Ok(_) => {
                 return Err(BooleanError::NonMaximalFaces {
@@ -625,22 +631,21 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     edge: edge_key,
                 });
             }
-            Err(super::PlaneEqError::Escalated { rung, diag }) => {
+            Err(LadderRefusal::Coplanar { offset, .. }) => {
+                return Err(coplanar(NeighbourOffset::Zero(offset)));
+            }
+            Err(LadderRefusal::Refused(super::PlaneEqError::Escalated { rung, diag })) => {
                 return Err(BooleanError::plane_identity(
                     rung,
                     super::PlaneDoor::Neighbours,
                     diag,
                 ));
             }
-            Err(super::PlaneEqError::Undeclared { diag, .. }) => {
-                return Err(BooleanError::CoplanarNeighbours {
-                    operand,
-                    faces: [f1, f2],
-                    diag,
-                });
+            Err(LadderRefusal::Refused(super::PlaneEqError::Undeclared { diag, .. })) => {
+                return Err(coplanar(NeighbourOffset::Undecided(diag)));
             }
             // Unreachable with `declared: false`; kept typed.
-            Err(super::PlaneEqError::Contradicted { fact, .. }) => {
+            Err(LadderRefusal::Refused(super::PlaneEqError::Contradicted { fact, .. })) => {
                 return Err(BooleanError::DeclarationContradicted { fact });
             }
         }
@@ -861,7 +866,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                             Ok(Sign::Positive | Sign::Negative) => continue,
                             Ok(Sign::Zero) => {}
                             Err(diag) => {
-                                return Err(BooleanError::coincidence(Coincide::EdgeOnPlane, diag));
+                                return Err(BooleanError::proximity(Coincide::EdgeOnPlane, diag));
                             }
                         }
                         let mut hit =
@@ -924,8 +929,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 band,
                             )
                         };
-                        let on_face =
-                            |diag| BooleanError::coincidence(Coincide::VertexOnFace, diag);
+                        let on_face = |diag| BooleanError::proximity(Coincide::VertexOnFace, diag);
                         let s1 = side(pu).map_err(on_face)?;
                         let s2 = side(pv).map_err(on_face)?;
                         let mut hit = false;
@@ -951,7 +955,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     band,
                 )
             };
-            let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, diag);
+            let on_face = |diag| BooleanError::proximity(Coincide::VertexOnFace, diag);
             let s1 = side(pu).map_err(on_face)?;
             let s2 = side(pv).map_err(on_face)?;
             match (s1, s2) {
@@ -1404,6 +1408,13 @@ fn curved_face_arm<T: Decide>(
                 Ok(Sign::Zero | Sign::Negative) | Err(_)
                     if !covered && matches!(surface, geom::Surface::Torus { .. }) => {}
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
+                // A declared pair reads no further declaration; an
+                // undeclared one, declared `Rest` on this face's
+                // carrier, is on it by the carrier-identity rung above,
+                // read ahead of the enclosures.
+                Err(diag) if covered => {
+                    return Err(BooleanError::proximity(Coincide::EdgeOnCurvedFace, diag));
+                }
                 Err(diag) => {
                     return Err(BooleanError::coincidence(Coincide::EdgeOnCurvedFace, diag));
                 }
@@ -1421,7 +1432,7 @@ fn curved_face_arm<T: Decide>(
     // The declared-cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
-    let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, diag);
+    let on_face = |diag| BooleanError::proximity(Coincide::VertexOnFace, diag);
     let s1 = side(pu).map_err(on_face)?;
     let s2 = side(pv).map_err(on_face)?;
     match (s1, s2) {
@@ -1745,7 +1756,7 @@ fn curved_face_arm<T: Decide>(
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
                 }
-                Err(diag) => Err(BooleanError::coincidence(Coincide::EdgeOnCurvedFace, diag)),
+                Err(diag) => Err(BooleanError::proximity(Coincide::EdgeOnCurvedFace, diag)),
             }
         }
     }
@@ -2586,6 +2597,209 @@ mod undeclared_rule_rows {
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]
 mod coplanar_conic_rows;
+
+/// **A curved face's escalations read no declaration ahead of them, and
+/// offer none**, on the review's executed raises (its
+/// `probe_wall_roots_in_band_with_and_without_declaration`, adopted
+/// here): an edge in the side face of a prism against a unit cylinder
+/// wall, run through `curved_face_arm` with that side face undeclared,
+/// declared `Tangent`, and declared `Rest`.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod declaration_order_rows {
+    use super::{ContactAcc, CurvedEvent, curved_face_arm};
+    use crate::boolean::{
+        BooleanDecision, BooleanDeclarations, BooleanError, Coincide, DeclaredPairs,
+        FacePairDeclaration, Operand,
+    };
+    use crate::contact::ContactClass;
+    use crate::entity::VertexKey;
+    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
+    use geom_core::{Band, Point3, Tol};
+
+    /// Whether the declaration door verifies the side face through the
+    /// edge of [`run`]'s prism as `class` against the wall, along the
+    /// vertical line `x = profile[3].0`.
+    fn door_verifies(class: ContactClass, profile: [(f64, f64); 4], z0: f64) -> bool {
+        let tol = Tol::witness();
+        let prism = prism_z::<f64>(&profile, z0, z0 + 0.5, tol);
+        let mut y: crate::body::Body<f64> = crate::body::Body::new();
+        let wall = cyl_wall_sheet(
+            &mut y,
+            CylFrame::canonical(1.0),
+            None,
+            (-0.5, 0.5),
+            (0.0, 1.0),
+            tol,
+        );
+        let witness = geom::Curve3::Line {
+            origin: Point3::new(profile[3].0, 0.0, 0.0),
+            dir: geom_core::Vec3::new(0.0, 0.0, 1.0),
+        };
+        crate::boolean::contact_pair_verdict(
+            &prism.body,
+            prism.side_faces[3],
+            &y,
+            wall,
+            class,
+            Some((&witness, z0, z0 + 0.5)),
+            Band::linear(tol).expect("the witness band"),
+        )
+        .is_ok()
+    }
+
+    /// The edge from `profile[3]` to `profile[0]` at height `z0` of a
+    /// prism over `profile`, against a canonical unit cylinder wall, the
+    /// prism's side face through that edge declared against the wall as
+    /// `class`; what `curved_face_arm` answers (the review's `run`).
+    fn run(
+        class: Option<ContactClass>,
+        profile: [(f64, f64); 4],
+        z0: f64,
+    ) -> Result<(), BooleanError> {
+        let tol = Tol::witness();
+        let b = Band::linear(tol).expect("the witness band");
+        let prism = prism_z::<f64>(&profile, z0, z0 + 0.5, tol);
+        let x = prism.body;
+        let (u, v) = (prism.bottom[3], prism.bottom[0]);
+        let pt = |k: VertexKey| {
+            *x.get_point(x.get_vertex(k).expect("a live vertex").point)
+                .expect("a live point")
+        };
+        let (edge_key, edge) = x
+            .edges()
+            .find(|(_, e)| {
+                let ends = [e.he_plus, e.he_minus]
+                    .map(|he| x.get_half_edge(he).expect("a live half-edge").start);
+                ends == [u, v] || ends == [v, u]
+            })
+            .map(|(k, e)| (k, e.clone()))
+            .expect("the bottom edge");
+        let (a, c) = (
+            x.get_half_edge(edge.he_plus)
+                .expect("a live half-edge")
+                .start,
+            x.get_half_edge(edge.he_minus)
+                .expect("a live half-edge")
+                .start,
+        );
+        let mut y: crate::body::Body<f64> = crate::body::Body::new();
+        let wall = cyl_wall_sheet(
+            &mut y,
+            CylFrame::canonical(1.0),
+            None,
+            (-0.5, 0.5),
+            (0.0, 1.0),
+            tol,
+        );
+        let decls = BooleanDeclarations {
+            coincident_faces: class
+                .map(|class| vec![FacePairDeclaration::new(prism.side_faces[3], wall, class)])
+                .unwrap_or_default(),
+            carried_a: Default::default(),
+            carried_b: Default::default(),
+        };
+        let declared = DeclaredPairs::build(&decls, Default::default());
+        let mut acc = ContactAcc::default();
+        curved_face_arm(
+            &x,
+            &mut y,
+            Operand::A,
+            edge_key,
+            &edge,
+            a,
+            c,
+            wall,
+            pt(a),
+            pt(c),
+            &declared,
+            &mut acc,
+            b,
+            tol,
+        )
+        .map(|_: CurvedEvent<f64>| ())
+    }
+
+    /// The one refusal every declaration posture gives, which must be the
+    /// coincidence `which` asked with no declaration read ahead of it.
+    fn same_refusal_without_declare(
+        runs: &[(Option<ContactClass>, Result<(), BooleanError>)],
+        which: Coincide,
+        subject: &str,
+    ) {
+        for (class, got) in runs {
+            let Err(err) = got else {
+                panic!("{class:?}: the in-band arm refuses");
+            };
+            let BooleanError::Escalated { decision, .. } = err else {
+                panic!("{class:?}: an escalation: {err:?}");
+            };
+            assert_eq!(*decision, BooleanDecision::Proximity(which), "{class:?}");
+            let text = err.to_string();
+            assert!(
+                text.starts_with(&format!("{subject} is undecided: ")) && !text.contains("declare"),
+                "{class:?}: no declaration is read ahead of the question, so none is offered: \
+                 {text}"
+            );
+            assert_eq!(
+                format!("{err:?}"),
+                format!(
+                    "{:?}",
+                    runs[0].1.as_ref().expect_err("the undeclared run refuses")
+                ),
+                "{class:?}: a declaration changes nothing here"
+            );
+        }
+    }
+
+    /// **The `(Positive, Positive)` line-clearance arm**: a line clear of
+    /// the wall by an in-band distance, both ends definitely outside, so
+    /// the clearance bound escalates before any declaration is read, and
+    /// identically under `Tangent` and `Rest`. Before the review's fix it
+    /// offered "declare the coincidence".
+    #[test]
+    fn an_in_band_line_clearance_offers_no_declaration() {
+        let b = Band::linear(Tol::witness()).expect("the witness band");
+        let x0 = 1.0 + (b.zero() + b.escalate()) / 2.0;
+        let profile = [(x0, -0.01), (x0 + 1.0, -0.01), (x0 + 1.0, 0.01), (x0, 0.01)];
+        let runs: Vec<_> = [None, Some(ContactClass::Tangent), Some(ContactClass::Rest)]
+            .into_iter()
+            .map(|class| (class, run(class, profile, 0.25)))
+            .collect();
+        same_refusal_without_declare(
+            &runs,
+            Coincide::EdgeOnCurvedFace,
+            "whether an edge of one solid clears a curved face of the other or lies on it",
+        );
+    }
+
+    /// **The curved arm's endpoint side**: a line in the plane `x = 1`
+    /// that touches the wall exactly, one end off the tangency by the
+    /// distance whose residual `y²/2` lies in the band. The endpoint's
+    /// side escalates ahead of the declared-cover rungs, so a `Tangent`
+    /// declaration of that plane, which the door verifies definite
+    /// (`contact_pair_verdict`), changes nothing. Before the review's fix
+    /// it offered "declare the coincidence".
+    #[test]
+    fn an_in_band_endpoint_on_a_curved_face_offers_no_declaration() {
+        let b = Band::linear(Tol::witness()).expect("the witness band");
+        let y0 = (b.zero() + b.escalate()).sqrt();
+        let profile = [(1.0, y0), (2.0, y0), (2.0, 2.0), (1.0, 2.0)];
+        assert!(
+            door_verifies(ContactClass::Tangent, profile, 0.25),
+            "the tangent plane's declaration is one the door takes"
+        );
+        let runs: Vec<_> = [None, Some(ContactClass::Tangent)]
+            .into_iter()
+            .map(|class| (class, run(class, profile, 0.25)))
+            .collect();
+        same_refusal_without_declare(
+            &runs,
+            Coincide::VertexOnFace,
+            "whether a vertex of one solid lies on a face of the other",
+        );
+    }
+}
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

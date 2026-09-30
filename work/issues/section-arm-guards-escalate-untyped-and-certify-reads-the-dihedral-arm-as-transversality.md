@@ -49,3 +49,12 @@ Give each guard its decision (`SectionRadius` for a radius,
 aperture), and have each door that wraps a `LeverEscalation` end the arm
 rung in its length lever, as the Boolean's `BooleanDecision::LeverArm`
 does.
+
+## Since (PR 3513's fix pass)
+
+`dihedral_arm`'s gate is `geom_core::k_stats::decide_positive_reported`
+now: a decided-zero arm escalates with its decided margin rather than
+`INVALID`. `certify`'s `Transversality` escalation reads that margin
+(`wedge_decided` shares the gate), so a collapsed arm there quotes a
+zero-band margin where it quoted an invalid one; it is still the arm's
+question read as transversality, which is this row.

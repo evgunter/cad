@@ -47,3 +47,15 @@ decision at a declared door ends in its own lever (the tangency's, the
 contact's), with the tolerance an in-band margin gives where the
 decision passes on a nonzero sign, and no declaration.
 `BooleanDecision::DeclaredParallel` is the precedent.
+
+## Since (PR 3513's fix pass)
+
+The fix pass added the decision these sites land on:
+`BooleanDecision::Proximity(Coincide)`, the coincidence asked where no
+declaration is read ahead of it, which ends in the geometry and the
+tolerance the gap gives, and no declaration. `tangent_relative_side`'s
+reading already reaches it (`BooleanDecision::of_lever` routes every
+lever-armed reading there, and the pair is declared). The rest of the
+list above is unchanged: each is a one-line move from
+`BooleanError::coincidence` to `BooleanError::proximity` plus a row on
+a declared raise.

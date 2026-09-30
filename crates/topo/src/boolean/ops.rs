@@ -2085,7 +2085,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     b: &Body<T>,
     band: Band,
 ) -> Result<Vec<SphereRecut<T>>, BooleanError> {
-    let esc = |diag| BooleanError::coincidence(Coincide::Sphere, diag);
+    let esc = |diag| BooleanError::proximity(Coincide::Sphere, diag);
     // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
     // NURBS face refuses before a vertex is probed — the extent test
     // is unwritable for the kind (variant docs).

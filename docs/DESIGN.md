@@ -970,7 +970,7 @@ swallowed.
   curable-vs-terminal, not bug-vs-invalid: an `Indeterminate` whose
   `MarginDiag` is of kind `Value`, or an `Enclosure` wholly inside a
   sliver band, is a statement about the input and reaches the user
-  through `COINCIDENCE_RECOURSE`; a straddling `Enclosure` is generally
+  through its decision's recourse (D4 ¶1 (i)); a straddling `Enclosure` is generally
   curable by subdivision, and an `Invalid` margin from a domain clamp
   may cure as the violating sub-box shrinks (a NaI never does). The
   subdivision driver exists (`editor_core::drive`, ERROR-DESIGN E6): a

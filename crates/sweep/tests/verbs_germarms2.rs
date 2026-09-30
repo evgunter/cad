@@ -47,7 +47,7 @@
 
 use core::f64::consts::PI;
 
-use crate::common::germ_pair::{cyl, repose, seams_off_the_pinch, spin, steinmetz};
+use crate::common::germ_pair::{cyl, repose, same_door, seams_off_the_pinch, spin, steinmetz};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
@@ -57,21 +57,13 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("this family has no join arm")
 }
 
-/// A one-line discriminant of a refusal: the variant plus the keys it
-/// names. Two poses of the same configuration must produce the same
-/// string. The pierce curvature's decided margin is data read off each
-/// pose's own coordinates, so its door is the verdict's sign alone.
-fn door(e: &BooleanError) -> String {
-    match e {
-        BooleanError::CurvedSectorSideUnsupported { verdict } => format!(
-            "CurvedSectorSideUnsupported {{ {} }}",
-            match verdict {
-                geom_brep::recourse::Refused::Zero(_) => "Zero",
-                geom_brep::recourse::Refused::Negative { .. } => "Negative",
-            }
-        ),
-        _ => format!("{e:?}"),
-    }
+/// Asserts that the refusal of the direct pose and of its re-posed twin
+/// are one door ([`same_door`]).
+fn assert_same_door(direct: &BooleanError, reposed: &BooleanError, what: &str) {
+    assert!(
+        same_door(direct, reposed),
+        "{what}: direct {direct:?}, re-posed {reposed:?}"
+    );
 }
 
 /// The single cylinder surface of an operand built by [`cyl`].
@@ -160,10 +152,10 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
 #[test]
 fn the_steinmetz_pair_answers_identically_under_a_rigid_re_pose() {
     let (a, b) = steinmetz(2.0);
-    assert_eq!(
-        door(&union_err(&a, &b)),
-        door(&union_err(&repose(&a), &repose(&b))),
-        "the re-posed Steinmetz pair must answer exactly what the direct-extruded one does"
+    assert_same_door(
+        &union_err(&a, &b),
+        &union_err(&repose(&a), &repose(&b)),
+        "the re-posed Steinmetz pair must answer exactly what the direct-extruded one does",
     );
 }
 
@@ -201,10 +193,10 @@ fn seams_off_the_pinch_reach_the_join_and_name_it() {
     ] {
         assert!(text.contains(want), "the door must say {want:?}: {text}");
     }
-    assert_eq!(
-        door(&err),
-        door(&union_err(&repose(&a), &repose(&b))),
-        "the re-posed pose must reach the same door"
+    assert_same_door(
+        &err,
+        &union_err(&repose(&a), &repose(&b)),
+        "the re-posed pose must reach the same door",
     );
 }
 
@@ -240,10 +232,10 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
             if matches!(err, BooleanError::GermFrameCylinderPinch { .. }) {
                 reached_the_join += 1;
             }
-            assert_eq!(
-                door(&err),
-                door(&union_err(&repose(&a), &repose(&b))),
-                "h = {h}, {deg}°: the re-posed twin must answer identically"
+            assert_same_door(
+                &err,
+                &union_err(&repose(&a), &repose(&b)),
+                &format!("h = {h}, {deg}°: the re-posed twin must answer identically"),
             );
         }
     }
@@ -302,7 +294,11 @@ fn the_fenced_poses_keep_their_own_doors() {
     let unequal = spin(&cyl(0.6, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
     let e = union_err(&a, &unequal);
     short_of_the_join("unequal radii", &e);
-    assert_eq!(door(&e), door(&union_err(&repose(&a), &repose(&unequal))));
+    assert_same_door(
+        &e,
+        &union_err(&repose(&a), &repose(&unequal)),
+        "unequal radii",
+    );
 
     // Displaced along the common perpendicular `â₁ × â₂ = x̂`: that is
     // the ONE direction that separates the two axes. Sliding the
@@ -316,7 +312,7 @@ fn the_fenced_poses_keep_their_own_doors() {
     .unwrap();
     let e = union_err(&a, &skew);
     short_of_the_join("skew axes", &e);
-    assert_eq!(door(&e), door(&union_err(&repose(&a), &repose(&skew))));
+    assert_same_door(&e, &union_err(&repose(&a), &repose(&skew)), "skew axes");
 
     // Parallel axes, walls definitely crossing: the rim circle row.
     let tol = Tol::witness();
@@ -331,5 +327,9 @@ fn the_fenced_poses_keep_their_own_doors() {
     .body;
     let e = union_err(&a, &parallel);
     short_of_the_join("parallel-equal-r", &e);
-    assert_eq!(door(&e), door(&union_err(&repose(&a), &repose(&parallel))));
+    assert_same_door(
+        &e,
+        &union_err(&repose(&a), &repose(&parallel)),
+        "parallel-equal-r",
+    );
 }

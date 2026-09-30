@@ -249,7 +249,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::CoplanarNeighbours {
                 operand: Operand::B,
                 faces: [face, face],
-                diag,
+                offset: topo::NeighbourOffset::Undecided(diag),
             },
         ),
         (

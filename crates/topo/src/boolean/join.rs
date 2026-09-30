@@ -710,15 +710,16 @@ fn germ_section_frame<T: Decide>(
 /// The Boolean's refusal for a germ pair's frame refusal, the pair
 /// being the A face `a` and the B face `b` with their surfaces: a
 /// section pose's escalation is a coincidence between the two walls,
-/// and an operand guard's is that radius's own decision, which no
-/// declaration settles.
+/// asked on the pair's parameter-source evidence and no face-pair
+/// declaration, and an operand guard's is that radius's own decision.
+/// No declaration settles either.
 fn frame_refusal<T: geom_core::Real>(
     e: FrameError,
     a: (FaceKey, &geom::Surface<T>),
     b: (FaceKey, &geom::Surface<T>),
 ) -> BooleanError {
     match e {
-        FrameError::Escalated(diag) => BooleanError::coincidence(Coincide::Section, diag),
+        FrameError::Escalated(diag) => BooleanError::proximity(Coincide::Section, diag),
         FrameError::RadiusEscalated { radius, diag } => BooleanError::Escalated {
             decision: BooleanDecision::Radius(radius),
             diag,
@@ -2082,7 +2083,10 @@ mod frame_dispatch_tests {
     /// whose radius lies in the band escalates there. The germ frame's
     /// refusal names whose radius, its lever and the tolerance the
     /// radius gives, and offers no declaration: no face pair names an
-    /// operand's own size.
+    /// operand's own size. The raise enters at `cs_pair_frame` with
+    /// `CoaxialEvidence::Declared`, which no public door passes today,
+    /// so this row pins the routing a caller of that evidence will
+    /// reach, not a path a Boolean reaches now.
     #[test]
     fn a_radius_guard_escalates_as_the_radius_decision() {
         use crate::boolean::{BooleanDecision, BooleanError, SectionRadius};

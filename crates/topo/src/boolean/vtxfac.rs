@@ -205,10 +205,15 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
             continue;
         }
-        if let Some(diag) = in_band {
+        // The declaration is read before an in-band parallelism refuses:
+        // a declared pair's lump takes that residue (the carrier ladder's
+        // declared rung bridges it; the `Tangent` lump descends to the
+        // second order), so only an undeclared pair refuses here, and a
+        // declaration would change its verdict.
+        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
+        if let (Some(diag), None) = (in_band, class) {
             return Err(BooleanError::coincidence(Coincide::Sectors, diag));
         }
-        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
         // sector's carrier CURVES to relative to the pierced face's

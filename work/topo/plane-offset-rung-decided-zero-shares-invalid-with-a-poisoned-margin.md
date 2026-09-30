@@ -39,11 +39,17 @@ margin on `Undeclared` (or a typed "decided" arm), so a poisoned margin
 and a decided zero stop sharing one bit; then `pair_finding` and the
 `UndeclaredCoincidence` text read the verdict, not `is_invalid()`.
 
-## A third reader (TOPO, PR 3513)
+## A third reader, typed (TOPO, PR 3513)
 
 PR 3513 moves the maximal-faces gate's `Undeclared` arm to its own
-variant, `BooleanError::CoplanarNeighbours`, whose `Display` and ending
-(`refusal_routes::coplanar_neighbours_ending`) read the same bit: an
-`INVALID` margin is "their planes' offset is exactly zero" with the
-gate's lever alone, and a poisoned offset would read the same way.
-Carrying the decided verdict fixes all three readers.
+variant, `BooleanError::CoplanarNeighbours`, and reads the ladder there
+through `plane_eq::plane_eq_typed`, whose `LadderRefusal::Coplanar`
+carries rung 4's decided zero with its decided margin (`decide_reported`).
+So `CoplanarNeighbours { offset: NeighbourOffset }` ends a zero-band
+offset through `NEIGHBOUR_OFFSET` with the tolerance it gives and quotes
+the margin, with no runtime branch on `is_invalid()`. The public
+`oriented_plane_eq` / `oriented_plane_eq_verdict` still map that arm to
+`Undeclared { diag: INVALID }` (`LadderRefusal::untyped`), so
+`flush::pair_finding` and `UndeclaredCoincidence`'s `Display` read
+exactly what they read before: the two readers above remain, and the
+repair is to hand them the typed arm too.

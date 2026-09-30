@@ -5,10 +5,13 @@
 //! the margin — a lever arm that must be definitely positive, a
 //! discriminant that must be definitely nonzero — states that condition
 //! by choosing a GATE door (`k_stats::decide_positive`,
-//! `decide_nonzero`, `gate_measured`). The gate's refusal is therefore
-//! the funnel's own escalation, recorded on the open frame beside the
-//! definite verdict the classifier reached, and no op mints an
-//! `Indeterminate` its caller's log cannot see.
+//! `decide_positive_reported`, `decide_nonzero`, `gate_measured`). The
+//! gate's refusal is therefore the funnel's own escalation, recorded on
+//! the open frame beside the definite verdict the classifier reached,
+//! and no op mints an `Indeterminate` its caller's log cannot see. The
+//! lever-arm gates are `decide_positive_reported`'s: an arm is a length
+//! the user may intend, so a collapsed one escalates with the zero the
+//! funnel decided.
 //!
 //! The rows below drive that through the public doors. The census at
 //! the end says a narrower thing than it looks: no file under this
@@ -71,7 +74,7 @@ fn an_indeterminate_minted_after_a_definite_verdict_is_on_the_escalation_log() {
     let recorded = bracket.finish();
     let escalated = out.expect_err("the predicate escalates to its caller");
     assert_eq!(escalated.diag.predicate, Some("enters_material_arm"));
-    assert_eq!(escalated.diag.margin, MarginDiag::INVALID);
+    assert_eq!(escalated.diag.margin, MarginDiag::value(0.0));
     assert_eq!(
         verdicts(&recorded),
         [("enters_material_arm", Sign::Zero)],
@@ -79,7 +82,7 @@ fn an_indeterminate_minted_after_a_definite_verdict_is_on_the_escalation_log() {
     );
     assert_eq!(
         sole_escalation(&recorded),
-        ("enters_material_arm", MarginDiag::INVALID),
+        ("enters_material_arm", MarginDiag::value(0.0)),
         "and the escalation the caller received is on the log beside it"
     );
 }
@@ -108,7 +111,7 @@ fn the_order2_sector_arm_gate_records_its_escalation() {
     );
     assert_eq!(
         sole_escalation(&recorded),
-        ("tangent_sector_order2_arm", MarginDiag::INVALID)
+        ("tangent_sector_order2_arm", MarginDiag::value(0.0))
     );
 }
 
@@ -136,7 +139,7 @@ fn the_dihedral_arm_gate_records_its_escalation() {
     assert_eq!(verdicts(&recorded), [("dihedral_arm", Sign::Zero)]);
     assert_eq!(
         sole_escalation(&recorded),
-        ("dihedral_arm", MarginDiag::INVALID)
+        ("dihedral_arm", MarginDiag::value(0.0))
     );
 }
 

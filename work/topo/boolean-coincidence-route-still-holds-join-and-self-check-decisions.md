@@ -60,3 +60,11 @@ decision, its subject, and an ending from its pass set (the join's
 nearest and order decisions pass on any definite sign, the germ-line
 re-reads are self-checks ending as defects). Where one wrap site
 receives several decisions, the raiser carries which.
+
+## Since (PR 3513's fix pass)
+
+`ops`'s seam re-description reading (`Coincide::SeamWedge`) now
+escalates as `BooleanDecision::Proximity(Coincide::SeamWedge)`, since
+`BooleanDecision::of_lever` routes every lever-armed reading there: no
+declaration is offered. Whether it is a self-check decision of its own
+is still this row's question.
