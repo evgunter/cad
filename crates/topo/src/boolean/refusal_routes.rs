@@ -1376,6 +1376,81 @@ mod tests {
         }
     }
 
+    /// **The maximal-faces gate ends a near-flat pair of neighbours in
+    /// its own lever, on a real raise** (F7): a brick's top face split
+    /// along its diagonal, one half re-described on a plane bent about
+    /// that diagonal by an angle whose sine over the diagonal lands in
+    /// the ambiguity band. The gate's parallelism rung escalates, and
+    /// the refusal names the gate's decision and lever with the
+    /// tolerance its margin gives, not the declare menu, which no
+    /// declaration between two faces of one operand could settle.
+    #[test]
+    fn the_maximal_faces_gate_ends_near_flat_neighbours_in_its_own_lever() {
+        let (tol, b) = (Tol::witness(), band());
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let prism = crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, tol);
+        let mut body = prism.body;
+        let outer = body.get_face(prism.top_face).expect("the top face").outer;
+        let crate::LoopBoundary::Cycle { first } =
+            body.get_loop(outer).expect("its outer loop").boundary
+        else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let cycle = body.loop_cycle(first).expect("the top loop walks");
+        let at = |body: &crate::body::Body<f64>, he| {
+            let v = body.get_half_edge(he).expect("a live half-edge").start;
+            *body
+                .get_point(body.get_vertex(v).expect("a live vertex").point)
+                .expect("a live point")
+        };
+        let (p0, p1) = (at(&body, cycle[0]), at(&body, cycle[2]));
+        let half = body
+            .mef_chord(
+                crate::euler::MefSite::Chords {
+                    he1: cycle[0],
+                    he2: cycle[2],
+                },
+                tol,
+            )
+            .expect("the diagonal splits the top face");
+        let diagonal = (p1 - p0).norm();
+        let along = (p1 - p0) * (1.0 / diagonal);
+        let theta = (b.zero() + b.escalate()) / 2.0 / diagonal;
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        body.set_face_surface(
+            half.face,
+            crate::euler::FaceSurface::New {
+                surface: crate::Surface::Plane {
+                    origin: p0,
+                    normal: up * theta.cos() + along.cross(up) * theta.sin(),
+                    u_ref: along,
+                },
+                sense: true,
+            },
+        )
+        .expect("a face takes a plane through its diagonal");
+        let err = super::super::reduce::gate_maximal_faces(&body, Operand::A, b)
+            .expect_err("the bent neighbours are too flat to call");
+        let BooleanError::Escalated { decision, diag } = err else {
+            panic!("the gate escalates: {err:?}");
+        };
+        assert_eq!(decision, BooleanDecision::Neighbours(PlaneRung::Parallel));
+        let text = BooleanError::Escalated { decision, diag }.to_string();
+        let problems = short_of_the_guard(&text, &[]);
+        assert!(problems.is_empty(), "{problems:?}: {text}");
+        assert!(
+            text.starts_with(NEIGHBOURS)
+                && text.contains(NEIGHBOUR_ENDING)
+                && !text.contains("declare"),
+            "{text}"
+        );
+        assert_eq!(
+            offered_below(&text),
+            Some(Some(point_margin(&diag) / k())),
+            "{text}"
+        );
+    }
+
     /// **A declared pair's parallelism, and the maximal-faces gate's
     /// rungs, each end where their own door can reach** (D4 ¶1 (i)).
     /// At a declared door the parallelism rung bridges an in-band
