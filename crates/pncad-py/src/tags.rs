@@ -979,6 +979,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PartProduct => "part_product",
         C::PartReferenceCycle => "part_reference_cycle",
         C::PartDepthExceeded => "part_depth_exceeded",
+        C::PartNotEntered => "part_not_entered",
         // The mate solve's refusals tag per FAULT, the way
         // the root invariants do — UNDER, CONTRADICTORY and a
         // dangling head carry different recourses, so a caller

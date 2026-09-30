@@ -297,8 +297,8 @@ class TestTheResolutionRefusals(CorpusCase):
     `part_epsilon_seam` needs a stored document recording a different
     ε; `part_product` needs a part whose own product is broken for a
     reason other than a failed or poisoned root;
-    `part_root_failure_unrecorded` is
-    a kernel bug no document reaches; `part_reference_cycle` needs an instantiate node
+    `part_root_failure_unrecorded` and `part_not_entered` are
+    kernel bugs no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
     containing its own hash, and with invalid pins `part_pin_mismatch`

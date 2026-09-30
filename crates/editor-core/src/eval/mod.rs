@@ -3301,9 +3301,10 @@ where
     // node is not an optimization — a per-node solve would be a second
     // answer to "where does this cluster sit". Its one geometric read
     // — each mated part's extent, the lever — comes off THIS run's
-    // part cache, lazily: a mated part is evaluated here, once, under
-    // the cache's own shielding bracket, and its instantiate node
-    // then hits the cache.
+    // part cache: at the top a mated part is evaluated on its first
+    // ask, once, under the cache's shielding bracket, and below the
+    // top the descent has already entered it. Either way its
+    // instantiate node then hits the cache.
     let reach = CacheReach { parts: &parts, tol };
     let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
     let op_env = wire::OpEnv {

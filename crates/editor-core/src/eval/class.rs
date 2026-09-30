@@ -213,6 +213,8 @@ pub enum NodeErrorClass {
     PartReferenceCycle,
     /// [`NodeErrorKind::Part`] carrying [`PartFault::DepthExceeded`].
     PartDepthExceeded,
+    /// [`NodeErrorKind::Part`] carrying [`PartFault::NotEntered`].
+    PartNotEntered,
     /// [`NodeErrorKind::Mate`] carrying
     /// [`MateFault::PosesOfAnotherDocument`].
     MatePosesOfAnotherDocument,
@@ -362,6 +364,7 @@ impl NodeErrorKind {
                 PartFault::PartProduct { .. } => C::PartProduct,
                 PartFault::ReferenceCycle { .. } => C::PartReferenceCycle,
                 PartFault::DepthExceeded => C::PartDepthExceeded,
+                PartFault::NotEntered => C::PartNotEntered,
             },
             Self::Mate(fault) => C::of_mate(fault),
             Self::CrossingUnverified { .. } => C::CrossingUnverified,
@@ -561,6 +564,7 @@ mod tests {
         PartProduct,
         PartReferenceCycle,
         PartDepthExceeded,
+        PartNotEntered,
         MatePosesOfAnotherDocument,
         MateFrame,
         MateClassNotAdmitted,
@@ -933,6 +937,7 @@ mod tests {
                 cycle: vec![doc_ref(), doc_ref()],
             }),
             C::PartDepthExceeded => part(crate::PartFault::DepthExceeded),
+            C::PartNotEntered => part(crate::PartFault::NotEntered),
             C::MatePosesOfAnotherDocument => mate(crate::MateFault::PosesOfAnotherDocument {
                 expected: crate::DocumentId::derive("a"),
                 found: crate::DocumentId::derive("b"),

@@ -30,14 +30,30 @@
 //! stack, and every depth either evaluates or refuses typed on whatever
 //! thread the evaluation runs on.
 //!
+//! A nested cache never descends: every reference a nested evaluation
+//! can ask for is entered first ([`instantiated`], the one census of
+//! the asks), and a miss below the top is the typed kernel defect
+//! [`PartFault::NotEntered`], never a recursion.
+//!
+//! **Below the top, every part a document instantiates is evaluated,
+//! whether or not its instance asks.** The instance that declines to
+//! ask is one whose placement refused (a mate fault); its part's row,
+//! failed or not, sits in a cache that dies with the nested evaluation
+//! and reaches no node, product or refusal. What it does reach is
+//! what counts or records work as it happens: `part_evaluations`
+//! counts it, and a shape report, a symbolic session's counts or a
+//! sample sink installed around the evaluation sees its decisions —
+//! and sees every nested document's decisions bottom-up, a part's
+//! before its instantiator's.
+//!
 //! # Cycles are decided, not waited out
 //!
 //! The cache also carries the DESCENT CHAIN — the references this
 //! evaluation was reached through. A reference already in the chain is
 //! a cycle by A4's own rule (same id, same pin ⇒ same content), so it
-//! refuses immediately, NAMING the loop. `MAX_DEPTH` is what is left
-//! over once that is handled: runaway insurance for acyclic descent,
-//! diagnosing nothing.
+//! refuses immediately, NAMING the loop, and that check runs before
+//! the depth check, so a loop that closes at [`MAX_DEPTH`] is still
+//! named as a loop.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -55,16 +71,16 @@ use crate::part::{PartResolver, ResolveFault};
 use crate::sentence::{PASS_A_RESOLVER, Recourse, Staged};
 use geom_core::Tol;
 
-/// Pure runaway insurance: the depth at which instantiation gives up,
-/// having ruled out the reason it would ordinarily run away.
+/// **How deep an assembly may nest**: a document `MAX_DEPTH` documents
+/// below the top evaluates, and one more refuses with
+/// [`PartFault::DepthExceeded`], whose sentence states this number and
+/// whose recourse is to flatten the assembly.
 ///
-/// CYCLES are caught structurally, one level up, by the descent chain
-/// (see [`PartCache`]) — a revisited reference refuses NAMING the
-/// cycle, which is the diagnosis an author can act on. This constant
-/// is what remains after that: a bound on genuinely deep, genuinely
-/// acyclic nesting, high enough that no real assembly meets it and
-/// finite so that no descent runs without end. It diagnoses nothing;
-/// reaching it means the descent chain was long, not that it looped.
+/// An author reaches it with a file: any acyclic chain of references
+/// that long. CYCLES are decided before it, structurally, by the
+/// descent chain (see [`PartCache`]) — a revisited reference refuses
+/// NAMING the cycle — so reaching the bound means the chain was long,
+/// not that it looped.
 pub(crate) const MAX_DEPTH: usize = 1024;
 
 /// A resolved part: the referenced document's product, the product
@@ -206,8 +222,14 @@ pub enum PartFault {
         cycle: Vec<DocRef>,
     },
     /// Instantiation nested past [`MAX_DEPTH`] without repeating a
-    /// reference — runaway insurance, not a cycle diagnosis.
+    /// reference: the assembly nests deeper than the bound allows.
     DepthExceeded,
+    /// A document below the top of the descent asked for a part the
+    /// descent had not entered before evaluating it. The descent enters
+    /// every reference [`instantiated`] names, which is every reference
+    /// a nested evaluation can ask for, so this is a kernel defect: an
+    /// ask that escaped that census.
+    NotEntered,
 }
 
 impl PartFault {
@@ -227,7 +249,8 @@ impl PartFault {
             | Self::RootFailureUnrecorded { .. }
             | Self::PartProduct { .. }
             | Self::ReferenceCycle { .. }
-            | Self::DepthExceeded => None,
+            | Self::DepthExceeded
+            | Self::NotEntered => None,
         }
     }
 }
@@ -320,6 +343,12 @@ impl core::fmt::Display for PartFault {
                  reference. {}",
                 Recourse("flatten the assembly so its parts nest fewer documents deep")
             ),
+            Self::NotEntered => write!(
+                f,
+                "the part was asked for by a nested document the descent evaluated before \
+                 entering it, so the part has no body. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
         }
     }
 }
@@ -400,10 +429,12 @@ pub(crate) struct PartCache<'a, T: Decide> {
     /// instantiator is being elaborated.
     profile_lift: super::ProfileLift,
     entries: Mutex<Rows<T>>,
-    /// How many referenced-document evaluations happened at or BELOW
-    /// this level — the D-3 sharing evidence. A counter, not a timing
-    /// claim. Nested crossings fold in (see `resolve_and_evaluate`), so
-    /// the outermost evaluation reports every crossing the run made.
+    /// How many referenced documents this cache's descents evaluated,
+    /// at every depth — the D-3 sharing evidence. A counter, not a
+    /// timing claim. Only a top-level cache descends
+    /// (`resolve_and_evaluate` evaluates every document below it on
+    /// this cache), so the top's count is every crossing the run made
+    /// and a nested cache's is zero.
     evaluations: AtomicUsize,
 }
 
@@ -444,6 +475,13 @@ impl<'a, T: Decide> PartCache<'a, T> {
 impl<T: super::EvalScalar> PartCache<'_, T> {
     /// The part `doc_ref` denotes, evaluated at most once per key.
     ///
+    /// Only the top of a descent (an empty chain) evaluates on a miss.
+    /// A nested cache starts with every row its document can ask for
+    /// ([`instantiated`]), so a miss there is an ask that escaped that
+    /// census: it refuses [`PartFault::NotEntered`] rather than
+    /// descending from inside a nested evaluation, which would put a
+    /// second evaluation on the thread's stack per level.
+    ///
     /// The lock is held across the miss path on purpose: it is what
     /// makes "evaluated ONCE" true when two instances of one part race,
     /// and a nested evaluation builds its own cache, so the lock is
@@ -471,6 +509,9 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         if let Some(hit) = entries.get(&key) {
             return hit.clone();
         }
+        if !self.chain.is_empty() {
+            return Err(PartFault::NotEntered);
+        }
         let _shield = geom_core::k_stats::Bracket::open();
         let value = self.resolve_and_evaluate(doc_ref, tol);
         entries.insert(key, value.clone());
@@ -486,17 +527,15 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
     /// thread's stack holds one nested evaluation however deep the
     /// assembly nests, and [`MAX_DEPTH`] is the one bound on nesting.
     ///
-    /// A document's rows are the references its `InstantiatePart`
-    /// nodes name — every reference its evaluation can ask for, its
-    /// mate solve's included — each decided against that document's own
-    /// chain. So every row is the one a descent at the ask would
-    /// produce: the same cycle and depth decisions, the same sharing
-    /// within a document and none across two. Below the top a part is
-    /// evaluated whether or not its instance asks, which only an
-    /// instance whose placement refused declines to do.
+    /// A document's rows are [`instantiated`]'s census of it, each
+    /// decided against that document's own chain. So every row is the
+    /// one a descent at the ask would produce: the same cycle and depth
+    /// decisions, the same sharing within a document and none across
+    /// two. Rows no instance asks for are evaluated too (the module
+    /// docs say what that reaches).
     fn resolve_and_evaluate(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
         let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
-        let mut path = self.chain.to_vec();
+        let mut path = Vec::new();
         let mut current = Entered::enter(resolver, &path, doc_ref, tol)?;
         path.push(*doc_ref);
         let mut waiting: Vec<Entered<T>> = Vec::new();
@@ -566,10 +605,6 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             Reached(reached),
             tol,
         );
-        // A crossing the nested run made itself is a crossing of THIS
-        // run, so the outermost counter is the whole run's evidence.
-        self.evaluations
-            .fetch_add(evaluation.part_evaluations, Ordering::Relaxed);
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
         // through the product door's own typed refusal — and its
@@ -609,6 +644,20 @@ impl<T: Decide> Reached<T> {
     /// No part reached: the top of a descent, whose cache asks lazily.
     pub(crate) fn none() -> Self {
         Self(BTreeMap::new())
+    }
+}
+
+/// **The one census of what a document's evaluation can ask its part
+/// cache for**: the reference `id` instantiates, when `id` is an
+/// instantiate node. Both askers read it: the instantiate node's own op
+/// (`wire::wire_instantiate_part`) and the mate solve's reach over a
+/// member's instance (`mate::solve`'s `pair_reach`). The descent enters
+/// every reference it names before the document evaluates, and a nested
+/// cache refuses any other ask ([`PartFault::NotEntered`]).
+pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<DocRef> {
+    match doc.node(id) {
+        Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),
+        _ => None,
     }
 }
 
@@ -652,10 +701,7 @@ impl<T: Decide> Entered<T> {
         let refs = if super::recorded_at_process_eps(&doc, tol) {
             doc.order()
                 .iter()
-                .filter_map(|&id| match doc.node(id) {
-                    Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),
-                    _ => None,
-                })
+                .filter_map(|&id| instantiated(&doc, id))
                 .collect()
         } else {
             Vec::new()
@@ -721,4 +767,90 @@ fn product_fault<T: Decide>(
         }),
     };
     carried.unwrap_or_else(|unrecorded| unrecorded)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{PartCache, PartFault, Reached};
+    use crate::ProfileDoc;
+    use crate::ident::{ContentPin, DocRef, DocumentId};
+    use crate::part::{PartResolver, ResolveFailure, ResolveFault};
+    use geom_core::Tol;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A resolver that counts its calls and resolves nothing.
+    #[derive(Debug, Default)]
+    struct Counting(AtomicUsize);
+
+    impl PartResolver for Counting {
+        fn resolve(&self, _: &DocRef, _: Tol) -> Result<ProfileDoc, ResolveFailure> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Err(ResolveFailure {
+                fault: ResolveFault::Unresolved,
+                message: "the counting resolver holds no document".into(),
+            })
+        }
+    }
+
+    fn doc_ref(label: &str) -> DocRef {
+        DocRef {
+            id: DocumentId::derive(label),
+            pin: ContentPin([1; 32]),
+        }
+    }
+
+    /// **A nested cache never descends.** Below the top, an ask the
+    /// descent did not enter refuses `NotEntered` without reaching the
+    /// resolver; at the top the same ask resolves. Goes red if a miss
+    /// below the top descends again, which would put one more nested
+    /// evaluation on the thread's stack per level.
+    #[test]
+    fn a_miss_below_the_top_refuses_not_entered_and_never_resolves() {
+        let counting = Arc::new(Counting::default());
+        let resolver: Arc<dyn PartResolver> = counting.clone();
+        let chain = [doc_ref("parts-unit-above")];
+        let defaults = super::super::EvalOptions::default();
+        let cache = |chain| {
+            PartCache::<f64>::new(
+                Some(&resolver),
+                chain,
+                Reached::none(),
+                defaults.boolean_sweep,
+                defaults.profile_lift,
+                Tol::witness(),
+            )
+        };
+        let asked = doc_ref("parts-unit-asked");
+
+        let nested = cache(&chain);
+        assert!(
+            matches!(
+                nested.get(&asked, Tol::witness()),
+                Err(PartFault::NotEntered)
+            ),
+            "a nested cache's miss is the kernel defect"
+        );
+        assert_eq!(
+            counting.0.load(Ordering::Relaxed),
+            0,
+            "a nested cache's miss reaches no resolver"
+        );
+        assert_eq!(nested.evaluations(), 0, "and evaluates nothing");
+
+        let top = cache(&[]);
+        assert!(
+            matches!(
+                top.get(&asked, Tol::witness()),
+                Err(PartFault::Unresolved { .. })
+            ),
+            "the top's miss descends, and this resolver refuses it"
+        );
+        assert_eq!(
+            counting.0.load(Ordering::Relaxed),
+            1,
+            "the top's miss resolves once"
+        );
+    }
 }
