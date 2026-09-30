@@ -12,20 +12,27 @@
 //! to that depth, and the smallest stack a door runs on (the wasm32
 //! build's one mebibyte) holds a few hundred levels at most.
 //!
-//! So no walk over a name recurses on its nesting. Each one here keeps
-//! the names still to visit in a heap `Vec`, and the thread's stack
-//! holds one level at a time:
+//! So the walks here keep the names still to visit in a heap `Vec`,
+//! and the thread's stack holds one level at a time:
 //!
 //! - [`Drop`] moves the path of every name it is the last holder of
 //!   onto its own stack before that name goes, so no destructor runs
 //!   inside another;
-//! - [`Clone`], [`Debug`](core::fmt::Debug), [`PartialEq`],
-//!   [`Hash`](core::hash::Hash) and [`Ord`] are the derived impls'
-//!   answers, computed one level at a time;
+//! - [`Clone`] and [`Debug`](core::fmt::Debug) are the derived impls'
+//!   answers, and [`PartialEq`] and [`Ord`] the derived order, computed
+//!   one level at a time; [`Hash`](core::hash::Hash) feeds a sequence
+//!   that equal names feed alike, which is all it owes [`Eq`];
 //! - serde's form is the derived one, and the JSON doors
-//!   ([`StableName::to_json`], [`StableName::from_json`], and
-//!   `persist`'s save, load and canonical bytes) write and read it one
-//!   level at a time.
+//!   ([`write_door`], [`read_door`], [`StableName::to_json`],
+//!   [`StableName::from_json`], and `persist`'s save, load and
+//!   canonical bytes) write and read it one level at a time.
+//!
+//! Two walks still recurse once per level, each where it cannot meet a
+//! name deeper than its reader allows: serde outside a JSON door, which
+//! is the derived form through whatever format drives it (a name
+//! through a non-JSON serializer is filed), and a name's level read in
+//! the seq form no build writes, which serde_json's own recursion
+//! limit bounds.
 //!
 //! # One level at a time: the shallow walk
 //!
@@ -38,20 +45,50 @@
 //! itself, from its own stack, in the order the derived impl met them.
 //! That order is declaration order, which [`RoleSeg::each_name`]
 //! states once for every walk; the tests below check each walk against
-//! a recursive reference at every variant.
+//! a copy of the derived types at every variant.
 //!
-//! The shallow state is a thread-local ([`Shallow`]), set by the walk
-//! for the span of one level and restored after it, including on
-//! unwind.
+//! # The thread-locals, framed
+//!
+//! A shallow level is told apart from a whole walk by thread-local
+//! state, since the derived impls it runs take no argument of this
+//! module's. That is an install/record/take scaffold, the family
+//! `persist/refusal.rs` names, and it meets the same bar
+//! (`docs/PERF-SCAN-2026-08.md` §2.4):
+//!
+//! - **Installed by a guard, never by hand.** [`Shallow`] (the walk
+//!   running one level at a time), the native budget's `Out`, the
+//!   writing door's and the reading door's guards each put back what
+//!   they replaced in `Drop`, so a walk that panics or returns early
+//!   leaves nothing armed: the next walk on the thread starts clean.
+//!   The two values a level records into (`ORDERS`, `HOLES`) are reset
+//!   by the walk at the start of each level it reads them for and taken
+//!   at its end, so nothing one level leaves reaches the next.
+//! - **Re-entrancy composes.** Each guard restores the state it found,
+//!   so a walk begun inside another (a `Debug` of one name from inside
+//!   a `Hasher` another name's hash is feeding) runs whole and hands the
+//!   outer walk its state back; a read door opened inside another has
+//!   its own frame. One case does not compose, and is stated at
+//!   [`Hash`](core::hash::Hash): a name hashed from inside a `Hasher`
+//!   while another's shallow hash is running feeds only its own level.
+//! - **Thread-confined by the type.** Every guard is `!Send`.
+//! - **Visible at both ends.** The recorders are the derived impls'
+//!   holes ([`StableName`]'s impls below and `select`'s `NamePat`), and
+//!   the harvesters are the walks in this file that open the guards.
+//!
+//! The recorded values are the shallow `Ord`'s met pairs (`ORDERS`), a
+//! JSON level's holes (`HOLES`), and a read door's names and fault
+//! (`READS`); each is taken by the walk that set it up.
 
 use core::cmp::Ordering;
 use core::fmt;
+use core::marker::PhantomData;
 use std::cell::{Cell, RefCell};
 
 use serde::ser::Error as _;
 
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
 use crate::node::RecipeNodeId;
+use crate::persist::jsontext;
 
 /// Which derived walk is running one level at a time.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -80,13 +117,23 @@ thread_local! {
     /// same `Arc`, or one sealing walk's positions), `None` where the
     /// names have to be compared.
     static ORDERS: RefCell<Vec<Option<Ordering>>> = const { RefCell::new(Vec::new()) };
-    /// The levels a shallow JSON level's holes stand for, in text
-    /// order, and how many of them it has met.
-    static HOLES: RefCell<(Vec<usize>, usize)> = const { RefCell::new((Vec::new(), 0)) };
-    /// Whether a JSON door is running: names write and read their
-    /// JSON one level at a time only inside one.
-    static JSON_DOOR: Cell<bool> = const { Cell::new(false) };
+    /// The holes of the JSON level being read ([`Holes`]).
+    static HOLES: RefCell<Holes> = const {
+        RefCell::new(Holes {
+            marker: 0,
+            met: Vec::new(),
+            inline: Vec::new(),
+        })
+    };
+    /// Whether a writing door is running ([`write_door`]).
+    static WRITING: Cell<bool> = const { Cell::new(false) };
+    /// The read doors open on this thread, innermost last
+    /// ([`read_door`]).
+    static READS: RefCell<Vec<ReadFrame>> = const { RefCell::new(Vec::new()) };
 }
+
+/// Makes a guard `!Send`: the state it restores is this thread's.
+type ThisThread = PhantomData<*const ()>;
 
 /// Whether `walk` is running one level at a time over `family`.
 pub(super) fn shallow(walk: Walk, family: Family) -> bool {
@@ -95,11 +142,14 @@ pub(super) fn shallow(walk: Walk, family: Family) -> bool {
 
 /// The span over which `walk` runs one level at a time; the state it
 /// replaced comes back when this goes.
-pub(super) struct Shallow(Option<(Walk, Family)>);
+pub(super) struct Shallow(Option<(Walk, Family)>, ThisThread);
 
 impl Shallow {
     pub(super) fn enter(walk: Walk, family: Family) -> Self {
-        Self(SHALLOW.with(|s| s.replace(Some((walk, family)))))
+        Self(
+            SHALLOW.with(|s| s.replace(Some((walk, family)))),
+            PhantomData,
+        )
     }
 }
 
@@ -112,10 +162,11 @@ impl Drop for Shallow {
 /// **How many levels `Eq`, `Ord` and `Hash` recurse natively** before
 /// they go on from their own stack. Native recursion allocates nothing,
 /// and nearly every comparison a name table makes is decided within a
-/// few levels, so the walks take it while it is cheap; the frames of
-/// this many levels fit any stack a door runs on (a few hundred bytes
-/// each in a dev build). Both routes give the same answer, and `Hash`
-/// feeds the same sequence on both.
+/// few levels, so the walks take it while it is cheap. A native level
+/// costs about 1.5 KiB of stack in a dev build, so this many take about
+/// 128 KiB, which the smallest stack a door runs on holds with room to
+/// spare (`the_native_levels_fit_the_smallest_stack`). Both routes give
+/// the same answer, and `Hash` feeds the same sequence on both.
 const NATIVE_LEVELS: u32 = 64;
 
 thread_local! {
@@ -134,7 +185,7 @@ fn native_levels() -> u32 {
 /// `f`, one native level deeper, while the budget lasts; `None` past
 /// it.
 fn natively<R>(f: impl FnOnce() -> R) -> Option<R> {
-    struct Out(u32);
+    struct Out(u32, ThisThread);
     impl Drop for Out {
         fn drop(&mut self) {
             NATIVE.with(|n| n.set(self.0));
@@ -144,7 +195,7 @@ fn natively<R>(f: impl FnOnce() -> R) -> Option<R> {
     if depth >= native_levels() {
         return None;
     }
-    let _out = Out(depth);
+    let _out = Out(depth, PhantomData);
     NATIVE.with(|n| n.set(depth + 1));
     Some(f())
 }
@@ -157,45 +208,128 @@ pub(super) fn settled(order: Ordering) {
     }
 }
 
-/// Runs `f` as a JSON door: every name `f` writes or reads through
-/// serde_json is written and read one level at a time, so its nesting
-/// costs the thread's stack nothing. Outside a door a name's serde
-/// impls are the derived ones, whatever the format.
-pub(crate) fn json_door<R>(f: impl FnOnce() -> R) -> R {
-    struct Restore(bool);
+/// **Runs `f` as a writing door**: every name `f` writes through
+/// serde_json is written one level at a time, so its nesting costs the
+/// thread's stack nothing.
+///
+/// Inside a door a name serializes as its compact JSON text, handed to
+/// the serializer as serde_json's raw value. So what `f` writes depends
+/// on the door, and every caller wants that: a name written by
+/// `to_string_pretty` inside one comes out compact (save lays the whole
+/// body out afterwards, `persist::jsontext`), and `serde_json::to_value`
+/// inside one reads the text back with the reader's recursion limit, so
+/// a deep name refuses there. Outside a door a name's serde impls are
+/// the derived ones, whatever the format.
+pub(crate) fn write_door<R>(f: impl FnOnce() -> R) -> R {
+    struct Restore(bool, ThisThread);
     impl Drop for Restore {
         fn drop(&mut self) {
-            JSON_DOOR.with(|d| d.set(self.0));
+            WRITING.with(|d| d.set(self.0));
         }
     }
-    let _restore = Restore(JSON_DOOR.with(|d| d.replace(true)));
+    let _restore = Restore(WRITING.with(|d| d.replace(true)), PhantomData);
     f()
 }
 
-fn in_json_door() -> bool {
-    JSON_DOOR.with(Cell::get)
+/// One open read door: where the text its reader reads lies in memory,
+/// the text as written where the reader reads a blanked copy, and what
+/// the door has seen.
+struct ReadFrame {
+    /// The address of the text's first byte and its length, so a name
+    /// the reader meets is placed by the address of its raw text.
+    base: usize,
+    len: usize,
+    /// The text as written, where the reader reads a copy of the same
+    /// length with bytes blanked (`persist::nesting`'s pruned body): a
+    /// name is read from here, at the place the reader met it.
+    written: Option<String>,
+    seen: Read,
+}
+
+/// **What a read door saw**: the offset of every name its reader read
+/// (the byte of its opening brace), and the first name that refused.
+#[derive(Default)]
+pub(crate) struct Read {
+    pub(crate) names: std::collections::BTreeSet<usize>,
+    pub(crate) fault: Option<NameFault>,
+}
+
+/// **A name's text refused where it is written**: the byte of the door's
+/// text the reader stood at, and the reader's own classification and
+/// words, without its place.
+pub(crate) struct NameFault {
+    pub(crate) at: usize,
+    pub(crate) category: serde_json::error::Category,
+    pub(crate) message: String,
+}
+
+/// **Runs `f`, which reads `text` through serde_json, as a read door**,
+/// and answers what `f` returned beside what the door saw ([`Read`]).
+///
+/// Every name `f` reads is taken as serde_json's raw value, borrowed
+/// from `text` (so `f` reads `text` itself, through a borrowing
+/// reader), and read one level at a time from its own text: its nesting
+/// costs the thread's stack nothing, and a refusal inside it is placed
+/// where it is written, in the derived form's words. `written` is the
+/// text as written when `text` is a copy of it with bytes blanked: a
+/// name is then read from `written`, at the offset the reader met it.
+pub(crate) fn read_door<R>(text: &str, written: Option<&str>, f: impl FnOnce() -> R) -> (R, Read) {
+    /// Pops the door's frame however `f` exits; `finish` takes what it
+    /// saw first.
+    struct Door(bool, ThisThread);
+    impl Door {
+        fn finish(mut self) -> Read {
+            self.0 = false;
+            READS.with(|r| r.borrow_mut().pop()).map_or_else(
+                || unreachable!("a read door's frame is popped by its own guard alone"),
+                |frame| frame.seen,
+            )
+        }
+    }
+    impl Drop for Door {
+        fn drop(&mut self) {
+            if self.0 {
+                READS.with(|r| r.borrow_mut().pop());
+            }
+        }
+    }
+    READS.with(|r| {
+        r.borrow_mut().push(ReadFrame {
+            base: text.as_ptr() as usize,
+            len: text.len(),
+            written: written.map(str::to_owned),
+            seen: Read::default(),
+        });
+    });
+    let door = Door(true, PhantomData);
+    let out = f();
+    (out, door.finish())
+}
+
+fn reading() -> bool {
+    READS.with(|r| !r.borrow().is_empty())
 }
 
 /// A name a segment holds: through a shared handle, or by value (the
 /// sets of [`RoleSeg::Merged`], [`RoleSeg::BandFace`] and the bands,
 /// and a `Borders` qualifier's walls).
 #[derive(Clone, Copy)]
-pub(crate) enum Held<'a> {
+pub(crate) enum Hold<'a> {
     Shared(&'a NameRef),
     Owned(&'a StableName),
 }
 
-impl<'a> Held<'a> {
+impl<'a> Hold<'a> {
     pub(crate) fn name(self) -> &'a StableName {
         match self {
-            Held::Shared(r) => r.name(),
-            Held::Owned(n) => n,
+            Hold::Shared(r) => r.name(),
+            Hold::Owned(n) => n,
         }
     }
 }
 
-/// [`Held`], mutably.
-pub(crate) enum HeldMut<'a> {
+/// [`Hold`], mutably.
+pub(crate) enum HoldMut<'a> {
     Shared(&'a mut NameRef),
     Owned(&'a mut StableName),
 }
@@ -208,8 +342,8 @@ impl RoleSeg {
     /// EXHAUSTIVE, with no wildcard (the `walk_names` rule): a variant
     /// added to [`RoleSeg`] says here which names it holds, or stops
     /// the build.
-    pub(crate) fn each_name<'a>(&'a self, f: &mut impl FnMut(Held<'a>)) {
-        use Held::{Owned, Shared};
+    pub(crate) fn each_name<'a>(&'a self, f: &mut impl FnMut(Hold<'a>)) {
+        use Hold::{Owned, Shared};
         match self {
             RoleSeg::FromA(n)
             | RoleSeg::FromB(n)
@@ -254,8 +388,8 @@ impl RoleSeg {
 
     /// [`RoleSeg::each_name`], mutably: the same names in the same
     /// order.
-    pub(crate) fn each_name_mut(&mut self, f: &mut impl FnMut(HeldMut<'_>)) {
-        use HeldMut::{Owned, Shared};
+    pub(crate) fn each_name_mut(&mut self, f: &mut impl FnMut(HoldMut<'_>)) {
+        use HoldMut::{Owned, Shared};
         match self {
             RoleSeg::FromA(n)
             | RoleSeg::FromB(n)
@@ -311,13 +445,13 @@ impl StableName {
     }
 
     /// Every name `self`'s path holds, in order (one level down).
-    pub(crate) fn each_held<'a>(&'a self, f: &mut impl FnMut(Held<'a>)) {
+    pub(crate) fn each_held<'a>(&'a self, f: &mut impl FnMut(Hold<'a>)) {
         for seg in &self.path {
             seg.each_name(f);
         }
     }
 
-    fn each_held_mut(&mut self, f: &mut impl FnMut(HeldMut<'_>)) {
+    fn each_held_mut(&mut self, f: &mut impl FnMut(HoldMut<'_>)) {
         for seg in &mut self.path {
             seg.each_name_mut(f);
         }
@@ -337,9 +471,161 @@ impl StableName {
 
     fn holds_by_value(&self) -> bool {
         let mut any = false;
-        self.each_held(&mut |h| any |= matches!(h, Held::Owned(_)));
+        self.each_held(&mut |h| any |= matches!(h, Hold::Owned(_)));
         any
     }
+
+    /// The names `self`'s path holds by value, in order: the ones a copy
+    /// of it copies.
+    fn held_by_value(&self) -> Vec<&StableName> {
+        let mut out = Vec::new();
+        self.each_held(&mut |h| {
+            if let Hold::Owned(n) = h {
+                out.push(n);
+            }
+        });
+        out
+    }
+}
+
+// ---------------------------------------------------------------
+// The walks that rebuild a name from its held names' answers.
+// ---------------------------------------------------------------
+
+/// The address of a name: what [`Kept`] keys an answer by. A name held
+/// through one shared handle in two places is one address, answered
+/// once.
+pub(super) fn address(name: &StableName) -> usize {
+    core::ptr::from_ref(name) as usize
+}
+
+/// Why one level of a [`Descent`] stopped: it refused, or it asked for
+/// a held name not answered yet.
+pub(super) enum Stopped<'s, E> {
+    Refused(E),
+    Needs(&'s StableName),
+}
+
+impl<E> From<E> for Stopped<'_, E> {
+    fn from(e: E) -> Self {
+        Stopped::Refused(e)
+    }
+}
+
+/// The answers a [`Descent`] has kept, by the address of the held name
+/// each answers.
+pub(super) struct Kept<T>(std::collections::BTreeMap<usize, T>);
+
+impl<T> Kept<T> {
+    /// `name`'s answer, if it is kept.
+    pub(super) fn get(&self, name: &StableName) -> Option<&T> {
+        #[cfg(test)]
+        tests::asked();
+        self.0.get(&address(name))
+    }
+
+    /// `name`'s answer, or the stop that asks for it first.
+    pub(super) fn need<'s, E>(&self, name: &'s StableName) -> Result<&T, Stopped<'s, E>> {
+        self.get(name).ok_or(Stopped::Needs(name))
+    }
+}
+
+/// **A walk that answers a name from the answers of the names it
+/// holds**, one level at a time: the rewrite through a
+/// `SegRewrite` (`role`'s `rewrite_path`) and the union's collapse
+/// (`emit_union`'s `collapse`). [`descend`] drives it.
+pub(super) trait Descent<'s> {
+    /// A level's own answer: what the root answers.
+    type Level;
+    /// What a held name's level is kept as, for the levels above it.
+    type Kept;
+    type Error;
+
+    /// The held names `name`'s level asks for, in the order it asks,
+    /// as far as it can tell before running: each is answered before
+    /// the level runs.
+    fn first(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<Self::Kept>,
+        out: &mut Vec<&'s StableName>,
+    );
+
+    /// `name`'s level, every held name it asks for read from `kept`.
+    ///
+    /// # Errors
+    ///
+    /// The walk's own refusal, or the held name it asked for that is
+    /// not kept yet.
+    fn level(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<Self::Kept>,
+    ) -> Result<Self::Level, Stopped<'s, Self::Error>>;
+
+    /// A held name's level answer, as the levels above it keep it.
+    ///
+    /// # Errors
+    ///
+    /// The walk's own refusal.
+    fn keep(&mut self, name: &'s StableName, level: Self::Level)
+    -> Result<Self::Kept, Self::Error>;
+}
+
+/// **Drives a [`Descent`] from its own stack**: each level runs once
+/// every held name it asks for is answered. The names [`Descent::first`]
+/// lists are answered before their level runs, so a level runs once and
+/// the walk is linear in the names it visits; a level that asks for one
+/// it did not list stops ([`Stopped::Needs`]) and runs again after it,
+/// once per such name.
+///
+/// # Errors
+///
+/// The walk's first refusal.
+pub(super) fn descend<'s, D: Descent<'s>>(
+    root: &'s StableName,
+    walk: &mut D,
+) -> Result<D::Level, D::Error> {
+    let mut kept = Kept(std::collections::BTreeMap::new());
+    // Each name on the way, and whether its first names are listed.
+    let mut stack: Vec<(&'s StableName, bool)> = vec![(root, false)];
+    let mut wanted = Vec::new();
+    while let Some(top) = stack.last_mut() {
+        let (name, listed) = *top;
+        if !core::ptr::eq(name, root) && kept.get(name).is_some() {
+            // Listed twice (one handle held in two places): answered.
+            stack.pop();
+            continue;
+        }
+        if !listed {
+            top.1 = true;
+            walk.first(name, &kept, &mut wanted);
+            let before = stack.len();
+            stack.extend(
+                wanted
+                    .drain(..)
+                    .rev()
+                    .filter(|n| kept.get(n).is_none())
+                    .map(|n| (n, false)),
+            );
+            if stack.len() > before {
+                continue;
+            }
+        }
+        #[cfg(test)]
+        tests::levelled();
+        match walk.level(name, &kept) {
+            Ok(level) if stack.len() == 1 => return Ok(level),
+            Ok(level) => {
+                stack.pop();
+                let answer = walk.keep(name, level)?;
+                kept.0.insert(address(name), answer);
+            }
+            Err(Stopped::Refused(e)) => return Err(e),
+            Err(Stopped::Needs(held)) => stack.push((held, false)),
+        }
+    }
+    unreachable!("a descent returns from its root's level, the last on its stack")
 }
 
 // ---------------------------------------------------------------
@@ -356,14 +642,14 @@ impl Drop for StableName {
         let mut segs = core::mem::take(&mut self.path);
         while let Some(mut seg) = segs.pop() {
             seg.each_name_mut(&mut |h| match h {
-                HeldMut::Shared(r) => {
+                HoldMut::Shared(r) => {
                     if r.holds_names()
                         && let Some(name) = r.get_mut()
                     {
                         segs.append(&mut name.path);
                     }
                 }
-                HeldMut::Owned(name) => segs.append(&mut name.path),
+                HoldMut::Owned(name) => segs.append(&mut name.path),
             });
         }
     }
@@ -375,68 +661,89 @@ impl Drop for StableName {
 
 impl Clone for StableName {
     fn clone(&self) -> Self {
-        let bare = |n: &StableName| StableName {
-            kind: n.kind,
-            node: n.node,
-            path: Vec::new(),
-        };
         if shallow(Walk::Clone, Family::Name) {
-            return bare(self);
+            let StableName { kind, node, .. } = self;
+            return StableName {
+                kind: *kind,
+                node: *node,
+                path: Vec::new(),
+            };
         }
         // A name held through a handle is shared, not copied, so only
         // the names held BY VALUE nest a copy; most names hold none.
         if !self.holds_by_value() {
+            let StableName { kind, node, path } = self;
             return StableName {
-                kind: self.kind,
-                node: self.node,
-                path: self.path.clone(),
+                kind: *kind,
+                node: *node,
+                path: path.clone(),
             };
         }
         let _shallow = Shallow::enter(Walk::Clone, Family::Name);
-        // Level order: each source's by-value names follow it as one
-        // run, whose first index `runs` records.
-        let mut sources: Vec<&StableName> = vec![self];
-        let mut copies: Vec<Option<StableName>> = Vec::new();
-        let mut runs: Vec<usize> = Vec::new();
-        let mut i = 0;
-        while let Some(&source) = sources.get(i) {
-            runs.push(sources.len());
-            let mut copy = bare(source);
-            copy.path.clone_from(&source.path);
-            source.each_held(&mut |h| {
-                if let Held::Owned(n) = h {
-                    sources.push(n);
-                }
-            });
-            copies.push(Some(copy));
-            i += 1;
-        }
-        // Deepest first: every copy's held copies are finished before
-        // it takes them in.
-        for i in (0..copies.len()).rev() {
-            let Some(mut copy) = copies.get_mut(i).and_then(Option::take) else {
-                continue;
+        copy_nested(self, StableName::held_by_value, |source, copies| {
+            // The derived clone of the level, its by-value names empty
+            // copies (the walk is shallow), each then replaced by its
+            // own copy.
+            let StableName { kind, node, path } = source;
+            let mut copy = StableName {
+                kind: *kind,
+                node: *node,
+                path: path.clone(),
             };
-            let mut next = runs.get(i).copied().unwrap_or(usize::MAX);
             copy.each_held_mut(&mut |h| {
-                if let HeldMut::Owned(slot) = h {
-                    if let Some(done) = copies.get_mut(next).and_then(Option::take) {
-                        *slot = done;
-                    }
-                    next += 1;
+                if let HoldMut::Owned(slot) = h {
+                    *slot = copies.next().unwrap_or_else(|| unreachable!("{COPIES}"));
                 }
             });
-            if let Some(cell) = copies.get_mut(i) {
-                *cell = Some(copy);
-            }
-        }
-        copies
-            .into_iter()
-            .next()
-            .flatten()
-            .unwrap_or_else(|| bare(self))
+            copy
+        })
     }
 }
+
+/// **A copy of a nesting value, one level at a time**, from this
+/// walk's own stack: `held` lists the values a level holds that are
+/// copied with it, in order, and `level` copies one level, taking the
+/// copies of those from the iterator in that order. Deepest first, so a
+/// level's held copies are the last ones made when it takes them.
+///
+/// The one copy walk of both nesting values: a name's by-value names
+/// (above) and a selector pattern's argument patterns (`select`).
+pub(super) fn copy_nested<'a, T>(
+    root: &'a T,
+    held: impl Fn(&'a T) -> Vec<&'a T>,
+    level: impl Fn(&'a T, &mut dyn Iterator<Item = T>) -> T,
+) -> T {
+    let mut stack: Vec<(&'a T, bool)> = vec![(root, false)];
+    let mut done: Vec<T> = Vec::new();
+    while let Some((value, listed)) = stack.pop() {
+        let below = held(value);
+        if !listed {
+            stack.push((value, true));
+            stack.extend(below.into_iter().rev().map(|v| (v, false)));
+            continue;
+        }
+        let first = done
+            .len()
+            .checked_sub(below.len())
+            .unwrap_or_else(|| unreachable!("{COPIES}"));
+        let mut copies = done.split_off(first).into_iter();
+        let copy = level(value, &mut copies);
+        if copies.next().is_some() {
+            unreachable!("{COPIES}");
+        }
+        done.push(copy);
+    }
+    match (done.pop(), done.is_empty()) {
+        (Some(copy), true) => copy,
+        _ => unreachable!("{COPIES}"),
+    }
+}
+
+/// [`copy_nested`]'s invariant: a level's held copies are the last ones
+/// made when it runs, one per value it holds, and the root's copy is
+/// the last of all.
+const COPIES: &str = "a level's held copies are the last ones made when it takes them, one per \
+                      value it holds, and the root's is the last of all";
 
 // ---------------------------------------------------------------
 // Debug.
@@ -466,10 +773,6 @@ impl fmt::Debug for StableName {
         if shallow(Walk::Debug, Family::Name) {
             return fmt::Write::write_char(f, HOLE);
         }
-        #[cfg(test)]
-        if tests::recursing() {
-            return Level(self).fmt(f);
-        }
         render_nested(
             self,
             f,
@@ -492,7 +795,12 @@ impl fmt::Debug for StableName {
 /// `held` lists the held values in the order the rendering met them.
 /// Each hole is filled with its value's own rendering, indented by the
 /// hole's line under `{:#?}` as the derived impl's pad adapter would.
-/// Only the alternate flag is carried to the levels.
+///
+/// So `{:?}` and `{:#?}` render what the derived impl renders. No other
+/// flag reaches the levels: the debug-hex flags (`{:x?}`) cannot be
+/// read from a formatter on stable Rust, and a width or fill carried
+/// without them would render a third thing, neither the derived form
+/// nor the plain one.
 pub(super) fn render_nested<'a, T>(
     root: &'a T,
     f: &mut fmt::Formatter<'_>,
@@ -582,25 +890,48 @@ impl PartialEq for StableName {
         if let Some(answer) = natively(|| same(self, other)) {
             return answer;
         }
-        let _shallow = Shallow::enter(Walk::Eq, Family::Name);
-        let mut pairs = vec![(self, other)];
-        while let Some((a, b)) = pairs.pop() {
-            if core::ptr::eq(a, b) {
-                continue;
-            }
-            // Held names compare equal here; equal levels hold equally
-            // many, which are then compared pairwise.
-            if !same(a, b) {
-                return false;
-            }
-            pairs.extend(a.held().into_iter().zip(b.held()));
-        }
-        true
+        eq_nested(Family::Name, self, other, same, StableName::held)
     }
+}
+
+/// **Whether two nesting values are equal, one level at a time**: each
+/// pair of levels compared by `same` with the values they hold equal
+/// (the walk is shallow meanwhile), and the held pairs then compared
+/// from this walk's own stack. Equal levels hold equally many.
+///
+/// The one equality walk of both nesting values: a name past its
+/// native levels (above) and a selector pattern (`select`).
+pub(super) fn eq_nested<'a, T>(
+    family: Family,
+    a: &'a T,
+    b: &'a T,
+    same: impl Fn(&T, &T) -> bool,
+    held: impl Fn(&'a T) -> Vec<&'a T>,
+) -> bool {
+    let _shallow = Shallow::enter(Walk::Eq, family);
+    let mut pairs = vec![(a, b)];
+    while let Some((a, b)) = pairs.pop() {
+        if core::ptr::eq(a, b) {
+            continue;
+        }
+        if !same(a, b) {
+            return false;
+        }
+        pairs.extend(held(a).into_iter().zip(held(b)));
+    }
+    true
 }
 
 impl Eq for StableName {}
 
+/// Consistent with [`Eq`], which is all `Hash` owes: equal names feed
+/// the same sequence (each level's own fields, the names it holds fed
+/// nothing, in pre-order). The sequence is not the derived impl's.
+///
+/// While a level's own fields are fed, the walk is shallow, so a name
+/// hashed from inside the `Hasher` then (a `Hasher::write` that hashes
+/// some other name) feeds only its own level: a hasher that hashes
+/// names from inside its own writes gets a truncated hash of those.
 impl core::hash::Hash for StableName {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         if shallow(Walk::Hash, Family::Name) {
@@ -610,8 +941,6 @@ impl core::hash::Hash for StableName {
     }
 }
 
-// Each level's own fields, the names it holds fed nothing, in pre-order:
-// equal names feed the same sequence, which is all `Hash` owes `Eq`.
 // The pre-order is walked natively while the budget lasts and from a
 // heap stack past it, and the two feed the same sequence.
 
@@ -669,9 +998,14 @@ impl Ord for StableName {
         }
         let derived = || {
             let StableName { kind, node, path } = self;
+            let StableName {
+                kind: b_kind,
+                node: b_node,
+                path: b_path,
+            } = other;
             (kind, node)
-                .cmp(&(&other.kind, &other.node))
-                .then_with(|| path.cmp(&other.path))
+                .cmp(&(b_kind, b_node))
+                .then_with(|| path.cmp(b_path))
         };
         if let Some(order) = natively(derived) {
             return order;
@@ -710,11 +1044,18 @@ impl<'a> OrdLevel<'a> {
     /// is shallow while this runs).
     fn of(a: &'a StableName, b: &'a StableName) -> Self {
         ORDERS.with(|o| o.borrow_mut().clear());
-        let own = a
-            .kind
-            .cmp(&b.kind)
-            .then_with(|| a.node.cmp(&b.node))
-            .then_with(|| a.path.cmp(&b.path));
+        // Every field is bound, so a field added to the name is an E0027
+        // here until the order says where it goes.
+        let StableName { kind, node, path } = a;
+        let StableName {
+            kind: b_kind,
+            node: b_node,
+            path: b_path,
+        } = b;
+        let own = kind
+            .cmp(b_kind)
+            .then_with(|| node.cmp(b_node))
+            .then_with(|| path.cmp(b_path));
         let met = ORDERS.with(|o| core::mem::take(&mut *o.borrow_mut()));
         let pairs: Vec<_> = a.held().into_iter().zip(b.held()).zip(met).collect();
         Self {
@@ -739,11 +1080,10 @@ struct WireOut<'a> {
 
 impl<'a> WireOut<'a> {
     fn of(name: &'a StableName) -> Self {
-        Self {
-            kind: &name.kind,
-            node: &name.node,
-            path: &name.path,
-        }
+        // Every field is bound, so a field added to the name is an
+        // E0027 here until the wire form says what it does with it.
+        let StableName { kind, node, path } = name;
+        Self { kind, node, path }
     }
 }
 
@@ -758,11 +1098,8 @@ struct WireIn {
 
 impl From<WireIn> for StableName {
     fn from(wire: WireIn) -> Self {
-        StableName {
-            kind: wire.kind,
-            node: wire.node,
-            path: wire.path,
-        }
+        let WireIn { kind, node, path } = wire;
+        StableName { kind, node, path }
     }
 }
 
@@ -776,7 +1113,7 @@ impl serde::Serialize for StableName {
         if shallow(Walk::Ser, Family::Name) {
             return ser.serialize_str("\0");
         }
-        if in_json_door() {
+        if WRITING.with(Cell::get) {
             let text = write_json(self).map_err(S::Error::custom)?;
             let raw = serde_json::value::RawValue::from_string(text).map_err(S::Error::custom)?;
             return serde::Serialize::serialize(&raw, ser);
@@ -791,13 +1128,56 @@ impl<'de> serde::Deserialize<'de> for StableName {
         if shallow(Walk::De, Family::Name) {
             return de.deserialize_any(HoleVisitor);
         }
-        if in_json_door() {
-            let raw = <Box<serde_json::value::RawValue> as serde::Deserialize>::deserialize(de)?;
-            return read_json(raw.get()).map_err(D::Error::custom);
+        if reading() {
+            let raw = <&'de serde_json::value::RawValue as serde::Deserialize>::deserialize(de)?;
+            return read_in_door(raw.get()).map_err(D::Error::custom);
         }
         <WireIn as serde::Deserialize>::deserialize(de).map(StableName::from)
     }
 }
+
+/// A name the innermost read door's reader met, as the raw `text` it
+/// borrowed from the door's text: read from its text as written, and
+/// recorded with the door, as read or as the door's fault.
+fn read_in_door(text: &str) -> Result<StableName, String> {
+    let placed = READS.with(|r| {
+        let frames = r.borrow();
+        let frame = frames.last()?;
+        let at = (text.as_ptr() as usize)
+            .checked_sub(frame.base)
+            .filter(|at| at + text.len() <= frame.len)?;
+        let written = match &frame.written {
+            Some(written) => written.get(at..at + text.len())?.to_owned(),
+            None => text.to_owned(),
+        };
+        Some((at, written))
+    });
+    let Some((at, written)) = placed else {
+        return Err(OUTSIDE.to_owned());
+    };
+    READS.with(|r| {
+        if let Some(frame) = r.borrow_mut().last_mut() {
+            frame.seen.names.insert(at);
+        }
+    });
+    read_json(&written).map_err(|fault| {
+        let message = unplaced(&fault.error);
+        READS.with(|r| {
+            if let Some(frame) = r.borrow_mut().last_mut() {
+                frame.seen.fault.get_or_insert(NameFault {
+                    at: at + fault.cursor,
+                    category: fault.error.classify(),
+                    message: message.clone(),
+                });
+            }
+        });
+        message
+    })
+}
+
+/// A name a read door's reader met outside the door's text: the door
+/// was handed a reader over some other text, a defect of its caller.
+const OUTSIDE: &str = "a stable name was read from text outside its read door's";
 
 /// **A name's compact JSON, one level at a time**: each level written
 /// in the derived form with its held names as [`HOLE_JSON`], and each
@@ -838,9 +1218,46 @@ fn write_json(root: &StableName) -> Result<String, serde_json::Error> {
     Ok(out)
 }
 
-/// What a shallow JSON level reads where it holds a name: the hole
-/// [`read_json`] cut there, answered by a placeholder whose `node`
-/// is the index of the level the hole stands for.
+/// The holes of the JSON level [`read_json`] is reading: the NULs that
+/// open each hole's string, which holes a name's place has met, and the
+/// names the level holds written in place rather than cut (the seq
+/// form).
+struct Holes {
+    marker: usize,
+    met: Vec<bool>,
+    inline: Vec<StableName>,
+}
+
+impl Holes {
+    /// The placeholder a level holds where it met hole or inline name
+    /// `index`: holes first, then the inline names in the order met.
+    fn placeholder(index: usize) -> StableName {
+        StableName {
+            kind: EntityKind::Body,
+            node: RecipeNodeId(index as u64),
+            path: Vec::new(),
+        }
+    }
+
+    /// `name`, read in place, kept and answered by its placeholder.
+    fn inline(name: StableName) -> StableName {
+        HOLES.with(|holes| {
+            let holes = &mut *holes.borrow_mut();
+            holes.inline.push(name);
+            Self::placeholder(holes.met.len() + holes.inline.len() - 1)
+        })
+    }
+}
+
+/// What a shallow JSON level reads where it holds a name.
+///
+/// A hole [`read_json`] cut is a string of [`Holes::marker`] NULs and
+/// the hole's index: more NULs in a row than the text holds anywhere,
+/// so no string written in the text reads as one. It is answered by a
+/// placeholder whose `node` is that index, and marked met. Anything
+/// else is read as the derived form reads a name there: an object or an
+/// array (the seq form) through the derived impl, kept and answered by
+/// a placeholder past the holes', anything else refused in its words.
 struct HoleVisitor;
 
 impl<'de> serde::de::Visitor<'de> for HoleVisitor {
@@ -851,225 +1268,356 @@ impl<'de> serde::de::Visitor<'de> for HoleVisitor {
     }
 
     fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<StableName, E> {
-        let index = (v == "\0")
-            .then(|| {
-                HOLES.with(|holes| {
-                    let (levels, met) = &mut *holes.borrow_mut();
-                    let index = levels.get(*met).copied();
-                    *met += 1;
-                    index
-                })
-            })
-            .flatten()
-            .ok_or_else(|| E::invalid_type(serde::de::Unexpected::Str(v), &self))?;
-        Ok(StableName {
-            kind: EntityKind::Body,
-            node: RecipeNodeId(index as u64),
-            path: Vec::new(),
-        })
+        let index = HOLES.with(|holes| {
+            let holes = &mut *holes.borrow_mut();
+            let digits = v.strip_prefix(&"\0".repeat(holes.marker))?;
+            if !digits.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            let index: usize = digits.parse().ok()?;
+            let met = holes.met.get_mut(index).filter(|met| !**met)?;
+            *met = true;
+            Some(index)
+        });
+        let index = index.ok_or_else(|| E::invalid_type(serde::de::Unexpected::Str(v), &self))?;
+        Ok(Holes::placeholder(index))
     }
 
-    // An object [`scan`] did not cut out holds none of a name's keys,
-    // so the derived form refuses it — and refuses it here, where the
-    // refusal is the derived one, without reading any deeper.
     fn visit_map<A: serde::de::MapAccess<'de>>(self, map: A) -> Result<StableName, A::Error> {
-        use serde::de::Error as _;
         <WireIn as serde::Deserialize>::deserialize(serde::de::value::MapAccessDeserializer::new(
             map,
-        ))?;
-        Err(A::Error::custom(
-            "a stable name's text holds a name where none was cut",
         ))
+        .map(|wire| Holes::inline(wire.into()))
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, seq: A) -> Result<StableName, A::Error> {
+        <WireIn as serde::Deserialize>::deserialize(serde::de::value::SeqAccessDeserializer::new(
+            seq,
+        ))
+        .map(|wire| Holes::inline(wire.into()))
     }
 }
 
 /// A JSON object in a name's text: where it opens and closes, the
-/// object enclosing it, and whether it holds any of a name's keys.
+/// nearest object holding a name's key that encloses it (the root for
+/// none), and whether it holds one itself.
 struct Object {
     open: usize,
     close: usize,
-    enclosing: Option<usize>,
+    parent: usize,
     named: bool,
 }
 
-/// **Every object in `text` that is a name, found in one pass.**
+/// **Every object in a name's `text`, in one pass**, each with the
+/// nearest enclosing object that holds a name's key.
 ///
-/// An object is taken for a name when it holds any of a name's three
-/// keys (`kind`, `node`, `path`): no segment's form has one, so every
-/// name holds them and nothing else does. Returns the objects and, for
-/// each, the index of the name it lies directly inside (the root, at
-/// index 0, for one inside no other).
-///
-/// # Errors
-///
-/// A string holding a NUL anywhere in the text: no name writes one, and
-/// it is the hole [`read_json`] cuts.
-fn scan(text: &str) -> Result<(Vec<Object>, Vec<usize>), String> {
-    let bytes = text.as_bytes();
+/// An object holding any of a name's three keys (`kind`, `node`,
+/// `path`) is taken for a name: no segment's form has one, so in text
+/// this build writes every name holds them and nothing else does. The
+/// reader proves each where it meets it ([`read_json`]), so a text
+/// that breaks the rule is read as the derived form reads it.
+fn scan(text: &str) -> Vec<Object> {
     let mut objects: Vec<Object> = Vec::new();
     // The open containers: `Some(object)` or `None` for an array.
     let mut open: Vec<Option<usize>> = Vec::new();
-    let mut i = 0;
-    while let Some(&b) = bytes.get(i) {
-        match b {
-            b'"' => {
-                let start = i;
-                i += 1;
-                while let Some(&c) = bytes.get(i) {
-                    match c {
-                        b'\\' => i += 2,
-                        b'"' => break,
-                        _ => i += 1,
-                    }
-                }
-                let token = text.get(start..=i).unwrap_or("");
-                if token.contains("\\u0000") {
-                    return Err("a stable name's text holds a NUL, which no name writes".to_owned());
-                }
-                let mut after = i + 1;
-                while bytes.get(after).is_some_and(u8::is_ascii_whitespace) {
-                    after += 1;
-                }
-                if bytes.get(after) == Some(&b':')
-                    && let Some(Some(object)) = open.last()
+    for t in jsontext::tokens(text) {
+        match t.tok {
+            jsontext::Tok::Key => {
+                if let Some(Some(object)) = open.last()
+                    && jsontext::key(text, t).is_ok_and(|k| matches!(&*k, "kind" | "node" | "path"))
+                    && let Some(o) = objects.get_mut(*object)
                 {
-                    let key = if token.contains('\\') {
-                        serde_json::from_str::<String>(token).map_err(|e| unplaced(&e))?
-                    } else {
-                        token.trim_matches('"').to_owned()
-                    };
-                    if matches!(key.as_str(), "kind" | "node" | "path")
-                        && let Some(o) = objects.get_mut(*object)
-                    {
-                        o.named = true;
-                    }
+                    o.named = true;
                 }
             }
-            b'{' => {
+            jsontext::Tok::Open(b'{') => {
                 let enclosing = open.iter().rev().find_map(|c| *c);
+                // An enclosing object's own answer is known: objects
+                // open in text order, and a key comes before anything
+                // its value holds.
+                let parent = enclosing.map_or(0, |e| match objects.get(e) {
+                    Some(o) if o.named => e,
+                    Some(o) => o.parent,
+                    None => 0,
+                });
                 open.push(Some(objects.len()));
                 objects.push(Object {
-                    open: i,
-                    close: i,
-                    enclosing,
+                    open: t.start,
+                    close: t.start,
+                    parent,
                     named: false,
                 });
             }
-            b'[' => open.push(None),
-            b'}' | b']' => {
+            jsontext::Tok::Open(_) => open.push(None),
+            jsontext::Tok::Close(_) => {
                 if let Some(Some(object)) = open.pop()
                     && let Some(o) = objects.get_mut(object)
                 {
-                    o.close = i;
+                    o.close = t.start;
                 }
             }
             _ => {}
         }
-        i += 1;
     }
-    // The name each object lies directly inside: objects open in text
-    // order, so an enclosing object's answer is known before its own.
-    let mut within: Vec<Option<usize>> = Vec::with_capacity(objects.len());
-    for o in &objects {
-        let up = o.enclosing.and_then(|e| {
-            let named = objects.get(e).is_some_and(|e| e.named);
-            if named {
-                Some(e)
+    objects
+}
+
+/// The NULs that open a hole's string: one more than the longest run of
+/// written NULs (`\u0000` escapes) in `text`, so no string in it reads
+/// as a hole.
+fn hole_marker(text: &str) -> usize {
+    let bytes = text.as_bytes();
+    let (mut longest, mut run, mut i) = (0, 0, 0);
+    while i < bytes.len() {
+        if bytes.get(i..i + 6) == Some(b"\\u0000".as_slice()) {
+            run += 1;
+            longest = longest.max(run);
+            i += 6;
+        } else {
+            run = 0;
+            i += 1;
+        }
+    }
+    longest + 1
+}
+
+/// One level's text as [`read_json`] reads it: the level's object with
+/// each name it holds cut out and a hole in its place, and where each
+/// piece came from.
+struct Cut {
+    text: String,
+    /// Each piece: where it starts in the cut text and in the name's,
+    /// and its length in each (a hole's differ).
+    pieces: Vec<(usize, usize, usize, usize)>,
+    /// Where each hole starts in the cut text.
+    holes: Vec<usize>,
+}
+
+impl Cut {
+    fn of(text: &str, objects: &[Object], level: usize, held: &[usize], marker: usize) -> Self {
+        let mut cut = Cut {
+            text: String::new(),
+            pieces: Vec::new(),
+            holes: Vec::new(),
+        };
+        let Some(object) = objects.get(level) else {
+            return cut;
+        };
+        let mut at = object.open;
+        let piece = |cut: &mut Cut, orig: usize, written: &str, orig_len: usize| {
+            cut.pieces
+                .push((cut.text.len(), orig, written.len(), orig_len));
+            cut.text.push_str(written);
+        };
+        for (index, span) in held.iter().filter_map(|&h| objects.get(h)).enumerate() {
+            let before = text.get(at..span.open).unwrap_or("");
+            piece(&mut cut, at, before, before.len());
+            cut.holes.push(cut.text.len());
+            let hole = format!("\"{}{index}\"", "\\u0000".repeat(marker));
+            piece(&mut cut, span.open, &hole, span.close + 1 - span.open);
+            at = span.close + 1;
+        }
+        let rest = text.get(at..=object.close).unwrap_or("");
+        piece(&mut cut, at, rest, rest.len());
+        cut
+    }
+
+    /// The byte of the name's text the reader stood at when it stood at
+    /// byte `at` of the cut text: a hole maps to its name's start, or,
+    /// read past, to its end.
+    fn written(&self, at: usize) -> usize {
+        let piece = self.pieces.iter().rev().find(|p| p.0 <= at);
+        piece.map_or(0, |&(cut, orig, cut_len, orig_len)| {
+            let into = at - cut;
+            if cut_len == orig_len {
+                orig + into
+            } else if into == 0 {
+                orig
             } else {
-                within.get(e).copied().flatten()
+                orig + orig_len
             }
-        });
-        within.push(up);
+        })
     }
-    Ok((
-        objects,
-        within.into_iter().map(|w| w.unwrap_or(0)).collect(),
-    ))
+}
+
+/// Where a name's text was refused: the byte of it the reader stood at,
+/// and the reader's error (whose own place is in the level's text).
+struct LevelFault {
+    cursor: usize,
+    error: serde_json::Error,
+}
+
+impl LevelFault {
+    fn defect(what: &str) -> Self {
+        Self {
+            cursor: 0,
+            error: serde::de::Error::custom(what),
+        }
+    }
 }
 
 /// **A name read from its JSON text, one level at a time.**
 ///
-/// One pass over the text finds every name in it ([`scan`]). Each is
-/// then read in the derived form from its own text with every name it
-/// holds cut out and a hole in its place ([`HoleVisitor`]), so reading
-/// a level reads that level's text and no deeper; the levels are then
-/// assembled from the deepest up.
-fn read_json(text: &str) -> Result<StableName, String> {
+/// One pass over the text finds every object in it ([`scan`]). Each
+/// object taken for a name is a level, read in the derived form from
+/// its own text with every name it holds cut out and a hole in its
+/// place ([`HoleVisitor`]), so reading a level reads that level's text
+/// and no deeper; the levels are then assembled from the deepest up.
+///
+/// A hole is proven by the reader: the derived form meets it where it
+/// reads a name. One it meets anywhere else was not a name there, so
+/// the level is read again with that object's text in place, and the
+/// derived form reads it and refuses it in its own words. A refusal is
+/// placed where it is written. The one reported is the first in the
+/// text among the levels the derived form would have reached, which is
+/// the one the derived form's own read stops at.
+fn read_json(text: &str) -> Result<StableName, LevelFault> {
     let _shallow = Shallow::enter(Walk::De, Family::Name);
+    let at_fault = |cut: &str, error: serde_json::Error, map: &dyn Fn(usize) -> usize| {
+        let cursor = map(jsontext::cursor(cut, error.line(), error.column()));
+        LevelFault { cursor, error }
+    };
     if !text.starts_with('{') {
-        // Not an object, so not a name: the derived form says so.
-        let wire: WireIn = serde_json::from_str(text).map_err(|e| unplaced(&e))?;
-        return Ok(wire.into());
+        // Not an object: the derived form reads it (the seq form) or
+        // refuses it.
+        return serde_json::from_str::<WireIn>(text)
+            .map(StableName::from)
+            .map_err(|e| at_fault(text, e, &|at| at));
     }
-    let (objects, within) = scan(text)?;
-    // The root is a level whether or not it holds a name's key (the
-    // derived form refuses it if it does not); every other name is one.
-    let named: Vec<usize> = (0..objects.len())
-        .filter(|&o| o == 0 || objects.get(o).is_some_and(|o| o.named))
-        .collect();
-    let mut level_of = vec![usize::MAX; objects.len()];
-    for (level, &o) in named.iter().enumerate() {
-        if let Some(slot) = level_of.get_mut(o) {
-            *slot = level;
-        }
-    }
-    let mut holds: Vec<Vec<usize>> = vec![Vec::new(); named.len()];
-    for &o in named.iter().skip(1) {
-        let parent = within.get(o).and_then(|&p| level_of.get(p)).copied();
-        let child = level_of.get(o).copied();
-        if let (Some(parent), Some(child)) = (parent, child)
-            && let Some(list) = holds.get_mut(parent)
+    let objects = scan(text);
+    let marker = hole_marker(text);
+    let is_level = |o: usize| o == 0 || objects.get(o).is_some_and(|o| o.named);
+    // Each level's held names, nearest first, in text order.
+    let mut holds: Vec<Vec<usize>> = vec![Vec::new(); objects.len()];
+    for (o, object) in objects.iter().enumerate().skip(1) {
+        if object.named
+            && let Some(list) = holds.get_mut(object.parent)
         {
-            list.push(child);
+            list.push(o);
         }
     }
-    let mut levels: Vec<Option<StableName>> = Vec::with_capacity(named.len());
-    for (level, &o) in named.iter().enumerate() {
-        let object = objects.get(o).ok_or(MISPLACED)?;
+    let mut reached = vec![false; objects.len()];
+    let mut absorbed = vec![false; objects.len()];
+    if let Some(root) = reached.first_mut() {
+        *root = true;
+    }
+    let mut levels: Vec<Option<StableName>> = (0..objects.len()).map(|_| None).collect();
+    // The names each level holds written in place, by level.
+    let mut inline: Vec<Vec<Option<StableName>>> = vec![Vec::new(); objects.len()];
+    let mut first: Option<LevelFault> = None;
+    for level in 0..objects.len() {
+        if !is_level(level) || !reached.get(level).copied().unwrap_or(false) {
+            continue;
+        }
+        if absorbed.get(level).copied().unwrap_or(false) {
+            continue;
+        }
+        loop {
+            let held = holds.get(level).cloned().unwrap_or_default();
+            let cut = Cut::of(text, &objects, level, &held, marker);
+            HOLES.with(|h| {
+                *h.borrow_mut() = Holes {
+                    marker,
+                    met: vec![false; held.len()],
+                    inline: Vec::new(),
+                };
+            });
+            let result = serde_json::from_str::<WireIn>(&cut.text);
+            let (met, written_in) = HOLES.with(|h| {
+                let h = &mut *h.borrow_mut();
+                (core::mem::take(&mut h.met), core::mem::take(&mut h.inline))
+            });
+            let stop = result
+                .as_ref()
+                .err()
+                .map(|e| jsontext::cursor(&cut.text, e.line(), e.column()));
+            // A hole the reader went past without meeting it at a
+            // name's place held no name there.
+            let misread: Vec<usize> = (0..held.len())
+                .filter(|&j| {
+                    !met.get(j).copied().unwrap_or(false)
+                        && stop.is_none_or(|s| cut.holes.get(j).is_some_and(|&h| h < s))
+                })
+                .collect();
+            if !misread.is_empty() {
+                for &j in misread.iter().rev() {
+                    let Some(&object) = held.get(j) else { continue };
+                    if let Some(flag) = absorbed.get_mut(object) {
+                        *flag = true;
+                    }
+                    let inner = holds
+                        .get_mut(object)
+                        .map(core::mem::take)
+                        .unwrap_or_default();
+                    if let Some(list) = holds.get_mut(level) {
+                        list.splice(j..=j, inner);
+                    }
+                }
+                continue;
+            }
+            for (j, &object) in held.iter().enumerate() {
+                if met.get(j).copied().unwrap_or(false)
+                    && let Some(flag) = reached.get_mut(object)
+                {
+                    *flag = true;
+                }
+            }
+            match result {
+                Ok(wire) => {
+                    if let Some(slot) = levels.get_mut(level) {
+                        *slot = Some(wire.into());
+                    }
+                    if let Some(slot) = inline.get_mut(level) {
+                        *slot = written_in.into_iter().map(Some).collect();
+                    }
+                }
+                Err(error) => {
+                    let fault = at_fault(&cut.text, error, &|at| cut.written(at));
+                    if first.as_ref().is_none_or(|f| fault.cursor < f.cursor) {
+                        first = Some(fault);
+                    }
+                }
+            }
+            break;
+        }
+    }
+    if let Some(fault) = first {
+        return Err(fault);
+    }
+    for level in (0..objects.len()).rev() {
+        let Some(mut name) = levels.get_mut(level).and_then(Option::take) else {
+            continue;
+        };
         let held = holds.get(level).cloned().unwrap_or_default();
-        let mut cut = String::new();
-        let mut at = object.open;
-        for &child in &held {
-            let span = named
-                .get(child)
-                .and_then(|&c| objects.get(c))
-                .ok_or(MISPLACED)?;
-            cut.push_str(text.get(at..span.open).ok_or(MISPLACED)?);
-            cut.push_str(HOLE_JSON);
-            at = span.close + 1;
-        }
-        cut.push_str(text.get(at..=object.close).ok_or(MISPLACED)?);
-        HOLES.with(|holes| *holes.borrow_mut() = (held, 0));
-        let wire: WireIn = serde_json::from_str(&cut).map_err(|e| unplaced(&e))?;
-        levels.push(Some(wire.into()));
-    }
-    for i in (0..levels.len()).rev() {
-        let mut name = levels.get_mut(i).and_then(Option::take).ok_or(MISPLACED)?;
+        let mut written_in = inline
+            .get_mut(level)
+            .map(core::mem::take)
+            .unwrap_or_default();
         let mut missing = false;
         name.each_held_mut(&mut |h| {
             let (slot, index) = match h {
-                HeldMut::Shared(r) => {
+                HoldMut::Shared(r) => {
                     let index = r.node.0;
                     (r.get_mut(), index)
                 }
-                HeldMut::Owned(n) => {
+                HoldMut::Owned(n) => {
                     let index = n.node.0;
                     (Some(n), index)
                 }
             };
-            let done = usize::try_from(index)
-                .ok()
-                .and_then(|j| levels.get_mut(j))
-                .and_then(Option::take);
+            let done = usize::try_from(index).ok().and_then(|j| match held.get(j) {
+                Some(&o) => levels.get_mut(o).and_then(Option::take),
+                None => written_in.get_mut(j - held.len()).and_then(Option::take),
+            });
             match (slot, done) {
                 (Some(slot), Some(done)) => *slot = done,
                 _ => missing = true,
             }
         });
         if missing {
-            return Err(MISPLACED.to_owned());
+            return Err(LevelFault::defect(MISPLACED));
         }
-        if let Some(cell) = levels.get_mut(i) {
+        if let Some(cell) = levels.get_mut(level) {
             *cell = Some(name);
         }
     }
@@ -1077,20 +1625,57 @@ fn read_json(text: &str) -> Result<StableName, String> {
         .into_iter()
         .next()
         .flatten()
-        .ok_or_else(|| MISPLACED.to_owned())
+        .ok_or_else(|| LevelFault::defect(MISPLACED))
 }
 
 /// A level's held name that did not come back where it was met: a
 /// defect of this module, never of the text.
 const MISPLACED: &str = "a stable name's nested text was not read back where it was met";
 
-/// A level's refusal without the level's own line and column: the door
-/// that read the whole text places it.
+/// A reader's words without the place it gives them: the door that
+/// read the whole text places them where they are written.
 fn unplaced(e: &serde_json::Error) -> String {
     let text = e.to_string();
     let suffix = format!(" at line {} column {}", e.line(), e.column());
     text.strip_suffix(&suffix).unwrap_or(&text).to_owned()
 }
+
+/// Why [`StableName::from_json`] refused a text: the reader's words,
+/// and the line and column of the text it stood at, counted as
+/// serde_json counts them. A name nested in the text is refused where
+/// it is written, in the words the derived form gives.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NameTextError {
+    line: usize,
+    column: usize,
+    message: String,
+}
+
+impl NameTextError {
+    /// The line of the text, from 1.
+    #[must_use]
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
+    /// The bytes of the line the reader had read.
+    #[must_use]
+    pub fn column(&self) -> usize {
+        self.column
+    }
+}
+
+impl fmt::Display for NameTextError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} at line {} column {}",
+            self.message, self.line, self.column
+        )
+    }
+}
+
+impl std::error::Error for NameTextError {}
 
 impl StableName {
     /// **This name's JSON text**: its one serialization, compact,
@@ -1102,7 +1687,7 @@ impl StableName {
     /// None in practice: a name holds no value JSON cannot carry. The
     /// writer's own error is passed through rather than assumed away.
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        json_door(|| serde_json::to_string(self))
+        write_door(|| serde_json::to_string(self))
     }
 
     /// **A name read from its JSON text**, one nesting level at a time,
@@ -1112,61 +1697,77 @@ impl StableName {
     ///
     /// # Errors
     ///
-    /// Text that is not JSON, or JSON that is not a name.
-    pub fn from_json(text: &str) -> Result<Self, serde_json::Error> {
-        json_door(|| serde_json::from_str(text))
+    /// Text that is not JSON, or JSON that is not a name, refused where
+    /// it is written ([`NameTextError`]).
+    pub fn from_json(text: &str) -> Result<Self, NameTextError> {
+        let (read, seen) = read_door(text, None, || serde_json::from_str::<StableName>(text));
+        read.map_err(|e| match seen.fault {
+            Some(fault) => {
+                let (line, column) = jsontext::place(text, fault.at);
+                NameTextError {
+                    line,
+                    column,
+                    message: fault.message,
+                }
+            }
+            None => NameTextError {
+                line: e.line(),
+                column: e.column(),
+                message: unplaced(&e),
+            },
+        })
     }
 }
 
 #[cfg(test)]
 pub(super) mod tests {
-    //! Every walk against the derived impl's own recursion, at every
-    //! variant; and every walk at a depth past any stack, on the
-    //! smallest stack a door runs on.
+    //! Every walk against a copy of the derived impls
+    //! (`names::nest_reference`), at every variant; every walk at a depth
+    //! past any stack, on the smallest stack a door runs on; and the
+    //! walks that rebuild a name, linear in what they visit.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
     use crate::names::SegTag;
-    use crate::names::role::{
-        CapEnd, MeridianEnd, PieceRole, ProfileEdgeRef, ProfileVertexRef, RimSupport,
-        SectionCircle, SplitHalf,
-    };
+    use crate::names::role::{CapEnd, PieceRole, ProfileEdgeRef};
     use crate::node::StepId;
+    use test_utils::own_thread::{WASM_STACK, on_the_smallest_stack};
 
     thread_local! {
         /// The native levels a walk takes, where a row sets them.
         static LEVELS: Cell<Option<u32>> = const { Cell::new(None) };
+        /// The answers a descent asked for, and the levels it ran.
+        static ASKED: Cell<usize> = const { Cell::new(0) };
+        static LEVELLED: Cell<usize> = const { Cell::new(0) };
     }
 
     pub(super) fn native_levels() -> Option<u32> {
         LEVELS.with(Cell::get)
     }
 
-    /// Whether the walks answer by the derived impls' own recursion,
-    /// unbounded — the reference each walk here is checked against.
-    pub(super) fn recursing() -> bool {
-        native_levels() == Some(u32::MAX)
+    pub(super) fn asked() {
+        ASKED.with(|a| a.set(a.get() + 1));
     }
 
-    fn with_levels<R>(levels: u32, f: impl FnOnce() -> R) -> R {
-        let was = LEVELS.with(|l| l.replace(Some(levels)));
+    pub(super) fn levelled() {
+        LEVELLED.with(|l| l.set(l.get() + 1));
+    }
+
+    /// `f`, and the answers and levels the descents it ran counted.
+    fn counted<R>(f: impl FnOnce() -> R) -> (R, usize, usize) {
+        ASKED.with(|a| a.set(0));
+        LEVELLED.with(|l| l.set(0));
         let out = f();
-        LEVELS.with(|l| l.set(was));
-        out
-    }
-
-    /// `f`, answered by the derived recursion.
-    fn derived<R>(f: impl FnOnce() -> R) -> R {
-        with_levels(u32::MAX, f)
+        (out, ASKED.with(Cell::get), LEVELLED.with(Cell::get))
     }
 
     /// `f`, answered from the walks' own stacks from the first level.
     fn iterative<R>(f: impl FnOnce() -> R) -> R {
-        with_levels(0, f)
+        let was = LEVELS.with(|l| l.replace(Some(0)));
+        let out = f();
+        LEVELS.with(|l| l.set(was));
+        out
     }
-
-    /// The wasm32 build's default stack, the smallest any door runs on.
-    const WASM_STACK: usize = 1 << 20;
 
     /// Deeper than any stack holds a recursive walk over it: a drop
     /// recursed about 80 bytes a level in release and 270 in dev, a
@@ -1174,23 +1775,205 @@ pub(super) mod tests {
     /// in release and 700 in dev.
     pub(in crate::names) const DEEP: usize = 20_000;
 
-    pub(in crate::names) fn on_the_smallest_stack<R: Send + 'static>(
-        f: impl FnOnce() -> R + Send + 'static,
-    ) -> R {
-        std::thread::Builder::new()
-            .stack_size(WASM_STACK)
-            .spawn(f)
-            .expect("the thread starts")
-            .join()
-            .expect("the walk returns")
+    /// One segment of every variant, each name it holds `a` or `b`,
+    /// built in whichever family the names are: this module's, or the
+    /// derived copy's.
+    macro_rules! every_segment {
+        ($a:expr, $b:expr) => {{
+            use RoleSeg as R;
+            let (a, b): (&StableName, &StableName) = ($a, $b);
+            let r = |n: &StableName| NameRef::new(n.clone());
+            let step = StepId(7);
+            let e = ProfileEdgeRef::Piece {
+                step,
+                role: PieceRole::Piece(2),
+            };
+            let e2 = ProfileEdgeRef::Section {
+                circle: SectionCircle::Bore,
+                role: PieceRole::Arc,
+            };
+            let v = ProfileVertexRef::Piece {
+                step,
+                role: PieceRole::Leg,
+            };
+            vec![
+                R::OutputBody,
+                R::Cap(CapEnd::Start),
+                R::Lateral(e),
+                R::RimEdge(CapEnd::End, e2),
+                R::LateralEdge(v),
+                R::CapVertex(CapEnd::Start, v),
+                R::LoftWall(vec![e, e2]),
+                R::LoftSeam(vec![v]),
+                R::Band(e),
+                R::BandRim(v),
+                R::BandRimPi(v),
+                R::BandPi(e),
+                R::Meridian(MeridianEnd::Seam, e),
+                R::MeridianVertex(MeridianEnd::Pi, v),
+                R::RevolveCap(MeridianEnd::End),
+                R::Pole(v),
+                R::AxisEdge(e2),
+                R::FromA(r(a)),
+                R::FromB(r(b)),
+                R::FromMember {
+                    member: RecipeNodeId(3),
+                    of: r(a),
+                },
+                R::Seam { a: r(a), b: r(b) },
+                R::Merged(vec![a.clone(), b.clone()]),
+                R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
+                R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
+                R::SplitBody(SplitHalf::Below),
+                R::SectionFace {
+                    side: SplitHalf::Above,
+                    section: 2,
+                },
+                R::SectionEdge {
+                    side: SplitHalf::Below,
+                    face: r(a),
+                },
+                R::SplitFragment {
+                    side: SplitHalf::Above,
+                    parent: r(b),
+                },
+                R::CrossingVertex {
+                    side: SplitHalf::Below,
+                    edge: r(a),
+                },
+                R::OnToolVertex {
+                    side: SplitHalf::Above,
+                    of: r(b),
+                },
+                R::FromTarget(r(a)),
+                R::BlendFace(r(b)),
+                R::CornerFace(r(a)),
+                R::TrimEdge {
+                    edge: r(a),
+                    support: r(b),
+                },
+                R::FootVertex {
+                    vertex: r(b),
+                    support: r(a),
+                },
+                R::EndArc {
+                    vertex: r(a),
+                    edge: r(b),
+                },
+                R::BandFace(vec![a.clone(), b.clone()]),
+                R::BandTrim {
+                    edge: r(a),
+                    support: RimSupport::Mate,
+                },
+                R::BandFoot(r(b)),
+                R::BandCross {
+                    edge: r(a),
+                    band: vec![b.clone()],
+                },
+                R::BandCut(r(a)),
+                R::BandSlit {
+                    edge: r(b),
+                    band: vec![a.clone(), b.clone()],
+                },
+                R::Inner(r(a)),
+                R::Rim(r(b)),
+                R::HoleRim { of: r(a), hole: 4 },
+                R::InPart { of: r(b) },
+                R::Instance { i: 5, of: r(a) },
+            ]
+        }};
+    }
+
+    /// Names one and two levels deep over every variant, pairs of them
+    /// differing only at their deepest level, and handles that share
+    /// an `Arc` or were stamped by one sealing walk, in whichever family
+    /// the names are.
+    macro_rules! corpus {
+        () => {{
+            let named = |kind, node: u64, path: Vec<RoleSeg>| StableName {
+                kind,
+                node: RecipeNodeId(node),
+                path,
+            };
+            let leaf = |node: u64| named(EntityKind::Face, node, vec![RoleSeg::Cap(CapEnd::End)]);
+            let (x, y) = (leaf(1), leaf(2));
+            let mut out = vec![x.clone(), y.clone()];
+            for seg in every_segment!(&x, &y) {
+                out.push(named(EntityKind::Face, 10, vec![seg]));
+            }
+            let over = |n: &StableName| {
+                named(
+                    EntityKind::Face,
+                    10,
+                    vec![RoleSeg::FromA(NameRef::new(n.clone()))],
+                )
+            };
+            let (a, b) = (over(&x), over(&y));
+            let rank = RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 });
+            for (p, q) in [(&a, &b), (&b, &a)] {
+                for seg in every_segment!(p, q) {
+                    out.push(named(EntityKind::Edge, 11, vec![seg, rank.clone()]));
+                }
+            }
+            // One `Arc` held twice, beside two handles stamped by one
+            // walk in their structural order and beside two unstamped
+            // ones: the pairs a handle settles itself, ahead of a pair
+            // it does not.
+            let shared = NameRef::new(a.clone());
+            let (low, high) = (NameRef::new(x.clone()), NameRef::new(y.clone()));
+            stamp_in_order(&low, &high);
+            let (x, y) = (NameRef::new(x), NameRef::new(y));
+            for other in [&low, &high, &x, &y] {
+                out.push(named(
+                    EntityKind::Edge,
+                    12,
+                    vec![RoleSeg::Seam {
+                        a: shared.clone(),
+                        b: other.clone(),
+                    }],
+                ));
+            }
+            out
+        }};
+    }
+
+    /// The names under test, built by the corpus.
+    mod ours {
+        pub(super) use super::super::super::role::{
+            CapEnd, EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, ProfileVertexRef,
+            Qualifier, RimSupport, RoleSeg, SectionCircle, SplitHalf, StableName,
+        };
+        use crate::node::{RecipeNodeId, StepId};
+
+        fn stamp_in_order(low: &NameRef, high: &NameRef) {
+            let epoch = super::super::super::role::next_epoch().expect("an epoch");
+            low.stamp(epoch, 0);
+            high.stamp(epoch, 1);
+        }
+
+        pub(super) fn corpus() -> Vec<StableName> {
+            corpus!()
+        }
+
+        pub(super) fn segments(a: &StableName, b: &StableName) -> Vec<RoleSeg> {
+            every_segment!(a, b)
+        }
+    }
+
+    /// The same corpus, in the derived copy's types.
+    mod derived {
+        pub(super) use super::super::super::nest_reference::*;
+
+        /// A handle there carries no stamp.
+        fn stamp_in_order(_: &NameRef, _: &NameRef) {}
+
+        pub(super) fn corpus() -> Vec<StableName> {
+            corpus!()
+        }
     }
 
     fn leaf(node: u64) -> StableName {
-        StableName {
-            kind: EntityKind::Face,
-            node: RecipeNodeId(node),
-            path: vec![RoleSeg::Cap(CapEnd::End)],
-        }
+        named(EntityKind::Face, node, vec![RoleSeg::Cap(CapEnd::End)])
     }
 
     fn named(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
@@ -1201,203 +1984,101 @@ pub(super) mod tests {
         }
     }
 
-    /// One segment of every variant, each name it holds `a` or `b`.
-    fn every_segment(a: &StableName, b: &StableName) -> Vec<RoleSeg> {
-        use RoleSeg as R;
-        let r = |n: &StableName| NameRef::new(n.clone());
-        let step = StepId(7);
-        let e = ProfileEdgeRef::Piece {
-            step,
-            role: PieceRole::Piece(2),
-        };
-        let e2 = ProfileEdgeRef::Section {
-            circle: SectionCircle::Bore,
-            role: PieceRole::Arc,
-        };
-        let v = ProfileVertexRef::Piece {
-            step,
-            role: PieceRole::Leg,
-        };
-        vec![
-            R::OutputBody,
-            R::Cap(CapEnd::Start),
-            R::Lateral(e),
-            R::RimEdge(CapEnd::End, e2),
-            R::LateralEdge(v),
-            R::CapVertex(CapEnd::Start, v),
-            R::LoftWall(vec![e, e2]),
-            R::LoftSeam(vec![v]),
-            R::Band(e),
-            R::BandRim(v),
-            R::BandRimPi(v),
-            R::BandPi(e),
-            R::Meridian(MeridianEnd::Seam, e),
-            R::MeridianVertex(MeridianEnd::Pi, v),
-            R::RevolveCap(MeridianEnd::End),
-            R::Pole(v),
-            R::AxisEdge(e2),
-            R::FromA(r(a)),
-            R::FromB(r(b)),
-            R::FromMember {
-                member: RecipeNodeId(3),
-                of: r(a),
-            },
-            R::Seam { a: r(a), b: r(b) },
-            R::Merged(vec![a.clone(), b.clone()]),
-            R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
-            R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
-            R::SplitBody(SplitHalf::Below),
-            R::SectionFace {
-                side: SplitHalf::Above,
-                section: 2,
-            },
-            R::SectionEdge {
-                side: SplitHalf::Below,
-                face: r(a),
-            },
-            R::SplitFragment {
-                side: SplitHalf::Above,
-                parent: r(b),
-            },
-            R::CrossingVertex {
-                side: SplitHalf::Below,
-                edge: r(a),
-            },
-            R::OnToolVertex {
-                side: SplitHalf::Above,
-                of: r(b),
-            },
-            R::FromTarget(r(a)),
-            R::BlendFace(r(b)),
-            R::CornerFace(r(a)),
-            R::TrimEdge {
-                edge: r(a),
-                support: r(b),
-            },
-            R::FootVertex {
-                vertex: r(b),
-                support: r(a),
-            },
-            R::EndArc {
-                vertex: r(a),
-                edge: r(b),
-            },
-            R::BandFace(vec![a.clone(), b.clone()]),
-            R::BandTrim {
-                edge: r(a),
-                support: RimSupport::Mate,
-            },
-            R::BandFoot(r(b)),
-            R::BandCross {
-                edge: r(a),
-                band: vec![b.clone()],
-            },
-            R::BandCut(r(a)),
-            R::BandSlit {
-                edge: r(b),
-                band: vec![a.clone(), b.clone()],
-            },
-            R::Inner(r(a)),
-            R::Rim(r(b)),
-            R::HoleRim { of: r(a), hole: 4 },
-            R::InPart { of: r(b) },
-            R::Instance { i: 5, of: r(a) },
-        ]
-    }
-
-    #[test]
-    fn the_corpus_holds_every_variant() {
-        let (x, y) = (leaf(1), leaf(2));
-        let tags: std::collections::BTreeSet<SegTag> =
-            every_segment(&x, &y).iter().map(SegTag::of).collect();
-        assert_eq!(tags.len(), SegTag::ALL.len(), "one segment per variant");
-    }
-
-    /// Names one and two levels deep over every variant, pairs of them
-    /// differing only at their deepest level, and handles that share
-    /// an `Arc` or were stamped by one sealing walk.
-    fn corpus() -> Vec<StableName> {
-        let (x, y) = (leaf(1), leaf(2));
-        let mut out = vec![x.clone(), y.clone()];
-        for seg in every_segment(&x, &y) {
-            out.push(named(EntityKind::Face, 10, vec![seg]));
-        }
-        let over =
-            |n: &StableName| named(EntityKind::Face, 10, vec![RoleSeg::FromA(n.clone().into())]);
-        let (a, b) = (over(&x), over(&y));
-        let rank = RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 });
-        for (p, q) in [(&a, &b), (&b, &a)] {
-            for seg in every_segment(p, q) {
-                out.push(named(EntityKind::Edge, 11, vec![seg, rank.clone()]));
-            }
-        }
-        // One `Arc` held twice, beside two handles stamped by one walk
-        // in their structural order and beside two unstamped ones: the
-        // pairs a handle settles itself, ahead of a pair it does not.
-        let shared = NameRef::new(a.clone());
-        let (low, high) = (NameRef::new(x.clone()), NameRef::new(y.clone()));
-        let epoch = super::super::role::next_epoch().expect("an epoch");
-        low.stamp(epoch, 0);
-        high.stamp(epoch, 1);
-        let (x, y) = (NameRef::new(x), NameRef::new(y));
-        for other in [&low, &high, &x, &y] {
-            out.push(named(
-                EntityKind::Edge,
-                12,
-                vec![RoleSeg::Seam {
-                    a: shared.clone(),
-                    b: other.clone(),
-                }],
-            ));
-        }
-        out
-    }
-
-    fn hash(n: &StableName) -> u64 {
+    fn hash<T: core::hash::Hash>(n: &T) -> u64 {
         use core::hash::BuildHasher;
         std::hash::BuildHasherDefault::<std::collections::hash_map::DefaultHasher>::default()
             .hash_one(n)
     }
 
     #[test]
-    fn every_walk_answers_what_the_derived_impl_answers_at_every_variant() {
-        let names = corpus();
-        for a in &names {
-            let shown = derived(|| format!("{a:?}"));
+    fn the_corpus_holds_every_variant() {
+        let (x, y) = (leaf(1), leaf(2));
+        let tags: std::collections::BTreeSet<SegTag> =
+            ours::segments(&x, &y).iter().map(SegTag::of).collect();
+        assert_eq!(tags.len(), SegTag::ALL.len(), "one segment per variant");
+    }
+
+    /// **Every walk answers what the derived impls answer**, against a
+    /// copy of the types as they were derived, at every variant: `Debug`
+    /// under `{:?}` and `{:#?}`, equality and order over every pair on
+    /// both routes (the native budget, and the walks' own stacks from the
+    /// first level), a clone, and the wire form written and read inside
+    /// the JSON doors and outside them. `Hash` is not the derived one;
+    /// it agrees with `Eq` and tells the corpus's names apart.
+    #[test]
+    fn every_walk_answers_what_the_derived_impls_answer_at_every_variant() {
+        let (names, copies) = (ours::corpus(), derived::corpus());
+        assert_eq!(names.len(), copies.len(), "one corpus, in both families");
+        let mut hashes = std::collections::BTreeSet::new();
+        let mut distinct = 0;
+        for (i, (a, ra)) in names.iter().zip(&copies).enumerate() {
+            let shown = format!("{ra:?}");
             assert_eq!(format!("{a:?}"), shown, "Debug");
             assert_eq!(
                 format!("{a:#?}"),
-                derived(|| format!("{a:#?}")),
+                format!("{ra:#?}"),
                 "pretty Debug of {shown}"
             );
             let copy = a.clone();
-            assert!(derived(|| copy == *a), "a clone equals its source: {shown}");
+            assert_eq!(format!("{copy:?}"), shown, "a clone renders as its source");
+            assert!(copy == *a, "a clone equals its source: {shown}");
+            let text = serde_json::to_string(ra).unwrap();
             assert_eq!(
-                iterative(|| hash(&copy)),
-                hash(a),
-                "a clone hashes as its source, on either route: {shown}"
-            );
-            let text = a.to_json().unwrap();
-            assert_eq!(
-                text,
                 serde_json::to_string(a).unwrap(),
-                "the door writes the derived form: {shown}"
+                text,
+                "the wire form: {shown}"
             );
-            let back = StableName::from_json(&text).unwrap();
-            assert!(derived(|| back == *a), "the door reads it back: {shown}");
-            let pretty = serde_json::to_string_pretty(a).unwrap();
-            assert!(
-                derived(|| StableName::from_json(&pretty).unwrap() == *a),
-                "the door reads the pretty spelling: {shown}"
+            assert_eq!(a.to_json().unwrap(), text, "the writing door: {shown}");
+            let pretty = serde_json::to_string_pretty(ra).unwrap();
+            assert_eq!(
+                serde_json::to_string_pretty(a).unwrap(),
+                pretty,
+                "the pretty wire form: {shown}"
             );
-            for b in &names {
-                let (eq, cmp) = (derived(|| a == b), derived(|| a.cmp(b)));
-                assert_eq!(iterative(|| a == b), eq, "eq: {shown} / {b:?}");
-                assert_eq!(iterative(|| a.cmp(b)), cmp, "cmp: {shown} / {b:?}");
-                assert_eq!(a == b, eq, "eq on the budget: {shown} / {b:?}");
-                assert_eq!(a.cmp(b), cmp, "cmp on the budget: {shown} / {b:?}");
+            for spelled in [&text, &pretty] {
+                let outside: StableName = serde_json::from_str(spelled).unwrap();
+                assert_eq!(
+                    format!("{outside:?}"),
+                    shown,
+                    "read outside a door: {shown}"
+                );
+                let door = StableName::from_json(spelled).unwrap();
+                assert_eq!(format!("{door:?}"), shown, "read in the door: {shown}");
+            }
+            assert_eq!(
+                iterative(|| hash(a)),
+                hash(a),
+                "one hash on either route: {shown}"
+            );
+            assert_eq!(
+                hash(&copy),
+                hash(a),
+                "a clone hashes as its source: {shown}"
+            );
+            if names.iter().take(i).all(|b| b != a) {
+                distinct += 1;
+                hashes.insert(hash(a));
+            }
+            for (b, rb) in names.iter().zip(&copies) {
+                let (eq, cmp) = (ra == rb, ra.cmp(rb));
+                assert_eq!(a == b, eq, "eq: {shown} / {rb:?}");
+                assert_eq!(a.cmp(b), cmp, "cmp: {shown} / {rb:?}");
+                assert_eq!(iterative(|| a == b), eq, "eq, iterative: {shown} / {rb:?}");
+                assert_eq!(
+                    iterative(|| a.cmp(b)),
+                    cmp,
+                    "cmp, iterative: {shown} / {rb:?}"
+                );
+                if eq {
+                    assert_eq!(hash(a), hash(b), "equal names hash alike: {shown} / {rb:?}");
+                }
             }
         }
+        assert_eq!(
+            hashes.len(),
+            distinct,
+            "the corpus's distinct names hash apart"
+        );
     }
 
     /// A name `DEEP` levels deep, each level holding the one below in
@@ -1449,6 +2130,77 @@ pub(super) mod tests {
             assert!(back == a, "the JSON door reads back what it wrote");
             drop((a, b, copy, back));
         });
+    }
+
+    /// **The native levels fit a quarter of the smallest stack**: a
+    /// comparison, an order and a hash of two names nested past the
+    /// native budget, differing at the bottom, take every native level
+    /// before going on from their own stacks.
+    #[test]
+    fn the_native_levels_fit_a_quarter_of_the_smallest_stack() {
+        let tower = |bottom| wrapped(leaf(bottom), 3 * NATIVE_LEVELS as usize, 6, RoleSeg::FromA);
+        let run = std::thread::Builder::new()
+            .stack_size(WASM_STACK / 4)
+            .spawn(move || {
+                let (a, b) = (tower(1), tower(2));
+                (a == b, a.cmp(&b), hash(&a) == hash(&b))
+            })
+            .expect("the thread starts")
+            .join()
+            .expect("the walks return");
+        assert_eq!(run, (false, Ordering::Less, false), "the bottoms decide");
+    }
+
+    /// A panic inside a walk leaves every walk after it on the thread
+    /// answering whole, and a walk begun inside another (a `Debug` from
+    /// inside a hash's `Hasher`) runs whole.
+    #[test]
+    fn a_walk_that_panics_or_runs_inside_another_leaves_the_walks_whole() {
+        struct Panicking(usize);
+        impl core::hash::Hasher for Panicking {
+            fn finish(&self) -> u64 {
+                0
+            }
+            fn write(&mut self, _: &[u8]) {
+                self.0 += 1;
+                assert!(self.0 < 8, "the hasher panics mid-walk");
+            }
+        }
+        struct Showing(StableName, Option<String>);
+        impl core::hash::Hasher for Showing {
+            fn finish(&self) -> u64 {
+                0
+            }
+            fn write(&mut self, _: &[u8]) {
+                if self.1.is_none() {
+                    self.1 = Some(format!("{:?}", self.0));
+                }
+            }
+        }
+        for depth in [3, 100, 5_000] {
+            let (a, b) = (
+                wrapped(leaf(1), depth, 5, RoleSeg::FromA),
+                wrapped(leaf(2), depth, 5, RoleSeg::FromA),
+            );
+            let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                core::hash::Hash::hash(&a, &mut Panicking(0));
+            }));
+            assert!(panicked.is_err(), "the hasher panicked at depth {depth}");
+            assert!(
+                a != b && a.cmp(&b) == Ordering::Less,
+                "after the panic, at depth {depth}"
+            );
+            assert!(a.clone() == a, "a clone after the panic, at depth {depth}");
+            let other = wrapped(leaf(7), depth.min(50), 5, RoleSeg::FromA);
+            let whole = format!("{other:?}");
+            let mut showing = Showing(other, None);
+            core::hash::Hash::hash(&a, &mut showing);
+            assert_eq!(
+                showing.1,
+                Some(whole),
+                "a Debug inside a hash, at depth {depth}"
+            );
+        }
     }
 
     /// `inner` under `levels` wrappers of `seg`, each minted by `node`.
@@ -1539,6 +2291,85 @@ pub(super) mod tests {
         });
     }
 
+    /// **A rewrite and a collapse run each level once**, however many
+    /// names one level holds: a merged set of `WIDE` members, each a
+    /// survivor over a copy of a leaf, walked through every carried
+    /// name, and a union's merged face of `WIDE` members collapsed. A
+    /// level that stopped at each held name and was walked again from
+    /// its start would ask for `WIDE²/2` answers.
+    #[test]
+    fn a_rewrite_and_a_collapse_run_each_level_once() {
+        const WIDE: usize = 2_000;
+        let piece = |i: usize| {
+            named(
+                EntityKind::Face,
+                1,
+                vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+                    step: StepId(i as u64),
+                    role: PieceRole::Leg,
+                })],
+            )
+        };
+        let member = |i: usize| {
+            named(
+                EntityKind::Face,
+                2,
+                vec![RoleSeg::FromA(NameRef::new(named(
+                    EntityKind::Face,
+                    1,
+                    vec![RoleSeg::Instance {
+                        i: 0,
+                        of: NameRef::new(piece(i)),
+                    }],
+                )))],
+            )
+        };
+        let wide = named(
+            EntityKind::Face,
+            3,
+            vec![RoleSeg::Merged((0..WIDE).map(member).collect())],
+        );
+        let (steps, asked, levels) = counted(|| wide.piece_steps());
+        assert_eq!(steps.len(), WIDE, "every member's step");
+        assert_eq!(
+            levels,
+            3 * WIDE + 1,
+            "the set, each member, its copy and its leaf, once"
+        );
+        assert!(
+            asked <= 16 * WIDE,
+            "{asked} answers asked of {WIDE} members"
+        );
+
+        let union = RecipeNodeId(9);
+        let merged = named(
+            EntityKind::Face,
+            9,
+            vec![RoleSeg::Merged(
+                (0..WIDE)
+                    .map(|i| {
+                        named(
+                            EntityKind::Face,
+                            9,
+                            vec![RoleSeg::FromMember {
+                                member: RecipeNodeId(100 + i as u64),
+                                of: NameRef::new(leaf(4)),
+                            }],
+                        )
+                    })
+                    .collect(),
+            )],
+        );
+        let (collapsed, asked, levels) =
+            counted(|| super::super::collapse_name(union, &merged).expect("it collapses"));
+        assert_eq!(
+            collapsed, merged,
+            "a merged face of member faces collapses to itself"
+        );
+        assert_eq!(levels, WIDE + 1, "the set and each member, once");
+        assert!(asked <= 4 * WIDE, "{asked} answers asked of {WIDE} members");
+    }
+
     #[test]
     fn a_name_pattern_nested_past_every_stack_walks_on_the_smallest_stack() {
         use crate::names::{NamePat, SegPat};
@@ -1566,34 +2397,51 @@ pub(super) mod tests {
         });
     }
 
+    /// **A name's text is read, and refused, as the derived form reads
+    /// it**: the same value, or the same words at the same line and
+    /// column, for a text written by the door, by the pretty writer,
+    /// with its keys reordered and respelled, in the seq form, and for
+    /// every way a nested name can be malformed — a misspelled variant
+    /// or an unknown field in a name nested deep, an object with no
+    /// name's key or a string where a name belongs, a name's object
+    /// where some other value belongs, and a string holding a NUL.
     #[test]
-    fn a_nested_name_the_door_cannot_read_refuses_in_the_derived_words() {
-        let text = leaf(1).to_json().unwrap();
+    fn a_names_text_reads_and_refuses_as_the_derived_form_does() {
+        let deep = wrapped(leaf(1), 20, 3, RoleSeg::FromA);
+        let text = deep.to_json().unwrap();
+        let pretty = serde_json::to_string_pretty(&deep).unwrap();
         let wrap =
             |inner: &str| format!(r#"{{"kind":"Face","node":3,"path":[{{"FromA":{inner}}}]}}"#);
-        let refused = |t: &str| StableName::from_json(t).unwrap_err().to_string();
-        assert!(
-            refused(&wrap(&text.replace("\"Cap\"", "\"Cop\""))).contains("unknown variant `Cop`"),
-            "a nested name's own refusal"
-        );
-        assert!(
-            refused(&wrap("{}")).contains("missing field `kind`"),
-            "an object at a name's place with no name's key"
-        );
-        assert!(
-            refused(&wrap(r#"{"kind":"Face","node":1,"path":[],"x":0}"#))
-                .contains("unknown field `x`"),
-            "an unknown field in a nested name"
-        );
-        assert!(
-            refused(&wrap("\"\\u0000\"")).contains("NUL"),
-            "the hole's spelling in the text"
-        );
-        // Any key order and any spelling of a key reads the same name.
-        let reordered = r#"{"path":[{"FromA":{"path":[{"Cap":"End"}],"n\u006fde":1,"kind":"Face"}}],"node":3,"kind":"Face"}"#;
-        assert_eq!(
-            StableName::from_json(reordered).unwrap(),
-            StableName::from_json(&wrap(&text)).unwrap()
-        );
+        let leaf_text = leaf(1).to_json().unwrap();
+        let texts = [
+            text.clone(),
+            pretty.clone(),
+            text.replacen("\"Cap\"", "\"Cop\"", 1),
+            pretty.replacen("\"Cap\"", "\"Cop\"", 1),
+            text.replacen("\"path\":[{\"Cap\"", "\"x\":0,\"path\":[{\"Cap\"", 1),
+            pretty.replacen("\"node\": 1,", "\"node\": 1,\n\"y\": [1, 2],", 1),
+            wrap("{}"),
+            wrap("\"\\u0000\""),
+            wrap("\"\\u0000\\u00000\""),
+            wrap(r#"{"kind":"Face","node":1,"path":[],"x":0}"#),
+            wrap(&format!(
+                r#"{{"kind":"Face","node":1,"path":[{{"SectionFace":{leaf_text}}}]}}"#
+            )),
+            wrap(&format!(
+                r#"{{"kind":"Face","node":1,"path":[{{"Cap":{leaf_text}}}]}}"#
+            )),
+            wrap(r#"["Face",1,[{"Cap":"End"}]]"#),
+            wrap(r#"{"path":[{"Cap":"End"}],"n\u006fde":1,"kind":"Face"}"#),
+            wrap(r#"{"path":[{"Cap":"End"}],"node":1e999,"kind":"Face"}"#),
+        ];
+        for t in &texts {
+            let door = StableName::from_json(t).map(|n| format!("{n:?}"));
+            let derived = serde_json::from_str::<derived::StableName>(t).map(|n| format!("{n:?}"));
+            assert_eq!(
+                door.map_err(|e| e.to_string()),
+                derived.map_err(|e| e.to_string()),
+                "the door and the derived form on {t}"
+            );
+        }
     }
 }

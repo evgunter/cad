@@ -1,77 +1,236 @@
-//! **The save body's layout and the canonical bytes, made from compact
-//! JSON text without recursing.**
+//! **The one walk over JSON text**, and the passes built on it.
 //!
 //! A stable name nests one whole name per derivation level, with no
-//! bound, so a document's JSON nests as deep as its deepest name. The
-//! names write themselves one level at a time inside a JSON door
-//! (`names::json_door`); these two passes then give the text the
-//! layout each door publishes, each over a heap stack:
+//! bound, so a document's JSON nests as deep as its deepest name. Every
+//! pass that reads JSON as text rather than through serde reads it
+//! through [`tokens`], a flat walk that keeps no stack of its own:
 //!
+//! - the load door's nesting scan and its pruned copy
+//!   (`persist::nesting`);
+//! - the search for the names inside a name's text (`names::nest`);
 //! - [`pretty`]: serde_json's pretty layout (two-space indent, `": "`
 //!   between key and value, `[]` and `{}` for empty containers), byte
-//!   for byte what `to_string_pretty` writes;
+//!   for byte what `to_string_pretty` writes for every container that
+//!   opens within [`BODY_NESTING`] brackets; a container opening deeper
+//!   than that is written compact, whole;
 //! - [`canonical`]: every object's keys in sorted order and the root's
 //!   `id` removed, byte for byte what serde_json writes for the same
 //!   value read into a `serde_json::Value` (whose maps are sorted).
+//!
+//! # Why the layout goes compact past the nesting limit
+//!
+//! The pretty layout indents a line by its depth, so a name nested `d`
+//! brackets deep costs `O(d²)` bytes laid out: 42 MB for a name 1 024
+//! `InPart` levels deep. Only a stable name nests past
+//! [`BODY_NESTING`], and no body nested past it read back before names
+//! were read one level at a time, so a layout that stops indenting
+//! there changes no file an earlier build could load, and keeps a
+//! file's size linear in its depth.
 
-/// The byte index of the `"` closing the string token opening at
-/// `open`.
-fn string_end(bytes: &[u8], open: usize) -> usize {
-    let mut i = open + 1;
-    while let Some(&c) = bytes.get(i) {
-        match c {
-            b'\\' => i += 2,
-            b'"' => return i,
-            _ => i += 1,
-        }
+use super::nesting::BODY_NESTING;
+
+/// What a token of JSON text is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Tok {
+    /// `[` or `{`, the byte itself.
+    Open(u8),
+    /// `]` or `}`, the byte itself.
+    Close(u8),
+    /// A string that is an object's key: a `:` follows it.
+    Key,
+    /// Any other string.
+    Str,
+    /// A number or a literal.
+    Scalar,
+    /// `,`.
+    Comma,
+    /// `:`.
+    Colon,
+}
+
+/// One token of JSON text and the bytes it spans (`start..end`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Token {
+    pub(crate) tok: Tok,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+}
+
+/// **Every token of `text`, in order**, whitespace skipped. The walk is
+/// flat: it knows nothing of nesting, so it costs the stack nothing
+/// however deep the text nests. Malformed text still walks (a string
+/// left open runs to the end, a stray byte is a scalar); refusing it is
+/// the reader's job.
+pub(crate) fn tokens(text: &str) -> Tokens<'_> {
+    Tokens {
+        bytes: text.as_bytes(),
+        at: 0,
     }
-    bytes.len().saturating_sub(1)
+}
+
+/// The walk [`tokens`] returns.
+pub(crate) struct Tokens<'t> {
+    bytes: &'t [u8],
+    at: usize,
+}
+
+fn is_space(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\n' | b'\r')
+}
+
+impl Iterator for Tokens<'_> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Token> {
+        while self.bytes.get(self.at).is_some_and(|&b| is_space(b)) {
+            self.at += 1;
+        }
+        let start = self.at;
+        let byte = *self.bytes.get(start)?;
+        let (tok, end) = match byte {
+            b'"' => {
+                let mut i = start + 1;
+                while let Some(&c) = self.bytes.get(i) {
+                    match c {
+                        b'\\' => i += 2,
+                        b'"' => break,
+                        _ => i += 1,
+                    }
+                }
+                let end = (i + 1).min(self.bytes.len());
+                let mut after = end;
+                while self.bytes.get(after).is_some_and(|&b| is_space(b)) {
+                    after += 1;
+                }
+                let tok = if self.bytes.get(after) == Some(&b':') {
+                    Tok::Key
+                } else {
+                    Tok::Str
+                };
+                (tok, end)
+            }
+            b'[' | b'{' => (Tok::Open(byte), start + 1),
+            b']' | b'}' => (Tok::Close(byte), start + 1),
+            b',' => (Tok::Comma, start + 1),
+            b':' => (Tok::Colon, start + 1),
+            _ => {
+                let mut i = start + 1;
+                while self
+                    .bytes
+                    .get(i)
+                    .is_some_and(|&c| !is_space(c) && !matches!(c, b',' | b':' | b']' | b'}'))
+                {
+                    i += 1;
+                }
+                (Tok::Scalar, i)
+            }
+        };
+        self.at = end;
+        Some(Token { tok, start, end })
+    }
+}
+
+/// The key a [`Tok::Key`] token spells, its escapes read.
+///
+/// # Errors
+///
+/// A key whose escapes do not read as a string.
+pub(crate) fn key<'t>(
+    text: &'t str,
+    token: Token,
+) -> Result<std::borrow::Cow<'t, str>, serde_json::Error> {
+    let spelled = text.get(token.start..token.end).unwrap_or("");
+    if spelled.contains('\\') {
+        serde_json::from_str::<String>(spelled).map(std::borrow::Cow::Owned)
+    } else {
+        Ok(std::borrow::Cow::Borrowed(
+            spelled
+                .strip_prefix('"')
+                .and_then(|s| s.strip_suffix('"'))
+                .unwrap_or(spelled),
+        ))
+    }
+}
+
+/// Where serde_json's reader stood at `line` and `column` of `text`:
+/// the byte offset of that cursor (serde_json counts lines from 1 and
+/// columns as the bytes read on the line).
+pub(crate) fn cursor(text: &str, line: usize, column: usize) -> usize {
+    let start = if line <= 1 {
+        0
+    } else {
+        text.bytes()
+            .enumerate()
+            .filter(|&(_, b)| b == b'\n')
+            .nth(line - 2)
+            .map_or(text.len(), |(at, _)| at + 1)
+    };
+    (start + column).min(text.len())
+}
+
+/// [`cursor`]'s inverse: the line and column serde_json's reader
+/// reports when it stands at byte `at` of `text`.
+pub(crate) fn place(text: &str, at: usize) -> (usize, usize) {
+    let before = text.get(..at).unwrap_or(text);
+    let line = 1 + before.bytes().filter(|&b| b == b'\n').count();
+    let start = before.rfind('\n').map_or(0, |nl| nl + 1);
+    (line, at - start)
 }
 
 /// `compact` laid out as serde_json's pretty writer lays out the same
-/// value.
+/// value, every container that opens past [`BODY_NESTING`] brackets
+/// written compact (module docs).
 pub(super) fn pretty(compact: &str) -> String {
-    let bytes = compact.as_bytes();
     let mut out = String::with_capacity(compact.len() * 2);
-    let mut depth = 0usize;
     let newline = |out: &mut String, depth: usize| {
         out.push('\n');
         for _ in 0..depth {
             out.push_str("  ");
         }
     };
-    let mut i = 0;
-    while let Some(&b) = bytes.get(i) {
-        match b {
-            b'"' => {
-                let end = string_end(bytes, i);
-                out.push_str(compact.get(i..=end).unwrap_or(""));
-                i = end;
-            }
-            b'[' | b'{' => {
-                let close = if b == b'[' { b']' } else { b'}' };
-                out.push(char::from(b));
-                if bytes.get(i + 1) == Some(&close) {
+    let mut depth = 0usize;
+    // The depth of the container a compact run opened at, while one is
+    // open.
+    let mut compact_at: Option<usize> = None;
+    let mut walk = tokens(compact).peekable();
+    while let Some(t) = walk.next() {
+        match t.tok {
+            Tok::Open(open) => {
+                out.push(char::from(open));
+                let close = if open == b'[' { b']' } else { b'}' };
+                if walk.next_if(|n| n.tok == Tok::Close(close)).is_some() {
                     out.push(char::from(close));
-                    i += 1;
-                } else {
-                    depth += 1;
+                    continue;
+                }
+                depth += 1;
+                if compact_at.is_none() && depth > BODY_NESTING {
+                    compact_at = Some(depth);
+                }
+                if compact_at.is_none() {
                     newline(&mut out, depth);
                 }
             }
-            b']' | b'}' => {
+            Tok::Close(close) => {
+                if compact_at.is_none() {
+                    newline(&mut out, depth.saturating_sub(1));
+                }
+                if compact_at == Some(depth) {
+                    compact_at = None;
+                }
                 depth = depth.saturating_sub(1);
-                newline(&mut out, depth);
-                out.push(char::from(b));
+                out.push(char::from(close));
             }
-            b',' => {
+            Tok::Comma => {
                 out.push(',');
-                newline(&mut out, depth);
+                if compact_at.is_none() {
+                    newline(&mut out, depth);
+                }
             }
-            b':' => out.push_str(": "),
-            _ => out.push(char::from(b)),
+            Tok::Colon => out.push_str(if compact_at.is_none() { ": " } else { ":" }),
+            Tok::Key | Tok::Str | Tok::Scalar => {
+                out.push_str(compact.get(t.start..t.end).unwrap_or(""));
+            }
         }
-        i += 1;
     }
     out
 }
@@ -94,67 +253,42 @@ enum Node {
 /// The root is not an object, or holds no `id`: the document did not
 /// write the shape this build writes.
 pub(super) fn canonical(compact: &str) -> Result<String, &'static str> {
-    let bytes = compact.as_bytes();
     let mut nodes: Vec<Node> = Vec::new();
     // The open containers, and for an object the key its next value
     // belongs under.
     let mut open: Vec<usize> = Vec::new();
-    let mut key: Option<((usize, usize), String)> = None;
-    let mut i = 0;
-    while let Some(&b) = bytes.get(i) {
-        let made = match b {
-            b'"' => {
-                let end = string_end(bytes, i);
-                let token = compact.get(i..=end).unwrap_or("");
-                let is_key = bytes.get(end + 1) == Some(&b':');
-                if is_key {
-                    let read = if token.contains('\\') {
-                        serde_json::from_str::<String>(token).map_err(|_| KEY)?
-                    } else {
-                        token.trim_matches('"').to_owned()
-                    };
-                    key = Some(((i, end + 1), read));
-                    i = end + 1;
-                    continue;
-                }
-                let node = nodes.len();
-                nodes.push(Node::Scalar(i, end + 1));
-                i = end;
-                Some(node)
+    let mut pending: Option<((usize, usize), String)> = None;
+    for t in tokens(compact) {
+        let made = match t.tok {
+            Tok::Key => {
+                let read = key(compact, t).map_err(|_| KEY)?;
+                pending = Some(((t.start, t.end), read.into_owned()));
+                None
             }
-            b'[' | b'{' => {
+            Tok::Str | Tok::Scalar => {
+                nodes.push(Node::Scalar(t.start, t.end));
+                Some(nodes.len() - 1)
+            }
+            Tok::Open(b) => {
                 let node = nodes.len();
                 nodes.push(if b == b'[' {
                     Node::Array(Vec::new())
                 } else {
                     Node::Object(Vec::new())
                 });
-                attach(&mut nodes, &open, &mut key, node);
+                attach(&mut nodes, &open, &mut pending, node);
                 open.push(node);
                 None
             }
-            b']' | b'}' => {
+            Tok::Close(_) => {
                 open.pop();
                 None
             }
-            b',' | b':' => None,
-            _ => {
-                let start = i;
-                while bytes
-                    .get(i + 1)
-                    .is_some_and(|c| !matches!(c, b',' | b']' | b'}'))
-                {
-                    i += 1;
-                }
-                let node = nodes.len();
-                nodes.push(Node::Scalar(start, i + 1));
-                Some(node)
-            }
+            Tok::Comma | Tok::Colon => None,
         };
         if let Some(node) = made {
-            attach(&mut nodes, &open, &mut key, node);
+            attach(&mut nodes, &open, &mut pending, node);
         }
-        i += 1;
     }
     let Some(Node::Object(root)) = nodes.first_mut() else {
         return Err("the document did not serialize as an object");

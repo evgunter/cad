@@ -2747,17 +2747,12 @@ mod walk_tests {
     #[test]
     fn a_walk_over_a_name_nested_past_every_stack_runs_on_the_smallest_stack() {
         const DEEP: u64 = 20_000;
-        let seen = std::thread::Builder::new()
-            .stack_size(1 << 20)
-            .spawn(|| {
-                let name = (2..DEEP + 2).fold(leaf(1), over);
-                let mut seen = 0usize;
-                walk_names(&name, Partners::Include, &mut |_| seen += 1);
-                seen
-            })
-            .expect("the thread starts")
-            .join()
-            .expect("the walk returns");
+        let seen = test_utils::own_thread::on_the_smallest_stack(|| {
+            let name = (2..DEEP + 2).fold(leaf(1), over);
+            let mut seen = 0usize;
+            walk_names(&name, Partners::Include, &mut |_| seen += 1);
+            seen
+        });
         assert_eq!(seen, 2 * DEEP as usize, "every level's operand and partner");
     }
 }

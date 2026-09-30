@@ -406,28 +406,23 @@ mod tests {
     #[test]
     fn a_disagreement_over_a_name_nested_past_every_stack_renders_on_the_smallest_stack() {
         const DEEP: usize = 20_000;
-        let shown = std::thread::Builder::new()
-            .stack_size(1 << 20)
-            .spawn(|| {
-                let leaf = StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId(1),
-                    path: vec![RoleSeg::Cap(CapEnd::End)],
-                };
-                let deep = (0..DEEP).fold(leaf, |n, _| StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId(2),
-                    path: vec![RoleSeg::FromA(NameRef::new(n))],
-                });
-                Disagreement {
-                    from_gpu: IdAnswer::Named(deep.clone()),
-                    from_ray: vec![deep],
-                }
-                .to_string()
-            })
-            .expect("the thread starts")
-            .join()
-            .expect("the rendering returns");
+        let shown = test_utils::own_thread::on_the_smallest_stack(|| {
+            let leaf = StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            };
+            let deep = (0..DEEP).fold(leaf, |n, _| StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(2),
+                path: vec![RoleSeg::FromA(NameRef::new(n))],
+            });
+            Disagreement {
+                from_gpu: IdAnswer::Named(deep.clone()),
+                from_ray: vec![deep],
+            }
+            .to_string()
+        });
         assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
         assert_eq!(shown.matches("face name minted by node 2").count(), 2);
     }

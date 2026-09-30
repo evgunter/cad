@@ -59,11 +59,11 @@ use geom_core::Tol;
 /// (unreachable short of a serde-impl bug; surfaced, not swallowed).
 pub fn canonical_bytes(doc: &ProfileDoc, tol: Tol) -> Result<Vec<u8>, PersistError> {
     check::validate_document(doc, &[], tol)?;
-    // Written compact inside the JSON door, so a stable name of any
+    // Written compact inside the writing door, so a stable name of any
     // depth writes one level at a time (`names::nest`), then put in
     // canonical order over a heap stack: the bytes serde_json writes
     // for the same value read into a sorted `serde_json::Value`.
-    let json = crate::names::json_door(|| serde_json::to_string(doc)).map_err(|e| {
+    let json = crate::names::write_door(|| serde_json::to_string(doc)).map_err(|e| {
         PersistError::Serialize {
             message: e.to_string(),
         }

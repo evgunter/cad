@@ -6490,9 +6490,7 @@ mod name_feed_tests {
 
     use super::memo::ContentKey;
     use super::{Fed, KeyHasher, SegFeed, feed_role_seg, feed_stable_name};
-    use crate::names::{
-        CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName,
-    };
+    use crate::names::{CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
     use crate::node::RecipeNodeId;
 
     fn key(name: &StableName) -> ContentKey {
@@ -6576,16 +6574,11 @@ mod name_feed_tests {
 
     #[test]
     fn a_name_nested_past_every_stack_keys_on_the_smallest_stack() {
-        std::thread::Builder::new()
-            .stack_size(1 << 20)
-            .spawn(|| {
-                let deep = |bottom| (0..20_000).fold(leaf(bottom), wrap);
-                let (a, again, b) = (deep(1), deep(1), deep(2));
-                assert_eq!(key(&a), key(&again), "one name, one key");
-                assert_ne!(key(&a), key(&b), "a difference at the bottom moves the key");
-            })
-            .expect("the thread starts")
-            .join()
-            .expect("the feed returns");
+        test_utils::own_thread::on_the_smallest_stack(|| {
+            let deep = |bottom| (0..20_000).fold(leaf(bottom), wrap);
+            let (a, again, b) = (deep(1), deep(1), deep(2));
+            assert_eq!(key(&a), key(&again), "one name, one key");
+            assert_ne!(key(&a), key(&b), "a difference at the bottom moves the key");
+        });
     }
 }

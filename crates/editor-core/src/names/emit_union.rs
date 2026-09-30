@@ -121,6 +121,7 @@ use crate::names::emit_topo::{
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
+use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
     Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, StableName,
     never_in_a_boolean_table,
@@ -1732,78 +1733,37 @@ use super::merged::NESTED_MERGED;
 /// canonical before the path holding it is ordered.
 ///
 /// A fold name nests one level per fold step, so the collapse keeps
-/// its own stack: every held name a collapse reads is collapsed first
-/// ([`held_collapses`]), once, and kept by its address; a collapse that
-/// reads one not yet kept stops and is run again after it
-/// ([`Step::Needs`]).
+/// its own stack (`names::nest::descend`): every held name a collapse
+/// reads is collapsed first ([`held_collapses`]), once, and kept by its
+/// address.
 fn collapse(node: RecipeNodeId, root: &StableName) -> Result<StableName, NamingError> {
-    let unreached = || NamingError::Emission { what: UNREACHED };
-    let mut done = Collapsed(BTreeMap::new());
-    let mut stack: Vec<(&StableName, bool)> = vec![(root, false)];
-    while let Some(top) = stack.last_mut() {
-        let (name, gathered) = *top;
-        if done.0.contains_key(&address(name)) {
-            stack.pop();
-            continue;
-        }
-        if !gathered {
-            top.1 = true;
-            let first: Vec<&StableName> = held_collapses(name)
-                .into_iter()
-                .filter(|n| !done.0.contains_key(&address(n)))
-                .collect();
-            if !first.is_empty() {
-                stack.extend(first.into_iter().rev().map(|n| (n, false)));
-                continue;
-            }
-        }
-        match collapse_one(node, name, &done) {
-            Ok(collapsed) => {
-                done.0.insert(address(name), NameRef::new(collapsed));
-                stack.pop();
-            }
-            Err(Step::Refused(e)) => return Err(e),
-            Err(Step::Needs(at)) => stack.push((find_held(name, at).ok_or_else(unreached)?, false)),
-        }
+    descend(root, &mut Collapse(node))
+}
+
+/// [`collapse`] as a [`Descent`]: a level is one fold name collapsed,
+/// kept for the levels above it behind a handle.
+struct Collapse(RecipeNodeId);
+
+impl<'s> Descent<'s> for Collapse {
+    type Level = StableName;
+    type Kept = NameRef;
+    type Error = NamingError;
+
+    fn first(&mut self, name: &'s StableName, _: &Kept<NameRef>, out: &mut Vec<&'s StableName>) {
+        out.extend(held_collapses(name));
     }
-    done.0
-        .remove(&address(root))
-        .map(|r| r.name().clone())
-        .ok_or_else(unreached)
-}
 
-/// A collapse asked for a name it does not hold: a defect of this
-/// module.
-const UNREACHED: &str = "a union's collapse asked for a name the collapsed name does not hold";
-
-/// The collapses [`collapse`] has finished, by the address of the fold
-/// name each is the collapse of.
-struct Collapsed(BTreeMap<usize, NameRef>);
-
-impl Collapsed {
-    fn get(&self, name: &StableName) -> Result<NameRef, Step> {
-        self.0
-            .get(&address(name))
-            .cloned()
-            .ok_or(Step::Needs(address(name)))
+    fn level(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<NameRef>,
+    ) -> Result<StableName, Stopped<'s, NamingError>> {
+        collapse_one(self.0, name, kept)
     }
-}
 
-/// Why one collapse did not finish.
-enum Step {
-    Refused(NamingError),
-    /// The name at this address is to be collapsed first.
-    Needs(usize),
-}
-
-impl From<NamingError> for Step {
-    fn from(e: NamingError) -> Self {
-        Step::Refused(e)
+    fn keep(&mut self, _: &'s StableName, collapsed: StableName) -> Result<NameRef, NamingError> {
+        Ok(NameRef::new(collapsed))
     }
-}
-
-fn address(name: &StableName) -> usize {
-    core::ptr::from_ref(name) as usize
 }
 
 /// The held names `name`'s collapse reads: the seam sides and merged
@@ -1838,30 +1798,17 @@ fn held_collapses(name: &StableName) -> Vec<&StableName> {
     out
 }
 
-/// The name held somewhere under `root` at address `at`.
-fn find_held(root: &StableName, at: usize) -> Option<&StableName> {
-    let mut names = Vec::new();
-    root.each_held(&mut |h| names.push(h.name()));
-    while let Some(n) = names.pop() {
-        if address(n) == at {
-            return Some(n);
-        }
-        n.each_held(&mut |h| names.push(h.name()));
-    }
-    None
-}
-
 /// One fold name collapsed, every held name it reads read from `done`.
-fn collapse_one(
+fn collapse_one<'s>(
     node: RecipeNodeId,
-    name: &StableName,
-    done: &Collapsed,
-) -> Result<StableName, Step> {
+    name: &'s StableName,
+    done: &Kept<NameRef>,
+) -> Result<StableName, Stopped<'s, NamingError>> {
     let oriented = orient(node, name, done)?;
-    let mut image = |n: &StableName| done.get(n).map(|r| r.name().clone());
+    let mut image = |n: &'s StableName| done.need(n).map(|r| r.name().clone());
     let name = canonical::collapsed(name, oriented, &mut image).map_err(|stop| match stop {
-        Stop::Image(step) => step,
-        Stop::Unrankable(u) => Step::Refused(NamingError::Emission { what: u.what() }),
+        Stop::Image(stopped) => stopped,
+        Stop::Unrankable(u) => Stopped::Refused(NamingError::Emission { what: u.what() }),
     })?;
     // The junction's run is NOT deduplicated, unlike a `Merged` set.
     // The pair emitter deduplicates the lines before it mints, so the
@@ -1894,8 +1841,12 @@ fn collapse_one(
 /// The descent is a loop: the tails of the levels it passes through
 /// are kept, and put after the foot's path innermost first, which is
 /// the order a descent level by level would write them in.
-fn orient(node: RecipeNodeId, name: &StableName, done: &Collapsed) -> Result<StableName, Step> {
-    let bug = |what| Step::Refused(NamingError::Emission { what });
+fn orient<'s>(
+    node: RecipeNodeId,
+    name: &'s StableName,
+    done: &Kept<NameRef>,
+) -> Result<StableName, Stopped<'s, NamingError>> {
+    let bug = |what| Stopped::Refused(NamingError::Emission { what });
     let mut tails: Vec<&[RoleSeg]> = Vec::new();
     let mut at = name;
     let (mut path, foot_tail) = loop {
@@ -1981,7 +1932,7 @@ fn orient(node: RecipeNodeId, name: &StableName, done: &Collapsed) -> Result<Sta
             RoleSeg::Merged(constituents) => {
                 let mut set = Vec::with_capacity(constituents.len());
                 for c in constituents {
-                    let c = done.get(c)?.name().clone();
+                    let c = done.need(c)?.name().clone();
                     if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
                         return Err(bug(NESTED_MERGED));
                     }
@@ -2011,8 +1962,8 @@ fn orient(node: RecipeNodeId, name: &StableName, done: &Collapsed) -> Result<Sta
             RoleSeg::Fragment(Qualifier::Borders(walls)) => RoleSeg::Fragment(Qualifier::Borders(
                 walls
                     .iter()
-                    .map(|n| Ok(done.get(n)?.name().clone()))
-                    .collect::<Result<Vec<_>, Step>>()?,
+                    .map(|n| Ok(done.need(n)?.name().clone()))
+                    .collect::<Result<Vec<_>, Stopped<'s, NamingError>>>()?,
             )),
             // The rank is a place along the fold's direction; the
             // canonicalization re-reads it.
@@ -2053,10 +2004,14 @@ fn orient(node: RecipeNodeId, name: &StableName, done: &Collapsed) -> Result<Sta
 /// name order: a union is commutative, so "which side" would record
 /// only which of the two members the fold reached first, which is the
 /// position this node exists not to record.
-fn seam_line(a: &StableName, b: &StableName, done: &Collapsed) -> Result<RoleSeg, Step> {
+fn seam_line<'s>(
+    a: &'s StableName,
+    b: &'s StableName,
+    done: &Kept<NameRef>,
+) -> Result<RoleSeg, Stopped<'s, NamingError>> {
     Ok(RoleSeg::Seam {
-        a: done.get(a)?,
-        b: done.get(b)?,
+        a: done.need(a)?.clone(),
+        b: done.need(b)?.clone(),
     })
 }
 

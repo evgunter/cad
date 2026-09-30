@@ -41,6 +41,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use super::canonical;
+use super::nest::{Descent, Kept, Stopped, descend};
 use crate::node::{RecipeNodeId, StepId};
 
 /// **The handle a role segment holds its argument [`StableName`] by**:
@@ -515,8 +516,9 @@ impl<'de> serde::Deserialize<'de> for FaceName {
 /// A name nests whole names inside its segments, as deep as its
 /// derivation runs, so its `Drop`, `Clone`, `Debug`, `PartialEq`,
 /// `Hash`, `Ord` and serde impls are written by hand, one level at a
-/// time (`names::nest`): each is the derived impl's answer, and none
-/// recurses on the nesting.
+/// time (`names::nest`), and none recurses on the nesting. `Clone`,
+/// `PartialEq`, `Ord`, serde and `Debug` under `{:?}` and `{:#?}` give
+/// the derived impls' answers; `Hash` is consistent with `Eq`.
 pub struct StableName {
     /// The entity kind this name denotes (N1's `K`, runtime-tagged —
     /// module docs).
@@ -1646,50 +1648,94 @@ pub(crate) enum Carry {
     Descend,
 }
 
-/// Why one level of a rewrite stopped: the rewriter refused, or a
-/// carried name it descends into has not been descended yet.
-enum Stopped<'s, E> {
-    Refused(E),
-    Needs(&'s StableName),
-}
-
 /// A rewriter, with the answers for the carried names already
-/// descended (by address).
-struct Deep<'d, W: SegRewrite> {
+/// descended.
+struct Deep<'d, 's, W: SegRewrite> {
     w: &'d mut W,
-    done: &'d std::collections::BTreeMap<usize, Option<StableName>>,
+    kept: &'d Kept<Option<StableName>>,
+    /// While a level lists the names it descends into first
+    /// ([`Descent::first`]): a carried name not descended yet is listed
+    /// and left as it is, and the walk goes on.
+    listing: Option<&'d mut Vec<&'s StableName>>,
 }
 
-fn address(name: &StableName) -> usize {
-    core::ptr::from_ref(name) as usize
-}
-
-impl<W: SegRewrite> Deep<'_, W> {
+impl<'s, W: SegRewrite> Deep<'_, 's, W> {
     /// `n` through the rewriter: `None` where it is kept.
-    fn carried<'s>(
-        &mut self,
-        n: &'s StableName,
-    ) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+    fn carried(&mut self, n: &'s StableName) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
         match self.w.name(n).map_err(Stopped::Refused)? {
             Carry::Keep => Ok(None),
             Carry::Replace(next) => Ok(Some(next)),
-            Carry::Descend => self.done.get(&address(n)).cloned().ok_or(Stopped::Needs(n)),
+            Carry::Descend => match (self.kept.get(n), &mut self.listing) {
+                (Some(answer), _) => Ok(answer.clone()),
+                (None, Some(listed)) => {
+                    listed.push(n);
+                    Ok(None)
+                }
+                (None, None) => Err(Stopped::Needs(n)),
+            },
         }
     }
 
-    fn edge<'s>(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Stopped<'s, W::Error>> {
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Stopped<'s, W::Error>> {
         self.w.edge(e).map_err(Stopped::Refused)
     }
 
-    fn vertex<'s>(
-        &mut self,
-        v: ProfileVertexRef,
-    ) -> Result<ProfileVertexRef, Stopped<'s, W::Error>> {
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Stopped<'s, W::Error>> {
         self.w.vertex(v).map_err(Stopped::Refused)
     }
 
-    fn member<'s>(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Stopped<'s, W::Error>> {
+    fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Stopped<'s, W::Error>> {
         self.w.member(m).map_err(Stopped::Refused)
+    }
+}
+
+/// [`StableName::rewrite_path`] as a [`Descent`]: a level is its path
+/// rebuilt through the rewriter, and a carried name it descends into is
+/// kept as [`SegRewrite::descended`] answers it.
+struct Rewriting<'w, W>(&'w mut W);
+
+impl<'s, W: SegRewrite> Descent<'s> for Rewriting<'_, W> {
+    type Level = StableName;
+    type Kept = Option<StableName>;
+    type Error = W::Error;
+
+    /// The level walked as far as the rewriter lets it, every carried
+    /// name it descends into listed in the order the walk meets it. A
+    /// refusal ends the list: the level's own run meets it again after
+    /// the names listed before it are descended, which is where a walk
+    /// that recursed would have met it.
+    fn first(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<Option<StableName>>,
+        out: &mut Vec<&'s StableName>,
+    ) {
+        let listed = name.walk(&mut Deep {
+            w: self.0,
+            kept,
+            listing: Some(out),
+        });
+        drop(listed);
+    }
+
+    fn level(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<Option<StableName>>,
+    ) -> Result<StableName, Stopped<'s, W::Error>> {
+        name.walk(&mut Deep {
+            w: self.0,
+            kept,
+            listing: None,
+        })
+    }
+
+    fn keep(
+        &mut self,
+        name: &'s StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, W::Error> {
+        self.0.descended(name, walked)
     }
 }
 
@@ -1697,7 +1743,7 @@ impl<W: SegRewrite> Deep<'_, W> {
 /// rewriter leaves it.
 fn rewrite_ref<'s, W: SegRewrite>(
     n: &'s NameRef,
-    w: &mut Deep<'_, W>,
+    w: &mut Deep<'_, 's, W>,
 ) -> Result<NameRef, Stopped<'s, W::Error>> {
     Ok(match w.carried(n.name())? {
         Some(next) => NameRef::new(next),
@@ -1710,7 +1756,7 @@ fn rewrite_ref<'s, W: SegRewrite>(
 /// to restore, not this walk's.
 fn rewrite_set<'s, W: SegRewrite>(
     v: &'s [StableName],
-    w: &mut Deep<'_, W>,
+    w: &mut Deep<'_, 's, W>,
 ) -> Result<Vec<StableName>, Stopped<'s, W::Error>> {
     v.iter()
         .map(|n| Ok(w.carried(n)?.unwrap_or_else(|| n.clone())))
@@ -1748,7 +1794,7 @@ impl RoleSeg {
     #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
     fn rewrite<'s, W: SegRewrite>(
         &'s self,
-        w: &mut Deep<'_, W>,
+        w: &mut Deep<'_, 's, W>,
     ) -> Result<RoleSeg, Stopped<'s, W::Error>> {
         use RoleSeg as R;
         Ok(match self {
@@ -1871,51 +1917,42 @@ impl StableName {
     /// A carried name `w` descends into ([`Carry::Descend`]) is
     /// rewritten the same way, and a name nests as deep as its
     /// derivation, so the walk keeps the names it is descending on its
-    /// own stack: a level that meets a carried name not yet descended
-    /// stops, the name is descended, and the level is walked again,
-    /// every name already descended answered from what was kept. A
-    /// rewriter is asked the same questions again on a level walked
-    /// again, so what it answers must be a function of the question.
+    /// own stack (`names::nest::descend`): a level first lists the
+    /// carried names it descends into, each is descended, and the level
+    /// is then walked once, every name already descended answered from
+    /// what was kept. A rewriter is asked the same questions twice on a
+    /// level, so what it answers must be a function of the question.
     ///
     /// # Errors
     ///
     /// Whatever `w` refuses, at the first thing it refuses.
     pub(crate) fn rewrite_path<W: SegRewrite>(self, w: &mut W) -> Result<StableName, W::Error> {
-        let mut done = std::collections::BTreeMap::new();
-        let mut descending: Vec<&StableName> = vec![&self];
-        while let Some(&top) = descending.last() {
-            match top.walk(&mut Deep { w, done: &done }) {
-                Ok(walked) if descending.len() == 1 => return Ok(walked),
-                Ok(walked) => {
-                    descending.pop();
-                    let answer = w.descended(top, walked)?;
-                    done.insert(address(top), answer);
-                }
-                Err(Stopped::Refused(e)) => return Err(e),
-                Err(Stopped::Needs(held)) => descending.push(held),
-            }
-        }
-        // The loop returns from its last level; an empty stack is not
-        // reachable, and the name as it was is the rewrite of nothing.
-        Ok(self.clone())
+        descend(&self, &mut Rewriting(w))
     }
 
     /// One level of [`StableName::rewrite_path`]: this name's path
-    /// rebuilt through `w`, in canonical form.
+    /// rebuilt through `w`, in canonical form. While the level only
+    /// lists what it descends into, the canonical form is left out: it
+    /// asks after the path, and a name it asks for that the path did not
+    /// list stops the level's own run instead.
     fn walk<'s, W: SegRewrite>(
         &'s self,
-        w: &mut Deep<'_, W>,
+        w: &mut Deep<'_, 's, W>,
     ) -> Result<StableName, Stopped<'s, W::Error>> {
         let path = self
             .path
             .iter()
             .map(|seg| seg.rewrite(w))
             .collect::<Result<_, _>>()?;
+        let StableName { kind, node, .. } = self;
         let now = StableName {
-            kind: self.kind,
-            node: self.node,
+            kind: *kind,
+            node: *node,
             path,
         };
+        if w.listing.is_some() {
+            return Ok(now);
+        }
         canonical::rewritten(self, now, &mut |n| {
             Ok(w.carried(n)?.unwrap_or_else(|| n.clone()))
         })

@@ -556,7 +556,13 @@ fn all_match<'a>(mut pending: Vec<(&'a NamePat, &'a StableName)>) -> bool {
 /// A pattern nests one whole pattern per argument it constrains, as
 /// deep as its author builds it, so its `Drop`, `Clone`, `PartialEq`,
 /// `Debug` and [`NamePat::matches`] are written one level at a time
-/// and none recurses on the nesting (`names::nest`).
+/// and none recurses on the nesting. `Clone`, `PartialEq` and `Debug`
+/// are the walks a [`StableName`] runs (`names::nest`'s `copy_nested`,
+/// `eq_nested` and `render_nested`). `Drop` and `matches` are their
+/// own: a pattern owns every pattern it holds, where a name shares what
+/// it holds through handles and asks each whether it is the last
+/// holder, and matching walks a pattern and a name in step, which no
+/// walk over a name alone does.
 #[derive(Default)]
 pub struct NamePat {
     /// If set, the name's entity kind must be exactly this.
@@ -661,65 +667,46 @@ impl Drop for NamePat {
 
 impl Clone for NamePat {
     fn clone(&self) -> Self {
-        // Depth first from this walk's own stack, each pattern copied
-        // once the patterns it holds are: those copies are then the
-        // last ones made, in order.
-        let mut stack: Vec<(&NamePat, bool)> = vec![(self, false)];
-        let mut done: Vec<NamePat> = Vec::new();
-        while let Some((pat, held_done)) = stack.pop() {
-            let segs = pat.path.as_deref().unwrap_or_default();
-            if !held_done {
-                stack.push((pat, true));
-                for s in segs.iter().rev() {
-                    stack.extend(s.args.iter().rev().map(|p| (p, false)));
-                }
-                continue;
+        super::nest::copy_nested(self, NamePat::held, |pat, copies| {
+            let NamePat { kind, node, path } = pat;
+            NamePat {
+                kind: *kind,
+                node: *node,
+                path: path.as_ref().map(|segs| {
+                    segs.iter()
+                        .map(|seg| {
+                            let SegPat { tag, side, args } = seg;
+                            SegPat {
+                                tag: *tag,
+                                side: *side,
+                                args: copies.take(args.len()).collect(),
+                            }
+                        })
+                        .collect()
+                }),
             }
-            let held: usize = segs.iter().map(|s| s.args.len()).sum();
-            let first = done.len().saturating_sub(held);
-            let mut copies = done.drain(first..);
-            let path = pat.path.as_ref().map(|segs| {
-                segs.iter()
-                    .map(|s| SegPat {
-                        tag: s.tag,
-                        side: s.side,
-                        args: copies.by_ref().take(s.args.len()).collect(),
-                    })
-                    .collect()
-            });
-            drop(copies);
-            done.push(NamePat {
-                kind: pat.kind,
-                node: pat.node,
-                path,
-            });
-        }
-        done.pop().unwrap_or_default()
+        })
     }
 }
 
 impl PartialEq for NamePat {
     fn eq(&self, other: &Self) -> bool {
-        use super::nest::{Family, Shallow, Walk, shallow};
+        use super::nest::{Family, Walk, eq_nested, shallow};
         if shallow(Walk::Eq, Family::Pattern) {
             return true;
         }
-        let _shallow = Shallow::enter(Walk::Eq, Family::Pattern);
-        let mut pairs = vec![(self, other)];
-        while let Some((a, b)) = pairs.pop() {
-            // Held patterns compare equal here, and are compared next.
+        // Every field is bound, so a field added to the pattern is an
+        // E0027 here until equality says what it does with it.
+        let same = |a: &NamePat, b: &NamePat| {
             let NamePat { kind, node, path } = a;
             let NamePat {
                 kind: b_kind,
                 node: b_node,
                 path: b_path,
             } = b;
-            if kind != b_kind || node != b_node || path != b_path {
-                return false;
-            }
-            pairs.extend(a.held().into_iter().zip(b.held()));
-        }
-        true
+            kind == b_kind && node == b_node && path == b_path
+        };
+        eq_nested(Family::Pattern, self, other, same, NamePat::held)
     }
 }
 

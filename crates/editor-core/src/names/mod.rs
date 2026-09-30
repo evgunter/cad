@@ -39,6 +39,8 @@ pub(crate) mod interrogate;
 mod least_root;
 pub(crate) mod merged;
 mod nest;
+#[cfg(test)]
+mod nest_reference;
 mod role;
 mod seam_pair;
 mod select;
@@ -76,7 +78,8 @@ pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
     face_frame, vertex_position,
 };
-pub(crate) use nest::json_door;
+pub use nest::NameTextError;
+pub(crate) use nest::{read_door, write_door};
 pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
 pub use role::{
