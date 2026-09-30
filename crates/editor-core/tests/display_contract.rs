@@ -1280,7 +1280,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::MintLogOrder {
                 entry: editor_core::Minted::Step(StepId(6)),
             },
-            vec!["not strictly ascending at id 6", "which no mint writes"],
+            vec![
+                "not strictly ascending at id 6",
+                "which no mint writes",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ],
         ),
         (
             SnapshotError::NameStepNotMinted {

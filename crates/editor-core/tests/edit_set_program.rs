@@ -1169,6 +1169,53 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     }
 }
 
+/// **An insert whose draw the log already holds refuses**, typed as
+/// `NodeIdCollides`, and moves nothing. An honest log cannot reach it
+/// short of a 64-bit digest collision, so the log is doctored: the id
+/// the next insert would mint is written into it under a step's tag,
+/// which the load door admits (the log keeps dropped steps' ids), and
+/// one log means the tag does not let the draw through. The refusal
+/// ends as every mint-log fault does, a damaged file or a defect.
+#[test]
+fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
+    let doc = ProfileDoc::empty_derived("node-id-collides", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let next = Node::Profile(fixture::desc(plane, vec![fixture::square(0.0, 0.0, 1.0)]));
+    let (_, drawn) = insert(doc.clone(), next.clone());
+    let text = save(&doc, &[], tol()).expect("saves");
+    let (header, body) = text.split_once('\n').expect("an id line, then the body");
+    let mut body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let log = body["snapshot"]["mint"]["log"]
+        .as_array_mut()
+        .expect("the file carries its mint log");
+    let at = log
+        .iter()
+        .position(|entry| {
+            let bits = entry["node"].as_u64().or(entry["step"].as_u64());
+            bits.expect("a tagged entry") > drawn.0
+        })
+        .unwrap_or(log.len());
+    log.insert(at, serde_json::json!({ "step": drawn.0 }));
+    let doctored = load(&format!("{header}\n{body}\n"), tol())
+        .expect("a log holding a step id no program holds loads")
+        .doc;
+    match doctored.apply(
+        &DocEdit::InsertNode { node: next },
+        tol(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(e @ EditError::NodeIdCollides { id }) => {
+            assert_eq!(id, drawn, "the refusal names the id the insert drew");
+            let text = e.to_string();
+            assert!(
+                text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
+                "a mint-log fault ends as a damaged file or a defect: {text}"
+            );
+        }
+        other => panic!("the draw the log holds refuses, got {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------- //
 // What cannot move a name: value edits (N1)
 // ---------------------------------------------------------------- //

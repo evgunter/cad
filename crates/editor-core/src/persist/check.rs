@@ -1081,8 +1081,9 @@ impl core::fmt::Display for SnapshotError {
             Self::MintLogOrder { entry } => write!(
                 f,
                 "the mint's log is not strictly ascending at id {} — an id logged twice or out \
-                 of order, which no mint writes",
-                entry.bits()
+                 of order, which no mint writes. {}",
+                entry.bits(),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,

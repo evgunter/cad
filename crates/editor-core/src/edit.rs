@@ -1725,10 +1725,7 @@ impl EditError {
                     "the node id {} this insert mints is already in the document's mint log",
                     id.0
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!("rebuild the document from its source recipe"),
-                )
+                tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
             Self::TooFewMembers { found, .. } => {
                 write!(
