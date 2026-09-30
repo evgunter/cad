@@ -4592,3 +4592,45 @@ pre-existing, but it falsifies the unit's universal claim.
 - R03, R05 and R06 are pinned only by the seed search.
 
 The fix pass is out on the rebase target.
+
+## set-face-surface delivered as PR 3580; its single review out (2026-09-30)
+
+The implementer took 464,300 tokens, 267 tools and 8,711 s. Head
+`8325571ad6` is green on CI run 36763556276.
+
+**The measurement.** The swap mints a fresh key, so what goes false is
+an edge's adjacency, not its certificate; tier 3 reports it as
+`DescriptionNotAdjacent`. Four production callers strand edges, about
+3,900 calls in all: `offset_together`, `offset_axial`,
+`replace_face_offset` and `splitting/finish`'s section face. Each
+swaps and then re-describes.
+
+**The mechanism** follows PR 2527's `kev` precedent.
+- `set_face_surface` stays keys-only and refuses
+  `RechartStrandsDescriptions` before mutating. It takes no band,
+  since the question is exact.
+- A describing door, `set_face_surfaces_describing(Vec<Rechart>, ..,
+  tol)`, is multi-chart. It departs from `kev_describing`'s single
+  site, because an edge between two moving charts certifies on
+  neither mixed pair. The four callers move to it.
+- A test-only bypass door, `set_face_surface_stranding_for_tests`,
+  serves about 90 fixtures.
+- Four new `EulerOpError` variants.
+- `null.rs`'s snapshot companions are dropped.
+
+**Filed:**
+- `mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move` (with
+  `kef` evidence);
+- `a-kill-refusal-row-keeps-a-rows-companion-the-deep-snapshot-subsumes`.
+
+**The review.** It is a new public API shape beside a ratified
+family, so a single full review, frozen at `8325571ad6`, on the walk
+target. It tests:
+- the adjacency-not-certificate reading, including a `Shared` swap
+  onto different geometry;
+- whether the plain door is exact;
+- whether the multi-chart door is necessary and harmonious (Ev's PR
+  2527 concern);
+- whether the bypass door leaks outside test builds, and whether its
+  fixtures could be coherent;
+- whether the callers' output bodies are unchanged.
