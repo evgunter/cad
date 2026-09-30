@@ -56,8 +56,8 @@ use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
 use super::tables::eq15_3_lump;
 use super::{
-    BoolNullEdgeRecord, BooleanDecision, BooleanError, BooleanOp, NullEdgePairRecord, Operand,
-    PairSite, PierceRingRecord, SideCode, VfContact,
+    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
+    PierceRingRecord, SideCode, VfContact,
 };
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
@@ -133,8 +133,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     let n_pierced =
         match crate::face_normal::face_outward_normal_at(pierced_body, contact.face, p, band) {
             Ok(Some(n)) => n,
-            // Cone / torus / NURBS pierced faces: the C5 typed refusal,
-            // naming the kind that has no arm.
+            // Cone / NURBS pierced faces: the C5 typed refusal, naming
+            // the kind that has no arm.
             Ok(None) => {
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand: pierced_op,
@@ -142,16 +142,12 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                     kind: pierced_kind(pierced_body, contact.face),
                 });
             }
-            Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::of_normal(decision),
-                    diag,
-                });
-            }
-            Err(crate::face_normal::NormalAtError::OffSurface) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "pierce point definitely off the pierced face's surface",
-                });
+            Err(refusal) => {
+                return Err(BooleanError::of_pierced_normal(
+                    refusal,
+                    pierced_op,
+                    contact.face,
+                ));
             }
         };
     // The pierced face's smallest radius of curvature — the lever the
@@ -322,7 +318,9 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                     });
                 }
                 Ok(rel) => rel,
-                Err(PlaneEqError::Escalated(diag)) => return Err(BooleanError::coincidence(diag)),
+                Err(PlaneEqError::Escalated { rung, diag }) => {
+                    return Err(BooleanError::plane_identity(rung, diag));
+                }
                 Err(PlaneEqError::Undeclared { diag, relation }) => {
                     return Err(BooleanError::UndeclaredCoincidence {
                         diag,

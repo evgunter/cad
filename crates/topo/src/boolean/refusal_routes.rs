@@ -23,7 +23,10 @@
 use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
 use geom_core::{COINCIDENCE_RECOURSE, Indeterminate, UNREADABLE_MARGIN_NOTE};
 
+use super::plane_eq::PLANE_ORIENTATION;
+pub use super::plane_eq::PlaneRung;
 use crate::face_normal::NormalDecision;
+pub use crate::face_normal::TorusConvention;
 pub use crate::sector_shape::SectorRung;
 use crate::splitting::ConicRootFault;
 pub use crate::splitting::CrossingDecision;
@@ -121,6 +124,10 @@ pub enum BooleanDecision {
     /// face, the sector and edge-edge classification, and the sphere
     /// lanes.
     Coincidence,
+    /// Whether two planes face the same way or opposite ways, which
+    /// both definite signs answer and no declaration changes
+    /// ([`PlaneRung::Orientation`]).
+    PlaneOrientation,
     /// A corner's own shape (`sector_shape`'s rungs).
     Corner(SectorRung),
     /// Whether a pierce point lies on the curved face it pierces, so
@@ -128,10 +135,8 @@ pub enum BooleanDecision {
     /// the piercing solid that the contact sweep already placed on that
     /// face, so this is a residual re-asking a decision taken upstream.
     PierceOnFace,
-    /// Whether a pierced torus's tube radius is positive.
-    TorusTube,
-    /// Whether a pierced torus's tube stays clear of its axis.
-    TorusRing,
+    /// A half of a pierced torus's ring convention.
+    Torus(TorusConvention),
     /// Whether a point lies inside a face, on its boundary, or outside
     /// it (`ContainError::Escalated`), from any rung of the walk.
     Containment,
@@ -186,9 +191,18 @@ impl BooleanDecision {
     /// The decision a pierce point's face normal escalated on.
     pub(crate) const fn of_normal(decision: NormalDecision) -> Self {
         match decision {
-            NormalDecision::TorusTube => Self::TorusTube,
-            NormalDecision::TorusRing => Self::TorusRing,
+            NormalDecision::Torus(half) => Self::Torus(half),
             NormalDecision::OnSurface => Self::PierceOnFace,
+        }
+    }
+
+    /// The decision a plane-identity rung escalated on: in-band
+    /// parallelism is a coincidence a declaration would bridge, and
+    /// orientation a decision of its own.
+    pub(crate) const fn of_plane_rung(rung: PlaneRung) -> Self {
+        match rung {
+            PlaneRung::Parallel => Self::Coincidence,
+            PlaneRung::Orientation => Self::PlaneOrientation,
         }
     }
 
@@ -205,12 +219,12 @@ impl BooleanDecision {
     pub const fn subject(self) -> &'static str {
         match self {
             Self::Coincidence => "whether parts of the two solids coincide",
+            Self::PlaneOrientation => PlaneRung::Orientation.subject(),
             Self::Corner(rung) => rung.subject(),
             Self::PierceOnFace => {
                 "whether a point lies on a curved face, so the face's normal can be read there"
             }
-            Self::TorusTube => "whether a torus's tube radius is positive",
-            Self::TorusRing => "whether a torus's tube stays clear of its axis",
+            Self::Torus(half) => half.subject(),
             Self::Containment => {
                 "whether a point lies inside a face, on its boundary, or outside it"
             }
@@ -226,6 +240,7 @@ impl BooleanDecision {
     fn ending(self) -> Ending {
         match self {
             Self::Coincidence => Ending::Coincidence,
+            Self::PlaneOrientation => Ending::Sized(PLANE_ORIENTATION),
             // The arm passes on a positive length.
             Self::Corner(SectorRung::Arm) => {
                 sized(CORNER_LEVER, "edge length", SizedPass::Positive)
@@ -247,16 +262,7 @@ impl BooleanDecision {
             // point definitely off) is a broken classification
             // invariant.
             Self::PierceOnFace | Self::SplitPointOnCircle => Ending::Unsized(Unsized::Defect),
-            Self::TorusTube => sized(
-                "reshape the torus so its tube is clearly thicker than the tolerance",
-                "tube radius",
-                SizedPass::Positive,
-            ),
-            Self::TorusRing => sized(
-                "reshape the torus so its tube stays clearly off its axis",
-                "clearance between the tube and the axis",
-                SizedPass::Positive,
-            ),
+            Self::Torus(half) => Ending::Sized(half.sized()),
             // The escalation does not carry which rung of the walk
             // refused, and the rungs pass on different sets (the carrier
             // rung is a residual where the caller placed the point on
@@ -387,6 +393,10 @@ mod tests {
         out
     }
 
+    const TUBE_LEVER: &str =
+        "Recourse: reshape the torus so its tube is clearly thicker than the tolerance";
+    const RING_LEVER: &str = "Recourse: make the tube radius clearly smaller than the ring radius";
+
     const CROSSING_LEVER_ENDING: &str =
         "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
 
@@ -468,6 +478,7 @@ mod tests {
         BooleanDecisionKind::iter()
             .flat_map(|kind| match kind {
                 BooleanDecisionKind::Coincidence => vec![BooleanDecision::Coincidence],
+                BooleanDecisionKind::PlaneOrientation => vec![BooleanDecision::PlaneOrientation],
                 BooleanDecisionKind::Corner => SectorRungKind::iter()
                     .flat_map(|rung| match rung {
                         SectorRungKind::Arm => vec![SectorRung::Arm],
@@ -478,8 +489,9 @@ mod tests {
                     .map(BooleanDecision::Corner)
                     .collect(),
                 BooleanDecisionKind::PierceOnFace => vec![BooleanDecision::PierceOnFace],
-                BooleanDecisionKind::TorusTube => vec![BooleanDecision::TorusTube],
-                BooleanDecisionKind::TorusRing => vec![BooleanDecision::TorusRing],
+                BooleanDecisionKind::Torus => TorusConvention::iter()
+                    .map(BooleanDecision::Torus)
+                    .collect(),
                 BooleanDecisionKind::Containment => vec![BooleanDecision::Containment],
                 BooleanDecisionKind::Crossing => CrossingDecision::iter()
                     .map(BooleanDecision::Crossing)
@@ -534,20 +546,21 @@ mod tests {
                 "whether a point lies on a curved face, so the face's normal can be read there",
                 Ending::Defect,
             ),
-            BooleanDecision::TorusTube => (
-                "whether a torus's tube radius is positive",
+            BooleanDecision::PlaneOrientation => (
+                "whether the two planes face the same way or opposite ways",
                 Ending::Sized(
-                    "Recourse: reshape the torus so its tube is clearly thicker than the \
-                     tolerance",
-                    Some(true),
+                    "Recourse: turn one of the two faces so they clearly face the same way or \
+                     clearly opposite ways",
+                    None,
                 ),
             ),
-            BooleanDecision::TorusRing => (
-                "whether a torus's tube stays clear of its axis",
-                Ending::Sized(
-                    "Recourse: reshape the torus so its tube stays clearly off its axis",
-                    Some(true),
-                ),
+            BooleanDecision::Torus(TorusConvention::Tube) => (
+                "whether a torus's tube radius is positive",
+                Ending::Sized(TUBE_LEVER, Some(true)),
+            ),
+            BooleanDecision::Torus(TorusConvention::Ring) => (
+                "whether a torus's tube radius is smaller than its ring radius",
+                Ending::Sized(RING_LEVER, Some(true)),
             ),
             BooleanDecision::Containment => (
                 "whether a point lies inside a face, on its boundary, or outside it",
@@ -1020,5 +1033,194 @@ mod tests {
         let wrapped = BooleanError::Merge(err).to_string();
         let problems = short_of_the_guard(&wrapped, &[]);
         assert!(problems.is_empty(), "{problems:?}: {wrapped}");
+    }
+
+    /// A one-face skeletal body whose face carries `surface`.
+    fn face_on(surface: crate::Surface<f64>) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
+        let st = crate::fixtures::mvfs_state();
+        let mut body = st.body;
+        body.set_face_surface(
+            st.face,
+            crate::euler::FaceSurface::New {
+                surface,
+                sense: true,
+            },
+        )
+        .expect("a skeletal face takes any surface");
+        (body, st.face)
+    }
+
+    /// **A pierced torus tells one story per half of its ring
+    /// convention, on every arm** (D4 ¶1 (iv)), each a real raise: the
+    /// pierce point's normal door refuses a torus face and the Boolean
+    /// routes that refusal as `vtxfac` does. In band, decided at zero
+    /// (with a margin and exactly on), and definitely negative, each
+    /// half names its own lever and passes the refusal-shape guard;
+    /// the band-decided arms offer the tolerance the margin gives and
+    /// the sign-certain arm offers none; no arm offers a declaration or
+    /// calls the torus a pairing not supported yet.
+    #[test]
+    fn a_pierced_torus_tells_one_story_per_convention_half() {
+        use crate::face_normal::face_outward_normal_at;
+        let b = band();
+        let (z, e) = (b.zero(), b.escalate());
+        let mid = (z + e) / 2.0;
+        // (half, R, r, the half's margin, whether the arm is in band).
+        let rows = [
+            (TorusConvention::Tube, 0.75, mid, mid, true),
+            (TorusConvention::Tube, 0.75, 0.5 * z, 0.5 * z, false),
+            (TorusConvention::Tube, 0.75, -0.3, -0.3, false),
+            (TorusConvention::Ring, 0.5 + mid, 0.5, 0.5 + mid - 0.5, true),
+            (
+                TorusConvention::Ring,
+                0.5 + 0.5 * z,
+                0.5,
+                0.5 + 0.5 * z - 0.5,
+                false,
+            ),
+            (TorusConvention::Ring, 0.5, 0.5, 0.0, false),
+            (TorusConvention::Ring, 0.4, 0.5, 0.4 - 0.5, false),
+        ];
+        for (half, big_r, r, margin, in_band) in rows {
+            let label = format!("{half:?} at R = {big_r}, r = {r}");
+            let (body, face) = face_on(crate::Surface::Torus {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                major_radius: big_r,
+                minor_radius: r,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            });
+            let refusal = face_outward_normal_at(&body, face, Point3::new(big_r + r, 0.0, 0.0), b)
+                .expect_err("a torus outside the ring convention has no normal");
+            let err = BooleanError::of_pierced_normal(refusal, Operand::B, face);
+            match (&err, in_band) {
+                (BooleanError::Escalated { decision, .. }, true) => {
+                    assert_eq!(*decision, BooleanDecision::Torus(half), "{label}");
+                }
+                (BooleanError::DegenerateTorus { convention, .. }, false) => {
+                    assert_eq!(*convention, half, "{label}");
+                }
+                _ => panic!("{label}: the arm's own refusal: {err:?}"),
+            }
+            let text = err.to_string();
+            let problems = short_of_the_guard(&text, &[]);
+            assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
+            let lever = match half {
+                TorusConvention::Tube => TUBE_LEVER,
+                TorusConvention::Ring => RING_LEVER,
+            };
+            assert!(
+                text.contains(lever) && !text.contains("declare") && !text.contains("supported"),
+                "{label}: the half's one lever, no declaration, no gap: {text}"
+            );
+            let offer = (margin > 0.0).then(|| margin / k());
+            assert_eq!(
+                offered_below(&text),
+                offer.map(Some),
+                "{label}: the tolerance a positive margin gives, and none on a sign-certain \
+                 or exactly-zero arm: {text}"
+            );
+        }
+    }
+
+    /// **A plane pair's orientation refusal names its own decision at
+    /// both doors, and offers no declaration** — on the declared pair
+    /// the merge verifies above all, where a declaration is already
+    /// there. Real raises: two coincident planes compared at an arm that
+    /// puts the orientation margin (the normals' cosine at the arm) in
+    /// the zero band and in the ambiguity band, by the declared rung and
+    /// by the undeclared ladder. The zero verdict carries the margin the
+    /// rung decided, not a poisoned one. The merge wraps the declared
+    /// rung's refusal as its door does, and the Boolean routes the rung
+    /// as every plane-identity site does; the two render one sentence,
+    /// and it ends in the orientation lever with the tolerance the
+    /// margin gives.
+    #[test]
+    fn a_plane_orientation_refusal_tells_one_story_and_offers_no_declaration() {
+        use crate::boolean::{PlaneDesc, PlaneEqError, PlaneRung, oriented_plane_eq};
+        use crate::merge_faces::MergeDecision;
+        let b = band();
+        let (z, e) = (b.zero(), b.escalate());
+        let plane = PlaneDesc {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let declared = PlaneIdentity {
+            s1: None,
+            s2: None,
+            declared: true,
+        };
+        for (arm, zero) in [(0.5 * z, true), ((z + e) / 2.0, false)] {
+            for id in [declared, PlaneIdentity::NONE] {
+                let label = format!("arm {arm:e}, declared {}", id.declared);
+                let err = oriented_plane_eq(&plane, &plane, id, arm, b)
+                    .expect_err("an orientation margin this small refuses");
+                let PlaneEqError::Escalated {
+                    rung: PlaneRung::Orientation,
+                    diag,
+                } = err
+                else {
+                    panic!("{label}: the orientation rung refuses: {err:?}");
+                };
+                assert_eq!(diag.predicate, Some("bool_plane_orient"), "{label}");
+                assert_eq!(
+                    point_margin(&diag),
+                    arm,
+                    "{label}: the margin the rung decided rides the payload"
+                );
+                let boolean =
+                    BooleanError::plane_identity(PlaneRung::Orientation, diag).to_string();
+                let mut texts = vec![boolean.clone()];
+                if id.declared {
+                    let merge = MergeCoplanarError::of_declared_refusal(PlaneEqError::Escalated {
+                        rung: PlaneRung::Orientation,
+                        diag,
+                    });
+                    assert!(
+                        matches!(
+                            merge,
+                            MergeCoplanarError::Escalated {
+                                decision: MergeDecision::DeclaredPlanes(PlaneRung::Orientation),
+                                ..
+                            }
+                        ),
+                        "{label}: {merge:?}"
+                    );
+                    let wrapped = BooleanError::Merge(merge).to_string();
+                    let problems = short_of_the_guard(&wrapped, &[]);
+                    assert!(problems.is_empty(), "{label}: {problems:?}: {wrapped}");
+                    let merge = wrapped
+                        .strip_prefix("coplanar-merge output stage refused: ")
+                        .expect("the Boolean's merge stage wraps the merge's sentence")
+                        .to_owned();
+                    assert_eq!(merge, boolean, "{label}: one sentence at both doors");
+                    texts.push(merge);
+                }
+                for text in texts {
+                    let problems = short_of_the_guard(&text, &[]);
+                    assert!(problems.is_empty(), "{label}: {problems:?}: {text}");
+                    assert!(
+                        text.starts_with(
+                            "whether the two planes face the same way or opposite ways is \
+                             undecided: "
+                        ) && text.contains(
+                            "Recourse: turn one of the two faces so they clearly face the same \
+                             way or clearly opposite ways"
+                        ) && text.contains(if zero {
+                            "lies within the zero band"
+                        } else {
+                            "lies inside the ambiguity band"
+                        }) && !text.contains("declare")
+                            && !text.contains("merge_coplanar_faces"),
+                        "{label}: {text}"
+                    );
+                    assert_eq!(
+                        offered_below(&text),
+                        Some(Some(arm / k())),
+                        "{label}: {text}"
+                    );
+                }
+            }
+        }
     }
 }

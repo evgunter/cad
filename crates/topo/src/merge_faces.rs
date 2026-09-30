@@ -42,11 +42,15 @@ use std::collections::BTreeMap;
 
 use geom::{NetState, Surface};
 use geom_brep::SurfaceKind;
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
 use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
+use crate::boolean::plane_eq::PLANE_ORIENTATION;
+use crate::boolean::{
+    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
+};
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
@@ -468,10 +472,13 @@ pub enum MergeCoplanarError {
         /// The merged survivor face.
         face: FaceKey,
     },
-    /// A plane-identity margin escalated while verifying a declared
-    /// pair (in-band sliver) — typed, never guessed.
+    /// A decision of the merge could not be taken at this tolerance —
+    /// typed, never guessed.
     Escalated {
-        /// The predicate's diagnostics.
+        /// The decision, which the refusal's ending follows from.
+        decision: MergeDecision,
+        /// Its diagnostics: the margin in band, or the one a rung
+        /// decided at zero where zero does not pass.
         diag: Indeterminate,
     },
     /// The run's tolerance cannot form a valid band (needed only when
@@ -492,6 +499,80 @@ pub enum MergeCoplanarError {
         source: crate::pcurves::PcurveMintError,
     },
 }
+
+impl MergeCoplanarError {
+    /// The refusal of the plane identity verifying a declared pair.
+    ///
+    /// # Panics
+    ///
+    /// On [`PlaneEqError::Undeclared`], which the declared rung never
+    /// raises: it verifies the pair or contradicts it, and bridges the
+    /// in-band offset that refusal names.
+    pub(crate) fn of_declared_refusal(refusal: PlaneEqError) -> Self {
+        match refusal {
+            PlaneEqError::Contradicted { fact, .. } => Self::DeclarationContradicted { fact },
+            PlaneEqError::Escalated { rung, diag } => Self::Escalated {
+                decision: MergeDecision::DeclaredPlanes(rung),
+                diag,
+            },
+            PlaneEqError::Undeclared { .. } => unreachable!(
+                "merge_coplanar_faces: the declared plane rung raised Undeclared, which it \
+                 never constructs"
+            ),
+        }
+    }
+}
+
+/// Which decision [`MergeCoplanarError::Escalated`] could not take.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MergeDecision {
+    /// A rung of the plane identity verifying a pair the caller
+    /// declared (`plane_eq`'s declared rung). The declaration is
+    /// already there, so no ending offers one.
+    DeclaredPlanes(PlaneRung),
+    /// Which way a loop of the merged face winds about its normal,
+    /// which decides the outline among its loops.
+    LoopWinding,
+}
+
+impl MergeDecision {
+    /// What the decision decides, as a clause with no colon or dash of
+    /// its own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::DeclaredPlanes(rung) => rung.subject(),
+            Self::LoopWinding => "which way a loop of the merged face winds about its normal",
+        }
+    }
+
+    /// The one ending an escalation of this decision carries, at the
+    /// merge that built the geometry.
+    fn ending(self, diag: &Indeterminate) -> String {
+        let arm = RefusedArm::Undecided(diag);
+        match self {
+            Self::DeclaredPlanes(PlaneRung::Orientation) => {
+                PLANE_ORIENTATION.recourse(arm, Reading::Build)
+            }
+            // The declared rung bridges in-band parallelism, so what
+            // escalates here is a norm the rung could not read.
+            Self::DeclaredPlanes(PlaneRung::Parallel) => {
+                Unsized::Defect.recourse(arm, Reading::Build)
+            }
+            Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
+        }
+    }
+}
+
+/// The winding decision: its margin is the loop's signed area over its
+/// length, and either definite sign (a zero one included) answers it.
+const LOOP_WINDING: SizedDecision = SizedDecision {
+    lever: "reshape the merged faces so each loop of the result clearly encloses an area",
+    size: "area a loop encloses over its length",
+    passes: SizedPass::AnySign,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 impl core::fmt::Display for MergeCoplanarError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -585,10 +666,12 @@ impl core::fmt::Display for MergeCoplanarError {
                 "merge_coplanar_faces: merged face {face:?} has no unique positively-wound \
                  outline among its loops — outer/ring roles cannot be assigned; refused"
             ),
-            Self::Escalated { diag } => write!(
+            Self::Escalated { decision, diag } => write!(
                 f,
-                "merge_coplanar_faces: plane-identity margin escalated verifying a declared \
-                 pair ({diag})"
+                "{} is undecided: {}. {}",
+                decision.subject(),
+                diag.payload(),
+                decision.ending(diag)
             ),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
@@ -1871,12 +1954,7 @@ impl<T: Decide> Body<T> {
                 }
                 // Unreachable through the declared rung; kept typed.
                 Ok(PlaneRelation::Distinct) => Ok(false),
-                Err(PlaneEqError::Contradicted { fact, .. }) => {
-                    Err(MergeCoplanarError::DeclarationContradicted { fact })
-                }
-                Err(PlaneEqError::Escalated(diag) | PlaneEqError::Undeclared { diag, .. }) => {
-                    Err(MergeCoplanarError::Escalated { diag })
-                }
+                Err(refusal) => Err(MergeCoplanarError::of_declared_refusal(refusal)),
             };
         }
         Ok(false)
@@ -2210,7 +2288,10 @@ impl<T: Decide> Body<T> {
         match winding {
             None => Ok(None),
             Some(Ok(sign)) => Ok(Some(sign)),
-            Some(Err(diag)) => Err(MergeCoplanarError::Escalated { diag }),
+            Some(Err(diag)) => Err(MergeCoplanarError::Escalated {
+                decision: MergeDecision::LoopWinding,
+                diag,
+            }),
         }
     }
 
@@ -3943,9 +4024,30 @@ mod winding_arm_tests {
     /// the DENOMINATOR can both be pinned, and the denominator — the
     /// re-metered arc-length perimeter — is otherwise invisible to any
     /// sign assertion, because scaling a lever cannot change a sign.
+    ///
+    /// Each escalation is also the winding decision's real raise for the
+    /// refusal-shape guard: one recourse, its subject, no stage prefix
+    /// and no declaration.
     fn escalated_margin(r: Result<Option<Sign>, MergeCoplanarError>) -> f64 {
         match r {
-            Err(MergeCoplanarError::Escalated { diag }) => {
+            Err(
+                ref err @ MergeCoplanarError::Escalated {
+                    decision: MergeDecision::LoopWinding,
+                    diag,
+                },
+            ) => {
+                let text = err.to_string();
+                assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+                assert!(
+                    test_utils::refusal::subjectless_escalations(&text).is_empty()
+                        && test_utils::refusal::stage_prefixes(&text, &[]).is_empty()
+                        && text.starts_with(
+                            "which way a loop of the merged face winds about its normal is \
+                             undecided: "
+                        )
+                        && !text.contains("declare"),
+                    "{text}"
+                );
                 match diag.margin.diagnostic_f64_for_error_text() {
                     geom_core::ErrorTextReading::Value(v) => v,
                     other => panic!("expected a classified f64 margin, got {other:?}"),

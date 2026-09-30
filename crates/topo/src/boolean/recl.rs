@@ -136,7 +136,9 @@ fn require_same<T: Decide>(
             what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
         Ok(rel) => Ok(rel),
-        Err(PlaneEqError::Escalated(diag)) => Err(BooleanError::coincidence(diag)),
+        Err(PlaneEqError::Escalated { rung, diag }) => {
+            Err(BooleanError::plane_identity(rung, diag))
+        }
         Err(PlaneEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
                 diag,

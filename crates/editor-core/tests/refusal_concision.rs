@@ -181,6 +181,18 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "DegenerateTorus",
+            BooleanError::DegenerateTorus {
+                operand: Operand::B,
+                face,
+                convention: topo::TorusConvention::Ring,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(5.0e-10),
+                    band,
+                }),
+            },
+        ),
+        (
             "CurvedPierceUnsupported",
             BooleanError::CurvedPierceUnsupported {
                 operand: Operand::A,
