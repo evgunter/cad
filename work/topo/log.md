@@ -3645,3 +3645,23 @@ moved, so it lands with the change and does not wait for Ev.
 
 The brief names D4 ¶1 (i)–(iv) and PR 3352, per the lesson logged
 earlier. The fix pass is out on the loop-anchor target.
+
+## PR 3508 merged; the loop-reparenting re-mint dispatched (2026-09-30)
+
+PR 3508 merged at `a7810682f0` (merge `2b020029df`) after CI run
+36685551821 went green; I unsubscribed. The null-kill item closed on
+its branch.
+
+The next P2 is dispatched on the rebase target:
+`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`,
+branch `topo/reparent-remint`.
+- **What it asks.** `kfmrh`, `mfkrh`, `ring_move`, `mef`'s moved run
+  and `kef`'s remnant drop a moved loop's rows. The `Decide` site walk
+  could re-mint the destination instead.
+- **The ruling.** Ev's PR 2527 ruling governs (provenance:
+  `git log --all -S'mints its row at the mint site'`). The brief names
+  it, per the logged lesson.
+- **What the brief asks.** Measure per door first, then build it as
+  PR 3508's one predicate and site-mint path, not a second spelling.
+  The lane keeps clear of the walk-proofs lane's plans in the same
+  files.
