@@ -1697,7 +1697,7 @@ impl<T: Decide> StoredRows<T> {
 ///
 /// [`SiteRowRefusal::Corrupt`] where a half, its edge or its curve does
 /// not resolve — tier 1's corruption, which cannot be read as either.
-pub(crate) fn held_open<T: Decide>(
+fn held_open<T: Decide>(
     body: &Body<T>,
     halves: impl IntoIterator<Item = HalfEdgeKey>,
 ) -> Result<bool, SiteRowRefusal> {
@@ -2460,13 +2460,13 @@ pub(crate) fn site_rows<T: Decide>(
     }
     // A spline chart's rows derive through the fitted lane, which a
     // `Decide` door does not hold, so no loop of it is minted here and
-    // the question is per face: refuse, or leave as found. A face a
-    // null edge holds open anywhere is left as found — it is already
-    // incomplete, so an operator on one of its complete loops leaves
-    // that loop's new halves rowless too, as it did before the site
-    // mint read held-open faces, and a refusal would strand the
-    // pipeline mid-surgery with its null edge, which tier 2 refuses at
-    // rest. A complete face refuses rather than go half-minted.
+    // the question is per face, not per loop: refuse, or leave as
+    // found. A face a null edge holds open anywhere is left as found,
+    // and an operator on one of its complete loops leaves that loop's
+    // new halves rowless too, by intent: the face is already
+    // incomplete, and a refusal would strand the pipeline mid-surgery
+    // with its null edge, which tier 2 refuses at rest. A complete face
+    // refuses rather than go half-minted.
     if face.surface.spline_chart().is_some() {
         return if from.open.is_empty() {
             Err(SiteRowRefusal::SplineChart)
