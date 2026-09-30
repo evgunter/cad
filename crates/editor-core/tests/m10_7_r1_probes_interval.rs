@@ -367,17 +367,20 @@ fn bracket_with(
         .unwrap()
     } else {
         LoopProgram::Chain(vec![
-            editor_core::ProgramStep::At([Expr::neg(half(2.0)), Expr::neg(half(4.0))]),
+            editor_core::ProgramStep::At([
+                Expr::neg(half(2.0)).expect("a shallow negation"),
+                Expr::neg(half(4.0)).expect("a shallow negation"),
+            ]),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
                 half(2.0),
-                Expr::neg(half(4.0)),
+                Expr::neg(half(4.0)).expect("a shallow negation"),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
                 half(2.0),
                 half(4.0),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
-                Expr::neg(half(2.0)),
+                Expr::neg(half(2.0)).expect("a shallow negation"),
                 half(4.0),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
@@ -406,7 +409,7 @@ fn bracket_with(
             distance: div(w(), 10.0),
         })
     };
-    let hole_a = hole(&mut r, Expr::neg(half(4.0)));
+    let hole_a = hole(&mut r, Expr::neg(half(4.0)).expect("a shallow negation"));
     let hole_b = hole(&mut r, half(4.0));
     let refs = {
         let ev: editor_core::Evaluation<f64> = evaluate(

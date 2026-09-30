@@ -259,8 +259,8 @@ impl core::fmt::Display for DimensionError {
             }
             Self::NestedTooDeep { bound } => write!(
                 f,
-                "the expression nests deeper than {bound} levels; group a long chain into \
-                 shorter ones, as `(a + b) + (c + d)` rather than `a + b + c + d`"
+                "the expression nests deeper than {bound} levels. Recourse: regroup it to \
+                 nest less; `(a + b) + (c + d)` nests one level less than `a + b + c + d`"
             ),
         }
     }
@@ -759,13 +759,13 @@ pub(crate) enum ExprKind {
 
 impl ExprKind {
     /// Moves this node's children onto `out`, leaving a leaf behind.
-    fn detach_children(&mut self, out: &mut Vec<Box<Expr>>) {
+    fn detach_children(&mut self, out: &mut Vec<Expr>) {
         match core::mem::replace(self, ExprKind::CountLiteral(0)) {
             binary_kind!(a, b) => {
-                out.push(a);
-                out.push(b);
+                out.push(*a);
+                out.push(*b);
             }
-            unary_kind!(a) => out.push(a),
+            unary_kind!(a) => out.push(*a),
             leaf_kind!() => {}
         }
     }
@@ -1907,5 +1907,57 @@ fn write_literal(lit: &Lit, dim: Dimension) -> String {
             "a stored literal is finite by construction, yet the display formatter refused: \
              {error}"
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    /// The wasm32 build's default stack, the smallest a door runs on.
+    const WASM_STACK: usize = 1 << 20;
+
+    /// `levels - 1` negations over a literal, built past the constructors
+    /// (which refuse it past the bound): the tree the walks that keep
+    /// their own stack are measured against.
+    fn raw_negations(levels: usize) -> Expr {
+        let lit = Lit {
+            value: 0.5,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+        };
+        (1..levels).fold(
+            Expr::leaf(Dimension::Length, ExprKind::Literal(lit)),
+            |e, _| Expr {
+                dim: e.dim,
+                nesting: u8::MAX,
+                kind: ExprKind::Neg(Box::new(e)),
+            },
+        )
+    }
+
+    /// The evaluators and `Drop` cost the stack nothing per level: a
+    /// tree a million levels deep evaluates and frees on the wasm32
+    /// stack, where one frame per level would exhaust it a thousand
+    /// times over.
+    #[test]
+    fn evaluation_and_drop_keep_their_own_stack() {
+        std::thread::Builder::new()
+            .stack_size(WASM_STACK)
+            .spawn(|| {
+                let deep = raw_negations(1_000_000);
+                assert_eq!(eval(&deep, &ParamEnv::<f64>::default()), Ok(-0.5));
+                let counted = (1..1_000_000).fold(Expr::count(3), |e, _| Expr {
+                    dim: Dimension::Count,
+                    nesting: u8::MAX,
+                    kind: ExprKind::Neg(Box::new(e)),
+                });
+                assert_eq!(eval_count(&counted, &ParamEnv::<f64>::default()), Ok(-3));
+                drop((deep, counted));
+            })
+            .expect("the thread starts")
+            .join()
+            .expect("a million levels evaluate and drop on the smallest stack");
     }
 }

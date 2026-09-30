@@ -35,10 +35,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::expr::{DimensionError, MAX_NESTING};
 
-/// The deepest JSON nesting of an expression slot's position in a body:
-/// the file object, the edit log, an edit, its node and the node's own
-/// fields, with room to spare. `the_deepest_slot_a_save_writes_sits_within_the_envelope`
-/// measures the deepest position a save writes against it.
+/// The deepest JSON nesting of an expression slot's position in a body,
+/// with room to spare. The deepest a save writes is a profile step's
+/// target point in the edit log (the file object, the log, an edit, its
+/// node, the program, a loop, a step and its target), sixteen levels
+/// down; `expr_nesting_bound`'s at-bound row saves an expression at the
+/// bound there and loads it back.
 pub(crate) const ENVELOPE: usize = 32;
 
 /// JSON levels per expression level: an operator is a tag object around
@@ -208,7 +210,11 @@ mod tests {
             }),
             "the bracket one past the limit is named"
         );
-        let quoted = format!("[\"{}\\\"{}\"]", "[".repeat(BODY_NESTING + 1), "{".repeat(9));
+        let quoted = format!(
+            "[\"{}\\\"{}\"]",
+            "[".repeat(BODY_NESTING + 1),
+            "{".repeat(9)
+        );
         assert_eq!(
             first_too_deep(&quoted),
             None,

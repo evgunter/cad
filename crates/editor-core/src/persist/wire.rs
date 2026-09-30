@@ -140,7 +140,7 @@ impl Drop for WireExpr {
 impl WireExpr {
     /// Moves this node's children onto `out`, leaving leaves in their
     /// place.
-    fn detach_children(&mut self, out: &mut Vec<Box<WireExpr>>) {
+    fn detach_children(&mut self, out: &mut Vec<WireExpr>) {
         match self {
             WireExpr::Add(a, b)
             | WireExpr::Sub(a, b)
@@ -149,14 +149,14 @@ impl WireExpr {
             | WireExpr::Atan2(a, b)
             | WireExpr::Min(a, b)
             | WireExpr::Max(a, b) => {
-                out.push(core::mem::take(&mut a.0));
-                out.push(core::mem::take(&mut b.0));
+                out.push(*core::mem::take(&mut a.0));
+                out.push(*core::mem::take(&mut b.0));
             }
             WireExpr::Neg(a)
             | WireExpr::Sin(a)
             | WireExpr::Cos(a)
             | WireExpr::Tan(a)
-            | WireExpr::CountToScalar(a) => out.push(core::mem::take(&mut a.0)),
+            | WireExpr::CountToScalar(a) => out.push(*core::mem::take(&mut a.0)),
             WireExpr::Literal { .. } | WireExpr::Count(_) | WireExpr::Param { .. } => {}
         }
     }
@@ -410,7 +410,7 @@ impl WireMeasureExpr {
     /// Moves this node's children onto `out`, leaving leaves in their
     /// place. A value leaf's expression frees through [`WireExpr`]'s
     /// own drop.
-    fn detach_children(&mut self, out: &mut Vec<Box<WireMeasureExpr>>) {
+    fn detach_children(&mut self, out: &mut Vec<WireMeasureExpr>) {
         match self {
             WireMeasureExpr::Add(a, b)
             | WireMeasureExpr::Sub(a, b)
@@ -418,10 +418,10 @@ impl WireMeasureExpr {
             | WireMeasureExpr::Div(a, b)
             | WireMeasureExpr::Min(a, b)
             | WireMeasureExpr::Max(a, b) => {
-                out.push(core::mem::take(&mut a.0));
-                out.push(core::mem::take(&mut b.0));
+                out.push(*core::mem::take(&mut a.0));
+                out.push(*core::mem::take(&mut b.0));
             }
-            WireMeasureExpr::Neg(a) => out.push(core::mem::take(&mut a.0)),
+            WireMeasureExpr::Neg(a) => out.push(*core::mem::take(&mut a.0)),
             WireMeasureExpr::Primitive(_) | WireMeasureExpr::Value(_) => {}
         }
     }

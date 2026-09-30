@@ -967,3 +967,39 @@ fn leaf_value<T: Decide>(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    /// The measurement evaluator and the measurement's `Drop` cost the
+    /// stack nothing per level: a million levels evaluate and free on
+    /// the wasm32 stack.
+    #[test]
+    fn the_measurement_walk_and_drop_keep_their_own_stack() {
+        std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(|| {
+                let deep = crate::measure::raw_negations(1_000_000);
+                let (mut cursor, mut clearance_cursor) = (0, 0);
+                let band = Band::new(1e-9, 1e-6).expect("a valid band");
+                let value = eval_measure_inner::<f64>(
+                    &deep,
+                    &[],
+                    &[2.5],
+                    &mut cursor,
+                    &[],
+                    &mut clearance_cursor,
+                    band,
+                );
+                assert_eq!(value.ok(), Some(-2.5));
+                assert_eq!(cursor, 1, "the one value leaf is read once");
+                drop(deep);
+            })
+            .expect("the thread starts")
+            .join()
+            .expect("a million levels evaluate and drop on the smallest stack");
+    }
+}

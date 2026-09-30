@@ -2166,7 +2166,9 @@ class MeasureExpr:
     def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
     @staticmethod
     def neg(a: MeasureExpr) -> MeasureExpr:
-        """Negation — any dimension, and total."""
+        """Negation — any dimension. Refuses (LiteralError, `kind`
+        `"nested_too_deep"`) only a tree that would nest deeper than an
+        expression may, as every constructor here does."""
 
     @staticmethod
     def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:

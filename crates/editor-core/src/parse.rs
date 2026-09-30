@@ -593,7 +593,9 @@ impl Level {
 fn fold(pending: Option<(Expr, usize, Make)>, rhs: Expr) -> Result<Expr, ParseError> {
     match pending {
         None => Ok(rhs),
-        Some((lhs, pos, make)) => make(lhs, rhs).map_err(|error| ParseError::Dimension { pos, error }),
+        Some((lhs, pos, make)) => {
+            make(lhs, rhs).map_err(|error| ParseError::Dimension { pos, error })
+        }
     }
 }
 
@@ -676,7 +678,8 @@ impl Parser<'_> {
                 };
                 for at in level.signs.clone().rev() {
                     let pos = self.toks[at].0;
-                    value = Expr::neg(value).map_err(|error| ParseError::Dimension { pos, error })?;
+                    value =
+                        Expr::neg(value).map_err(|error| ParseError::Dimension { pos, error })?;
                 }
                 level.signs = 0..0;
                 value = fold(level.term.take(), value)?;
@@ -948,4 +951,34 @@ fn function(pos: usize, name: &str) -> Result<(&'static str, usize), ParseError>
             });
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    /// The parser keeps its own stack: text nested to the bound, in
+    /// brackets and in calls, reads on a quarter of the wasm32 stack,
+    /// which a frame per grammar level would exhaust several times over.
+    #[test]
+    fn the_parser_keeps_its_own_stack() {
+        std::thread::Builder::new()
+            .stack_size(1 << 18)
+            .spawn(|| {
+                let open = MAX_NESTING - 1;
+                for text in [
+                    format!("{}1{}", "(".repeat(MAX_NESTING), ")".repeat(MAX_NESTING)),
+                    format!("{}1{}", "max(1, ".repeat(open), ")".repeat(open)),
+                    format!("{}1", "-".repeat(open)),
+                ] {
+                    let parsed = parse_expr(&text, &BTreeMap::new());
+                    assert!(parsed.is_ok(), "{parsed:?}");
+                }
+            })
+            .expect("the thread starts")
+            .join()
+            .expect("text nested to the bound parses on a small stack");
+    }
 }

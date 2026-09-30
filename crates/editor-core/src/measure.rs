@@ -222,7 +222,7 @@ pub(crate) enum MeasureKind {
 
 impl MeasureKind {
     /// Moves this node's children onto `out`, leaving a leaf behind.
-    fn detach_children(&mut self, out: &mut Vec<Box<MeasureExpr>>) {
+    fn detach_children(&mut self, out: &mut Vec<MeasureExpr>) {
         let leaf = MeasureKind::Primitive(MeasurePrimitive::Distance { a: 0, b: 0 });
         match core::mem::replace(self, leaf) {
             MeasureKind::Add(a, b)
@@ -231,10 +231,10 @@ impl MeasureKind {
             | MeasureKind::Div(a, b)
             | MeasureKind::Min(a, b)
             | MeasureKind::Max(a, b) => {
-                out.push(a);
-                out.push(b);
+                out.push(*a);
+                out.push(*b);
             }
-            MeasureKind::Neg(a) => out.push(a),
+            MeasureKind::Neg(a) => out.push(*a),
             MeasureKind::Primitive(_) | MeasureKind::Value(_) => {}
         }
     }
@@ -1053,3 +1053,15 @@ pub(crate) fn decide_assertion<T: Decide>(
 /// The funnel site name of the assertion comparison. A roster carrier
 /// (`docs/K-REPORT.md`) rather than a literal at the decide site.
 pub const ASSERT_BOUND: &str = "assert_bound";
+
+/// A measurement `levels` deep of negations over one value leaf, built
+/// past the constructors (which refuse it past the bound), for the rows
+/// that measure the walks keeping their own stack.
+#[cfg(test)]
+pub(crate) fn raw_negations(levels: usize) -> MeasureExpr {
+    (1..levels).fold(MeasureExpr::value(Expr::count(0)), |e, _| MeasureExpr {
+        dim: e.dim,
+        nesting: u8::MAX,
+        kind: MeasureKind::Neg(Box::new(e)),
+    })
+}
