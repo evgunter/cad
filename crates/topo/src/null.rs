@@ -790,4 +790,258 @@ mod tests {
         assert_eq!(deep_snapshot(&body), before, "the body is untouched");
         assert_eq!(rows(&body), rows_before, "every row is where it was");
     }
+
+    /// The vertex `split_edge` puts on the wall's rim at height `z`,
+    /// where the ruling `u = 0.8` meets it. The split carries the rows.
+    fn rim_vertex_on_the_ruling(body: &mut Body<f64>, z: f64) -> crate::entity::VertexKey {
+        use crate::test_support_fixtures::CylFrame;
+        let want: geom_core::Point3<f64> = CylFrame::canonical(1.0).at(0.8, z);
+        let (rim, t) = body
+            .edges()
+            .find_map(|(e, data)| {
+                let c = body.get_curve_geom(data.curve)?.certified()?;
+                let geom::Curve3::Circle {
+                    center,
+                    axis,
+                    u_ref,
+                    ..
+                } = *c.carrier()
+                else {
+                    return None;
+                };
+                if center.z != z {
+                    return None;
+                }
+                let d = want - center;
+                let angle = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));
+                let (t0, t1) = c.params();
+                let (lo, hi) = (t0.min(t1), t0.max(t1));
+                let tau = core::f64::consts::TAU;
+                let t = angle + tau * ((lo - angle) / tau).ceil();
+                (t < hi).then_some((e, t))
+            })
+            .unwrap();
+        body.split_edge(rim, t, Tol::witness()).unwrap().vertex
+    }
+
+    /// The minted wall sheet with both rims split on the ruling
+    /// `u = 0.8`, a null strut hung at a corner — so a null edge holds
+    /// the wall's one loop open and its only missing rows are the
+    /// strut's two — and the `mef` along the ruling that cuts the wall
+    /// in two, the strut on one side.
+    struct RulingCut {
+        body: Body<f64>,
+        wall: FaceKey,
+        null: crate::MevCreated,
+        site: crate::MefSite,
+        chord: geom_brep::EdgeCurveSpec<f64>,
+    }
+
+    fn ruling_cut() -> RulingCut {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let wall = cyl_wall_sheet(
+            &mut body,
+            CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        let bottom = rim_vertex_on_the_ruling(&mut body, 0.0);
+        let top = rim_vertex_on_the_ruling(&mut body, 1.0);
+        let cycle = |body: &Body<f64>| {
+            let outer = body.get_face(wall).unwrap().outer;
+            let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+            else {
+                panic!("the wall is bounded by a cycle")
+            };
+            body.loop_cycle(first).unwrap()
+        };
+        let start = |body: &Body<f64>, he: crate::entity::HalfEdgeKey| {
+            body.get_half_edge(he).unwrap().start
+        };
+        let corner = *cycle(&body)
+            .iter()
+            .find(|&&he| ![bottom, top].contains(&start(&body, he)))
+            .unwrap();
+        let null = body
+            .mev_null(
+                crate::MevSite::Fan {
+                    he1: corner,
+                    he2: corner,
+                },
+                NewVertexSide::Above,
+            )
+            .unwrap();
+        let leaving = |v| {
+            *cycle(&body)
+                .iter()
+                .find(|&&he| start(&body, he) == v)
+                .unwrap()
+        };
+        let site = crate::MefSite::Chords {
+            he1: leaving(bottom),
+            he2: leaving(top),
+        };
+        let point = |v: crate::entity::VertexKey| {
+            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+        };
+        let chord = geom_brep::EdgeCurveSpec::line_between(point(bottom), point(top));
+        RulingCut {
+            body,
+            wall,
+            null,
+            site,
+            chord,
+        }
+    }
+
+    /// The half-edges `validate_pcurves` names as missing a row, sorted.
+    fn missing_rows(body: &Body<f64>) -> Vec<crate::entity::HalfEdgeKey> {
+        let mut out: Vec<_> = findings(body)
+            .into_iter()
+            .map(|f| match f {
+                crate::pcurves::PcurveMintError::MissingCache { half_edge } => half_edge,
+                other => panic!("only missing rows are reported, got {other:?}"),
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// Every stored row of `face`'s loops, sorted.
+    fn face_rows(body: &Body<f64>, face: FaceKey) -> Vec<String> {
+        let f = body.get_face(face).unwrap();
+        let mut out: Vec<String> = core::iter::once(f.outer)
+            .chain(f.rings.iter().copied())
+            .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
+                crate::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
+                crate::LoopBoundary::Empty { .. } => None,
+            })
+            .flatten()
+            .filter_map(|he| {
+                let c = body.pcurve(he)?;
+                Some(format!(
+                    "{he:?} {:?} {:?} {:?}",
+                    c.params(),
+                    c.pcurve(),
+                    c.certificate()
+                ))
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// **An operator that cuts a null edge off a loop mints the loop it
+    /// releases.** The `mef` along the ruling leaves the strut on one
+    /// piece and the other piece's loop running through no null edge:
+    /// that piece leaves complete, with the minting pass's rows byte for
+    /// byte, and the piece the strut still holds open misses exactly the
+    /// strut's two rows and the chord half on its loop. Before the site
+    /// mint read a face held open by a null edge, the `mef` left the
+    /// wall as found and both pieces missed their chord halves' rows.
+    #[test]
+    fn a_mef_that_cuts_a_null_strut_off_mints_the_piece_it_releases() {
+        let RulingCut {
+            mut body,
+            wall,
+            null,
+            site,
+            chord,
+        } = ruling_cut();
+        let mut held_open = vec![null.he_plus, null.he_minus];
+        held_open.sort();
+        assert_eq!(
+            missing_rows(&body),
+            held_open,
+            "the null strut holds the wall open"
+        );
+        let made = body
+            .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
+            .unwrap();
+        let held = face_of(&body, null.he_plus);
+        let released = if held == wall { made.face } else { wall };
+        let chord_on_held = if face_of(&body, made.he_plus) == held {
+            made.he_plus
+        } else {
+            made.he_minus
+        };
+        held_open.push(chord_on_held);
+        held_open.sort();
+        assert_eq!(
+            missing_rows(&body),
+            held_open,
+            "only the loop the strut holds open misses rows"
+        );
+        let released_rows = face_rows(&body, released);
+        let mut pass = body.clone();
+        crate::pcurves::mint_pcurves_of(&mut pass, &[released], Tol::witness()).unwrap();
+        assert_eq!(
+            released_rows,
+            face_rows(&pass, released),
+            "the released piece's rows are the minting pass's, byte for byte"
+        );
+    }
+
+    /// **A refusal inside the released loop's mint leaves the body
+    /// untouched.** The same cut, with the curve entry of a half-edge on
+    /// the side the cut releases gone — tier 1's corruption, which the
+    /// walk of that loop meets: the `mef` refuses typed, naming the
+    /// wall, before it mutates.
+    #[test]
+    fn a_refused_mint_of_the_released_loop_leaves_the_body_untouched() {
+        let RulingCut {
+            mut body,
+            wall,
+            null,
+            site,
+            chord,
+        } = ruling_cut();
+        let mut control = body.clone();
+        let made = control
+            .mef(
+                site,
+                chord.clone(),
+                crate::FaceSurface::Inherit,
+                Tol::witness(),
+            )
+            .unwrap();
+        let released = if face_of(&control, null.he_plus) == wall {
+            made.face
+        } else {
+            wall
+        };
+        let outer = control.get_face(released).unwrap().outer;
+        let crate::LoopBoundary::Cycle { first } = control.get_loop(outer).unwrap().boundary else {
+            panic!("the released piece is bounded by a cycle")
+        };
+        let on_released = *control
+            .loop_cycle(first)
+            .unwrap()
+            .iter()
+            .find(|&&he| he != made.he_plus && he != made.he_minus)
+            .unwrap();
+        let torn = body
+            .get_edge(body.get_half_edge(on_released).unwrap().edge)
+            .unwrap()
+            .curve;
+        body.curves.remove(torn).unwrap();
+        let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
+        let (before, rows_before) = (deep_snapshot(&body), rows(&body));
+        let err = body
+            .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
+            .unwrap_err();
+        assert_eq!(
+            err,
+            EulerOpError::PcurveMint {
+                face: wall,
+                refusal: crate::pcurves::SiteRowRefusal::Corrupt,
+            }
+        );
+        assert_eq!(deep_snapshot(&body), before, "the body is untouched");
+        assert_eq!(rows(&body), rows_before, "every row is where it was");
+    }
 }
