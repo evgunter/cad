@@ -4114,3 +4114,8 @@ and branches before clearing them.
 
 All three stale worktrees are removed, and the targets survived. PR
 3546's CI is still running on `db70c234a2`.
+
+PR 3546 merged (`19477d8632`) after CI run 36715545721 went green, and
+`revert-anchors-trust-a-torn-next-or-prev` is closed. Its follow-up,
+`revert-writes-each-start-through-an-unproven-next` (P3, E), waits for
+the walk target, which the snapshot lane is using.
