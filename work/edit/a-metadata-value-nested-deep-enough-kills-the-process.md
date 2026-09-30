@@ -35,9 +35,18 @@ for, to a one-extrude document:
 
 Not reachable from Python (the binding builds no `MetaValue`), so the
 door is the Rust API and a hand-edited file. The load door bounds a
-file's nesting (`persist::nesting::BODY_NESTING`, 289 levels today),
-and a `MetaValue` nested to that limit (about 140 levels, two JSON
-levels each) loads on a 1 MiB stack (measured, 339 KiB).
+file's nesting (`persist::nesting::BODY_NESTING`, 271 JSON brackets
+today), and a `MetaValue` nested to that limit (about 131 levels, two
+JSON brackets each) loads on a 1 MiB stack (measured at the earlier
+limit of 289, about 140 levels: 339 KiB).
+
+The scan is type-agnostic (the review of PR 3510, its Q7): one limit
+for every value in a body, so the deepest type's budget is every
+type's. Raising `BODY_NESTING` for another type (names nested deeper,
+`a-stable-name-nests-one-level-per-copy-and-every-walk-over-it-recurses`)
+raises how deep a `MetaValue` this recursive load reads, so a bound
+here, or a load that counts its own levels as the expression reader
+does, should land before any such raise.
 
 ## What would close it
 

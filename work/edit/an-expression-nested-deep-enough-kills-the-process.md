@@ -106,25 +106,31 @@ bound on that stack and reads the refusal back.
 One bound, `expr::MAX_NESTING` = 128 levels, read by every door that
 mints an expression: the smart constructors cache each node's nesting
 and refuse past it (`DimensionError::NestedTooDeep`; `Expr::neg` and
-`MeasureExpr::neg` are fallible for it alone), the text door refuses
-text nested past it at the bracket, sign or operator, and the load door
-(`persist::nesting`) scans a body against the nesting a save can reach
-(289 JSON levels) before serde_json reads it with its own fixed limit
-off, reading an expression's children through a counter that refuses
-past the bound. The parser, `eval`, `eval_count`, the measurement
-evaluator and `Drop` (on `Expr`, `MeasureExpr` and both wire forms)
-keep their own stack. Every other walk recurses at most 128 levels;
-the tallest, the load door, needs 647 KiB of the 1 MiB wasm32 stack in
-the dev profile. Rows: `editor-core::all expr_nesting_bound` (three,
-each on a 1 MiB thread), four unit rows, and
-`test_expressions.TestNestingBound` on a `threading.Thread`.
+`MeasureExpr::neg` are fallible for it alone), the text door builds
+through them (brackets alone nest nothing, and a minus sign directly
+before a number is the literal's own, so every tree the constructors
+admit reads back from its `unparse` text node for node), and the load
+door (`persist::nesting`) scans a body against the nesting a save can
+reach (271 JSON brackets, pinned against a census of every expression
+position in the corpus) before serde_json reads it with its own fixed
+limit off, reading an expression's children through a counter that
+refuses past the bound. The parser, `eval`, `eval_count`, the
+measurement evaluator and `Drop` on `Expr` and `MeasureExpr` keep their
+own stack (`crate::tree`). Every other walk recurses at most 128
+levels; the tallest, the load door, needs 647 KiB of the 1 MiB wasm32
+stack in the dev profile. A flat chain of more than 128 terms refuses,
+and the docs where a user meets it say so. Rows:
+`editor-core::all expr_nesting_bound` (ten, on a 1 MiB thread),
+`u8a_parse`'s signed-literal row and random-tree round trip, four unit
+rows, and `test_expressions.TestNestingBound` on a `threading.Thread`.
 
 Correction to the premises above: the round trip broke from 62 levels,
 not only past the save's own recursion: serde_json's 128 counts JSON
 levels, and an operator is two, so a 62-term sum saved and then
 refused to load.
 
-Filed: `a-metadata-value-nested-deep-enough-kills-the-process` (P2). The
-load door's limit now also admits a `StableName` nested up to about 70
-`InPart` levels where serde_json refused past about 31; that is the
-name row's to walk.
+Filed: `a-metadata-value-nested-deep-enough-kills-the-process` (P2) and
+`a-flat-chain-of-more-than-128-terms-refuses` (P4, the two routes that
+would lift the bound). The load door's limit now also admits a
+`StableName` nested up to 65 `InPart` levels where serde_json refused
+past about 31; that is the name row's to walk, and its row says so.
