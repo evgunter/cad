@@ -3963,3 +3963,34 @@ silent case) and 3 (a spline destination keeps the drop, filed as a
 question) are accepted for the review to check.
 
 The lane is resumed with its context. The review follows the rework.
+
+## PR 3532's fix pass delivered; rows closed on the branch (2026-09-30)
+
+The fix pass took 294,538 tokens, 152 tools and 3,161 s. Head
+`b31115b13e` is green on CI run 36705205279.
+
+What the fix pass did:
+- **Precedence.** The zero winding now outranks an unsupported loop;
+  pinned, and M9 reds.
+- **`TornLoop`.** Split into a stale link, naming the half-edge, and
+  a walk that never closes. Each key has its row.
+- **One claim helper.** `Edge::claim` is the single reading of the
+  edge ↔ half-edge pairing. `Body::mate`, `outermost_survivor`,
+  `edge_mate` and the winding walk read it, and the walk refuses
+  `UnclaimedHalfEdge`.
+- **The surface arm.** Row 0: `KindCensus` carries the resolved
+  surface.
+- **Empty loops.** An `Empty` loop is not-positive, and `Unread` is
+  now `UnsupportedWinding`.
+- **Filed.** The unclaimed-half-edge class, one row per owning slate
+  (8), and the addendum's "gate-only" gap as a design question on
+  VERDICT.
+- **Deviations, accepted:**
+  - the guard register entry is marked audited, with its reason, and
+    disclosed;
+  - `euler_kill.rs`'s ladders are left alone, since they test both
+    slots and the reparent lane is live there.
+
+The orchestrator read the diff (`5e07bfe8e0..b31115b13e`); it is
+clean. D262 and the role row close on the branch (`6d0fbfe5d8`).
+Merge after CI. Single tier, no DR row.
