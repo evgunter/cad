@@ -5,6 +5,8 @@ title: mekr's EmptyRing and BothEmpty sites kill an Empty ring no plan proves un
 status: open
 opened: 2026-09-30
 refs: [kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names]
+priority: P3
+cost: E
 ---
 
 ## What

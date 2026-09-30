@@ -5,6 +5,8 @@ title: EulerOpError's tier-1 corruption refusals end in a '(malformed body)' tag
 status: open
 opened: 2026-09-30
 refs: [loop-cycle-broken-display-names-one-of-its-causes]
+priority: P3
+cost: E
 ---
 
 ## What
