@@ -2428,6 +2428,14 @@ NOT_BOUND = {
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
+    # A refusal's rendering machinery: Python reads a refusal through
+    # `str()`, and the stripped sentence is what a Rust carrier renders
+    # inside its own. The phrase is read in that text.
+    "Labelled": SHAPE,
+    "Labels": SHAPE,
+    "PASS_A_RESOLVER": SHAPE,
+    "Recourse": SHAPE,
+    "Staged": SHAPE,
     "Real": SHAPE,
     "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,

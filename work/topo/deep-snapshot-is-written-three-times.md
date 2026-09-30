@@ -4,6 +4,8 @@ kind: issue
 title: topo's tests write the deep body snapshot three times: fixtures::deep_snapshot, review_m1_pr2's deep_snapshot and review_m1_pr3's snapshot
 status: open
 opened: 2026-09-29
+priority: P3
+cost: E
 ---
 
 

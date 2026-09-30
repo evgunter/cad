@@ -67,6 +67,7 @@ pub mod refactor;
 pub mod report;
 pub mod resolve;
 pub mod roots;
+pub mod sentence;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
 /// derivative and report services over [`mod@drive`]'s leaves. Every
 /// sensitivity carries a chamber mark whose certified variant IS an E6
@@ -128,6 +129,7 @@ pub use eval::{
     ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate,
     mate_reach,
 };
+pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
 // than through the module path.

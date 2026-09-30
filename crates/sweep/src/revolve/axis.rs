@@ -264,14 +264,6 @@ impl<T: Real> WallClass<T> {
             WallClass::Wall { kind, .. } => Some(kind),
         }
     }
-
-    /// The wall face's orientation sense, if the segment sweeps one.
-    pub(super) fn sense(&self) -> Option<bool> {
-        match self {
-            WallClass::OnAxis => None,
-            WallClass::Wall { sense, .. } => Some(*sense),
-        }
-    }
 }
 
 /// The classified surface-of-revolution catalog (ratified in M2-PLAN

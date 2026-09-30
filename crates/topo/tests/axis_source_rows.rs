@@ -46,10 +46,22 @@ fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
     let mut b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
     let cyl = b
-        .set_face_surface(faces[0], FaceSurface::New(cylinder()))
+        .set_face_surface(
+            faces[0],
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
         .unwrap();
     let cone = b
-        .set_face_surface(faces[1], FaceSurface::New(cone()))
+        .set_face_surface(
+            faces[1],
+            FaceSurface::New {
+                surface: cone(),
+                sense: true,
+            },
+        )
         .unwrap();
     (b, [cyl, cone])
 }
@@ -98,7 +110,14 @@ fn the_attach_door_takes_axes_and_refuses_planes_and_stale_keys() {
         .find(|(_, f)| f.surface == stale_after)
         .map(|(k, _)| k)
         .unwrap();
-    b.set_face_surface(face, FaceSurface::New(cone())).unwrap();
+    b.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: cone(),
+            sense: true,
+        },
+    )
+    .unwrap();
     assert!(b.get_surface(stale_after).is_none());
     assert_eq!(
         b.set_surface_axis_source(stale_after, axis),
@@ -245,12 +264,15 @@ fn the_orphan_door_drops_the_row() {
     let fresh = b
         .set_face_surface(
             face,
-            FaceSurface::New(Surface::Cylinder {
-                origin: Point3::new(0.5, 0.5, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: 0.3,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Cylinder {
+                    origin: Point3::new(0.5, 0.5, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 0.3,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     assert!(b.get_surface(cyl).is_none(), "the old surface was orphaned");
