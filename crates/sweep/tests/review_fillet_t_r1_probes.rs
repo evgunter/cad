@@ -14,8 +14,9 @@
 //! carve file that arrives later is inside the census the day it lands
 //! (a planted fifth file under `blend/open/` carrying `body.kef(`
 //! stayed green against the four-file list this replaced — measured by
-//! both FILLET-SPLIT reviewers). Exactly one `.kef(` in the code of the
-//! whole directory (comments and literals blanked), and it sits inside
+//! both FILLET-SPLIT reviewers). Exactly one call of a `kef` door
+//! (`.kef(` or its band twin `.kef_minting(`) in the code of the whole
+//! directory (comments and literals blanked), and it sits inside
 //! `kef_minted`'s own body in `surgery.rs`. The second assertion pins
 //! the site census PR 1943 states (eight `kef_minted` calls, summed over
 //! the directory), so a ninth site is a deliberate re-count rather than
@@ -72,8 +73,10 @@ fn every_kef_in_the_blend_surgery_goes_through_the_door() {
     let kefs: Vec<(&str, usize)> = codes
         .iter()
         .flat_map(|(rel, code)| {
-            code.match_indices(".kef(")
-                .map(move |(i, _)| (rel.as_str(), i))
+            [".kef(", ".kef_minting("]
+                .into_iter()
+                .flat_map(move |door| code.match_indices(door).map(|(i, _)| i))
+                .map(move |i| (rel.as_str(), i))
         })
         .collect();
     assert_eq!(

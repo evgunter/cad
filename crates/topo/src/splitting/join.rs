@@ -99,7 +99,7 @@ pub(super) fn split_connect<T: Decide>(
 
     let mut st = Sweep {
         ends: Vec::new(),
-        joiner: ChordJoiner::new(band, tol),
+        joiner: ChordJoiner::new(band),
         completed: Vec::new(),
         above_set,
         plane: red.plane,

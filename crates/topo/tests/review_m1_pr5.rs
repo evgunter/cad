@@ -106,7 +106,7 @@ fn grow_and_promote_detached_digon(
         Tol::witness(),
     )
     .unwrap();
-    body.mfkrh_plug(kill.ring, true, Tol::witness()).unwrap()
+    body.mfkrh_plug(kill.ring, true).unwrap()
 }
 
 // ----------------------------------------------------------------------
@@ -197,7 +197,7 @@ fn nested_detachment_detached_component_with_genus() {
     // ...and kfmrh the island face onto the promoted face (same
     // component => handle, g+1): island's outer becomes a ring of the
     // promoted face. f2 = island must be ring-free (it is).
-    let res = body.kfmrh(promoted_face, island.face, Tol::witness());
+    let res = body.kfmrh(promoted_face, island.face);
     assert!(res.is_ok(), "kfmrh within the detached component: {res:?}");
 
     // Counts: pillow v2 e2 f2; detached component: digon pair v2 e2 f2
@@ -406,7 +406,7 @@ fn ring_move_cross_component_stays_tier1_valid() {
 
     // Move the still-a-ring island boundary from its pillow face onto
     // B's promoted face.
-    let res = body.ring_move(kill.ring, promoted.face, Tol::witness());
+    let res = body.ring_move(kill.ring, promoted.face);
     assert_eq!(res, Ok(()), "ring_move accepts the cross-component move");
     // Tier 1 must still pass: this is the sharpest public-API probe at
     // the component partition (a debug postcondition fires inside
@@ -473,7 +473,7 @@ fn demotion_attack_battery_no_debug_panic() {
     // (May be legal per PR 4's mate-alone re-make; either way: no panic.)
     if let Ok(created) = r {
         // Undo (kef on the NEW loop's half) to keep the body simple.
-        body.kef(created.he_minus, Tol::witness()).unwrap();
+        body.kef(created.he_minus).unwrap();
     }
 
     // mef Chords across DIFFERENT loops (he2 in another face).
@@ -498,11 +498,11 @@ fn demotion_attack_battery_no_debug_panic() {
     assert!(r.is_err(), "halves in different loops: {r:?}");
 
     // kfmrh(f, f) and cross-shell kfmrh.
-    let r = body.kfmrh(seed.face, seed.face, Tol::witness());
+    let r = body.kfmrh(seed.face, seed.face);
     assert!(r.is_err(), "{r:?}");
 
     // mfkrh on an OUTER loop.
-    let r = body.mfkrh_plug(cube_outer, true, Tol::witness());
+    let r = body.mfkrh_plug(cube_outer, true);
     assert!(r.is_err(), "outer is not a ring: {r:?}");
 
     // kev on a self-mated... on a pillow edge (distinct ends required).
@@ -513,16 +513,16 @@ fn demotion_attack_battery_no_debug_panic() {
     assert!(r.is_err(), "kvfs needs the skeletal state: {r:?}");
 
     // ring_move: ring key that is an outer; to_face cross-shell.
-    let r = body.ring_move(cube_outer, promoted.face, Tol::witness());
+    let r = body.ring_move(cube_outer, promoted.face);
     assert!(r.is_err(), "{r:?}");
 
     // Foreign keys from another body (lineage hazard: may alias or be
     // stale; must never panic).
     let (mut other, _oseed, oseg) = pillow();
-    let _ = other.kef(oseg.he_plus, Tol::witness());
+    let _ = other.kef(oseg.he_plus);
     let foreign_he = oseg.he_plus;
     let _ = body.kev(foreign_he);
-    let _ = body.kef(foreign_he, Tol::witness());
+    let _ = body.kef(foreign_he);
     let _ = body.kemr(foreign_he, foreign_he);
     let _ = body.mev_line(
         MevSite::Fan {
@@ -556,7 +556,7 @@ fn stale_keys_yield_typed_errors() {
     let _ = killed;
     for r in [
         body.kev(dead_he).unwrap_err(),
-        body.kef(dead_he, Tol::witness()).unwrap_err(),
+        body.kef(dead_he).unwrap_err(),
         body.kemr(dead_he, dead_he).unwrap_err(),
         body.mev_line(
             MevSite::Fan {
@@ -602,7 +602,7 @@ fn assert_tier1_after_all_public_mutations(label: &str, body: &Body<f64>, depth:
     for &lp in &loops {
         for &f in &faces {
             let mut clone = body.clone();
-            if clone.ring_move(lp, f, Tol::witness()).is_ok() {
+            if clone.ring_move(lp, f).is_ok() {
                 assert_eq!(
                     validate(&clone),
                     Ok(()),
@@ -622,7 +622,7 @@ fn assert_tier1_after_all_public_mutations(label: &str, body: &Body<f64>, depth:
     for &f1 in &faces {
         for &f2 in &faces {
             let mut clone = body.clone();
-            if clone.kfmrh(f1, f2, Tol::witness()).is_ok() {
+            if clone.kfmrh(f1, f2).is_ok() {
                 assert_eq!(
                     validate(&clone),
                     Ok(()),
@@ -634,7 +634,7 @@ fn assert_tier1_after_all_public_mutations(label: &str, body: &Body<f64>, depth:
     // mfkrh sweep.
     for &lp in &loops {
         let mut clone = body.clone();
-        if clone.mfkrh_plug(lp, true, Tol::witness()).is_ok() {
+        if clone.mfkrh_plug(lp, true).is_ok() {
             assert_eq!(
                 validate(&clone),
                 Ok(()),
@@ -684,7 +684,7 @@ fn pillow_torus() -> Body<f64> {
         .map(|(k, _)| k)
         .find(|&k| k != ring_face && k != island.face)
         .unwrap();
-    body.kfmrh(other_face, island.face, Tol::witness()).unwrap();
+    body.kfmrh(other_face, island.face).unwrap();
     // Genus check: v4 e4 f2 r2 => chi 0 = 2(1-1).
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(validate_closed(&body), Ok(()), "pillow-torus is closed");
@@ -787,7 +787,7 @@ fn promoted_empty_ring_still_has_an_empty_loop() {
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // mfkrh on the EMPTY ring (if accepted).
-    let promoted = body.mfkrh_plug(kill.ring, true, Tol::witness());
+    let promoted = body.mfkrh_plug(kill.ring, true);
     match promoted {
         Ok(_) => {
             assert_eq!(validate(&body), Ok(()), "tier 1 accepts it");
@@ -838,7 +838,7 @@ fn exhaustive_mutator_sweep_empty_outer_family() {
 
     // Direct chain: promote the cycle ring.
     let mut chained = body.clone();
-    if chained.mfkrh_plug(kill.ring, true, Tol::witness()).is_ok() {
+    if chained.mfkrh_plug(kill.ring, true).is_ok() {
         assert_eq!(validate(&chained), Ok(()), "promoted strut-cycle face");
         let errs = validate_closed(&chained).unwrap_err();
         assert!(
@@ -856,19 +856,19 @@ fn exhaustive_mutator_sweep_empty_outer_family() {
     for &lp in &loops {
         for &f in &faces {
             let mut clone = body.clone();
-            if clone.ring_move(lp, f, Tol::witness()).is_ok() {
+            if clone.ring_move(lp, f).is_ok() {
                 assert_eq!(validate(&clone), Ok(()), "ring_move({lp:?},{f:?})");
             }
         }
         let mut clone = body.clone();
-        if clone.mfkrh_plug(lp, true, Tol::witness()).is_ok() {
+        if clone.mfkrh_plug(lp, true).is_ok() {
             assert_eq!(validate(&clone), Ok(()), "mfkrh({lp:?})");
         }
     }
     for &f1 in &faces {
         for &f2 in &faces {
             let mut clone = body.clone();
-            if clone.kfmrh(f1, f2, Tol::witness()).is_ok() {
+            if clone.kfmrh(f1, f2).is_ok() {
                 assert_eq!(validate(&clone), Ok(()), "kfmrh({f1:?},{f2:?})");
             }
         }

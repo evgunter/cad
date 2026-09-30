@@ -571,7 +571,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
             tol,
         )?;
         hole_hes.push(close.he_plus);
-        body.kfmrh(bottom_face, close.face, tol)?;
+        body.kfmrh(bottom_face, close.face)?;
         bases.push(hole_hes);
     }
 

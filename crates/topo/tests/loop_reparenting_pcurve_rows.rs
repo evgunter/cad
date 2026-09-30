@@ -364,7 +364,7 @@ fn the_fixture_is_not_a_structurally_valid_body() {
 #[test]
 fn kfmrh_onto_a_chart_that_mints_nothing_drops_the_demoted_loops_rows() {
     let mut s = sheet();
-    s.body.kfmrh(s.plane, s.low, tol()).unwrap();
+    s.body.kfmrh(s.plane, s.low).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -377,7 +377,7 @@ fn kfmrh_onto_a_chart_that_mints_nothing_drops_the_demoted_loops_rows() {
 #[test]
 fn kfmrh_onto_a_minted_curved_face_mints_the_demoted_loop_in_its_chart() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.plane, tol()).unwrap();
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.low), (10, 0));
     assert_rows_are_the_pass(&s.body, s.low);
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -388,7 +388,7 @@ fn kfmrh_onto_a_minted_curved_face_mints_the_demoted_loop_in_its_chart() {
 #[test]
 fn kfmrh_between_faces_on_one_surface_carries_every_row() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     assert_eq!(rows_of(&s.body, s.low), (8, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -399,9 +399,9 @@ fn kfmrh_between_faces_on_one_surface_carries_every_row() {
 #[test]
 fn ring_move_onto_a_chart_that_mints_nothing_drops_the_rings_rows() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.plane, tol()).unwrap();
+    s.body.ring_move(ring, s.plane).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -430,7 +430,7 @@ fn ring_move_onto_a_minted_curved_face_mints_the_ring_in_its_chart() {
                 .unwrap();
             topo::mint_pcurves_of(&mut s.body, &[s.up], tol()).unwrap();
         }
-        s.body.kfmrh(s.low, s.plane, tol()).unwrap();
+        s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
         let ring = ring_of(&s.body, s.low);
         if rowless {
             for he in loop_halves(&s.body, ring) {
@@ -438,7 +438,7 @@ fn ring_move_onto_a_minted_curved_face_mints_the_ring_in_its_chart() {
             }
         }
         assert_eq!(rows_of(&s.body, s.up), (4, 0), "rowless: {rowless}");
-        s.body.ring_move(ring, s.up, tol()).unwrap();
+        s.body.ring_move_minting(ring, s.up, tol()).unwrap();
         assert_eq!(rows_of(&s.body, s.up), (10, 0), "rowless: {rowless}");
         assert_eq!(rows_of(&s.body, s.low), (4, 0), "rowless: {rowless}");
         assert_rows_are_the_pass(&s.body, s.up);
@@ -450,14 +450,87 @@ fn ring_move_onto_a_minted_curved_face_mints_the_ring_in_its_chart() {
     }
 }
 
+/// **The keys-only doors refuse a re-mint they owe, and touch
+/// nothing.** Each door below moves a loop or run onto a complete
+/// curved face where the moved rows do not stand — rowless, or stated
+/// in another chart — so the face would leave half-minted, and a
+/// keys-only door holds no band to re-mint it. Each refuses
+/// `PcurveMint { KeysOnly }` naming that face, before it mutates: the
+/// body, arenas and pcurve map alike, is as it was. Its `_minting`
+/// twin makes the same move whole (the completion rows above and
+/// below).
+#[test]
+fn the_keys_only_doors_refuse_a_re_mint_they_owe_and_touch_nothing() {
+    let refuses = |body: &mut Body<f64>,
+                   face: FaceKey,
+                   door: &str,
+                   op: &dyn Fn(&mut Body<f64>) -> topo::EulerOpError| {
+        let before = format!("{body:?}");
+        assert_eq!(
+            op(body),
+            topo::EulerOpError::PcurveMint {
+                face,
+                refusal: topo::pcurves::SiteRowRefusal::KeysOnly,
+            },
+            "{door}"
+        );
+        assert_eq!(format!("{body:?}"), before, "{door}: the body is untouched");
+    };
+
+    // `kfmrh`: the plane's rowless loop onto the minted lower panel.
+    let mut s = sheet();
+    let (low, plane) = (s.low, s.plane);
+    refuses(&mut s.body, low, "kfmrh", &|b| {
+        b.kfmrh(low, plane).unwrap_err()
+    });
+
+    // `ring_move`: a rowless ring onto the minted upper panel.
+    let mut s = sheet();
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    for he in loop_halves(&s.body, ring) {
+        s.body.detach_pcurve(he);
+    }
+    let up = s.up;
+    refuses(&mut s.body, up, "ring_move", &|b| {
+        b.ring_move(ring, up).unwrap_err()
+    });
+
+    // `mfkrh`: a minted ring promoted onto a second key — another chart
+    // — out of a complete face.
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let low = s.low;
+    refuses(&mut s.body, low, "mfkrh", &|b| {
+        b.mfkrh(
+            ring,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
+        .unwrap_err()
+    });
+
+    // `kef`: the lower panel killed into the upper across their shared
+    // rim, one remnant row detached.
+    let mut s = sheet();
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let gap = s.body.get_half_edge(he).unwrap().next;
+    s.body.detach_pcurve(gap);
+    let up = s.up;
+    refuses(&mut s.body, up, "kef", &|b| b.kef(he).unwrap_err());
+}
+
 /// A ring moved back onto its own face moves nothing and keeps every
 /// row — the door's documented no-op reaches the map too.
 #[test]
 fn ring_move_to_its_own_face_keeps_every_row() {
     let mut s = sheet();
-    s.body.kfmrh(s.up, s.low, tol()).unwrap();
+    s.body.kfmrh(s.up, s.low).unwrap();
     let ring = ring_of(&s.body, s.up);
-    s.body.ring_move(ring, s.up, tol()).unwrap();
+    s.body.ring_move(ring, s.up).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (8, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -472,19 +545,15 @@ fn ring_move_to_its_own_face_keeps_every_row() {
 #[test]
 fn ring_move_between_faces_on_one_surface_carries_every_row() {
     let mut s = sheet();
-    s.body.kfmrh(s.up, s.low, tol()).unwrap();
-    s.body.kfmrh(s.up, s.plane, tol()).unwrap();
+    s.body.kfmrh(s.up, s.low).unwrap();
+    s.body.kfmrh_minting(s.up, s.plane, tol()).unwrap();
     let rings = s.body.get_face(s.up).unwrap().rings.clone();
     assert_eq!(rings.len(), 2, "the rows ring, then the rowless one");
-    let sibling = s
-        .body
-        .mfkrh(rings[1], FaceSurface::Inherit, tol())
-        .unwrap()
-        .face;
+    let sibling = s.body.mfkrh(rings[1], FaceSurface::Inherit).unwrap().face;
     assert_eq!(rows_of(&s.body, s.up), (8, 0));
     assert_eq!(rows_of(&s.body, sibling), (6, 0));
     let before = rows_deep(&s.body, s.up);
-    s.body.ring_move(rings[0], sibling, tol()).unwrap();
+    s.body.ring_move(rings[0], sibling).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
     assert_eq!(rows_of(&s.body, sibling), (10, 0));
     let after = rows_deep(&s.body, sibling);
@@ -504,9 +573,9 @@ fn ring_move_between_faces_on_one_surface_carries_every_row() {
 #[test]
 fn mfkrh_plug_drops_the_promoted_rings_rows() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    let made = s.body.mfkrh_plug(ring, true, tol()).unwrap();
+    let made = s.body.mfkrh_plug(ring, true).unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -517,9 +586,9 @@ fn mfkrh_plug_drops_the_promoted_rings_rows() {
 #[test]
 fn mfkrh_inheriting_the_chart_carries_every_row() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    let made = s.body.mfkrh(ring, FaceSurface::Inherit, tol()).unwrap();
+    let made = s.body.mfkrh(ring, FaceSurface::Inherit).unwrap();
     assert_eq!(rows_of(&s.body, made.face), (4, 0));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -540,7 +609,7 @@ fn mfkrh_inheriting_the_chart_carries_every_row() {
 #[test]
 fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
     let other = Surface::Cylinder {
         origin: Point3::origin(),
@@ -550,7 +619,7 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     };
     let made = s
         .body
-        .mfkrh(
+        .mfkrh_minting(
             ring,
             FaceSurface::New {
                 surface: other,
@@ -618,7 +687,7 @@ fn a_move_whose_rows_stand_carries_them_as_found() {
     let halves = cycle_of(&s.body, s.low);
     let neighbour = s.body.pcurve(halves[1]).unwrap().clone();
     s.body.attach_pcurve(halves[0], neighbour.clone());
-    s.body.kfmrh(s.up, s.low, tol()).unwrap();
+    s.body.kfmrh(s.up, s.low).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (8, 0));
     assert_eq!(
         format!("{:?}", s.body.pcurve(halves[0]).unwrap()),
@@ -637,7 +706,7 @@ fn a_same_surface_move_keeps_every_row_byte_for_byte() {
     assert_eq!(before.len(), 4);
 
     let mut k = sheet();
-    k.body.kfmrh(k.up, k.low, tol()).unwrap();
+    k.body.kfmrh(k.up, k.low).unwrap();
     let after = rows_deep(&k.body, k.up);
     assert_eq!(after.len(), 8);
     for row in &before {
@@ -648,9 +717,9 @@ fn a_same_surface_move_keeps_every_row_byte_for_byte() {
     }
 
     let mut r = sheet();
-    r.body.kfmrh(r.up, r.low, tol()).unwrap();
+    r.body.kfmrh(r.up, r.low).unwrap();
     let ring = ring_of(&r.body, r.up);
-    r.body.ring_move(ring, r.up, tol()).unwrap();
+    r.body.ring_move(ring, r.up).unwrap();
     assert_eq!(rows_deep(&r.body, r.up), after);
 }
 
@@ -663,7 +732,7 @@ fn a_same_surface_move_keeps_every_row_byte_for_byte() {
 #[test]
 fn a_carried_row_is_the_row_the_minting_pass_derives() {
     let mut s = sheet();
-    s.body.kfmrh(s.up, s.low, tol()).unwrap();
+    s.body.kfmrh(s.up, s.low).unwrap();
     let carried = rows_deep(&s.body, s.up);
     assert_eq!(carried.len(), 8);
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
@@ -685,7 +754,7 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     // `kfmrh` onto the plane: there is nothing to restore, and the
     // face the rows left is gone with the op.
     let mut s = sheet();
-    s.body.kfmrh(s.plane, s.low, tol()).unwrap();
+    s.body.kfmrh(s.plane, s.low).unwrap();
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -693,9 +762,9 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     // `ring_move` onto the plane: the curved face the ring left keeps
     // its own rows across the pass, and the plane still stores none.
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.plane, tol()).unwrap();
+    s.body.ring_move(ring, s.plane).unwrap();
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
@@ -704,9 +773,9 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     // `ring_move` onto a minted curved face leaves it complete; the
     // pass mints the same rows on the chart it is on.
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.plane, tol()).unwrap();
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.up, tol()).unwrap();
+    s.body.ring_move(ring, s.up).unwrap();
     let moved = rows_deep(&s.body, s.up);
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (10, 0));
@@ -753,7 +822,7 @@ fn two_keys_holding_one_surface_read_as_two_charts_whatever_recipe_they_carry() 
         assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 
         let up_rows = rows_deep(&s.body, s.up);
-        s.body.kfmrh(s.low, s.up, tol()).unwrap();
+        s.body.kfmrh_minting(s.low, s.up, tol()).unwrap();
         assert_eq!(rows_of(&s.body, s.low), (8, 0), "stamped: {stamped}");
         assert_rows_are_the_pass(&s.body, s.low);
         assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -790,11 +859,11 @@ fn mfkrh_onto_a_second_key_sharing_a_recipe_mints_the_promoted_face_in_its_chart
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
     s.body.set_surface_source(second, one_recipe()).unwrap();
 
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
     let made = s
         .body
-        .mfkrh(
+        .mfkrh_minting(
             ring,
             FaceSurface::Shared {
                 key: second,
@@ -833,7 +902,7 @@ fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
         .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 6));
 
-    s.body.kfmrh(s.plane, s.low, tol()).unwrap();
+    s.body.kfmrh(s.plane, s.low).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -852,9 +921,9 @@ fn ring_move_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet()
             },
         )
         .unwrap();
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.plane, tol()).unwrap();
+    s.body.ring_move(ring, s.plane).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(rows_of(&s.body, s.low), (4, 0));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -889,7 +958,7 @@ fn an_empty_boundary_ring_moves_with_the_map_untouched() {
 
     let before_low = rows_deep(&s.body, s.low);
     let before_total = rows_total(&s.body);
-    s.body.ring_move(ring, s.plane, tol()).unwrap();
+    s.body.ring_move(ring, s.plane).unwrap();
     assert_eq!(rows_deep(&s.body, s.low), before_low);
     assert_eq!(rows_total(&s.body), before_total);
 }
@@ -1249,12 +1318,12 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
             },
         )
         .unwrap();
-    s.body.kfmrh(s.plane, s.low, tol()).unwrap();
+    s.body.kfmrh(s.plane, s.low).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10), "kfmrh");
 
     let mut s = sheet();
     let forged = forge(&mut s);
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
     s.body
         .set_face_surface(
@@ -1265,12 +1334,12 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
             },
         )
         .unwrap();
-    s.body.ring_move(ring, s.plane, tol()).unwrap();
+    s.body.ring_move(ring, s.plane).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10), "ring_move");
 
     let mut s = sheet();
     let forged = forge(&mut s);
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     let ring = ring_of(&s.body, s.low);
     let made = s
         .body
@@ -1280,7 +1349,6 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
                 key: forged,
                 sense: true,
             },
-            tol(),
         )
         .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4), "mfkrh");
@@ -1297,7 +1365,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
         )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he, tol()).unwrap();
+    s.body.kef(he).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8), "kef");
 }
 
@@ -1313,7 +1381,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
 fn kef_into_a_face_on_a_chart_that_mints_nothing_drops_the_remnants_rows() {
     let mut s = sheet();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    let killed = s.body.kef(he, tol()).unwrap();
+    let killed = s.body.kef(he).unwrap();
     assert_eq!(killed.killed_face, s.low);
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1341,7 +1409,7 @@ fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quie
         )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he, tol()).unwrap();
+    s.body.kef(he).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -1361,7 +1429,7 @@ fn kef_between_faces_on_one_chart_carries_the_remnants_rows_byte_for_byte() {
         .filter(|row| !row.starts_with(&format!("{he:?} ")))
         .collect();
     assert_eq!(remnant_rows.len(), 3);
-    let killed = s.body.kef(he, tol()).unwrap();
+    let killed = s.body.kef(he).unwrap();
     assert_eq!(killed.killed_face, s.low);
     assert_eq!(rows_of(&s.body, s.up), (6, 0));
     let after = rows_deep(&s.body, s.up);
@@ -1394,7 +1462,7 @@ fn kef_into_a_second_key_sharing_a_recipe_drops_the_remnants_rows_until_the_pass
     s.body.set_surface_source(second, one_recipe()).unwrap();
 
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he, tol()).unwrap();
+    s.body.kef(he).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
 
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
@@ -1441,7 +1509,7 @@ fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
     let up_before = rows_deep(&s.body, s.up);
 
     let he = he_at(&s.body, s.low, at(U1, VM));
-    let killed = s.body.kef(he, tol()).unwrap();
+    let killed = s.body.kef_minting(he, tol()).unwrap();
     assert_eq!(killed.killed_face, s.low);
     assert_eq!(rows_of(&s.body, s.up), (6, 0));
     assert_rows_are_the_pass(&s.body, s.up);
@@ -1551,7 +1619,7 @@ fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them()
 #[test]
 fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     assert_eq!(rows_of(&s.body, s.low), (8, 0));
     assert_eq!(s.body.get_face(s.low).unwrap().rings.len(), 1);
 
@@ -1883,7 +1951,7 @@ fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         let he = he_at(&s.body, s.low, at(U1, VM));
-        let killed = s.body.kef(he, tol()).unwrap();
+        let killed = s.body.kef(he).unwrap();
         assert_eq!(killed.killed_face, s.low);
         assert!(
             s.body.get_surface(keys[0]).is_none(),
@@ -1898,7 +1966,7 @@ fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
 fn kfmrh_carries_every_row_across_one_payload() {
     for tied in [true, false] {
         let ArcSheet { mut s, .. } = arc_sheet(tied);
-        s.body.kfmrh(s.low, s.up, tol()).unwrap();
+        s.body.kfmrh(s.low, s.up).unwrap();
         let want = if tied { (8, 0) } else { (4, 4) };
         assert_eq!(rows_of(&s.body, s.low), want, "tied: {tied}");
     }
@@ -1915,14 +1983,14 @@ fn kfmrh_carries_every_row_across_one_payload() {
 fn a_spline_destination_keeps_the_drop() {
     let ArcSheet { mut s, .. } = arc_sheet(false);
     let low_before = rows_deep(&s.body, s.low);
-    s.body.kfmrh(s.low, s.up, tol()).unwrap();
+    s.body.kfmrh(s.low, s.up).unwrap();
     assert_eq!(rows_of(&s.body, s.low), (4, 4), "kfmrh");
     assert_eq!(rows_deep(&s.body, s.low), low_before, "kfmrh");
 
     let ArcSheet { mut s, .. } = arc_sheet(false);
     let up_before = rows_deep(&s.body, s.up);
     let he = he_at(&s.body, s.low, at(U1, VM));
-    s.body.kef(he, tol()).unwrap();
+    s.body.kef(he).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (3, 3), "kef");
     let up_after = rows_deep(&s.body, s.up);
     assert!(
@@ -1934,7 +2002,7 @@ fn a_spline_destination_keeps_the_drop() {
     // as a ring onto `up`: two complete spline destinations in turn.
     let ArcSheet { mut s, .. } = arc_sheet(false);
     let (low_before, up_before) = (rows_deep(&s.body, s.low), rows_deep(&s.body, s.up));
-    s.body.kfmrh(s.low, s.plane, tol()).unwrap();
+    s.body.kfmrh(s.low, s.plane).unwrap();
     assert_eq!(rows_of(&s.body, s.low), (4, 6), "kfmrh of a rowless loop");
     assert_eq!(
         rows_deep(&s.body, s.low),
@@ -1942,7 +2010,7 @@ fn a_spline_destination_keeps_the_drop() {
         "kfmrh of a rowless loop"
     );
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.up, tol()).unwrap();
+    s.body.ring_move(ring, s.up).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (4, 6), "ring_move");
     assert_eq!(rows_deep(&s.body, s.up), up_before, "ring_move");
 }
@@ -1970,9 +2038,9 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
                 },
             )
             .unwrap();
-        s.body.kfmrh(s.low, s.up, tol()).unwrap();
+        s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
-        s.body.ring_move(ring, s.plane, tol()).unwrap();
+        s.body.ring_move(ring, s.plane).unwrap();
         let want = if tied {
             (RING_ROWS, 6 + 4 - RING_ROWS)
         } else {
@@ -1993,7 +2061,7 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
                 },
             )
             .unwrap();
-        s.body.kfmrh(s.low, s.up, tol()).unwrap();
+        s.body.kfmrh(s.low, s.up).unwrap();
         let ring = ring_of(&s.body, s.low);
         let made = s
             .body
@@ -2003,7 +2071,6 @@ fn ring_move_and_mfkrh_carry_every_row_across_one_payload() {
                     key: keys[2],
                     sense: false,
                 },
-                tol(),
             )
             .unwrap();
         let want = if tied {
@@ -2467,7 +2534,7 @@ fn mfkrh_rows(base: &Body<f64>, found: Vec<(FaceKey, LoopKey, bool)>, failures: 
             let on_chart = !matches!(spec, FaceSurface::New { .. });
             let mut b = base.clone();
             let before = format!("{b:?}");
-            match (b.mfkrh(ring, spec, tol()), want) {
+            match (b.mfkrh(ring, spec), want) {
                 (Ok(made), Ok(sense)) => {
                     if sense_of(&b, made.face) != sense {
                         failures.push(format!("{name}: want {sense}"));
@@ -2555,7 +2622,6 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
                 surface: Surface::Nurbs(cap_patch),
                 sense: false,
             },
-            tol(),
         )
         .unwrap();
     assert_ne!(first.surface, own, "a second key");
@@ -2572,7 +2638,6 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
             key: first.surface,
             sense: true,
         },
-        tol(),
     );
     refused_untouched(
         "mfkrh Shared(second key, one payload) stating the cap's bit",
@@ -2590,7 +2655,6 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
                 key: first.surface,
                 sense: false,
             },
-            tol(),
         )
         .unwrap();
     if sense_of(&body, second.face) {

@@ -106,9 +106,7 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
     // surface splits into two closed components (cube; inner box).
     // Inherit: the promoted face shares the demoting face's surface
     // key (the section-face convention).
-    let promoted = body
-        .mfkrh(planted.ring, FaceSurface::Inherit, Tol::witness())
-        .unwrap();
+    let promoted = body.mfkrh(planted.ring, FaceSurface::Inherit).unwrap();
     (body, seed.shell, top, promoted.face)
 }
 
@@ -139,7 +137,7 @@ fn multi_shell_lifecycle_roundtrip() {
     assert_eq!(body.shells().count(), 2);
     // Fuse back: cross-shell kfmrh re-homes the inner box's faces and
     // demotes its promoted face to a ring of the top face again.
-    let fused = body.kfmrh(top, inner, Tol::witness()).unwrap();
+    let fused = body.kfmrh(top, inner).unwrap();
     assert_eq!(fused.killed_shell, Some(shells[1]));
     assert_eq!(body.shells().count(), 1);
     assert_eq!(validate_closed(&body), Ok(()));
@@ -152,7 +150,7 @@ fn multi_shell_lifecycle_replay_is_byte_identical() {
     let run = || {
         let (mut body, shell, top, inner) = cube_with_inner_box();
         body.movefac(shell).unwrap();
-        body.kfmrh(top, inner, Tol::witness()).unwrap();
+        body.kfmrh(top, inner).unwrap();
         format!("{body:?}")
     };
     assert_eq!(run(), run());

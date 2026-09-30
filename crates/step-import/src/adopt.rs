@@ -60,7 +60,7 @@ pub(crate) fn finish(
     asm: &Assembled,
     tol: Tol,
 ) -> Result<(), StepImportError> {
-    let face_keys = designate_faces(body, solid, asm, tol)?;
+    let face_keys = designate_faces(body, solid, asm)?;
     rotate_loop_firsts(body, solid, asm, tol)?;
     attach_surfaces(body, solid, &face_keys)?;
     adopt_edges(body, solid, asm, tol)
@@ -101,7 +101,6 @@ fn designate_faces(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
-    tol: Tol,
 ) -> Result<Vec<FaceKey>, StepImportError> {
     let op_err = |source| StepImportError::Assembly {
         id: solid.id,
@@ -119,7 +118,7 @@ fn designate_faces(
             })?
             .outer;
         if outer != lk {
-            body.mfkrh_plug(lk, true, tol).map_err(op_err)?;
+            body.mfkrh_plug(lk, true).map_err(op_err)?;
         }
     }
     // Re-mint outer faces in FILE order (fixed-point discipline): the
@@ -152,8 +151,8 @@ fn designate_faces(
                 id: solid.id,
                 what: "internal: no parking face for the face-order re-mint",
             })?;
-            body.kfmrh(park, f_cur, tol).map_err(op_err)?;
-            body.mfkrh_plug(lk, true, tol).map_err(op_err)?;
+            body.kfmrh(park, f_cur).map_err(op_err)?;
+            body.mfkrh_plug(lk, true).map_err(op_err)?;
         }
     }
     // Designate: each file face's rings become rings of its outer's
@@ -166,7 +165,7 @@ fn designate_faces(
         for &rl in ring_ls {
             let ring_lk = body_loop(body, asm, rl, solid.id)?;
             let fr = owning_face(body, ring_lk, solid.id)?;
-            body.kfmrh(f0, fr, tol).map_err(op_err)?;
+            body.kfmrh(f0, fr).map_err(op_err)?;
         }
         face_keys.push(f0);
     }

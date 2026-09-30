@@ -238,6 +238,15 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // ---- Sugar: delegates to an asserting operator. ----
     ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
     (
+        "kfmrh",
+        "the keys-only door over `kfmrh_with`, whose body declares the postcondition with \
+         the shift its own plan chose (the fusion form or the handle form)",
+    ),
+    (
+        "kfmrh_minting",
+        "the band door over `kfmrh_with`, whose body declares the postcondition — see `kfmrh`",
+    ),
+    (
         "insert_void",
         "calls `insert_voids` with the one destination as a slice — same body, same assertion",
     ),

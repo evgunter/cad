@@ -91,7 +91,7 @@ fn invert_the_glue(body: &Body<f64>) -> (Body<f64>, FaceKey, LoopKey) {
     let sense = out.get_face(face).unwrap().sense;
     let promote = |out: &mut Body<f64>, ring: LoopKey| {
         let made = out
-            .mfkrh(ring, FaceSurface::Inherit, tol())
+            .mfkrh(ring, FaceSurface::Inherit)
             .expect("the ring promotes to a face");
         assert_eq!(
             out.get_face(made.face).unwrap().sense,
@@ -105,7 +105,7 @@ fn invert_the_glue(body: &Body<f64>) -> (Body<f64>, FaceKey, LoopKey) {
         promote(&mut out, extra);
     }
     let made = promote(&mut out, rings[0]);
-    let glued = out.kfmrh(made, face, tol()).expect("the inverted glue");
+    let glued = out.kfmrh(made, face).expect("the inverted glue");
     assert_eq!(glued.ring, outer, "the old outer loop is now the ring");
     (out, made, outer)
 }

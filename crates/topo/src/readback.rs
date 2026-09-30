@@ -884,7 +884,7 @@ mod tests {
         );
         assert_eq!(euler_counts(&body).genus(), Ok(0));
 
-        body.mfkrh_plug(kill.ring, true, tol).unwrap();
+        body.mfkrh_plug(kill.ring, true).unwrap();
         assert_eq!(validate(&body), Ok(()));
         let before = euler_counts(&body);
         assert_eq!(
@@ -926,8 +926,7 @@ mod tests {
         let t = ops_holed_box(Tol::witness());
         let mut body = t.body;
         let before = euler_counts(&body);
-        body.ring_move(t.plug.ring, t.seed.face, Tol::witness())
-            .unwrap();
+        body.ring_move(t.plug.ring, t.seed.face).unwrap();
         assert_eq!(body.get_face(t.seed.face).unwrap().rings.len(), 2);
         assert_eq!(
             body.faces()

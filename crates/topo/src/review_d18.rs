@@ -248,7 +248,7 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
 
     let mut control = base.clone();
     assert!(
-        control.kef(split.he_minus, tol).is_ok(),
+        control.kef(split.he_minus).is_ok(),
         "control kef must succeed on the undamaged body"
     );
     for dead in [HalfEdgeKey::default(), recycled] {
@@ -264,7 +264,7 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
             "fixture: tearing prev must not disturb the next-walk"
         );
         let before = deep_snapshot(&body);
-        let err = body.kef(he, tol).unwrap_err();
+        let err = body.kef(he).unwrap_err();
         assert_eq!(
             err,
             EulerOpError::StaleKey {
@@ -1030,7 +1030,7 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
         }
     };
     for &he in &halves {
-        note("kef", body.clone().kef(he, tol).is_ok());
+        note("kef", body.clone().kef(he).is_ok());
         note("kev", kill_reaches_its_mutation_phase(body, he, tol));
         note(
             "mev_line",
@@ -1103,7 +1103,7 @@ fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
                 .mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
                 .is_ok(),
         );
-        note("mfkrh_plug", body.clone().mfkrh_plug(l, true, tol).is_ok());
+        note("mfkrh_plug", body.clone().mfkrh_plug(l, true).is_ok());
     }
     census.add(KEMR_CYCLE_RING, cycle_ring);
     census.add(KEMR_EMPTY_RING, empty_ring);
@@ -1381,7 +1381,7 @@ impl AnchorCall {
 
     fn run(self, body: &mut Body<f64>, tol: Tol) -> Result<(), EulerOpError> {
         match self {
-            Self::Kef(he) => body.kef(he, tol).map(|_| ()),
+            Self::Kef(he) => body.kef(he).map(|_| ()),
             Self::Kemr(he, m) => body.kemr(he, m).map(|_| ()),
             Self::Kev(he) => kev_either_door(body, he, tol).map(|_| ()),
             Self::Mef(he1, he2) => body

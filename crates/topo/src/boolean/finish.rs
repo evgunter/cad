@@ -79,7 +79,6 @@ fn promote_solid<T: Decide>(
     body: &mut Body<T>,
     completed: &[CompletedPolygonPair],
     operand: Operand,
-    tol: Tol,
 ) -> Result<PromotedSides, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut side_of: SecondaryMap<FaceKey, SideCode> = SecondaryMap::new();
@@ -102,7 +101,7 @@ fn promote_solid<T: Decide>(
         };
         // The transient section faces inherit the null face's surface
         // (module docs — they die in the zip).
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit, tol)?;
+        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
         body.clear_null_face_pair(face);
         let (in_face, out_face) = if ring == in_loop {
             (promoted.face, face)
@@ -276,8 +275,8 @@ pub(super) fn setopfinish<T: Decide>(
     );
 
     // ---- Promotion, both solids (F9 roles as data). ----
-    let (a_sides, a_in_out) = promote_solid(&mut red.a, completed, Operand::A, tol)?;
-    let (b_sides, b_in_out) = promote_solid(&mut red.b, completed, Operand::B, tol)?;
+    let (a_sides, a_in_out) = promote_solid(&mut red.a, completed, Operand::A)?;
+    let (b_sides, b_in_out) = promote_solid(&mut red.b, completed, Operand::B)?;
 
     // ---- Distribution + selection, both solids. ----
     let a_solid =

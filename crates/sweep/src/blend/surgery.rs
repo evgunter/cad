@@ -3983,7 +3983,7 @@ impl SourceFaces {
                  kills only faces its own `mef`s minted",
             ));
         }
-        body.kef(dying, tol).map_err(|e| op(site, e))?;
+        body.kef_minting(dying, tol).map_err(|e| op(site, e))?;
         Ok(())
     }
 }

@@ -698,7 +698,7 @@ pub fn extrude<T: Decide>(
         hole_hes.push(close.he_plus);
         // Consume the disc: its loop becomes the bottom cap's ring —
         // the same-shell genus supplier.
-        body.kfmrh(bottom_face, close.face, tol)?;
+        body.kfmrh(bottom_face, close.face)?;
         bases.push(LoopBase { hes: hole_hes });
     }
 

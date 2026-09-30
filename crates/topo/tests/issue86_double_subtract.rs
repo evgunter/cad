@@ -140,7 +140,7 @@ fn kef_cascade_reports_killed_surface() {
     // surface is referenced only by (a) the face itself and (b) the
     // doomed curve's description — post-#86 the cascade is what
     // actually reaps it, and the report must come through that door.
-    let result = body.kef(edge.he_plus, Tol::witness()).unwrap();
+    let result = body.kef(edge.he_plus).unwrap();
     assert_eq!(result.killed_face, f_plus);
     assert!(
         body.get_surface(s_plus).is_none(),

@@ -3368,7 +3368,7 @@ impl<T: Decide> Body<T> {
                 read.push(face);
             }
         }
-        self.plan_site_mint_of(&read, faces, edge, tol)
+        self.plan_site_mint_of(&read, faces, edge, Some(tol))
     }
 
     /// **A site mint's plan over the faces whose rows decide it**
@@ -3385,7 +3385,11 @@ impl<T: Decide> Body<T> {
     /// `faces` is handed those faces as found and describes the faces
     /// as the door leaves them; [`crate::pcurves::site_rows`] decides
     /// each one. `edge` carries the door's new or described halves, and
-    /// is `None` for a door that names existing halves alone.
+    /// is `None` for a door that names existing halves alone. `tol` is
+    /// the band the rows are derived at; `None` for a keys-only door,
+    /// which derives nothing and refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] where a face would
+    /// be written ([`crate::pcurves::site_rows_owed`]).
     ///
     /// # Errors
     ///
@@ -3403,7 +3407,7 @@ impl<T: Decide> Body<T> {
             &[(FaceKey, crate::pcurves::SiteFrom<T>)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         edge: Option<&EdgeCurve<T>>,
-        tol: Tol,
+        tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
         let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
         for &face in read {
@@ -3424,13 +3428,33 @@ impl<T: Decide> Body<T> {
         if minted.is_empty() {
             return Ok(Vec::new());
         }
+        let described = faces(self, &minted)?;
+        let from_of = |face: &SiteFace<T>| {
+            minted
+                .iter()
+                .find(|(f, _)| *f == face.rows_from)
+                .map(|(_, from)| from)
+        };
+        let Some(tol) = tol else {
+            for face in &described {
+                let Some(from) = from_of(face) else { continue };
+                let refused = |refusal| EulerOpError::PcurveMint {
+                    face: face.rows_from,
+                    refusal,
+                };
+                if crate::pcurves::site_rows_owed(self, face, from).map_err(refused)? {
+                    return Err(refused(crate::pcurves::SiteRowRefusal::KeysOnly));
+                }
+            }
+            return Ok(Vec::new());
+        };
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        faces(self, &minted)?
+        described
             .iter()
             .map(|face| {
-                let Some((_, from)) = minted.iter().find(|(f, _)| *f == face.rows_from) else {
+                let Some(from) = from_of(face) else {
                     return Ok(SiteRows::Leave);
                 };
                 crate::pcurves::site_rows(self, face, from, edge, band).map_err(|refusal| {

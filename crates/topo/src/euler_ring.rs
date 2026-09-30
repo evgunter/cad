@@ -766,15 +766,15 @@ impl<T: Decide> Body<T> {
     /// only when `f1` is on the same CHART ([`Body::same_chart`]: one
     /// key, or two keys sharing one payload). When it is not, they are
     /// DROPPED ([`Body::drop_rows`]). Where they do not stand on `f1`
-    /// — dropped, or missing — and `f1`'s rows were complete, `f1` is
-    /// re-minted with the demoted loop walked in its chart, at `tol`'s
-    /// band, planned before anything moves ([`Body::plan_moved_rows`]):
-    /// it leaves complete, or storing nothing where the closed-form
-    /// lane cannot mint it. On a spline chart, or an `f1` that was
-    /// unminted or half-minted, the drop is the whole answer.
-    ///
-    /// `tol` is the band that re-mint runs at, and is read only where
-    /// one runs.
+    /// — dropped, or missing — and `f1`'s rows were complete on an
+    /// analytic chart, `f1` is owed a re-mint this keys-only kill takes
+    /// no band for, so it refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves rather than leave `f1` half-minted — the shape of
+    /// [`Body::kev`]'s refusal where a carrier would go stale.
+    /// [`Body::kfmrh_minting`] is the same kill with a band, and makes
+    /// that move whole. On a spline chart, or an `f1` that was unminted
+    /// or half-minted, the drop is the whole answer at either door.
     ///
     /// **Minting order**: nothing is minted (the loop survives with its
     /// D5 birth record — no provenance changes for survivors; re-homed
@@ -796,19 +796,46 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); cross-shell only: every surviving face of `f2`'s
     /// shell and the shared solid resolve (`StaleKey`) — the fusion
     /// writes through both; the demoted loop walks
-    /// ([`EulerOpError::LoopCycleBroken`]); then, where `f1` is
+    /// ([`EulerOpError::LoopCycleBroken`]); then, where `f1` would be
     /// re-minted, the site mint's plan ([`Body::plan_moved_rows`]'s
-    /// errors, [`EulerOpError::PcurveMint`] naming `f1` among them).
+    /// errors, [`EulerOpError::PcurveMint`] naming `f1` among them —
+    /// `KeysOnly` at this door).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn kfmrh(
+    pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
+        self.kfmrh_with(f1, f2, None)
+    }
+
+    /// [`Body::kfmrh`] with a band: where `kfmrh` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the demoted
+    /// loop's rows do not stand on a complete `f1` — this door re-mints
+    /// `f1` at `tol`'s band, the demoted loop walked in its chart
+    /// ([`Body::plan_moved_rows`]); everywhere else it is `kfmrh`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::kfmrh`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
+    pub fn kfmrh_minting(
         &mut self,
         f1: FaceKey,
         f2: FaceKey,
         tol: Tol,
+    ) -> Result<KfmrhResult, EulerOpError> {
+        self.kfmrh_with(f1, f2, Some(tol))
+    }
+
+    /// [`Body::kfmrh`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. It declares the
+    /// postcondition, whose shift is the plan's own form decision.
+    fn kfmrh_with(
+        &mut self,
+        f1: FaceKey,
+        f2: FaceKey,
+        tol: Option<Tol>,
     ) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
@@ -988,11 +1015,13 @@ impl<T: Decide> Body<T> {
     /// only when `to_face` is on the same CHART as the ring's old face
     /// ([`Body::same_chart`]); when it is not they are DROPPED
     /// ([`Body::drop_rows`]). Where they do not stand on `to_face` —
-    /// dropped, or missing — and `to_face`'s rows were complete, it is
-    /// re-minted with the ring walked in its chart, at `tol`'s band,
-    /// as [`Body::kfmrh`]'s `f1` is. Neither face's other loops are
-    /// touched, the face the ring leaves needs nothing, and the
-    /// same-face no-op moves nothing.
+    /// dropped, or missing — and `to_face`'s rows were complete on an
+    /// analytic chart, this keys-only door refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves, as [`Body::kfmrh`] does; [`Body::ring_move_minting`]
+    /// takes a band and re-mints `to_face` with the ring walked in its
+    /// chart. Neither face's other loops are touched, the face the ring
+    /// leaves needs nothing, and the same-face no-op moves nothing.
     ///
     /// # Tier-1 preservation (the demotion claim's least obvious case)
     ///
@@ -1021,14 +1050,34 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::RingIsOuter`]); `to_face` resolves (`StaleKey`);
     /// both faces lie in one shell ([`EulerOpError::CrossShell`]); the
     /// ring walks ([`EulerOpError::LoopCycleBroken`]); then, where
-    /// `to_face` is re-minted, the site mint's plan
-    /// ([`Body::plan_moved_rows`]'s errors).
+    /// `to_face` would be re-minted, the site mint's plan
+    /// ([`Body::plan_moved_rows`]'s errors — `KeysOnly` at this door).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn ring_move(
+    pub fn ring_move(&mut self, ring: LoopKey, to_face: FaceKey) -> Result<(), EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        self.ring_move_with(ring, to_face, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
+        Ok(())
+    }
+
+    /// [`Body::ring_move`] with a band: where `ring_move` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the ring's rows
+    /// do not stand on a complete `to_face` — this door re-mints
+    /// `to_face` at `tol`'s band, the ring walked in its chart
+    /// ([`Body::plan_moved_rows`]); everywhere else it is `ring_move`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::ring_move`], except the `KeysOnly` refusal, and the
+    /// site mint's plan in its place ([`Body::plan_moved_rows`]'s
+    /// errors).
+    pub fn ring_move_minting(
         &mut self,
         ring: LoopKey,
         to_face: FaceKey,
@@ -1036,7 +1085,21 @@ impl<T: Decide> Body<T> {
     ) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        self.ring_move_with(ring, to_face, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move_minting");
+        Ok(())
+    }
 
+    /// [`Body::ring_move`]'s plan and surgery, with the band its site
+    /// mint runs at, or none for the keys-only door. The door that
+    /// calls it declares the postcondition.
+    fn ring_move_with(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+        tol: Option<Tol>,
+    ) -> Result<(), EulerOpError> {
         // ---- Preconditions. ----
         let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(ring),
@@ -1090,9 +1153,6 @@ impl<T: Decide> Body<T> {
         }
         self.drop_rows_on_chart_change(ring, from_surface, to_surface);
         crate::pcurves::apply_site_rows(self, rows, None);
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
         Ok(())
     }
 
@@ -1110,8 +1170,8 @@ impl<T: Decide> Body<T> {
     /// the chart decides which. Same chart: every row still says what
     /// it said, and the door carries them all untouched. A different
     /// chart: none of them does, and the door drops them —
-    /// [`Body::drop_rows`] states what the drop removes and what the
-    /// door's site mint puts back ([`Body::plan_moved_rows`]);
+    /// [`Body::drop_rows`] states what the drop removes and what a
+    /// `_minting` door's site mint puts back ([`Body::plan_moved_rows`]);
     /// [`Body::same_chart`] states which charts count as one. The
     /// decision is taken here once, for the two doors that move a
     /// whole loop between existing faces ([`Body::kfmrh`],
@@ -1176,6 +1236,13 @@ impl<T: Decide> Body<T> {
     /// chart, is left as found, its moved rows dropped. An empty `moved`
     /// moves nothing and plans nothing.
     ///
+    /// `tol` is the band door's; `None` is the keys-only door, which
+    /// derives nothing and refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] exactly where the
+    /// band door would write the destination
+    /// ([`crate::pcurves::site_rows_owed`]) — one plan, two answers to
+    /// the same question.
+    ///
     /// The face a loop LEAVES needs nothing: it loses that loop's
     /// half-edges and their rows together, its other loops and its
     /// chart are untouched, so it is left as complete as it was, or
@@ -1190,7 +1257,7 @@ impl<T: Decide> Body<T> {
         same_chart: bool,
         rows_from: FaceKey,
         site: impl FnOnce(&Self) -> Result<SiteFace<T>, EulerOpError>,
-        tol: Tol,
+        tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
         let stand = same_chart && moved.iter().all(|&he| self.pcurve(he).is_some());
         if moved.is_empty() || stand {
@@ -1226,8 +1293,9 @@ impl<T: Decide> Body<T> {
     /// [`Body::split_edge`]'s restriction of one image to a
     /// sub-interval of its own carrier — so the moved rows go, and what
     /// replaces them is a derivation in the destination's chart: the
-    /// site mint the door planned before it mutated
-    /// ([`Body::plan_moved_rows`]). On an ANALYTIC chart that walk is
+    /// site mint a `_minting` door planned before it mutated
+    /// ([`Body::plan_moved_rows`]), which a keys-only door refuses to
+    /// owe rather than run without a band. On an ANALYTIC chart that walk is
     /// stated under `Decide` (`crate::pcurves::site_rows`), and a
     /// destination whose rows were complete leaves complete, or
     /// storing nothing where the closed-form lane cannot mint it as the
@@ -2895,7 +2963,7 @@ mod tests {
         let edges_before = arena_lines(body.edges());
         let vertices_before = arena_lines(body.vertices());
 
-        let result = body.kfmrh(seed.face, split.face, Tol::witness()).unwrap();
+        let result = body.kfmrh(seed.face, split.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         assert_eq!(result.ring, split.r#loop);
@@ -2971,7 +3039,7 @@ mod tests {
         t.body.get_shell_mut(t.shell).unwrap().faces.push(face_c);
         assert_eq!(validate(&t.body), Ok(()), "fixture must be tier-1 valid");
 
-        let result = t.body.kfmrh(t.face_a, face_c, Tol::witness()).unwrap();
+        let result = t.body.kfmrh(t.face_a, face_c).unwrap();
         assert_eq!(validate(&t.body), Ok(()));
         // The Empty outer became an Empty RING of face A — §9.3 (g)'s
         // hole-planting state, reached through kfmrh instead of kemr.
@@ -2992,7 +3060,7 @@ mod tests {
         let (mut body, seed, _seg, _split) = ops_pillow();
         let expected = EulerOpError::SameFace { face: seed.face };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, seed.face, Tol::witness()).unwrap_err()
+            b.kfmrh(seed.face, seed.face).unwrap_err()
         });
         // A second mvfs is a second solid+shell in the same body:
         // cross-SOLID kfmrh stays a typed error (M3 PR 1 lifted only
@@ -3003,7 +3071,7 @@ mod tests {
             f2: other.face,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, other.face, Tol::witness()).unwrap_err()
+            b.kfmrh(seed.face, other.face).unwrap_err()
         });
     }
 
@@ -3036,7 +3104,7 @@ mod tests {
             key: EntityId::Face(dead),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, other.face, Tol::witness()).unwrap_err()
+            b.kfmrh(seed.face, other.face).unwrap_err()
         });
     }
 
@@ -3055,7 +3123,7 @@ mod tests {
             key: EntityId::Solid(dead),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, other.face, Tol::witness()).unwrap_err()
+            b.kfmrh(seed.face, other.face).unwrap_err()
         });
     }
 
@@ -3079,7 +3147,7 @@ mod tests {
         assert_eq!(validate(&body), Ok(()));
         let expected = EulerOpError::FaceHasRings { face: split.face };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, split.face, Tol::witness()).unwrap_err()
+            b.kfmrh(seed.face, split.face).unwrap_err()
         });
     }
 
@@ -3091,10 +3159,10 @@ mod tests {
             key: EntityId::Face(dead),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(dead, split.face, Tol::witness()).unwrap_err()
+            b.kfmrh(dead, split.face).unwrap_err()
         });
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, dead, Tol::witness()).unwrap_err()
+            b.kfmrh(seed.face, dead).unwrap_err()
         });
     }
 
@@ -3135,8 +3203,7 @@ mod tests {
             body.half_edges().count(),
         );
 
-        body.ring_move(kill.ring, split.face, Tol::witness())
-            .unwrap();
+        body.ring_move(kill.ring, split.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(
             body.get_face(seed.face).unwrap().rings,
@@ -3158,8 +3225,7 @@ mod tests {
         assert_eq!(body.provenance(EntityId::Loop(kill.ring)).cloned(), birth);
 
         // And back.
-        body.ring_move(kill.ring, seed.face, Tol::witness())
-            .unwrap();
+        body.ring_move(kill.ring, seed.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(body.get_face(seed.face).unwrap().rings, vec![kill.ring]);
     }
@@ -3168,7 +3234,7 @@ mod tests {
     fn ring_move_to_its_own_face_is_a_noop() {
         let (mut body, seed, _split, kill) = pillow_with_ring();
         let before = deep_snapshot(&body);
-        assert_eq!(body.ring_move(kill.ring, seed.face, Tol::witness()), Ok(()));
+        assert_eq!(body.ring_move(kill.ring, seed.face), Ok(()));
         // Deeply untouched — in particular the rings order was not
         // perturbed (no retain+push cycle), keeping replay byte-stable.
         assert_eq!(deep_snapshot(&body), before);
@@ -3182,8 +3248,7 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.ring_move(seed.r#loop, split.face, Tol::witness())
-                .unwrap_err()
+            b.ring_move(seed.r#loop, split.face).unwrap_err()
         });
         // Stale ring key.
         let dead_loop = LoopKey::default();
@@ -3191,8 +3256,7 @@ mod tests {
             key: EntityId::Loop(dead_loop),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.ring_move(dead_loop, split.face, Tol::witness())
-                .unwrap_err()
+            b.ring_move(dead_loop, split.face).unwrap_err()
         });
         // Stale destination face.
         let dead_face = FaceKey::default();
@@ -3200,8 +3264,7 @@ mod tests {
             key: EntityId::Face(dead_face),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.ring_move(kill.ring, dead_face, Tol::witness())
-                .unwrap_err()
+            b.ring_move(kill.ring, dead_face).unwrap_err()
         });
         // Cross-shell destination: a second solid's face.
         let other = body.mvfs(p(9.0), true).unwrap();
@@ -3210,8 +3273,7 @@ mod tests {
             f2: other.face,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.ring_move(kill.ring, other.face, Tol::witness())
-                .unwrap_err()
+            b.ring_move(kill.ring, other.face).unwrap_err()
         });
     }
 
@@ -3314,7 +3376,7 @@ mod tests {
                 tol,
             )
             .unwrap();
-        body.kfmrh(seed.face, circle.face, tol).unwrap();
+        body.kfmrh(seed.face, circle.face).unwrap();
         let in_outer =
             |b: &Body<f64>, x: HalfEdgeKey| b.get_half_edge(x).unwrap().parent_loop == seed.r#loop;
         let (he1, he2) = if in_outer(&body, circle.he_plus) {
@@ -3543,15 +3605,16 @@ mod tests {
         assert_make_refuses(&mut body, &torn, |b| b.mekr_chord(site, Tol::witness()));
     }
 
-    /// **A moving door's re-mint refuses before the door moves
+    /// **A band door's re-mint refuses before the door moves
     /// anything.** The minted cylinder-wall sheet: the wall face and
     /// the seed face bound one another on one cylinder key, so every
     /// loop moved below lands on a complete face on its own chart, and
     /// one row taken off the moved loop is what sends the door to the
     /// site mint. With the curve of that half's edge torn out, the
-    /// mint's walk of the moved loop cannot read it, and `kfmrh`, `kef`
-    /// and `mfkrh` each refuse `PcurveMint { Corrupt }` naming the
-    /// wall, with the arenas and the pcurve map as found.
+    /// mint's walk of the moved loop cannot read it, and
+    /// `kfmrh_minting`, `kef_minting` and `mfkrh_minting` each refuse
+    /// `PcurveMint { Corrupt }` naming the wall, with the arenas and the
+    /// pcurve map as found.
     #[test]
     fn a_torn_half_on_a_moved_loop_refuses_before_the_door_moves_it() {
         use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
@@ -3611,7 +3674,7 @@ mod tests {
         let gap = outer_cycle(&body, seed)[0];
         tear(&mut body, gap);
         refuses(&mut body, wall, "kfmrh", &|b| {
-            b.kfmrh(wall, seed, tol).unwrap_err()
+            b.kfmrh_minting(wall, seed, tol).unwrap_err()
         });
 
         // `kef`: the seed dies and its remnant joins the wall's loop.
@@ -3619,18 +3682,19 @@ mod tests {
         let cycle = outer_cycle(&body, seed);
         tear(&mut body, cycle[1]);
         refuses(&mut body, wall, "kef", &|b| {
-            b.kef(cycle[0], tol).unwrap_err()
+            b.kef_minting(cycle[0], tol).unwrap_err()
         });
 
         // `mfkrh`: the demoted ring is promoted back out of the wall.
         let (mut body, wall, seed) = sheet();
-        let ring = body.kfmrh(wall, seed, tol).unwrap().ring;
+        let ring = body.kfmrh(wall, seed).unwrap().ring;
         let LoopBoundary::Cycle { first } = body.get_loop(ring).unwrap().boundary else {
             panic!("the demoted ring is a cycle")
         };
         tear(&mut body, first);
         refuses(&mut body, wall, "mfkrh", &|b| {
-            b.mfkrh(ring, FaceSurface::Inherit, tol).unwrap_err()
+            b.mfkrh_minting(ring, FaceSurface::Inherit, tol)
+                .unwrap_err()
         });
     }
 }

@@ -534,6 +534,23 @@ const KEV_DELTA: ArenaDelta = ArenaDelta {
     ..ArenaDelta::ZERO
 };
 
+/// [`Body::kef`]'s arena delta, shared by both kill doors.
+#[cfg(debug_assertions)]
+const KEF_DELTA: ArenaDelta = ArenaDelta {
+    faces: -1,
+    loops: -1,
+    half_edges: -2,
+    edges: -1,
+    ..ArenaDelta::ZERO
+};
+
+/// [`Body::mfkrh`]'s arena delta, shared by both doors.
+#[cfg(debug_assertions)]
+const MFKRH_DELTA: ArenaDelta = ArenaDelta {
+    faces: 1,
+    ..ArenaDelta::ZERO
+};
+
 impl<T: Decide> Body<T> {
     /// KVFS — *kill vertex, face, solid*: the inverse of [`Body::mvfs`].
     /// Destroys a solid in EXACTLY the skeletal state `mvfs` creates:
@@ -1235,14 +1252,18 @@ impl<T: Decide> Body<T> {
     /// payload ([`Body::same_chart`]) — they stand; on any
     /// other chart the remnant's rows are DROPPED ([`Body::drop_rows`]).
     /// Where they do not stand — dropped, or missing — and the
-    /// surviving face's rows were complete, the surviving loop as the
-    /// splice leaves it (its own members from its new anchor, then the
-    /// remnant) is walked in the surviving face's chart at `tol`'s
-    /// band, planned before anything moves ([`Body::plan_moved_rows`]),
-    /// so the face leaves complete, or storing nothing where the
-    /// closed-form lane cannot mint it. On a spline chart, or a
-    /// surviving face that was unminted or half-minted, the drop is the
-    /// whole answer and the surviving loop's own rows are untouched.
+    /// surviving face's rows were complete on an analytic chart, the
+    /// surviving face is owed a re-mint this keys-only kill takes no
+    /// band for, so it refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves rather than leave that face half-minted — the shape of
+    /// [`Body::kev`]'s refusal where a carrier would go stale.
+    /// [`Body::kef_minting`] is the same kill with a band: it walks the
+    /// surviving loop as the splice leaves it (its own members from its
+    /// new anchor, then the remnant) in the surviving face's chart. On
+    /// a spline chart, or a surviving face that was unminted or
+    /// half-minted, the drop is the whole answer at either door and the
+    /// surviving loop's own rows are untouched.
     /// Which is why the surviving face RESOLVES in the plan phase
     /// below, and the chart is decided there: it is what the mutation
     /// phase acts on, and a mutation phase reads nothing it has not
@@ -1288,19 +1309,48 @@ impl<T: Decide> Body<T> {
     /// is `Empty` at its vertex (`LoopCycleBroken` naming the surviving
     /// loop — a torn `next(m)` can land on a killed half or in another
     /// loop, or read the mate as alone in a loop that keeps other
-    /// members); then, where the surviving face is re-minted, the site
-    /// mint's plan ([`Body::plan_moved_rows`]'s errors,
+    /// members); then, where the surviving face would be re-minted, the
+    /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
     /// [`EulerOpError::PcurveMint`] naming the surviving face among
-    /// them).
+    /// them — `KeysOnly` at this door).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn kef(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KefResult, EulerOpError> {
+    pub fn kef(&mut self, he: HalfEdgeKey) -> Result<KefResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let killed = self.kef_with(he, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEF_DELTA, "kef");
+        Ok(killed)
+    }
 
+    /// [`Body::kef`] with a band: where `kef` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the remnant's
+    /// rows do not stand on a complete surviving face — this door
+    /// re-mints the surviving face at `tol`'s band, the surviving loop
+    /// walked in its chart ([`Body::plan_moved_rows`]); everywhere else
+    /// it is `kef`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::kef`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
+    pub fn kef_minting(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KefResult, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let killed = self.kef_with(he, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEF_DELTA, "kef_minting");
+        Ok(killed)
+    }
+
+    /// [`Body::kef`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. The door that calls it
+    /// declares the postcondition.
+    fn kef_with(&mut self, he: HalfEdgeKey, tol: Option<Tol>) -> Result<KefResult, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
         let he_data = self.resolve_half_edge(he)?;
         let edge = he_data.edge;
@@ -1548,18 +1598,6 @@ impl<T: Decide> Body<T> {
             || cascade_took_surface)
             .then_some(f1_data.surface);
 
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                faces: -1,
-                loops: -1,
-                half_edges: -2,
-                edges: -1,
-                ..ArenaDelta::ZERO
-            },
-            "kef",
-        );
         Ok(KefResult {
             killed_edge: edge,
             killed_he_plus: edge_data.he_plus,
@@ -1615,11 +1653,14 @@ impl<T: Decide> Body<T> {
     /// that chart ([`Body::same_chart`]) keeps them; any other surface
     /// DROPS them ([`Body::drop_loop_rows`]; [`Body::drop_rows`] states
     /// why). Where they do not stand on the new face — dropped, or
-    /// missing — and the demoting face's rows were complete, the new
-    /// face is minted with the ring walked in its chart at `tol`'s
-    /// band, planned before anything moves ([`Body::plan_moved_rows`]):
-    /// it leaves complete, or storing nothing where the closed-form
-    /// lane cannot mint it. A spline chart keeps the drop.
+    /// missing — and the demoting face's rows were complete on an
+    /// analytic chart, this door refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves; [`Body::mfkrh_minting`] takes a band and mints the new
+    /// face with the ring walked in its chart. It is two doors for the
+    /// kill family's reason: `mfkrh` decides nothing against ε, and the
+    /// band is read only where that re-mint runs. A spline chart keeps
+    /// the drop at either door.
     ///
     /// Euler vector: `(v 0, e 0, f +1, h −1, r −1, s 0)` — arena delta
     /// +1 face (the "−1 ring" is the surviving loop's promotion, not a
@@ -1640,10 +1681,10 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::StaleGeometry`]); a stated sense agrees with
     /// the derived one on the demoting face's chart
     /// ([`EulerOpError::SenseContradictsChart`]); the ring walks
-    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face is
-    /// minted, the site mint's plan ([`Body::plan_moved_rows`]'s
+    /// ([`EulerOpError::LoopCycleBroken`]); then, where the new face
+    /// would be minted, the site mint's plan ([`Body::plan_moved_rows`]'s
     /// errors, [`EulerOpError::PcurveMint`] naming the demoting face
-    /// among them).
+    /// among them — `KeysOnly` at this door).
     ///
     /// # Errors
     ///
@@ -1653,11 +1694,49 @@ impl<T: Decide> Body<T> {
         &mut self,
         ring: LoopKey,
         surface: FaceSurface<T>,
+    ) -> Result<MfkrhCreated, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mfkrh_with(ring, surface, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh");
+        Ok(created)
+    }
+
+    /// [`Body::mfkrh`] with a band: where `mfkrh` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the promoted
+    /// ring's rows do not stand on the new face, and the demoting
+    /// face's rows were complete — this door mints the new face at
+    /// `tol`'s band, the ring walked in its chart
+    /// ([`Body::plan_moved_rows`]); everywhere else it is `mfkrh`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::mfkrh`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
+    pub fn mfkrh_minting(
+        &mut self,
+        ring: LoopKey,
+        surface: FaceSurface<T>,
         tol: Tol,
     ) -> Result<MfkrhCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let created = self.mfkrh_with(ring, surface, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, MFKRH_DELTA, "mfkrh_minting");
+        Ok(created)
+    }
 
+    /// [`Body::mfkrh`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. The door that calls it
+    /// declares the postcondition.
+    fn mfkrh_with(
+        &mut self,
+        ring: LoopKey,
+        surface: FaceSurface<T>,
+        tol: Option<Tol>,
+    ) -> Result<MfkrhCreated, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
         let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(ring),
@@ -1731,16 +1810,6 @@ impl<T: Decide> Body<T> {
             unreachable!("mfkrh: the shell resolved in the plan phase")
         };
         shell_data.faces.push(face);
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                faces: 1,
-                ..ArenaDelta::ZERO
-            },
-            "mfkrh",
-        );
         Ok(MfkrhCreated { face, surface })
     }
 
@@ -1754,26 +1823,20 @@ impl<T: Decide> Body<T> {
     /// The placeholder is a fresh payload, so it is never the demoting
     /// face's chart: `mfkrh` writes `sense`, the caller's provisional
     /// bit, as stated, and drops the promoted ring's rows — a spline
-    /// chart, so none is minted there and `tol` decides nothing. The
-    /// caller states the honest bit, and mints the rows, when it gives
-    /// the face a real surface.
+    /// chart, so none is owed there and this keys-only door never
+    /// refuses for one. The caller states the honest bit, and mints the
+    /// rows, when it gives the face a real surface.
     ///
     /// # Errors
     ///
     /// As [`Body::mfkrh`].
-    pub fn mfkrh_plug(
-        &mut self,
-        ring: LoopKey,
-        sense: bool,
-        tol: Tol,
-    ) -> Result<MfkrhCreated, EulerOpError> {
+    pub fn mfkrh_plug(&mut self, ring: LoopKey, sense: bool) -> Result<MfkrhCreated, EulerOpError> {
         self.mfkrh(
             ring,
             FaceSurface::New {
                 surface: geom::Surface::nurbs_placeholder(),
                 sense,
             },
-            tol,
         )
     }
 }
@@ -2904,7 +2967,7 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        let result = body.kef(cut.he_minus, Tol::witness()).unwrap();
+        let result = body.kef(cut.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (0, −1, −1, 0, 0, 0) relative to the pre-mef state.
@@ -2945,7 +3008,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(old_face, split.face, "the mef split the new pillow face");
-        let result = body.kef(cut.he_plus, Tol::witness()).unwrap();
+        let result = body.kef(cut.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(result.killed_face, split.face);
         assert!(body.get_face(split.face).is_none());
@@ -2967,7 +3030,7 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        let result = body.kef(circ.he_minus, Tol::witness()).unwrap();
+        let result = body.kef(circ.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(result.killed_face, circ.face);
         assert_eq!(canonical_form(&body), before);
@@ -2990,7 +3053,7 @@ mod tests {
             )
             .unwrap();
         let old_face = body.get_loop(seed.r#loop).unwrap().face;
-        let result = body.kef(circ.he_plus, Tol::witness()).unwrap();
+        let result = body.kef(circ.he_plus).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(result.killed_face, old_face);
         assert_eq!(result.killed_loop, seed.r#loop);
@@ -3020,7 +3083,7 @@ mod tests {
                 Tol::witness(),
             )
             .unwrap();
-        let result = body.kef(circ.he_minus, Tol::witness()).unwrap();
+        let result = body.kef(circ.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(arena_snapshot(&body), before_counts);
         assert_eq!(result.killed_face, circ.face);
@@ -3044,7 +3107,7 @@ mod tests {
             &EulerOpError::SameLoop {
                 r#loop: seed.r#loop,
             },
-            |b| b.kef(seg.he_plus, Tol::witness()).unwrap_err(),
+            |b| b.kef(seg.he_plus).unwrap_err(),
         );
         // Two loops of ONE face (raw-built): SameFace.
         let mut body = Body::<f64>::new();
@@ -3120,7 +3183,7 @@ mod tests {
         body.get_shell_mut(shell).unwrap().faces.push(face);
         body.get_vertex_mut(vertex).unwrap().emanating = Some(he1);
         assert_err_deep_unchanged(&mut body, &EulerOpError::SameFace { face }, |b| {
-            b.kef(he1, Tol::witness()).unwrap_err()
+            b.kef(he1).unwrap_err()
         });
     }
 
@@ -3140,7 +3203,7 @@ mod tests {
             &EulerOpError::StaleKey {
                 key: EntityId::Face(FaceKey::default()),
             },
-            |b| b.kef(split.he_minus, Tol::witness()).unwrap_err(),
+            |b| b.kef(split.he_minus).unwrap_err(),
         );
     }
 
@@ -3171,7 +3234,7 @@ mod tests {
             &EulerOpError::StaleKey {
                 key: EntityId::Face(FaceKey::default()),
             },
-            |b| b.kef(seg.he_plus, Tol::witness()).unwrap_err(),
+            |b| b.kef(seg.he_plus).unwrap_err(),
         );
     }
 
@@ -3196,10 +3259,10 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::FaceHasRings { face: split.face },
-            |b| b.kef(seg.he_plus, Tol::witness()).unwrap_err(),
+            |b| b.kef(seg.he_plus).unwrap_err(),
         );
         // The mate's side (the old face) is ring-free: killable.
-        let result = body.kef(seg.he_minus, Tol::witness()).unwrap();
+        let result = body.kef(seg.he_minus).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_ne!(result.killed_face, split.face);
     }
@@ -3233,7 +3296,7 @@ mod tests {
         // is an empty loop — and the body validates.
         let (mut body, split, kill) = pillow_with_empty_ring();
         let before_counts = arena_snapshot(&body);
-        let created = body.mfkrh_plug(kill.ring, true, Tol::witness()).unwrap();
+        let created = body.mfkrh_plug(kill.ring, true).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         // E–P vector (0, 0, +1, −1, −1, 0): +1 face, +1 surface, all
@@ -3279,10 +3342,8 @@ mod tests {
     fn mfkrh_then_kfmrh_roundtrips() {
         let (mut body, split, kill) = pillow_with_empty_ring();
         let before = canonical_form(&body);
-        let created = body.mfkrh_plug(kill.ring, true, Tol::witness()).unwrap();
-        let plug = body
-            .kfmrh(split.face, created.face, Tol::witness())
-            .unwrap();
+        let created = body.mfkrh_plug(kill.ring, true).unwrap();
+        let plug = body.kfmrh(split.face, created.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(plug.ring, kill.ring);
         // The fresh surface died with the face it was minted for.
@@ -3299,15 +3360,13 @@ mod tests {
         let mut body = t.body;
         let before = canonical_form(&body);
         let bottom_face = t.box_mefs[0].face;
-        let created = body.mfkrh_plug(t.plug.ring, true, Tol::witness()).unwrap();
+        let created = body.mfkrh_plug(t.plug.ring, true).unwrap();
         assert_eq!(validate(&body), Ok(()));
         // Euler–Poincaré at genus 0 with one ring left (the hole's top
         // rim): v − e + f − r = 16 − 24 + 11 − 1 = 2 = 2(1 − 0).
         let counts = euler_counts(&body);
         assert_eq!((counts.r, counts.f, counts.genus()), (1, 11, Ok(0)));
-        let plug = body
-            .kfmrh(bottom_face, created.face, Tol::witness())
-            .unwrap();
+        let plug = body.kfmrh(bottom_face, created.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(plug.ring, t.plug.ring);
         assert_eq!(canonical_form(&body), before);
@@ -3323,17 +3382,14 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RingIsOuter { r#loop: outer },
-            |b| b.mfkrh_plug(outer, true, Tol::witness()).unwrap_err(),
+            |b| b.mfkrh_plug(outer, true).unwrap_err(),
         );
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::StaleKey {
                 key: EntityId::Loop(LoopKey::default()),
             },
-            |b| {
-                b.mfkrh_plug(LoopKey::default(), true, Tol::witness())
-                    .unwrap_err()
-            },
+            |b| b.mfkrh_plug(LoopKey::default(), true).unwrap_err(),
         );
     }
 
@@ -3357,7 +3413,6 @@ mod tests {
                         key: stale,
                         sense: true,
                     },
-                    Tol::witness(),
                 )
                 .unwrap_err()
             },
@@ -3376,7 +3431,7 @@ mod tests {
         // Undo the five mefs in reverse: each kef(created.he_minus)
         // kills the face that mef made.
         for mef in t.mefs.iter().rev() {
-            let result = body.kef(mef.he_minus, Tol::witness()).unwrap();
+            let result = body.kef(mef.he_minus).unwrap();
             assert_eq!(validate(&body), Ok(()));
             assert_eq!(result.killed_face, mef.face);
         }
@@ -3447,7 +3502,7 @@ mod tests {
                     Tol::witness(),
                 )
                 .unwrap();
-            body.kef(cut.he_minus, Tol::witness()).unwrap();
+            body.kef(cut.he_minus).unwrap();
             // pillow → circular-edge body: the surviving edge closes
             // onto the seed vertex, so the kill re-describes it as the
             // circle there.
@@ -3490,7 +3545,7 @@ mod tests {
             "the fallback anchor starts off the vertex it would anchor"
         );
         let torn = EulerOpError::OrbitBroken { he };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he, Tol::witness()).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
     }
 
     #[test]
@@ -3620,7 +3675,7 @@ mod tests {
             );
         }
         let torn = EulerOpError::OrbitBroken { he };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he, Tol::witness()).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
     }
 
     #[test]
@@ -3647,7 +3702,7 @@ mod tests {
             "`start(m)`'s anchor starts off it"
         );
         let torn = EulerOpError::OrbitBroken { he: m };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he, Tol::witness()).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
     }
 
     #[test]
@@ -3687,7 +3742,7 @@ mod tests {
         );
 
         let mut killed = body.clone();
-        killed.kef(he, tol).unwrap();
+        killed.kef(he).unwrap();
         assert_eq!(validate(&killed), Ok(()));
         assert_eq!(killed.get_vertex(x).unwrap().emanating, Some(next_he));
 
@@ -3697,7 +3752,7 @@ mod tests {
         assert_ne!(body.get_half_edge(skip).unwrap().start, x);
         body.get_half_edge_mut(he).unwrap().next = skip;
         let torn = EulerOpError::OrbitBroken { he: m };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he, tol).unwrap_err());
+        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
     }
 
     /// The loop `x` claims.
@@ -3724,7 +3779,7 @@ mod tests {
         let start = |x: HalfEdgeKey| body.get_half_edge(x).unwrap().start;
         assert_eq!(start(step), start(he), "the vertex anchor stands");
         let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
-        assert_kill_refuses(&mut body, &torn, |b| b.kef(he, Tol::witness()));
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
     }
 
     /// Every door that runs `kev`'s plan refuses `torn` at `he`, with
@@ -3976,7 +4031,7 @@ mod tests {
         assert_eq!(body.mate(he), Some(m));
         body.get_half_edge_mut(m).unwrap().start = other.vertex;
         let torn = EulerOpError::OrbitBroken { he };
-        assert_kill_refuses(&mut body, &torn, |b| b.kef(he, tol));
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
     }
 
     #[test]
@@ -4006,7 +4061,7 @@ mod tests {
             "the walk takes a third loop's anchor"
         );
         let torn = EulerOpError::LoopCycleBroken { r#loop: l1 };
-        assert_kill_refuses(&mut body, &torn, |b| b.kef(he, Tol::witness()));
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
     }
 
     #[test]
@@ -4028,7 +4083,7 @@ mod tests {
             "the walk skips a member of the dying loop"
         );
         let torn = EulerOpError::LoopCycleBroken { r#loop: l1 };
-        assert_kill_refuses(&mut body, &torn, |b| b.kef(he, Tol::witness()));
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
     }
 
     /// A segment's solid beside a lone vertex's (`mvfs`, then `mev_line`

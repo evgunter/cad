@@ -225,7 +225,7 @@ fn build_lamina<T: Decide>(
 
     // ---- Phase 3: seam closure — kfmrh + the loopglue zip (see the
     // file docs). ----
-    body.kfmrh(start_disc, seed.face, tol)?;
+    body.kfmrh(start_disc, seed.face)?;
     let c_plus = |body: &Body<T>, edge: EdgeKey| -> Result<topo::HalfEdgeKey, RevolveError> {
         Ok(body
             .get_edge(edge)
@@ -277,10 +277,10 @@ fn build_lamina<T: Decide>(
         )?;
         body.kev_describing(nj.he_plus, &[], tol)?;
         let victim = c_plus(&body, tops[j - 1])?;
-        body.kef(victim, tol)?;
+        body.kef(victim)?;
     }
     let victim = c_plus(&body, tops[n - 1])?;
-    body.kef(victim, tol)?;
+    body.kef(victim)?;
 
     // ---- Phase 4: meridian upgrades — each surviving chain edge now
     // has both halves in its wall; periodic walls take `Seam`, plane

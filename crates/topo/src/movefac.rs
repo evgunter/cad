@@ -375,7 +375,7 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        let promoted = body.mfkrh_plug(kill.ring, true, Tol::witness()).unwrap();
+        let promoted = body.mfkrh_plug(kill.ring, true).unwrap();
         (body, seed.shell, seed.face, promoted.face)
     }
 
@@ -458,9 +458,7 @@ mod tests {
         let (mut body, shell, seed_face, promoted_face) = detached_digon();
         let shells = body.movefac(shell).unwrap();
         assert_eq!(validate_closed(&body), Ok(()));
-        let result = body
-            .kfmrh(seed_face, promoted_face, Tol::witness())
-            .unwrap();
+        let result = body.kfmrh(seed_face, promoted_face).unwrap();
         assert_eq!(result.killed_shell, Some(shells[1]));
         assert!(!body.shells().any(|(k, _)| k == shells[1]));
         assert_eq!(validate(&body), Ok(()));
@@ -563,7 +561,7 @@ mod tests {
         let a = body.mvfs(p(0.0), true).unwrap();
         let b = body.mvfs(p(1.0), true).unwrap();
         let before = deep_snapshot(&body);
-        let err = body.kfmrh(a.face, b.face, Tol::witness()).unwrap_err();
+        let err = body.kfmrh(a.face, b.face).unwrap_err();
         assert_eq!(
             err,
             EulerOpError::CrossSolid {

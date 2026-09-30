@@ -1616,14 +1616,14 @@ fn glue_pair<T: Decide>(
     let mut gb: Vec<FaceKey> = Vec::new();
     for r in rings_of(body, fa)? {
         ga.push(
-            body.mfkrh(r, FaceSurface::Inherit, tol)
+            body.mfkrh(r, FaceSurface::Inherit)
                 .map_err(|_| desync("REST lane: ring promotion refused"))?
                 .face,
         );
     }
     for r in rings_of(body, fb)? {
         gb.push(
-            body.mfkrh(r, FaceSurface::Inherit, tol)
+            body.mfkrh(r, FaceSurface::Inherit)
                 .map_err(|_| desync("REST lane: ring promotion refused"))?
                 .face,
         );
@@ -1810,7 +1810,7 @@ fn slit_zip<T: Decide>(
             ed.he_plus
         }
     };
-    body.kef(fb_half, tol)
+    body.kef_minting(fb_half, tol)
         .map_err(|_| desync("REST lane: run kef refused"))?;
     for &he in run.iter().skip(1) {
         // The shared vertex with the previous (now dead) run edge is
@@ -1915,9 +1915,9 @@ fn slit_zip<T: Decide>(
                     ));
                 };
                 let ring = loop_of(body, ring_half)?;
-                body.mfkrh(ring, FaceSurface::Inherit, tol)
+                body.mfkrh(ring, FaceSurface::Inherit)
                     .map_err(|_| desync("REST lane: band run mfkrh refused"))?;
-                body.kef(ring_half, tol)
+                body.kef(ring_half)
                     .map_err(|_| desync("REST lane: band run kef refused"))?;
             }
         }
@@ -1940,7 +1940,7 @@ fn slit_zip<T: Decide>(
             .copied();
         let Some(ring) = ring else { break };
         let created = body
-            .mfkrh(ring, FaceSurface::Inherit, tol)
+            .mfkrh(ring, FaceSurface::Inherit)
             .map_err(|_| desync("REST lane: band ring mfkrh refused"))?;
         zip_folded(
             body,
@@ -2016,7 +2016,7 @@ fn zip_folded<T: Decide>(
             report
                 .seam_edges
                 .push(if b_edges.contains_key(e0) { e1 } else { e0 });
-            body.kef(b_half, tol)
+            body.kef_minting(b_half, tol)
                 .map_err(|_| desync("REST lane: final slit kef refused"))?;
             break;
         }
@@ -2074,7 +2074,7 @@ fn zip_folded<T: Decide>(
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
         report.vertex_merges.push((eb, sa));
         report.seam_edges.push(edge_of(body, ha)?);
-        body.kef(hb, tol)
+        body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
     Ok(())

@@ -375,7 +375,7 @@ pub(super) fn split_finish<T: Decide>(
         // taken before the re-chart and stated with it.
         let ring_sense = section_sense(&body, section.face, ring, &plane_for(ring_side), band)?;
         let outer_sense = section_sense(&body, section.face, outer, &plane_for(other_side), band)?;
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit, tol)?;
+        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
         body.set_face_surface(
             promoted.face,
             FaceSurface::New {

@@ -324,7 +324,7 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
                 .then_some(e.he_plus)
         })
         .expect("the half-bands' non-seam join");
-    body.kef(join, tol).expect("the join dies");
+    body.kef(join).expect("the join dies");
     let [tip] = cone_faces(&body)[..] else {
         panic!("one cone face after the join dies");
     };

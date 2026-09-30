@@ -163,7 +163,7 @@ fn d18_kef_refuses_a_dangling_prev_of_he() {
     body.get_half_edge_mut(he).unwrap().prev = HalfEdgeKey::default();
 
     let before = deep_snapshot(&body);
-    let err = body.kef(he, tol).unwrap_err();
+    let err = body.kef(he).unwrap_err();
     assert_eq!(
         err,
         EulerOpError::StaleKey {

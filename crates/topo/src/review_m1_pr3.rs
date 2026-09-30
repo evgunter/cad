@@ -434,7 +434,7 @@ fn carve_hole(
         .vertices()
         .map(|(k, e)| format!("{k:?}:{e:?}"))
         .collect();
-    let plug = body.kfmrh(f_to, membrane.face, tol).unwrap();
+    let plug = body.kfmrh(f_to, membrane.face).unwrap();
     l.f -= 1;
     l.r += 1;
     check(body, *l, h + 1);
@@ -631,16 +631,14 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     // vector untouched, still valid. (Geometrically silly, structurally
     // legal — ring_move is pure reparenting.)
     let birth = body.provenance(EntityId::Loop(hole2.plug.ring)).cloned();
-    body.ring_move(hole2.plug.ring, b.f_right.face, tol)
-        .unwrap();
+    body.ring_move(hole2.plug.ring, b.f_right.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(euler_counts(&body), l);
     assert_eq!(
         body.get_face(b.f_right.face).unwrap().rings,
         vec![hole2.plug.ring]
     );
-    body.ring_move(hole2.plug.ring, b.f_bottom.face, tol)
-        .unwrap();
+    body.ring_move(hole2.plug.ring, b.f_bottom.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(
         body.provenance(EntityId::Loop(hole2.plug.ring)).cloned(),
@@ -743,12 +741,8 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         1,
         tol,
     );
-    body2
-        .ring_move(h2b.plug.ring, b2.f_right.face, tol)
-        .unwrap();
-    body2
-        .ring_move(h2b.plug.ring, b2.f_bottom.face, tol)
-        .unwrap();
+    body2.ring_move(h2b.plug.ring, b2.f_right.face).unwrap();
+    body2.ring_move(h2b.plug.ring, b2.f_bottom.face).unwrap();
     assert_eq!((hole1.kill, hole1.plug), (h1b.kill, h1b.plug));
     assert_eq!((hole2.kill, hole2.plug), (h2b.kill, h2b.plug));
     assert_eq!(hole1.rim, h1b.rim);
@@ -1533,7 +1527,7 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
             tol,
         )
         .unwrap();
-    let shared = body.kfmrh(seed.face, split.face, tol).unwrap();
+    let shared = body.kfmrh(seed.face, split.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(shared.killed_surface, None);
     assert_eq!(body.surfaces().count(), 1);
@@ -1555,7 +1549,7 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
     let private = body2.add_surface(crate::fixtures::test_surface(Point3::new(5.0, 0.0, 0.0)));
     body2.get_face_mut(split2.face).unwrap().surface = private;
     assert_eq!(validate(&body2), Ok(()));
-    let reaped = body2.kfmrh(seed2.face, split2.face, tol).unwrap();
+    let reaped = body2.kfmrh(seed2.face, split2.face).unwrap();
     assert_eq!(validate(&body2), Ok(()));
     assert_eq!(reaped.killed_surface, Some(private));
     assert!(body2.get_surface(private).is_none());
@@ -1925,7 +1919,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::SameFace { face: seed.face },
-        |b| b.kfmrh(seed.face, seed.face, tol).unwrap_err(),
+        |b| b.kfmrh(seed.face, seed.face).unwrap_err(),
     );
     // CrossSolid (two solids in one body): since M3 PR 1 kfmrh accepts
     // cross-shell faces of ONE solid (shell fusion); across solids it
@@ -1937,7 +1931,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
             f1: seed.face,
             f2: other.face,
         },
-        |b| b.kfmrh(seed.face, other.face, tol).unwrap_err(),
+        |b| b.kfmrh(seed.face, other.face).unwrap_err(),
     );
     // StaleKey f1 / f2.
     let dead_face = FaceKey::default();
@@ -1946,14 +1940,14 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
         &EulerOpError::StaleKey {
             key: EntityId::Face(dead_face),
         },
-        |b| b.kfmrh(dead_face, split.face, tol).unwrap_err(),
+        |b| b.kfmrh(dead_face, split.face).unwrap_err(),
     );
     assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::Face(dead_face),
         },
-        |b| b.kfmrh(seed.face, dead_face, tol).unwrap_err(),
+        |b| b.kfmrh(seed.face, dead_face).unwrap_err(),
     );
     // FaceHasRings: put a ring on f2 first (strut + kemr in the mef
     // face's loop), then try to kill it.
@@ -1972,7 +1966,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::FaceHasRings { face: split.face },
-        |b| b.kfmrh(seed.face, split.face, tol).unwrap_err(),
+        |b| b.kfmrh(seed.face, split.face).unwrap_err(),
     );
 
     // ring_move: RingIsOuter.
@@ -1981,7 +1975,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
         &EulerOpError::RingIsOuter {
             r#loop: seed.r#loop,
         },
-        |b| b.ring_move(seed.r#loop, split.face, tol).unwrap_err(),
+        |b| b.ring_move(seed.r#loop, split.face).unwrap_err(),
     );
     // ring_move: CrossShell (to the second solid's face).
     assert_err_deep_unchanged(
@@ -1990,7 +1984,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
             f1: split.face,
             f2: other.face,
         },
-        |b| b.ring_move(ring, other.face, tol).unwrap_err(),
+        |b| b.ring_move(ring, other.face).unwrap_err(),
     );
     // ring_move: stale ring / stale destination.
     assert_err_deep_unchanged(
@@ -1998,19 +1992,19 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
         &EulerOpError::StaleKey {
             key: EntityId::Loop(LoopKey::default()),
         },
-        |b| b.ring_move(LoopKey::default(), seed.face, tol).unwrap_err(),
+        |b| b.ring_move(LoopKey::default(), seed.face).unwrap_err(),
     );
     assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::StaleKey {
             key: EntityId::Face(dead_face),
         },
-        |b| b.ring_move(ring, dead_face, tol).unwrap_err(),
+        |b| b.ring_move(ring, dead_face).unwrap_err(),
     );
     // ring_move to its own face: documented Ok(()) no-op, deeply
     // unchanged.
     let before = snapshot(&body);
-    assert_eq!(body.ring_move(ring, split.face, tol), Ok(()));
+    assert_eq!(body.ring_move(ring, split.face), Ok(()));
     assert_eq!(snapshot(&body), before);
 }
 
@@ -2036,8 +2030,8 @@ fn failing_ring_ops_leave_lineage_pure() {
             // Failing kemr (NotSameEdge), failing kfmrh (SameFace),
             // failing ring_move (RingIsOuter).
             assert!(body.kemr(b.e_ab.he_plus, b.e_ab.he_plus).is_err());
-            assert!(body.kfmrh(b.seed.face, b.seed.face, tol).is_err());
-            assert!(body.ring_move(b.seed.r#loop, b.f_right.face, tol).is_err());
+            assert!(body.kfmrh(b.seed.face, b.seed.face).is_err());
+            assert!(body.ring_move(b.seed.r#loop, b.f_right.face).is_err());
         }
         let he_front_ab = body
             .find_half_edge(b.f_front.face, b.seed.vertex, b.e_ab.vertex)
@@ -2085,7 +2079,7 @@ fn failing_ring_ops_leave_lineage_pure() {
                 Err(EulerOpError::NotSameFace { .. })
             ));
             assert!(matches!(
-                body.kfmrh(b.f_back.face, b.f_front.face, tol),
+                body.kfmrh(b.f_back.face, b.f_front.face),
                 Err(EulerOpError::FaceHasRings { .. })
             ));
         }

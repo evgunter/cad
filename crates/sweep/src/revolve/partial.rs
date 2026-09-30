@@ -151,7 +151,7 @@ pub(super) fn build_partial<T: Decide>(
             },
             tol,
         )?;
-        body.kfmrh(start_face, hole.face, tol)?;
+        body.kfmrh(start_face, hole.face)?;
         bases.push(hole.hes);
         // The chain's vertices are recorded for EVERY loop, holes
         // included, though a validated profile's hole vertices are

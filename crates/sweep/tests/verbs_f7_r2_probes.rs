@@ -132,7 +132,7 @@ fn r2_one_face_cap_via_kef_then_kev() {
     println!("R2-P2 planar pole = {pole:?}");
 
     // kef the FIRST meridian: kills that edge and one half-disc face.
-    let kef_res = c.kef(h0, Tol::witness());
+    let kef_res = c.kef(h0);
     println!("R2-P2 kef => {:?}", kef_res.map(|_| "ok"));
     println!("R2-P2 after kef counts = {:?}", counts(&c));
     println!("R2-P2 after kef validate(tier1) = {:?}", validate(&c));

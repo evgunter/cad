@@ -147,7 +147,7 @@ fn merge_curved_wall(body: &mut Body<f64>, arcs: &[EdgeKey]) {
                     continue;
                 }
                 let hp = body.get_edge(e).unwrap().he_plus;
-                body.kef(hp, tol())
+                body.kef(hp)
                     .expect("a curved wall's seam meridian kills into one face");
                 return;
             }

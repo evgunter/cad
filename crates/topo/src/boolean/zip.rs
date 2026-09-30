@@ -65,7 +65,7 @@ pub(super) fn zip_seam<T: Decide>(
     let mut report = ZipReport::default();
 
     // ---- Fuse: B's section face becomes a ring of A's. ----
-    let fused = body.kfmrh(a_face, b_face, tol)?;
+    let fused = body.kfmrh_minting(a_face, b_face, tol)?;
     let ring = fused.ring;
     let outer = body
         .get_face(a_face)
@@ -181,9 +181,9 @@ pub(super) fn zip_seam<T: Decide>(
             tol,
         )?;
         record_kev(body, nj.he_plus, &mut report)?;
-        body.kef(rs[(j + 1) % n], tol)?;
+        body.kef_minting(rs[(j + 1) % n], tol)?;
     }
-    body.kef(rs[1 % n], tol)?;
+    body.kef_minting(rs[1 % n], tol)?;
     for &he in &ob {
         let edge = body
             .get_half_edge(he)

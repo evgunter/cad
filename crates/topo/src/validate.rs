@@ -12230,7 +12230,7 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        body.mfkrh_plug(kill.ring, true, Tol::witness()).unwrap();
+        body.mfkrh_plug(kill.ring, true).unwrap();
         (body, seed.shell)
     }
 

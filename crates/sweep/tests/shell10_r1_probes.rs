@@ -65,9 +65,9 @@ fn r1_the_subset_pass_leaves_rows_on_half_edges_its_caller_killed() {
     let victim = body
         .pcurves()
         .map(|(he, _)| he)
-        .find(|he| body.clone().kef(*he, Tol::witness()).is_ok())
+        .find(|he| body.clone().kef(*he).is_ok())
         .expect("some half-edge with a row admits a kef");
-    body.kef(victim, Tol::witness()).expect("the kef lands");
+    body.kef(victim).expect("the kef lands");
     let dead = dead_rows(&body);
     println!("[r1p1] dead rows straight after the kef: {}", dead.len());
     assert!(!dead.is_empty(), "the kef stranded at least one row");
