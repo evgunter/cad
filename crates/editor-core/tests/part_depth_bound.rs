@@ -29,8 +29,8 @@ use std::collections::BTreeMap;
 use editor_core::{
     Alignment, AxisSense, BooleanOp, CapEnd, ContactClass, ContentPin, DocRef, DocumentId,
     EvalOptions, MateFrame, MatePrimitive, MateReach, Node, NodeErrorKind, NodeResult, PartFault,
-    PartResolver, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFailure, ResolveFault,
-    mate_reach, product,
+    PartResolver, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFailure, ResolveFault, mate_reach,
+    product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, run, square};
@@ -512,18 +512,16 @@ fn a_part_no_instance_asks_for_is_evaluated_and_its_failure_reaches_nothing() {
     let holder_ref = unpinned_ref("part-descent-holder");
     let inner = unpinned_ref("part-descent-unasked-inner");
     let mut seen = Vec::new();
-    for (bottom, evaluated) in [
-        (Some(leaf()), 4),
-        (None, 3),
-    ] {
+    for (bottom, evaluated) in [(Some(leaf()), 4), (None, 3)] {
         // `lost` is absent; `asked` is a two-level assembly over the
         // bottom, which is a leaf or missing.
         let mut store = Unpinned::default();
         store.0.insert(holder_ref, holder.clone());
         let bottom_ref = unpinned_ref("part-descent-unasked-bottom");
-        store
-            .0
-            .insert(asked_ref, instantiating_all("part-descent-unasked", &[inner]).0);
+        store.0.insert(
+            asked_ref,
+            instantiating_all("part-descent-unasked", &[inner]).0,
+        );
         store.0.insert(
             inner,
             instantiating_all("part-descent-unasked-inner", &[bottom_ref]).0,
