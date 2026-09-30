@@ -52,7 +52,7 @@ use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::MekrSite;
-use crate::fixtures::deep_snapshot;
+use crate::fixtures::{deep_rows, deep_snapshot};
 use crate::iso::{canonical_form, isomorphic};
 use crate::readback::euler_counts;
 use crate::seqgen;
@@ -126,10 +126,11 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let tol = Tol::witness();
     // Lone (segment): DEEP identity — the pre-state had emanating None
     // and an Empty loop, which the segment kill restores exactly, and
-    // the balanced pair leaves survivor keys untouched.
+    // the balanced pair leaves survivor keys untouched. Row for row:
+    // the pair consumes the key slots it minted.
     let mut b3 = Body::<f64>::new();
     let seed3 = b3.mvfs(p(0.0), true).unwrap();
-    let deep3 = deep_snapshot(&b3);
+    let deep3 = deep_rows(&b3);
     let created = b3
         .mev_line(
             MevSite::Lone {
@@ -140,7 +141,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         )
         .unwrap();
     b3.kev(created.he_plus).unwrap();
-    assert_eq!(deep_snapshot(&b3), deep3, "Lone mev∘kev deep identity");
+    assert_eq!(deep_rows(&b3), deep3, "Lone mev∘kev deep identity");
 
     // Fan strut (he1 == he2): canonical identity.
     let (mut body, _seed, [a, _b, _c, _d, _e]) = five_spoke_star(tol);
@@ -267,10 +268,10 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "circular mef∘kef");
 
-    // Lone (self-loop pair at the lone vertex).
+    // Lone (self-loop pair at the lone vertex), row for row.
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0), true).unwrap();
-    let before = deep_snapshot(&body);
+    let before = deep_rows(&body);
     let circ = body
         .mef_chord(
             MefSite::Lone {
@@ -281,7 +282,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
         .unwrap();
     body.kef(circ.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
-    assert_eq!(deep_snapshot(&body), before, "Lone mef∘kef deep identity");
+    assert_eq!(deep_rows(&body), before, "Lone mef∘kef deep identity");
 
     // Ring-loop split: mef with both chords in a RING loop; the new
     // face's outer is he1's side; kef(he_minus) undoes it.

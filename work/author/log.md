@@ -1474,3 +1474,28 @@ Filed from the unit: `a-close-refused-on-its-geometry-draws-nothing` (P2, M). It
 **AUTH-12** takes `no-row-holds-that-the-create-pane-offers-the-tools-it-has`. It had waited on a harness-or-refactor choice that no longer exists: the whole-app harness in `app.rs` (2026-09-25) already paints the full app. The unit is therefore a census row over `ToolKind::ALL`. It also routes the nine literal button labels through `ToolKind::label()`, which already claims to be their one home. Review tier: style only. The change is a test row and a label routing, readable end to end.
 
 Blockers re-checked before choosing: `materole-has-no-display` (MSOLVE) and `clearance-refusal-names-one-face-twice-across-bodies` (CLEAR) are both still open.
+
+## 2026-09-30 — face-naming fork: the designers agreed on their first reports; `[ev]` #3571
+
+The designer pair was given one problem statement and no candidate answers (byte on `analysis/design-fork/author-face-naming-2026-09-30`). Both first reports recommended the same final state:
+- a face is told apart by its **leaf role in words**, from one public names-layer renderer promoted from `resolve::role_words`;
+- `StableName`'s own `Display` carries that role;
+- one viewer composer, which also settles "face of feature N" (it currently names three different features across sites);
+- a picture where the face is drawn, including a hover mark on each line of the declare offer;
+- **not the pose.**
+
+No reconciliation round was needed. Both corrected the row's premises: role words already exist, privately, and "prose never renders the role path" is agent text (#1454) that #3205 already contradicts.
+
+**Why it went to Ev anyway.** No ratified text is involved, but `StableName`'s `Display` changes across editor-core, pncad and viewer, and a stated stance is reversed. The names layer is EDIT's ground, so the editor-core unit is EDIT's and the viewer unit is AUTHOR's. Fork-log row 23.
+
+**Filed off the question:**
+- CHROME: `focus-per-segment-is-no-longer-blocked-on-a-guess`.
+- AUTHOR: `committed-nodes-do-not-light-the-faces-they-reference`.
+- Already on file: the flush refusal's `Debug` face keys (`work/issues/flush-in-band-refusal-advises-widening-the-tolerance`).
+- Folded into the design, not filed: `descent_leaf` and `SegOrigin` listing the carry-through wrappers twice, and `SelectRefusal`'s hand-spelled `named` helper.
+
+## 2026-09-30 — AUTH-12 MERGED (`0c9f05e1`): every tool is reachable, and a row says so
+
+Twelve units closed. **The trap fired a twelfth time, test-side only:** kind→section was written twice in one test module. The one style review (the tier chosen at dispatch) caught it, together with copied section headings. The fix pass also took the commit-button duplication the lane had filed as P3, which turned out to be the same one-function fix. It left one row: the mate and blend commit rows restate `tool_commit_row`'s shape.
+
+The premise the row was parked on ("no test can build `ViewerBehavior`") had been stale for five days, since the whole-app harness landed on 2026-09-25. I only caught it by reading the tree before specifying.
