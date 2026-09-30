@@ -27,7 +27,9 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
-use pncad::profile::{ArcData, ArcSide, Step, Target, TipState, Verb};
+use pncad::profile::{Step, Target};
+#[cfg(test)]
+use pncad::profile::{TipState, Verb};
 
 use crate::scene::DisplayTolerance;
 
@@ -386,60 +388,18 @@ pub fn two_legs(x: f64, y: f64) -> Vec<Step<f64>> {
     ]
 }
 
-/// **Every tip state no `line_to` leaves**, read off the lattice table
-/// (`sketch::admits_at` over each state some verb has a row at), so a
-/// state the table gains is in the census without an edit here.
-pub fn tips_no_line_to_leaves() -> Vec<TipState> {
-    let mut states: Vec<TipState> = Vec::new();
-    for &verb in Verb::ALL {
-        for &state in verb.states() {
-            if !states.contains(&state)
+/// **Every unclosable tip state** — one an unfinished chain can end on
+/// that no `line_to` leaves, so the provisional close is ill-typed
+/// there — read off the lattice table over the kernel's census of
+/// states (`profile::test_support`). `Closed` refuses `line_to` too,
+/// and is finished.
+#[cfg(test)]
+pub fn unclosable_tips() -> Vec<TipState> {
+    ::profile::test_support::every_state()
+        .into_iter()
+        .filter(|&state| {
+            state != TipState::Closed
                 && crate::sketch::admits_at(Some(state), Verb::LineTo).is_err()
-            {
-                states.push(state);
-            }
-        }
-    }
-    states
-}
-
-/// **[`two_legs`] from the origin, then steps that leave its tip in
-/// `state`**, one of [`tips_no_line_to_leaves`] — exhaustive, so a
-/// state the lattice gains has to be given a way in (or ruled out)
-/// before this compiles. `None` for the entry, which no step precedes,
-/// and for the states a `line_to` leaves.
-pub fn two_legs_awaiting(state: TipState) -> Option<Vec<Step<f64>>> {
-    use core::f64::consts::PI;
-    let fillet = Step::Fillet { radius: 0.002 };
-    let arrival = |spec| Step::FilletArc {
-        radius: 0.002,
-        spec,
-    };
-    let radius = ArcData::Radius {
-        r: 0.02,
-        side: ArcSide::Left,
-    };
-    let via = |target| ArcData::Via {
-        q: Point2::new(0.005, 0.02),
-        target,
-    };
-    let tail = match state {
-        TipState::Entry | TipState::PlainPoint | TipState::DirectedPoint | TipState::Closed => {
-            return None;
-        }
-        TipState::Open => vec![fillet],
-        TipState::Angle => vec![fillet, Step::Angle(PI)],
-        TipState::DirectedPlain => {
-            vec![fillet, Step::At(Point2::new(-0.005, 0.02)), Step::Angle(PI)]
-        }
-        TipState::DirectedIncoming => vec![Step::Turn(0.5)],
-        TipState::RadiusArrival => vec![arrival(radius)],
-        TipState::RadiusArrivalAt => vec![arrival(radius), Step::At(Point2::new(0.0, 0.02))],
-        TipState::RadiusArrivalDir => vec![arrival(radius), Step::Angle(PI)],
-        TipState::ViaArrival => vec![arrival(via(Target::Point(Point2::new(0.0, 0.015))))],
-        TipState::ViaArrivalStart => vec![arrival(via(Target::Start))],
-    };
-    let mut steps = two_legs(0.0, 0.0);
-    steps.extend(tail);
-    Some(steps)
+        })
+        .collect()
 }

@@ -262,10 +262,7 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     assert_eq!(drawn.loops.len(), 1);
     assert_eq!(
         drawn.loops[0].end,
-        LoopEnd::Unfinished {
-            awaiting: None,
-            closes: false,
-        },
+        LoopEnd::Unfinished(None),
         "the chain has no closing verb, and the preview says so",
     );
     assert!(drawn.has_unfinished_chain());

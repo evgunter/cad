@@ -48,19 +48,10 @@ Derive the start from the loop entry's first `At` rather than only
 and decide whether a collinear last leg should be kept with no close
 drawn. The cross must stay on the step that actually refused.
 
-## The unfinished arm has the same gap (AUTH-11, measured)
+## The unfinished arm has the same gap
 
-Found by AUTH-11's sweep (`author/binder-prefix`), on its blind spot:
-a provisional close refused on its GEOMETRY rather than by the
-lattice. The chain `at (0,0), line_to (0.01,0), line_to (0.01,0.01),
-line_to (0,0)` has not closed, and its tip (a leg end) admits
-`line_to`. But the tip sits on the start, so the provisional close
-`sketch::preview` retries it under is zero-length, and replay refuses
-it as a `Path` refusal. The preview is `Err` (loop 0 never closes),
-and nothing is drawn, not even the three authored legs. AUTH-11 walks
-back (`sketch::prefix_loop`) only when the close is ill-typed at the
-tip. A walk-back here would find the prefix closed on its start
-(`closed_on_start`), but the sentence is wrong for it: the tip awaits
-no binder, and the chain is closed in all but spelling. So the fix
-belongs with this row's question of what a last leg onto the start
-means.
+An unfinished chain whose last leg lands on the start draws nothing at
+all: its provisional close is zero-length and refused on its geometry.
+That is one member of `work/author/a-close-refused-on-its-geometry-draws-nothing.md`,
+filed by AUTH-11; the two want one answer to what a last leg onto the
+start means.
