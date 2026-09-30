@@ -933,6 +933,19 @@ impl Drafts {
         Ok([self.length(p.x)?, self.length(p.y)?])
     }
 
+    /// **The face this form holds**: [`Self::datum_face`] while the
+    /// chosen kind is the one that reads it, `None` under every other.
+    ///
+    /// Under another kind the latch is kept, not held — nothing the
+    /// form commits reads it — so switching kind releases the pick,
+    /// and switching back holds it again. What the viewport marks as
+    /// held (`crate::marks::Held`).
+    pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
+        self.datum_face
+            .as_ref()
+            .filter(|_| self.datum_kind == DatumKindChoice::FaceFrame)
+    }
+
     /// **The add-datum form's drafts as a spec**, for the kind chosen:
     /// lengths in the form's notation, a normal or a direction
     /// dimensionless. `Ok(None)` is a SEAT still unfilled — an axis in

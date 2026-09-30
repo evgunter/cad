@@ -14,7 +14,7 @@ use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::display::DisplayView;
-use crate::drafts::ProfileDoors;
+use crate::drafts::{Drafts, ProfileDoors};
 use crate::frame;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
@@ -23,8 +23,9 @@ use crate::marks;
 use crate::narrowing::Narrow;
 use crate::pickcache;
 use crate::pickindex::{PickError, PickIndex, PictureKey};
-use crate::session::SessionOp;
+use crate::session::{DocSession, SessionOp};
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
+use crate::tools::Tools;
 
 /// **One sketch-plane segment, placed and offered to an overlay lane**
 /// as the line-list pair the edge pass draws.
@@ -213,6 +214,29 @@ pub(crate) fn land(
     // sentence and reaches the field directly, because a notice cannot
     // un-say anything.
     frame::deliver(notices, status, frame::fold_status(folded));
+}
+
+/// **Everything this frame marks about picks**: [`marks::compose`] over
+/// the session's selection and hover, and every pick a form or a tool
+/// holds — gathered here and nowhere else.
+///
+/// The seated tools hold NODES, and no mark draws a held node
+/// (`work/author/a-seated-tools-held-node-is-drawn-nowhere`).
+pub(crate) fn frame_marks(
+    index: &PickIndex,
+    display: &DisplayView,
+    session: &DocSession,
+    tools: &Tools,
+    drafts: &Drafts,
+) -> (marks::Highlight, marks::EdgeOverlay) {
+    let [a, b] = tools
+        .mate()
+        .map_or([None, None], |tool| tool.state().picks());
+    let held = marks::Held {
+        faces: [drafts.held_face(), a, b],
+        edges: tools.blend(),
+    };
+    marks::compose(index, display, session.selection(), session.hover(), &held)
 }
 
 /// The index the picture on screen was drawn FROM, or `None` when the
@@ -728,21 +752,11 @@ impl ViewerBehavior<'_> {
             self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
-        // What to mark, as a pure function of what is drawn and what is
-        // selected. Recomputed every frame; nothing retains it.
-        let highlight = on_screen
-            .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
-        // The edge half of the same question, and the same discipline:
-        // recomputed every frame from state that lives in one place.
-        let mut edges = on_screen
-            .map(|index| {
-                marks::edge_overlay(
-                    index,
-                    self.display,
-                    self.session.selection(),
-                    self.session.hover(),
-                )
-            })
+        // What to mark, as a pure function of what is drawn, what is
+        // selected and what is held. Recomputed every frame; nothing
+        // retains it.
+        let (highlight, mut edges) = on_screen
+            .map(|index| frame_marks(index, self.display, self.session, self.tools, self.drafts))
             .unwrap_or_default();
         // **The three lanes this pane composes itself**, each as the
         // value that owns the display seam's rule
@@ -758,20 +772,6 @@ impl ViewerBehavior<'_> {
         let mut datums = marks::LegLane::default();
         let mut profiles = marks::LegLane::default();
         let mut preview = marks::LegLane::default();
-        // **The open blend tool's held set is marked too** — all of
-        // it, because the set IS what the user is composing and a
-        // count alone cannot tell them WHICH twelve edges they hold.
-        //
-        // Marked as SELECTED, the mark meaning "a choice you have
-        // made". `BlendTool::mark_segments` applies the same (node,
-        // body) narrowing a single selection gets — one pass over the
-        // target's drawn edges, so the cost is the body's edge count
-        // and not its square.
-        if let (Some(index), Some(tool)) = (on_screen, self.tools.blend()) {
-            edges
-                .selected
-                .extend(tool.mark_segments(index, self.display));
-        }
         // **The document's construction geometry.** Which lane is drawn
         // over which is `marks::EdgeLane::DRAW_ORDER`'s, not the order
         // these blocks fill them in. Sized against the VIEW
@@ -1000,7 +1000,7 @@ impl ViewerBehavior<'_> {
                 theme: self.theme,
                 viewport_px,
                 pixels_per_point: point_scale,
-                highlight: highlight.unwrap_or_default(),
+                highlight,
                 edges,
                 id_query,
             },

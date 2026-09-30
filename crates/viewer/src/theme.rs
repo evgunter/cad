@@ -268,6 +268,9 @@ pub struct Theme {
     /// half of the same legibility question.
     pub ground: Rgba8,
     /// The patch the user committed to.
+    ///
+    /// Also the colour of the HELD mark, which has no field of its own
+    /// (`crate::marks::Held` says why).
     pub selected: Mark,
     /// The patch under the cursor.
     pub hovered: Mark,

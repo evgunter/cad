@@ -133,10 +133,14 @@ struct Uniforms {
     /// `[selected id, hovered id, 0, 0]` — `IdMap::NOTHING` for
     /// "nothing is marked", so the shader needs no absence case.
     ///
-    /// **The two lanes may hold the SAME id**, when the hover is on
-    /// the selection ([`crate::marks::Highlight`]); `fs_main` below is
-    /// what rules between them, and it is the only thing that does.
+    /// **A lane here and one in [`Uniforms::held`] may hold the SAME
+    /// id**, when the hover is on the selection or a held face is also
+    /// either ([`crate::marks::Highlight`]); `fs_main` below is what
+    /// rules between them, and it is the only thing that does.
     highlight: [u32; 4],
+    /// The held faces' ids ([`crate::marks::Highlight::held`]), one
+    /// lane per slot and `IdMap::NOTHING` in every lane past them.
+    held: [u32; 4],
     /// The four highlight marks: tint in `xyz`, mix strength in `w`.
     ///
     /// **Uniform lanes, not WGSL `const`s, and that is the whole
@@ -172,18 +176,22 @@ struct Uniforms {
     /// padding. [`Uniforms::datum`]'s shape for its reason:
     /// `Theme::profile` is a line colour, drawn as stated.
     profile: [f32; 4],
-    /// **What the edge pass needs to measure the screen**: the
-    /// viewport's size in physical pixels (`xy`); `zw` are padding.
+    /// **What the passes need to measure the screen**: the viewport's
+    /// size in physical pixels (`xy`), which the edge pass reads, and
+    /// the width of one of a held face's stripes in physical pixels
+    /// (`z`, [`HELD_STRIPE_POINTS`]), which the shaded pass reads; `w`
+    /// is padding.
     ///
     /// A uniform lane rather than a shader constant for the reason
     /// the marks are lanes: the pane is resized by dragging a
     /// divider, and a pipeline rebuilt to repaint the same triangles
     /// at a different window size would be an odd way to spend a
-    /// frame. The shaded and id passes read none of it.
+    /// frame. The id pass reads none of it.
     edge: [f32; 4],
     /// **Each edge lane's style**, indexed by the lane's code
     /// ([`lane_code`]): half the line's width in physical pixels in
-    /// `x`, its opacity in `y`; `zw` are padding.
+    /// `x`, its opacity in `y`, its hollow fraction in `z`
+    /// ([`LaneStyle::hollow`]); `w` is padding.
     ///
     /// Per lane because the lanes are not equally loud on purpose
     /// ([`lane_style`]), and in physical pixels because the width is
@@ -306,7 +314,7 @@ struct EdgePass {
     /// The uploaded overlay, and the value it was built from — the
     /// upload trigger, compared rather than versioned because the
     /// overlay is small and is rebuilt (identically) every frame.
-    held: Option<EdgeGeometry>,
+    uploaded: Option<EdgeGeometry>,
 }
 
 /// The buffers one [`EdgeOverlay`] became.
@@ -349,7 +357,9 @@ fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
     match lane {
         // The picked marks: the theme's own mark, composited over the
         // base — `tint`, the same mix the shaded pass runs.
-        EdgeLane::Selected => "tint(base, uniforms.selected)",
+        // A held edge wears the selected mark too; its lane's hollow
+        // style is what tells it apart (`crate::marks::Held`).
+        EdgeLane::Selected | EdgeLane::Held => "tint(base, uniforms.selected)",
         EdgeLane::Hovered => "tint(base, uniforms.hovered)",
         // A preview is not in the document, and says so in the probe
         // mark — G3's "not committed" — over the same base.
@@ -402,6 +412,10 @@ struct LaneStyle {
     /// `(0, 1]`: the pass blends `color · opacity + under · (1 −
     /// opacity)`.
     opacity: f32,
+    /// How much of the line's width, from its centre line out, is
+    /// left undrawn, in `[0, 1)`: `0` is a solid line, and anything
+    /// above draws two rails with a gap between them.
+    hollow: f32,
 }
 
 /// **Half the width of a mark, a profile or a preview, in POINTS** —
@@ -431,6 +445,38 @@ const EDGE_MARK_HALF_WIDTH_POINTS: f32 = 1.5;
 /// times as wide, stay continuous down to a third of that scale.
 const DATUM_HALF_WIDTH_POINTS: f32 = 0.5;
 
+/// **Half the width of a held edge, in POINTS**, and
+/// [`HELD_EDGE_HOLLOW`], its gap: two one-point rails a two-point gap
+/// apart.
+///
+/// The held mark is the selected mark's colour told apart by shape
+/// (`crate::marks::Held`), and for a line the shape is a hollow one.
+/// Wider than a mark so that each rail keeps the grid's weight — a
+/// rail thinner than a point drops pixels the way the grid would. The
+/// selected mark, drawn over it where an edge is both, covers all but
+/// half a point of each rail, which is where both marks show.
+const HELD_EDGE_HALF_WIDTH_POINTS: f32 = 2.0;
+
+/// The held edge's gap, as a fraction of [`HELD_EDGE_HALF_WIDTH_POINTS`].
+const HELD_EDGE_HOLLOW: f32 = 0.5;
+
+/// **One stripe of a held face, in POINTS**, measured along a row of
+/// pixels: the face alternates diagonal stripes of the selected mark
+/// and of its own colour, one of each every eight points.
+///
+/// The face half of the held mark's shape (`crate::marks::Held`). Wide
+/// enough to read as stripes rather than as a flat half-strength tint
+/// at a normal viewing distance, and narrow enough that a small face
+/// still shows two of them.
+const HELD_STRIPE_POINTS: f32 = 4.0;
+
+// The shaded pass carries one uniform lane per held face, four to a
+// `vec4<u32>`; a fifth holder is refused here rather than dropped.
+const _: () = assert!(
+    crate::marks::HELD_FACES <= 4,
+    "Uniforms::held has four lanes, and a held face past them would draw nothing"
+);
+
 /// **Each lane's style.** One match, so a lane cannot be added
 /// without being given one.
 ///
@@ -448,11 +494,18 @@ fn lane_style(lane: EdgeLane) -> LaneStyle {
         EdgeLane::Datum => LaneStyle {
             half_width_points: DATUM_HALF_WIDTH_POINTS,
             opacity: crate::theme::DATUM_OPACITY,
+            hollow: 0.0,
+        },
+        EdgeLane::Held => LaneStyle {
+            half_width_points: HELD_EDGE_HALF_WIDTH_POINTS,
+            opacity: 1.0,
+            hollow: HELD_EDGE_HOLLOW,
         },
         EdgeLane::Profile | EdgeLane::Preview | EdgeLane::Hovered | EdgeLane::Selected => {
             LaneStyle {
                 half_width_points: EDGE_MARK_HALF_WIDTH_POINTS,
                 opacity: 1.0,
+                hollow: 0.0,
             }
         }
     }
@@ -832,6 +885,7 @@ impl ViewportRenderer {
                 light_direction: [0.0; 4],
                 base_color: [0.0; 4],
                 highlight: [0; 4],
+                held: [0; 4],
                 selected: [0.0; 4],
                 hovered: [0.0; 4],
                 probe: [0.0; 4],
@@ -1130,11 +1184,11 @@ impl EdgePass {
         });
         Self {
             pipeline,
-            held: None,
+            uploaded: None,
         }
     }
 
-    /// Upload `overlay` if the held buffers do not already hold it.
+    /// Upload `overlay` if the uploaded buffers do not already hold it.
     ///
     /// Compared rather than versioned: the overlay is a handful of
     /// segments, recomputed identically every frame from state that
@@ -1142,14 +1196,14 @@ impl EdgePass {
     /// second thing to keep true.
     fn ensure_geometry(&mut self, device: &wgpu::Device, overlay: &EdgeOverlay) {
         if self
-            .held
+            .uploaded
             .as_ref()
-            .is_some_and(|held| held.overlay == *overlay)
+            .is_some_and(|uploaded| uploaded.overlay == *overlay)
         {
             return;
         }
         if overlay.is_empty() {
-            self.held = None;
+            self.uploaded = None;
             return;
         }
         let (positions, marks) = edge_vertices(overlay);
@@ -1157,10 +1211,10 @@ impl EdgePass {
         // vertex table longer than a draw range has no draw, and
         // `u32::MAX` would be a count this function did not compute.
         let Some(vertices) = draw_range(positions.len()) else {
-            self.held = None;
+            self.uploaded = None;
             return;
         };
-        self.held = Some(EdgeGeometry {
+        self.uploaded = Some(EdgeGeometry {
             positions: create_init_buffer(
                 device,
                 "viewer_edge_positions",
@@ -1313,8 +1367,8 @@ pub(crate) struct IdQuery {
 
 impl ViewportCallback {
     /// The uniform block: the matrix, the light direction, the base
-    /// colour with the ambient term in its fourth lane, the two
-    /// highlight ids, and the theme's four marks.
+    /// colour with the ambient term in its fourth lane, the highlight
+    /// and held ids, and the theme's four marks.
     ///
     /// **A struct that mirrors the WGSL declaration, not a flat block
     /// written by index.** The earlier shape wrote each scalar through
@@ -1330,6 +1384,13 @@ impl ViewportCallback {
             light_direction: [lx, ly, lz, 0.0],
             base_color: [r, g, b, self.theme.ambient.get()],
             highlight: [self.highlight.selected, self.highlight.hovered, 0, 0],
+            held: {
+                let mut lanes = [IdMap::NOTHING; 4];
+                for (lane, id) in lanes.iter_mut().zip(self.highlight.held) {
+                    *lane = id;
+                }
+                lanes
+            },
             selected: mark_lane(self.theme.selected),
             hovered: mark_lane(self.theme.hovered),
             probe: mark_lane(self.theme.probe),
@@ -1342,13 +1403,18 @@ impl ViewportCallback {
                 let [r, g, b] = crate::theme::linear(self.theme.profile);
                 [r, g, b, 0.0]
             },
-            edge: [self.viewport_px[0], self.viewport_px[1], 0.0, 0.0],
+            edge: [
+                self.viewport_px[0],
+                self.viewport_px[1],
+                HELD_STRIPE_POINTS * self.pixels_per_point,
+                0.0,
+            ],
             edge_lanes: EdgeLane::DRAW_ORDER.map(|lane| {
                 let style = lane_style(lane);
                 [
                     style.half_width_points * self.pixels_per_point,
                     style.opacity,
-                    0.0,
+                    style.hollow,
                     0.0,
                 ]
             }),
@@ -1423,7 +1489,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         render_pass.draw(0..geometry.corners, 0..1);
         // The marks last, over the solid they lie on: depth-tested
         // against it, biased toward the eye, writing no depth.
-        if let Some(edges) = renderer.edges.held.as_ref() {
+        if let Some(edges) = renderer.edges.uploaded.as_ref() {
             render_pass.set_pipeline(&renderer.edges.pipeline);
             render_pass.set_bind_group(0, &renderer.bind_group, &[]);
             render_pass.set_vertex_buffer(0, edges.positions.slice(..));
@@ -1493,6 +1559,8 @@ struct Uniforms {
     light_direction: vec4<f32>,
     base_color: vec4<f32>,
     highlight: vec4<u32>,
+    // The held faces' ids, NOTHING in an unused lane.
+    held: vec4<u32>,
     // Each mark: tint in xyz, mix strength in w. See the Rust
     // `Uniforms` for why these are lanes rather than consts.
     selected: vec4<f32>,
@@ -1503,10 +1571,11 @@ struct Uniforms {
     datum: vec4<f32>,
     // A committed profile's colour, in xyz; w is padding.
     profile: vec4<f32>,
-    // Viewport size in physical pixels (xy). See the Rust `Uniforms`.
+    // Viewport size in physical pixels (xy), a held face's stripe
+    // width in physical pixels (z). See the Rust `Uniforms`.
     edge: vec4<f32>,
-    // Per edge lane, by lane code: half width in physical pixels (x)
-    // and opacity (y).
+    // Per edge lane, by lane code: half width in physical pixels (x),
+    // opacity (y) and hollow fraction (z).
     edge_lanes: array<vec4<f32>, {{EDGE_LANES}}>,
 };
 
@@ -1543,12 +1612,21 @@ fn vs_main(
 // applies is this shader's, and the order below is that ruling.
 //
 // Selection wins over hover on the same patch, because it is the
-// state the user committed to. The probe's flag
+// state the user committed to, and a held face is marked only where
+// neither is: it is a choice, but not the live one. The probe's flag
 // (`SceneMesh::FLAG_PROBE`) is asserted headlessly and G3 requires
 // only that a probed placement be distinguishable from a mated one —
 // the strength that makes it so lives with the colour, in the theme.
 fn tint(base: vec3<f32>, mark: vec4<f32>) -> vec3<f32> {
     return mix(base, mark.xyz, mark.w);
+}
+
+// Whether a held face's pixel is in one of its marked stripes: every
+// other diagonal band, each `edge.z` physical pixels wide, anchored to
+// the screen.
+fn held_stripe(pixel: vec2<f32>) -> bool {
+    let width = max(uniforms.edge.z, 1.0);
+    return fract((pixel.x + pixel.y) / (2.0 * width)) < 0.5;
 }
 
 // Whether this pass owes the sRGB encode — see `shader_source`, which
@@ -1597,6 +1675,9 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
         base = tint(base, uniforms.selected);
     } else if (in.id != 0u && in.id == uniforms.highlight.y) {
         base = tint(base, uniforms.hovered);
+    } else if (in.id != 0u && any(uniforms.held == vec4<u32>(in.id))
+        && held_stripe(in.clip_position.xy)) {
+        base = tint(base, uniforms.selected);
     }
     let shade = base * (ambient + (1.0 - ambient) * lambert);
     return vec4<f32>(to_display(shade), 1.0);
@@ -1609,6 +1690,10 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
 struct EdgeOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) @interpolate(flat) mark: u32,
+    // -1 on one long side of the quad, +1 on the other: how far from
+    // the segment's centre line a fragment is, as a fraction of the
+    // half width.
+    @location(1) @interpolate(linear) across: f32,
 };
 
 // The screen-space expansion: both of the segment's endpoints arrive
@@ -1664,6 +1749,7 @@ fn vs_edge(
     var out: EdgeOut;
     out.clip_position = vec4<f32>(clip.xy + offset * clip.w, clip.z, clip.w);
     out.mark = mark;
+    out.across = side;
     return out;
 }
 
@@ -1681,6 +1767,10 @@ fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
         base = tint(base, uniforms.probe);
     }
     let lane = in.mark & {{EDGE_LANE_MASK}}u;
+    // A hollow lane leaves its middle undrawn.
+    if (abs(in.across) < uniforms.edge_lanes[lane].z) {
+        discard;
+    }
     // One arm per lane, generated from `EdgeLane` (the Rust
     // `lane_colour_switch`).
     var color: vec3<f32>;
@@ -1837,16 +1927,18 @@ mod tests {
     fn the_lanes_are_emitted_in_draw_order_with_the_selection_last() {
         let segment = |x: f32| vec![[x, 0.0, 0.0], [x, 1.0, 0.0]];
         let overlay = EdgeOverlay {
-            selected: segment(4.0),
-            hovered: segment(3.0),
+            selected: segment(5.0),
+            hovered: segment(4.0),
             selected_probed: true,
             hovered_probed: false,
+            held: segment(3.0),
+            held_probed: false,
             preview: segment(2.0),
             datums: segment(0.0),
             profiles: segment(1.0),
         };
         let (positions, marks) = edge_vertices(&overlay);
-        assert_eq!(positions.len(), 5 * QUAD_CORNERS.len());
+        assert_eq!(positions.len(), 6 * QUAD_CORNERS.len());
         assert_eq!(marks.len(), positions.len());
         let codes: Vec<u32> = marks.iter().map(|word| word & EDGE_LANE_MASK).collect();
         assert!(

@@ -48,6 +48,7 @@ use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
+use viewer::display::DisplayView;
 use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use viewer::narrowing::Narrow;
@@ -844,6 +845,100 @@ fn the_highlight_marks_the_selected_bodys_patch_not_another_with_the_same_name()
         (key.node, key.body),
         (hit.node, hit.body),
         "the highlight marked {key:?}, which is not the picked body"
+    );
+}
+
+/// The right placement's top face, as the pick a form latched off it,
+/// with the index that drew it.
+fn right_top_face() -> (Doc<ProfileProgram>, PickIndex, FaceSelection) {
+    let (doc, _left, _right) = two_placements();
+    let mut session = DocSession::inline(doc.clone(), tol());
+    session.pump();
+    let index = landed_index(&session);
+    let hit = index
+        .pick(evaluation(&session), &down_at(0.115, 0.010))
+        .expect("no refusal")
+        .expect("the right placement is hit");
+    let face = FaceSelection {
+        name: hit.name,
+        node: hit.node,
+        body: hit.body,
+    };
+    (doc, index, face)
+}
+
+/// **A held face marks the placement it was picked on, not its twin.**
+/// The held lanes go through the selection's own (node, body)
+/// narrowing, so of two held picks of one name — one off each
+/// placement — each lights its own copy, and neither lights the other.
+#[test]
+fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
+    let (_doc, index, face) = right_top_face();
+    let drawn = index.ids_of(&face.name);
+    assert_eq!(drawn.len(), 2, "both placements draw the held face's name");
+    let node_of = |id: u32| {
+        index
+            .ids()
+            .key_of(id)
+            .expect("a drawn id names a patch")
+            .node
+    };
+    let twin = FaceSelection {
+        node: drawn
+            .iter()
+            .map(|&id| node_of(id))
+            .find(|&node| node != face.node)
+            .expect("the other placement"),
+        ..face.clone()
+    };
+    let held = marks::Held {
+        faces: [None, Some(&face), Some(&twin)],
+        edges: None,
+    };
+    let (marked, _) = marks::compose(&index, &DisplayView::none(), &Selection::None, None, &held);
+    assert_eq!(marked.selected, IdMap::NOTHING, "nothing is selected");
+    let [empty, right, left] = marked.held;
+    assert_eq!(empty, IdMap::NOTHING, "an empty slot marks nothing");
+    assert_ne!(right, left, "two placements' picks lit one patch");
+    for (id, pick) in [(right, &face), (left, &twin)] {
+        assert_ne!(id, IdMap::NOTHING, "a drawn held face is marked");
+        assert_eq!(
+            node_of(id),
+            pick.node,
+            "a face held off one placement lit the other"
+        );
+    }
+}
+
+/// **A held face whose body is no longer drawn marks nothing.** The
+/// extrude under the two placements is not a root, so a pick held off
+/// its own body names no drawn patch — and marks neither placement,
+/// though both draw its name.
+#[test]
+fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
+    let (doc, index, drawn) = right_top_face();
+    let Some(Node::Transform { input: extrude, .. }) = doc.node(drawn.node) else {
+        panic!("the right placement is a transform of the extrude");
+    };
+    let face = FaceSelection {
+        node: *extrude,
+        ..drawn.clone()
+    };
+    assert_eq!(
+        index.ids_of(&face.name).len(),
+        2,
+        "both placements draw the held face's name"
+    );
+    let held = marks::Held {
+        faces: [Some(&face), None, None],
+        edges: None,
+    };
+    let (marked, _) = marks::compose(&index, &DisplayView::none(), &Selection::None, None, &held);
+    assert_eq!(
+        marked.held,
+        [IdMap::NOTHING; marks::HELD_FACES],
+        "a held face on an undrawn body lit {:?}",
+        marked.held
     );
 }
 

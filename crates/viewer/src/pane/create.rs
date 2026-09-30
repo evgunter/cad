@@ -864,7 +864,7 @@ impl ViewerBehavior<'_> {
         // by the same computation it commits. A second derivation of
         // the picks would gate on one and commit the other.
         let seat = (kind == DatumKindChoice::FaceFrame)
-            .then(|| face_frame_seat(self.session.landed_pair(), self.drafts.datum_face.as_ref()));
+            .then(|| face_frame_seat(self.session.landed_pair(), self.drafts.held_face()));
         let refused = seat.as_ref().and_then(|seat| seat.as_ref().err());
         // Lowered every frame, so the button's enabling and its commit
         // read one value: `Ok(None)` is a seat still unfilled, and it
@@ -882,10 +882,7 @@ impl ViewerBehavior<'_> {
         // `NoFace` is the unmet seat above, in the same words from its
         // one home: the sentence asking for the pick is drawn once.
         if let Some(fault) = refused {
-            let said = selection_says_unresolved(
-                &self.session.standing(),
-                self.drafts.datum_face.as_ref(),
-            );
+            let said = selection_says_unresolved(&self.session.standing(), self.drafts.held_face());
             face_frame_fault(ui, &self.theme, fault, said);
         }
         if ui
