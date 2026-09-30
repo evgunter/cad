@@ -35,8 +35,11 @@ off), one `NextForeign` tear per kill that skips the dying loop's
 third member (`next(next(he)) := next(next(next(he)))`), then
 `kef(he)`: all 24 kills return `Ok`, and `validate` reports
 `DanglingTopology { from: HalfEdge(skipped), to: Loop(l1) }` on each,
-beside the `NextPrevMismatch` the tear planted. `mekr` was not
-measured.
+beside the `NextPrevMismatch` the tear planted. For `mekr`, the
+review of PR 3495 measured 80 of 8,764 one-tear `mekr_chord(Cycles)`
+calls returning `Ok` with a `parent_loop` that no longer resolves
+(`mef-and-mekr-move-a-walked-run-they-never-prove-is-the-loops` has
+the construction).
 
 ## The shape to give
 

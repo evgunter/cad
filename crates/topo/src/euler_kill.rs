@@ -113,12 +113,13 @@
 //! before mutating: the fan's member by the orbit walk, which shows it
 //! starts at `w` for the merge to re-base, and the other two through
 //! the crate-internal `Body::require_kill_anchors` (`next(m)` starts at
-//! `v`; `None` leaves `v` no half-edge but the killed two). The loop
-//! writes go through the same proof: each `first` lies in its loop, and
-//! the segment kill's loop keeps no member but the killed two and
-//! empties at a `v` left at that proven `None`, so a kill that merges a
-//! fan onto `v` never empties it. Where the killed halves are adjacent,
-//! the one loop re-anchored is both halves' loop.
+//! `v`; `None` leaves `v` lone: no half-edge but the killed two starts
+//! there, and the segment kill's loop is `Empty` at it). The loop writes
+//! go through the same proof: each `first` is not killed and lies in its
+//! loop, and the segment kill's loop keeps no member but the killed two
+//! and empties at a `v` written `None` that no other loop holds, so a
+//! kill that merges a fan onto `v` never empties it. Where the killed
+//! halves are adjacent, the one loop re-anchored is both halves' loop.
 //!
 //! **The merged fan's geometry.** The merge moves an end of every
 //! merged member from `w`'s point to `v`'s, and each keeps the carrier
@@ -209,10 +210,11 @@
 //! the `start(m)`-side write is last and wins (kemr's precedent). The
 //! plan proves every anchor write before mutating (the crate-internal
 //! `Body::require_kill_anchors`): a `Some` starts at its endpoint, a
-//! `None` leaves it no half-edge but the killed two, the remnant claims
-//! the dying loop, the surviving loop's `first` lies in it once the
-//! remnant has moved in, and an `Empty` surviving loop keeps no member
-//! but the killed two.
+//! `None` leaves it lone (no half-edge but the killed two starts there,
+//! and the `Empty` surviving loop holds it), the remnant claims the
+//! dying loop, the surviving loop's `first` is not killed and lies in it
+//! once the remnant has moved in, and an `Empty` surviving loop keeps no
+//! member but the killed two and holds a vertex no other loop holds.
 //!
 //! # `mfkrh` — inverse of `kfmrh`
 //!
@@ -310,7 +312,9 @@ use crate::entity::{
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::{EulerOpError, FaceSurface, KillRun, ParentSide};
+use crate::euler::{
+    EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, shared_loop,
+};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
@@ -444,12 +448,11 @@ struct KevPlan {
     /// The dying vertex, `end(he)`.
     w: VertexKey,
     w_point: PointKey,
-    /// How the unsplice closes the killed halves' gap.
+    /// `he`'s loop and the mate's.
+    loops: [LoopKey; 2],
+    /// How the unsplice closes the killed halves' gap, and so which loop
+    /// anchors it writes ([`KevUnsplice::loop_writes`], proved).
     unsplice: KevUnsplice,
-    /// The loop anchors the unsplice writes, in order (where both name
-    /// one loop the second wins), proved: each `first` lies in its loop,
-    /// and an `Empty` loop keeps no member and holds a vertex left lone.
-    loops: Vec<(LoopKey, LoopBoundary)>,
     /// `w`'s surviving fan, clockwise from the mate: the run the merge
     /// re-bases onto `v`. Every half in it starts at `w`.
     fan: Vec<HalfEdgeKey>,
@@ -459,9 +462,9 @@ struct KevPlan {
     /// `prev(he)`, `next(he)`, `prev(m)`, `next(m)`.
     links: [Live; 4],
     /// `v`'s new `emanating` (the emanating rule, module docs), proved:
-    /// it starts at `v` once the merge has re-based the fan, or, as
-    /// `None`, leaves `v` with no incidence.
-    anchor: Option<HalfEdgeKey>,
+    /// it starts at `v` once the merge has re-based the fan, or leaves
+    /// `v` lone.
+    anchor: KillAnchor,
 }
 
 /// How [`Body::kev`]'s unsplice closes the gap the killed halves leave
@@ -476,6 +479,48 @@ enum KevUnsplice {
     Mirror,
     /// Each half unspliced from its own loop, one loop or two.
     General,
+}
+
+impl KevUnsplice {
+    /// The loop anchors this arm writes (the loop rule, module docs), in
+    /// order, where both name one loop the second winning: each loop
+    /// re-anchors at the first survivor after its killed half in `next`
+    /// order, and the segment's loop empties at the survivor `v`.
+    fn loop_writes(
+        self,
+        [l1, l2]: [LoopKey; 2],
+        [next_he, next_m]: [HalfEdgeKey; 2],
+        v: VertexKey,
+    ) -> Vec<(LoopKey, LoopBoundary)> {
+        match self {
+            Self::Segment => vec![(l1, LoopBoundary::Empty { vertex: v })],
+            Self::Strut => vec![(l1, LoopBoundary::Cycle { first: next_m })],
+            Self::Mirror => vec![(l1, LoopBoundary::Cycle { first: next_he })],
+            Self::General => vec![
+                (l1, LoopBoundary::Cycle { first: next_he }),
+                (l2, LoopBoundary::Cycle { first: next_m }),
+            ],
+        }
+    }
+}
+
+/// How [`Body::kef`]'s splice closes the gap the killed halves leave
+/// (module docs), read from the dying loop's remnant and the mate's
+/// `next`.
+#[derive(Clone, Copy)]
+enum KefSplice {
+    /// The `Lone` inverse: a self-loop edge whose halves were both
+    /// one-half-edge loops. The surviving loop empties.
+    Lone,
+    /// An empty remnant (the dying loop was `[he]`): the mate unspliced
+    /// from its loop.
+    Unsplice,
+    /// The mate was alone: the remnant, from its first member `b`,
+    /// closes into itself and becomes the surviving loop's whole cycle.
+    MateAlone(Live),
+    /// The remnant, from its first member `b`, stitched across the
+    /// mate's gap.
+    General(Live),
 }
 
 /// [`Body::kev`]'s arena delta, shared by both kill doors.
@@ -675,17 +720,21 @@ impl<T: Decide> Body<T> {
     /// splice links (`prev`/`next` of both halves) resolve
     /// (`StaleKey`); where the merged fan is empty, the survivor's new
     /// `emanating` holds: `next(mate)` starts at the survivor, or, where
-    /// `next(mate)` is `he` and the anchor is `None`, no half-edge but
-    /// the killed two starts there (`OrbitBroken` naming `he` — a torn
-    /// `next` can put the step on another vertex, or on `he` at a
-    /// survivor that keeps edges; a fan's anchor is its first member,
-    /// which the orbit proof covers); each loop's new anchor holds: its
-    /// `first` lies in the loop, and the segment kill's loop keeps no
-    /// member but the killed two and empties at a survivor the proof
-    /// above leaves at `None` ([`EulerOpError::LoopCycleBroken`] naming
-    /// the loop — tier-1-invalid input: a torn `next` can land the step
-    /// in another loop, or read the loop as `[he, mate]` while it keeps
-    /// other members or while the merge moves a fan onto the survivor);
+    /// `next(mate)` is `he` and the anchor is `None`, the survivor is
+    /// left lone: no half-edge but the killed two starts there, and the
+    /// segment kill's loop empties at it (`OrbitBroken` naming `he` — a
+    /// torn `next` can put the step on another vertex, or on `he` at a
+    /// survivor that keeps edges or whose loop does not empty; a fan's
+    /// anchor is its first member, which the orbit proof covers); each
+    /// loop's new anchor holds: its `first` is not killed and lies in the
+    /// loop, and the segment kill's loop keeps no member but the killed
+    /// two and empties at a survivor written `None` that no other loop
+    /// holds ([`EulerOpError::LoopCycleBroken`] naming the loop —
+    /// tier-1-invalid input: a torn `next` can land the step on the mate
+    /// or in another loop, or read the loop as `[he, mate]` while it
+    /// keeps other members or while the merge moves a fan onto the
+    /// survivor, and a torn start can put the survivor on another loop's
+    /// lone vertex);
     /// where the halves are adjacent in `next` order, both lie in one
     /// loop (`LoopCycleBroken` naming the mate's loop, which that arm
     /// does not re-anchor). Then, where the merged fan is not
@@ -760,7 +809,8 @@ impl<T: Decide> Body<T> {
     ///
     /// # Precondition check order
     ///
-    /// [`Body::kev`]'s structural list (through the survivor's anchor).
+    /// [`Body::kev`]'s structural list (through the adjacent arms' one
+    /// loop).
     /// Then per entry of `redescriptions`, in list order: the edge is a
     /// merged member ([`EulerOpError::NotMergedMember`]); it was not
     /// listed before ([`EulerOpError::DuplicateRedescription`]); its
@@ -852,7 +902,8 @@ impl<T: Decide> Body<T> {
     }
 
     /// [`Body::kev`]'s structural plan phase, shared by both kill doors
-    /// (the precondition list up to the survivor's anchor). Pure.
+    /// (the precondition list through the adjacent arms' one loop, before
+    /// the fan-merge geometry). Pure.
     ///
     /// Beyond resolving every key the kill writes, it proves that every
     /// half-edge of the merged fan starts at the dying vertex, and the
@@ -924,42 +975,30 @@ impl<T: Decide> Body<T> {
         // member, which the orbit proof above shows starts at `w` and the
         // merge re-bases onto `v`. With no fan, `v` keeps only what
         // already starts there: `next(m)`, `v`'s orbit step from `he`,
-        // or `None` where that step is `he` itself, both proven below, so
-        // neither reads an empty fan as a claim about `next(he)`.
+        // or nothing where that step is `he` itself.
         let anchor = match fan.first() {
-            Some(&first) => Some(first),
-            None => (d.key() != he).then_some(d.key()),
+            Some(&first) => KillAnchor::Merged(first),
+            None => KillAnchor::step((d.key() != he).then_some(d.key())),
         };
-        // Loop rule (unconditional, module docs): each loop re-anchors at
-        // the first survivor after its killed half in `next` order, and
-        // the segment's loop empties at `v`, which only an empty fan
-        // leaves lone. An adjacent pair's arm re-anchors one loop, so it
-        // is both halves' loop only where their `parent_loop`s agree.
-        let (unsplice, loops) = match (b.key() == m, d.key() == he) {
-            (true, true) => (
-                KevUnsplice::Segment,
-                vec![(l1, LoopBoundary::Empty { vertex: v })],
-            ),
-            (true, false) => (
-                KevUnsplice::Strut,
-                vec![(l1, LoopBoundary::Cycle { first: d.key() })],
-            ),
-            (false, true) => (
-                KevUnsplice::Mirror,
-                vec![(l1, LoopBoundary::Cycle { first: b.key() })],
-            ),
-            (false, false) => (
-                KevUnsplice::General,
-                vec![
-                    (l1, LoopBoundary::Cycle { first: b.key() }),
-                    (l2, LoopBoundary::Cycle { first: d.key() }),
-                ],
-            ),
+        // The unsplice arm, read from the two `next` steps. The segment's
+        // loop empties at `v`, so it needs `v` left lone: the proof below
+        // refuses it where `v`'s anchor is not `Lone`, which is where a
+        // fan merges onto `v`. An adjacent pair's arm re-anchors one loop,
+        // so it needs both halves in that loop.
+        let unsplice = match (b.key() == m, d.key() == he) {
+            (true, true) => KevUnsplice::Segment,
+            (true, false) => KevUnsplice::Strut,
+            (false, true) => KevUnsplice::Mirror,
+            (false, false) => KevUnsplice::General,
         };
-        let emanating = [(v, anchor, he)];
-        let proven: &[_] = if fan.is_empty() { &emanating } else { &[] };
-        self.require_kill_anchors(proven, &loops, &[he, m], None)?;
-        if unsplice != KevUnsplice::General && l2 != l1 {
+        let loops = [l1, l2];
+        self.require_kill_anchors(
+            &[(v, anchor, he)],
+            &unsplice.loop_writes(loops, [b.key(), d.key()], v),
+            &[he, m],
+            None,
+        )?;
+        if unsplice != KevUnsplice::General && shared_loop(&he_data, &m_data).is_none() {
             return Err(EulerOpError::LoopCycleBroken { r#loop: l2 });
         }
         Ok(KevPlan {
@@ -972,8 +1011,8 @@ impl<T: Decide> Body<T> {
             v,
             w,
             w_point,
-            unsplice,
             loops,
+            unsplice,
             fan,
             members,
             links: [a, b, c, d],
@@ -1089,8 +1128,8 @@ impl<T: Decide> Body<T> {
             v,
             w,
             w_point,
-            unsplice,
             loops,
+            unsplice,
             fan,
             members: _,
             links: [a, b, c, d],
@@ -1120,7 +1159,7 @@ impl<T: Decide> Body<T> {
                 self.link_half_edges(c, d);
             }
         }
-        for (r#loop, boundary) in loops {
+        for (r#loop, boundary) in unsplice.loop_writes(loops, [b.key(), d.key()], v) {
             let Some(loop_data) = self.get_loop_mut(r#loop) else {
                 unreachable!("kev: both loops resolved in the plan phase")
             };
@@ -1129,7 +1168,7 @@ impl<T: Decide> Body<T> {
         let Some(vertex) = self.get_vertex_mut(v) else {
             unreachable!("kev: `v` resolved in the plan phase, and only `w` (!= v) is reaped")
         };
-        vertex.emanating = anchor;
+        vertex.emanating = anchor.key();
         // Kills, each with its provenance entry (kill order documented
         // on `kev`).
         self.half_edges.remove(he);
@@ -1211,19 +1250,23 @@ impl<T: Decide> Body<T> {
     /// cycle walk); both endpoint vertices resolve (`StaleKey`); last,
     /// each endpoint's new `emanating` (the re-anchoring rule above)
     /// holds, `start(he)`'s and then `start(m)`'s: a `Some` starts at
-    /// the endpoint, and `None` leaves it no half-edge but the killed
-    /// two ([`EulerOpError::OrbitBroken`] naming `he`, then the mate —
+    /// the endpoint, and `None` leaves it lone, with no half-edge but the
+    /// killed two and the surviving loop `Empty` at it
+    /// ([`EulerOpError::OrbitBroken`] naming `he`, then the mate —
     /// tier-1-invalid input: a torn `next` can put either anchor on
     /// another vertex, or land both steps on the killed halves at an
-    /// endpoint that keeps edges); then every remnant member claims the
+    /// endpoint that keeps edges, and a torn start can empty the loop at
+    /// another vertex than the one it strands); then every remnant member claims the
     /// dying loop ([`EulerOpError::LoopCycleBroken`] naming the dying
     /// loop — tier-1-invalid input: a torn `next` can divert its walk
     /// through another loop, whose members the move would take); then
-    /// the surviving loop's new anchor holds: its `first` lies in it once
-    /// the remnant has moved in, and in the `Lone` inverse it keeps no
-    /// member but the killed two (`LoopCycleBroken` naming the surviving
-    /// loop — a torn `next(m)` can land in another loop, or read the mate
-    /// as alone in a loop that keeps other members).
+    /// the surviving loop's new anchor holds: its `first` is not killed
+    /// and lies in it once the remnant has moved in, and in the `Lone`
+    /// inverse it keeps no member but the killed two and no other loop
+    /// is `Empty` at its vertex (`LoopCycleBroken` naming the surviving
+    /// loop — a torn `next(m)` can land on a killed half or in another
+    /// loop, or read the mate as alone in a loop that keeps other
+    /// members).
     ///
     /// # Errors
     ///
@@ -1340,17 +1383,23 @@ impl<T: Decide> Body<T> {
         // `next(he)` as a key: `he` itself in the absent case, which
         // `survivor` then rejects because `he` is reaped.
         let next_he = b.map_or(he, Live::key);
-        let u_anchor = survivor(d.key(), next_he);
-        let w_anchor = survivor(next_he, d.key());
-        // The surviving loop (unconditional rule, module docs): `next(m)`
-        // where that survives, else the remnant's first member, else
-        // `Empty` at `w`, the Lone inverse. The plan proves it with the
-        // `emanating` writes, and the remnant it moves into `l2`.
-        let m_alone = d.key() == m; // mate's loop was [m]
-        let l2_boundary = match (b, m_alone) {
-            (None, true) => LoopBoundary::Empty { vertex: w },
-            (Some(b), true) => LoopBoundary::Cycle { first: b.key() },
-            (_, false) => LoopBoundary::Cycle { first: d.key() },
+        let u_anchor = KillAnchor::step(survivor(d.key(), next_he));
+        let w_anchor = KillAnchor::step(survivor(next_he, d.key()));
+        // The splice arm, read from `b` and whether the mate's loop was
+        // `[m]`, and the surviving loop's anchor it writes (unconditional
+        // rule, module docs): `next(m)` where that survives, else the
+        // remnant's first member, else `Empty` at `w`. The plan proves it
+        // with the `emanating` writes, and the remnant it moves into `l2`.
+        let splice = match (b, d.key() == m) {
+            (None, true) => KefSplice::Lone,
+            (None, false) => KefSplice::Unsplice,
+            (Some(b), true) => KefSplice::MateAlone(b),
+            (Some(b), false) => KefSplice::General(b),
+        };
+        let l2_boundary = match splice {
+            KefSplice::Lone => LoopBoundary::Empty { vertex: w },
+            KefSplice::MateAlone(b) => LoopBoundary::Cycle { first: b.key() },
+            KefSplice::Unsplice | KefSplice::General(_) => LoopBoundary::Cycle { first: d.key() },
         };
         self.require_kill_anchors(
             &[(u, u_anchor, he), (w, w_anchor, m)],
@@ -1359,7 +1408,7 @@ impl<T: Decide> Body<T> {
             Some(KillRun {
                 members: &remnant,
                 from: l1,
-                into: Some(l2),
+                into: KillInto::Kept(l2),
             }),
         )?;
 
@@ -1385,18 +1434,11 @@ impl<T: Decide> Body<T> {
             self.drop_rows(remnant.iter().map(|moved| moved.key()));
         }
         // Splice (derived as mef's exact inverse — module docs diagram).
-        // `b` absent = the dying loop was [he] alone; see its binding.
-        match (b, m_alone) {
-            // The Lone inverse: a self-loop edge whose halves were both
-            // one-half-edge loops. The surviving loop empties.
-            (None, true) => {}
-            // Empty remnant: just unsplice the mate from its loop.
-            (None, false) => self.link_half_edges(c, d),
-            // The mate was alone: the remnant closes into itself and
-            // becomes the surviving loop's whole cycle.
-            (Some(b), true) => self.link_half_edges(a, b),
-            (Some(b), false) => {
-                // General: stitch the remnant across the mate's gap.
+        match splice {
+            KefSplice::Lone => {}
+            KefSplice::Unsplice => self.link_half_edges(c, d),
+            KefSplice::MateAlone(b) => self.link_half_edges(a, b),
+            KefSplice::General(b) => {
                 self.link_half_edges(c, b);
                 self.link_half_edges(a, d);
             }
@@ -1409,11 +1451,11 @@ impl<T: Decide> Body<T> {
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("kef: `u` resolved in the plan phase")
         };
-        vertex.emanating = u_anchor;
+        vertex.emanating = u_anchor.key();
         let Some(vertex) = self.get_vertex_mut(w) else {
             unreachable!("kef: `w` resolved in the plan phase")
         };
-        vertex.emanating = w_anchor;
+        vertex.emanating = w_anchor.key();
         // Kills, each with its provenance entry (kill order documented
         // above), then the shell's face list and orphaned geometry.
         self.half_edges.remove(he);
@@ -1650,8 +1692,8 @@ mod tests {
     use crate::entity::{Edge, HalfEdge, Loop, Shell, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
     use crate::fixtures::{
-        ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, deep_snapshot, ops_holed_box,
-        prov,
+        ArenaSnapshot, arena_snapshot, assert_err_deep_unchanged, assert_kill_refuses,
+        deep_snapshot, ops_holed_box, prov,
     };
     use crate::iso::{canonical_form, isomorphic};
     use crate::readback::euler_counts;
@@ -3601,7 +3643,38 @@ mod tests {
         let start = |x: HalfEdgeKey| body.get_half_edge(x).unwrap().start;
         assert_eq!(start(step), start(he), "the vertex anchor stands");
         let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
+    }
+
+    /// Every door that runs `kev`'s plan refuses `torn` at `he`, with
+    /// the body deep-unchanged: `kev_describing` with `chords` first,
+    /// then `kev`, `kev_describing` with no list, the ungated kill and
+    /// `kev_merged_members`. `chords` re-describes every merged member,
+    /// so the describing door's gates pass and the plan is all that
+    /// stands between a public door and the kill's writes; with no fan,
+    /// it is empty and every door reaches the writes.
+    fn assert_kev_doors_refuse(
+        body: &mut Body<f64>,
+        he: HalfEdgeKey,
+        chords: &[(EdgeKey, EdgeCurveSpec<f64>)],
+        torn: &EulerOpError,
+    ) {
+        let tol = Tol::witness();
+        assert_kill_refuses(body, torn, |b| b.kev_describing(he, chords, tol));
+        assert_kill_refuses(body, torn, |b| b.kev(he));
+        assert_kill_refuses(body, torn, |b| b.kev_describing(he, &[], tol));
+        assert_kill_refuses(body, torn, |b| b.kev_ungated(he));
+        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn.clone()));
+    }
+
+    /// The chord re-descriptions of `kev(halves[at])` on the untorn
+    /// declined cube, whose fan every tear below leaves standing: the
+    /// list that takes the describing door past its gates.
+    fn cube_chords(at: usize) -> Vec<(EdgeKey, EdgeCurveSpec<f64>)> {
+        let (untorn, halves) = torn_cube(&[]);
+        let chords = crate::seqgen::try_chord_redescriptions(&untorn, halves[at]).unwrap();
+        assert!(!chords.is_empty(), "the kill merges a fan");
+        chords
     }
 
     #[test]
@@ -3609,11 +3682,7 @@ mod tests {
         // The loop-anchor probe's first counterexample for `kev`: the
         // mate's `next` torn onto a half-edge of a third loop that starts
         // where the mate ends, so the fan walk and `he`'s loop stand and
-        // the mate's loop would anchor in the third loop. Every door
-        // that runs the plan refuses it; without the gates (the probe's
-        // chord re-descriptions reach the same kill), the kill writes
-        // that anchor and returns `Ok`.
-        let tol = Tol::witness();
+        // the mate's loop would anchor in the third loop.
         let (mut body, halves) = torn_cube(&[(21, 5)]);
         let (he, m, step) = (halves[20], halves[21], halves[5]);
         assert_eq!(body.mate(he), Some(m));
@@ -3623,12 +3692,22 @@ mod tests {
             "`next(m)` lies in a third loop"
         );
         let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev_ungated(he).unwrap_err());
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
-        assert_err_deep_unchanged(&mut body, &torn, |b| {
-            b.kev_describing(he, &[], tol).unwrap_err()
-        });
-        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn));
+        assert_kev_doors_refuse(&mut body, he, &cube_chords(20), &torn);
+    }
+
+    #[test]
+    fn kev_refuses_a_loop_anchor_at_the_killed_mate() {
+        // The general arm with the mate's `next` torn onto itself: the
+        // mate's loop would re-anchor at `next(m)`, which is the mate,
+        // and it claims that loop, so only "the anchor is not killed"
+        // refuses it.
+        let (mut body, halves) = torn_cube(&[(7, 7)]);
+        let (he, m) = (halves[6], halves[7]);
+        assert_eq!(body.mate(he), Some(m));
+        let (l1, l2) = (loop_of(&body, he), loop_of(&body, m));
+        assert_ne!(l1, l2, "the general arm, across two loops");
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kev_doors_refuse(&mut body, he, &cube_chords(6), &torn);
     }
 
     #[test]
@@ -3638,8 +3717,7 @@ mod tests {
         // he` reads the two halves as adjacent in one loop. The mirror
         // arm re-anchors `he`'s loop alone, and the mate's loop, which
         // is another and anchors at the mate itself, keeps a dead
-        // anchor. Unchecked, the kill returns `Ok`.
-        let tol = Tol::witness();
+        // anchor.
         let (mut body, halves) = torn_cube(&[(7, 6)]);
         let (he, m) = (halves[6], halves[7]);
         assert_eq!(body.mate(he), Some(m));
@@ -3651,25 +3729,87 @@ mod tests {
             "the mate's loop anchors at the mate"
         );
         let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev_ungated(he).unwrap_err());
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(he).unwrap_err());
-        assert_err_deep_unchanged(&mut body, &torn, |b| {
-            b.kev_describing(he, &[], tol).unwrap_err()
-        });
-        assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn));
+        assert_kev_doors_refuse(&mut body, he, &cube_chords(6), &torn);
+    }
+
+    #[test]
+    fn kev_refuses_a_strut_whose_halves_lie_in_two_loops() {
+        // The strut arm across two loops (the review's construction): on
+        // the strut cube, the top loop's half `he` from the strut's base
+        // has its mate in a side face; `next(he)` is torn onto the mate
+        // and `next(m)` onto the strut, so the kill reads a strut in the
+        // top loop. The fan walk closes at once on the mate, so no fan
+        // merges and no gate is asked; the strut arm re-anchors the top
+        // loop alone, and the side face's loop keeps the dead mate.
+        let fixture = crate::fixtures::ops_strut_cube(Tol::witness());
+        let mut body = fixture.body;
+        let base = body.get_half_edge(fixture.strut.he_plus).unwrap().start;
+        let (he, _) = body
+            .half_edges()
+            .find(|&(x, data)| {
+                data.parent_loop == fixture.outer
+                    && data.start == base
+                    && x != fixture.strut.he_plus
+            })
+            .unwrap();
+        let m = body.mate(he).unwrap();
+        let l2 = loop_of(&body, m);
+        assert_ne!(l2, fixture.outer, "the mate lies in a side face");
+        body.get_half_edge_mut(he).unwrap().next = m;
+        body.get_half_edge_mut(m).unwrap().next = fixture.strut.he_plus;
+        assert_eq!(body.vertex_orbit(m), Some(vec![m]), "no fan merges");
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kev_doors_refuse(&mut body, he, &[], &torn);
+    }
+
+    #[test]
+    fn kev_refuses_a_segment_whose_halves_lie_in_two_loops() {
+        // The segment arm across two loops: a segment beside a circle,
+        // with the segment's minus half torn to claim the circle's plus
+        // loop and that loop torn to anchor at it. The cycle `[he, m]`
+        // reads a segment, whose arm empties `he`'s loop alone; the
+        // circle's loop keeps the dead mate as its anchor.
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+                tol,
+            )
+            .unwrap();
+        let other = body.mvfs(p(5.0), true).unwrap();
+        let circle = body
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: other.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let (he, m) = (seg.he_plus, seg.he_minus);
+        let l2 = loop_of(&body, circle.he_plus);
+        body.get_half_edge_mut(m).unwrap().parent_loop = l2;
+        body.get_loop_mut(l2).unwrap().boundary = LoopBoundary::Cycle { first: m };
+        let torn = EulerOpError::LoopCycleBroken { r#loop: l2 };
+        assert_kev_doors_refuse(&mut body, he, &[], &torn);
     }
 
     #[test]
     fn kev_refuses_a_segment_kill_that_merges_a_fan() {
-        // The segment test and the `None` arm's test disagree where the
-        // mate's own edge is another. A digon pillow with a strut at
-        // `v1` inside face B; the edge of `a0` (`v0 → v1`) is torn to
-        // claim `a1` (`v1 → v0`, face A's other half) as its mate, and
-        // the strut's return half is torn onto `a1`. Face A's loop is
-        // `[a0, a1]`, so the kill reads a segment; but the orbit walk
-        // from `a1` steps through `a1`'s own edge and closes on
-        // `[a1, strut]`, a fan the merge moves onto `v0`. Unchecked, the
-        // loop empties at `v0` while the strut starts there.
+        // The segment arm where a fan merges onto the survivor, which
+        // the mate's own edge being another makes possible. A digon
+        // pillow with a strut at `v1` inside face B; the edge of `a0`
+        // (`v0 → v1`) is torn to claim `a1` (`v1 → v0`, face A's other
+        // half) as its mate, and the strut's return half is torn onto
+        // `a1`. Face A's loop is `[a0, a1]`, so the kill reads a segment;
+        // but the orbit walk from `a1` steps through `a1`'s own edge and
+        // closes on `[a1, strut]`, a fan the merge moves onto `v0`. The
+        // loop would empty at `v0` while the strut starts there.
         let tol = Tol::witness();
         let pillow = crate::fixtures::pillow(tol);
         let mut body = pillow.body;
@@ -3689,15 +3829,73 @@ mod tests {
             Some(vec![a1, strut.he_plus]),
             "a merged fan"
         );
+        // The strut, re-described where the merge lands it: from `v0`
+        // to its tip.
+        let point = |x: HalfEdgeKey| {
+            let v = body.get_half_edge(x).unwrap().start;
+            body.resolve_vertex_point(v).unwrap()
+        };
+        let chords = [(
+            strut.edge,
+            EdgeCurveSpec::line_between(point(a0), point(strut.he_minus)),
+        )];
         let torn = EulerOpError::LoopCycleBroken {
             r#loop: pillow.loop_a,
         };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev_ungated(a0).unwrap_err());
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kev(a0).unwrap_err());
-        assert_err_deep_unchanged(&mut body, &torn, |b| {
-            b.kev_describing(a0, &[], tol).unwrap_err()
-        });
-        assert_eq!(body.kev_merged_members(a0).map(|_| ()), Err(torn));
+        assert_kev_doors_refuse(&mut body, a0, &chords, &torn);
+    }
+
+    #[test]
+    fn kev_refuses_to_empty_a_loop_at_another_loops_lone_vertex() {
+        // The review's S8: a segment beside a lone vertex `x` (a second
+        // `mvfs`), with the segment's plus half torn to start at `x`.
+        // The kill reads `x` as the survivor and the segment's loop as
+        // emptying there, but `x` is already another loop's lone vertex,
+        // and the segment's own start would keep a dead anchor.
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(1.0),
+                tol,
+            )
+            .unwrap();
+        let other = body.mvfs(p(5.0), true).unwrap();
+        body.get_half_edge_mut(seg.he_plus).unwrap().start = other.vertex;
+        let torn = EulerOpError::LoopCycleBroken {
+            r#loop: seed.r#loop,
+        };
+        assert_kev_doors_refuse(&mut body, seg.he_plus, &[], &torn);
+    }
+
+    #[test]
+    fn kef_refuses_to_empty_a_loop_that_strands_its_vertex() {
+        // The review's S9: a circle (a self-loop edge at `v`, each half
+        // its own one-half-edge loop) beside a lone vertex `x`, with the
+        // mate torn to start at `x`. The kill reads the `Lone` inverse
+        // and anchors both `v` and `x` at `None`, but empties the
+        // surviving loop at `x`, which leaves `v` held by no loop.
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(p(0.0), true).unwrap();
+        let circle = body
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        let other = body.mvfs(p(5.0), true).unwrap();
+        let (he, m) = (circle.he_plus, circle.he_minus);
+        assert_eq!(body.mate(he), Some(m));
+        body.get_half_edge_mut(m).unwrap().start = other.vertex;
+        let torn = EulerOpError::OrbitBroken { he };
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
     }
 
     #[test]
@@ -3727,6 +3925,6 @@ mod tests {
             "the walk takes a third loop's anchor"
         );
         let torn = EulerOpError::LoopCycleBroken { r#loop: l1 };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kef(he).unwrap_err());
+        assert_kill_refuses(&mut body, &torn, |b| b.kef(he));
     }
 }

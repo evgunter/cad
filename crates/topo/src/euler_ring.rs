@@ -97,12 +97,12 @@
 //! - **`Cycle::first`**, unconditionally: the old loop re-anchors at
 //!   `next(he2)` (the first survivor of its side in `next` order), the
 //!   ring at `next(he1)` — whether or not the previous `first` was
-//!   killed or migrated. The plan proves the old loop's write before
-//!   mutating (the crate-internal `Body::require_kill_anchors`):
-//!   `next(he2)` lies in the loop, and an emptied old loop keeps no
-//!   member but the killed halves and the ring side. The ring holds by
-//!   construction once the plan has proven that its side, which moves
-//!   into it, is the loop's own.
+//!   killed or migrated. The plan proves both writes before mutating
+//!   (the crate-internal `Body::require_kill_anchors`): the ring side,
+//!   which moves into the ring, is the loop's own; `next(he2)` lies in
+//!   the old loop and `next(he1)` in the ring; and an emptied loop keeps
+//!   no member but the killed halves (and, for the old loop, the ring
+//!   side) and is the only loop `Empty` at its vertex.
 //! - **`emanating`**, unconditionally: `u` gets `Some(next(he2))` or
 //!   `None` if its side is empty; `w` gets `Some(next(he1))` or `None`.
 //!   When `u == w` (self-loop edge with non-empty sides) the `w`-write
@@ -235,7 +235,7 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
-use crate::euler::{EulerOpError, KillRun};
+use crate::euler::{EulerOpError, KillAnchor, KillInto, KillRun, shared_loop};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Live, require_key};
 use crate::pcurves::{SiteHalf, SiteRows};
@@ -406,19 +406,21 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); each side's new `emanating` holds, `start(he1)`'s
     /// (`he2`'s side) and then `start(he2)`'s (`he1`'s side): a
     /// non-empty side's first member starts at the vertex, and an empty
-    /// side, which anchors `None`, leaves it no half-edge but `he1` and
-    /// `he2` ([`EulerOpError::OrbitBroken`] naming `he1`, then `he2` —
+    /// side, which anchors `None`, leaves it lone: no half-edge but `he1`
+    /// and `he2` starts there, and the side's loop is `Empty` at it
+    /// ([`EulerOpError::OrbitBroken`] naming `he1`, then `he2` —
     /// tier-1-invalid input: a torn `next` can put a first member on
     /// another vertex, or empty a side whose vertex keeps edges); every
     /// ring-side member claims the loop ([`EulerOpError::LoopCycleBroken`]
     /// — tier-1-invalid input: a torn `next` can divert the walk through
     /// another loop, whose members the ring would take); the old loop's
-    /// new anchor holds: a non-empty old side's first member lies in the
-    /// loop, and an empty old side leaves it no member but `he1`, `he2`
-    /// and the ring side (`LoopCycleBroken` — a torn `next` can put that
-    /// first member in another loop, or empty the side of a loop that
-    /// keeps members outside the walk; the ring anchors at a member it
-    /// moves in, or at the vertex just proven lone); the two empty
+    /// and then the ring's new anchor holds: a non-empty side's first
+    /// member lies in its loop, and an empty side leaves its loop no
+    /// member but `he1`, `he2` (and, for the old loop, the ring side) and
+    /// the only loop `Empty` at its vertex (`LoopCycleBroken` naming the
+    /// loop — a torn `next` can put that first member in another loop,
+    /// or empty the side of a loop that keeps members outside the walk);
+    /// the two empty
     /// components (if both sides are empty) anchor at
     /// distinct vertices ([`EulerOpError::EmptyAnchorsCollide`]).
     ///
@@ -447,10 +449,8 @@ impl<T: Decide> Body<T> {
             // corrupt bijection — tier-1-invalid input.
             return Err(EulerOpError::NotSameEdge { he1, he2 });
         }
-        let loop_key = he1_data.parent_loop;
-        if he2_data.parent_loop != loop_key {
-            return Err(EulerOpError::NotSameLoop { he1, he2 });
-        }
+        let loop_key =
+            shared_loop(&he1_data, &he2_data).ok_or(EulerOpError::NotSameLoop { he1, he2 })?;
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(loop_key),
         })?;
@@ -481,25 +481,25 @@ impl<T: Decide> Body<T> {
         for vertex in [u, w] {
             require_key(&self.vertices, vertex, EntityId::Vertex)?;
         }
-        // Emanating (unconditional rule, module docs): `u` takes
-        // `next(he2)`, its orbit step from `he1`, and `w` takes
-        // `next(he1)`, its step from `he2`, each `None` where its side is
-        // empty. The plan proves both writes.
-        let u_anchor = old_side.first().map(|&member| member.key());
-        let w_anchor = ring_side.first().map(|&member| member.key());
-        // Loops (unconditional rule, module docs): each re-anchors at its
-        // side's first member, or is `Empty` at the vertex its side
-        // strands. The ring side moves into the ring, so the ring holds
-        // once the side is proven the loop's; the old loop is proven with
-        // the writes above.
-        let ring_boundary = match ring_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first: first.key() },
-            None => LoopBoundary::Empty { vertex: w },
+        // Each side's ends, `None` for an empty side: the one reading the
+        // anchors below and the splice that closes the side both take.
+        let ends = |side: &[Live]| side.first().copied().zip(side.last().copied());
+        let (ring_ends, old_ends) = (ends(&ring_side), ends(&old_side));
+        // The unconditional rule (module docs): `u` takes `next(he2)`,
+        // its orbit step from `he1`, and `w` takes `next(he1)`, its step
+        // from `he2`; each side's loop re-anchors at the side's first
+        // member. An empty side strands its vertex lone, and its loop is
+        // `Empty` there. The plan proves every write, the ring's among
+        // them, and that the ring side is the loop's own.
+        let side_anchor = |ends: Option<(Live, Live)>, vertex: VertexKey| match ends {
+            Some((first, _)) => (
+                KillAnchor::Step(first.key()),
+                LoopBoundary::Cycle { first: first.key() },
+            ),
+            None => (KillAnchor::Lone, LoopBoundary::Empty { vertex }),
         };
-        let old_boundary = match old_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first: first.key() },
-            None => LoopBoundary::Empty { vertex: u },
-        };
+        let (u_anchor, old_boundary) = side_anchor(old_ends, u);
+        let (w_anchor, ring_boundary) = side_anchor(ring_ends, w);
         self.require_kill_anchors(
             &[(u, u_anchor, he1), (w, w_anchor, he2)],
             &[(loop_key, old_boundary)],
@@ -507,7 +507,7 @@ impl<T: Decide> Body<T> {
             Some(KillRun {
                 members: &ring_side,
                 from: loop_key,
-                into: None,
+                into: KillInto::Minted(ring_boundary),
             }),
         )?;
         if ring_side.is_empty() && old_side.is_empty() && u == w {
@@ -533,7 +533,7 @@ impl<T: Decide> Body<T> {
             };
             he.parent_loop = ring;
         }
-        if let (Some(&first), Some(&last)) = (ring_side.first(), ring_side.last()) {
+        if let Some((first, last)) = ring_ends {
             // last = prev(he2), first = next(he1): closing the ring cycle.
             // When the side has ONE member this is a self-link (a
             // one-half-edge loop). That configuration needs a self-loop
@@ -543,7 +543,7 @@ impl<T: Decide> Body<T> {
             self.link_half_edges(last, first);
         }
         // Close the old loop's cycle and re-anchor it.
-        if let (Some(&first), Some(&last)) = (old_side.first(), old_side.last()) {
+        if let Some((first, last)) = old_ends {
             // last = prev(he1), first = next(he2).
             self.link_half_edges(last, first);
         }
@@ -571,11 +571,11 @@ impl<T: Decide> Body<T> {
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("kemr: `u` resolved in the plan phase")
         };
-        vertex.emanating = u_anchor;
+        vertex.emanating = u_anchor.key();
         let Some(vertex) = self.get_vertex_mut(w) else {
             unreachable!("kemr: `w` resolved in the plan phase")
         };
-        vertex.emanating = w_anchor;
+        vertex.emanating = w_anchor.key();
 
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(
@@ -1750,7 +1750,9 @@ mod tests {
     use super::*;
     use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, SolidKey, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-    use crate::fixtures::{assert_err_deep_unchanged, deep_snapshot, mvfs_state, pillow, prov};
+    use crate::fixtures::{
+        assert_err_deep_unchanged, assert_kill_refuses, deep_snapshot, mvfs_state, pillow, prov,
+    };
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
@@ -3303,7 +3305,7 @@ mod tests {
         let torn = EulerOpError::LoopCycleBroken {
             r#loop: fixture.outer,
         };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
+        assert_kill_refuses(&mut body, &torn, |b| b.kemr(he1, he2));
     }
 
     #[test]
@@ -3331,6 +3333,6 @@ mod tests {
             "the ring side takes another loop's anchor"
         );
         let torn = EulerOpError::LoopCycleBroken { r#loop: loop_key };
-        assert_err_deep_unchanged(&mut body, &torn, |b| b.kemr(he1, he2).unwrap_err());
+        assert_kill_refuses(&mut body, &torn, |b| b.kemr(he1, he2));
     }
 }
