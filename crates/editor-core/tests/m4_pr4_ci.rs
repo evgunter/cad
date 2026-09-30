@@ -35,15 +35,9 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// resolution member).
 // What the pin holds: flip-vanish → GroupResized { was: 2, now: 1 }
 // naming B's cap vertex as the one cutter gone; cascade → Cascade;
-// structural-param → StructuralParam; node-gone; ambiguous. Re-pinned
-// when profile pieces became named by minted step ids: the diagnosed
-// names spell `{ step, role }`, and every row keeps its shape; and
-// again when step ids became digests of the document's mint chain: the
-// ids the names spell moved, and every row keeps its shape; and again
-// when a split face's pieces became named by the walls they border: the
-// `ambiguous` row's tied piece spells `Borders`, and keeps its shape;
-// and again when node ids moved onto the same mint: every id moved, and
-// the rows are the same with the ids read out.
+// structural-param → StructuralParam; node-gone; ambiguous. The rows
+// spell node and step ids, so the digest also moves when the mint draws
+// other ids for the same recipe; such a move keeps every row's shape.
 const DIAGNOSIS_DIGEST: u64 = 0xcf69_1092_dd40_d10d;
 
 #[test]

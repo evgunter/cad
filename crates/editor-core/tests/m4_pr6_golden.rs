@@ -132,13 +132,13 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     let bulged = last(&doc);
     // #101 tangency coverage in the FROZEN bytes: a hand-DECLARED
-    // line/arc tangency (the #100 bracket: the quarter arc
-    // leaving (1.5,1), bulge −(√2−1), is exactly tangent to both
-    // neighboring lines; joints 3 and 4 declared BY HAND) and a
-    // fillet-CONSTRUCTED loop (joints declared by construction) — the wire's tangent_joints field is pinned by
-    // the golden from day one. (#120: this replaced the original
-    // COLLINEAR declaration, which the #101 same-carrier rule
-    // refuses — the old exemplar was sick.)
+    // line/arc tangency (the #100 bracket: the quarter arc leaving
+    // (1.5,1), bulge −(√2−1), is exactly tangent to both neighboring
+    // lines; joints 3 and 4 declared BY HAND) and a fillet-CONSTRUCTED
+    // loop (joints declared by construction) — the wire's
+    // tangent_joints field is pinned by the golden from day one. (#120:
+    // this replaced the original COLLINEAR declaration, which the #101
+    // same-carrier rule refuses — the old exemplar was sick.)
     // v4: the hand-declared joints author STRUCTURALLY — `.tangent()`
     // before the arc and before the leg out of it (the corpus
     // bracket's own program form; the arc bulge is now the tangent-arc

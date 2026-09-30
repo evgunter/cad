@@ -54,12 +54,9 @@
 //! off the hosted `interval` lane, which is the only place this
 //! workspace builds that backend.
 //!
-//! **ALL THREE NUMBERS MOVED WHEN NODE IDS BECAME DIGESTS OF THE
-//! DOCUMENT'S MINT, and again for a structural reason.** The stream
-//! hashes each node's id and walks the nodes in id order, and both are
-//! the mint's. No point moved: every corpus node's value channel with
-//! its id left out, walked by document position, is bit-identical to
-//! the tree before the change.
+//! **The stream hashes each node's id and walks the nodes in id
+//! order**, so a change to how the mint draws ids moves all three
+//! numbers with no point moving.
 //!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
