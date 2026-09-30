@@ -1515,11 +1515,7 @@ fn name_by_parents<T: geom_core::Decide>(
         }
         let normal = |side: &StableName| match parents.plane(side, members)? {
             Ok((_, n)) => Ok(n),
-            Err(curved) => Err(NamingError::SplitReference {
-                group: Box::new(base.clone()),
-                reference: Box::new(side.clone()),
-                curved,
-            }),
+            Err(curved) => Err(NamingError::split_reference(base, side, curved)),
         };
         let dir = normal(a)?.cross(normal(b)?);
         let extents = keys
