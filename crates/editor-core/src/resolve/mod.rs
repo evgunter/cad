@@ -203,7 +203,7 @@ impl ResolveError {
         }
         Some(Self::NodeGone {
             name: name.clone(),
-            edit: if name.node.0 < doc.next_id {
+            edit: if doc.has_minted(name.node) {
                 RecipeEditRef::NodeDeleted { node: name.node }
             } else {
                 RecipeEditRef::ForeignNode { node: name.node }
