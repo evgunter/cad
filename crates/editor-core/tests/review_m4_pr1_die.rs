@@ -335,15 +335,17 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // The two authorings are payload-isomorphic under relabeling.
     assert_role_isomorphic(&theirs, &mine);
 
-    // The diff is EXACTLY the relabeling residue: both docs occupy
-    // ids 0..=45, insert #0 (cube profile) coincides in both, every
-    // other id's payload differs → Changed(1..=45), nothing else.
+    // The diff is EXACTLY the relabeling residue: both docs mint one
+    // set of 46 ids in one order, insert #0 (cube profile) coincides in
+    // both, every other id's payload differs → each of the rest
+    // Changed, in id order, nothing else.
+    assert_eq!(theirs.doc.order(), mine.doc.order(), "one id per insert");
     let d = theirs.doc.diff(&mine.doc);
-    let expected: Vec<NodeChange> = (1..=45)
-        .map(|i| NodeChange::Changed(RecipeNodeId(i)))
-        .collect();
+    let mut relabeled = theirs.doc.order()[1..].to_vec();
+    relabeled.sort();
+    let expected: Vec<NodeChange> = relabeled.into_iter().map(NodeChange::Changed).collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
     assert!(d.params.is_empty(), "same params");
-    assert!(!d.order_changed, "both orders are 0..=45");
+    assert!(!d.order_changed, "both orders are the same ids");
     assert!(!d.epsilon_changed && !d.metadata_changed);
 }

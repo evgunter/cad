@@ -25,10 +25,10 @@
 use geom_core::Decide;
 
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey, Solid, SolidKey};
+use crate::entity::{EntityId, FaceKey, LoopBoundary, LoopKey, Shell, ShellKey, Solid, SolidKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::EulerOpError;
+use crate::euler::{EulerOpError, RunExtent};
 use crate::live::require_key;
 use crate::provenance::Provenance;
 
@@ -64,8 +64,10 @@ impl<T: Decide> Body<T> {
     ///
     /// [`EulerOpError::StaleKey`] if `shell`, its solid, or a
     /// face/loop/half-edge/edge reached by the walk does not resolve;
-    /// [`EulerOpError::LoopCycleBroken`] if a cycle walk fails to
-    /// close. All checks precede any mutation (atomic).
+    /// [`EulerOpError::LoopCycleBroken`] naming the loop if a cycle walk
+    /// fails to close or is not the loop's whole cycle: a member claims
+    /// another loop, or a half-edge that claims the loop is not walked.
+    /// All checks precede any mutation (atomic).
     pub fn movefac(&mut self, shell: ShellKey) -> Result<Vec<ShellKey>, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
@@ -79,6 +81,19 @@ impl<T: Decide> Body<T> {
             })?;
         let solid = shell_data.solid;
         require_key(&self.solids, solid, EntityId::Solid)?;
+        // How many half-edges claim each loop. A walk is its loop's whole
+        // cycle when every member claims the loop (`require_run_of`) and
+        // it is as long as the loop's claim count: `RunExtent::Whole`'s
+        // proof, with the arena read once rather than once per loop.
+        let mut claims: slotmap::SecondaryMap<LoopKey, usize> = slotmap::SecondaryMap::new();
+        for (_, half) in &self.half_edges {
+            match claims.get_mut(half.parent_loop) {
+                Some(count) => *count += 1,
+                None => {
+                    claims.insert(half.parent_loop, 1);
+                }
+            }
+        }
         let mut component: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
         let mut count = 0_usize;
         for &seed in &shell_data.faces {
@@ -103,9 +118,13 @@ impl<T: Decide> Body<T> {
                     let LoopBoundary::Cycle { first } = loop_data.boundary else {
                         continue; // empty loop: glues only its vertex
                     };
-                    let cycle = self
-                        .loop_cycle(first)
-                        .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
+                    let broken = || EulerOpError::LoopCycleBroken { r#loop: loop_key };
+                    let cycle = self.loop_cycle(first).ok_or_else(broken)?;
+                    let run =
+                        self.require_run_of(cycle.iter().copied(), loop_key, RunExtent::Part, &[])?;
+                    if claims.get(loop_key) != Some(&run.len()) {
+                        return Err(broken());
+                    }
                     for member in cycle {
                         let mate = self.mate(member).ok_or(EulerOpError::StaleKey {
                             key: EntityId::HalfEdge(member),
@@ -320,10 +339,12 @@ mod tests {
     use geom_core::Tol;
 
     use super::*;
+    use crate::entity::{EdgeKey, LoopKey};
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::deep_snapshot;
+    use crate::fixtures::{deep_snapshot, ops_strut_cube};
     use crate::test_support_fixtures::declined_cube;
     use crate::validate::{ValidationError, validate, validate_closed};
+    use slotmap::SecondaryMap;
 
     fn p(x: f64) -> Point3<f64> {
         Point3::new(x, 0.0, 0.0)
@@ -334,6 +355,15 @@ mod tests {
     /// (the validator suite's construction). Returns
     /// (body, shell, pillow_face_of_ring, promoted_face).
     fn detached_digon() -> (Body<f64>, ShellKey, FaceKey, FaceKey) {
+        let (body, shell, seed_face, promoted) = detached_digons(1);
+        (body, shell, seed_face, promoted[0])
+    }
+
+    /// [`detached_digon`] with `n` digons, each grown on its own ring
+    /// of the pillow's seed face and promoted: one shell of `n + 1`
+    /// components. Returns (body, shell, seed face, the promoted faces
+    /// in order). The seed face is the shell's first face.
+    pub(super) fn detached_digons(n: usize) -> (Body<f64>, ShellKey, FaceKey, Vec<FaceKey>) {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
@@ -353,30 +383,39 @@ mod tests {
             Tol::witness(),
         )
         .unwrap();
-        let strut = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: seg.he_plus,
-                    he2: seg.he_plus,
+        let mut promoted = Vec::new();
+        for i in 0..n {
+            let x = 2.0 * (i as f64) + 2.0;
+            let strut = body
+                .mev_line(
+                    MevSite::Fan {
+                        he1: seg.he_plus,
+                        he2: seg.he_plus,
+                    },
+                    p(x),
+                    Tol::witness(),
+                )
+                .unwrap();
+            let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+            let grow = body
+                .mev_line(
+                    MevSite::Lone { r#loop: kill.ring },
+                    p(x + 1.0),
+                    Tol::witness(),
+                )
+                .unwrap();
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: grow.he_plus,
+                    he2: grow.he_minus,
                 },
-                p(2.0),
                 Tol::witness(),
             )
             .unwrap();
-        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
-        let grow = body
-            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0), Tol::witness())
-            .unwrap();
-        body.mef_chord(
-            MefSite::Chords {
-                he1: grow.he_plus,
-                he2: grow.he_minus,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-        let promoted = body.mfkrh_plug(kill.ring, true).unwrap();
-        (body, seed.shell, seed.face, promoted.face)
+            promoted.push(body.mfkrh_plug(kill.ring, true).unwrap().face);
+        }
+        assert_eq!(body.get_shell(seed.shell).unwrap().faces[0], seed.face);
+        (body, seed.shell, seed.face, promoted)
     }
 
     /// The distribution primitive: the two-component shell splits into
@@ -571,4 +610,240 @@ mod tests {
         );
         assert_eq!(deep_snapshot(&body), before);
     }
+
+    /// `shell`'s components under the claims its records make, not the
+    /// links a walk steps: a half-edge lies in the face its
+    /// `parent_loop` names, and the halves that name one edge glue their
+    /// faces. On a valid body that is `movefac`'s relation; on a torn one
+    /// it is the partition the records still hold. Labels follow the
+    /// shell's face order.
+    pub(super) fn claimed_components(
+        body: &Body<f64>,
+        shell: ShellKey,
+    ) -> SecondaryMap<FaceKey, usize> {
+        let mut by_edge: SecondaryMap<EdgeKey, Vec<FaceKey>> = SecondaryMap::new();
+        for (_, half) in body.half_edges() {
+            let Some(face) = body.get_loop(half.parent_loop).map(|l| l.face) else {
+                continue;
+            };
+            match by_edge.get_mut(half.edge) {
+                Some(faces) => faces.push(face),
+                None => {
+                    by_edge.insert(half.edge, vec![face]);
+                }
+            }
+        }
+        let mut glued: SecondaryMap<FaceKey, Vec<FaceKey>> = SecondaryMap::new();
+        for (_, faces) in &by_edge {
+            for pair in faces.windows(2) {
+                for (a, b) in [(pair[0], pair[1]), (pair[1], pair[0])] {
+                    match glued.get_mut(a) {
+                        Some(near) => near.push(b),
+                        None => {
+                            glued.insert(a, vec![b]);
+                        }
+                    }
+                }
+            }
+        }
+        let mut label = SecondaryMap::new();
+        let mut count = 0;
+        for &seed in &body.get_shell(shell).unwrap().faces {
+            if label.contains_key(seed) {
+                continue;
+            }
+            label.insert(seed, count);
+            let mut pending = vec![seed];
+            while let Some(face) = pending.pop() {
+                for &near in glued.get(face).into_iter().flatten() {
+                    if !label.contains_key(near) {
+                        label.insert(near, count);
+                        pending.push(near);
+                    }
+                }
+            }
+            count += 1;
+        }
+        label
+    }
+
+    /// The number of components [`claimed_components`] finds among
+    /// `shell`'s own faces.
+    pub(super) fn claimed_count(body: &Body<f64>, shell: ShellKey) -> usize {
+        let truth = claimed_components(body, shell);
+        let faces = &body.get_shell(shell).unwrap().faces;
+        let mut labels: Vec<usize> = faces.iter().map(|&f| truth[f]).collect();
+        labels.sort_unstable();
+        labels.dedup();
+        labels.len()
+    }
+
+    /// How the partition `shells` hold misreads `truth`: whether one
+    /// shell holds faces of two components (joined), and whether one
+    /// component's faces lie in two shells (split).
+    pub(super) fn misread(
+        body: &Body<f64>,
+        shells: &[ShellKey],
+        truth: &SecondaryMap<FaceKey, usize>,
+    ) -> (bool, bool) {
+        let mut home: std::collections::BTreeMap<usize, ShellKey> = Default::default();
+        let (mut joined, mut split) = (false, false);
+        for &shell in shells {
+            let mut own = None;
+            for &face in &body.get_shell(shell).unwrap().faces {
+                let label = truth[face];
+                joined |= *own.get_or_insert(label) != label;
+                split |= *home.entry(label).or_insert(shell) != shell;
+            }
+        }
+        (joined, split)
+    }
+
+    /// `movefac(shell)` on a torn `body` refuses `LoopCycleBroken`
+    /// naming `broken` with the body deep-unchanged. It runs in a
+    /// surgery scope, so an `Ok` answers with its partition rather than
+    /// with the tier-1 postcondition a torn input fails whatever the
+    /// operator writes.
+    fn assert_refuses_torn(body: &mut Body<f64>, shell: ShellKey, broken: LoopKey) {
+        let truth = claimed_components(body, shell);
+        let before = deep_snapshot(body);
+        let mut scope = body.begin_surgery();
+        let outcome = scope.movefac(shell);
+        drop(scope);
+        match outcome {
+            Ok(shells) => {
+                let (joined, split) = misread(body, &shells, &truth);
+                panic!(
+                    "movefac partitioned a torn walk: Ok({shells:?}), \
+                     joined {joined}, split {split}"
+                );
+            }
+            Err(err) => {
+                assert_eq!(err, EulerOpError::LoopCycleBroken { r#loop: broken });
+                assert_eq!(deep_snapshot(body), before, "movefac atomicity on Err");
+            }
+        }
+    }
+
+    /// The first member of `l`'s cycle.
+    fn first_of(body: &Body<f64>, l: LoopKey) -> crate::entity::HalfEdgeKey {
+        match body.get_loop(l).unwrap().boundary {
+            LoopBoundary::Cycle { first } => first,
+            LoopBoundary::Empty { .. } => panic!("{l:?} is a cycle loop"),
+        }
+    }
+
+    /// **A diverted walk would join two components.** Two torn `next`
+    /// links route the seed face's outer walk through the digon's outer
+    /// loop and back, so the walk closes over both loops' members and
+    /// reads the digon's mates: the labelling would find one component
+    /// where the records hold two, and return the shell as connected.
+    #[test]
+    fn movefac_refuses_a_walk_diverted_through_another_components_loop() {
+        let (mut body, shell, seed_face, promoted) = detached_digons(1);
+        let walked = body.get_face(seed_face).unwrap().outer;
+        let other = body.get_face(promoted[0]).unwrap().outer;
+        let h = first_of(&body, walked);
+        let h_next = body.get_half_edge(h).unwrap().next;
+        let x = first_of(&body, other);
+        let y = *body.loop_cycle(x).unwrap().last().unwrap();
+        body.get_half_edge_mut(h).unwrap().next = x;
+        body.get_half_edge_mut(y).unwrap().next = h_next;
+        let diverted = body.loop_cycle(h).expect("the diverted walk closes");
+        assert!(
+            diverted.contains(&x),
+            "the walk crosses into the digon's loop"
+        );
+        assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
+        assert_refuses_torn(&mut body, shell, walked);
+    }
+
+    /// **A short walk would split one component.** The strut cube's top
+    /// loop, anchored at the strut's out half with the tip's return torn
+    /// back onto it, walks `[s+, s−]` and closes: both members claim the
+    /// loop, and so do four more. The top face is the shell's first, so
+    /// the labelling would seed it, reach only itself across the strut,
+    /// and label the other five faces a second component.
+    #[test]
+    fn movefac_refuses_a_walk_closed_short_of_its_loop() {
+        let t = ops_strut_cube(Tol::witness());
+        let mut body = t.body;
+        let top = body.get_loop(t.outer).unwrap().face;
+        let shell = body.get_face(top).unwrap().shell;
+        assert_eq!(
+            body.get_shell(shell).unwrap().faces[0],
+            top,
+            "the top face seeds"
+        );
+        body.get_loop_mut(t.outer).unwrap().boundary = LoopBoundary::Cycle {
+            first: t.strut.he_plus,
+        };
+        body.get_half_edge_mut(t.strut.he_minus).unwrap().next = t.strut.he_plus;
+        assert_eq!(
+            body.loop_cycle(t.strut.he_plus),
+            Some(vec![t.strut.he_plus, t.strut.he_minus]),
+            "the short walk closes"
+        );
+        assert_eq!(claimed_count(&body, shell), 1, "the records still hold one");
+        assert_refuses_torn(&mut body, shell, t.outer);
+    }
+
+    /// No over-refusal: on every valid body here — one to three
+    /// components, rings, struts, genus — `movefac` partitions each shell
+    /// exactly as its records do. An enumeration, not a sample.
+    #[test]
+    fn valid_fixtures_partition_as_their_records_do() {
+        use crate::fixtures::{
+            mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strutted,
+            pillow, raw_prism,
+        };
+        use crate::test_support_fixtures::geometric_cube;
+        let tol = Tol::witness();
+        let bodies: [(&str, Body<f64>); 13] = [
+            ("declined_cube", declined_cube(tol).body),
+            ("geometric_cube", geometric_cube(tol).body),
+            ("ops_strut_cube", ops_strut_cube(tol).body),
+            ("ops_holed_box", ops_holed_box(tol).body),
+            ("ops_genus2", ops_genus2(tol)),
+            ("ops_ring_bridge", ops_ring_bridge(tol).body),
+            ("ops_strutted", ops_strutted(tol).0),
+            ("pillow", pillow(tol).body),
+            ("ngon_pillow(5)", ngon_pillow(5, tol).body),
+            ("raw_prism(3)", raw_prism(3, tol).body),
+            ("mvfs_state", mvfs_state().body),
+            ("one detached digon", detached_digons(1).0),
+            ("two detached digons", detached_digons(2).0),
+        ];
+        let mut most = 0;
+        for (fixture, body) in bodies {
+            assert_eq!(validate(&body), Ok(()), "{fixture} is valid");
+            for (shell, _) in body.shells() {
+                let truth = claimed_components(&body, shell);
+                let components = claimed_count(&body, shell);
+                most = most.max(components);
+                let mut trial = body.clone();
+                let shells = trial
+                    .movefac(shell)
+                    .unwrap_or_else(|e| panic!("the valid {fixture} refuses {e:?}"));
+                assert_eq!(
+                    shells.len(),
+                    components,
+                    "{fixture}: one shell per component"
+                );
+                assert_eq!(
+                    misread(&trial, &shells, &truth),
+                    (false, false),
+                    "{fixture}: the partition is the records'"
+                );
+                assert_eq!(validate(&trial), Ok(()), "{fixture}: tier 1 after movefac");
+            }
+        }
+        assert_eq!(
+            most, 3,
+            "a shell of three components reaches the c − 1 > 1 arm"
+        );
+    }
+
+    #[cfg(test)]
+    mod tears;
 }
