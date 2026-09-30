@@ -89,6 +89,7 @@ test_utils::gated_to![
     "crates/topo/src/fixtures.rs",
     "crates/topo/src/test_support_fixtures.rs",
     "crates/topo/src/seqgen.rs",
+    "crates/topo/src/revert.rs",
 ];
 
 use geom_core::Point3;
@@ -1716,4 +1717,156 @@ fn kill_anchors_on_torn_bodies() {
         }
     }
     assert_no_anchor_written(&table, "seeds 1..=2000");
+}
+
+/// The valid bodies [`revert_anchor_rows`] tears and
+/// [`valid_fixtures_never_refuse_a_revert_anchor`] reverts: those
+/// [`kill_anchor_rows`] tears, among them the holed box and the genus-2
+/// body, whose faces carry rings, and the bodies with a lone vertex or
+/// an `Empty` loop.
+const REVERT_BODIES: [(&str, BuildFixture); 8] = [
+    FIXTURES[0],
+    FIXTURES[1],
+    FIXTURES[2],
+    ("ops_genus2", ops_genus2),
+    ("ops_holed_box", |tol| ops_holed_box(tol).body),
+    BESIDE_A_LONE_VERTEX[0],
+    BESIDE_A_LONE_VERTEX[1],
+    RING_ABOUT_AN_EMPTY_OUTER,
+];
+
+/// No over-refusal of `revert`'s anchor proofs: every valid body
+/// [`REVERT_BODIES`] builds, the geometric cube, a planar block with two
+/// through-holes, the pillows, a raw prism and the lone `mvfs` seed
+/// reverts, and so does its reversal. An enumeration, not a sample.
+/// Every body but the seed asks both proofs something: it has a vertex
+/// anchor and a cycle loop.
+#[test]
+fn valid_fixtures_never_refuse_a_revert_anchor() {
+    use crate::fixtures::{mvfs_state, ngon_pillow, pillow, raw_prism};
+    use crate::test_support_fixtures::{geometric_cube, holed_block};
+    let tol = Tol::witness();
+    let more: [(&str, BuildFixture); 6] = [
+        ("geometric_cube", |tol| geometric_cube::<f64>(tol).body),
+        ("holed_block", |tol| {
+            holed_block::<f64>(4.0, &[1.0, 3.0], tol)
+        }),
+        ("pillow", |tol| pillow(tol).body),
+        ("ngon_pillow(5)", |tol| ngon_pillow(5, tol).body),
+        ("raw_prism(3)", |tol| raw_prism(3, tol).body),
+        ("mvfs_state", |_| mvfs_state().body),
+    ];
+    for (fixture, build) in REVERT_BODIES.into_iter().chain(more) {
+        let body = build(tol);
+        assert_eq!(
+            crate::validate::validate(&body),
+            Ok(()),
+            "{fixture} is valid"
+        );
+        let anchored = body.vertices().any(|(_, v)| v.emanating.is_some());
+        let cycled = body
+            .loops()
+            .any(|(_, l)| matches!(l.boundary, LoopBoundary::Cycle { .. }));
+        assert!(
+            fixture == "mvfs_state" || (anchored && cycled),
+            "{fixture} asks both proofs something"
+        );
+        let reverted = body
+            .revert()
+            .unwrap_or_else(|e| panic!("the valid {fixture} refuses {e:?}"));
+        reverted
+            .revert()
+            .unwrap_or_else(|e| panic!("the reversed {fixture} refuses {e:?}"));
+    }
+}
+
+/// A link [`crate::Body::revert`] reads a new anchor through: every
+/// half-edge's `next` (a vertex's new `emanating` starts at the end
+/// it derives) and `prev` (a loop's new `first`).
+#[cfg(not(debug_assertions))]
+#[derive(Clone, Copy, Debug)]
+enum RevertTear {
+    Next,
+    Prev,
+}
+
+/// Every single `tear` of `body`: each half-edge's link set to each
+/// half-edge in turn, then `revert` on it. Returns calls, `Err`, and
+/// the `Ok` results carrying a [`kill_anchor_faults`] fault the tear
+/// did not plant, which is one `revert` wrote. Release-only, as the
+/// module docs say: a debug build's postcondition answers every torn
+/// `Ok` first.
+#[cfg(not(debug_assertions))]
+fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear) -> [usize; 3] {
+    let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+    let mut cells = [0usize; 3];
+    for &at in &halves {
+        for &to in &halves {
+            let mut torn = body.clone();
+            let he = torn.get_half_edge_mut(at).unwrap();
+            match tear {
+                RevertTear::Next => he.next = to,
+                RevertTear::Prev => he.prev = to,
+            }
+            let planted = kill_anchor_faults(&torn);
+            cells[0] += 1;
+            match torn.revert() {
+                Err(_) => cells[1] += 1,
+                Ok(reverted) => {
+                    let wrote = kill_anchor_faults(&reverted)
+                        .into_iter()
+                        .any(|fault| !planted.contains(&fault));
+                    cells[2] += usize::from(wrote);
+                }
+            }
+        }
+    }
+    cells
+}
+
+/// **`revert` writes no anchor off a torn `next` or `prev`**: every
+/// single tear of each [`REVERT_BODIES`] body, and no `Ok` carries an
+/// anchor fault the tear did not plant. An enumeration, not a sample.
+/// Each body, and each tear kind, is refused somewhere, so the tears
+/// reach the proofs. (A `Prev` tear of a body with one cycle loop,
+/// the segment, cannot move a `first` out of its loop.)
+#[test]
+#[cfg(not(debug_assertions))]
+fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
+    let tol = Tol::witness();
+    let tears = [RevertTear::Next, RevertTear::Prev];
+    let rows: Vec<(&str, [[usize; 3]; 2])> = REVERT_BODIES
+        .iter()
+        .map(|&(name, build)| {
+            let body = build(tol);
+            (name, tears.map(|tear| revert_anchor_rows(&body, tear)))
+        })
+        .collect();
+    println!("| body | tear | calls | `Err` | `Ok`, anchor fault written |");
+    println!("| --- | --- | --- | --- | --- |");
+    for (name, cells) in &rows {
+        for (tear, [calls, refused, wrote]) in tears.iter().zip(cells) {
+            println!("| {name} | `{tear:?}` | {calls} | {refused} | {wrote} |");
+        }
+    }
+    let mut refused_per_tear = [0usize; 2];
+    for (name, cells) in &rows {
+        for ((tear, [calls, refused, wrote]), per_tear) in
+            tears.iter().zip(cells).zip(&mut refused_per_tear)
+        {
+            assert_eq!(
+                *wrote, 0,
+                "`revert` wrote an anchor fault through `Ok` on {wrote} of {calls} `{tear:?}` tears of {name}"
+            );
+            *per_tear += refused;
+        }
+        assert!(
+            cells.iter().any(|&[_, refused, _]| refused > 0),
+            "no tear of {name} was refused"
+        );
+    }
+    assert!(
+        refused_per_tear.iter().all(|&n| n > 0),
+        "refusals per tear kind {tears:?}: {refused_per_tear:?}"
+    );
 }
