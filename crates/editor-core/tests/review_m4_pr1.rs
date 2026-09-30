@@ -93,8 +93,12 @@ fn r1_replay_bit_identity_adversarial() {
     let a = doc
         .apply(&e, Tol::witness(), &editor_core::RefusingReach)
         .unwrap();
-    // D3: ids strictly increase even after deleting the highest one.
-    assert!(a.record.minted.unwrap() > *minted.iter().max().unwrap());
+    // D3: an id is never reused, even after deleting the newest one.
+    let fresh = a.record.minted.unwrap();
+    assert!(
+        !minted.contains(&fresh),
+        "{fresh:?} was minted before and deleted, and is handed out again"
+    );
     doc = a.doc;
     log.push(e);
     // Re-insert a last-ulp carrier after the churn — replay must

@@ -1048,7 +1048,11 @@ fn a_union_refusal_against_a_merged_wall_names_two_members() {
             other => panic!("the refusal a caller can act on, got {other:?}"),
         }
     }
-    assert_eq!(refused, [(m1, m3), (m2, m3)]);
+    // Each pair is spelled lower id first, and refused in id order.
+    let by_id = |x: RecipeNodeId, y: RecipeNodeId| (x.min(y), x.max(y));
+    let mut want = vec![by_id(m1, m3), by_id(m2, m3)];
+    want.sort();
+    assert_eq!(refused, want);
 }
 
 /// **The site is the OPERAND, not the minting node** — through a

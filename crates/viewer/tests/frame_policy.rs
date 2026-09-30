@@ -809,11 +809,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     // A POISONED root: the extrude fails and the transform over it is
     // the root the index refuses on. The badge names the extrude.
     let (doc, extrude, moved) = common::broken_document(tol);
-    assert_eq!(
-        (extrude, moved),
-        (RecipeNodeId(2), RecipeNodeId(3)),
-        "the fixture's ids, which the literals below spell"
-    );
+    assert_ne!(extrude, moved, "the root over the failure is another node");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
@@ -822,7 +818,10 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
-        format!("pick index: waits on feature 2, which failed — {consequence}"),
+        format!(
+            "pick index: waits on feature {}, which failed — {consequence}",
+            extrude.0
+        ),
         "the row the tree blames, not the root the build refused on"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
@@ -861,11 +860,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         },
         tol,
     );
-    assert_eq!(
-        (healthy, broken),
-        (RecipeNodeId(2), RecipeNodeId(5)),
-        "the fixture's ids, which the literal below spells"
-    );
+    assert_ne!(healthy, broken, "two roots");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
@@ -874,14 +869,21 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
-        format!("pick index: waits on feature 5, which failed — {consequence}")
+        format!(
+            "pick index: waits on feature {}, which failed — {consequence}",
+            broken.0
+        )
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
     assert_eq!(
         badge.detail(),
         Some(
-            "pick index: root 5 could not be indexed: pick: node 5 failed, so it has no \
-             value — fix the node's own failure"
+            format!(
+                "pick index: root {0} could not be indexed: pick: node {0} failed, so it has \
+                 no value — fix the node's own failure",
+                broken.0
+            )
+            .as_str()
         ),
         "the tooltip says the root was not indexed and the standing says why"
     );
@@ -958,14 +960,17 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     let badge = frame::index_badge(Some(&refusal), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
-        (offender, *root, *failed),
-        (RecipeNodeId(3), RecipeNodeId(1), RecipeNodeId(1)),
-        "the fixture's ids: the index's words name the root, and the root is not the mate"
+        root, failed,
+        "the index's words name the root, which failed"
     );
+    assert_ne!(offender, *root, "and the root is not the mate");
     assert_eq!(
         badge.label(),
-        "pick index: waits on feature 3, which failed — until the index builds, no pick \
-         is answered and the picture is not redrawn",
+        format!(
+            "pick index: waits on feature {}, which failed — until the index builds, no pick \
+             is answered and the picture is not redrawn",
+            offender.0
+        ),
         "the mate the tree blames, not the root the index's words name"
     );
     assert_eq!(badge.tone(), frame::Tone::Advisory);
@@ -3173,15 +3178,21 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // The fault is said twice, once as why the drag refused and once
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
+    let [mate_node] = mates[..] else {
+        panic!("one mate landed: {mates:?}");
+    };
+    let (post, mate_node) = (bench.post_b.0, mate_node.0);
     assert_eq!(
         line.text(),
-        "instance 2 is mate-constrained (mate node(s) 3): its pose is mate-derived, so the \
-         free-move probe refuses — delete the mate(s) if free relative motion is intended \
-         \u{2022} free move: a committed placement was discarded — instance 2 is \
-         mate-constrained (mate node(s) 3): its pose is mate-derived, so the free-move probe \
-         refuses — delete the mate(s) if free relative motion is intended"
+        format!(
+            "instance {post} is mate-constrained (mate node(s) {mate_node}): its pose is \
+             mate-derived, so the free-move probe refuses — delete the mate(s) if free \
+             relative motion is intended \u{2022} free move: a committed placement was \
+             discarded — instance {post} is mate-constrained (mate node(s) {mate_node}): its \
+             pose is mate-derived, so the free-move probe refuses — delete the mate(s) if \
+             free relative motion is intended"
+        )
     );
-    assert_eq!(bench.post_b.0, 2, "the premise the literal above names");
 }
 
 /// **What rides beside a refusal is news nothing will say again** —

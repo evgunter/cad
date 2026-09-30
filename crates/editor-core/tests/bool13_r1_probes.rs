@@ -237,14 +237,18 @@ fn a_wrong_type_at_the_top_is_unreadable() {
 fn a_duplicate_node_key_names_the_section_and_carries_the_recourse() {
     let text = small();
     let (header, body) = text.split_once('\n').unwrap();
-    // Duplicate the whole `"1": {...}` node entry by re-parsing and
+    // Duplicate the first node entry by re-parsing and
     // re-emitting the nodes object with the key twice (serde_json's
     // Value cannot hold duplicates, so splice text).
     let needle = "\"nodes\": {";
     let at = body.find(needle).expect("a nodes section") + needle.len();
     let v: serde_json::Value = serde_json::from_str(body).unwrap();
-    let node0 = serde_json::to_string(&v["snapshot"]["nodes"]["0"]).unwrap();
-    let spliced = format!("{header}\n{}\"0\": {node0},{}", &body[..at], &body[at..]);
+    let (key, node) = v["snapshot"]["nodes"]
+        .as_object()
+        .and_then(|nodes| nodes.iter().next())
+        .expect("a node");
+    let node = serde_json::to_string(node).unwrap();
+    let spliced = format!("{header}\n{}\"{key}\": {node},{}", &body[..at], &body[at..]);
     expect_unreadable_naming(
         "duplicate node key",
         &spliced,
@@ -346,7 +350,11 @@ fn display_carries_a_long_detail_untruncated() {
 #[test]
 fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
     let (header, mut v) = split(&small());
-    let node = v["snapshot"]["nodes"]["2"].as_object_mut().unwrap();
+    let node = v["snapshot"]["nodes"]
+        .as_object_mut()
+        .and_then(|nodes| nodes.values_mut().find(|n| n.get("Extrude").is_some()))
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("the extrude");
     let payload = node.remove("Extrude").unwrap();
     node.insert("Extrudez".to_string(), payload);
     let detail = expect_unreadable_naming("Extrudez", &join(&header, &v), "Extrudez");

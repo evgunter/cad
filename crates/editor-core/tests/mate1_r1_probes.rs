@@ -897,11 +897,6 @@ fn r1_reproduce_the_quoted_red_first_fault() {
         },
     );
     let mate = mate.expect("the mate mints");
-    assert_eq!(
-        (leg.0, pattern.0, top.0, mate.0),
-        (0, 1, 2, 3),
-        "the node ids the PR body's quote names"
-    );
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     let line = match poses.fault(mate) {

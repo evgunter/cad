@@ -198,6 +198,16 @@ pub fn step_with(
     (applied.doc, applied.record.minted)
 }
 
+/// **The id of the node `doc` inserted last** — for a row that pushes
+/// an insert and reads the id back rather than counting it out.
+///
+/// # Panics
+///
+/// If `doc` holds no live node.
+pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
+    *doc.order().last().expect("the document holds a node")
+}
+
 pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let (doc, minted) = step(doc, DocEdit::InsertNode { node });
     (doc, minted.unwrap())

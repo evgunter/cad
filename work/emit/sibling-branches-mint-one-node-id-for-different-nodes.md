@@ -4,6 +4,9 @@ kind: issue
 title: Two inserts applied to one base mint the same node id for different nodes
 status: open
 opened: 2026-09-29
+design: true
+priority: P2
+cost: H
 ---
 
 
@@ -49,3 +52,138 @@ the counter closes that for step ids too.
   `StableName`, every input edge, `refactor.rs`'s `NodeMap`
   precomputation from `next_id`), so the width and the precomputed
   remaps are the cost to size first.
+
+## Sizing (2026-09-30)
+
+### How it was measured
+
+A throwaway probe sits in a lane's scratchpad and is committed nowhere:
+`/tmp/claude-0/-home-user-cad/0e2c2d9c-0d6e-5c1f-8f66-beceb26c515b/scratchpad/nodeid-probe.py`.
+It changes one thing: the insert door mints a fixed bijective scramble
+of the counter, and `has_minted` inverts it. Ids stop being small and
+sequential, and nothing else moves.
+
+- **Before unit 1:** editor-core failed 519 of 2376 tests.
+  - 290 of those came from one fixture constant, `PART_BODY`.
+  - About 80 came from one committed corpus, the tour die.
+  - The rest were spread over about 45 suites.
+- **Tree-wide:** there were 728 literal `RecipeNodeId(<n>)` spellings in
+  135 files. Every one in `crates/viewer/src` sits in a `#[cfg(test)]`
+  module, and most across the tree are shape-only: they build a name or
+  a message and never insert a node.
+
+### Where node ids are minted or precomputed
+
+- `edit.rs`, `apply_maintaining`'s `InsertNode` arm.
+- `refactor.rs`: the inline's and the split's `NodeMap`, which
+  `step_map_of` simulates the step mint over. A forward name reference
+  is already refused (`DeclareNamesMissingNode`), so a sequential
+  simulation has no cycle.
+- `doc.rs`: the `next_id` field, `has_minted` and `bit_eq`.
+- `persist/check.rs`: `IdBeyondCounter`.
+- The `Rebind` source check and `resolve`'s `node_gone` now ask
+  `has_minted`, which unit 1 did.
+
+### Settled by #3262 or by PR 3455, not open
+
+- **What a node's id hashes:** its `InsertNode` edit's canonical bytes,
+  display units erased (D6). A refactor records plain `InsertNode`s, so
+  hashing each insert is the only choice replay agrees with.
+- **Width:** u64, as for step ids.
+- **File format:** the change breaks it, and an old file refuses typed
+  with the regenerate recourse, as the step mint did. No migration.
+- **Order:** anything keyed by id becomes hash order, as `select` did
+  for steps.
+- **Mint shape:** both designers recommend one document mint for node
+  and step ids, `StepMint` becoming the document's `Mint`, with one
+  chain and one log. That is unit 2's intended shape.
+
+### The units
+
+1. **Tests take node ids from the insert door.** No behaviour change.
+   Done on `emit/tests-take-node-ids-from-the-door` (41 test files).
+   Under the probe, editor-core, viewer and pncad now fail 123 of 3283
+   tests. Every one is in a class listed under "Left for unit 2", and
+   more than half are loads of the committed corpora.
+2. **The node mint.** The mint and its log, the load-door checks, the
+   `refactor.rs` precomputation by simulation, and regenerating or
+   re-baselining everything under "Left for unit 2". N1, IDENTITY.md
+   DI1, ASSEMBLY.md and REFERENCES.md say "counter" and need rewording.
+   `sibling_versions_mint_one_node_id_for_different_nodes` turns here.
+   Unit 2 waits on unit 1 and on
+   `work/emit/part-suites-name-every-parts-body-by-one-constant.md`.
+3. **How a node is shown.** The viewer labels a node "feature {id}",
+   refusals say "node {id}", and Python prints `NodeId({id})`. With
+   digest ids all of these print 20-digit numbers. The question is with
+   Ev as [ev] #3565 (ruling item `work/emit/how-a-person-sees-a-node.md`).
+   Unit 3 waits on it. Unit 2 should not land before it, or the GUI
+   shows raw ids in between.
+
+### Left for unit 2
+
+The probe's residue after unit 1.
+
+**Committed bytes that spell ids.** Regenerate them, or re-freeze
+them, in unit 2:
+
+- `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad`
+  (about 80 rows through `corpus::die_composed_tour`) and
+  `tests/corpus/die_tool.pncad` (`msolve6`, `msolve7`).
+- `crates/viewer/tests/gallery_ring.pncad` (`doc_io`, `display_budget`,
+  `index_memo`, `pick3_acceptance`, `review_gui2_*`, `review_pick_r2`,
+  `creation_ops`) and `crates/pncad/tests/plate_param.pncad`.
+- `tests/golden/golden.cad` (`m4_pr6_golden`).
+- The samples `unreadable_by_this_build::OLDER_SHAPED`,
+  `bool13_r1_probes`' older-shaped document, `lib_tube_node`'s older
+  document and `wire_rv_unknown`'s control document.
+- The counter-specific load-door rows: `m4_pr6_refusal`'s `next_id`
+  clip and `persist::check`'s `rv_the_name_pass_refuses_in_document_order`.
+- `pncad-py/tests/test_document.py`'s `"next_id"` tamper.
+
+**Digests and goldens that hash ids.** Re-baseline them, and say what
+moved:
+
+- `m4_pr3_names_ci`, `m4_pr4_ci`, `seat4_verb_lowering`,
+  `seat8_split_lowering`, `m10_6_ci_rows_interval`,
+  `m10_sym_profile_interval` and `asm2b_multisolid` row 5.
+- `drive.rs`'s `DriveReport::serialize` writes `node.0` into its
+  goldening text (`render_reason`, `" {}:structure:{:?}"`, and the flip
+  and status rows beside it). That text is compared by the `m10_*`
+  interval rows, not persisted to a user file.
+
+**Kernel behaviour that orders by id.** Unit 2 decides each case: keep
+id order, which becomes arbitrary, or order by position in `Doc::order`.
+
+- `eval/schedule.rs` breaks topological ties with
+  `BinaryHeap<Reverse<RecipeNodeId>>`. `Evaluation::order` is what
+  `tree::rows` draws, so the feature tree would draw in hash order.
+  Unit 2 must tie-break by position in `Doc::order`.
+- The mate solve's spanning tree takes the first pair by id:
+  `msolve1_transform_aware::a5_*` and `msolve2_member_chain::a3b_*` ("the
+  first pair is the tree edge").
+- Which member holds a flush stretch of a shared rim:
+  `emit_union_rim_piece_ranks::fam010_*` and
+  `emit_shared_rim_several::the_chord_is_named_as_the_rim_piece_it_lies_on`.
+- A diff's report order, and `resolve_upstream_scope`'s "R is first in
+  deterministic order".
+- Unit 1 rewrote some rows to state their rule rather than a literal
+  that holds only under the counter: `review_decl_r1`, `docm7`, `docm8`
+  (a contact pair spelled lower id first and refused in id order),
+  `m4_pr7_appearance` (an ambiguous loss sited at the first carrier by
+  id), and `edit_set_program` (the later profile in id order holds a
+  repeated step id). Each of those rules is id order, and unit 2 should
+  decide whether it stays.
+- `review_m4_pr1_die::r7_*` relies on two authorings in different
+  orders minting one id set. Under a digest they share none, so the row
+  needs rewriting.
+
+### What the probe cannot see
+
+The probe keeps every coincidence between documents that the counter
+has: the n-th insert of any document gets the same id. A digest does
+not keep it where the minting edits differ.
+`work/emit/part-suites-name-every-parts-body-by-one-constant.md` is the
+one known case: `PART_BODY`, about 350 `in_part` calls. Rows that
+compare two documents built by the same edits are safe under D9. Those
+the probe fixed read ids from each document, but the premise needs
+unit 2's mint to confirm it.
