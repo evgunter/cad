@@ -69,7 +69,7 @@ use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
 use crate::pickcache::{self, PickCache};
-use crate::pickindex::{PickIndex, PictureKey};
+use crate::pickindex::{EdgeNamesRefused, PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
@@ -400,6 +400,12 @@ pub struct ViewerApp {
     /// assigned back every frame exactly as [`Self::datums_vanished`]
     /// is.
     profiles_undrawn: usize,
+    /// **What the index could not name on the held edge set's body on
+    /// the last frame the viewport drew** (`marks::EdgeOverlay::
+    /// held_refused`), read by [`crate::frame::held_edges_badge`].
+    /// Zeroed and assigned back every frame as
+    /// [`Self::datums_vanished`] is.
+    held_edges_refused: Option<EdgeNamesRefused>,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -832,6 +838,7 @@ impl ViewerApp {
             projection_fault: None,
             datums_vanished: 0,
             profiles_undrawn: 0,
+            held_edges_refused: None,
             // The startup document goes through the same door an
             // opened one does: it is small enough that the budget will
             // not move its δ, and a first picture that took a
@@ -1761,6 +1768,10 @@ impl ViewerApp {
             if let Some(badge) = frame::profiles_badge(self.profiles_undrawn) {
                 draw_badge(ui, &self.theme, &badge);
             }
+            // And the held edges the mark could not tell held or not.
+            if let Some(badge) = frame::held_edges_badge(self.held_edges_refused.as_ref()) {
+                draw_badge(ui, &self.theme, &badge);
+            }
             ui.separator();
             // The palette picker. Every registered theme, by the
             // name `crate::theme` gives it — the registry IS the
@@ -1876,6 +1887,7 @@ impl eframe::App for ViewerApp {
         // the field last held.
         let mut datums_vanished = 0_usize;
         let mut profiles_undrawn = 0_usize;
+        let mut held_edges_refused: Option<EdgeNamesRefused> = None;
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -1920,6 +1932,7 @@ impl eframe::App for ViewerApp {
                     projection_fault: &mut self.projection_fault,
                     datums_vanished: &mut datums_vanished,
                     profiles_undrawn: &mut profiles_undrawn,
+                    held_edges_refused: &mut held_edges_refused,
                     notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
@@ -1936,6 +1949,7 @@ impl eframe::App for ViewerApp {
         self.profile_drawn = profile_drawn;
         self.datums_vanished = datums_vanished;
         self.profiles_undrawn = profiles_undrawn;
+        self.held_edges_refused = held_edges_refused;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -2077,6 +2091,10 @@ pub(crate) struct ViewerBehavior<'a> {
     /// ([`ViewerApp::profiles_undrawn`]); zeroed by the frame entry
     /// point and written by the viewport, as `datums_vanished` is.
     pub(crate) profiles_undrawn: &'a mut usize,
+    /// What the index could not name on the held edge set's body
+    /// ([`ViewerApp::held_edges_refused`]); zeroed by the frame entry
+    /// point and written by the viewport, as `datums_vanished` is.
+    pub(crate) held_edges_refused: &'a mut Option<EdgeNamesRefused>,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -4665,6 +4683,110 @@ mod properties_pane_tests {
         assert!(
             driven.marks().edges().held.is_empty(),
             "a closed tool holds nothing"
+        );
+    }
+
+    /// **A blend target whose drawn edges the index cannot all name
+    /// says so**: the held mark is badged in the index's words, and the
+    /// all-edges load puts the index's refusal on the line rather than
+    /// saying the body has no edges. The naming layer's refusal is
+    /// planted in the app's own index (`PickIndex::unname_edge`).
+    #[test]
+    fn a_blend_target_whose_edges_cannot_be_named_says_so() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let (edge, drawn) = {
+            let index = driven.on_screen();
+            let drawn = index.edges_in(EXTRUDE, 0).to_vec();
+            let edge = crate::session::EdgeSelection {
+                name: index
+                    .edge_name_of(drawn[0])
+                    .expect("a drawn edge is named")
+                    .clone(),
+                node: EXTRUDE,
+                body: 0,
+            };
+            (edge, drawn)
+        };
+        driven.app.tools.open(crate::tools::ToolKind::Blend);
+        driven.click_through(vec![Selection::Edge(edge)]);
+        let named = driven.quiet();
+        assert!(
+            !named.iter().any(|(run, _)| run.starts_with("held edges:")),
+            "a held set the index names wholly is not badged: {named:?}"
+        );
+
+        let first = driven
+            .app
+            .picks
+            .index_mut()
+            .expect("the settled app holds an index")
+            .unname_edge(drawn[1]);
+        let refused = crate::pickindex::EdgeNamesRefused {
+            node: EXTRUDE,
+            body: 0,
+            first,
+            named: drawn.len() - 1,
+            refused: 1,
+        };
+        let badge = crate::frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
+        let badged = driven.quiet();
+        assert!(
+            badged.iter().any(|(run, _)| run == badge.label()),
+            "the toolbar reads the held mark's refusal: {badged:?}"
+        );
+
+        // A read of the frame the viewport drew, not a latch: with the
+        // viewport not drawn, the same held set and the same refusing
+        // index badge nothing, and drawn again they badge again.
+        let viewport = driven
+            .app
+            .tree
+            .tiles
+            .find_pane(&super::Pane::Viewport)
+            .expect("the layout has a viewport");
+        driven.app.tree.set_visible(viewport, false);
+        let undrawn = driven.quiet();
+        assert!(
+            !undrawn
+                .iter()
+                .any(|(run, _)| run.starts_with("held edges:")),
+            "a viewport that did not draw leaves no badge standing: {undrawn:?}"
+        );
+        driven.app.tree.set_visible(viewport, true);
+        assert!(driven.quiet().iter().any(|(run, _)| run == badge.label()));
+
+        driven.click(crate::pane::create::BLEND_EDGES);
+        driven.click("Select all edges");
+        let said = driven.quiet();
+        let line = said
+            .iter()
+            .map(|(run, _)| run)
+            .find(|run| run.contains("the tool loaded no edges:"))
+            .unwrap_or_else(|| panic!("the refused load is on the line: {said:?}"));
+        assert!(line.contains(&refused.to_string()), "{line}");
+        assert!(!line.contains("has no edges to select"), "{line}");
+        assert_eq!(
+            driven.app.tools.blend().map(crate::blend::BlendTool::count),
+            Some(1),
+            "the held edge stands"
+        );
+
+        // The badge is a read of this frame's held set, not a latch: with
+        // the picks cleared there is nothing held to mark, and the same
+        // index's refusal is no longer the toolbar's to say.
+        driven.click("Clear picks");
+        let cleared = driven.quiet();
+        assert_eq!(
+            driven.app.tools.blend().map(crate::blend::BlendTool::count),
+            Some(0),
+            "the picks are cleared"
+        );
+        assert!(
+            !cleared
+                .iter()
+                .any(|(run, _)| run.starts_with("held edges:")),
+            "a badge with nothing held is gone: {cleared:?}"
         );
     }
 }
