@@ -50,7 +50,7 @@ winding carried to it reads right.
 `merged_outline_ring` reads every loop's decided winding, margin
 included (`Body::planar_loop_winding_decided`, through
 `decide_reported`), and refuses with the verdict that left no unique
-outline:
+outline, in this order:
 
 - several positive windings: `MergedFaceRoleAmbiguous { face, verdict:
   OutlineVerdict::SeveralPositive { loops } }`, which names the loops
@@ -59,13 +59,20 @@ outline:
 - no positive winding and a zero one: `Escalated { decision:
   MergeDecision::LoopWinding, diag }` with the zero winding's own
   margin, so it tells the in-band arm's story through `LOOP_WINDING`
-  and offers the tolerance that margin gives;
-- no positive winding and a loop the kernel cannot wind (NURBS, spiric,
-  null-edge scaffold): `OutlineVerdict::Unread { loop }`, ending in the
-  carriers the winding reads;
-- every loop negative: `OutlineVerdict::AllNegative`, ending in the
-  orientation tier 3 requires.
+  and offers the tolerance that margin gives. It is named before a
+  loop the kernel does not wind, which already counts as not positive
+  (beside one positive loop the merge takes it for a hole), so a
+  tighter tolerance is what would change the answer;
+- no positive or zero winding and a loop riding a carrier the kernel
+  does not wind (NURBS, spiric, null-edge scaffold):
+  `OutlineVerdict::UnsupportedWinding { loop }` (D2 row 2: valid, not
+  built), ending in the carriers the winding reads;
+- otherwise every loop winds negatively or is a lone vertex:
+  `OutlineVerdict::AllNegative`, ending in the orientation tier 3
+  requires. An empty loop bounds no area, so it is never a candidate
+  outline.
 
-The `merge_coplanar_faces:` label is gone from this arm. The twelve
-other arms that carry it are filed as
+`SeveralPositive` and `AllNegative` are the role decision's verdicts,
+not the winding decision's. The `merge_coplanar_faces:` label is gone
+from this arm. The twelve other arms that carry it are filed as
 `merge-coplanar-refusals-open-with-a-stage-label`.
