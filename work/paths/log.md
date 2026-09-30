@@ -524,3 +524,8 @@ The failing tests are:
 At `Sym` the registrations discharge these checks. At `Interval` there
 is no registry. This consequence of #3453 q1 was not weighed at the
 time, so it goes to designer round 6 and may go to Ev. #3527 waits.
+
+- 2026-09-30 — 5a (#3527) round-3 opens, orchestrator rulings.
+  - m4_pr6 at ε 1e-12: plain `replay` shares `drive` with the guided replay, so every arc a replay constructs is verified at its construction. The D1 sentence reads "a replay constructs".
+  - On the Decide path, an unresolvable difference (M·2^-52 > band) refuses as a typed scene-resolution error, never `InconsistentArc`.
+  - m10_9 pad 122/128 (six Registered → NumericZero): a loss of proof strength, so not re-baselinable; root-cause by Sym tree diff.
