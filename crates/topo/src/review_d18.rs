@@ -694,6 +694,22 @@ enum Tear {
     StartForeign,
     LoopAnchorForeign,
     EmanatingDangling,
+    /// A half-edge's `edge` set to another live edge.
+    EdgeForeign,
+    /// A loop set `Empty` at a live vertex.
+    EmptyVertexForeign,
+    /// A loop's `face` set to another live face.
+    LoopFaceForeign,
+    /// A live loop appended to a face's `rings`.
+    RingForeign,
+    /// A face's `shell` set to another live shell.
+    FaceShellForeign,
+    /// A live face appended to a shell's `faces`.
+    ShellFacesForeign,
+    /// A shell's `solid` set to another live solid.
+    ShellSolidForeign,
+    /// A live shell appended to a solid's `shells`.
+    SolidShellsForeign,
 }
 
 #[cfg(not(debug_assertions))]
@@ -710,17 +726,33 @@ const TEARS: [Tear; 9] = [
 ];
 
 fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead: HalfEdgeKey) {
-    use crate::entity::{LoopKey, VertexKey};
+    use crate::entity::{EdgeKey, LoopKey, VertexKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let loops: Vec<LoopKey> = body.loops().map(|(k, _)| k).collect();
     let vertices: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
+    let mut pick = |n: usize| (rng.next_u64() as usize) % n;
+    // The spine tears draw from arenas a body with no half-edge still
+    // has; every other tear keeps its draws as they were.
+    if plant_spine(body, tear, &mut pick) {
+        return;
+    }
     if halves.is_empty() {
         return;
     }
-    let mut pick = |n: usize| (rng.next_u64() as usize) % n;
     let he = halves[pick(halves.len())];
     let other = halves[pick(halves.len())];
     match tear {
+        Tear::EdgeForeign => {
+            let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+            body.get_half_edge_mut(he).unwrap().edge = edges[pick(edges.len())];
+        }
+        Tear::EmptyVertexForeign
+        | Tear::LoopFaceForeign
+        | Tear::RingForeign
+        | Tear::FaceShellForeign
+        | Tear::ShellFacesForeign
+        | Tear::ShellSolidForeign
+        | Tear::SolidShellsForeign => unreachable!("plant_spine planted {tear:?}"),
         Tear::NextDangling => body.get_half_edge_mut(he).unwrap().next = dead,
         Tear::PrevDangling => body.get_half_edge_mut(he).unwrap().prev = dead,
         Tear::NextForeign => body.get_half_edge_mut(he).unwrap().next = other,
@@ -761,6 +793,50 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead
             }
         }
     }
+}
+
+/// Plants a tear of the spine records (a loop's boundary or face, a
+/// face's rings or shell, a shell's faces or solid, a solid's shells),
+/// each drawn over the live keys of its arenas; `false` for a tear of
+/// the half-edge records, which [`plant`] draws itself.
+fn plant_spine(body: &mut Body<f64>, tear: Tear, pick: &mut impl FnMut(usize) -> usize) -> bool {
+    let loops: Vec<_> = body.loops().map(|(k, _)| k).collect();
+    let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+    let shells: Vec<_> = body.shells().map(|(k, _)| k).collect();
+    let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
+    let vertices: Vec<_> = body.vertices().map(|(k, _)| k).collect();
+    match tear {
+        Tear::EmptyVertexForeign => {
+            let (l, v) = (loops[pick(loops.len())], vertices[pick(vertices.len())]);
+            body.get_loop_mut(l).unwrap().boundary = LoopBoundary::Empty { vertex: v };
+        }
+        Tear::LoopFaceForeign => {
+            let (l, f) = (loops[pick(loops.len())], faces[pick(faces.len())]);
+            body.get_loop_mut(l).unwrap().face = f;
+        }
+        Tear::RingForeign => {
+            let (f, l) = (faces[pick(faces.len())], loops[pick(loops.len())]);
+            body.get_face_mut(f).unwrap().rings.push(l);
+        }
+        Tear::FaceShellForeign => {
+            let (f, s) = (faces[pick(faces.len())], shells[pick(shells.len())]);
+            body.get_face_mut(f).unwrap().shell = s;
+        }
+        Tear::ShellFacesForeign => {
+            let (s, f) = (shells[pick(shells.len())], faces[pick(faces.len())]);
+            body.get_shell_mut(s).unwrap().faces.push(f);
+        }
+        Tear::ShellSolidForeign => {
+            let (s, solid) = (shells[pick(shells.len())], solids[pick(solids.len())]);
+            body.get_shell_mut(s).unwrap().solid = solid;
+        }
+        Tear::SolidShellsForeign => {
+            let (solid, s) = (solids[pick(solids.len())], shells[pick(shells.len())]);
+            body.get_solid_mut(solid).unwrap().shells.push(s);
+        }
+        _ => return false,
+    }
+    true
 }
 
 /// The operators this pass drives whose mutation phase **reaches
@@ -1366,7 +1442,7 @@ enum AnchorCall {
     Kev(HalfEdgeKey),
     /// `mef_chord` at [`MefSite::Chords`].
     Mef(HalfEdgeKey, HalfEdgeKey),
-    /// `mekr_chord` at a site whose ring is a cycle.
+    /// `mekr_chord`, at any site.
     Mekr(MekrSite),
     Kvfs(SolidKey),
 }
@@ -1396,6 +1472,52 @@ impl AnchorCall {
             Self::Kvfs(solid) => body.kvfs(solid).map(|_| ()),
         }
     }
+
+    /// The call through its operator's other door, where it has one
+    /// that runs the same plan: `kef_minting`, `kev_describing` with
+    /// every merged member re-described as its chord, and `mekr` handed
+    /// the chord `mekr_chord` derives. `None` for an operator with one
+    /// door.
+    fn run_twin(self, body: &mut Body<f64>, tol: Tol) -> Option<Result<(), EulerOpError>> {
+        Some(match self {
+            Self::Kef(he) => body.kef_minting(he, tol).map(|_| ()),
+            Self::Kev(he) => {
+                let chords = crate::seqgen::try_chord_redescriptions(body, he).unwrap_or_default();
+                body.kev_describing(he, &chords, tol).map(|_| ())
+            }
+            Self::Mekr(site) => {
+                let chord = mekr_site_chord(body, site)?;
+                body.mekr(site, chord, tol).map(|_| ())
+            }
+            Self::Kemr(..) | Self::Mef(..) | Self::Kvfs(_) => return None,
+        })
+    }
+}
+
+/// The chord `mekr_chord` derives at `site`: the line between its two
+/// anchor vertices' points, or the scaffolding circle where both are one
+/// vertex. `None` where an anchor does not resolve.
+fn mekr_site_chord(
+    body: &Body<f64>,
+    site: MekrSite,
+) -> Option<geom_brep::EdgeCurveSpec<f64>> {
+    let start = |he| body.get_half_edge(he).map(|h| h.start);
+    let lone = |l| match body.get_loop(l)?.boundary {
+        LoopBoundary::Empty { vertex } => Some(vertex),
+        LoopBoundary::Cycle { .. } => None,
+    };
+    let (u, w) = match site {
+        MekrSite::Cycles { target, ring } => (start(target)?, start(ring)?),
+        MekrSite::EmptyRing { target, ring } => (start(target)?, lone(ring)?),
+        MekrSite::EmptyTarget { target, ring } => (lone(target)?, start(ring)?),
+        MekrSite::BothEmpty { target, ring } => (lone(target)?, lone(ring)?),
+    };
+    let point = |v| crate::readback::vertex_point(body, v).ok();
+    Some(if u == w {
+        geom_brep::EdgeCurveSpec::self_loop_circle_at(point(u)?)
+    } else {
+        geom_brep::EdgeCurveSpec::line_between(point(u)?, point(w)?)
+    })
 }
 
 /// Every [`AnchorCall`] on `body`, as its keys read: each kill at every
@@ -1403,12 +1525,36 @@ impl AnchorCall {
 /// distinct half-edges that claim one loop; `mekr` with every half-edge
 /// as the ring, at every half-edge of another loop of the ring's face
 /// ([`MekrSite::Cycles`]) and every `Empty` loop of it
-/// ([`MekrSite::EmptyTarget`]); and `kvfs` at every solid.
+/// ([`MekrSite::EmptyTarget`]), and with every `Empty` loop as the ring,
+/// at every half-edge of another loop of its face
+/// ([`MekrSite::EmptyRing`]) and every other `Empty` loop of it
+/// ([`MekrSite::BothEmpty`]); and `kvfs` at every solid.
 fn anchor_calls(body: &Body<f64>) -> Vec<AnchorCall> {
     let halves: Vec<(HalfEdgeKey, crate::entity::HalfEdge)> =
         body.half_edges().map(|(k, h)| (k, h.clone())).collect();
     let face_of = |l| body.get_loop(l).map(|data| data.face);
     let mut calls = Vec::new();
+    for (ring, ring_data) in body.loops() {
+        if !matches!(ring_data.boundary, LoopBoundary::Empty { .. }) {
+            continue;
+        }
+        for (target, other) in &halves {
+            if other.parent_loop != ring && face_of(other.parent_loop) == Some(ring_data.face) {
+                calls.push(AnchorCall::Mekr(MekrSite::EmptyRing {
+                    target: *target,
+                    ring,
+                }));
+            }
+        }
+        for (target, other) in body.loops() {
+            if target != ring
+                && other.face == ring_data.face
+                && matches!(other.boundary, LoopBoundary::Empty { .. })
+            {
+                calls.push(AnchorCall::Mekr(MekrSite::BothEmpty { target, ring }));
+            }
+        }
+    }
     for (he, data) in &halves {
         calls.push(AnchorCall::Kef(*he));
         if let Some(m) = body.mate(*he) {
@@ -1444,34 +1590,90 @@ fn anchor_calls(body: &Body<f64>) -> Vec<AnchorCall> {
     calls
 }
 
-/// No over-refusal of the anchor and run proofs: on every valid body
-/// [`FIXTURES`], [`BESIDE_A_LONE_VERTEX`] and
-/// [`RING_ABOUT_AN_EMPTY_OUTER`] build, every [`anchor_calls`] call
-/// refuses nothing as `OrbitBroken` or `LoopCycleBroken`. An
-/// enumeration, not a sample.
+/// An `Empty` ring beside a cycle outer loop
+/// ([`crate::fixtures::ops_strutted`], the strut killed from its root by
+/// `kemr`): the valid body that offers `mekr` an `Empty` ring.
+const EMPTY_RING_BESIDE_A_CYCLE: (&str, BuildFixture) = ("empty ring beside a cycle", |tol| {
+    let (mut body, _, _, strut) = crate::fixtures::ops_strutted(tol);
+    body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    body
+});
+
+/// Two `Empty` loops of one face ([`crate::fixtures::ops_segment`], the
+/// segment killed by `kemr`): the valid body that offers `mekr` two
+/// `Empty` loops.
+const TWO_EMPTY_LOOPS: (&str, BuildFixture) = ("two empty loops", |tol| {
+    let (mut body, _, seg) = crate::fixtures::ops_segment(tol);
+    body.kemr(seg.he_plus, seg.he_minus).unwrap();
+    body
+});
+
+/// Null scaffolding on the declined cube ([`Body::mev_null`]): a null
+/// strut at the seed vertex, and a null fan split there, whose kill
+/// merges a fan and moves nothing.
+const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
+    ("null strut on the declined cube", |tol| {
+        let cube = declined_cube::<f64>(tol);
+        let mut body = cube.body;
+        let he = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let site = MevSite::Fan { he1: he, he2: he };
+        body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        body
+    }),
+    ("null fan split on the declined cube", |tol| {
+        let cube = declined_cube::<f64>(tol);
+        let mut body = cube.body;
+        let he1 = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let orbit = body.vertex_orbit(he1).unwrap();
+        let site = MevSite::Fan {
+            he1,
+            he2: orbit[orbit.len() - 1],
+        };
+        body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        body
+    }),
+];
+
+/// No over-refusal of the anchor, run and removal proofs: on every
+/// valid body [`FIXTURES`], [`BESIDE_A_LONE_VERTEX`],
+/// [`RING_ABOUT_AN_EMPTY_OUTER`], [`EMPTY_RING_BESIDE_A_CYCLE`],
+/// [`TWO_EMPTY_LOOPS`], [`NULL_SCAFFOLDING`], the genus-2 body and the
+/// holed box build, every [`anchor_calls`] call, through each door its
+/// operator has ([`AnchorCall::run_twin`]), refuses nothing that
+/// reports a torn arena ([`EulerOpError::reports_tier1_corruption`]).
+/// An enumeration, not a sample.
 ///
 /// Each proof sits late in its plan, so a sweep whose calls all refused
 /// earlier would pass having asked none of them; the floors say each
-/// operator ran to `Ok` somewhere, `mekr` at both of its walked sites,
-/// `kev` at a strut, the one kill whose anchor its merged fan does not
-/// prove, and each kill emptied a loop somewhere, the write whose proof
-/// reads every member: `kev` at the segment, `kef` at the circle (the
-/// `Lone` inverse), and `kemr` at the strut from its tip.
+/// operator ran to `Ok` somewhere, through each of its doors, `mekr` at
+/// each of its four sites, `kev` at a strut, the one kill whose anchor
+/// its merged fan does not prove, and at a null edge, whose merge moves
+/// nothing, and each kill emptied a loop somewhere, the write whose
+/// proof reads every member: `kev` at the segment, `kef` at the circle
+/// (the `Lone` inverse), and `kemr` at the strut from its tip.
 #[test]
 fn valid_fixtures_never_refuse_a_kill_anchor() {
     let tol = Tol::witness();
-    let bodies: [(&str, BuildFixture); 6] = [
+    let bodies: [(&str, BuildFixture); 12] = [
         FIXTURES[0],
         FIXTURES[1],
         FIXTURES[2],
         BESIDE_A_LONE_VERTEX[0],
         BESIDE_A_LONE_VERTEX[1],
         RING_ABOUT_AN_EMPTY_OUTER,
+        EMPTY_RING_BESIDE_A_CYCLE,
+        TWO_EMPTY_LOOPS,
+        NULL_SCAFFOLDING[0],
+        NULL_SCAFFOLDING[1],
+        ("ops_genus2", ops_genus2),
+        ("ops_holed_box", |tol| ops_holed_box(tol).body),
     ];
-    // Per operator: calls run to `Ok`, and kills that emptied a loop.
-    let mut ran = [[0usize; 2]; ANCHOR_OPS.len()];
+    // Per operator: calls run to `Ok` through the first door, kills
+    // that emptied a loop, and calls run to `Ok` through the twin.
+    let mut ran = [[0usize; 3]; ANCHOR_OPS.len()];
     let mut kev_at_a_strut = 0usize;
-    let mut mekr_sites = [0usize; 2];
+    let mut kev_at_a_null_edge = 0usize;
+    let mut mekr_sites = [0usize; 4];
     for (fixture, build) in bodies {
         let body = build(tol);
         assert_eq!(
@@ -1480,6 +1682,14 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
             "{fixture} is valid"
         );
         for call in anchor_calls(&body) {
+            let mut twin = body.clone();
+            match call.run_twin(&mut twin, tol) {
+                Some(Ok(())) => ran[call.op()][2] += 1,
+                Some(Err(refusal)) if refusal.reports_tier1_corruption() => {
+                    panic!("{call:?}'s twin door on the valid {fixture} refuses {refusal:?}")
+                }
+                Some(Err(_)) | None => {}
+            }
             let mut trial = body.clone();
             match call.run(&mut trial, tol) {
                 Ok(()) => {
@@ -1505,26 +1715,38 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
                         let strut = body.vertex_orbit(m) == Some(vec![m])
                             && body.get_half_edge(m).map(|mate| mate.next) != Some(he);
                         kev_at_a_strut += usize::from(strut);
+                        let edge = body.get_half_edge(he).unwrap().edge;
+                        let curve = body.get_edge(edge).unwrap().curve;
+                        let null = body
+                            .get_curve_geom(curve)
+                            .is_some_and(|geom| geom.null_scaffold().is_some());
+                        kev_at_a_null_edge += usize::from(null);
                     }
-                    match call {
-                        AnchorCall::Mekr(MekrSite::Cycles { .. }) => mekr_sites[0] += 1,
-                        AnchorCall::Mekr(MekrSite::EmptyTarget { .. }) => mekr_sites[1] += 1,
-                        _ => {}
+                    if let AnchorCall::Mekr(site) = call {
+                        mekr_sites[match site {
+                            MekrSite::Cycles { .. } => 0,
+                            MekrSite::EmptyRing { .. } => 1,
+                            MekrSite::EmptyTarget { .. } => 2,
+                            MekrSite::BothEmpty { .. } => 3,
+                        }] += 1;
                     }
                 }
-                Err(
-                    refusal @ (EulerOpError::OrbitBroken { .. }
-                    | EulerOpError::LoopCycleBroken { .. }),
-                ) => panic!("{call:?} on the valid {fixture} refuses {refusal:?}"),
+                Err(refusal) if refusal.reports_tier1_corruption() => {
+                    panic!("{call:?} on the valid {fixture} refuses {refusal:?}")
+                }
                 Err(_) => {}
             }
         }
     }
-    for (op, [ok, emptied]) in ANCHOR_OPS.iter().zip(ran) {
+    for (op, [ok, emptied, twin]) in ANCHOR_OPS.iter().zip(ran) {
         assert!(ok > 0, "no `{op}` ran to Ok on the valid bodies: {ran:?}");
         assert!(
             !["kef", "kemr", "kev"].contains(op) || emptied > 0,
             "no `{op}` emptied a loop on the valid bodies: {ran:?}"
+        );
+        assert!(
+            !["kef", "kev", "mekr"].contains(op) || twin > 0,
+            "no `{op}` ran to Ok through its twin door on the valid bodies: {ran:?}"
         );
     }
     assert!(
@@ -1532,8 +1754,13 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
         "no `kev` ran to Ok at a strut on the valid bodies"
     );
     assert!(
+        kev_at_a_null_edge > 0,
+        "no `kev` ran to Ok at a null edge on the valid bodies"
+    );
+    assert!(
         mekr_sites.iter().all(|&n| n > 0),
-        "`mekr` ran to Ok at [Cycles, EmptyTarget] {mekr_sites:?} times on the valid bodies"
+        "`mekr` ran to Ok at [Cycles, EmptyRing, EmptyTarget, BothEmpty] {mekr_sites:?} \
+         times on the valid bodies"
     );
 }
 
@@ -1541,33 +1768,40 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
 /// the step every kill anchor is read through and every cycle walk
 /// takes; an edge that claims a foreign half, which gives a kill a mate
 /// whose own edge is another; a foreign start, which puts the vertex a
-/// kill anchors or empties a loop at on another vertex; and a foreign
+/// kill anchors or empties a loop at on another vertex; a foreign
 /// `parent_loop`, which puts a member a plan anchors at or walks in
-/// another loop.
-const ANCHOR_TEARS: [Tear; 4] = [
+/// another loop; and a foreign reference of every other kind a record
+/// a kill removes is named by: a half-edge's `edge`, a loop's `Empty`
+/// vertex and its `face`, a face's `rings` and `shell`, a shell's
+/// `faces` and `solid`, and a solid's `shells`.
+const ANCHOR_TEARS: [Tear; 12] = [
     Tear::NextForeign,
     Tear::EdgeBijection,
     Tear::StartForeign,
     Tear::ParentLoopForeign,
+    Tear::EdgeForeign,
+    Tear::EmptyVertexForeign,
+    Tear::LoopFaceForeign,
+    Tear::RingForeign,
+    Tear::FaceShellForeign,
+    Tear::ShellFacesForeign,
+    Tear::ShellSolidForeign,
+    Tear::SolidShellsForeign,
 ];
 
 /// One [`kill_anchor_rows`] cell per [`ANCHOR_OPS`] operator: calls,
-/// `Err`, and the `Ok` results that wrote a vertex anchor off its
-/// vertex, a `None` on a vertex that keeps edges, a loop anchor off
-/// ([`KillAnchorFault::LoopOff`], [`KillAnchorFault::HeldTwice`] or
-/// [`KillAnchorFault::Orphan`]), a half-edge naming a dead loop
-/// ([`KillAnchorFault::DeadLoop`]), and a half-edge starting at a dead
-/// vertex ([`KillAnchorFault::DeadStart`]).
-type AnchorRows = [[usize; 7]; ANCHOR_OPS.len()];
+/// `Err`, and the `Ok` results that wrote each of [`ANCHOR_COLUMNS`].
+type AnchorRows = [[usize; 2 + ANCHOR_COLUMNS.len()]; ANCHOR_OPS.len()];
 
 /// [`kill_anchor_rows`] for each tear kind of [`ANCHOR_TEARS`].
 type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 
 /// The anchor proofs' tear measurement under one tear kind: for each
 /// seed, one and two tears on every [`FIXTURES`] body, the genus-2 body,
-/// the holed box, [`BESIDE_A_LONE_VERTEX`] and
-/// [`RING_ABOUT_AN_EMPTY_OUTER`], then every [`anchor_calls`] call, each
-/// on a clone. An `Ok` counts in a fault column where it leaves a
+/// the holed box, [`BESIDE_A_LONE_VERTEX`],
+/// [`RING_ABOUT_AN_EMPTY_OUTER`], [`EMPTY_RING_BESIDE_A_CYCLE`] and
+/// [`TWO_EMPTY_LOOPS`], then every [`anchor_calls`] call, each on a
+/// clone. An `Ok` counts in a fault column where it leaves a
 /// [`kill_anchor_faults`] fault the tear did not plant, which is one the
 /// operator wrote. Each call runs inside a surgery scope, so a debug
 /// build's tier-1 postcondition, which a torn input fails whatever the
@@ -1575,7 +1809,7 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
     use test_utils::fuzz::Rng;
     let tol = Tol::witness();
-    let bodies: [(&str, BuildFixture); 8] = [
+    let bodies: [(&str, BuildFixture); 10] = [
         FIXTURES[0],
         FIXTURES[1],
         FIXTURES[2],
@@ -1584,8 +1818,10 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
         BESIDE_A_LONE_VERTEX[0],
         BESIDE_A_LONE_VERTEX[1],
         RING_ABOUT_AN_EMPTY_OUTER,
+        EMPTY_RING_BESIDE_A_CYCLE,
+        TWO_EMPTY_LOOPS,
     ];
-    let mut table = [[0usize; 7]; ANCHOR_OPS.len()];
+    let mut table = [[0usize; 2 + ANCHOR_COLUMNS.len()]; ANCHOR_OPS.len()];
     for &seed in seeds {
         for tears in [1, 2] {
             for (_, build) in bodies {
@@ -1619,6 +1855,10 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                             | KillAnchorFault::Orphan(_) => 2,
                             KillAnchorFault::DeadLoop(_) => 3,
                             KillAnchorFault::DeadStart(_) => 4,
+                            KillAnchorFault::DeadFace(_) => 5,
+                            KillAnchorFault::DeadShell(_) => 6,
+                            KillAnchorFault::DeadSolid(_) => 7,
+                            KillAnchorFault::DeadEdge(_) => 8,
                         };
                         columns[column] = true;
                     }
@@ -1633,30 +1873,24 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
 }
 
 /// The fault columns of an [`AnchorRows`] cell, after calls and `Err`.
-const ANCHOR_COLUMNS: [&str; 5] = [
+const ANCHOR_COLUMNS: [&str; 9] = [
     "a vertex anchor off its vertex",
     "`None` on a vertex that keeps edges",
     "a loop anchor off its loop",
-    "a half-edge naming a dead loop",
-    "a half-edge starting at a dead vertex",
+    "a dead loop left named",
+    "a dead vertex left named",
+    "a dead face left named",
+    "a dead shell left named",
+    "a dead solid left named",
+    "a dead edge left named",
 ];
 
-/// The fault cells a filed row owns, by operator and column, which
-/// [`assert_no_anchor_written`] leaves to that row: `kev` kills its far
-/// vertex on the strength of its orbit walk, and a half-edge the walk
-/// never reached is left starting at the dead vertex
-/// (`work/topo/kev-kills-a-far-vertex-whose-fan-it-reads-by-the-walk.md`).
-const FILED_CELLS: [(&str, &str); 1] = [("kev", ANCHOR_COLUMNS[4])];
-
-/// Asserts every fault column of `table` is 0 but [`FILED_CELLS`],
-/// naming the cell and `context` otherwise.
+/// Asserts every fault column of `table` is 0, naming the cell and
+/// `context` otherwise.
 fn assert_no_anchor_written(table: &AnchorTable, context: &str) {
     for (tear, rows) in ANCHOR_TEARS.iter().zip(table) {
         for (op, cells) in ANCHOR_OPS.iter().zip(rows) {
             for (column, &count) in ANCHOR_COLUMNS.iter().zip(&cells[2..]) {
-                if FILED_CELLS.contains(&(*op, *column)) {
-                    continue;
-                }
                 assert_eq!(
                     count, 0,
                     "`{op}` under {tear:?} wrote {column} through `Ok` ({context})"
@@ -1667,8 +1901,7 @@ fn assert_no_anchor_written(table: &AnchorTable, context: &str) {
 }
 
 /// The anchor proofs' tear measurement ([`kill_anchor_rows`]) on a few
-/// seeds, asserting that no `Ok` writes an anchor fault a filed row does
-/// not own: a
+/// seeds, asserting that no `Ok` writes an anchor fault: a
 /// counterexample search, on the shared fuzz seed and effort dial.
 #[test]
 fn kill_anchors_on_a_few_torn_bodies() {
@@ -1682,7 +1915,7 @@ fn kill_anchors_on_a_few_torn_bodies() {
 
 /// **Evidence, not a gate**: [`kill_anchor_rows`] on seeds `1..=2000`,
 /// run by hand, which prints the table and asserts every fault column
-/// is 0 but [`FILED_CELLS`].
+/// is 0.
 ///
 /// `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false cargo test --release -p
 /// topo --lib -- --ignored --nocapture
@@ -1693,7 +1926,8 @@ fn kill_anchors_on_a_few_torn_bodies() {
 fn kill_anchors_on_torn_bodies() {
     let seeds: Vec<u64> = (1..=2000).collect();
     // Two tear kinds at a time, one thread each.
-    let mut table: AnchorTable = [[[0usize; 7]; ANCHOR_OPS.len()]; ANCHOR_TEARS.len()];
+    let mut table: AnchorTable =
+        [[[0usize; 2 + ANCHOR_COLUMNS.len()]; ANCHOR_OPS.len()]; ANCHOR_TEARS.len()];
     for (pair, rows) in ANCHOR_TEARS.chunks(2).zip(table.chunks_mut(2)) {
         std::thread::scope(|scope| {
             let handles: Vec<_> = pair
@@ -1709,15 +1943,14 @@ fn kill_anchors_on_torn_bodies() {
         });
     }
     println!(
-        "| tear | op | calls | `Err` | `Ok`, anchor off | `Ok`, `None` on a vertex with edges | `Ok`, loop anchor off | `Ok`, dead loop | `Ok`, dead start |"
+        "| tear | op | calls | `Err` | `Ok`, {} |",
+        ANCHOR_COLUMNS.join(" | `Ok`, ")
     );
-    println!("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+    println!("| --- | --- |{}", " --- |".repeat(2 + ANCHOR_COLUMNS.len()));
     for (tear, rows) in ANCHOR_TEARS.iter().zip(&table) {
         for (op, cells) in ANCHOR_OPS.iter().zip(rows) {
-            println!(
-                "| `{tear:?}` | `{op}` | {} | {} | {} | {} | {} | {} | {} |",
-                cells[0], cells[1], cells[2], cells[3], cells[4], cells[5], cells[6]
-            );
+            let cells: Vec<String> = cells.iter().map(ToString::to_string).collect();
+            println!("| `{tear:?}` | `{op}` | {} |", cells.join(" | "));
         }
     }
     assert_no_anchor_written(&table, "seeds 1..=2000");

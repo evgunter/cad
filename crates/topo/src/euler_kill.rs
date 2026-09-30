@@ -315,7 +315,8 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{
-    EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, RunExtent, shared_loop,
+    Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, RunExtent,
+    shared_loop,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
@@ -576,16 +577,23 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); it has no rings ([`EulerOpError::FaceHasRings`]);
     /// its outer loop resolves (`StaleKey`); the loop is empty
     /// ([`EulerOpError::LoopNotEmpty`]); the lone vertex resolves
-    /// (`StaleKey`); no half-edge claims the loop
-    /// ([`EulerOpError::LoopCycleBroken`] naming the loop); no half-edge
-    /// starts at the vertex ([`EulerOpError::OrbitBroken`] naming the
-    /// first that does, the `Lone` proof every kill that leaves a vertex
-    /// lone makes). Both are tier-1-invalid input: a torn `parent_loop`
-    /// or start makes a half-edge of another shell name the loop or the
-    /// vertex, and the kill would leave it naming a dead one. A second
-    /// `Empty` loop holding the vertex is tier-1-invalid input this plan
-    /// does not check; the kill would leave that loop holding a dead
-    /// vertex.
+    /// (`StaleKey`). Then no record the kill keeps names one it removes,
+    /// each refusal naming the first such record in arena order: no
+    /// half-edge claims the loop ([`EulerOpError::LoopCycleBroken`]
+    /// naming the loop), and no other face lists it
+    /// ([`EulerOpError::KillLeavesDangling`]); no half-edge starts at the
+    /// vertex ([`EulerOpError::OrbitBroken`] naming it), and no other
+    /// loop is `Empty` at it (`LoopCycleBroken` naming that loop); no
+    /// other loop names the face, then no other shell lists it; no other
+    /// face names the shell, then no other solid lists it; no other shell
+    /// names the solid (`KillLeavesDangling`, each). All are
+    /// tier-1-invalid input — a torn `parent_loop`, start, boundary,
+    /// `face`, `rings`, `shell`, `faces` or `solid` names a removed record
+    /// from another shell — and each proof reads its arenas once
+    /// (the crate-internal `Body::require_run_of`,
+    /// `Body::require_loop_unlisted`, `Body::require_vertex_unnamed`,
+    /// `Body::require_face_unnamed`, `Body::require_shell_unnamed`,
+    /// `Body::require_solid_unnamed`).
     ///
     /// # Errors
     ///
@@ -631,10 +639,18 @@ impl<T: Decide> Body<T> {
             key: EntityId::Vertex(vertex),
         })?;
         let point = vertex_data.point;
+        let clearing = Clearing {
+            loops: &[loop_key],
+            faces: &[face],
+            shells: &[shell],
+            solids: &[solid],
+        };
         self.require_run_of([], loop_key, RunExtent::Whole, &[])?;
-        if let Some(he) = self.starts_at_besides(vertex, &[]) {
-            return Err(EulerOpError::OrbitBroken { he });
-        }
+        self.require_loop_unlisted(loop_key, clearing)?;
+        self.require_vertex_unnamed(vertex, &[], &[loop_key])?;
+        self.require_face_unnamed(face, clearing)?;
+        self.require_shell_unnamed(shell, clearing)?;
+        self.require_solid_unnamed(solid, clearing)?;
 
         // ---- Mutation (infallible from here on). ----
         // Kill order (documented above): face, loop, shell, solid,
@@ -767,7 +783,19 @@ impl<T: Decide> Body<T> {
     /// lone vertex);
     /// where the halves are adjacent in `next` order, both lie in one
     /// loop (`LoopCycleBroken` naming the mate's loop, which that arm
-    /// does not re-anchor). Then, where the merged fan is not
+    /// does not re-anchor); nothing the kill keeps names what it
+    /// removes, each proof reading its arena once — `he` and the mate
+    /// are the edge's two halves, each naming it and each claimed with
+    /// the other as its mate ([`EulerOpError::NotSameEdge`] — a torn
+    /// bijection can hand the kill a mate whose own edge is another), no
+    /// other half-edge names the edge (`UnclaimedHalfEdge` naming the
+    /// first that does in arena order), no half-edge off the far
+    /// vertex's orbit starts at it (`OrbitBroken` naming the first that
+    /// does — a torn `next` can close the orbit early, and a torn start
+    /// put a half-edge of elsewhere on it), and no loop is `Empty` at it
+    /// (`LoopCycleBroken` naming the loop); each is tier-1-invalid input
+    /// the kill would leave naming a dead record. Then, where the merged
+    /// fan is not
     /// empty: the killed
     /// edge's curve entry resolves ([`EulerOpError::StaleGeometry`]),
     /// and unless it is a null edge, per merged member in orbit order,
@@ -952,13 +980,10 @@ impl<T: Decide> Body<T> {
             key: EntityId::Edge(edge),
         })?;
         let (he_plus, he_minus, curve) = (edge_data.he_plus, edge_data.he_minus, edge_data.curve);
-        let m = if he_plus == he {
-            he_minus
-        } else if he_minus == he {
-            he_plus
-        } else {
-            return Err(EulerOpError::UnclaimedHalfEdge { he, edge });
-        };
+        let m = edge_data
+            .claim(he)
+            .ok_or(EulerOpError::UnclaimedHalfEdge { he, edge })?
+            .mate;
         let m_data = self.resolve_half_edge(m)?;
         let v = he_data.start; // survives
         let w = m_data.start; // dies (= end(he))
@@ -1031,6 +1056,11 @@ impl<T: Decide> Body<T> {
         if unsplice != KevUnsplice::General && shared_loop(&he_data, &m_data).is_none() {
             return Err(EulerOpError::LoopCycleBroken { r#loop: l2 });
         }
+        // Nothing the kill keeps names what it removes: the edge, whose
+        // mate the plan read from its slots, and `w`, whose half-edges it
+        // read from the orbit walk.
+        self.require_edge_pair(edge, edge_data, [he, m])?;
+        self.require_vertex_unnamed(w, &orbit_w, &[])?;
         Ok(KevPlan {
             he,
             m,
@@ -1310,7 +1340,19 @@ impl<T: Decide> Body<T> {
     /// is `Empty` at its vertex (`LoopCycleBroken` naming the surviving
     /// loop — a torn `next(m)` can land on a killed half or in another
     /// loop, or read the mate as alone in a loop that keeps other
-    /// members); then, where the surviving face would be re-minted, the
+    /// members); then no face but the dying one lists the dying loop, no
+    /// loop but it names the dying face, and no shell but the dying
+    /// face's own lists that face ([`EulerOpError::KillLeavesDangling`]
+    /// naming the first that does in arena order — tier-1-invalid input:
+    /// a torn `rings`, `face` or `faces` would be left naming a dead
+    /// record); then `he` and the mate are the edge's two halves, each
+    /// naming it and each claimed with the other as its mate
+    /// ([`EulerOpError::NotSameEdge`] — a torn bijection can hand the
+    /// kill a mate whose own edge is another), and no other half-edge
+    /// names the edge (`UnclaimedHalfEdge` naming the first that does in
+    /// arena order, which the kill would leave naming a dead edge); each
+    /// of these proofs reads its arenas once; then, where the surviving
+    /// face would be re-minted, the
     /// site mint's plan ([`Body::plan_moved_rows`]'s errors,
     /// [`EulerOpError::PcurveMint`] naming the surviving face among
     /// them — `KeysOnly` at this door).
@@ -1358,13 +1400,10 @@ impl<T: Decide> Body<T> {
         let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
         })?;
-        let m = if edge_data.he_plus == he {
-            edge_data.he_minus
-        } else if edge_data.he_minus == he {
-            edge_data.he_plus
-        } else {
-            return Err(EulerOpError::UnclaimedHalfEdge { he, edge });
-        };
+        let m = edge_data
+            .claim(he)
+            .ok_or(EulerOpError::UnclaimedHalfEdge { he, edge })?
+            .mate;
         let m_data = self.resolve_half_edge(m)?;
         let l1 = he_data.parent_loop; // dies with its face
         let l2 = m_data.parent_loop; // survives, absorbs the remnant
@@ -1488,6 +1527,17 @@ impl<T: Decide> Body<T> {
                 into: KillInto::Kept(l2),
             }),
         )?;
+        // The dying loop and face: nothing the kill keeps may name them.
+        // `f1` lists `l1` and dies with it, and `shell` drops `f1`.
+        let clearing = Clearing {
+            loops: &[l1],
+            faces: &[f1],
+            shells: &[shell],
+            ..Clearing::default()
+        };
+        self.require_loop_unlisted(l1, clearing)?;
+        self.require_face_unnamed(f1, clearing)?;
+        self.require_edge_pair(edge, &edge_data, [he, m])?;
         // The surviving loop as the splice leaves it, from its new
         // anchor: its own members from `next(m)` up to `m`, then the
         // remnant.
