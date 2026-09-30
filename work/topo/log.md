@@ -3300,3 +3300,20 @@ PR 3495 merged (`85cf497f36`), closing
 review, so there is no DR row. With the loop-anchor plans settled,
 `loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`
 (P2) is unblocked.
+
+## The walk-proofs unit out (2026-09-30)
+
+Priorities set on PR 3495's filed rows:
+- `kef-and-mekr-kill-a-loop-whose-members-they-read-by-the-walk` (P2, E);
+- `mef-and-mekr-move-a-walked-run-they-never-prove-is-the-loops` (P2, E);
+- `loop-cycle-broken-display-names-one-of-its-causes` (P3, E).
+
+Dispatched as one unit, with `kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names`
+(P3, E): every Euler plan proves the loops it walks, moves and
+removes. It does so through PR 3495's `require_kill_anchors` family,
+with `KillRun` lifted into one shared helper. `LoopCycleBroken`'s
+`Display` becomes true for every cause (D4 (i), a defect ending).
+Tier SINGLE, full. It runs on a fresh target.
+
+`loop-reparenting-doors…` waits for the null-kill unit, which works
+in the same site-mint code.
