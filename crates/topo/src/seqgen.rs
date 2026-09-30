@@ -111,12 +111,12 @@
 //!   invertible.)
 //!
 //!   **Measured** on the 64 × 32 stream set
-//!   [`tests::selection_is_pinned_over_a_fixed_stream_set`] pins: 138
-//!   `Kev` selections, of which 41 execute the roundtrip (the strut
-//!   and segment kills) and 97 skip — 28 the mirror adjacency and 69
+//!   [`tests::selection_is_pinned_over_a_fixed_stream_set`] pins: 133
+//!   `Kev` selections, of which 46 execute the roundtrip (the strut
+//!   and segment kills) and 87 skip — 20 the mirror adjacency and 67
 //!   the general fan merge. [`mev_fan_candidates`] offers strut sites
-//!   only (370 selected on those streams), and
-//!   [`assert_run_site_refuses`] reaches its refusal 283 times over
+//!   only (377 selected on those streams), and
+//!   [`assert_run_site_refuses`] reaches its refusal 292 times over
 //!   them, so the refusal that replaced the run-moving steps is itself
 //!   fuzzed. No step of those streams holds an edge whose carrier its
 //!   own endpoints left, which [`split_site`] and
@@ -162,7 +162,7 @@ pub(crate) enum OpChoice {
     MefLone(LoopKey),
     Kemr(HalfEdgeKey, HalfEdgeKey),
     Mekr(MekrSite),
-    Kfmrh(FaceKey, FaceKey),
+    Kfmrh(FaceKey, FaceKey, Door),
     /// `kfmrh`'s **shell-fusion** form: `f1` and `f2` lie in DIFFERENT
     /// shells of ONE solid, so the operator re-homes `f2`'s shell's
     /// surviving faces into `f1`'s shell and kills `f2`'s shell
@@ -170,16 +170,16 @@ pub(crate) enum OpChoice {
     /// vector is not the same-shell form's: the shell term carries the
     /// surgery instead of the genus term (`s −1, h 0` against
     /// `s 0, h +1`), so nothing but a catalog row separates the two.
-    KfmrhFuse(FaceKey, FaceKey),
-    Mfkrh(LoopKey),
+    KfmrhFuse(FaceKey, FaceKey, Door),
+    Mfkrh(LoopKey, Door),
     Kev(HalfEdgeKey),
-    Kef(HalfEdgeKey),
+    Kef(HalfEdgeKey, Door),
     Kvfs(SolidKey),
     /// The non-Euler public mutator (`ring_move(ring, to_face)`).
     /// ring_move's tier-1 preservation is the demotion claim's least
     /// obvious case (the separating-curve argument; see its docs in
     /// `crate::euler_ring`).
-    RingMove(LoopKey, FaceKey),
+    RingMove(LoopKey, FaceKey, Door),
     /// `split_edge(edge, t)`. The parameter is derived from the edge's
     /// own certified interval by [`split_site`], not carried here, so
     /// the choice stays `Copy`/`Eq` and the site stays deterministic.
@@ -194,6 +194,76 @@ pub(crate) enum OpChoice {
     /// needs: `mvfs` mints one shell per solid, and `mfkrh`'s
     /// component split leaves the single shell ENTITY in place.
     Movefac(ShellKey),
+}
+
+/// Which of a loop-moving operator's two doors a choice runs: the
+/// keys-only door, or its `_minting` twin at the walk's band. A
+/// generated body stores no pcurve row, so the two plan nothing and
+/// agree on every site; each candidate is offered through both, so the
+/// lane drives both through its tier-1 checks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Door {
+    KeysOnly,
+    Minting,
+}
+
+impl Door {
+    const BOTH: [Self; 2] = [Self::KeysOnly, Self::Minting];
+}
+
+/// `kfmrh(f1, f2)` through `door`.
+fn kfmrh_by(
+    body: &mut Body<f64>,
+    f1: FaceKey,
+    f2: FaceKey,
+    door: Door,
+    tol: Tol,
+) -> crate::euler_ring::KfmrhResult {
+    match door {
+        Door::KeysOnly => body.kfmrh(f1, f2),
+        Door::Minting => body.kfmrh_minting(f1, f2, tol),
+    }
+    .unwrap()
+}
+
+/// `mfkrh_plug(ring, true)` through `door`: the twin is handed the
+/// placeholder the sugar hands the keys-only door.
+fn mfkrh_plug_by(
+    body: &mut Body<f64>,
+    ring: LoopKey,
+    door: Door,
+    tol: Tol,
+) -> crate::euler_kill::MfkrhCreated {
+    match door {
+        Door::KeysOnly => body.mfkrh_plug(ring, true),
+        Door::Minting => body.mfkrh_minting(
+            ring,
+            crate::euler::FaceSurface::New {
+                surface: geom::Surface::nurbs_placeholder(),
+                sense: true,
+            },
+            tol,
+        ),
+    }
+    .unwrap()
+}
+
+/// `kef(he)` through `door`.
+fn kef_by(body: &mut Body<f64>, he: HalfEdgeKey, door: Door, tol: Tol) {
+    match door {
+        Door::KeysOnly => body.kef(he),
+        Door::Minting => body.kef_minting(he, tol),
+    }
+    .unwrap();
+}
+
+/// `ring_move(ring, to_face)` through `door`.
+fn ring_move_by(body: &mut Body<f64>, ring: LoopKey, to_face: FaceKey, door: Door, tol: Tol) {
+    match door {
+        Door::KeysOnly => body.ring_move(ring, to_face),
+        Door::Minting => body.ring_move_minting(ring, to_face, tol),
+    }
+    .unwrap();
 }
 
 impl OpChoice {
@@ -248,7 +318,7 @@ impl OpChoice {
                 s: -1,
                 ..Default::default()
             },
-            Self::Mfkrh(_) => EulerVector {
+            Self::Mfkrh(..) => EulerVector {
                 f: 1,
                 h: -1,
                 r: -1,
@@ -259,7 +329,7 @@ impl OpChoice {
                 e: -1,
                 ..Default::default()
             },
-            Self::Kef(_) => EulerVector {
+            Self::Kef(..) => EulerVector {
                 e: -1,
                 f: -1,
                 ..Default::default()
@@ -296,7 +366,7 @@ impl OpChoice {
     pub(crate) fn may_skip_roundtrip(&self) -> bool {
         matches!(
             self,
-            Self::Kev(_) | Self::Kef(_) | Self::KfmrhFuse(..) | Self::Movefac(_)
+            Self::Kev(_) | Self::Kef(..) | Self::KfmrhFuse(..) | Self::Movefac(_)
         )
     }
 
@@ -700,7 +770,7 @@ fn kfmrh_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     for (f1, face1) in body.faces() {
         for (f2, face2) in body.faces() {
             if f1 != f2 && face1.shell == face2.shell && face2.rings.is_empty() {
-                out.push(OpChoice::Kfmrh(f1, f2));
+                out.extend(Door::BOTH.map(|door| OpChoice::Kfmrh(f1, f2, door)));
             }
         }
     }
@@ -730,7 +800,7 @@ fn kfmrh_fuse_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
                 .solid_of_face(f2)
                 .expect("valid body: face and shell resolve");
             if solid1 == solid2 {
-                out.push(OpChoice::KfmrhFuse(f1, f2));
+                out.extend(Door::BOTH.map(|door| OpChoice::KfmrhFuse(f1, f2, door)));
             }
         }
     }
@@ -845,7 +915,7 @@ fn mfkrh_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
     for (_, face) in body.faces() {
         for &ring in &face.rings {
-            out.push(OpChoice::Mfkrh(ring));
+            out.extend(Door::BOTH.map(|door| OpChoice::Mfkrh(ring, door)));
         }
     }
     out
@@ -860,7 +930,7 @@ fn ring_move_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
         for &ring in &face.rings {
             for (to, target) in body.faces() {
                 if to != from && target.shell == face.shell {
-                    out.push(OpChoice::RingMove(ring, to));
+                    out.extend(Door::BOTH.map(|door| OpChoice::RingMove(ring, to, door)));
                 }
             }
         }
@@ -1158,7 +1228,7 @@ fn kef_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
         {
             continue;
         }
-        out.push(OpChoice::Kef(he));
+        out.extend(Door::BOTH.map(|door| OpChoice::Kef(he, door)));
     }
     out
 }
@@ -1304,11 +1374,11 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
         OpChoice::Mekr(site) => {
             body.mekr_chord(site, tol).unwrap();
         }
-        OpChoice::Kfmrh(f1, f2) | OpChoice::KfmrhFuse(f1, f2) => {
-            body.kfmrh(f1, f2).unwrap();
+        OpChoice::Kfmrh(f1, f2, door) | OpChoice::KfmrhFuse(f1, f2, door) => {
+            kfmrh_by(body, f1, f2, door, tol);
         }
-        OpChoice::Mfkrh(ring) => {
-            body.mfkrh_plug(ring, true).unwrap();
+        OpChoice::Mfkrh(ring, door) => {
+            mfkrh_plug_by(body, ring, door, tol);
         }
         OpChoice::Movefac(shell) => {
             body.movefac(shell).unwrap();
@@ -1319,14 +1389,14 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             assert_unlisted_members_answer_to_the_gate(body, he, &members, &chords, *counter, tol);
             body.kev_describing(he, &chords, tol).unwrap();
         }
-        OpChoice::Kef(he) => {
-            body.kef(he).unwrap();
+        OpChoice::Kef(he, door) => {
+            kef_by(body, he, door, tol);
         }
         OpChoice::Kvfs(solid) => {
             body.kvfs(solid).unwrap();
         }
-        OpChoice::RingMove(ring, to_face) => {
-            body.ring_move(ring, to_face).unwrap();
+        OpChoice::RingMove(ring, to_face, door) => {
+            ring_move_by(body, ring, to_face, door, tol);
         }
         OpChoice::SplitEdge(e) => {
             let (t, _) =
@@ -1411,17 +1481,17 @@ pub(crate) fn roundtrip(
             let created = body.mekr_chord(site, tol).unwrap();
             body.kemr(created.he_plus, created.he_minus).unwrap();
         }
-        OpChoice::Mfkrh(ring) => {
+        OpChoice::Mfkrh(ring, door) => {
             let old_face = body.get_loop(ring).expect("ring resolves").face;
-            let created = body.mfkrh_plug(ring, true).unwrap();
-            body.kfmrh(old_face, created.face).unwrap();
+            let created = mfkrh_plug_by(body, ring, door, tol);
+            kfmrh_by(body, old_face, created.face, door, tol);
         }
-        OpChoice::RingMove(ring, to_face) => {
+        OpChoice::RingMove(ring, to_face, door) => {
             // Self-paired: move there, move back. Exact up to ring-list
             // order, which the canonical form sorts away (iso docs).
             let old_face = body.get_loop(ring).expect("ring resolves").face;
-            body.ring_move(ring, to_face).unwrap();
-            body.ring_move(ring, old_face).unwrap();
+            ring_move_by(body, ring, to_face, door, tol);
+            ring_move_by(body, ring, old_face, door, tol);
         }
         OpChoice::SplitEdge(e) => {
             // The inverse is a kill that re-describes: `split_edge`
@@ -1464,11 +1534,11 @@ pub(crate) fn roundtrip(
             };
             body.mekr_chord(site, tol).unwrap();
         }
-        OpChoice::Kfmrh(f1, f2) => {
-            let result = body.kfmrh(f1, f2).unwrap();
-            body.mfkrh_plug(result.ring, true).unwrap();
+        OpChoice::Kfmrh(f1, f2, door) => {
+            let result = kfmrh_by(body, f1, f2, door, tol);
+            mfkrh_plug_by(body, result.ring, door, tol);
         }
-        OpChoice::KfmrhFuse(f1, f2) => {
+        OpChoice::KfmrhFuse(f1, f2, door) => {
             // The fusion is two surgeries at once, so its re-make is
             // three ops: `mfkrh` re-promotes the demoted ring, and
             // `movefac` re-mints the shell the fusion killed by
@@ -1478,8 +1548,8 @@ pub(crate) fn roundtrip(
             let Some(surviving_shell) = fusion_remake_shell(body, f1, f2) else {
                 return RoundtripOutcome::SkippedIrreversible;
             };
-            let result = body.kfmrh(f1, f2).unwrap();
-            body.mfkrh_plug(result.ring, true).unwrap();
+            let result = kfmrh_by(body, f1, f2, door, tol);
+            mfkrh_plug_by(body, result.ring, door, tol);
             body.movefac(surviving_shell).unwrap();
         }
         OpChoice::Movefac(_) => {
@@ -1537,7 +1607,7 @@ pub(crate) fn roundtrip(
             };
             body.mev_line(site, w_coords, tol).unwrap();
         }
-        OpChoice::Kef(he) => {
+        OpChoice::Kef(he, door) => {
             let he_data = body.get_half_edge(he).expect("resolves").clone();
             let mate = body.mate(he).expect("mate resolves");
             let mate_data = body.get_half_edge(mate).expect("resolves").clone();
@@ -1555,11 +1625,11 @@ pub(crate) fn roundtrip(
                 if survivor_face_data.outer != l2 || !survivor_face_data.rings.is_empty() {
                     return RoundtripOutcome::SkippedIrreversible;
                 }
-                body.kef(he).unwrap();
+                kef_by(body, he, door, tol);
                 body.mef_chord(MefSite::Chords { he1: b, he2: b }, tol)
                     .unwrap();
             } else {
-                body.kef(he).unwrap();
+                kef_by(body, he, door, tol);
                 let site = if b == he && d == mate {
                     MefSite::Lone { r#loop: l2 } // self-loop pair kill
                 } else if b == he {
@@ -1618,8 +1688,8 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
             assert_eq!(body.vertex_provenance.len(), 0);
             return;
         }
-        if let Some(OpChoice::Kef(he)) = kef_candidates(body, tol).first().copied() {
-            body.kef(he).unwrap();
+        if let Some(OpChoice::Kef(he, door)) = kef_candidates(body, tol).first().copied() {
+            kef_by(body, he, door, tol);
             continue;
         }
         if let Some(OpChoice::Kev(he)) = kev_candidates(body, tol).first().copied() {
@@ -1962,7 +2032,7 @@ mod tests {
     /// never adjust a filter to bring the old number back.
     #[test]
     fn selection_is_pinned_over_a_fixed_stream_set() {
-        const FINGERPRINT: u64 = 8_153_169_425_937_027_252;
+        const FINGERPRINT: u64 = 4_100_587_364_059_809_467;
         let mut hash = 0xcbf2_9ce4_8422_2325_u64;
         let mut fold = |bytes: &[u8]| {
             for b in bytes {
