@@ -176,6 +176,7 @@ class EditError(PncadError):
     value: Optional[float]
     offered: Optional[float | int]
     determinant: Optional[float]
+    index: Optional[int]
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]
@@ -1943,22 +1944,25 @@ class Placement:
     """Where `Node.transform_by` puts its input: a chain of steps, each
     a rigid step of expressions or a literal frame.
 
-    The chain composes left to right as a product: `a.then(b)` is
-    `a ∘ b`, so `b` acts on the body first, in the frame `a` builds.
-    A rigid step's components are slot expressions a parameter can
-    drive; a literal frame is held to the placement bar (finite and
-    proper) at the edit door.
+    The chain composes as a product: `a.compose(b)` is `a ∘ b`, in
+    `Frame.compose`'s order, so `b` acts on the body first, in the frame
+    `a` builds. A rigid step's components are slot expressions a
+    parameter can drive; a literal frame is held to the placement bar
+    (finite, proper and rigid) at the edit door.
     """
 
     @staticmethod
     def rigid(
+        *,
         translation: tuple[Expr, Expr, Expr],
         axis: tuple[Expr, Expr, Expr],
         angle: Expr,
     ) -> Placement:
         """One rigid step: rotate by `angle` about the axis through the
         origin with direction `axis`, then translate — `Node.transform`'s
-        convention."""
+        convention. Keyword-only. The components' dimensions are checked
+        where the step lands (`Node.transform_by`), whose refusal names
+        that step's slot."""
 
     @staticmethod
     def literal(frame: Frame) -> Placement:
@@ -1981,8 +1985,9 @@ class Placement:
         """One literal step: `Frame.path_start_frame`'s frame. Refuses
         as that constructor does (FrameError)."""
 
-    def then(self, inner: Placement) -> Placement:
-        """This chain followed by `inner`'s steps: `self ∘ inner`."""
+    def compose(self, inner: Placement) -> Placement:
+        """The composition `self ∘ inner`: `inner` acts on the body
+        first, in the frame `self` builds."""
 
     def __len__(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
@@ -2417,7 +2422,9 @@ class Node:
     @staticmethod
     def transform_by(input: NodeId, placement: Placement) -> Node:
         """A placement of an upstream body by a `Placement` chain.
-        `Node.transform` is this with one rigid step."""
+        `Node.transform` is this with one rigid step. Every rigid step's
+        components are checked against the slot they land in (EditError
+        `slot_dimension_mismatch` naming that step's slot)."""
 
     @staticmethod
     def boolean(

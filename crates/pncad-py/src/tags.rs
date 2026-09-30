@@ -1709,6 +1709,7 @@ pub fn frame_fault_tag(fault: &FrameFault) -> &'static str {
     match fault {
         FrameFault::NonFinite => "non_finite",
         FrameFault::Improper { .. } => "improper",
+        FrameFault::NotRigid { .. } => "not_rigid",
     }
 }
 

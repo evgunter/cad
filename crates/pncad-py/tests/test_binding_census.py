@@ -1041,9 +1041,14 @@ BOUND_AS = {
     "LeverRefusal": "MateFault.inner_variant",
     # What a frame fails to be a placement: the word `PersistError`'s
     # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
-    # `improper`) for a recorded maintenance row held to the
+    # `improper`, `not_rigid`) for a recorded maintenance row held to the
     # `SetPlacement` door's rule at load.
     "FrameFault": "PersistError.inner_variant",
+    # Which of a node's placement frames an edit refusal is about: its
+    # position crosses as `EditError.index` (a transform's step, an
+    # explicit rule's listed placement), `None` for an instance's own
+    # placement frame, the only one it has.
+    "FrameSite": "EditError.index",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
@@ -2470,7 +2475,7 @@ NOT_BOUND = {
     "RigidArg": SHAPE,
     # A placement's step: Python builds each as a one-step `Placement`
     # (`Placement.rigid`, `Placement.literal`) and chains them with
-    # `Placement.then`, so no value of the step type crosses.
+    # `Placement.compose`, so no value of the step type crosses.
     "Step": SHAPE,
     "VertexKey": SHAPE,
     "attribute": SHAPE,
@@ -3407,6 +3412,7 @@ MEMBERS_BOUND_AS = {
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
     "EditError::NonFinitePlacement": "EditError.variant",
+    "EditError::NonRigidPlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::NonFiniteAlignment": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
