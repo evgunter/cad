@@ -823,7 +823,7 @@ pub fn nonrational_second_derivative_sup(
     else {
         return Err(SecondDerivativeUnbounded::DerivativeKnotVector);
     };
-    let mut sum_sq = Interval::zero();
+    let mut sum_sq = <Interval as Certification>::zero();
     for comp in 0..3 {
         let coeffs: Vec<Interval> = control
             .iter()

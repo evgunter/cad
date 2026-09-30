@@ -4160,6 +4160,9 @@ mod derive_without_a_door {
                 && text.contains("certification rights")
                 && !text.contains("check"),
             "the refusal names the dual and who holds the door, and claims no check ran: {text}"
+        );
+    }
+}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::float_cmp)]
