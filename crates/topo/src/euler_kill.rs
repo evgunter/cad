@@ -1088,8 +1088,9 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::LoopCycleBroken { r#loop: l2 });
         }
         // Nothing the kill keeps names what it removes: the edge, whose
-        // mate the plan read from its slots, and `w`, whose half-edges it
-        // read from the orbit walk.
+        // mate the plan read from its slots, `w`, whose half-edges it read
+        // from the orbit walk, and the halves, whose neighbours it read
+        // from their own links.
         self.require_edge_unnamed(edge, [he, m])?;
         self.require_vertex_unnamed(w, &orbit_w, &[])?;
         let rewritten: Vec<LoopKey> = loop_writes.iter().map(|&(l, _)| l).collect();
