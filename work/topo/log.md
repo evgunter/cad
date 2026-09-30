@@ -4409,3 +4409,7 @@ offers shells of `c >= 2` components. The row's "a site is an address"
 property is the catalog's convention, not a ratified decision
 (`git log -S` finds only the S69 row's text), so the generator shape
 is the lane's to choose and state.
+
+PR 3566 merged (`b37d0526b0`) after CI run 36739836506 went green,
+closing `deep-snapshot-cannot-see-a-consumed-key-slot`. The deep
+snapshot now observes every table and every arena's next key.
