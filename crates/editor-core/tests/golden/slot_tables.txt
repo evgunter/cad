@@ -83,7 +83,7 @@ Shell { target: RecipeNodeId(1), thickness: #0, open: [] }
 Split { target: RecipeNodeId(1), tool: RecipeNodeId(2) }
 Boolean { op: Union, a: RecipeNodeId(1), b: RecipeNodeId(2), declare: None }
 Union { members: [RecipeNodeId(1), RecipeNodeId(2)], declare: None }
-Transform { input: RecipeNodeId(1), translation: [#0, #1, #2], rotation_axis: [#3, #4, #5], rotation_angle: #6 }
+Transform { input: RecipeNodeId(1), placement: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }
   #0 Translation(X)
   #1 Translation(Y)
   #2 Translation(Z)
@@ -91,6 +91,22 @@ Transform { input: RecipeNodeId(1), translation: [#0, #1, #2], rotation_axis: [#
   #4 RotationAxis(Y)
   #5 RotationAxis(Z)
   #6 RotationAngle
+Transform { input: RecipeNodeId(1), placement: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }, Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 1.0, 0.0] }), Rigid { translation: [#7, #8, #9], axis: [#10, #11, #12], angle: #13 }] } }
+  #0 Translation(X)
+  #1 Translation(Y)
+  #2 Translation(Z)
+  #3 RotationAxis(X)
+  #4 RotationAxis(Y)
+  #5 RotationAxis(Z)
+  #6 RotationAngle
+  #7 PlacementStep { step: 2, arg: Translation(X) }
+  #8 PlacementStep { step: 2, arg: Translation(Y) }
+  #9 PlacementStep { step: 2, arg: Translation(Z) }
+  #10 PlacementStep { step: 2, arg: RotationAxis(X) }
+  #11 PlacementStep { step: 2, arg: RotationAxis(Y) }
+  #12 PlacementStep { step: 2, arg: RotationAxis(Z) }
+  #13 PlacementStep { step: 2, arg: RotationAngle }
+Transform { input: RecipeNodeId(1), placement: Placement { steps: [Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 2.0] })] } }
 Pattern { input: RecipeNodeId(1), count: #0, kind: Linear { direction: [#1, #2, #3], spacing: #4 } }
   #0 Count
   #1 Direction(X)

@@ -24,7 +24,7 @@ use crate::common;
 
 use common::pinned;
 use geom_core::Tol;
-use geom_core::{Point2, Vec2};
+use geom_core::{Arc2, Point2, Vec2};
 use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, Start, Via};
 use profile::{RawLoop, test_support::bulge_loop};
 
@@ -227,11 +227,11 @@ static FIXTURES: &[(&str, &[[f64; 3]], &[usize])] = &[
 fn segment_bits(s: profile::Segment<f64>) -> Option<[u64; 4]> {
     match s {
         profile::Segment::Line => None,
-        profile::Segment::Arc {
+        profile::Segment::Arc(Arc2 {
             centre,
             radius,
             sweep,
-        } => Some([
+        }) => Some([
             centre.x.to_bits(),
             centre.y.to_bits(),
             radius.to_bits(),

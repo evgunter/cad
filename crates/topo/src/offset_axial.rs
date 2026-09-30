@@ -205,7 +205,7 @@
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKind};
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -2528,9 +2528,11 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Arc {
                             a,
                             b,
-                            centre,
-                            radius: *radius,
-                            sweep: u.perp_dot(v).atan2(u.dot(v)),
+                            arc: Arc2 {
+                                centre,
+                                radius: *radius,
+                                sweep: u.perp_dot(v).atan2(u.dot(v)),
+                            },
                         }
                     }
                 },

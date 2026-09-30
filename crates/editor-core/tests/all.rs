@@ -154,6 +154,10 @@ mod edit_ladder_rim;
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_placement_corpus_bits.rs"]
+mod edit_placement_corpus_bits;
+#[path = "edit_placement_type.rs"]
+mod edit_placement_type;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
@@ -445,6 +449,8 @@ mod node_standing;
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
 mod parallel_node_map_probe;
+#[path = "part_depth_bound.rs"]
+mod part_depth_bound;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]

@@ -3134,7 +3134,14 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
         tol: Tol,
     ) -> Self {
         Self {
-            parts: parts::PartCache::<T>::new(resolver, &[], boolean_sweep, profile_lift, tol),
+            parts: parts::PartCache::<T>::new(
+                resolver,
+                &[],
+                parts::Reached::none(),
+                boolean_sweep,
+                profile_lift,
+                tol,
+            ),
             tol,
         }
     }
@@ -3190,13 +3197,15 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, prior, cancel, opts, &[], tol)
+    evaluate_at_descent(doc, prior, cancel, opts, &[], parts::Reached::none(), tol)
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level
 /// deeper than its instantiator's. `chain` is the descent — every
 /// reference this run was reached through — which is what makes a
-/// cycle decidable at the seam. No prior: a referenced document is
+/// cycle decidable at the seam. `reached` holds the parts the document
+/// instantiates, already evaluated (see [`parts::PartCache`] on why
+/// the descent runs bottom-up). No prior: a referenced document is
 /// resolved fresh, and the memo that keeps THAT from costing anything
 /// is the part cache, one layer up.
 pub(crate) fn evaluate_nested<T>(
@@ -3204,12 +3213,20 @@ pub(crate) fn evaluate_nested<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
+    reached: parts::Reached<T>,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, chain, tol)
+    evaluate_at_descent(doc, None, cancel, opts, chain, reached, tol)
+}
+
+/// Whether `doc` was recorded at the process's ε — the D4 door below.
+/// A document that was not refuses every node before any of them runs,
+/// so its evaluation reaches none of its parts.
+pub(crate) fn recorded_at_process_eps<P>(doc: &Doc<P>, tol: Tol) -> bool {
+    doc.epsilon().to_bits() == tol.eps().to_bits()
 }
 
 fn evaluate_at_descent<T>(
@@ -3218,6 +3235,7 @@ fn evaluate_at_descent<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
+    reached: parts::Reached<T>,
     tol: Tol,
 ) -> Evaluation<T>
 where
@@ -3239,9 +3257,8 @@ where
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
-    let process_eps = tol.eps();
-    if doc.epsilon().to_bits() != process_eps.to_bits() {
-        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, process_eps);
+    if !recorded_at_process_eps(doc, tol) {
+        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, tol.eps());
     }
     // The lane environment, built ONCE and shared by every reader
     // below (slot evaluation, the lift's second pass, the two profile
@@ -3273,6 +3290,7 @@ where
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
+        reached,
         opts.boolean_sweep,
         opts.profile_lift,
         tol,
@@ -3283,9 +3301,10 @@ where
     // node is not an optimization — a per-node solve would be a second
     // answer to "where does this cluster sit". Its one geometric read
     // — each mated part's extent, the lever — comes off THIS run's
-    // part cache, lazily: a mated part is evaluated here, once, under
-    // the cache's own shielding bracket, and its instantiate node
-    // then hits the cache.
+    // part cache: at the top a mated part is evaluated on its first
+    // ask, once, under the cache's shielding bracket, and below the
+    // top the descent has already entered it. Either way its
+    // instantiate node then hits the cache.
     let reach = CacheReach { parts: &parts, tol };
     let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
     let op_env = wire::OpEnv {
@@ -4870,8 +4889,32 @@ where
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
-        | Node::Transform { .. } => {}
+        | Node::Boolean { .. } => {}
+        // A placement's STEP STRUCTURE and its literal frames are
+        // recipe payload outside the slots: the slot values below are
+        // fed by position, so a chain's kinds and order must feed here
+        // or `[rigid, literal]` and `[literal, rigid]` over the same
+        // numbers would share a key. Frames by bits, as an explicit
+        // rule's are.
+        Node::Transform { placement, .. } => {
+            h.write_u64(placement.steps.len() as u64);
+            for step in &placement.steps {
+                match step {
+                    crate::placement::Step::Rigid { .. } => h.write_tag(0),
+                    crate::placement::Step::Literal(frame) => {
+                        h.write_tag(1);
+                        for x in frame
+                            .columns
+                            .iter()
+                            .flatten()
+                            .chain(frame.translation.iter())
+                        {
+                            h.write_f64_bits(*x);
+                        }
+                    }
+                }
+            }
+        }
         // The member list is edges, so the upstream keys carry it — in
         // list order, and prefixed by their total length, so neither a
         // reordering nor a dropped member can alias another list. What

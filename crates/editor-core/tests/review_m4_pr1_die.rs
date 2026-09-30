@@ -97,12 +97,14 @@ fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNod
 
 fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<FakeProfile> {
     let (t, r, a) = p;
-    Node::Transform {
-        input: pip,
-        translation: [len(t[0]), len(t[1]), len(t[2])],
-        rotation_axis: [scl(r[0]), scl(r[1]), scl(r[2])],
-        rotation_angle: ang(*a),
-    }
+    Node::transform(
+        pip,
+        editor_core::Step::Rigid {
+            translation: [len(t[0]), len(t[1]), len(t[2])],
+            axis: [scl(r[0]), scl(r[1]), scl(r[2])],
+            angle: ang(*a),
+        },
+    )
 }
 
 fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile> {

@@ -136,8 +136,8 @@ use core::fmt;
 
 use geom_core::k_stats::decide;
 use geom_core::{
-    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol,
-    Vec2,
+    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign,
+    Tol, Vec2,
 };
 
 use crate::path::num;
@@ -1171,14 +1171,9 @@ pub enum SegmentKind<T: Real> {
     Line,
     /// A circular arc.
     Arc {
-        /// The carrier circle's center (sketch coordinates).
-        center: Point2<T>,
-        /// The carrier circle's radius (positive).
-        radius: T,
-        /// The signed sweep Δθ from the segment's start to its end about
-        /// `center`, positive counterclockwise — the arc's parameter
-        /// span is `|sweep|`.
-        sweep: T,
+        /// The carrier (sketch coordinates) and the signed sweep Δθ from
+        /// the segment's start to its end, positive counterclockwise.
+        arc: Arc2<T>,
         /// The turn sense: `Positive` = counterclockwise sweep
         /// (positive bulge), `Negative` = clockwise. Never `Zero` (that
         /// classification is a `Line`).
@@ -1228,19 +1223,10 @@ impl ValidatedSegment<f64> {
         );
         let kind = match self.kind {
             SegmentKind::Line => SegmentKind::Line,
-            SegmentKind::Arc { turn, .. } => {
-                let crate::LoweredArc {
-                    centre,
-                    radius,
-                    sweep,
-                } = crate::lower_arc(start, end, bulge);
-                SegmentKind::Arc {
-                    center: centre,
-                    radius,
-                    sweep,
-                    turn,
-                }
-            }
+            SegmentKind::Arc { turn, .. } => SegmentKind::Arc {
+                arc: crate::lower_arc(start, end, bulge),
+                turn,
+            },
         };
         ValidatedSegment {
             start,
@@ -1373,9 +1359,9 @@ impl<T: Real> ValidatedLoop<T> {
     /// let blends = slot.loops()[0].blend_arcs();
     /// assert_eq!(blends.len(), 1);
     /// match blends[0].kind {
-    ///     SegmentKind::Arc { center, radius, .. } => {
-    ///         assert!((radius - 0.25).abs() < 1e-12);
-    ///         assert!(center.x.abs() < 1e-12);
+    ///     SegmentKind::Arc { arc, .. } => {
+    ///         assert!((arc.radius - 0.25).abs() < 1e-12);
+    ///         assert!(arc.centre.x.abs() < 1e-12);
     ///     }
     ///     SegmentKind::Line => panic!("a fillet is an arc"),
     /// }
@@ -2260,9 +2246,7 @@ fn canonicalize_loop<T: Decide>(
         let kind = match &s.kind {
             SegKind::Line => SegmentKind::Line,
             SegKind::Arc(g) => SegmentKind::Arc {
-                center: g.center,
-                radius: g.radius,
-                sweep: g.sweep,
+                arc: g.arc,
                 turn: g.turn,
             },
         };
@@ -2356,7 +2340,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
                 perimeter = perimeter + s.len;
             }
             SegKind::Arc(g) => {
-                let theta = g.sweep;
+                let theta = g.arc.sweep;
                 // Circular-segment correction: (r²/2)(θ − sin θ),
                 // doubled here since we accumulate 2A. `r²` is the tight
                 // square, and here it is the tight square of something
@@ -2367,8 +2351,8 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
                 // bound at any instantiation — it is here so the file
                 // spells a square the one way the rule names, not
                 // because this site was wide.
-                twice_area = twice_area + g.radius.powi(2) * (theta - theta.sin());
-                perimeter = perimeter + g.radius * theta.abs();
+                twice_area = twice_area + g.arc.radius.powi(2) * (theta - theta.sin());
+                perimeter = perimeter + g.arc.radius * theta.abs();
             }
         }
     }

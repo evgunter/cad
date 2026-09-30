@@ -2,11 +2,12 @@
 id: store-constructed-carriers
 kind: unit
 title: Store the carriers circle, Center and fillet arcs are built from; delete the hand copies of bulge→carrier and the bulge accessor
-status: open
+status: parked
 opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
+blocked_on: [retire-the-stored-bulge]
 ---
 
 

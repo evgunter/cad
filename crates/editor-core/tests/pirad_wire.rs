@@ -18,7 +18,9 @@
 use crate::fixture;
 
 use editor_core::expr::DimensionError;
-use editor_core::{Dimension, Expr, Node, PersistError, ProfileDoc, RecipeNodeId, load, save};
+use editor_core::{
+    Dimension, Expr, Node, PersistError, ProfileDoc, RecipeNodeId, SlotId, load, save,
+};
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
 
@@ -49,12 +51,14 @@ fn half_turn_doc() -> ProfileDoc {
     .expect("a half-turn multiple is an angle");
     let (doc, _tr) = insert(
         doc,
-        Node::Transform {
-            input: block,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: angle,
-        },
+        Node::transform(
+            block,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle,
+            },
+        ),
     );
     doc
 }
@@ -77,9 +81,11 @@ fn a_half_turn_literal_round_trips() {
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
     // Frame, profile, extrude, then the transform.
     let unit = match back.node(RecipeNodeId(3)) {
-        Some(Node::Transform { rotation_angle, .. }) => {
-            rotation_angle.display_unit().expect("the unit survives")
-        }
+        Some(transform @ Node::Transform { .. }) => transform
+            .expr(SlotId::RotationAngle)
+            .expect("a one-step transform carries its angle")
+            .display_unit()
+            .expect("the unit survives"),
         other => panic!("expected the transform, got {other:?}"),
     };
     assert_eq!(unit.symbol(), "pi rad");

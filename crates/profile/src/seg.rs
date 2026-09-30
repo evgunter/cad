@@ -20,7 +20,7 @@
 //! carrier closed forms for the containment forest's parity test.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
+use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 
 use crate::Segment;
 
@@ -61,12 +61,8 @@ pub(crate) enum SegKind<T: Real> {
 /// Arc geometry: the canonical segment's carrier and sweep, plus the
 /// apex and span chord the membership margins are written on.
 pub(crate) struct ArcGeom<T: Real> {
-    /// The carrier circle's center.
-    pub center: Point2<T>,
-    /// The carrier circle's radius (positive).
-    pub radius: T,
-    /// The signed sweep Δθ (positive counterclockwise).
-    pub sweep: T,
+    /// The canonical segment's carrier and signed sweep.
+    pub arc: Arc2<T>,
     /// The arc's apex (its midpoint — the point farthest from the
     /// chord).
     pub apex: Point2<T>,
@@ -245,16 +241,12 @@ pub(crate) fn build_seg<T: Decide>(
     // turn for its margin to report.
     let kind = match segment {
         Segment::Line => SegKind::Line,
-        Segment::Arc { .. } if straightness == Sign::Zero => SegKind::Line,
-        Segment::Arc {
-            centre: center,
-            radius,
-            sweep,
-        } => {
+        Segment::Arc(..) if straightness == Sign::Zero => SegKind::Line,
+        Segment::Arc(arc) => {
             let turn = straightness;
             let apex = frame.apex(bulge);
             let span_chord = a.distance(apex);
-            let clearance = radius + radius - span_chord;
+            let clearance = arc.radius + arc.radius - span_chord;
             match decide("arc_diameter_clearance", Margin::of(clearance), band)
                 .map_err(SegIssue::Escalated)?
             {
@@ -264,9 +256,7 @@ pub(crate) fn build_seg<T: Decide>(
                 }
             }
             SegKind::Arc(ArcGeom {
-                center,
-                radius,
-                sweep,
+                arc,
                 apex,
                 span_chord,
                 turn,
@@ -400,10 +390,11 @@ pub(crate) struct JointReading<T: Real> {
 /// the two radii and the two centres' own coordinates
 /// ([`JointReading::scale`]).
 fn circles_scale<T: Real>(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> T {
-    g1.radius
-        .max(g2.radius)
-        .max(reach(g1.center))
-        .max(reach(g2.center))
+    g1.arc
+        .radius
+        .max(g2.arc.radius)
+        .max(reach(g1.arc.centre))
+        .max(reach(g2.arc.centre))
 }
 
 /// **`path_junction_side`** — whether a junction whose departure is
@@ -450,7 +441,7 @@ impl<T: Real> Seg<T> {
     pub(crate) fn arm(&self) -> T {
         match &self.kind {
             SegKind::Line => self.len,
-            SegKind::Arc(g) => arc_lever(g.radius, self.len),
+            SegKind::Arc(g) => arc_lever(g.arc.radius, self.len),
         }
     }
 
@@ -461,7 +452,7 @@ impl<T: Real> Seg<T> {
         match &self.kind {
             SegKind::Line => self.unit,
             SegKind::Arc(g) => {
-                let ccw = perp(p - g.center) * (T::one() / g.radius);
+                let ccw = perp(p - g.arc.centre) * (T::one() / g.arc.radius);
                 match g.turn {
                     Sign::Negative => -ccw,
                     Sign::Positive | Sign::Zero => ccw,
@@ -511,8 +502,8 @@ pub(crate) fn joint_tangency<T: Decide>(
         (SegKind::Line, SegKind::Arc(g)) => line_circle_joint(prev, g, band),
         (SegKind::Arc(g), SegKind::Line) => line_circle_joint(next, g, band),
         (SegKind::Arc(g1), SegKind::Arc(g2)) => {
-            let d = g1.center.distance(g2.center);
-            let dr = (g1.radius - g2.radius).abs();
+            let d = g1.arc.centre.distance(g2.arc.centre);
+            let dr = (g1.arc.radius - g2.arc.radius).abs();
             let identity = d + dr;
             match decide("carrier_circles_identity", Margin::of(identity), band)? {
                 Sign::Zero | Sign::Negative => Ok(JointReading {
@@ -522,7 +513,7 @@ pub(crate) fn joint_tangency<T: Decide>(
                     scale: circles_scale(g1, g2),
                 }),
                 Sign::Positive => {
-                    let external = d - (g1.radius + g2.radius);
+                    let external = d - (g1.arc.radius + g2.arc.radius);
                     match decide("carrier_circles_external", Margin::of(external), band)? {
                         Sign::Zero => Ok(JointReading {
                             class: JointClass::Tangent,
@@ -583,8 +574,11 @@ pub(crate) fn carrier_line_circle_margin<T: Real>(
     from: Point2<T>,
     g: &ArcGeom<T>,
 ) -> (T, T) {
-    let h = unit.perp_dot(g.center - from).abs();
-    (g.radius - h, g.radius.max(reach(g.center)).max(reach(from)))
+    let h = unit.perp_dot(g.arc.centre - from).abs();
+    (
+        g.arc.radius - h,
+        g.arc.radius.max(reach(g.arc.centre)).max(reach(from)),
+    )
 }
 
 /// A point's coordinate magnitude — the largest `|x|`, `|y|`, which is
@@ -774,7 +768,7 @@ fn line_arc<T: Decide>(
     g: &ArcGeom<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
-    let to_center = g.center - line.a;
+    let to_center = g.arc.centre - line.a;
     let h = line.unit.perp_dot(to_center);
     let (clearance, _) = carrier_line_circle_margin(line.unit, line.a, g);
     let mut contacts = Vec::new();
@@ -794,7 +788,7 @@ fn line_arc<T: Decide>(
         }
         Sign::Positive => {
             let tc = to_center.dot(line.unit);
-            let half = (g.radius.powi(2) - h.powi(2)).sqrt();
+            let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
             for t in [tc - half, tc + half] {
                 let q = line.a + line.unit * t;
                 if let Some(j) = joint(line_span(line, q, band)?, arc_span(g, q, band)?) {
@@ -842,9 +836,9 @@ fn arc_arc<T: Decide>(
     g2: &ArcGeom<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
-    let delta = g2.center - g1.center;
-    let d = g1.center.distance(g2.center);
-    let dr = (g1.radius - g2.radius).abs();
+    let delta = g2.arc.centre - g1.arc.centre;
+    let d = g1.arc.centre.distance(g2.arc.centre);
+    let dr = (g1.arc.radius - g2.arc.radius).abs();
     match decide("carrier_circles_identity", Margin::of(d + dr), band)? {
         Sign::Zero | Sign::Negative => {
             // Cocircular: span overlap on the shared carrier.
@@ -867,13 +861,13 @@ fn arc_arc<T: Decide>(
         }
         Sign::Positive => {
             let mut contacts = Vec::new();
-            let sum = g1.radius + g2.radius;
+            let sum = g1.arc.radius + g2.arc.radius;
             match decide("carrier_circles_external", Margin::of(d - sum), band)? {
                 Sign::Positive => {}
                 Sign::Zero => {
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
                     // identity margin, so the division is safe.
-                    let q = g1.center + delta * (g1.radius / d);
+                    let q = g1.arc.centre + delta * (g1.arc.radius / d);
                     push_arc_arc_contact(&mut contacts, g1, g2, q, true, band)?;
                 }
                 Sign::Negative => {
@@ -884,8 +878,9 @@ fn arc_arc<T: Decide>(
                             // identity margin d + |Δr| = 2d is definite,
                             // so d is bounded away from zero.
                             let two_d = d + d;
-                            let a = (d.powi(2) + g1.radius.powi(2) - g2.radius.powi(2)) / two_d;
-                            let q = g1.center + (delta / d) * a;
+                            let a =
+                                (d.powi(2) + g1.arc.radius.powi(2) - g2.arc.radius.powi(2)) / two_d;
+                            let q = g1.arc.centre + (delta / d) * a;
                             push_arc_arc_contact(&mut contacts, g1, g2, q, true, band)?;
                         }
                         Sign::Positive => {
@@ -894,9 +889,10 @@ fn arc_arc<T: Decide>(
                             let u = delta / d;
                             let n = perp(u);
                             let two_d = d + d;
-                            let a = (d.powi(2) + g1.radius.powi(2) - g2.radius.powi(2)) / two_d;
-                            let h = (g1.radius.powi(2) - a.powi(2)).sqrt();
-                            let foot = g1.center + u * a;
+                            let a =
+                                (d.powi(2) + g1.arc.radius.powi(2) - g2.arc.radius.powi(2)) / two_d;
+                            let h = (g1.arc.radius.powi(2) - a.powi(2)).sqrt();
+                            let foot = g1.arc.centre + u * a;
                             for q in [foot + n * h, foot - n * h] {
                                 push_arc_arc_contact(&mut contacts, g1, g2, q, false, band)?;
                             }
@@ -983,7 +979,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             }
         }
         SegKind::Arc(g) => {
-            let to_center = g.center - origin;
+            let to_center = g.arc.centre - origin;
             let h = dir.perp_dot(to_center);
             let (clearance, _) = carrier_line_circle_margin(dir, origin, g);
             match decide("carrier_line_circle", Margin::of(clearance), band).map_err(|_| Graze)? {
@@ -991,7 +987,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 Sign::Zero => Err(Graze),
                 Sign::Positive => {
                     let tc = to_center.dot(dir);
-                    let half = (g.radius.powi(2) - h.powi(2)).sqrt();
+                    let half = (g.arc.radius.powi(2) - h.powi(2)).sqrt();
                     let mut count = 0;
                     for t in [tc - half, tc + half] {
                         match decide("ray_advance", Margin::of(t), band) {
