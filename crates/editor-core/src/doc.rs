@@ -1515,15 +1515,11 @@ mod tests {
     /// this order is the clause's payload-strands-before-store-strands
     /// order; `dm7_delete_strands` holds that end of it at the door.
     /// The fixture is built by poking `Doc`'s fields, not through
-    /// the edit doors, because the reversal it has to be able to
-    /// exhibit is one no edit door can mint. The doors touch
-    /// `Doc::order` twice — `InsertNode` pushes the id it has just
-    /// minted, `DeleteNode` retains — and ids are minted
-    /// monotonically, so through the doors the order is ascending by
-    /// id always and the reversal is unreachable. A loaded document
-    /// can hold any order. In-crate reach spells that state in five
-    /// lines and keeps the row's subject the walk rather than the
-    /// door.
+    /// the edit doors, because the reversal has to be the row's choice:
+    /// through the doors, how a node's id sorts against the ids before
+    /// it is the mint's digest, not the author's. In-crate reach spells
+    /// that state in five lines and keeps the row's subject the walk
+    /// rather than the door.
     #[test]
     fn name_carriers_reads_the_payloads_then_the_store() {
         let mut doc: ProfileDoc = Doc::empty_derived("carriers", Tol::witness());

@@ -3534,7 +3534,7 @@ fn resolve_appearance<T: Decide>(
             (id, state.map(|v| &*v.name_table))
         })
         .collect();
-    appearance::resolve(doc.appearance(), &states)
+    appearance::resolve(doc.appearance(), order, &states)
 }
 
 /// One node's evaluation step: the result plus whether it was a memo

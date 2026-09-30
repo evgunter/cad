@@ -4119,8 +4119,13 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     // `SetPlacement` holds a cluster frame to (`Frame::admission_fault`).
     // Checked over the whole document rather than per arm because a
     // structural slot edit can reach a bad state from a node that was
-    // consistent before.
-    for (&node, n) in &new.nodes {
+    // consistent before; in document order, so where one edit breaks
+    // two nodes the refusal names the one placed first.
+    for (&node, n) in new
+        .order
+        .iter()
+        .filter_map(|id| Some((id, new.nodes.get(id)?)))
+    {
         let listed = |index| FrameSite::Listed { index };
         match n.placement_rule_fault(tol) {
             None => {}
