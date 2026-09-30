@@ -69,19 +69,23 @@ Dispatched 2026-09-30 as **AUTH-14** (`docs/AUTH-14-SPEC.md`, branch `author/edg
 
 ## Built (AUTH-14, 2026-09-30)
 
-Branch `author/edge-name-fault`. `PickIndex::edge_names_in` walks a
-drawn body's edges and keeps the refusal as a value
-(`EdgeNamesRefused`: the first `EdgeNameFault`, rendered through its
-own `Display`, and how many of how many refused). Both readers use it:
+Branch `author/edge-name-fault`. `PickIndex::edge_names_in` reads a
+drawn body's window whole and keeps the refusal as a value
+(`EdgeNamesRefused`: the body, its named and unnamed counts, and the
+first unnamed edge's `UnnamedEntity`, rendered through
+`EdgeNameFault::Unnamed`'s own `Display`). A window walk has no address
+to overrun and a body with no window answers nothing, so the loud arm
+is the only one the type can hold. Both readers use it:
 
 - `BlendTool::load_all_edges` refuses the whole load with
-  `BlendEvent::EdgesUnnamed` when any drawn edge of the target refuses,
+  `BlendEvent::EdgesUnnamed { refused }` when any drawn edge of the target refuses,
   partly or wholly, and leaves the held set untouched. It no longer
   answers `NoEdgesOnTarget` for a body whose edges it could not name.
 - `marks::HeldEdges::mark` draws the named held edges and carries the
   refusal on `EdgeOverlay::held_refused`. The viewport writes that
   every frame into the same zeroed-per-frame channel as the profile
-  count, and the toolbar draws `frame::held_edges_badge`.
+  count, and the toolbar draws `frame::held_edges_badge`. The fault
+  wears `Subject::Document` on both the badge and the line.
 
 A body the index does not draw (`NotDrawn`'s case) stays quiet on both
 paths. The face-side twin stays on VGEOM's row with a note, and the
