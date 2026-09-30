@@ -2724,7 +2724,7 @@ pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
     tol: Tol,
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
+) -> Result<ReplayedLoop<T>, ReplayError<T>> {
     let want = structure.fillets.len();
     let closed = drive(steps, tol, Guide::guided(structure.clone()))?;
     // Reaching FEWER resolutions than the record describes is not a
@@ -2813,7 +2813,32 @@ pub fn replay_guided<T: ArcCarrierScalar>(
             )));
         }
     }
-    Ok(closed.loop_)
+    Ok(ReplayedLoop(closed.loop_))
+}
+
+/// A loop the guided replay constructed: the loop, and the fact that
+/// every arc in it was verified at its construction, at this scalar
+/// (D1) — a `Center` arc by `path_arc_center_equidistant`, decided
+/// inline by the path door, and a lowered arc by the exact witness of
+/// the endpoint identities its lowering registers.
+///
+/// Minted only by [`replay_guided`] (the field is private to this
+/// module), and the one loop [`crate::ReplayedProfile`] is built from,
+/// so a table cannot reach the guided validation that consumes that
+/// fact.
+#[derive(Clone, Debug)]
+pub struct ReplayedLoop<T: Real>(ProfileLoop<T>);
+
+impl<T: Real> ReplayedLoop<T> {
+    /// The loop.
+    pub fn as_loop(&self) -> &ProfileLoop<T> {
+        &self.0
+    }
+
+    /// The loop, giving up the provenance.
+    pub fn into_loop(self) -> ProfileLoop<T> {
+        self.0
+    }
 }
 
 /// The driver proper: one walk over the steps, one guide, one chain.

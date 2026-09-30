@@ -3166,6 +3166,12 @@ impl<T: Decide> Core<T> {
                     start,
                     end,
                     crate::lower_to(start, bulge, end, Some(tol)),
+                    // The arc was lowered here, which registered its
+                    // endpoint identities: it is the construction's own
+                    // output, verified at its construction (D1), and
+                    // this re-read asks what validation asks of its
+                    // shape and joints, not its consistency.
+                    seg::Consistency::ByConstruction,
                     band,
                 )
             };
@@ -3202,11 +3208,13 @@ impl<T: Decide> Core<T> {
                 ) => {
                     return Err(flattened(issue.predicate(), margin));
                 }
-                // The stored arc IS an arc — its sagitta classified
-                // definite — but its carrier disagrees with its own
-                // vertex at the run's band: the difference of the
-                // scene's magnitudes the carrier was lowered at could
-                // not be read, which is the scene's resolution.
+                // Not produced here: the re-read runs
+                // `Consistency::ByConstruction`, which decides no
+                // consistency check. Mapped rather than asserted so the
+                // arm stays typed: a carrier that disagreed with its own
+                // vertex at the run's band would be a difference of the
+                // scene's magnitudes the lowering could not read, which
+                // is the scene's resolution.
                 Err(issue @ seg::SegIssue::Inconsistent { margin, .. }) => {
                     let (from, to) = (self.verts[leaving].0, self.verts[arc_seg % n].0);
                     let scale = radius.max(seg::reach(from)).max(seg::reach(to));
@@ -5755,7 +5763,15 @@ mod fillet_stored_form {
             );
         };
         let built: Vec<Result<Seg<f64>, SegIssue<f64>>> = (0..n)
-            .map(|i| seg::build_seg(vs[i], vs[(i + 1) % n], lp.segments()[i], band))
+            .map(|i| {
+                seg::build_seg(
+                    vs[i],
+                    vs[(i + 1) % n],
+                    lp.segments()[i],
+                    seg::Consistency::Decide,
+                    band,
+                )
+            })
             .collect();
         let validates = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
             Ok(_) => "ok".to_string(),

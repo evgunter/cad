@@ -98,7 +98,7 @@ fn guided_replay_at_f64_reproduces_plain_replay_bitwise() {
         );
         let guided = replay_guided(&closed.program, &structure, tol())
             .expect("and the record it just wrote guides it");
-        same_bits(&plain, &guided, &format!("row {i}: guided"));
+        same_bits(&plain, guided.as_loop(), &format!("row {i}: guided"));
     }
 }
 
@@ -111,9 +111,15 @@ fn guided_validation_at_f64_reproduces_plain_validation() {
         ("rect", profile(vec![rect(0.0, 0.0, 3.0, 2.0)])),
         ("rounded", profile(vec![rounded_rect(4.0, 3.0, 0.5)])),
     ] {
+        // The guided door takes loops a guided replay built, so the
+        // fixture goes through its program; the pass-1 profile is the
+        // one plain validation and the record are taken of.
+        let (p, replayed) = common::replayed::<f64>(&p);
         let plain = p.validate(tol()).expect("validates");
         let (recorded, canonical) = p.validate_recording(tol()).expect("and records");
-        let guided = p.validate_guided(tol(), &canonical).expect("and is guided");
+        let guided = replayed
+            .validate_guided(tol(), &canonical)
+            .expect("and is guided");
         for (li, ((a, b), c)) in plain
             .loops()
             .iter()
@@ -268,6 +274,7 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
         ..structure.clone()
     };
     let flipped = replay_guided(&program, &other, tol())
+        .map(profile::ReplayedLoop::into_loop)
         .expect("the other pocket is a valid fillet of the same legs");
     // Same arity, different geometry: the pick moved because the record
     // moved.
@@ -343,6 +350,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
         "the lens is the two-survivor configuration this row is about"
     );
     let nominal = replay_guided(&lifted, &structure, tol())
+        .map(profile::ReplayedLoop::into_loop)
         .expect("the interval lane confirms the recorded structure");
     let other = ReplayStructure {
         fillets: vec![profile::FilletDecision {
@@ -351,7 +359,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
         }],
         ..structure.clone()
     };
-    match replay_guided(&lifted, &other, tol()) {
+    match replay_guided(&lifted, &other, tol()).map(profile::ReplayedLoop::into_loop) {
         // The other pocket built: same arity, and the two are
         // SEPARATED — not merely different bits, which an enclosure
         // lane cannot honestly claim: some vertex's y enclosures are
@@ -556,7 +564,7 @@ fn guided_validation_runs_no_canonicalization_decide() {
     // A rectangle, so that the control genuinely reaches all three: two
     // of its vertices share an x, which is the only way the y rung of
     // the lexicographic order is ever asked.
-    let p = profile(vec![rect(0.0, 0.0, 3.0, 2.0)]);
+    let (p, replayed) = common::replayed::<f64>(&profile(vec![rect(0.0, 0.0, 3.0, 2.0)]));
     let (_, canonical) = p.validate_recording(tol()).expect("records");
 
     let bracket = Bracket::open();
@@ -573,7 +581,9 @@ fn guided_validation_runs_no_canonicalization_decide() {
     );
 
     let bracket = Bracket::open();
-    let _ = p.validate_guided(tol(), &canonical).expect("is guided");
+    let _ = replayed
+        .validate_guided(tol(), &canonical)
+        .expect("is guided");
     let recorded = bracket.finish();
     let guided = recorded.verdicts;
     // Both channels: a pinned predicate that ESCALATED rather than
@@ -604,13 +614,10 @@ fn guided_validation_runs_no_canonicalization_decide() {
 fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
     // Used ONLY by this row, so imported here rather than at module
     // scope.
-    use common::lift;
     use geom_core::Interval;
     use geom_core::k_stats::Bracket;
-    use profile::Profile;
-    let p = annulus();
+    let (p, lifted) = common::replayed::<Interval>(&annulus());
     let (_, canonical) = p.validate_recording(tol()).expect("records at f64");
-    let lifted: Profile<Interval> = lift(&p);
     let bracket = Bracket::open();
     let vp = lifted
         .validate_guided(tol(), &canonical)
@@ -627,6 +634,114 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
     assert_eq!(vp.loops().len(), 2);
     assert_eq!(vp.loops()[0].role(), profile::LoopRole::Outer);
     assert_eq!(vp.loops()[1].role(), profile::LoopRole::Hole);
+}
+
+/// The three consistency checks D1 puts on a stored arc
+/// (`crates/profile/src/seg.rs`, `build_seg`).
+const CONSISTENCY: [&str; 3] = ["arc_start_on_carrier", "arc_landing", "arc_sweep_range"];
+
+/// **A table is checked at `Interval`; a replayed loop is not
+/// re-checked.** D1: a table's arcs are verified at validate, and an arc
+/// the guided replay constructs was verified at its construction, which
+/// validation then does not re-decide. The same annulus (two circles,
+/// four semicircular arcs), as a lifted table through plain validation
+/// and as a guided replay through the guided door: the first decides
+/// all three checks on its arcs, the second asks none of them.
+#[test]
+fn a_table_decides_the_consistency_checks_at_interval_and_a_replayed_loop_does_not() {
+    use geom_core::Interval;
+    use geom_core::k_stats::Bracket;
+    let fixture = annulus();
+
+    let table: profile::Profile<Interval> = common::lift(&fixture);
+    let bracket = Bracket::open();
+    let _ = table
+        .validate(tol())
+        .expect("the table certifies at Interval");
+    let decided = bracket.finish().verdicts;
+    // Twice per arc: once on the input chain, and again on the
+    // canonical chain validation rebuilds.
+    for name in CONSISTENCY {
+        let asked = decided.iter().filter(|v| v.predicate == name).count();
+        assert_eq!(
+            asked, 8,
+            "a table's four arcs each decide {name} on both chains at Interval; it was \
+             decided {asked} times"
+        );
+    }
+
+    let (pass1, replayed) = common::replayed::<Interval>(&fixture);
+    let (_, canonical) = pass1.validate_recording(tol()).expect("records at f64");
+    let bracket = Bracket::open();
+    let _ = replayed
+        .validate_guided(tol(), &canonical)
+        .expect("the guided door certifies the replayed loop");
+    let recorded = bracket.finish();
+    let asked: Vec<&'static str> = recorded
+        .verdicts
+        .iter()
+        .map(|v| v.predicate)
+        .chain(recorded.escalations.iter().map(|e| e.predicate()))
+        .filter(|n| CONSISTENCY.contains(n))
+        .collect();
+    assert!(
+        asked.is_empty(),
+        "the guided door re-decided a replayed arc's consistency: {asked:?}"
+    );
+}
+
+/// **A `Center` arc's landing is covered at its construction.** The
+/// guided door does not decide `arc_landing`, and what stands in for it
+/// on a `Center` arc is the path door's own gate: at every scalar it
+/// decides `path_arc_center_equidistant`, |at − c| − |p − c| = 0, before
+/// the arc is built. Here the centre is a parameter box that leaves the
+/// perpendicular bisector of the chord — c and p drift apart inside it
+/// — and the guided replay at `Interval` refuses on that gate, so no
+/// loop with an arc that does not land on its end reaches validation.
+#[test]
+fn a_center_arc_whose_centre_leaves_its_bisector_refuses_at_the_guided_replay() {
+    use geom_core::{Interval, Real};
+    use profile::{ArcData, Step};
+    let t = tol();
+    let program = Open
+        .at(Point2::new(0.0, 0.0))
+        .arc_to(
+            Center {
+                c: Point2::new(1.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Point2::new(2.0, 0.0),
+            },
+            t,
+        )
+        .expect("the semicircle authors")
+        .line_to(profile::Start, t)
+        .expect("and closes")
+        .program;
+    let (_, structure) = replay_recording(&program, t).expect("replays at f64");
+    let mut boxed = 0;
+    let lifted: Vec<Step<Interval>> = program
+        .iter()
+        .map(|s| match s.map_scalar(Interval::from_f64) {
+            Step::ArcTo(ArcData::Center { c, winding, target }) => {
+                boxed += 1;
+                Step::ArcTo(ArcData::Center {
+                    c: Point2::new(Interval::from_bounds(1.0 - 1e-3, 1.0 + 1e-3), c.y),
+                    winding,
+                    target,
+                })
+            }
+            other => other,
+        })
+        .collect();
+    assert_eq!(boxed, 1, "the program carries its one Center arc");
+    let err = replay_guided(&lifted, &structure, t)
+        .expect_err("a centre off the bisector cannot land the arc on its end");
+    match &err.kind {
+        ReplayErrorKind::Path(PathError::Escalated { source }) => {
+            assert_eq!(source.predicate, Some("path_arc_center_equidistant"));
+        }
+        other => panic!("expected the Center door's equidistance gate, got {other:?}"),
+    }
 }
 
 /// A structure refusal reports both sides of a disagreement in PROSE.

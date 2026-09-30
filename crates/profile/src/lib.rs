@@ -156,8 +156,8 @@ use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Tol, Vec3
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, SpecForms, Step, Target,
-    TargetKind, TipState, Verb, arc_specs_at, replay, replay_guided, replay_recording,
+    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, ReplayedLoop, SpecForms, Step,
+    Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_guided, replay_recording,
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
@@ -173,8 +173,8 @@ pub use structure::{
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
     ArcCheck, BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole,
-    NoCornerReason, ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile,
-    ValidatedSegment, decision_subject,
+    NoCornerReason, ProfileError, ReplayedProfile, SegmentKind, SegmentRef, ValidatedLoop,
+    ValidatedProfile, ValidatedSegment, decision_subject,
 };
 /// The fillet recourse sentences and the map that selects one, under
 /// `test-support` only.

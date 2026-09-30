@@ -204,6 +204,24 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
     }
 }
 
+/// Whether [`build_seg`] decides an arc's three consistency checks
+/// (D1): a table's arcs are verified here, and an arc a construction
+/// built was verified at that construction, at this scalar, so the
+/// checks are not decided again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Consistency {
+    /// Decide the three checks (a table: plain validation, the
+    /// recording pass, the fixture door, a pinned lift).
+    Decide,
+    /// The arc is the construction's own output, verified there: by the
+    /// construction's own predicate (a `Center` arc's
+    /// `path_arc_center_equidistant`), or by the exact witness of the
+    /// identities the lowering registers. Passed by the guided
+    /// validation of a replayed loop and by the path door's re-read of
+    /// the fillet arcs it has just lowered.
+    ByConstruction,
+}
+
 /// Builds and classifies a segment from its endpoints and its stored
 /// canonical segment. An arc's carrier and sweep are the stored ones,
 /// verified against the endpoints here and never re-derived from them.
@@ -220,8 +238,9 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
 ///   line (the arc is chord-coincident at tolerance, and its carrier is
 ///   not carried); a definite sign ⇒ arc with that turn sense; in-band
 ///   ⇒ a sliver arc, escalated.
-/// - **The three consistency checks** (arcs only; D1's "verified at
-///   validate as ε-decisions"), each refused typed
+/// - **The three consistency checks** (arcs only, and only under
+///   [`Consistency::Decide`]; D1's table arcs, "verified at validate
+///   as ε-decisions"), each refused typed
 ///   ([`SegIssue::Inconsistent`]) on a definite answer it does not
 ///   accept:
 ///   - **`arc_start_on_carrier`** — margin: ‖a − c‖ − r (meters,
@@ -254,6 +273,7 @@ pub(crate) fn build_seg<T: Decide>(
     a: Point2<T>,
     b: Point2<T>,
     segment: Segment<T>,
+    consistency: Consistency,
     band: Band,
 ) -> Result<Seg<T>, SegIssue<T>> {
     let frame = ChordFrame::of(a, b);
@@ -285,7 +305,10 @@ pub(crate) fn build_seg<T: Decide>(
                 Sign::Negative => arc.reversed().sweep,
                 Sign::Positive | Sign::Zero => arc.sweep,
             };
-            check_carrier(arc, a, b, span, band)?;
+            match consistency {
+                Consistency::Decide => check_carrier(arc, a, b, span, band)?,
+                Consistency::ByConstruction => {}
+            }
             let apex = frame.apex(bow);
             let span_chord = a.distance(apex);
             // 2r − |a − apex| with |a − apex| = 2r·sin(|Δθ|/4), spelled

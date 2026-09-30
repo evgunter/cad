@@ -175,6 +175,41 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     )
 }
 
+/// A fixture profile carried to the guided door the way the evaluator
+/// carries a document: each loop lifted to its program
+/// ([`profile::lift`]), replayed at `f64` recording its structure, and
+/// replayed at `T` guided by that record. Returns the pass-1 profile
+/// (the recorded `f64` replays, which is what `validate_recording`
+/// records the canonical structure of) and the guided profile at `T`.
+///
+/// Guided validation takes only loops a guided replay constructed
+/// ([`profile::ReplayedProfile`]), so a fixture reaches it through its
+/// program; the pass-1 profile, not the fixture, is the one its record
+/// describes, because the lift's `Center` writer re-derives an arc's
+/// sweep and can move bits.
+pub fn replayed<T: profile::ArcCarrierScalar>(
+    p: &Profile<f64>,
+) -> (Profile<f64>, profile::ReplayedProfile<T>) {
+    let mut recorded = Vec::with_capacity(p.loops.len());
+    let mut guided = Vec::with_capacity(p.loops.len());
+    for (li, lp) in p.loops.iter().enumerate() {
+        let program = profile::lift(lp, tol()).unwrap_or_else(|e| panic!("loop {li} lifts: {e:?}"));
+        let (rec, structure) = profile::replay_recording(&program, tol())
+            .unwrap_or_else(|e| panic!("loop {li} replays at f64: {e:?}"));
+        let lifted: Vec<profile::Step<T>> =
+            program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
+        guided.push(
+            profile::replay_guided(&lifted, &structure, tol())
+                .unwrap_or_else(|e| panic!("loop {li} replays guided: {e:?}")),
+        );
+        recorded.push(rec);
+    }
+    (
+        Profile::new(p.plane, recorded),
+        profile::ReplayedProfile::new(p.plane.map(T::from_f64), guided),
+    )
+}
+
 /// Replays a recorded `f64` program at `T`, at the suite tolerance: each
 /// step lifted through `Step::map_scalar(T::from_f64)`, the exact
 /// embedding.

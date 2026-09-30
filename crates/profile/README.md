@@ -169,7 +169,8 @@ replayed output under every binding: flags verified-never-trusted
 (`UndeclaredTangency`, `TangencyContradicted`), same-carrier
 continuation is identity and is legal declared or undeclared, fit
 gating; a `ValidatedProfile` is minted by the validate doors
-(`validate`, `validate_recording`, `validate_guided`) on segments and by
+(`validate`, `validate_recording`, and `validate_guided` on a
+`ReplayedProfile`) on segments and by
 `ValidatedProfile::lift_onto` from an `f64` one, and
 extrude/revolve/fillet/loft/sweep never see a program. Junction
 predicates classify at replay exactly as at

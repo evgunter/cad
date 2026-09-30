@@ -119,12 +119,12 @@ fn dual_accepts_exactly_like_f64_with_identical_canonical_values() {
 /// whole reason guided replay exists.
 #[test]
 fn dual_guided_lands_on_the_identical_skeleton() {
-    let base = annulus();
+    let (base, replayed) = common::replayed::<Dual64>(&annulus());
     let f = base.validate(tol()).expect("annulus validates at f64");
     let (_, canonical) = base
         .validate_recording(tol())
         .expect("and records its structure");
-    let d = lift::<Dual64>(&base)
+    let d = replayed
         .validate_guided(tol(), &canonical)
         .expect("the guided Dual pass certifies the pinned canonical form");
     assert_eq!(skeleton_f64(&f), skeleton_dual(&d));

@@ -1446,7 +1446,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    profile::Profile::new(plane, loops)
+    profile::ReplayedProfile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
 }

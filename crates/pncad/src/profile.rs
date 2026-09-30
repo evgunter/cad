@@ -109,12 +109,13 @@ pub use ::profile::{
 // refusal about a record but cannot name the record it refused about
 // has half a door. The record types are also the driver's input: a
 // bisecting lane records at f64 and replays guided at its own scalar
-// through exactly these two functions.
+// through exactly these two functions, and validates what the guided
+// replay built as a `ReplayedProfile` of its `ReplayedLoop`s.
 pub use ::profile::{
     CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
     LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
-    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
-    replay_guided, replay_recording, structure,
+    ReplayedLoop, ReplayedProfile, RoleList, SegmentShape, StepSpan, StructureRefusal,
+    StructureRefusalKind, carrier_pieces, replay_guided, replay_recording, structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.

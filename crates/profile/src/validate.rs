@@ -144,11 +144,11 @@ use geom_core::{
 };
 
 use crate::path::num;
-use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
+use crate::seg::{self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
-use crate::{Profile, ProfileLoop};
+use crate::{Profile, ProfileLoop, ReplayedLoop, SketchPlane};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in
@@ -1610,47 +1610,6 @@ impl<T: Decide> Profile<T> {
         Ok((vp, CanonicalStructure { loops }))
     }
 
-    /// **Guided validation**: canonicalize at this scalar while
-    /// CONSUMING `structure`'s decisions instead of remaking them.
-    ///
-    /// The pinned predicates are STRUCTURALLY ABSENT here, not merely
-    /// expected to agree. `lex_min`'s ordering (the containment
-    /// representative) runs against a band an ulp wide — total at `f64`
-    /// by that band's design, and indeterminate at an interval scalar
-    /// on essentially every input, because two enclosures of
-    /// nearly-equal coordinates overlap. `loop_orientation` is the same
-    /// story at a sliver. Re-running either at a lane scalar would
-    /// therefore refuse almost everything it was asked, so the
-    /// representative, the start and the reversal are taken from the
-    /// record, and what this pass verifies
-    /// instead is the VALUE channel that hangs off them: the segments
-    /// the recorded permutation produces, classified here, must have
-    /// the recorded shapes, and the declared joints must land where
-    /// the record says.
-    ///
-    /// The containment forest is a different case and IS re-run: ray
-    /// parity is an ordinary decided predicate, so a lane can honestly
-    /// answer it, and the answers are compared against the record.
-    ///
-    /// # Errors
-    ///
-    /// [`ProfileError`] — validation's own refusals as ever, plus
-    /// [`ProfileError::Structure`] for a decision this scalar cannot
-    /// reproduce.
-    pub fn validate_guided(
-        &self,
-        tol: Tol,
-        structure: &CanonicalStructure,
-    ) -> Result<ValidatedProfile<T>, ProfileError> {
-        if structure.loops.len() != self.loops.len() {
-            return Err(ProfileError::Structure(StructureRefusal::shape(
-                structure.loops.len(),
-                self.loops.len(),
-            )));
-        }
-        self.validate_with(tol, &mut CanonGuide::Guided(structure.clone()))
-    }
-
     fn validate_with(
         &self,
         tol: Tol,
@@ -1669,7 +1628,7 @@ impl<T: Decide> Profile<T> {
         // classification.
         let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(self.loops.len());
         for (li, lp) in self.loops.iter().enumerate() {
-            loop_segs.push(build_loop_segs(lp, li, band)?);
+            loop_segs.push(build_loop_segs(lp, li, guide.consistency(), band)?);
             // Declared-tangent joints must name vertices of their loop
             // (set semantics — duplicates are harmless, order is not
             // significant; see `ProfileLoop::tangent_joints`). Checked
@@ -1838,6 +1797,7 @@ impl<T: Decide> Profile<T> {
                 &input_cusps[li],
                 role,
                 li,
+                guide.consistency(),
                 band,
                 guide.loop_at(li),
             )?;
@@ -1866,6 +1826,80 @@ impl<T: Decide> Profile<T> {
     }
 }
 
+/// A profile whose loops a guided replay constructed
+/// ([`crate::replay_guided`]): the only input
+/// [`validate_guided`](Self::validate_guided) takes.
+///
+/// The type is the provenance. Guided validation does not decide an
+/// arc's three consistency checks, because D1 verifies a constructed
+/// arc at its construction, at that scalar; a table's arcs have had no
+/// construction, so a [`Profile`] of them cannot reach this door and
+/// goes through [`Profile::validate`], which decides the checks.
+#[derive(Clone, Debug)]
+pub struct ReplayedProfile<T: Real>(Profile<T>);
+
+impl<T: Real> ReplayedProfile<T> {
+    /// Builds the profile from a plane and loops the guided replay
+    /// constructed, in the record's loop order.
+    pub fn new(plane: SketchPlane<T>, loops: Vec<ReplayedLoop<T>>) -> Self {
+        Self(Profile::new(
+            plane,
+            loops.into_iter().map(ReplayedLoop::into_loop).collect(),
+        ))
+    }
+}
+
+impl<T: Decide> ReplayedProfile<T> {
+    /// **Guided validation**: canonicalize at this scalar while
+    /// CONSUMING `structure`'s decisions instead of remaking them.
+    ///
+    /// The pinned predicates are STRUCTURALLY ABSENT here, not merely
+    /// expected to agree. `lex_min`'s ordering (the containment
+    /// representative) runs against a band an ulp wide — total at `f64`
+    /// by that band's design, and indeterminate at an interval scalar
+    /// on essentially every input, because two enclosures of
+    /// nearly-equal coordinates overlap. `loop_orientation` is the same
+    /// story at a sliver. Re-running either at a lane scalar would
+    /// therefore refuse almost everything it was asked, so the
+    /// representative, the start and the reversal are taken from the
+    /// record, and what this pass verifies
+    /// instead is the VALUE channel that hangs off them: the segments
+    /// the recorded permutation produces, classified here, must have
+    /// the recorded shapes, and the declared joints must land where
+    /// the record says.
+    ///
+    /// The containment forest is a different case and IS re-run: ray
+    /// parity is an ordinary decided predicate, so a lane can honestly
+    /// answer it, and the answers are compared against the record.
+    ///
+    /// An arc's three consistency checks are not decided at all
+    /// ([`Consistency::ByConstruction`]): each arc was verified at its
+    /// construction in the guided replay, at this scalar (D1) — a
+    /// `Center` arc by `path_arc_center_equidistant`, which the path
+    /// door decides inline, and a lowered arc by the exact witness of
+    /// the endpoint identities its lowering registers.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`] — validation's own refusals as ever, plus
+    /// [`ProfileError::Structure`] for a decision this scalar cannot
+    /// reproduce.
+    pub fn validate_guided(
+        &self,
+        tol: Tol,
+        structure: &CanonicalStructure,
+    ) -> Result<ValidatedProfile<T>, ProfileError> {
+        if structure.loops.len() != self.0.loops.len() {
+            return Err(ProfileError::Structure(StructureRefusal::shape(
+                structure.loops.len(),
+                self.0.loops.len(),
+            )));
+        }
+        self.0
+            .validate_with(tol, &mut CanonGuide::Guided(structure.clone()))
+    }
+}
+
 /// How a validation treats its own discrete decisions: selecting
 /// freely and writing them down, or consuming a prior pass's and
 /// re-verifying what can be re-verified.
@@ -1886,6 +1920,17 @@ impl CanonGuide {
         }
     }
 
+    /// Whether this pass decides the arcs' consistency checks: a
+    /// recording pass validates a table and decides them; a guided pass
+    /// validates the loops a guided replay constructed, verified at
+    /// that construction (D1), and does not.
+    fn consistency(&self) -> Consistency {
+        match self {
+            Self::Recording(_) => Consistency::Decide,
+            Self::Guided(_) => Consistency::ByConstruction,
+        }
+    }
+
     /// Writes one loop's decisions down (a no-op under guidance, where
     /// they came from the record).
     fn record(&mut self, rec: LoopCanonical) {
@@ -1899,6 +1944,7 @@ impl CanonGuide {
 fn build_loop_segs<T: Decide>(
     lp: &ProfileLoop<T>,
     loop_index: usize,
+    consistency: Consistency,
     band: Band,
 ) -> Result<Vec<Seg<T>>, ProfileError> {
     let n = lp.vertices.len();
@@ -1911,21 +1957,25 @@ fn build_loop_segs<T: Decide>(
     let mut segs = Vec::with_capacity(n);
     for k in 0..n {
         let (a, b) = (lp.vertices[k], lp.vertices[(k + 1) % n]);
-        segs.push(build_seg(a, b, lp.segments[k], band).map_err(|issue| {
-            let at = SegmentRef {
-                loop_index,
-                segment_index: k,
-            };
-            match issue {
-                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
-                SegIssue::Inconsistent { check, .. } => ProfileError::InconsistentArc { at, check },
-                SegIssue::Escalated(source) => ProfileError::Escalated {
-                    site: EscalationSite::Segment(at),
-                    source,
-                },
-            }
-        })?);
+        segs.push(
+            build_seg(a, b, lp.segments[k], consistency, band).map_err(|issue| {
+                let at = SegmentRef {
+                    loop_index,
+                    segment_index: k,
+                };
+                match issue {
+                    SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
+                    SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
+                    SegIssue::Inconsistent { check, .. } => {
+                        ProfileError::InconsistentArc { at, check }
+                    }
+                    SegIssue::Escalated(source) => ProfileError::Escalated {
+                        site: EscalationSite::Segment(at),
+                        source,
+                    },
+                }
+            })?,
+        );
     }
     Ok(segs)
 }
@@ -2197,6 +2247,7 @@ fn canonicalize_loop<T: Decide>(
     input_cusps: &[usize],
     role: LoopRole,
     loop_index: usize,
+    consistency: Consistency,
     band: Band,
     recorded: Option<&LoopCanonical>,
 ) -> Result<(ValidatedLoop<T>, LoopPermutation), ProfileError> {
@@ -2251,7 +2302,7 @@ fn canonicalize_loop<T: Decide>(
     let mut shapes = Vec::with_capacity(n);
     for k in 0..n {
         let (a, b) = (vertices[k], vertices[(k + 1) % n]);
-        let s = build_seg(a, b, stored[k], band).map_err(|issue| {
+        let s = build_seg(a, b, stored[k], consistency, band).map_err(|issue| {
             let at = SegmentRef {
                 loop_index,
                 segment_index: k,

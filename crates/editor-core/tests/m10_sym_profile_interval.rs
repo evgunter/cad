@@ -327,15 +327,25 @@ const PLATE_MAX_TERMS: usize = 288;
 /// chord-scale apex: plain decision forms +48, plain assertion forms
 /// −47, early assertion forms −23, door decision forms −22. Calls,
 /// frozen counts and every decision count are unchanged.
+///
+/// Re-captured once more when the guided door stopped deciding the
+/// consistency checks of loops the guided replay constructed (D1: a
+/// constructed arc is verified at its construction): plain and early
+/// decision calls −16 and assertion calls −8, back to their counts
+/// before the checks; door decision and assertion calls −16 and −8,
+/// leaving +16 each over those counts, which are the lowering's
+/// endpoint registrations (lowering with no registration returns the
+/// door to 330 and 190). Deciding the checks under guidance again
+/// reproduces the previous capture exactly.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 967 forms 15179 frozen 672 digest 7fd2ffda38d415f38aaf5fdf14626333\n\
-     Plain/Assertion calls 470 forms 2517 frozen 372 digest 7c4d5dbd6b77a698179777772d261559\n\
+     Plain/Decision calls 951 forms 15119 frozen 672 digest ea3b143c0dc5fd88e5b1029ea0eef939\n\
+     Plain/Assertion calls 462 forms 2525 frozen 372 digest 96ac8f747aa6d2f7f476c83832d84269\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 336 forms 8079 frozen 8 digest 65ffb0b4b49c111cd561760b5a2447c3\n\
-     Early/Assertion calls 470 forms 3354 frozen 104 digest 8912e426a1b9a067a43b57cd16b90816\n\
+     Early/Decision calls 320 forms 7993 frozen 8 digest 548181b64aaf9934580e0ed65b57a603\n\
+     Early/Assertion calls 462 forms 3388 frozen 104 digest 1556a53bd9783a851a0e7c04056f1549\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 362 forms 11950 frozen 104 digest 32b56abe67f4c2ce820d23e850ccc0b6\n\
-     Door/Assertion calls 214 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Door/Decision calls 346 forms 11928 frozen 104 digest 1b112575a9b10929236c22f61fc5527c\n\
+     Door/Assertion calls 206 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

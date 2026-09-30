@@ -166,6 +166,7 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
         let lp = profile::replay_guided(steps, &records[li], Tol::witness())
             .expect("the seeded elaboration keeps the nominal structure");
         seen_tangent |= lp
+            .as_loop()
             .vertices()
             .iter()
             .any(|v| v.x.deriv != 0.0 || v.y.deriv != 0.0);
@@ -251,22 +252,27 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
         .expect("the nominal validates and records");
     // The sketch plane at the lane scalar lifts as constants: VQ8 keeps
     // the plane out of the parameter layer.
-    let err = profile::Profile::new(plane.map(Interval::from_f64), loops)
+    let err = profile::ReplayedProfile::new(plane.map(Interval::from_f64), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is
     // an ordinary validation predicate going indeterminate on a box too
-    // wide to classify — `arc_diameter_clearance`, which is NOT a
-    // consumed structure decision and so does not (and should not)
-    // arrive in the `Structure` vocabulary. That distinction is the
+    // wide to classify — `carrier_line_circle`, the hole's carrier
+    // against the plate's sides, which is NOT a consumed structure
+    // decision and so does not (and should not)
+    // arrive in the `Structure` vocabulary. (It was
+    // `arc_diameter_clearance` while that margin read 2r − |a − apex|;
+    // read on the carrier, 2r·(1 − sin(|Δθ|/4)), the box's semicircles
+    // are decided Positive at every radius in it, and the wall is the
+    // next predicate the width reaches.) That distinction is the
     // whole point of asserting the family here: a reader who sees
     // "aborts typed" should be able to tell which of the two kinds of
     // typed abort this row is about.
     match &err {
         profile::ProfileError::Escalated { source, .. } => assert_eq!(
             source.predicate,
-            Some("arc_diameter_clearance"),
-            "the wide box is expected to stall the clearance predicate"
+            Some("carrier_line_circle"),
+            "the wide box is expected to stall the line/circle clearance"
         ),
         other => panic!(
             "expected an escalation from a validation predicate, got {other:?} — if this \
