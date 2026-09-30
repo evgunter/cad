@@ -3797,3 +3797,7 @@ read. It is on the loop-anchor target. The reviewer's brief:
 **Disk** is at 3.0 GB free. I asked the two build lanes to trim their
 own targets. I did not delete anything in the rebase target, where an
 earlier lane was denied.
+
+PR 3537 merged (`5234f64389`) after CI run 36696455175 went green, so
+main's `READERS` census is whole again. PR 3513 already carries the
+same change.
