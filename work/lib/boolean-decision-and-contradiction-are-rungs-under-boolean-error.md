@@ -80,3 +80,10 @@ declaration, carried with its `Coincide` by
 `RestZipFrontier`, carried by `BooleanError::RestZipUnsupported { what }`.
 The last two are payload rungs of `BooleanError` itself, so the sweep
 counts them, and their disposition is this row.
+
+Its third fix pass adds `SphereQuestion` (under
+`BooleanDecision::Sphere`), `SelfCheck` (under
+`BooleanDecision::SelfCheck`) and `Settling` (under
+`DeclarationRead::Settles`), each one rung under `BooleanDecision`, and
+`PlaneRung::Norm`; `BooleanError::SpheresMeet { verdict }` carries
+`geom_brep::recourse::Refused`, as `CurvedSectorSideUnsupported` does.

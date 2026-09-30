@@ -82,3 +82,15 @@ splitting rules, neighbourhood and finish, and `sweep::extrude` and
 coincidence menu, and the others fold the escalation into a finding of
 their own).
 
+
+## Since (PR 3513's third fix pass)
+
+One more reader drops the rung: `topo::boolean::rim_wedge::classify_shared_rim`
+(`crates/topo/src/boolean/rim_wedge.rs`, its first-order screen's
+`.map_err(|escalation| escalation.diag)`). Its only caller, the
+declared-`Tangent` door's shared-rim route
+(`boolean::verify_tangent_declaration`), reads any escalation there as
+"the samples could not settle the rim" and ends in the bare class
+refusal (`UnsupportedDeclarationClass`), so no refusal quotes the
+dropped rung today; a caller that comes to end the escalation itself
+owes it the arm's own decision.

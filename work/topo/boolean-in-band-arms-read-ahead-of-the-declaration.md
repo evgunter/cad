@@ -15,10 +15,12 @@ D4 ¶1 (i) offers "declare" only at a door whose declaration would
 change the verdict. PR 3513's fix pass walked every coincidence site its
 per-site table marked "yes" and found that most escalate before any
 face-pair declaration is read, so a declaration changes nothing there.
-Those sites now escalate as `BooleanDecision::Proximity(Coincide)`
-(`crates/topo/src/boolean/refusal_routes.rs`), which names the geometry
-and the tolerance and no declaration. That is honest about today's
-order; this row is the order itself. Where a verified declaration names
+Those sites escalate as a coincidence no declaration read ahead of it
+settles (`BooleanDecision::Coincidence(_, DeclarationRead::Moot | Spent)`,
+`crates/topo/src/boolean/refusal_routes.rs`), which names the
+question's own lever and, where it passes on a nonzero sign, the
+tolerance, and no declaration. That is honest about today's order; this
+row is the order itself. Where a verified declaration names
 the pair, reading it first would let it settle the in-band arm, as the
 plane ladder's declared rung already does for parallelism
 (`plane_eq::declared_rung`: "In-band offset/parallel margins are
@@ -27,7 +29,7 @@ accepted").
 Executed evidence (the fix pass's probe): two bricks, the upper one's
 bottom face `mid = (zero + escalate)/2` above the lower one's top,
 unioned undeclared and with the pair declared `Rest`. Both refuse
-identically, `Escalated { Proximity(VertexOnFace) }` on
+identically, as the vertex-on-face coincidence on
 `bool_vertex_face_side` from the planar sweep; at a zero-band gap the
 declared union succeeds and the undeclared one is
 `UndeclaredCoincidence`. So the declaration settles the pair at the
@@ -52,9 +54,8 @@ The sites, each asked ahead of any declaration read:
   `wall_crossing` rather than refuse; that is a verdict change, left
   to this row.
 - `boolean::sectors` (`sectors.rs`): `side_code`'s chord and
-  `enters_material` readings, `within`, `parallel_same`, `pair_search`
-  (which takes no declarations), `invalid_escalation` and
-  `bisector_zero_refusal`. `vtxfac::classify_vertex_on_face` reads each
+  `enters_material` readings, `within`, `parallel_same` and
+  `pair_search` (which takes no declarations). `vtxfac::classify_vertex_on_face` reads each
   bound's side before its coplanar lump reads the pair's class, and
   `mod`'s vertex–vertex pass runs `pair_search` before `recl` reads any
   declaration.
@@ -62,8 +63,6 @@ The sites, each asked ahead of any declaration read:
   `bool_dir_same`): the mention grouping, before `resolve_edge_edge`.
 - `boolean::join::frame_refusal` (`join.rs`): the section pose, which
   reads parameter-source evidence and no face-pair declaration.
-- `boolean::ops::sphere_extent_scan` (`ops.rs`), which takes no
-  declarations.
 
 Fixed in the same pass by reading the declaration first:
 `vtxfac`'s coplanar sector (`bool_sector_coplanar`) now reads
@@ -93,3 +92,22 @@ coincidence's lever and the tolerance and offers no declaration. The
 repair shape is unchanged: a site that comes to read the pair's
 declaration first states `DeclarationRead::of(class)` there, and its
 refusal then offers the declaration where the pair is undeclared.
+
+## Since (PR 3513's third fix pass)
+
+A door's read is minted by the lookup, not stated:
+`DeclaredPairs::read(pairs, question, admitted)` spends a declared
+pair's class, and settles an undeclared one only for a class the door
+admits there that the question states it is settled by
+(`Coincide::settled_by`); `DeclarationRead::Settles` carries a
+`Settling` no other module can build. The sweep's sites above now read
+the edge's parent faces against the face (`reduce::edge_face_read`), so
+a declared pair reads `Spent` there, and each question's ending comes
+from its own pass set. `sectors`' poisoned norm and the germ line are
+the kernel's own checks (`BooleanDecision::SelfCheck`), the bisector is
+its own decision, and the sphere scan's questions are
+`BooleanDecision::Sphere`, which take no declarations and carry no
+read. The repair shape is unchanged: a site that comes to read the
+pair's declaration first, and to let it settle the question, adds the
+question to `Coincide::settled_by` and passes the classes its door
+admits.
