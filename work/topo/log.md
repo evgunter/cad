@@ -4503,3 +4503,6 @@ Dispatched on the walk target:
 
 `movefac-reads-a-mate-and-a-neighbour-it-never-proves` waits for the
 kill-proofs lane, whose both-ways edge-claim helper it should reuse.
+
+PR 3574 merged (`4085f56827`) after CI run 36748519761 went green,
+closing the two `movefac` rows.
