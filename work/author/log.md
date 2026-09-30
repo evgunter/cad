@@ -1468,3 +1468,9 @@ Eleven units closed. **The duplication trap fired an eleventh time, in tests:** 
 **Before merging I ran main's new gate** (`bit-identity-debug-only.sh`, from #3531, which landed after the head) on a trial merge: OK. No code overlap.
 
 Filed from the unit: `a-close-refused-on-its-geometry-draws-nothing` (P2, M). Its measured members are the zero-length close, the straight-on close (`JunctionTangent`) and the pending-fillet family (`NoCornerForFillet`). A collinear back-track was run and is *not* a member.
+
+## 2026-09-30 — AUTH-12 dispatched: a tool census; face-pick naming to the designers
+
+**AUTH-12** takes `no-row-holds-that-the-create-pane-offers-the-tools-it-has`. It had waited on a harness-or-refactor choice that no longer exists: the whole-app harness in `app.rs` (2026-09-25) already paints the full app. The unit is therefore a census row over `ToolKind::ALL`. It also routes the nine literal button labels through `ToolKind::label()`, which already claims to be their one home. Review tier: style only. The change is a test row and a label routing, readable end to end.
+
+Blockers re-checked before choosing: `materole-has-no-display` (MSOLVE) and `clearance-refusal-names-one-face-twice-across-bodies` (CLEAR) are both still open.
