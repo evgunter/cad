@@ -370,10 +370,11 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
 
 /// **Node ids branch the same way.** Two inserts applied to one base
 /// mint two `RecipeNodeId`s for their two different nodes, and neither
-/// branch has minted the other's, so a name minted by either node
-/// carried to the other branch spells a node that branch never had.
+/// branch has minted the other's, so a name minted by either node and
+/// carried to the other branch resolves as a node that branch never
+/// had: `NodeGone` blaming `ForeignNode`, never another node's face.
 #[test]
-fn sibling_versions_mint_one_node_id_for_different_nodes() {
+fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     let (base, profile, _) = part();
     let (a, tall) = insert(
         base.clone(),
@@ -394,4 +395,22 @@ fn sibling_versions_mint_one_node_id_for_different_nodes() {
         !a.has_minted(taller) && !b.has_minted(tall),
         "and neither branch has minted the other's"
     );
+    for (what, doc, carried) in [("A's top on B", &b, tall), ("B's top on A", &a, taller)] {
+        let eval = corpus::eval::<f64>(doc);
+        let top = fixture::fname(carried, RoleSeg::Cap(editor_core::CapEnd::End));
+        match editor_core::resolve(editor_core::RunCtx { doc, eval: &eval }, &top) {
+            editor_core::Resolution::Failed(f) => assert!(
+                matches!(
+                    &f.error,
+                    editor_core::ResolveError::NodeGone {
+                        edit: editor_core::RecipeEditRef::ForeignNode { node },
+                        ..
+                    } if *node == carried
+                ),
+                "{what}: expected NodeGone(ForeignNode), got {:?}",
+                f.error
+            ),
+            other => panic!("{what}: expected a NodeGone failure, got {other:?}"),
+        }
+    }
 }

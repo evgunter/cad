@@ -33,10 +33,11 @@ blast radius is large". This is that row.
 
 ## Evidence
 
+Under the counter, two inserts applied to one base minted one
+`RecipeNodeId` for two different extrudes. The row that pinned it
+turns on `emit/node-id-digest-mint`:
 `crates/editor-core/tests/asm_parent_held_names.rs`,
-`sibling_versions_mint_one_node_id_for_different_nodes`: two inserts
-applied to one base mint one `RecipeNodeId` for two different
-extrudes. The row pins the behaviour and is the one that turns.
+`sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names`.
 
 ## What it also fixes
 
@@ -141,7 +142,8 @@ and substitute:
    `refactor.rs` precomputation by simulation, and regenerating or
    re-baselining everything under "Left for unit 2". N1, IDENTITY.md
    DI1, ASSEMBLY.md and REFERENCES.md say "counter" and need rewording.
-   `sibling_versions_mint_one_node_id_for_different_nodes` turns here.
+   `sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names`
+   is the row that turns.
    Unit 2 waits on unit 1 and on
    `work/emit/part-suites-name-every-parts-body-by-one-constant.md`.
 3. **How a node is shown.** The viewer labels a node "feature {id}",
