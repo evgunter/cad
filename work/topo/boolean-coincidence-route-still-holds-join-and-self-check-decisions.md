@@ -68,3 +68,20 @@ escalates as `BooleanDecision::Proximity(Coincide::SeamWedge)`, since
 `BooleanDecision::of_lever` routes every lever-armed reading there: no
 declaration is offered. Whether it is a self-check decision of its own
 is still this row's question.
+
+## Since (PR 3513's second fix pass)
+
+Each site listed above now states `DeclarationRead::Moot` (it reads no
+declaration ahead of its question), so none offers a declaration; each
+ends in `Coincide::unsettled`'s generic lever and the tolerance, which
+is this row's remaining question (their own decisions and pass sets,
+the self-checks as defects). The seam re-description's wedge reading
+has a lever of its own (`Coincide::SeamWedge`: "move the geometry so
+the faces at that seam meet either clearly creased or clearly
+smooth"), and the circle × torus lane escalates as
+`BooleanDecision::TorusRoots`, so its coaxial rows (whether the circle
+lies on the torus) share the count's words; the carrier rung reading
+a `Rest` declaration ahead of that lane only moves an in-band pose to
+the covered endpoint sides
+(`reduce::declaration_order_rows::the_circle_torus_lane_escalates_as_the_torus_roots_and_no_declaration_settles_it`).
+

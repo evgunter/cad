@@ -58,3 +58,22 @@ now: a decided-zero arm escalates with its decided margin rather than
 (`wedge_decided` shares the gate), so a collapsed arm there quotes a
 zero-band margin where it quoted an invalid one; it is still the arm's
 question read as transversality, which is this row.
+
+## Since (PR 3513's second fix pass)
+
+`certify` and `topo::validate`'s rim screen now read the dihedral's arm
+rung as its own decision: `CertCheck::TransversalityArm` and
+`WedgeCheck::Arm`, both ending in `geom_brep::DIHEDRAL_ARM` (a length:
+"move the geometry so that edge is clearly longer, and its faces curve
+less tightly there", with the tolerance the arm gives), which the
+Boolean's seam gate (`BooleanDecision::LeverArm(LeverArm::Seam)`)
+shares. The fix pass had made both render a decided-zero arm as "if
+this angle is intended, tighten the tolerance below …", valued from
+the arm's length. What remains of this row: the section arms' other
+operand guards, and `must_carry_over_edge`, `topo::census`, the
+splitting rules, neighbourhood and finish, and `sweep::extrude` and
+`sweep::revolve::upgrade`, which still read `.diag` and drop the rung
+(none of them offers an angle tolerance: the split ends in its own
+coincidence menu, and the others fold the escalation into a finding of
+their own).
+

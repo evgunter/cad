@@ -41,10 +41,12 @@ The sites, each asked ahead of any declaration read:
   side against a plane (`bool_vertex_face_side`, both arms). The sweep
   takes `declared` but reads it only on curved faces.
 - `boolean::reduce::curved_face_arm`: the endpoint sides
-  (`bool_vertex_face_side`, before the declared-cover rungs), the
-  covered circle's clearance, and the `(Positive, Positive)` line
-  clearance (`bool_line_cylinder_clearance`), which reads `covered`
-  nowhere. For the last, the roots decide what the clearance bound
+  (`bool_vertex_face_side`, before the declared-cover rungs) and the
+  `(Positive, Positive)` line clearance
+  (`bool_line_cylinder_clearance`), which reads `covered` nowhere. (The
+  covered circle's clearance, listed here first, is asked after
+  `covered` is read: `covered` is the declaration read, and that
+  refusal is a declared door's, `DeclarationRead::Spent`.) For the last, the roots decide what the clearance bound
   cannot, as they do on its `Zero | Negative` arm and on the torus
   circle rung, so an in-band bound could fall through to
   `wall_crossing` rather than refuse; that is a verdict change, left
@@ -81,3 +83,13 @@ primitives would need the pair's class threaded to `side_code`,
 `within` and `pair_search`. Each site moves on its own, and a row per
 site pins the declared posture's verdict beside the undeclared one's
 refusal (`reduce::declaration_order_rows` is the shape).
+
+## Since (PR 3513's second fix pass)
+
+`BooleanDecision::Proximity` is gone: every coincidence escalation is
+`BooleanDecision::Coincidence(Coincide, DeclarationRead)`, and the
+sites above state `DeclarationRead::Moot`, which ends in the
+coincidence's lever and the tolerance and offers no declaration. The
+repair shape is unchanged: a site that comes to read the pair's
+declaration first states `DeclarationRead::of(class)` there, and its
+refusal then offers the declaration where the pair is undeclared.

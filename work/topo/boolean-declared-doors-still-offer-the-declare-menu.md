@@ -59,3 +59,25 @@ lever-armed reading there, and the pair is declared). The rest of the
 list above is unchanged: each is a one-line move from
 `BooleanError::coincidence` to `BooleanError::proximity` plus a row on
 a declared raise.
+
+## Since (PR 3513's second fix pass)
+
+Every door listed above now states what it read
+(`BooleanDecision::Coincidence(Coincide, DeclarationRead::Spent(class))`,
+`crates/topo/src/boolean/refusal_routes.rs`), so none offers "declare
+the coincidence". One more declared door was found and joined them:
+the plane ladder run on a declared-`Tangent` pair
+(`verify_tangent_declaration`'s conformal screen in `boolean/mod.rs`,
+and `vtxfac`/`recl` through `PlaneDoor::of(class)`), whose in-band
+parallelism offered the declaration to a pair already declared (the
+review's union poses G2, G5 and G6, now
+`reduce::declaration_order_rows::a_declared_tangent_pairs_plane_rung_offers_no_declaration`).
+
+What remains of this row is its repair shape's second half: at a
+declared door each decision ends in the coincidence's generic lever
+(`Coincide::unsettled`: "move the parts so they clearly meet or clearly
+stand apart there", with the tolerance), where the tangency's locus,
+the contact's witness and the REST seam walk's matching may each want a
+lever of their own. `Coincide::TangentSide` and `Coincide::Planes`
+have theirs.
+

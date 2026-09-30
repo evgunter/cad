@@ -50,9 +50,10 @@ whose verdict no declaration reads:
 - `(Zero, Zero)` undeclared, whose roots came back other than
   `NoInterior | Elsewhere` (the `covered` twin reads the declaration,
   this arm does not);
-- the circle rung's `Ok(Sign::Zero | Sign::Negative)` for an uncovered
-  non-torus circle, and every carrier the rung has no arm for (an
-  ellipse, a NURBS edge).
+- the circle rung's `Ok(Sign::Negative)` for a non-torus circle (an
+  arc that crosses the wall), and every carrier the rung has no arm
+  for (an ellipse, a NURBS edge). The rung's `Ok(Sign::Zero)` is not
+  on this list: a declaration settles it (below).
 
 A second definite sibling of the same shape: the declared-coaxial
 cylinder × sphere arm's radius guards (`BooleanDecision::Radius`). Their
@@ -73,3 +74,27 @@ crosses or clearly misses", the straddle's roots). A row per kind runs
 the arm undeclared and declared through the real door, as
 `reduce::declaration_order_rows` does. Route `cs_pair_frame`'s
 `DegenerateOperand` to the radius decision's decided arm.
+
+## Since (PR 3513's second fix pass)
+
+The circle rung's two decided arms were executed through
+`curved_face_arm`, a sheet of a cylinder against the canonical unit
+wall, under each posture
+(`reduce::declaration_order_rows::the_circle_rungs_zero_arm_takes_a_declaration_and_its_crossing_arm_takes_none`,
+adopted from the review's `zz_coincfr_rows.rs`):
+
+- **`Zero`** (a sheet of radius `1 + zero/2`): undeclared, both rims
+  refuse at the frontier; declared `Rest`, which the door verifies,
+  with the pair called one carrier, the carrier-identity rung reads
+  the clearance zero and both rims are recorded. A declaration settles
+  this arm, so the frontier's declare offer is true there.
+- **`Negative`** (a sheet whose axis is offset by 0.3, its rims
+  crossing the wall): the frontier under every posture. The door
+  refuses `Rest` (`Contradicted`, `carrier_cyl_axis_offset`) and
+  answers `Tangent` `NotCertifiable` (no witness supplied); a pair
+  called one carrier past
+  the door still refuses at the frontier, since the rung's covered
+  arm reads only a zero clearance. No declaration settles it, so the
+  offer is false there.
+- An arc definitely one side of the wall (radius 0.9 or 1.1, coaxial)
+  reads `Positive` and is eventless under every posture.
