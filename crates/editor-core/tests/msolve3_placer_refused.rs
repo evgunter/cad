@@ -350,6 +350,67 @@ fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
     );
 }
 
+/// **A transform's CHAIN refuses in its own voice too.** A literal step
+/// then a rigid step whose motion does not derive — an axis of no
+/// definite length, or an angle that does not evaluate: the solve
+/// reaches the transform's motion through the one construction the
+/// node evaluation uses, over the node's slots from the evaluation's
+/// own door, so it refuses `PlacerRefused` naming the TRANSFORM and
+/// carrying exactly the kind the transform's own evaluation raises on
+/// the twin — the angle named at step 1's own address.
+#[test]
+fn a1_a_chain_whose_later_step_does_not_derive_names_the_transform() {
+    for (label, late, class) in [
+        (
+            "msolve3-chain-axis",
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(1e200), scl(0.0), scl(0.0)],
+                angle: ang(0.5),
+            },
+            NodeErrorClass::NonFiniteDirection,
+        ),
+        (
+            "msolve3-chain-angle",
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: Expr::mul(ang(1e200), scl(1e200)).expect("an angle times a scalar"),
+            },
+            NodeErrorClass::Expr,
+        ),
+    ] {
+        let (scene, _) = build(label, |doc, legs| {
+            let chain = editor_core::Placement {
+                steps: vec![
+                    editor_core::Step::Literal(Frame::translation([0.0, 0.0, 2.0])),
+                    late,
+                ],
+            };
+            let (doc, moved) = insert(doc, Node::transform(legs, chain));
+            (doc, moved, in_part(legs, CapEnd::End), Vec::new())
+        });
+        let f = scene.fault();
+        let (placer, kind) = carried(&f);
+        assert_eq!(placer, scene.placer, "{label}: names the transform: {f:?}");
+        assert_eq!(
+            kind,
+            scene.own_refusal(),
+            "{label}: the twin raises the same kind"
+        );
+        assert_eq!(carried_class(&f), class, "{label}: {kind}");
+        if class == NodeErrorClass::Expr {
+            assert!(
+                kind.contains(&format!(
+                    "{:?}",
+                    SlotId::rigid(1, editor_core::RigidArg::RotationAngle)
+                )),
+                "{label}: the refusal names step 1's angle: {kind}"
+            );
+        }
+    }
+}
+
 /// **Two faults on one node, and the same winner on both roads.** A
 /// transform whose axis is degenerate AND whose angle does not
 /// evaluate: the node's slot order decides which refusal is reported,
@@ -359,8 +420,8 @@ fn a1_a_transform_with_a_non_finite_axis_names_its_axis() {
 fn a1_two_faults_on_one_placer_pick_the_same_winner() {
     let (scene, _) = build("msolve3-two-faults", |doc, legs| {
         let mut t = xform(legs, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 0.5);
-        if let Node::Transform { rotation_angle, .. } = &mut t {
-            *rotation_angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
+        if let Some(angle) = t.expr_mut(SlotId::RotationAngle) {
+            *angle = Expr::mul(ang(1e200), scl(1e200)).expect("angle times scalar");
         }
         let (doc, moved) = insert(doc, t);
         (doc, moved, in_part(legs, CapEnd::End), Vec::new())

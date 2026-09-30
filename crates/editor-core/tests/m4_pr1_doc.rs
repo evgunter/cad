@@ -154,12 +154,14 @@ fn author_die() -> Die {
                 doc,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Node::Transform {
-                        input: pip_extrude,
-                        translation: [len(t[0]), len(t[1]), len(t[2])],
-                        rotation_axis: [scl(rot_axis[0]), scl(rot_axis[1]), scl(rot_axis[2])],
-                        rotation_angle: ang(rot_angle),
-                    },
+                    node: Node::transform(
+                        pip_extrude,
+                        editor_core::Step::Rigid {
+                            translation: [len(t[0]), len(t[1]), len(t[2])],
+                            axis: [scl(rot_axis[0]), scl(rot_axis[1]), scl(rot_axis[2])],
+                            angle: ang(rot_angle),
+                        },
+                    ),
                 },
             );
             let (d3, cut) = step(

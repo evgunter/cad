@@ -29,10 +29,10 @@
 //!   a rotation family: revolve latitude arcs (circles).
 //!
 //! Sketch segments use the profile's canonical segment form: the
-//! endpoints stored verbatim, and an arc's carrier (centre, radius)
-//! with its signed sweep Δθ — the `profile` crate's `Segment`,
-//! restated here without a dependency on that crate (the sweep maps
-//! `profile`'s validated segments into this form field-for-field). The
+//! endpoints stored verbatim, and an arc's carrier and signed sweep as
+//! the one arc value the `profile` crate's segments also hold
+//! ([`geom_core::Arc2`]), so the sweep hands a validated arc across
+//! whole. The
 //! **line/arc split is structural** ([`SketchSegment`]), mirroring the
 //! upstream trilean classification: by the time a description exists,
 //! straightness was already *decided* (profile validation), so
@@ -48,7 +48,7 @@
 //! is a construction invariant — and certification is exactly what
 //! makes it checked rather than trusted.
 
-use geom_core::{Affine3, Point2, Point3, Real, Vec2, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Real, Vec3};
 
 /// A 2-D sketch-plane segment in the canonical form (module docs):
 /// verbatim endpoints, and for an arc its carrier and signed sweep. The
@@ -56,19 +56,20 @@ use geom_core::{Affine3, Point2, Point3, Real, Vec2, Vec3};
 /// here.
 ///
 /// An arc's fields are redundant by design — the endpoints lie on the
-/// carrier, and the sweep turns `a` into `b` about `centre` — and
+/// carrier, and the sweep turns `a` into `b` about the centre — and
 /// **nothing checks that redundancy at this type's door**. What reads
 /// each field:
 ///
 /// - [`SketchSegment::eval`] (and so certification, which meters the
-///   description against its carrier through it) reads `a`, `centre`
-///   and `sweep` only. It reads neither `b` nor `radius`: the locus it
-///   describes is `a` turned about `centre`.
+///   description against its carrier through it) reads `a`, the centre
+///   and the sweep only, through [`Arc2::point_from`]. It reads neither
+///   `b` nor the radius: the locus it describes is `a` turned about the
+///   centre.
 /// - [`SketchSegment::restrict`] reads what `eval` reads and carries
-///   `radius` through.
+///   the radius through.
 /// - `sweep::skin::segment_curve`, public through `sweep` and `pncad`,
-///   builds its NURBS from `a`, `b`, `centre`, `radius` and `sweep`, and
-///   trusts `radius`. A segment whose `radius` disagrees with
+///   builds its NURBS from `a`, `b` and every field of the arc, and
+///   trusts the radius. A segment whose radius disagrees with
 ///   `|a − centre|` converts to a different circle from the one `eval`
 ///   describes, and nothing refuses it.
 ///
@@ -85,21 +86,16 @@ pub enum SketchSegment<T: Real> {
         /// End point (s = 1).
         b: Point2<T>,
     },
-    /// The circular arc from `a` to `b` about `centre`, turning through
-    /// the signed angle `sweep` (positive counterclockwise — the
-    /// `profile` crate's convention).
+    /// The circular arc from `a` to `b` on `arc`'s carrier, turning
+    /// through its signed sweep (positive counterclockwise), in
+    /// (−2π, 2π) \ {0}.
     Arc {
         /// Start point (s = 0), stored verbatim.
         a: Point2<T>,
         /// End point (s = 1), stored verbatim.
         b: Point2<T>,
-        /// The carrier circle's centre.
-        centre: Point2<T>,
-        /// The carrier circle's radius (positive).
-        radius: T,
-        /// The signed sweep Δθ from `a` to `b` about `centre`, in
-        /// (−2π, 2π) \ {0}; the arc's parameter span is `|sweep|`.
-        sweep: T,
+        /// The carrier and the signed sweep from `a` to `b`.
+        arc: Arc2<T>,
     },
 }
 
@@ -124,87 +120,38 @@ impl<T: Real> SketchSegment<T> {
     /// Each restriction re-derives the endpoints through
     /// [`SketchSegment::eval`], so at `T = Interval` the sub-arc's
     /// stored endpoints inherit that evaluation's enclosure width and
-    /// successive splits compound it — see `eval`'s anchoring note for
-    /// why the evaluation is written to keep that width at the
-    /// endpoints' own scale.
+    /// successive splits compound it — see [`Arc2::point_from`]'s
+    /// anchoring note for why the evaluation is written to keep that
+    /// width at the endpoints' own scale.
     pub fn restrict(&self, s0: T, s1: T) -> Self {
         match *self {
             SketchSegment::Line { .. } => SketchSegment::Line {
                 a: self.eval(s0),
                 b: self.eval(s1),
             },
-            SketchSegment::Arc {
-                centre,
-                radius,
-                sweep,
-                ..
-            } => SketchSegment::Arc {
+            SketchSegment::Arc { arc, .. } => SketchSegment::Arc {
                 a: self.eval(s0),
                 b: self.eval(s1),
-                centre,
-                radius,
-                sweep: sweep * (s1 - s0),
+                arc: Arc2 {
+                    sweep: arc.sweep * (s1 - s0),
+                    ..arc
+                },
             },
         }
     }
 
     /// The point at normalized parameter `s ∈ [0, 1]` (module docs).
     ///
-    /// Line: `lerp(a, b, s)`. Arc: `a` rotated about `centre` by
-    /// `s·sweep` — over the reals `centre + radius·(cos, sin)(θ₀ +
-    /// s·sweep)`, θ₀ the start angle. Fixed orders as written (D9);
-    /// total — degenerate data yields poison values, caught by
-    /// certification.
-    ///
-    /// **The start is exact and the end is not, by choice.** At `s = 0`
-    /// the rotation term is identically zero and `a` comes back as
-    /// stored (at `f64`, bit for bit); at `s = 1` the result is `a`
-    /// turned by the whole sweep, which is `b` over the reals and within
-    /// the rotation's rounding of it here. A form exact at both ends
-    /// exists without any comparison — the blend
-    /// `(1 − s)·rot_a(s·Δθ) + s·rot_b((s − 1)·Δθ)`, anchored on `a` and
-    /// on `b` — and it is not the one used: it evaluates two rotations
-    /// and sums their enclosures, where the anchored form below carries
-    /// one, and it builds a second rotation's nodes at every `Sym`
-    /// sample. Endpoint authority is
+    /// Line: `lerp(a, b, s)`. Arc: `a` rotated about the centre by
+    /// `s·sweep`, [`Arc2::point_from`] — exact at `s = 0`, within the
+    /// rotation's rounding of `b` at `s = 1`. Endpoint authority is
     /// held elsewhere: the topology's endpoints are the vertices, never
     /// this evaluation, and certification meters the evaluation
-    /// against the carrier at every sample, `s = 1` included
-    /// (`work/paths/sketch-segment-eval-could-be-exact-at-both-ends.md`).
-    ///
-    /// **The rotation is anchored on `a`, not on the centre**: the
-    /// evaluated form is `a + (R − I)·v` (v = a − centre, R the
-    /// rotation by s·sweep), which is the identity `centre + R·v` over
-    /// the reals but does not mention `centre` outside a factor that
-    /// vanishes with the rotation. `cos − 1` is spelled
-    /// `−2·sin²(s·sweep/2)` so it carries no cancellation of its own.
-    /// The centre-anchored form adds and subtracts `centre`, and at
-    /// `T = Interval` that cancellation does not happen: the enclosure
-    /// pays `width(centre)` twice, and a centre derived from a short
-    /// chord carries the chord's relative width amplified by the
-    /// radius — a factor ∝ 1/sin(θ/2), unbounded for short arcs, which
-    /// [`SketchSegment::restrict`] would store back into the endpoints
-    /// so that successive splits compound it. The anchored form is
-    /// exactly `width(a)` wide at s = 0 (R − I is identically zero
-    /// there), never wider than the centre-anchored form at s = 0, and
-    /// tighter wherever `|s·sweep|` is small, because
-    /// `|R − I| = 2·|sin(s·sweep/2)|` scales the centre's width down
-    /// instead of doubling it.
+    /// against the carrier at every sample, `s = 1` included.
     pub fn eval(&self, s: T) -> Point2<T> {
         match *self {
             SketchSegment::Line { a, b } => a.lerp(b, s),
-            SketchSegment::Arc {
-                a, centre, sweep, ..
-            } => {
-                let half = T::from_f64(0.5);
-                let two = T::from_f64(2.0);
-                let sin = (s * sweep).sin();
-                // cos(s·Δθ) − 1, in the half-angle form that is exact
-                // at s = 0 and free of the 1 − cos cancellation.
-                let cos_m1 = -(two * (s * sweep * half).sin().powi(2));
-                let v = a - centre;
-                a + Vec2::new(v.x * cos_m1 - v.y * sin, v.x * sin + v.y * cos_m1)
-            }
+            SketchSegment::Arc { a, arc, .. } => arc.point_from(a, s),
         }
     }
 }
@@ -355,13 +302,15 @@ mod tests {
         SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            centre: if ccw {
-                Point2::new(0.0, 0.0)
-            } else {
-                Point2::new(1.0, 1.0)
+            arc: Arc2 {
+                centre: if ccw {
+                    Point2::new(0.0, 0.0)
+                } else {
+                    Point2::new(1.0, 1.0)
+                },
+                radius: 1.0,
+                sweep: if ccw { FRAC_PI_2 } else { -FRAC_PI_2 },
             },
-            radius: 1.0,
-            sweep: if ccw { FRAC_PI_2 } else { -FRAC_PI_2 },
         }
     }
 
@@ -403,15 +352,21 @@ mod tests {
             let sub = seg.restrict(0.25, 0.75);
             let (
                 SketchSegment::Arc {
-                    centre,
-                    radius,
-                    sweep,
+                    arc:
+                        Arc2 {
+                            centre,
+                            radius,
+                            sweep,
+                        },
                     ..
                 },
                 SketchSegment::Arc {
-                    centre: c2,
-                    radius: r2,
-                    sweep: w2,
+                    arc:
+                        Arc2 {
+                            centre: c2,
+                            radius: r2,
+                            sweep: w2,
+                        },
                     a,
                     ..
                 },

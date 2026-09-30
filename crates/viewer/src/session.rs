@@ -2318,8 +2318,17 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
+        // Total, as the other lowerings are: slot dimensions are the
+        // edit door's question.
         self.commit(DocEdit::InsertNode {
-            node: combine::transform_node(input, translation, rotation_axis, rotation_angle),
+            node: Node::transform(
+                input,
+                pncad::document::Step::Rigid {
+                    translation,
+                    axis: rotation_axis,
+                    angle: rotation_angle,
+                },
+            ),
         })
     }
 

@@ -19,7 +19,7 @@
 //! circle needs no derivation).
 
 use geom_brep::SketchSegment;
-use geom_core::{Point2, Real, Vec2};
+use geom_core::{Arc2, Point2, Real, Vec2};
 
 /// The arc from `a` to `b` with `bulge`, lowered as the profile lowers
 /// it.
@@ -35,8 +35,10 @@ pub(crate) fn lowered_arc<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> Sket
     SketchSegment::Arc {
         a,
         b,
-        centre: mid + normal * apothem,
-        radius: signed_radius.abs(),
-        sweep: T::from_f64(4.0) * bulge.atan(),
+        arc: Arc2 {
+            centre: mid + normal * apothem,
+            radius: signed_radius.abs(),
+            sweep: T::from_f64(4.0) * bulge.atan(),
+        },
     }
 }

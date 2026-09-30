@@ -25,8 +25,8 @@
 use crate::common;
 
 use common::{profile, tol};
-use geom_core::Point2;
 use geom_core::Tol;
+use geom_core::{Arc2, Point2};
 use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
 use profile::{
     ArcSweep, Center, FILLET_NO_CORNER_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason, Open,
@@ -612,9 +612,15 @@ fn picked_fillet_circle(lp: ProfileLoop<f64>, r: f64) -> (Point2<f64>, f64) {
         .segments()
         .iter()
         .find_map(|s| match s.kind {
-            profile::SegmentKind::Arc { center, radius, .. } if (radius - r).abs() < 1e-12 => {
-                Some((center, radius))
-            }
+            profile::SegmentKind::Arc {
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        ..
+                    },
+                ..
+            } if (radius - r).abs() < 1e-12 => Some((center, radius)),
             _ => None,
         })
         .expect("the fillet arc classifies at its authored radius")

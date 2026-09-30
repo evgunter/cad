@@ -6,8 +6,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::EdgeDescription;
-use geom_core::Point2;
 use geom_core::Tol;
+use geom_core::{Arc2, Point2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
@@ -67,9 +67,11 @@ fn arc_restriction_formula_derived_independently() {
         (core::f64::consts::PI / 8.0).tan(),
     );
     let SketchSegment::Arc {
-        centre,
-        radius,
-        sweep,
+        arc: Arc2 {
+            centre,
+            radius,
+            sweep,
+        },
         ..
     } = seg
     else {
@@ -80,9 +82,11 @@ fn arc_restriction_formula_derived_independently() {
     let SketchSegment::Arc {
         a,
         b,
-        centre: cp,
-        radius: rp,
-        sweep: wp,
+        arc: Arc2 {
+            centre: cp,
+            radius: rp,
+            sweep: wp,
+        },
     } = sub
     else {
         panic!("restriction changed the segment kind");
@@ -117,7 +121,11 @@ fn arc_restriction_formula_derived_independently() {
     // Degenerate probe: restricting to a sliver stays finite and lands
     // on the parent (certification, not restrict, is the gate).
     let sliver = seg.restrict(0.5, 0.5 + 1e-9);
-    let SketchSegment::Arc { sweep: ws, .. } = sliver else {
+    let SketchSegment::Arc {
+        arc: Arc2 { sweep: ws, .. },
+        ..
+    } = sliver
+    else {
         panic!("kind");
     };
     assert!(ws.is_finite() && ws > 0.0);

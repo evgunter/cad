@@ -128,12 +128,14 @@ fn r2_measure_free_content_keys() {
     let d6 = push(
         &d5,
         &DocEdit::InsertNode {
-            node: Node::Transform {
-                input: cut,
-                translation: [len(1.0), len(2.0), len(3.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            node: Node::transform(
+                cut,
+                editor_core::Step::Rigid {
+                    translation: [len(1.0), len(2.0), len(3.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         },
     );
     let ev: Evaluation<f64> = evaluate::<f64>(

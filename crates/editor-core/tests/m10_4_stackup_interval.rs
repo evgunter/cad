@@ -326,12 +326,14 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
         profile: p,
         distance: len(1.0),
     });
-    let copy = r.insert(Node::Transform {
-        input: cube,
-        translation: [param("t", Dimension::Length), len(0.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let copy = r.insert(Node::transform(
+        cube,
+        editor_core::Step::Rigid {
+            translation: [param("t", Dimension::Length), len(0.0), len(0.0)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let ev = eval(&r.doc);
     let at = |node, x: f64| {
         editor_core::all_vertices(&ev, node)

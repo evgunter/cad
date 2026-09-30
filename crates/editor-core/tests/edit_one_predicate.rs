@@ -664,11 +664,59 @@ fn an_improper_placement_is_refused_at_both_doors() {
     let text = saved_placement(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
     let corrupt = mirror_first_column(&text, ids[0]);
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementImproper { node, determinant })) => {
+        Err(PersistError::Snapshot(SnapshotError::PlacementImproper {
+            node, determinant, ..
+        })) => {
             assert_eq!(node, ids[0]);
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("an improper frame must refuse typed at load, got {other:?}"),
+    }
+}
+
+/// **A proper frame that is not rigid — both doors.** A scaled
+/// placement frame is refused where it is written, by the predicate
+/// the evaluation moves a body by, rather than admitted and refused
+/// later as `NotRigid` on the instance and on every member mated to
+/// it.
+#[test]
+fn a_non_rigid_placement_is_refused_at_both_doors() {
+    let (doc, ids) = instances_of_a_stored_part("onepred-non-rigid", 1);
+    let mut stretched = Frame::IDENTITY;
+    stretched.columns[0] = [2.0, 0.0, 0.0];
+    assert!(stretched.determinant() > 0.0, "the fixture is proper");
+    match apply(
+        &doc,
+        &DocEdit::SetPlacement {
+            node: ids[0],
+            frame: stretched,
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(error @ EditError::NonRigidPlacement { node, at, .. }) => {
+            assert_eq!((node, at), (ids[0], editor_core::FrameSite::Registry));
+            let text = error.to_string();
+            assert!(
+                text.contains("not definitely rigid") && text.contains("Recourse:"),
+                "says what is wrong and what to do: {text}"
+            );
+        }
+        other => panic!("a scaled placement must refuse typed, got {other:?}"),
+    }
+
+    // The load door's half: a proper frame on the wire, stretched.
+    let text = saved_placement(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
+    let corrupt = doctored(&text, |wire| {
+        let entry = &mut wire["snapshot"]["placements"][ids[0].0.to_string()]["columns"][0][0];
+        assert_eq!(*entry, serde_json::json!(1.0), "aimed at the first axis");
+        *entry = serde_json::json!(2.0);
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::PlacementNonRigid { node, at, .. })) => {
+            assert_eq!((node, at), (ids[0], editor_core::FrameSite::Registry));
+        }
+        other => panic!("a scaled frame must refuse typed at load, got {other:?}"),
     }
 }
 
