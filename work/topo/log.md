@@ -3292,3 +3292,11 @@ tier, so there is no DR row.
 **PR 3506.** Its implementer took 414,034 tokens, 275 tools and 85 min
 (harness). The single full reviewer is dispatched on frozen
 `80f2c8cd80`, on the freed loop-anchor target.
+
+## PR 3495 merged (2026-09-30)
+
+PR 3495 merged (`85cf497f36`), closing
+`kill-ops-loop-anchor-on-an-unproven-next-step`. It was a single-tier
+review, so there is no DR row. With the loop-anchor plans settled,
+`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`
+(P2) is unblocked.
