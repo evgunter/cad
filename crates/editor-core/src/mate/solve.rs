@@ -880,12 +880,12 @@ fn pair_reach<P: crate::ProfilePayload>(
     child: &Member,
 ) -> Result<f64, super::LeverRefusal> {
     let of = |instance: RecipeNodeId| {
-        let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(instance) else {
+        let Some(doc_ref) = crate::eval::parts::instantiated(doc, instance) else {
             return Err(super::LeverRefusal::NotAnInstance { node: instance });
         };
         reach
-            .reach(doc_ref)
-            .map_err(|refusal| super::LeverRefusal::of(refusal, instance, *doc_ref))
+            .reach(&doc_ref)
+            .map_err(|refusal| super::LeverRefusal::of(refusal, instance, doc_ref))
     };
     Ok(of(parent.instance)? + of(child.instance)?)
 }

@@ -1329,19 +1329,14 @@ pub(crate) enum PlacementFault {
     /// The key names no live [`Node::InstantiatePart`]. A11 puts the
     /// frame on an instance's cluster, so nothing else has one.
     NotAnInstance,
-    /// The frame carries a non-finite coordinate: no predicate can
-    /// decide anything about where it puts the material.
-    NonFiniteFrame,
-    /// The frame is IMPROPER — determinant ≤ 0, i.e. a mirror (A6).
-    /// Admitting one is gated on the equivariance audit R4 owns.
-    ImproperFrame {
-        /// The linear part's determinant.
-        determinant: f64,
-    },
+    /// The frame is one the frame rule refuses
+    /// ([`crate::placement::Frame::admission_fault`]).
+    Frame(crate::placement::FrameFault),
 }
 
 /// **A11's admission rule for one placement row, stated once**: the
-/// key instantiates a part, and the frame is finite and proper.
+/// key instantiates a part, and the frame is one the frame rule admits
+/// at `tol`.
 ///
 /// One predicate with one home, asked by every door that admits a row
 /// — [`crate::DocEdit::SetPlacement`] and the load door's walk over the
@@ -1361,20 +1356,15 @@ pub(crate) fn placement_fault<P>(
     doc: &Doc<P>,
     node: RecipeNodeId,
     frame: &crate::placement::Frame,
+    tol: geom_core::Tol,
 ) -> Option<PlacementFault> {
     if !matches!(doc.nodes.get(&node), Some(Node::InstantiatePart { .. })) {
         return Some(PlacementFault::NotAnInstance);
     }
-    // The frame half is the frame's own rule
-    // ([`crate::placement::Frame::admission_fault`]), so a cluster
-    // frame and a placement rule's listed frames are held to one
-    // standard rather than to two spellings of one.
-    Some(match frame.admission_fault()? {
-        crate::placement::FrameFault::NonFinite => PlacementFault::NonFiniteFrame,
-        crate::placement::FrameFault::Improper { determinant } => {
-            PlacementFault::ImproperFrame { determinant }
-        }
-    })
+    // The frame half is the frame's own rule, so a cluster frame, a
+    // placement rule's listed frames and a transform's literal steps
+    // are held to one standard rather than to spellings of one.
+    frame.admission_fault(tol).map(PlacementFault::Frame)
 }
 
 /// What makes a witness row's KEY inadmissible ([`witness_site_fault`])

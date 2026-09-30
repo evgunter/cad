@@ -1132,7 +1132,7 @@ fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
             Tol::witness(),
             &editor_core::RefusingReach
         ),
-        Err(EditError::ImproperPlacement { node, determinant }) if node == b && determinant == -1.0
+        Err(EditError::ImproperPlacement { node, determinant, .. }) if node == b && determinant == -1.0
     ));
 }
 

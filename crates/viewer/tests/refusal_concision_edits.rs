@@ -20,7 +20,7 @@
 use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
-    DocumentId, EditError, EntityKind, EvalError, ExprPath, MateFault, MeasureNodeFault,
+    DocumentId, EditError, EntityKind, EvalError, ExprPath, FrameSite, MateFault, MeasureNodeFault,
     MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, StableName,
     StepIdFault,
 };
@@ -473,12 +473,24 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "ImproperPlacement",
             EditError::ImproperPlacement {
                 node: n(5),
+                at: FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
         ),
         (
             "NonFinitePlacement",
-            EditError::NonFinitePlacement { node: n(5) },
+            EditError::NonFinitePlacement {
+                node: n(5),
+                at: FrameSite::Registry,
+            },
+        ),
+        (
+            "NonRigidPlacement",
+            EditError::NonRigidPlacement {
+                node: n(5),
+                at: FrameSite::Listed { index: 2 },
+                check: "transform_rigid_col01_orth",
+            },
         ),
         (
             "PlacementAxis",
@@ -853,9 +865,7 @@ const FILED_NO_RECOURSE: &[&str] = &[
     // work/edit/placement-is-spelled-three-ways-node-registry-and-rule.md:
     // the placement unit reshapes or deletes these arms.
     "Edit/EmptyPlacementList",
-    "Edit/ImproperPlacement",
     "Edit/MaintenanceUnrecorded",
-    "Edit/NonFinitePlacement",
     "Edit/PlacementAxis",
     "Edit/PlacementOnNonInstance",
     "Edit/PlacementRuleMismatch",

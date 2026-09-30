@@ -58,7 +58,7 @@
 //! The shape is [`crate::OffsetFitLane`]'s, and the absence is a
 //! different fact from that one's: the offset fit's `None` is a
 //! derivation written at one scalar, this one's is certification
-//! rights. Under `work/scalar/H5.md` §RATIFIED ruling 3 the door is the
+//! rights. Under H5's ratified ruling 3 (PR 2701) the door is the
 //! parameter a mixed pass takes and the scalar seam that produces it
 //! is the per-scalar policy that cut leaves standing.
 

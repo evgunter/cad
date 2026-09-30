@@ -885,12 +885,14 @@ fn r1_ops_refuse_measurement_operands_typed() {
     // Transform of the MEASURE's id.
     let (doc, moved_measure) = insert(
         &doc,
-        Node::Transform {
-            input: m,
-            translation: [len(0.1), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            m,
+            editor_core::Step::Rigid {
+                translation: [len(0.1), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let ev = eval(&doc);
     for id in [bool_over_verdict, moved_measure] {
@@ -923,12 +925,14 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.5);
     let (doc, moved) = insert(
         &doc,
-        Node::Transform {
-            input: pin,
-            translation: [len(0.25), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pin,
+            editor_core::Step::Rigid {
+                translation: [len(0.25), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let ev = eval(&doc);
     let bore_wall = wall(&ev, bore);

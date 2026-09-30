@@ -17,7 +17,7 @@
 use crate::common;
 
 use common::{annulus, bracket, chain, l_profile, lens, lift, profile, rounded_rect, tol};
-use geom_core::{Affine3, Decide, Dual64, Point2, Real, Sign, Vec3};
+use geom_core::{Affine3, Arc2, Decide, Dual64, Point2, Real, Sign, Vec3};
 use profile::{LoopRole, Profile, RawLoop, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The fixtures, named: every canonical-form fact the door carries has
@@ -132,9 +132,12 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
             if let SegmentKind::Arc {
-                center,
-                radius,
-                sweep,
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        sweep,
+                    },
                 ..
             } = s.kind
             {

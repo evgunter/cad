@@ -3263,6 +3263,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("DepthExceeded", PartFault::DepthExceeded),
+        ("NotEntered", PartFault::NotEntered),
     ];
     for (n, fault) in parts {
         rows.push(row(
@@ -3304,12 +3305,14 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
     let moved = |doc, input, dx| {
         insert(
             doc,
-            Node::Transform {
+            Node::transform(
                 input,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+                editor_core::Step::Rigid {
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         )
         .0
     };

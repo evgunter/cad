@@ -2612,7 +2612,7 @@ pub trait AtRestPolicy: Decide {
     /// certification rights (DL1).
     ///
     /// It is a per-scalar seam and not a lane trait of its own
-    /// (`work/scalar/H5.md` §RATIFIED ruling 3, which keeps this trait
+    /// (H5's ratified ruling 3, PR 2701, which keeps this trait
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds

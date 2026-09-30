@@ -161,6 +161,10 @@ UNHASHABLE = {
     "row of empirical statistics is a magnitude five times over, and a "
     "row nothing could sample carries `NaN`, which equals nothing at "
     "all",
+    "Placement": "by design: `editor_core::Placement` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives — "
+    "`Frame`'s reason, one level out: a literal step bottoms out in "
+    "`f64`",
     "SketchPlane": "by design: `profile::SketchPlane<f64>` spells `==` "
     "as `bit_eq` and derives no `Hash`, and this class mirrors it. The "
     "comparison is bit-for-bit on both sides — `-0.0` and `0.0` are "

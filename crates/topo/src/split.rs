@@ -437,7 +437,7 @@ mod tests {
     use geom_brep::{
         EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SketchSegment,
     };
-    use geom_core::{Affine3, Point2, Point3, Vec3};
+    use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
@@ -505,9 +505,11 @@ mod tests {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),
-                    centre: Point2::new(0.0, 0.0),
-                    radius: 1.0,
-                    sweep: FRAC_PI_2,
+                    arc: Arc2 {
+                        centre: Point2::new(0.0, 0.0),
+                        radius: 1.0,
+                        sweep: FRAC_PI_2,
+                    },
                 },
                 place: Affine3::identity(),
             }),

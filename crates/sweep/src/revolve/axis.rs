@@ -10,13 +10,14 @@
 //! bulging across the axis).
 
 use geom_core::{
-    Affine3, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
+    Affine3, Arc2, Band, Decide, Margin, Point2, Point3, Real, Sign, Vec2, Vec3, is_finite_length,
     is_underflowed_length,
 };
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
-use crate::swept::{SweptKind, arc_apex, arc_span, decide};
+use crate::swept::{arc_apex, arc_span, decide};
+use profile::SegmentKind;
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -194,10 +195,13 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
     for lp in profile.loops() {
         for s in lp.segments() {
             r_max = r_max.max(frame.r(s.start).abs());
-            if let profile::SegmentKind::Arc {
-                center,
-                radius,
-                sweep,
+            if let SegmentKind::Arc {
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        sweep,
+                    },
                 turn,
             } = s.kind
             {
@@ -413,7 +417,7 @@ fn classify_segment<T: Decide>(
     // chord deltas and flipped turns, so `reverse` undoes it exactly.
     let canonical = |sign: Sign| if reverse { sign.flip() } else { sign };
     match s.kind {
-        SweptKind::Line => {
+        SegmentKind::Line => {
             if va.pinned && vb.pinned {
                 return Ok(WallClass::OnAxis);
             }
@@ -450,10 +454,13 @@ fn classify_segment<T: Decide>(
                 sense: !matches!(canonical(sz), Sign::Negative),
             })
         }
-        SweptKind::Arc {
-            center,
-            radius,
-            sweep,
+        SegmentKind::Arc {
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    sweep,
+                },
             turn,
         } => {
             // Arc walls' sense (doc above), through the shared rule —

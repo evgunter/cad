@@ -2610,8 +2610,8 @@ mod tests {
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
     use geom_core::{
-        Affine3, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Point2,
-        Vec3,
+        Affine3, Arc2, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING,
+        Point2, Vec3,
     };
 
     use crate::mapped::{MappedCurve, SketchSegment};
@@ -3880,9 +3880,11 @@ mod tests {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),
-                    centre: Point2::new(0.0, 0.0),
-                    radius: 1.0,
-                    sweep: FRAC_PI_2,
+                    arc: Arc2 {
+                        centre: Point2::new(0.0, 0.0),
+                        radius: 1.0,
+                        sweep: FRAC_PI_2,
+                    },
                 },
                 place,
             }),

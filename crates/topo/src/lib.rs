@@ -496,7 +496,9 @@ pub use splitting::{
     SplitResult, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
     vertex_sides,
 };
-pub use transform::{TransformError, transform_rigid, transform_rigid_via};
+pub use transform::{
+    TransformError, check_rigid, not_rigid_reading, transform_rigid, transform_rigid_via,
+};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
     StaleDeclaration, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,

@@ -933,12 +933,14 @@ fn build_doc(tol: Tol) -> Recipe {
     let spout_body = spout_loft(&mut doc, &frames, tol);
     let spout = insert(
         &mut doc,
-        Node::Transform {
-            input: spout_body,
-            translation: [len(SPOUT_ROOT.x), len(SPOUT_ROOT.y), len(SPOUT_ROOT.z)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(spout_turn()),
-        },
+        Node::transform(
+            spout_body,
+            pncad::document::Step::Rigid {
+                translation: [len(SPOUT_ROOT.x), len(SPOUT_ROOT.y), len(SPOUT_ROOT.z)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(spout_turn()),
+            },
+        ),
         tol,
     );
 

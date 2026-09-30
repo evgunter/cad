@@ -16,6 +16,7 @@ did not ask it to.
 | Refusal text | `src/readable.rs` (`Readable`, the one rendering of an `f64` a refusal message interpolates) |
 | Exact arithmetic | `src/exact.rs` (`two_sum`, the error-free transform a structural door decides a real identity with) |
 | Linear algebra | `src/linalg.rs`, `src/linalg/` |
+| The planar arc carrier | `src/arc.rs` (`Arc2`: centre, radius and signed sweep, the one arc value `profile` and `geom-brep` share, and its one evaluation) |
 | Knot structure | `src/spline/knots.rs` (`KnotVector`, `Span`, `InteriorKnot`), `src/spline/locate.rs` (`SpanLocate`, `SpanSet`) — the S1 clause below |
 | Knot algebra | `src/spline/algebra.rs` (insertion, refinement, removal, degree elevation, the union-and-refine routine) |
 | Evaluation and bounds | `src/spline/basis.rs` (basis values and derivatives), `src/spline/hull.rs` (the C2.2 sup-norm mechanism), `src/spline/compose.rs`, `src/spline/net.rs` |

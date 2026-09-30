@@ -620,12 +620,14 @@ fn separation_off_is_visibly_skipped_and_independent() {
     let moved = |doc, dx: f64| {
         insert(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                editor_core::Step::Rigid {
+                    translation: [len(dx), len(0.0), len(0.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ),
         )
     };
     let (doc, _) = moved(doc, 3.0);

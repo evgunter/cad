@@ -892,10 +892,10 @@ fn both_kinds_round_trip_through_persistence() {
     }
 }
 
-/// **An older document never names the two kinds, and loads.** The
-/// additive-growth direction of the one door, on REAL older bytes:
-/// `corpus/tour/die_composed_tour.pncad` was written by a build with
-/// no tube vocabulary at all and is committed untouched by this unit.
+/// **A document that never names the two kinds loads.** The
+/// additive-growth direction of the one door, on real bytes the tour
+/// writes rather than bytes built here: `corpus/tour/die_composed_tour.pncad`
+/// names neither kind.
 ///
 /// ε is re-stamped to the process's before the load, because a saved
 /// document records the ε it was decided at and `load` refuses a

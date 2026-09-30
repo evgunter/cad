@@ -488,9 +488,9 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// - a pattern contributes [`crate::eval::stepped_rule_map`] at the
 ///   named index — THE evaluation's own stepped rule, fed the
 ///   pattern's authored slots evaluated in `env`;
-/// - a transform contributes [`crate::eval::transform_map`] — the
-///   same construction `wire_transform` places the body by, fed the
-///   node's own expressions in `env`.
+/// - a transform contributes its placement's motion — the construction
+///   `wire_transform` places the body by, fed the node's slots
+///   evaluated in `env` through the evaluation's own door.
 ///
 /// A `Part` contributes nothing at all — it selects a body, it does
 /// not move one. Whether it agrees with the name, and whether the
@@ -691,9 +691,10 @@ fn pattern_map<P: crate::ProfilePayload>(
     Ok(Some(crate::eval::stepped_rule_map(&ops, i64::from(i))))
 }
 
-/// **The map a transform contributes** — the same construction
-/// `wire_transform` places the body by, fed the node's own
-/// expressions in `env`.
+/// **The map a transform contributes** — its placement's motion, by
+/// the construction `wire_transform` places the body by
+/// (`Placement::motion`), fed the node's slots through the
+/// evaluation's own door ([`node_slots`]).
 ///
 /// # Errors
 ///
@@ -706,20 +707,11 @@ fn transform_map<P: crate::ProfilePayload>(
     band: Band,
 ) -> Result<Affine3<f64>, Seated> {
     let here = |kind| Box::new((node, kind));
-    let Some(transform @ Node::Transform { .. }) = doc.node(node) else {
+    let Some(transform @ Node::Transform { placement, .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
     };
     let vals = node_slots(transform, env).map_err(here)?;
-    Ok(crate::eval::transform_map(
-        need_vec3(&vals, SlotId::Translation).map_err(here)?,
-        crate::eval::unit_direction(
-            need_vec3(&vals, SlotId::RotationAxis).map_err(here)?,
-            crate::eval::TRANSFORM_AXIS_ROLE,
-            band,
-        )
-        .map_err(here)?,
-        need_scalar(&vals, SlotId::RotationAngle).map_err(here)?,
-    ))
+    placement.motion(&vals, band).map_err(here)
 }
 
 /// **The placer's slots, in `env`** — [`eval_slots`], the
@@ -809,12 +801,14 @@ mod tests {
     const MATE: RecipeNodeId = RecipeNodeId(50);
 
     fn xf(input: RecipeNodeId) -> Node<ProfileProgram> {
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        }
+            crate::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        )
     }
     fn axis_datum_node() -> Node<ProfileProgram> {
         Node::Datum(Datum::Axis {

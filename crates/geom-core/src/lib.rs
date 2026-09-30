@@ -15,6 +15,7 @@
 //! `docs/DESIGN.md` (decisions D4, D9, and open question Q1) for the
 //! design contract this crate implements.
 
+pub mod arc;
 pub mod bit_identity;
 pub mod dual;
 pub mod exact;
@@ -28,6 +29,7 @@ pub mod spline;
 pub mod sym;
 pub mod tolerance;
 
+pub use arc::Arc2;
 pub use dual::{Dual, Dual64, DualInterval};
 pub use interval::Interval;
 #[cfg(feature = "probe")]
