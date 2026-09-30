@@ -1354,6 +1354,68 @@ mod tests {
         }
     }
 
+    /// **Two bound directions at an edge event are grouped at their
+    /// corners' own arm**: two corners along a common line `z`, both of
+    /// whose arms are an in-band length, mention the same direction. The
+    /// grouping reads their sense at those arms, where it cannot tell,
+    /// and refuses as the corner's sense; metered at a metre it would read
+    /// the sense and go on to the membership.
+    #[test]
+    fn edge_event_mentions_are_grouped_at_their_corners_arm() {
+        use super::super::sectors::Reach;
+        use crate::boolean::{BooleanDecision, BooleanDeclarations, DeclaredPairs};
+        use geom_brep::OutwardNormal;
+        use geom_core::{Point3, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let arm = (band.zero() + band.escalate()) / 2.0;
+        let sector = |start: Vec3<f64>, end: Vec3<f64>| BoolSector {
+            he: crate::entity::HalfEdgeKey::default(),
+            start,
+            end,
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + start,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + end,
+            },
+            face: crate::entity::FaceKey::default(),
+            normal: OutwardNormal::from_chart(y, true),
+            arm,
+        };
+        let corner = [sector(z, x), sector(x, z)];
+        let mut records = [rec(0, 0, (On, Out), (On, Out))];
+        let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+        let body = crate::body::Body::<f64>::new();
+        let err = recl_edges(
+            &mut records,
+            &corner,
+            &corner,
+            &body,
+            &body,
+            BooleanOp::Union,
+            &declared,
+            band,
+        )
+        .expect_err("the sense at an in-band arm refuses");
+        let BooleanError::Escalated { decision, diag } = &err else {
+            panic!("an escalation: {err:?}");
+        };
+        assert_eq!(*decision, BooleanDecision::DirectionSense, "{err}");
+        assert_eq!(
+            diag.margin.diagnostic_f64_for_error_text().value(),
+            Some(arm),
+            "the sense is metered at the corners' arm"
+        );
+    }
+
     /// A body whose one skeletal face carries `surface`.
     fn face_on(surface: geom::Surface<f64>) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
         let st = crate::fixtures::mvfs_state();

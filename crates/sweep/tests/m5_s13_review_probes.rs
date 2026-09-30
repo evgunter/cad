@@ -119,6 +119,10 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
         panic!("expected the scan's tangency arm, got {err:?}");
     };
     assert_eq!(diag.predicate, Some("bool_sphere_extent_gap"));
+    assert!(
+        !diag.margin.is_invalid(),
+        "the decided zero carries the margin the funnel decided: {diag:?}"
+    );
 }
 
 /// PROBE 3 (door corrected in adoption): the section circle crosses the
