@@ -2,11 +2,12 @@
 id: a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at
 kind: issue
 title: A refused loop's last leg onto its start is dropped from the preview unless the loop opens with at and the leg targets a point
-status: review
+status: closed
 opened: 2026-09-30
 priority: P2
 cost: E
 branch: author/geometry-close
+closed: 2026-09-30
 ---
 
 
@@ -71,3 +72,7 @@ Probes, measured on the branch:
 - **a last target `5.5e-17` off the start**: still dropped. The step names a point that is not the start, and calling it the start is a banded decision the viewer does not make.
 
 The last two, with a last leg every close reverses and one inside the ambiguity band, are filed as `work/author/a-last-leg-no-close-can-follow-is-dropped`, held by `sketch::tests::a_last_leg_no_close_can_follow_is_walked_back`. The kernel's words for a close of no length are filed as `work/paths/a-close-from-a-tip-on-its-start-is-refused-as-a-tangent-seam`.
+
+## Closed 2026-09-30 — PR 3579 merged (`f60af7d1`)
+
+Closed with its sibling as AUTH-13. What is drawn now is in the Built section above. The residue is its own row: `a-last-leg-no-close-can-follow-is-dropped` (the turn square, the 5.5e-17 point, a cusp close, "through the start and on", and the escalation band).

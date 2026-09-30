@@ -1507,3 +1507,18 @@ Two P2 rows as one unit: `a-close-refused-on-its-geometry-draws-nothing` (filed 
 Review tier: correctness + style. This is the third change to the preview's semantics, and the draw-no-more-than-was-written invariant is what a review must attack.
 
 The P0 (negative extrude, #3551) and the P1 face-naming row (#3571) are with Ev. The other P1s stay blocked on MSOLVE and CLEAR rows, both still open.
+
+## 2026-09-30 — AUTH-13 MERGED (`f60af7d1`): a geometry-refused close still draws what was written
+
+Thirteen units closed. **The duplication trap fired a thirteenth time**, as a second error variant (`Close` beside `Geometry`) whose sentence was built in three places. The style review caught it.
+
+**A correctness MAJOR the review ran, and the reason to re-verify every fix pass that reaches semantics.** The first head read the loop's start from the first `at` *anywhere* in the chain. For a fused `arc_fillet` entry, whose start the kernel seeds with no `at`, that is a mid-chain anchor, so the preview drew a close nobody wrote. It was a regression against main. The fix reads the start from the entry, the same field the kernel seeds. The re-verification then showed the fix pass's own claim ("the kind restriction is inert by construction") false with a witness, and found two re-spellings that did not compose. Both were fixed and pinned before merge.
+
+**Where this leaves the preview:**
+- A geometry-refused close walks back like a refused step and says the kernel's own reason, advisory.
+- A decided tangency is re-spelled (`continue_to`, a declared seam, or both), and the re-spelling is never painted.
+- An escalation says "too close to call".
+- A last leg onto the start is the close when its own step names the start.
+- The residue is `a-last-leg-no-close-can-follow-is-dropped` (P3).
+
+Review tier: correctness + style, then two correctness re-verifications.
