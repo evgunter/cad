@@ -194,7 +194,7 @@ const HULL_SLACK_ABOVE: f64 = 8.500e-5;
 /// Whether this run is the CI row (the default ε), where the cell's
 /// MEASURED numbers — stop 1's leaf counts and hull padding — are
 /// pinned exactly rather than as ceilings.
-fn at_the_ci_row(tol: Tol) -> bool {
+pub(crate) fn at_the_ci_row(tol: Tol) -> bool {
     (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3
 }
 
