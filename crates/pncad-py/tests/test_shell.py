@@ -187,7 +187,10 @@ class TestCup(unittest.TestCase):
         names2 = ev2.select(hollow2, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))
         self.assertEqual(len(names2), len(names))
         for name in names:
-            self.assertNotEqual(ev2.resolve(name).status, "resolved", name)
+            verdict = ev2.resolve(name)
+            self.assertEqual(
+                (verdict.status, verdict.variant), ("failed", "node_gone"), name
+            )
         props = ev2.value(hollow2).body().mass_properties()
         want_v, want_a = closed_forms(L, H_BUMPED, T_BUMPED)
         self.assertEqual(props.volume, want_v)

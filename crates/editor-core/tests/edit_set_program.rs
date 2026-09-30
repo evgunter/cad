@@ -1163,7 +1163,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     });
     match load(&no_mint, tol()) {
         Err(PersistError::Unreadable { detail, .. }) => {
-            assert!(detail.contains("mint"), "{detail}");
+            assert!(detail.contains("missing field `mint`"), "{detail}");
         }
         other => panic!("a file without a mint is unreadable, got {other:?}"),
     }
