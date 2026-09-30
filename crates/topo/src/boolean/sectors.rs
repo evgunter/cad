@@ -45,7 +45,7 @@
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::{BooleanError, Operand, SideCode};
+use super::{BooleanDecision, BooleanError, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
@@ -232,7 +232,10 @@ pub(super) fn build_sectors<T: Decide>(
                 SectorFault::UnderflowedChord => {
                     BooleanError::UnderflowedSectorChord { vertex, face }
                 }
-                SectorFault::Rung(diag) => BooleanError::Escalated { diag },
+                SectorFault::Rung { rung, diag } => BooleanError::Escalated {
+                    decision: BooleanDecision::Corner(rung),
+                    diag,
+                },
             }
         })?;
         match bisec {
@@ -331,6 +334,7 @@ pub(super) fn sector_face<T: Decide>(
 
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     BooleanError::Escalated {
+        decision: BooleanDecision::Coincidence,
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::INVALID,
             band,
@@ -347,6 +351,7 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
 /// known: the reading lies within `±zero`.
 pub(super) fn bisector_zero_refusal(band: Band) -> BooleanError {
     BooleanError::Escalated {
+        decision: BooleanDecision::Coincidence,
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
             band,
@@ -453,7 +458,7 @@ pub(super) fn side_code<T: Decide>(
                 Ok(Sign::Negative) => SideCode::In,
                 Ok(Sign::Positive) => SideCode::Out,
                 Ok(Sign::Zero) => return Ok(SideCode::On),
-                Err(diag) => return Err(BooleanError::Escalated { diag }),
+                Err(diag) => return Err(BooleanError::coincidence(diag)),
             };
             (verdict, offset.abs(), (far - base).norm())
         }
@@ -462,7 +467,7 @@ pub(super) fn side_code<T: Decide>(
                 Ok(EntersMaterial::Enters) => SideCode::In,
                 Ok(EntersMaterial::Exits) => SideCode::Out,
                 Ok(EntersMaterial::Tangent) => return Ok(SideCode::On),
-                Err(diag) => return Err(BooleanError::Escalated { diag }),
+                Err(diag) => return Err(BooleanError::coincidence(diag)),
             };
             (
                 verdict,
@@ -497,7 +502,7 @@ pub(super) fn side_code<T: Decide>(
     match (at_length, at_arm) {
         (Ok(Sign::Positive), _) => Ok(verdict),
         (_, Ok(_)) => Err(BooleanError::CurvedSectorSideUnsupported { band }),
-        (_, Err(diag)) => Err(BooleanError::Escalated { diag }),
+        (_, Err(diag)) => Err(BooleanError::coincidence(diag)),
     }
 }
 
@@ -545,7 +550,7 @@ pub(super) fn tangent_lump<T: Decide>(
     use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
     let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
         Ok(TangentLocus::Line { dir, .. }) => dir,
-        Err(TangentLocusError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
+        Err(TangentLocusError::Escalated(diag)) => return Err(BooleanError::coincidence(diag)),
         // The sector pair read geometrically ON while the carriers are
         // definitely apart or crossing: the same self-contradiction
         // family as a coplanar sector with definitely-distinct planes.
@@ -632,7 +637,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
         Ok(EntersMaterial::Enters) => Ok(SideCode::In),
         Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
         Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
-        Err(diag) => Err(BooleanError::Escalated { diag }),
+        Err(diag) => Err(BooleanError::coincidence(diag)),
     }
 }
 
@@ -667,10 +672,8 @@ pub(super) fn within<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
     let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let t1 =
-        decide("bool_sector_within", c1, band).map_err(|diag| BooleanError::Escalated { diag })?;
-    let t2 =
-        decide("bool_sector_within", c2, band).map_err(|diag| BooleanError::Escalated { diag })?;
+    let t1 = decide("bool_sector_within", c1, band).map_err(BooleanError::coincidence)?;
+    let t2 = decide("bool_sector_within", c2, band).map_err(BooleanError::coincidence)?;
     Ok(if strict {
         t1 == Sign::Positive && t2 == Sign::Positive
     } else {
@@ -689,13 +692,13 @@ fn parallel_same<T: Decide>(
     match decide("bool_dir_parallel", cross_margin, band) {
         Ok(Sign::Zero) => {}
         Ok(_) => return Ok(false),
-        Err(diag) => return Err(BooleanError::Escalated { diag }),
+        Err(diag) => return Err(BooleanError::coincidence(diag)),
     }
     match decide("bool_dir_same", Margin::levered(u.dot(v), arm), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(Sign::Negative) => Ok(false),
         Ok(Sign::Zero) => Err(invalid_escalation(band, "bool_dir_same")),
-        Err(diag) => Err(BooleanError::Escalated { diag }),
+        Err(diag) => Err(BooleanError::coincidence(diag)),
     }
 }
 
@@ -776,7 +779,7 @@ pub(super) fn pair_search<T: Decide>(
                 Ok(Sign::Negative) => {
                     return Err(invalid_escalation(band, "bool_faces_parallel"));
                 }
-                Err(diag) => return Err(BooleanError::Escalated { diag }),
+                Err(diag) => return Err(BooleanError::coincidence(diag)),
             };
             let hit = if coplanar {
                 sector_overlap(sa, sb, band)?
@@ -1143,7 +1146,7 @@ mod tests {
         assert_eq!(run(0.5).unwrap(), SideCode::Out);
         let inband_arm = (b.zero() * b.escalate()).sqrt().sqrt();
         match run(inband_arm) {
-            Err(BooleanError::Escalated { diag }) => {
+            Err(BooleanError::Escalated { diag, .. }) => {
                 assert_eq!(diag.predicate, Some("tangent_sector_order2"));
             }
             other => panic!("an in-band sagitta must escalate: {other:?}"),

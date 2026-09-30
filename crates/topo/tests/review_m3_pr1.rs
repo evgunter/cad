@@ -572,7 +572,7 @@ fn split_edge_interiority_band_edges() {
     ] {
         let err = cube.body.split_edge(edge, t, Tol::witness()).unwrap_err();
         assert!(
-            matches!(err, EulerOpError::SplitParamNotInterior { edge: e } if e == edge),
+            matches!(err, EulerOpError::SplitParamNotInterior { edge: e, .. } if e == edge),
             "t = {t}: expected SplitParamNotInterior, got {err:?}"
         );
         assert_eq!(dump(&cube.body), before, "refusal at t = {t} mutated");
