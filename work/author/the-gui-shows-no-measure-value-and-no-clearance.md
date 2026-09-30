@@ -2,10 +2,12 @@
 id: the-gui-shows-no-measure-value-and-no-clearance
 kind: issue
 title: the GUI shows a measure's existence and never its value
-status: dispatched
+status: closed
 opened: 2026-09-11
 priority: P0
 cost: D
+closed: 2026-09-30
+pr: 3528
 ---
 
 
@@ -76,3 +78,34 @@ Dispatched 2026-09-30 as **AUTH-7** (`docs/AUTH-7-SPEC.md`, branch `author/measu
 AUTH-7 split tier 3 out as `the-gui-has-no-clearance-consumer` (design). Its sweep also filed `an-assertion-row-shows-no-verdict` and `a-mate-row-does-not-say-whether-it-placed-its-child`.
 
 AUTH-7 landed the value as `Measure »  0.0125 m`. Two parts of the example `Measure  distance  12.500 mm` are scheduled elsewhere. The verb waits on a kernel door, `work/props/measureexpr-has-no-display-or-as-primitive`. The unit is the crate-wide computed-value notation question, `work/chrome/a-computed-slots-value-reads-in-metres-and-radians`, which now carries the measure case too.
+
+## Closed 2026-09-30 — PR 3528 merged (`6e9523dd`)
+
+**A measure shows its value, or says why it has none.** A measure with
+a value shows it beside its tree row (`Measure »  0.0125 m`). A
+`min_clearance` measure, which deliberately has no value at `f64`, shows
+the kernel's own `MeasureUnavailableAt` sentence under its row, naming
+the door that answers. A failed measure shows its badge and no value.
+The value is keyed by the row's own node id and read from the landed
+pair, as every badge is. The number goes through the crate's one rule
+for computed values (`props::computed_text`), and the reason stays
+typed until the pane renders it.
+
+**Two premises in the spec were wrong, and both are recorded here.**
+- *"In the author's units"* has no referent. A `MeasureExpr` carries a
+  dimension, not a unit, and there is no preferred unit anywhere, so
+  the value reads in canonical units, as a driven slot already does.
+  The crate-wide fix is a preferred display unit per dimension. It is
+  the existing CHROME design row
+  `a-computed-slots-value-reads-in-metres-and-radians`, which now holds
+  this evidence.
+- *The verb* (`distance`) is not shown. `MeasureExpr` has no `Display`,
+  and writing one in the viewer would mint a sentence; filed on PROPS
+  as `measureexpr-has-no-display-or-as-primitive`.
+
+**Tier 3, a clearance consumer,** is its own design row,
+`the-gui-has-no-clearance-consumer`.
+
+**Siblings filed:** `an-assertion-row-shows-no-verdict` (P0, the same
+gap for assertion verdicts) and `a-mate-row-does-not-say-whether-it-placed-its-child`
+(blocked on MSOLVE's `materole-has-no-display`).
