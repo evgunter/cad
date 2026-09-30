@@ -2535,6 +2535,30 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     Ok(out)
 }
 
+/// **Whether a re-cut sphere's polar axis leans off the escape normal**
+/// ([`SphereQuestion::RecutAlign`]): the axes' cross levered at the
+/// radius. Definite by construction on a crossing-free escape (an
+/// aligned axis's seam crosses the escape plane, which the crossing
+/// layer sees first), so an aligned or in-band axis refuses, with its
+/// decided margin where it decided zero.
+pub(super) fn recut_lean<T: Decide>(
+    axis: Vec3<T>,
+    align: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<(), BooleanError> {
+    crate::validate::decide_nonzero_reported(
+        "bool_sphere_recut_align",
+        Margin::levered(axis.cross(align).norm(), radius),
+        band,
+    )
+    .map(|_| ())
+    .map_err(|diag| BooleanError::Escalated {
+        decision: BooleanDecision::Sphere(SphereQuestion::RecutAlign),
+        diag,
+    })
+}
+
 /// Applies the scan's re-cuts: each escaping group's shell is carved
 /// out, rigidly rotated about the sphere's own center so the stored
 /// polar axis lands on the escape normal (the same point set — a
@@ -2571,23 +2595,8 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             cut_shells.push(shell);
             let ball = carve(src, solid, &[shell])
                 .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
-            // Rotation source → target: definite by construction — an
-            // ALIGNED yet crossing-free escape is a graze the crossing
-            // layer must have seen, so it refuses loudly instead.
-            // An aligned axis (a decided zero) with a crossing-free
-            // escape is a graze the crossing layer must have seen: it
-            // refuses with its decided margin, as its in-band twin does.
+            recut_lean(r.axis, r.align, r.radius, band)?;
             let cross = r.axis.cross(r.align);
-            let sin = cross.norm();
-            crate::validate::decide_nonzero_reported(
-                "bool_sphere_recut_align",
-                Margin::levered(sin, r.radius),
-                band,
-            )
-            .map_err(|diag| BooleanError::Escalated {
-                decision: BooleanDecision::Sphere(SphereQuestion::RecutAlign),
-                diag,
-            })?;
             // The alignment rotation, built ALGEBRAICALLY (Rodrigues
             // with the angle eliminated: R = I + K + K²/(1+c) for
             // K = [â×n̂]ₓ, c = â·n̂ — division guarded by the

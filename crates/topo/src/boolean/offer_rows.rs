@@ -22,7 +22,9 @@
 
 use super::super::reduce::{ContactAcc, CurvedEvent, curved_face_arm};
 use super::super::sectors::{NO_CURVATURE, Reach, side_code, tangent_relative_side};
-use super::super::{BooleanDeclarations, BooleanError, DeclaredPairs, FacePairDeclaration, Operand};
+use super::super::{
+    BooleanDeclarations, BooleanError, BooleanErrorKind, DeclaredPairs, FacePairDeclaration, Operand,
+};
 use super::tests::every_decision;
 use super::*;
 use crate::contact::ContactClass;
@@ -73,8 +75,19 @@ enum Door {
 enum Offer {
     /// A valued tolerance, which the chain executes.
     Valued,
-    /// No tolerance: the arm withdrew it, and the case pins that.
-    Withdrawn,
+    /// No tolerance: the arm withdrew it, and the case pins that, with
+    /// what the offer it withdrew would have met.
+    Withdrawn(Because),
+}
+
+/// What a withdrawn offer would have met, executed: the same raise
+/// re-run at [`test_utils::offer::BELOW`] × the value its margin gives
+/// (`|m|/K`, the offer the arm would make were it valued) refuses on this
+/// decision (F1 where it is the case's own, F2 where it is a defect, F3
+/// where it offers no tolerance).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Because {
+    Refuses(&'static str),
 }
 
 /// One raise.
@@ -142,11 +155,13 @@ cases! {
         tangent_side(true);
     line_clear_of_a_wall: "Coincidence(EdgeOnCurvedFace)", true, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0 + D, 0.0);
-    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", false, CURVED_ARM_SITE, Withdrawn =>
+    line_inside_a_wall: "Coincidence(EdgeOnCurvedFace)", false, CURVED_ARM_SITE,
+        Withdrawn(Because::Refuses("WallRoots(Discriminant)")) =>
         line_against_a_wall(1.0 - D, 0.0);
     endpoint_clear_of_a_wall: "Coincidence(VertexOnCurvedFace)", true, CURVED_ARM_SITE, Valued =>
         line_against_a_wall(1.0, (2.0 * D).sqrt());
-    endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", false, CURVED_ARM_SITE, Withdrawn =>
+    endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", false, CURVED_ARM_SITE,
+        Withdrawn(Because::Refuses("WallRoots(Discriminant)")) =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
     arc_clear_of_a_wall: "Coincidence(ArcClearsCurvedFace)", true, CURVED_ARM_SITE, Valued =>
         arc_against_a_wall(1.0 + D, None, false);
@@ -154,19 +169,21 @@ cases! {
         arc_against_a_wall(1.0 + D, Some(ContactClass::Rest), false);
     arc_on_a_tangent_wall: "Coincidence(ArcOnCoveredFace)", true, CURVED_ARM_SITE, Valued =>
         arc_against_a_wall(1.0 + D, Some(ContactClass::Tangent), false);
-    arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", true, CURVED_ARM_SITE, Withdrawn =>
+    arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", true, CURVED_ARM_SITE,
+        Withdrawn(Because::Refuses("CurvedPierceUnsupported")) =>
         arc_against_a_wall(1.0 + D, Some(ContactClass::Rest), true);
     thin_wedge_on_a_block: "Coincidence(Sectors)", true, Public, Valued =>
         wedge_on_a_block(5.0, D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
-    tangent_screen_of_a_tilted_block: "Coincidence(Planes)", true, Public, Withdrawn =>
+    tangent_screen_of_a_tilted_block: "Coincidence(Planes)", true, Public,
+        Withdrawn(Because::Refuses("UnsupportedDeclarationClass")) =>
         tilted_block_declared_tangent();
     membership_along_a_curved_flank: "Coincidence(CurvedFlankSense)", true, Door::Site(
         "the membership tie is read inside the edge-edge resolution, on hand-built sectors: \
          an in-band sense needs a flanker arm inside the band, which the corner's arm rung \
          refuses first on a public raise",
-    ), Withdrawn => curved_flank_membership();
+    ), Withdrawn(Because::Refuses("CurvedBooleanUnsupported")) => curved_flank_membership();
     pierce_germ_line_in_band: "Coincidence(Sectors)", true, Door::Site(
         "the germ line is read at a transition sector whose vertices stand off their own face, \
          which a public raise does not place",
@@ -206,7 +223,11 @@ cases! {
         pierced_torus(1.0, 1.0 - D);
     coaxial_thin_cylinder: "Radius(Cylinder)", true, FRAME_SITE, Valued =>
         coaxial_frame(D, 1.0);
-    coaxial_tiny_sphere: "Radius(Sphere)", true, FRAME_SITE, Valued =>
+    // The cylinder's guard asks first, so a sphere radius in band beside
+    // a clear cylinder radius is a pair that does not meet: decided, it
+    // is no section, which a real germ pair never is (the frame's defect).
+    coaxial_tiny_sphere: "Radius(Sphere)", true, FRAME_SITE,
+        Withdrawn(Because::Refuses("JoinDesync")) =>
         coaxial_frame(0.5, D);
     arc_root_just_inside_its_span: "Crossing(OnEdge)", true, ROOT_SITE, Valued =>
         circle_roots(1.0 - D);
@@ -218,10 +239,20 @@ cases! {
     rims_a_hair_narrower: "Coincidence(Rim)", false, RIM_SITE, Valued => rims(1.0 + D);
     germs_nearly_facing: "Coincidence(Join)", true, JOIN_SITE, Valued => germ_facing(D);
     germs_nearly_turned_away: "Coincidence(Join)", false, JOIN_SITE, Valued => germ_facing(-D);
-    flanks_along_a_short_arm: "Coincidence(FlankSense)", true, FLANK_SITE, Valued =>
-        planar_flank_membership(false);
+    // Overlapping plane flanks lie on one plane, which the door then asks
+    // to be one face.
+    flanks_along_a_short_arm: "Coincidence(FlankSense)", true, FLANK_SITE,
+        Withdrawn(Because::Refuses("UndeclaredCoincidence")) =>
+        planar_flank_membership(false, false);
+    // Declared `Rest`, the one face the door verified.
+    flanks_along_a_short_arm_declared_rest: "Coincidence(FlankSense)", true, FLANK_SITE, Valued =>
+        planar_flank_membership(false, true);
+    // Coincident planes facing opposite ways, read at a short arm: the
+    // offset rung asks next, and refuses an undeclared pair.
+    planes_facing_at_a_short_arm: "PlaneOrientation", false, FLANK_SITE,
+        Withdrawn(Because::Refuses("UndeclaredCoincidence")) => shared_side_plane(D);
     flanks_against_a_short_arm: "Coincidence(FlankSense)", false, FLANK_SITE, Valued =>
-        planar_flank_membership(true);
+        planar_flank_membership(true, false);
     neighbours_bent_at_the_band: "Neighbours(Parallel)", true, GATE_SITE, Valued =>
         bent_neighbours(D);
     neighbours_offset_above: "CoplanarNeighbours", false, GATE_SITE, Valued =>
@@ -230,6 +261,23 @@ cases! {
         offset_neighbours(-D);
     neighbours_offset_within_the_zero_band: "CoplanarNeighbours", false, GATE_SITE, Valued =>
         offset_neighbours(Z);
+    rim_just_above_a_face: "Coincidence(EdgeOnPlane)", true, RIM_PLANE_SITE, Valued =>
+        rim_over_a_brick(1.0 - D);
+    rim_just_below_a_face: "Coincidence(EdgeOnPlane)", false, RIM_PLANE_SITE, Valued =>
+        rim_over_a_brick(1.0 + D);
+    roots_a_hair_apart: "Crossing(Order)", false, ROOT_SITE, Valued => ellipse_roots(false);
+    roots_a_hair_apart_across_the_window: "Crossing(Order)", true, ROOT_SITE, Valued =>
+        ellipse_roots(true);
+    seam_over_a_short_edge: "LeverArm(Seam)", true, SEAM_SITE, Valued =>
+        seam(core::f64::consts::FRAC_PI_2, D);
+    seam_over_an_edge_in_the_zero_band: "LeverArm(Seam)", true, SEAM_SITE, Valued =>
+        seam(core::f64::consts::FRAC_PI_2, Z);
+    seam_barely_creased: "SeamWedge", true, SEAM_SITE, Valued => seam(D, 1.0);
+    sphere_barely_leaning: "Sphere(RecutAlign)", true, Door::Site(
+        "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
+         normal carries a seam across the escape plane that the crossing layer meets first: no \
+         public raise is known to reach it in band"
+    ), Valued => recut(D);
 }
 
 /// An arm just above the band's escalation edge at [`DESIGN_EPS`], so a
@@ -261,6 +309,13 @@ const JOIN_SITE: Door = Door::Site(
 );
 const FLANK_SITE: Door = Door::Site(
     "the membership tie is read inside the edge-edge resolution, on hand-built sectors",
+);
+const RIM_PLANE_SITE: Door = Door::Site(
+    "a rim's offset from a parallel face is read in the sweep, on a wall sheet and a brick run \
+     through it directly",
+);
+const SEAM_SITE: Door = Door::Site(
+    "a seam of the result is read as its edges are re-described, on two surfaces set directly",
 );
 const GATE_SITE: Door = Door::Site(
     "the maximal-faces gate is asked of the operand directly: a solid whose neighbours are bent \
@@ -683,11 +738,45 @@ fn circle_roots(t: f64) -> Result<(), BooleanError> {
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
+    conic_roots(&circle, (0.0, 1.0), t.cos())
+}
+
+/// The semi-axes of [`ellipse_roots`]' ellipse: long along the plane's
+/// normal, so its two roots can stand a band apart (metered on the minor
+/// axis) while the plane still reaches clearly into it.
+const ELLIPSE: (f64, f64) = (1e4, 1e-3);
+
+/// An ellipse's arc about its `+x` tip (or, `beyond`, its `−x` tip)
+/// against the plane `x = const` cutting it at two parameters `D` apart
+/// in metres on the minor axis: which comes first is the root order's
+/// question, read negative about `+x` and positive about `−x` (the
+/// window's reduction takes the later root first there).
+fn ellipse_roots(beyond: bool) -> Result<(), BooleanError> {
+    let (major, minor) = ELLIPSE;
+    let ellipse = geom::Curve3::Ellipse {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        major,
+        minor,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let half = D / (2.0 * minor);
+    let (mid, x) = if beyond {
+        (core::f64::consts::PI, -major * half.cos())
+    } else {
+        (0.0, major * half.cos())
+    };
+    conic_roots(&ellipse, (mid - 0.5, mid + 0.5), x)
+}
+
+/// `carrier` over `span` against the plane `x = x0`, as the conic root
+/// lane reads it.
+fn conic_roots(carrier: &geom::Curve3<f64>, span: (f64, f64), x0: f64) -> Result<(), BooleanError> {
     match crate::splitting::conic_plane_crossing_roots(
-        &circle,
-        0.0,
-        1.0,
-        Point3::new(t.cos(), 0.0, 0.0),
+        carrier,
+        span.0,
+        span.1,
+        Point3::new(x0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
         band(),
     ) {
@@ -696,8 +785,38 @@ fn circle_roots(t: f64) -> Result<(), BooleanError> {
             diag: fault.diag(),
         }),
         Ok(_) => Ok(()),
-        Err(()) => panic!("a circle is a conic"),
+        Err(()) => panic!("a conic"),
     }
+}
+
+/// A half cylinder-wall sheet whose top rim runs at `z = 1`, over a
+/// brick whose top face is the plane `z = top`: the sweep, where the
+/// rim's plane parallel to that face is read for its offset.
+fn rim_over_a_brick(top: f64) -> Result<(), BooleanError> {
+    use super::super::reduce::coplanar_conic_rows::{brick_under, split_sheet, sweep};
+    sweep(&split_sheet().0, &brick_under(top).0).map(|_| ())
+}
+
+/// Two planes through the `z` axis at `angle`, read as a seam of the
+/// result over `extent`.
+fn seam(angle: f64, extent: f64) -> Result<(), BooleanError> {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let z = Vec3::new(0.0, 0.0, 1.0);
+    let (s1, s2) = (
+        plane_through(o, z, Vec3::new(0.0, 1.0, 0.0)),
+        plane_through(o, z, Vec3::new(angle.sin(), angle.cos(), 0.0)),
+    );
+    super::super::ops::seam_class(&s1, &s2, o, extent, band()).map(|_| ())
+}
+
+/// A re-cut sphere of radius 1 whose polar axis leans off the escape
+/// normal by the angle whose sine is `lean`.
+fn recut(lean: f64) -> Result<(), BooleanError> {
+    let (axis, align) = (
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(lean, 0.0, (1.0 - lean * lean).sqrt()),
+    );
+    super::super::ops::recut_lean(axis, align, 1.0, band())
 }
 
 /// A point on a unit wall sheet's carrier well outside its trim, `D`
@@ -760,8 +879,10 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
 
 /// The membership tie on two prisms' shared side plane `x = 1`, each
 /// corner's flanker along `x` (or against it, for the second corner,
-/// where `against`), at an arm of `D`.
-fn planar_flank_membership(against: bool) -> Result<(), BooleanError> {
+/// where `against`), at an arm of `D`, the pair declared `Rest` where
+/// `rest` (a class the door verifies there:
+/// `recl`'s `an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it`).
+fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError> {
     use super::super::recl::resolve_edge_edge;
     use super::super::sectors::{BoolSector, PairRecord};
     use super::super::SideCode::{In, On, Out};
@@ -800,7 +921,15 @@ fn planar_flank_membership(against: bool) -> Result<(), BooleanError> {
         intersect: true,
     }];
     let flank = if against { -x } else { x };
-    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    let decls = BooleanDeclarations {
+        coincident_faces: if rest {
+            vec![FacePairDeclaration::new(fa, fb, ContactClass::Rest)]
+        } else {
+            Vec::new()
+        },
+        ..BooleanDeclarations::none()
+    };
+    let declared = DeclaredPairs::build(&decls, Default::default());
     resolve_edge_edge(
         &records,
         &[sector(z, x, fa), sector(x, z, fa)],
@@ -816,6 +945,41 @@ fn planar_flank_membership(against: bool) -> Result<(), BooleanError> {
     .map(|_| ())
 }
 
+/// Two unit prisms' shared side plane `x = 1`, undeclared, read as an
+/// on-pair of corners at arm `arm`.
+fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
+    use super::super::sectors::BoolSector;
+    let tol = Tol::witness();
+    let o = Point3::new(1.0, 0.0, 0.0);
+    let (y, z) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+    let square = |x0: f64| [(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)];
+    let pa = prism_z::<f64>(&square(0.0), 0.0, 1.0, tol);
+    let pb = prism_z::<f64>(&square(1.0), 0.0, 1.0, tol);
+    let sector = |face| BoolSector {
+        he: crate::entity::HalfEdgeKey::default(),
+        start: y,
+        end: z,
+        start_reach: Reach::Chord { base: o, far: o + y },
+        end_reach: Reach::Chord { base: o, far: o + z },
+        face,
+        normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
+        arm,
+    };
+    let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+    super::super::recl::require_same(
+        &pa.body,
+        Operand::A,
+        &sector(pa.side_faces[1]),
+        &pb.body,
+        Operand::B,
+        &sector(pb.side_faces[3]),
+        &declared,
+        arm,
+        band(),
+    )
+    .map(|_| ())
+}
+
 /// A unit prism's top split on its diagonal, one half bent about it by
 /// an angle whose sine over the diagonal is `margin`: the operand's
 /// maximal-faces gate.
@@ -823,11 +987,7 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
     let body = super::tests::top_split_redescribed(|p0, along, diagonal| {
         let theta = margin / diagonal;
         let up = Vec3::new(0.0, 0.0, 1.0);
-        crate::Surface::Plane {
-            origin: p0,
-            normal: up * theta.cos() + along.cross(up) * theta.sin(),
-            u_ref: along,
-        }
+        plane_through(p0, along, up * theta.cos() + along.cross(up) * theta.sin())
     });
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
@@ -836,12 +996,15 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
 /// above.
 fn offset_neighbours(offset: f64) -> Result<(), BooleanError> {
     let up = Vec3::new(0.0, 0.0, 1.0);
-    let body = super::tests::top_split_redescribed(|p0, along, _| crate::Surface::Plane {
-        origin: p0 + up * offset,
-        normal: up,
-        u_ref: along,
-    });
+    let body =
+        super::tests::top_split_redescribed(|p0, along, _| plane_through(p0 + up * offset, along, up));
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
+}
+
+/// The plane through `p` with unit normal `n`, containing the unit
+/// direction `along` (perpendicular to `n`).
+fn plane_through(p: Point3<f64>, along: Vec3<f64>, n: Vec3<f64>) -> geom::Surface<f64> {
+    crate::test_support_fixtures::plane(&[p, p + along, p + n.cross(along)], Tol::witness())
 }
 
 // ------------------------------------------------------------------
@@ -917,34 +1080,174 @@ fn every_offered_tolerance_passes_just_below_it() {
     assert!(false_offers.is_empty(), "false offers:\n{}", false_offers.join("\n\n"));
 }
 
-/// **A withdrawn tolerance stays withdrawn**: each case whose arm offers
-/// none refuses on its decision at [`DESIGN_EPS`] with no tolerance.
+/// The value a refusal's quoted point margin gives, `|m|/K` at the band
+/// its child ran at ([`DESIGN_EPS`], the default `K`): the offer the arm
+/// would make were it valued.
+fn would_offer(text: &str) -> Option<f64> {
+    let (_, tail) = text.split_once("margin ")?;
+    let m = tail.split_whitespace().next()?.parse::<f64>().ok()?;
+    let band = design_band();
+    Some(m.abs() / (band.escalate() / band.zero()))
+}
+
+/// **A withdrawn tolerance stays withdrawn, and was false**: each case
+/// whose arm offers none refuses on its decision at [`DESIGN_EPS`] with
+/// no tolerance; re-run just below the value its margin gives, it
+/// refuses as its [`Because`] states.
 #[test]
 fn every_withdrawn_tolerance_stays_withdrawn() {
-    for case in CASES.iter().filter(|c| c.offer == Withdrawn) {
-        match run(&row(case), DESIGN_EPS) {
-            Outcome::Refused { key, defect, text } => {
-                assert_eq!(key, case.key, "{}: {text}", case.name);
-                assert!(!defect, "{}: {text}", case.name);
-                assert_eq!(margin_is_positive(&text), Some(case.positive), "{}: {text}", case.name);
-                assert!(
-                    test_utils::offer::offered_below(&text).is_none() && !text.contains("tighten"),
-                    "{}: offers a tolerance: {text}",
-                    case.name
-                );
-            }
-            Outcome::Pass => panic!("{}: passes at the design tolerance", case.name),
-        }
+    for case in CASES {
+        let Offer::Withdrawn(because) = case.offer else {
+            continue;
+        };
+        let Outcome::Refused { key, defect, text } = run(&row(case), DESIGN_EPS) else {
+            panic!("{}: passes at the design tolerance", case.name);
+        };
+        assert_eq!(key, case.key, "{}: {text}", case.name);
+        assert!(!defect, "{}: {text}", case.name);
+        assert_eq!(margin_is_positive(&text), Some(case.positive), "{}: {text}", case.name);
+        assert!(
+            test_utils::offer::offered_below(&text).is_none() && !text.contains("tighten"),
+            "{}: offers a tolerance: {text}",
+            case.name
+        );
+        let eps = test_utils::offer::BELOW
+            * would_offer(&text).unwrap_or_else(|| panic!("{}: a point margin: {text}", case.name));
+        let below = run(&row(case), eps);
+        let Because::Refuses(want) = because;
+        assert!(
+            matches!(&below, Outcome::Refused { key, .. } if key == want),
+            "{}: at {eps:e} the withdrawn offer meets {want}: {below:?}",
+            case.name
+        );
     }
 }
 
-/// The keys and sides the table renders a valued tolerance on, over
-/// every decision ([`every_decision`]) at a point margin in band and in
-/// the zero band on each side.
+/// The band every case's first raise runs at: [`DESIGN_EPS`] and the
+/// default `K`, which the children run at whatever the parent's own
+/// tolerance is.
+fn design_band() -> Band {
+    Band::new(DESIGN_EPS, geom_core::tolerance::DEFAULT_K * DESIGN_EPS).unwrap()
+}
+
+/// Every refusal of `kind` that quotes a margin of its own, at `diag`'s
+/// margin: an exhaustive match, so a new kind is a compile error here
+/// until it is placed.
+fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
+    use geom_brep::recourse::Refused;
+    let zero = || Classified {
+        margin: diag.margin,
+        band: diag.band,
+    };
+    let refused = || {
+        [
+            Refused::Zero(zero()),
+            Refused::Negative {
+                margin: diag.margin,
+            },
+        ]
+    };
+    let (operand, face) = (Operand::A, crate::entity::FaceKey::default());
+    match kind {
+        BooleanErrorKind::Escalated => every_decision()
+            .into_iter()
+            .map(|decision| BooleanError::Escalated { decision, diag })
+            .collect(),
+        BooleanErrorKind::CoplanarNeighbours => [
+            super::NeighbourOffset::Zero(zero()),
+            super::NeighbourOffset::Undecided(diag),
+        ]
+        .into_iter()
+        .map(|offset| BooleanError::CoplanarNeighbours {
+            operand,
+            faces: [face, face],
+            offset,
+        })
+        .collect(),
+        BooleanErrorKind::SpheresMeet => refused()
+            .into_iter()
+            .map(|verdict| BooleanError::SpheresMeet {
+                operand,
+                face,
+                verdict,
+            })
+            .collect(),
+        BooleanErrorKind::CurvedSectorSideUnsupported => refused()
+            .into_iter()
+            .map(|verdict| BooleanError::CurvedSectorSideUnsupported { verdict })
+            .collect(),
+        BooleanErrorKind::DegenerateTorus => [
+            geom_brep::TorusConvention::Tube,
+            geom_brep::TorusConvention::Ring,
+        ]
+        .into_iter()
+        .flat_map(|convention| {
+                refused().map(|verdict| BooleanError::DegenerateTorus {
+                    operand,
+                    face,
+                    convention,
+                    verdict,
+                })
+            })
+            .collect(),
+        // Its margin is exactly zero or unreadable, and its recourse
+        // names no value (the filed NOTE-1 residue).
+        BooleanErrorKind::UndeclaredCoincidence
+        // Quote no margin: a frontier, a declaration refused, a kernel
+        // invariant, or a range fault.
+        | BooleanErrorKind::Band
+        | BooleanErrorKind::CurvedBooleanUnsupported
+        | BooleanErrorKind::CurvedPierceUnsupported
+        | BooleanErrorKind::CurvedEdgeUnsupported
+        | BooleanErrorKind::PointSplitCarrierUnsupported
+        | BooleanErrorKind::ArcLoopContainmentUnsupported
+        | BooleanErrorKind::ScaffoldingOperand
+        | BooleanErrorKind::NonMaximalFaces
+        | BooleanErrorKind::NonFiniteSectorChord
+        | BooleanErrorKind::UnderflowedSectorChord
+        | BooleanErrorKind::DeclarationContradicted
+        | BooleanErrorKind::ContactContradicted
+        | BooleanErrorKind::UnsupportedDeclarationClass
+        | BooleanErrorKind::RimSeamNotDeclarable
+        | BooleanErrorKind::RimCuspArmUnbuilt
+        | BooleanErrorKind::InvalidDeclaration
+        | BooleanErrorKind::PairingMismatch
+        | BooleanErrorKind::ClassificationInvariant
+        | BooleanErrorKind::CorruptOperand
+        | BooleanErrorKind::CurvedPairUnsupported
+        | BooleanErrorKind::NurbsExtentUnsupported
+        | BooleanErrorKind::FallbackExtentUnsupported
+        | BooleanErrorKind::GermFrameUnsupported
+        | BooleanErrorKind::GermFrameCylinderPinch
+        | BooleanErrorKind::RestZipUnsupported
+        | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::TornComponent
+        | BooleanErrorKind::SeamOrientation
+        | BooleanErrorKind::ZipCorrespondence
+        | BooleanErrorKind::ResultInvalid
+        | BooleanErrorKind::ResultVolumeImplausible
+        | BooleanErrorKind::UnrepresentableResult
+        // Nest another module's refusal, whose offers are that module's
+        // to execute: this census does not reach them.
+        | BooleanErrorKind::CrossingInsertion
+        | BooleanErrorKind::Containment
+        | BooleanErrorKind::Revert
+        | BooleanErrorKind::Merge
+        | BooleanErrorKind::Pcurves
+        | BooleanErrorKind::Euler
+        | BooleanErrorKind::Join
+        | BooleanErrorKind::GraftRecertify => Vec::new(),
+    }
+}
+
+/// The keys and sides the Boolean's refusals render a valued tolerance
+/// on: every kind that quotes a margin of its own ([`quoting`]), every
+/// decision ([`every_decision`]) among them, at a point margin in band
+/// and in the zero band on each side.
 fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
-    let band = band();
+    let band = design_band();
     let mut out = std::collections::BTreeSet::new();
-    for decision in every_decision() {
+    for kind in <BooleanErrorKind as strum::IntoEnumIterator>::iter() {
         for m in [D, -D, Z, -Z] {
             let diag = Indeterminate {
                 margin: MarginDiag::value(m),
@@ -952,10 +1255,10 @@ fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
                 predicate: Some("census"),
                 terminal_sliver: false,
             };
-            let text = BooleanError::Escalated { decision, diag }.to_string();
-            if test_utils::offer::offered_below(&text).is_some() {
-                let err = BooleanError::Escalated { decision, diag };
-                out.insert((crate::test_support::offer_key(&err).0, m > 0.0));
+            for err in quoting(kind, diag) {
+                if test_utils::offer::offered_below(&err.to_string()).is_some() {
+                    out.insert((crate::test_support::offer_key(&err).0, m > 0.0));
+                }
             }
         }
     }
@@ -985,11 +1288,4 @@ fn every_arm_that_offers_a_value_has_an_executed_case() {
         "offering arms with no executed case: {missing:?}\ncases standing for no offering arm: \
          {stale:?}"
     );
-    for case in CASES.iter().filter(|c| c.offer == Withdrawn) {
-        assert!(
-            !offering.contains(&(case.key.to_owned(), case.positive)),
-            "{}: a withdrawn case's arm offers a tolerance in the table",
-            case.name
-        );
-    }
 }

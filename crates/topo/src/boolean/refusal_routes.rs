@@ -679,14 +679,13 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
 
 /// Whether the faces at a seam edge cross or touch tangentially
 /// ([`BooleanDecision::SeamWedge`]): the sine of their angle over the
-/// folded lever arm, a crease on a positive margin, a smooth join on
-/// zero, and a crease again on a negative one (the reading takes it as
-/// definitely not coincident).
+/// folded lever arm, a crease on a positive margin and a smooth join on
+/// zero. The margin is a norm over a length, so no negative one is read.
 const SEAM_WEDGE: SizedDecision = SizedDecision {
     lever: "move the geometry so the faces at that seam meet either clearly creased or clearly \
             smooth",
     size: "fold across the seam",
-    passes: SizedPass::AnySign,
+    passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
@@ -1335,6 +1334,12 @@ impl BooleanDecision {
             {
                 which.settled()
             }
+            // Overlapping plane flanks lie on one plane, which the door
+            // then asks to be one face: a declared `Rest` pair's is the
+            // one face it verified, so both senses pass there.
+            Self::Coincidence(Coincide::FlankSense, DeclarationRead::Spent(ContactClass::Rest)) => {
+                Ending::Sized(CORNER_SENSE)
+            }
             Self::Coincidence(which, _) => which.ending(),
             // Its margin is the normals' cosine at the door's arm, `≈ ±arm`,
             // and the offset rung asks next: a declared `Rest` pair's
@@ -1909,6 +1914,15 @@ mod tests {
                 coincide_subject(which),
                 coincide_settled(which).expect("only a settleable question is minted settled"),
             ),
+            // The declared `Rest` pair's overlapping flanks are the face
+            // the door verified: both senses pass.
+            BooleanDecision::Coincidence(
+                Coincide::FlankSense,
+                DeclarationRead::Spent(ContactClass::Rest),
+            ) => (
+                coincide_subject(Coincide::FlankSense),
+                Ending::Sized(LONGER, SizedPass::NonZero),
+            ),
             BooleanDecision::Coincidence(
                 which,
                 DeclarationRead::Settles(_) | DeclarationRead::Spent(_) | DeclarationRead::Moot,
@@ -1986,7 +2000,7 @@ mod tests {
                 Ending::Sized(
                     "Recourse: move the geometry so the faces at that seam meet either clearly \
                      creased or clearly smooth",
-                    SizedPass::AnySign,
+                    SizedPass::NonNegative,
                 ),
             ),
             BooleanDecision::Sphere(SphereQuestion::AgainstPlane) => (
@@ -2783,9 +2797,12 @@ mod tests {
     /// that puts the orientation margin (the normals' cosine at the arm)
     /// in the zero band and in the ambiguity band, by the declared rung
     /// and by the undeclared ladder. The zero verdict carries the margin
-    /// the rung decided. Both definite signs pass there, so either
-    /// sign's margin offers the tolerance it gives; the lever lengthens
-    /// the arm, the one thing an undecided margin measures.
+    /// the rung decided. Both definite signs pass the rung, but the
+    /// offset rung asks next, where an undeclared coincident pair refuses
+    /// at every tolerance (executed: `offer_rows`'
+    /// `planes_facing_at_a_short_arm`), so no tolerance is offered; the
+    /// lever lengthens the arm, the one thing an undecided margin
+    /// measures.
     #[test]
     fn the_boolean_orientation_refusal_names_the_arm_and_offers_no_declaration() {
         use crate::boolean::{PlaneDoor, PlaneEqError, PlaneRung, oriented_plane_eq};
@@ -2836,11 +2853,7 @@ mod tests {
                         }) && !text.contains("declare"),
                         "{label}: {text}"
                     );
-                    assert_eq!(
-                        offered_below(&text),
-                        Some(Some(arm / k())),
-                        "{label}: {text}"
-                    );
+                    assert_eq!(offered_below(&text), None, "{label}: {text}");
                 }
             }
         }

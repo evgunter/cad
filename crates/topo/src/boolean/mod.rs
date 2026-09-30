@@ -1500,6 +1500,7 @@ pub enum BooleanError {
 /// Deliberately NOT `Ord`. The declaration order mirrors
 /// [`BooleanError`]'s for reading, and nothing depends on it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(strum::EnumIter))]
 pub enum BooleanErrorKind {
     /// [`BooleanError::Band`].
     Band,

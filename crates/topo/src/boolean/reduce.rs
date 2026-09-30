@@ -2657,7 +2657,7 @@ mod undeclared_rule_rows {
 
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]
-mod coplanar_conic_rows;
+pub(super) mod coplanar_conic_rows;
 
 /// **A curved face's escalations read no declaration ahead of them, and
 /// offer none**, on the review's executed raises (its

@@ -739,11 +739,10 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             let planar = [(own_body, own_sec.face), (other_body, other_sec.face)]
                                 .iter()
                                 .all(|&(body, face)| {
-                                    matches!(
-                                        body.get_face(face)
-                                            .and_then(|f| body.get_surface(f.surface)),
-                                        Some(geom::Surface::Plane { .. })
-                                    )
+                                    body.get_face(face)
+                                        .and_then(|f| body.get_surface(f.surface))
+                                        .map(geom_brep::SurfaceKind::of)
+                                        == Some(geom_brep::SurfaceKind::Plane)
                                 });
                             let which = if planar {
                                 Coincide::FlankSense
@@ -1154,8 +1153,11 @@ mod tests {
     ///   verifies `Rest` there, and the tie refuses the declared pair
     ///   all the same; it refuses `Tangent` (the conformal screen). No
     ///   admitted declaration settles it, so none is offered, and the
-    ///   refusal ends in the corner's lever and the tolerance its arm
-    ///   gives.
+    ///   refusal ends in the corner's lever. The flanks overlap on this
+    ///   side, so a smaller tolerance leads to the door asking whether
+    ///   they are one face: the tolerance their arm gives is offered to
+    ///   the declared `Rest` pair alone (executed: `offer_rows`'
+    ///   `flanks_along_a_short_arm` and its `_declared_rest` twin).
     /// - **curved flanks** (a cylinder resting on a plane along the
     ///   line): the door refuses `Tangent` there
     ///   (`verify_tangent_declaration`), so no declaration is offered;
@@ -1296,14 +1298,19 @@ mod tests {
                     "{label}: the refusal is on the frame's escalation log"
                 );
                 let text = err.to_string();
+                let lever = "Recourse: make the edges at the corner where the two faces meet \
+                             clearly longer than the tolerance";
+                let ending = if class.is_some() {
+                    format!(
+                        "{lever}, or, if this length of the corner's shorter edge is intended, \
+                         tighten the tolerance below {:e} m",
+                        arm / k
+                    )
+                } else {
+                    lever.to_owned()
+                };
                 assert!(
-                    !text.contains("declare")
-                        && text.ends_with(&format!(
-                            "Recourse: make the edges at the corner where the two faces meet \
-                             clearly longer than the tolerance, or, if this length of the \
-                             corner's shorter edge is intended, tighten the tolerance below {:e} m",
-                            arm / k
-                        )),
+                    !text.contains("declare") && text.ends_with(&ending),
                     "{label}, {class:?}: {text}"
                 );
             }
