@@ -140,17 +140,18 @@ pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
     }
 }
 
-/// A deep, order-sensitive snapshot of a body: one line per arena entry
-/// (all ten arenas, in slot-index order) carrying the **full payload**
-/// plus the entity's D5 provenance record.
+/// A deep, order-sensitive snapshot of a body, and the crate's one
+/// "body unchanged" observation: one line per arena entry (all ten
+/// arenas, in slot-index order) carrying the entry's key, its full
+/// payload through `Debug` (which prints every field), and, for the
+/// seven topology kinds, the entity's D5 provenance record. Two
+/// snapshots compare equal iff the bodies are key-for-key,
+/// field-for-field and provenance-for-provenance identical.
 ///
-/// For atomicity and lineage-purity tests where counts-only comparison
-/// is too weak: two snapshots compare equal iff the bodies are
-/// key-for-key, field-for-field, provenance-for-provenance identical.
-/// (PR 4's kill operators will need exactly this — a kill that removes
-/// the wrong entity or leaks a provenance record still preserves
-/// counts.) Payloads are compared through their `Debug` forms, which
-/// for these types print every field.
+/// It reads provenance through live keys, so it cannot see a record
+/// left behind for a dead key (the validator's leak check does), and
+/// it does not walk the side tables: pcurves, null-face records,
+/// geometry origins, field and axis sources.
 pub(crate) fn deep_snapshot(body: &Body<f64>) -> Vec<String> {
     let mut lines = Vec::new();
     for (k, e) in body.solids() {
@@ -1302,4 +1303,140 @@ pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
     )
     .expect("the seed face takes a fresh surface");
     (body, created.face)
+}
+
+mod tests {
+    use super::*;
+
+    /// Every record the snapshot claims to walk moves it: a new entry in
+    /// each of the ten arenas, then a provenance record for each new
+    /// topology entry. A walk that drops an arena or a provenance lookup
+    /// leaves that row's snapshot unmoved.
+    #[test]
+    fn deep_snapshot_sees_every_arena_and_provenance_record() {
+        let s = mvfs_state();
+        let before = deep_snapshot(&s.body);
+        type Insert<'a> = Box<dyn Fn(&mut Body<f64>) -> Option<EntityId> + 'a>;
+        let rows: [(&str, Insert); 10] = [
+            (
+                "solid",
+                Box::new(|b| Some(EntityId::Solid(b.solids.insert(Solid { shells: vec![] })))),
+            ),
+            (
+                "shell",
+                Box::new(|b| {
+                    let shell = Shell {
+                        faces: vec![],
+                        solid: s.solid,
+                    };
+                    Some(EntityId::Shell(b.shells.insert(shell)))
+                }),
+            ),
+            (
+                "face",
+                Box::new(|b| {
+                    let face = Face {
+                        sense: true,
+                        surface: s.surface,
+                        outer: s.lone_loop,
+                        rings: vec![],
+                        shell: s.shell,
+                    };
+                    Some(EntityId::Face(b.faces.insert(face)))
+                }),
+            ),
+            (
+                "loop",
+                Box::new(|b| {
+                    let loop_ = Loop {
+                        boundary: LoopBoundary::Empty { vertex: s.vertex },
+                        face: s.face,
+                    };
+                    Some(EntityId::Loop(b.loops.insert(loop_)))
+                }),
+            ),
+            (
+                "half-edge",
+                Box::new(|b| {
+                    let he = HalfEdge {
+                        edge: EdgeKey::default(),
+                        start: s.vertex,
+                        parent_loop: s.lone_loop,
+                        next: HalfEdgeKey::default(),
+                        prev: HalfEdgeKey::default(),
+                    };
+                    Some(EntityId::HalfEdge(b.half_edges.insert(he)))
+                }),
+            ),
+            (
+                "edge",
+                Box::new(|b| {
+                    let edge = Edge {
+                        he_plus: HalfEdgeKey::default(),
+                        he_minus: HalfEdgeKey::default(),
+                        curve: CurveKey::default(),
+                    };
+                    Some(EntityId::Edge(b.edges.insert(edge)))
+                }),
+            ),
+            (
+                "vertex",
+                Box::new(|b| {
+                    let vertex = Vertex {
+                        point: s.point,
+                        emanating: None,
+                    };
+                    Some(EntityId::Vertex(b.vertices.insert(vertex)))
+                }),
+            ),
+            (
+                "point",
+                Box::new(|b| {
+                    b.points.insert(Point3::new(1.0, 2.0, 3.0));
+                    None
+                }),
+            ),
+            (
+                "curve",
+                Box::new(|b| {
+                    let curve = test_curve(Point3::origin(), Tol::witness());
+                    b.curves.insert(crate::null::CurveGeom::Certified(curve));
+                    None
+                }),
+            ),
+            (
+                "surface",
+                Box::new(|b| {
+                    b.surfaces.insert(test_surface(Point3::origin()));
+                    None
+                }),
+            ),
+        ];
+
+        for (arena, insert) in &rows {
+            let mut body = s.body.clone();
+            let entity = insert(&mut body);
+            let with_entry = deep_snapshot(&body);
+            assert_ne!(
+                with_entry, before,
+                "{arena}: a new entry leaves the snapshot unmoved"
+            );
+            let Some(entity) = entity else { continue };
+            let record = Provenance::Primordial { op: "snapshot row" };
+            match entity {
+                EntityId::Solid(k) => body.solid_provenance.insert(k, record),
+                EntityId::Shell(k) => body.shell_provenance.insert(k, record),
+                EntityId::Face(k) => body.face_provenance.insert(k, record),
+                EntityId::Loop(k) => body.loop_provenance.insert(k, record),
+                EntityId::HalfEdge(k) => body.half_edge_provenance.insert(k, record),
+                EntityId::Edge(k) => body.edge_provenance.insert(k, record),
+                EntityId::Vertex(k) => body.vertex_provenance.insert(k, record),
+            };
+            assert_ne!(
+                deep_snapshot(&body),
+                with_entry,
+                "{arena}: a provenance record leaves the snapshot unmoved"
+            );
+        }
+    }
 }
