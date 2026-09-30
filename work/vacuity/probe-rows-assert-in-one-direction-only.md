@@ -137,7 +137,7 @@ because the floor is 8 seeds out and 8 is a power of two. The old
 2^MAX_REFINES`) that the code does not hold in that case, and used it
 as a discriminator. All three spellings are gone. The measurement is
 filed as its own row,
-`work/chrome/a-negative-extrude-distance-probes-as-valid.md`, because
+`work/author/a-negative-extrude-distance-probes-as-valid.md`, because
 it is a finding about the kernel's reading of a length field and not
 about these rows.
 
@@ -157,7 +157,7 @@ at `1e-12` and FALSE at `1e-6`, where everything below about `1e-5`
 fails — one rule (an extrusion the tolerance cannot tell from zero)
 whose width is ε's to set. What does NOT move is that a negative
 thickness builds at every ε, which is the finding
-`work/chrome/a-negative-extrude-distance-probes-as-valid.md` carries.
+`work/author/a-negative-extrude-distance-probes-as-valid.md` carries.
 The row's prose and that row both say this now; neither may assume a
 point.
 
