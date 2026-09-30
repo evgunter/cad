@@ -152,6 +152,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                         "boolean-error.md"),
     "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                       "boolean-error.md"),
+    # `BooleanError::DegenerateTorus`'s decision, which also rides one
+    # rung down under `BooleanDecision::Torus`.
+    "TorusConvention": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
                         "declaration under the alias `PlaneRelation` "
                         "(crates/topo/src/boolean/plane_eq.rs)"),

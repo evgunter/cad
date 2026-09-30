@@ -53,3 +53,14 @@ Carry `BooleanDecision`, `Contradiction`, `SectorRung` and
 and give each a Python word or a `NOT_BOUND` family in
 `crates/pncad-py/tests/test_binding_census.py`. Then delete the pointer
 in `Contradiction`'s doc and the two disposition rows.
+
+## One more rung (TOPO, PR 3506)
+
+PR 3506 adds `TorusConvention` (`crates/topo/src/face_normal.rs`), the
+ring-torus convention's half, carried by `BooleanError::DegenerateTorus
+{ convention, .. }` and one rung down by `BooleanDecision::Torus`. Its
+disposition row files it here; carry it with the others. Two further
+closed types ride under refusals the prelude does not reach as
+payloads: `PlaneRung` (under `CarrierEqError::Escalated` and
+`MergeDecision::DeclaredPlanes`) and `MergeDecision` (under
+`MergeCoplanarError::Escalated`).
