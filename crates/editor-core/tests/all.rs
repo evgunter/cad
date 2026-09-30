@@ -57,6 +57,10 @@ mod fixture;
 // `tests/corpus/` are symlinked into `crates/viewer/tests/`, and this
 // one is not, because its subject is `serde_json`.
 mod wire;
+#[path = "rv_namedepth_r1_bytes.rs"]
+mod rv_namedepth_r1_bytes;
+#[path = "rv_namedepth_r1_deep.rs"]
+mod rv_namedepth_r1_deep;
 
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
