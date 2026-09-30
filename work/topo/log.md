@@ -3994,3 +3994,26 @@ What the fix pass did:
 The orchestrator read the diff (`5e07bfe8e0..b31115b13e`); it is
 clean. D262 and the role row close on the branch (`6d0fbfe5d8`).
 Merge after CI. Single tier, no DR row.
+
+## PR 3532 merged; revert-anchors dispatched (2026-09-30)
+
+PR 3532 merged at `6d0fbfe5d8` (merge `9e5c80df7a`) after CI run
+36706611476 went green, closing D262 and
+`merged-face-role-ambiguity-ends-in-no-recourse`. I unsubscribed.
+
+**Next on the walk target:**
+`revert-anchors-trust-a-torn-next-or-prev` (P3, E), branch
+`topo/revert-anchors`.
+- It lives in `revert.rs` only, so it overlaps no live lane.
+- The brief names D1's atomic contract and the D2 addendum (fail-loud)
+  with their provenance, and PR 3483/3495/3511 as precedent.
+- It takes the row's "prove the anchors" option, not "document the
+  carry". The lane is to stop and report if the proof is wrong for
+  `revert`.
+
+**Held back:**
+- The P3s in the kill plans (the far vertex, the empty loop or lone
+  vertex, face/shell/solid removals, the mate's own edge) wait for
+  PR 3531's rework, which is live in those plans.
+- `vertex-orbit-reads-no-start-vertex` reaches `boolean/` and waits
+  for PR 3513.
