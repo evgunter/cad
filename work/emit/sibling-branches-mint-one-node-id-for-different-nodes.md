@@ -57,11 +57,38 @@ the counter closes that for step ids too.
 
 ### How it was measured
 
-A throwaway probe sits in a lane's scratchpad and is committed nowhere:
-`/tmp/claude-0/-home-user-cad/0e2c2d9c-0d6e-5c1f-8f66-beceb26c515b/scratchpad/nodeid-probe.py`.
-It changes one thing: the insert door mints a fixed bijective scramble
-of the counter, and `has_minted` inverts it. Ids stop being small and
-sequential, and nothing else moves.
+A throwaway probe, committed nowhere, changes one thing: the insert
+door mints a fixed bijective scramble of the counter, and `has_minted`
+inverts it. Ids stop being small and sequential, and nothing else
+moves. To reproduce the numbers below, apply it by hand:
+
+```rust
+// crates/editor-core/src/doc.rs, beside `Doc`:
+pub(crate) fn proto_scramble(mut x: u64) -> u64 {
+    x ^= 0x9e37_79b9_7f4a_7c15;
+    x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111eb);
+    x ^ (x >> 31)
+}
+pub(crate) fn proto_unscramble(mut x: u64) -> u64 {
+    x = x ^ (x >> 31) ^ (x >> 62);
+    x = x.wrapping_mul(0x319642b2d24d8ec3);
+    x = x ^ (x >> 27) ^ (x >> 54);
+    x = x.wrapping_mul(0x96de1b173f119089);
+    (x ^ (x >> 30) ^ (x >> 60)) ^ 0x9e37_79b9_7f4a_7c15
+}
+```
+
+and substitute:
+
+- `Doc::has_minted`: `proto_unscramble(id.0) < self.next_id`;
+- `edit.rs`, `InsertNode`: `RecipeNodeId(proto_scramble(new.next_id))`;
+- `refactor.rs`: `proto_scramble(doc.next_id + i as u64)` (inline) and
+  `proto_scramble(i as u64)` (split);
+- `mate/member.rs`'s test fixture: `doc.next_id = proto_unscramble(MATE.0) + 1`;
+- `fixture::resolver::PART_BODY` and `pncad`'s `WS_PART_BODY`:
+  `RecipeNodeId(10905525725756348110)`, which is `proto_scramble(2)`;
+  see the row that constant has its own.
 
 - **Before unit 1:** editor-core failed 519 of 2376 tests.
   - 290 of those came from one fixture constant, `PART_BODY`.
@@ -183,7 +210,7 @@ The probe keeps every coincidence between documents that the counter
 has: the n-th insert of any document gets the same id. A digest does
 not keep it where the minting edits differ.
 `work/emit/part-suites-name-every-parts-body-by-one-constant.md` is the
-one known case: `PART_BODY`, about 350 `in_part` calls. Rows that
+one known case: `PART_BODY`, 329 occurrences in 34 files. Rows that
 compare two documents built by the same edits are safe under D9. Those
 the probe fixed read ids from each document, but the premise needs
 unit 2's mint to confirm it.

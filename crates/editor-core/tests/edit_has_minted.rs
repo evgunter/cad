@@ -38,18 +38,13 @@ test_utils::gated_to![
 use crate::fixture;
 
 use editor_core::{DocEdit, DocumentId, Node, ProfileDoc, RecipeNodeId, load, save};
-use fixture::{desc, insert, len, square, step, xy_frame};
+use fixture::{desc, insert, len, next_mint, square, step, xy_frame};
 use geom_core::Tol;
 
 /// A fresh document under a derived id — nothing inserted, nothing
 /// minted.
 fn fresh(label: &str) -> ProfileDoc {
     ProfileDoc::empty(DocumentId::derive(label), Tol::witness())
-}
-
-/// The id `doc`'s next insert would mint, read by making it on a copy.
-fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
-    insert(doc.clone(), xy_frame()).1
 }
 
 /// Row 1 — the empty document has minted nothing: before any insert,
@@ -73,7 +68,7 @@ fn a_fresh_document_has_minted_nothing() {
 /// Row 2 — an insert mints exactly one id: the predicate is true at
 /// the minted id and false at the one the next insert would mint.
 #[test]
-fn an_insert_mints_that_id_and_no_other() {
+fn an_insert_mints_that_id_and_not_the_next_one() {
     let doc = fresh("has-minted-insert");
     let (doc, plane) = insert(doc, xy_frame());
     assert!(
@@ -93,7 +88,7 @@ fn an_insert_mints_that_id_and_no_other() {
     }
     assert!(
         !doc.has_minted(next_mint(&doc)),
-        "and the mint has not run ahead of the two inserts"
+        "the next insert's id is not already minted"
     );
 }
 
@@ -117,7 +112,7 @@ fn a_delete_leaves_the_id_minted() {
     );
     assert!(
         !deleted.has_minted(next_mint(&deleted)),
-        "the mint did not move on the delete either"
+        "the next insert's id is not already minted"
     );
 
     // And the next insert takes a fresh id, not the freed one: the

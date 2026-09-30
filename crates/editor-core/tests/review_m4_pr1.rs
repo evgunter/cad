@@ -559,7 +559,17 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     let doc = a.doc;
     // Forward ref to a FUTURE id (the only way to seed a cycle at
     // insert) is refused: the id isn't live yet.
-    let next_would_be = RecipeNodeId(extrude.0 + 1);
+    // The id the next insert would mint, read by making it on a copy.
+    let next_would_be = doc
+        .apply(
+            &point_edit(len(0.0)),
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .record
+        .minted
+        .unwrap();
     let res = doc.apply(
         &Edit::InsertNode {
             node: Node::Boolean {

@@ -960,7 +960,8 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     let badge = frame::index_badge(Some(&refusal), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
-        root, failed,
+        (*root, *failed),
+        (bench.shelf_i, bench.shelf_i),
         "the index's words name the root, which failed"
     );
     assert_ne!(offender, *root, "and the root is not the mate");
@@ -3081,6 +3082,13 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     );
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    // The mate the op landed, read off the document rather than off the
+    // fault under test.
+    let landed = *session.doc().order().last().expect("the mate landed");
+    assert!(
+        matches!(session.doc().node(landed), Some(Node::Mate { .. })),
+        "the newest node is the mate"
+    );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
@@ -3100,8 +3108,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         )
     };
     assert_eq!(*instance, bench.post_b, "the fault names the same instance");
-    assert!(
-        !mates.is_empty(),
+    assert_eq!(
+        mates,
+        &vec![landed],
         "and names the mate that landed, which is what the line then reads"
     );
 
@@ -3178,10 +3187,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // The fault is said twice, once as why the drag refused and once
     // as why the placement went: two typed values, each rendering
     // itself, which is the join's rule.
-    let [mate_node] = mates[..] else {
-        panic!("one mate landed: {mates:?}");
-    };
-    let (post, mate_node) = (bench.post_b.0, mate_node.0);
+    let (post, mate_node) = (bench.post_b.0, landed.0);
     assert_eq!(
         line.text(),
         format!(

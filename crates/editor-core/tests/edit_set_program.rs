@@ -1066,8 +1066,10 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     let mine = ids_of(&doc, profile)[0].clone();
     let theirs = ids_of(&doc, other)[0].clone();
 
-    // Two profiles share an id: the later profile in id order, the
-    // order the load door walks the node map in, holds the repeat.
+    // Two profiles share an id: the later profile in id order holds
+    // the repeat. That pins the load door's current walk (the node map,
+    // in id order), not a contract; `persist::check`'s
+    // `rv_the_name_pass_refuses_in_document_order` is its sibling.
     let shared = edited(&|v| ids(v, other, 0, mine[0].0));
     assert_eq!(
         step_fault(shared, profile.max(other)),

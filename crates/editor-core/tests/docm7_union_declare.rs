@@ -672,8 +672,8 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     let doc = ProfileDoc::empty_derived("docm7_forward", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    // An id no node has yet — one past the last live node.
-    let future = RecipeNodeId(doc.order().last().expect("a node").0 + 1);
+    // An id no node has yet: the one the next insert would mint.
+    let future = fixture::next_mint(&doc);
     let refused = doc.apply(
         &DocEdit::InsertNode {
             node: Node::declare_rest(vec![(

@@ -853,20 +853,18 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
 // PROBE 8 — the PR body's quoted red-first fault, reproduced.
 // ---------------------------------------------------------------
 
-/// Rebuilds the PR's four-legs-one-top fixture EXACTLY (leg = node 0,
-/// pattern = 1, top = 2, mate = 3; the `a` side carries the pattern
-/// head) and prints the solve's fault plus its Display. Run with the
-/// merge base's `src/mate/` checked out, this should print the fault
-/// the PR body quotes:
+/// Rebuilds the PR's four-legs-one-top fixture (a leg, a pattern over
+/// it, a top, and a mate whose `a` side carries the pattern head) and
+/// prints the solve's fault plus its Display. Run with the merge base's
+/// `src/mate/` checked out, this should print the `DanglingHead` fault
+/// the PR body quotes; on this branch it prints no fault at all.
 ///
-/// ```text
-/// DanglingHead { mate: RecipeNodeId(3), side: A, head: RecipeNodeId(1) }
-/// mate 3's a reference resolves through node 1, which is not a live
-/// instance — rebind it
-/// ```
-///
-/// On this branch it prints no fault at all.
+/// It asserts nothing, so it is not part of the suite. Run it with
+/// `R1_RED_OUT=<file> cargo test -p editor-core --test all
+/// mate1_r1_probes::r1_reproduce_the_quoted_red_first_fault -- --ignored
+/// --nocapture`.
 #[test]
+#[ignore = "an observation: it prints the solve's fault and asserts nothing"]
 fn r1_reproduce_the_quoted_red_first_fault() {
     let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("mate1-red-first-leg"), Tol::witness());

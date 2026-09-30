@@ -188,15 +188,15 @@ impl ResolveError {
     /// name is stranded. `None` when it is live.
     ///
     /// Ids are never reused, so the two cases are derivable rather
-    /// than recorded: an id below the mint counter named a node this
-    /// document DELETED, and one at or above it was never this
-    /// document's at all.
+    /// than recorded: an id the document has minted named a node it
+    /// DELETED, and one it has not minted was never this document's
+    /// at all.
     ///
     /// Neither case takes a refinement, and neither can: both are
     /// decided by the document in hand, and a prior run of the SAME
     /// document has nothing to add to either — ids are not reused, so
     /// a node the prior run held and this one does not is deleted,
-    /// which is what the counter already says.
+    /// which is what `Doc::has_minted` already says.
     pub(crate) fn node_gone(name: &StableName, doc: &Doc<ProfileProgram>) -> Option<Self> {
         if doc.node(name.node).is_some() {
             return None;

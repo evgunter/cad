@@ -23,18 +23,18 @@ So every part document an assembly suite builds must mint its extrude
 under the same id. The counter makes that true for any frame, profile,
 extrude part. A digest-chain mint does not: the id hashes the minting
 edit, and the suites' part builders differ in size (`msolve2`'s
-`part_doc(label, w, h)` builds two), so their bodies get different ids.
+`part_doc(label, w, h)` builds a base and a top of different sizes),
+so their bodies get different ids.
 
 ## Size
 
-- There are about 350 `in_part(` calls in 30 files: editor-core
-  `tests/` (`msolve*`, `mate1*`, `mate6*`, `asm_r2a_mate_solve`,
-  `asm_r2b_assembly`, `edit_instance_crossing_names`,
-  `docm6_seam_declarations` and more) and viewer `tests/`
-  (`common/asm.rs`, `msolve3_placer_refused` and more).
-- There are also the direct `PART_BODY` spellings in `node:` fields
-  (`asm_r2b_assembly`, `edit_one_predicate`, `msolve5`,
-  `mate1_member_vocab`), and `WS_PART_BODY` in `crates/pncad/tests/all.rs`.
+- `PART_BODY` and `in_part(` occur 329 times in 34 files, the
+  definitions included: editor-core `tests/` (`msolve*`, `mate1*`,
+  `mate6*`, `asm_r2a_mate_solve`, `asm_r2b_assembly`,
+  `edit_instance_crossing_names`, `docm6_seam_declarations` and more)
+  and viewer `tests/` (`common/asm.rs`, `msolve3_placer_refused` and
+  more).
+- `pncad`'s copy, `WS_PART_BODY` in `crates/pncad/tests/all.rs`.
 
 ## Fix
 

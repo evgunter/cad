@@ -198,8 +198,15 @@ pub fn step_with(
     (applied.doc, applied.record.minted)
 }
 
-/// **The id of the node `doc` inserted last** — for a row that pushes
-/// an insert and reads the id back rather than counting it out.
+/// **The id `doc`'s next insert would mint**, read by making that
+/// insert on a copy: an id no node of `doc` holds, whatever the mint.
+pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
+    insert(doc.clone(), xy_frame()).1
+}
+
+/// **The last node in `doc.order()`** — the one a just-applied
+/// `InsertNode` minted, for a row that pushes an insert through a door
+/// that hands back only the document.
 ///
 /// # Panics
 ///
