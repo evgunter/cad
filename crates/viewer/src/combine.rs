@@ -475,26 +475,6 @@ fn rule_kind(rule: PatternRuleSpec) -> PatternKind {
     }
 }
 
-/// Lower one rigid placement to its node, placing the authored
-/// expressions in the [`Node::Transform`] slots (translation Length,
-/// rotation axis Scalar, rotation angle Angle).
-///
-/// Total, for the reason [`pattern_node`] is: slot dimensions are the
-/// edit door's question.
-pub fn transform_node(
-    input: RecipeNodeId,
-    translation: [Expr; 3],
-    rotation_axis: [Expr; 3],
-    rotation_angle: Expr,
-) -> Node<ProfileProgram> {
-    Node::Transform {
-        input,
-        translation,
-        rotation_axis,
-        rotation_angle,
-    }
-}
-
 /// **The part tool**: one pick of a multi-body value, committing one
 /// [`SessionOp::AddPart`].
 ///

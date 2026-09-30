@@ -129,6 +129,9 @@ pub enum NodeErrorClass {
     /// [`NodeErrorKind::PlacementRule`] carrying
     /// [`PlacementRuleFault::ImproperFrame`].
     PlacementRuleImproperFrame,
+    /// [`NodeErrorKind::PlacementRule`] carrying
+    /// [`PlacementRuleFault::NonRigidFrame`].
+    PlacementRuleNonRigidFrame,
     /// [`NodeErrorKind::UnschedulableCycle`].
     UnschedulableCycle,
     /// [`NodeErrorKind::Naming`].
@@ -399,6 +402,7 @@ impl NodeErrorClass {
             PlacementRuleFault::NoPlacements => Self::PlacementRuleNoPlacements,
             PlacementRuleFault::NonFiniteFrame { .. } => Self::PlacementRuleNonFiniteFrame,
             PlacementRuleFault::ImproperFrame { .. } => Self::PlacementRuleImproperFrame,
+            PlacementRuleFault::NonRigidFrame { .. } => Self::PlacementRuleNonRigidFrame,
         }
     }
 
@@ -523,6 +527,7 @@ mod tests {
         PlacementRuleNoPlacements,
         PlacementRuleNonFiniteFrame,
         PlacementRuleImproperFrame,
+        PlacementRuleNonRigidFrame,
         UnschedulableCycle,
         Naming,
         ParamSourceAttach,
@@ -795,6 +800,12 @@ mod tests {
                 K::PlacementRule(crate::PlacementRuleFault::ImproperFrame {
                     index: 2,
                     determinant: -1.0,
+                })
+            }
+            C::PlacementRuleNonRigidFrame => {
+                K::PlacementRule(crate::PlacementRuleFault::NonRigidFrame {
+                    index: 2,
+                    check: "transform_rigid_col0_unit",
                 })
             }
             C::UnschedulableCycle => K::UnschedulableCycle,

@@ -1011,6 +1011,7 @@ test_utils::f6_variants! {
         PlacementSite,
         PlacementNonFinite,
         PlacementImproper,
+        PlacementNonRigid,
         PlacementNotGauge,
         MateAlignment,
         PlacementRule,
@@ -1177,15 +1178,31 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["keyed by node 5", "does not instantiate a part"],
         ),
         (
-            SnapshotError::PlacementNonFinite { node },
-            vec!["placement frame on node 5", "non-finite coordinate"],
+            SnapshotError::PlacementNonFinite {
+                node,
+                at: editor_core::FrameSite::Registry,
+            },
+            vec!["placement frame for node 5", "non-finite coordinate"],
         ),
         (
             SnapshotError::PlacementImproper {
                 node,
+                at: editor_core::FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
-            vec!["placement frame on node 5", "improper (mirroring)"],
+            vec!["step 2 of node 5's placement", "improper (mirroring)"],
+        ),
+        (
+            SnapshotError::PlacementNonRigid {
+                node,
+                at: editor_core::FrameSite::Registry,
+                check: "transform_rigid_col01_orth",
+            },
+            vec![
+                "placement frame for node 5",
+                "not definitely rigid",
+                "may shear",
+            ],
         ),
         (
             SnapshotError::PlacementNotGauge {

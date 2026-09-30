@@ -1946,23 +1946,27 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     doc = next;
     let (next, body_b) = common::inserted(
         &doc,
-        Node::Transform {
-            input: extruded_b,
-            translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
-            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            extruded_b,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
     doc = next;
     let (next, other) = common::inserted(
         &doc,
-        Node::Transform {
-            input: body,
-            translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
-            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            body,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
     doc = next;
@@ -2061,12 +2065,14 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         ),
         (
             "transform",
-            Node::Transform {
-                input: body,
-                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                body,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
         ),
         (
             "split",
@@ -2145,12 +2151,14 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         let (with_candidate, candidate) = common::inserted(&doc, node, tol);
         let (with_probe, probe) = common::inserted(
             &with_candidate,
-            Node::Transform {
-                input: candidate,
-                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                candidate,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
             tol,
         );
         let mut session = DocSession::inline(with_probe, tol);
@@ -2737,12 +2745,14 @@ fn the_part_seats_track_the_evaluators_part_door() {
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        Node::Transform {
-            input: pattern,
-            translation: len3([0.0; 3]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pattern,
+            pncad::document::Step::Rigid {
+                translation: len3([0.0; 3]),
+                axis: scl3([0.0, 0.0, 1.0]),
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
 
@@ -3150,12 +3160,14 @@ fn duplicating_a_several_body_value_is_refused() {
     let mut doc = session.committed_doc().clone();
     let placed = common::insert_into(
         &mut doc,
-        Node::Transform {
-            input: pattern,
-            translation: len3([0.0, 0.05, 0.0]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pattern,
+            pncad::document::Step::Rigid {
+                translation: len3([0.0, 0.05, 0.0]),
+                axis: scl3([0.0, 0.0, 1.0]),
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);

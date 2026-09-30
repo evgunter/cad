@@ -279,12 +279,14 @@ fn two_roots_aliasing_a_strict_name_still_refuse() {
     );
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: a,
-            translation: [len(2.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            a,
+            editor_core::Step::Rigid {
+                translation: [len(2.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     assert_eq!(
         doc.roots(),

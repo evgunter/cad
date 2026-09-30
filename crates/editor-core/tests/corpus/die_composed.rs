@@ -246,12 +246,14 @@ pub fn document() -> CorpusDoc {
     });
 
     // ---- the pip, then the SURGERY on the pipped cube ----
-    let pip = r.insert(Node::Transform {
-        input: ball,
-        translation: [len(h), len(h), len(PIP_C)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let pip = r.insert(Node::transform(
+        ball,
+        editor_core::Step::Rigid {
+            translation: [len(h), len(h), len(PIP_C)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     let pipped = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
         a: cube,

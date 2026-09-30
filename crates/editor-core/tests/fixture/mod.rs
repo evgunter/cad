@@ -141,12 +141,14 @@ pub fn xform(
     axis: [f64; 3],
     angle: f64,
 ) -> Node<ProfileProgram> {
-    Node::Transform {
+    Node::transform(
         input,
-        translation: translation.map(len),
-        rotation_axis: axis.map(scl),
-        rotation_angle: ang(angle),
-    }
+        editor_core::Step::Rigid {
+            translation: translation.map(len),
+            axis: axis.map(scl),
+            angle: ang(angle),
+        },
+    )
 }
 
 /// The pip depth the document's `pip_depth` parameter starts at.
@@ -745,12 +747,14 @@ pub fn die() -> Die {
                 a * u[1] + b * v[1],
                 a * u[2] + b * v[2],
             ];
-            let tr = r.insert(Node::Transform {
-                input: ext,
-                translation: [len(t[0]), len(t[1]), len(t[2])],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            });
+            let tr = r.insert(Node::transform(
+                ext,
+                editor_core::Step::Rigid {
+                    translation: [len(t[0]), len(t[1]), len(t[2])],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            ));
             // The pip master extrudes INWARD (negative distance), so
             // its OUTER cap — the flush one — is Bottom (on the
             // sketch plane, which IS the cube face's plane).
