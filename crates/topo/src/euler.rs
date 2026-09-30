@@ -1618,7 +1618,9 @@ impl<T: Decide> Body<T> {
     /// storing no row stays rowless, and one half-minted any other way
     /// is left as found (`crate::pcurves::site_rows` carries the rule). The cost is one
     /// walk and one certification per half-edge of the rewired loops,
-    /// and one presence read per half-edge of the face's other loops.
+    /// one presence read per half-edge of the face's other loops, and on
+    /// a face missing a row three lookups per half-edge for which loops
+    /// a null edge holds open.
     ///
     /// **The moved run's carriers are re-certified, never
     /// re-described.** At a fan site the run `[he1 .. he2)` is
@@ -1838,7 +1840,10 @@ impl<T: Decide> Body<T> {
     /// [`Body::mev`]'s do: the old face, when the site mint selects it,
     /// is re-minted with `he_plus` in it, and the new face — when the
     /// run's rows stand on it — with `he_minus`, on the terms
-    /// [`Body::mev`] states.
+    /// [`Body::mev`] states. A face that takes the old face's last null
+    /// edge off it is re-minted whatever the old face missed: its loops
+    /// the cut rewires leave complete, and a ring it keeps keeps what it
+    /// had.
     ///
     /// # Surgery (Chords, `he1 != he2`)
     ///
@@ -3237,15 +3242,14 @@ impl<T: Decide> Body<T> {
     /// writes onto each, decided before its door mutates.
     ///
     /// `touched` names the loops the door's halves are in, as the body
-    /// holds them now. Their faces are read first, once each, and only
-    /// a face [`crate::pcurves::site_rows_from`] selects is re-minted —
-    /// a complete face, or one whose only gaps are on loops a null edge
-    /// holds open; every other face is left
-    /// as found. So whether the door reads more than those faces, and
-    /// whether it can refuse here, depends on the touched faces alone —
-    /// never on rows held elsewhere in the body — and when none is
-    /// selected, `faces` does not run and the door pays for no walk.
-    /// `faces` is handed the selected faces with their rows as found and
+    /// holds them now. Their faces are read first, once each — one walk
+    /// of each face on a chart that mints — and only a face
+    /// [`crate::pcurves::site_rows_from`] reads further can be
+    /// re-minted; every other face is left as found. So whether the
+    /// door reads more than those faces, and whether it can refuse
+    /// here, depends on the touched faces alone — never on rows held
+    /// elsewhere in the body — and when none is read further, `faces`
+    /// does not run. `faces` is handed those faces as found and
     /// describes the faces as the door leaves them;
     /// [`crate::pcurves::site_rows`] decides each one.
     ///
@@ -3253,20 +3257,21 @@ impl<T: Decide> Body<T> {
     ///
     /// In this order: a touched loop or its face does not resolve
     /// ([`EulerOpError::StaleKey`]), or the face's surface does not
-    /// ([`EulerOpError::StaleGeometry`]); then, only when a face is
-    /// selected, what `faces` raises; then [`EulerOpError::PcurveMint`]
-    /// naming the face.
+    /// ([`EulerOpError::StaleGeometry`]), or a half of the face does not
+    /// ([`EulerOpError::PcurveMint`] naming the face); then, only when a
+    /// face is read further, what `faces` raises; then
+    /// [`EulerOpError::PcurveMint`] naming the face.
     pub(crate) fn plan_site_mint(
         &self,
         touched: &[LoopKey],
         faces: impl FnOnce(
             &Self,
-            &[(FaceKey, crate::pcurves::StoredRows<T>)],
+            &[(FaceKey, crate::pcurves::SiteFrom<T>)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         edge: &EdgeCurve<T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let mut minted: Vec<(FaceKey, crate::pcurves::StoredRows<T>)> = Vec::new();
+        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
         let mut read: Vec<FaceKey> = Vec::new();
         for &lk in touched {
             let face = self
@@ -3287,8 +3292,10 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleGeometry {
                         key: GeomRef::Surface(face_data.surface),
                     })?;
-            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface) {
-                minted.push((face, rows));
+            if let Some(from) = crate::pcurves::site_rows_from(self, face_data, surface)
+                .map_err(|refusal| EulerOpError::PcurveMint { face, refusal })?
+            {
+                minted.push((face, from));
             }
         }
         if minted.is_empty() {

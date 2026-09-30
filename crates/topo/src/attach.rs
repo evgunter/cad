@@ -200,15 +200,16 @@ impl<T: Decide> Body<T> {
     /// row from, and returns a minted face missing their rows. The
     /// carrier arrives here, so before the door mutates, each face the
     /// halves are on that the site mint selects — a minted face whose
-    /// only gaps are on loops a null edge holds open — has every loop
-    /// that no null edge holds open once this one is described
+    /// every loop walks, and whose only gaps are on loops a null edge
+    /// holds open or which no null edge is left on once this one is
+    /// described — has every loop that no null edge holds open then
     /// re-minted whole, through the site mint the Euler operators run
     /// ([`crate::pcurves`]' `site_rows`): the loop leaves complete — the
-    /// rows of halves an operator added while it was held open included
-    /// — or the face rowless where the closed-form lane cannot mint it.
-    /// A loop another null edge still runs through is left as found,
-    /// for that edge to release. A face on a spline chart is left as
-    /// found.
+    /// rows of halves an operator added while it was held open included,
+    /// and on a face no null edge is left on every row it missed — or
+    /// the face rowless where the closed-form lane cannot mint it. A
+    /// loop another null edge still runs through is left as found, for
+    /// that edge to release. A face on a spline chart is left as found.
     ///
     /// # Errors
     ///
@@ -391,6 +392,7 @@ impl<T: Decide> Body<T> {
                     .iter()
                     .map(|(face, from)| {
                         let every_loop: Vec<(LoopKey, Vec<SiteHalf>)> = from
+                            .rows
                             .loops
                             .iter()
                             .filter_map(|(lk, cycle)| {

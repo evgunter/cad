@@ -114,18 +114,19 @@
 //! the surgery leaves it stores nothing). A face that stores no row is
 //! the minting pass's and stays rowless. `mev_null` adds halves too,
 //! and cannot mint them: its edge has no carrier, so the loop it joins
-//! cannot be walked while the edge is on it. So the site mint takes a
-//! second kind of face ([`StoredRows::remints`]): one whose only gaps
-//! are on loops a null edge holds open. It leaves such a loop's rows
-//! as found — its new halves rowless — and mints whole every loop its
-//! door leaves running through no null edge. The door that releases a
-//! loop is either an operator that rewires it out from under the null
-//! edge — the boolean's and the splitting lane's join, whose chord
-//! `mef`s leave the section's null halves on the sliver between the
-//! chords — or the edge's first description
-//! ([`crate::Body::set_edge_curve`]), which re-walks every loop of the
-//! face; on a spline chart either leaves the face as found. A face
-//! half-minted any other way is left as found. Other doors still
+//! cannot be walked while the edge is on it. So the site mint takes
+//! two more kinds of minted face ([`StoredRows::remints`]): one whose
+//! only gaps are on loops a null edge holds open, and one its door
+//! takes the last null edge off, whatever it misses. It leaves a loop
+//! a null edge still holds open as found — its new halves rowless — and
+//! mints whole every loop its door rewires and leaves running through
+//! no null edge. The door that releases a loop is either an operator
+//! that rewires it out from under the null edge — the boolean's and the
+//! splitting lane's join, whose chord `mef`s leave the section's null
+//! halves on the sliver between the chords — or the edge's first
+//! description ([`crate::Body::set_edge_curve`]), which re-walks every
+//! loop of the face; on a spline chart either leaves the face as found.
+//! A face half-minted any other way is left as found. Other doors still
 //! produce a half-minted face
 //! ([`PcurveMintError::MissingCache`] lists them), so a producer's final
 //! pass is still what mints the faces the producer BUILT — which its
@@ -246,7 +247,8 @@
 //! exception: a null edge's first description is the first door that
 //! can derive the rows of its halves, and on a face the site mint
 //! selects ([`StoredRows::remints`]) it re-mints every loop no other
-//! null edge holds open ([`site_rows`]).
+//! null edge holds open ([`site_rows`]) — the whole face, once no null
+//! edge is left on it.
 //!
 //! **Neither clears nor re-mints** — the Euler operators that add no
 //! half-edge to an existing loop (`mvfs`, `kemr`), the null-edge `mev`
@@ -435,7 +437,9 @@ pub enum PcurveMintError {
     ///
     /// and a face that arrives half-minted any of these ways, but for a
     /// loop a null edge holds open, stays so through the three
-    /// operators, which leave it as found.
+    /// operators, which leave it as found — unless the operator takes
+    /// the face's last null edge off it, and then only its kept loops
+    /// keep their gaps.
     MissingCache {
         /// The half-edge with no stored cache.
         half_edge: HalfEdgeKey,
@@ -1573,10 +1577,10 @@ fn hull_of<T: Real>(boxes: impl IntoIterator<Item = ChartWindow<T>>) -> Option<C
 /// Read by [`validate_pcurves`], which replays stored certificates
 /// against the window and reports the gaps; by [`split_cache`], which
 /// certifies a restriction against the window; and by the site mint
-/// ([`site_rows_from`]), which re-mints a face with no gap under an
-/// Euler operator and a minted one with no other null edge under a
-/// null edge's description. So "which rows does this face store", "what window
-/// do they hull out to" and "is the set complete" each have one answer.
+/// ([`site_rows_from`]), which asks [`StoredRows::remints`] whether its
+/// door re-mints the face. So "which rows does this face store", "what
+/// window do they hull out to" and "is the set complete" each have one
+/// answer.
 pub(crate) struct StoredRows<T: Real> {
     /// The face's loops in walk order, outer first, each with its
     /// half-edge cycle: `None` where the loop record or its cycle did
@@ -1599,7 +1603,12 @@ pub(crate) enum RowGap {
     /// A loop of the face whose record or cycle did not resolve.
     Corrupt,
     /// A half-edge of a walked loop that stores no row.
-    Missing(HalfEdgeKey),
+    Missing {
+        /// The half-edge.
+        half_edge: HalfEdgeKey,
+        /// The loop it is on.
+        r#loop: LoopKey,
+    },
 }
 
 impl<T: Real> StoredRows<T> {
@@ -1612,19 +1621,12 @@ impl<T: Real> StoredRows<T> {
     }
 }
 
-impl<T: Decide> StoredRows<T> {
-    /// **Whether a site mint re-mints the face** ([`site_rows_from`]):
-    /// the face was minted, every loop walks, and every row it misses
-    /// is on a loop a null edge holds open — a loop running through a
-    /// null edge. A null edge's halves have no carrier, so a loop
-    /// through them cannot be walked, and no door before the edge leaves
-    /// the loop can mint that loop's rows: the edge's own two, or those
-    /// of the halves an operator adds to the loop meanwhile. So a
-    /// COMPLETE face is re-minted, and so is one whose only gaps are on
-    /// such loops. The site mint then re-mints every loop its door
-    /// leaves running through no null edge ([`site_rows`]), and the face
-    /// leaves the door as this predicate found it: complete but for the
-    /// loops a null edge still holds open.
+impl<T: Real> StoredRows<T> {
+    /// **Whether a site mint re-mints the face** ([`site_rows`]): it
+    /// stores a row, every loop walks, and every row it misses is on a
+    /// loop in `open` — the loops a null edge holds open
+    /// ([`StoredRows::open_loops`]) — unless the door `released` it,
+    /// taking the last null edge off it, whatever else it misses.
     ///
     /// **"Minted" is read as "stores a row"** (`window`). No door writes
     /// a row onto a face no mint has run over: the site mint leaves a
@@ -1633,28 +1635,82 @@ impl<T: Decide> StoredRows<T> {
     /// after that mint; a face storing none was never minted, is the
     /// minting pass's, and stays rowless.
     ///
-    /// **A gap on a loop no null edge holds open is not the site mint's
-    /// to fill.** Another door left that face half-minted
-    /// ([`PcurveMintError::MissingCache`] lists them), and the site mint
-    /// leaves it as found for the producer's final pass.
-    pub(crate) fn remints(&self, body: &Body<T>) -> bool {
+    /// **A loop a null edge holds open cannot be walked**: the edge's
+    /// halves have no carrier. So no door before the edge leaves the
+    /// loop can mint its rows — the edge's own two, or those of the
+    /// halves an operator adds to the loop meanwhile — and those gaps
+    /// do not keep the face from its site mint, which mints every loop
+    /// its door leaves running through no null edge ([`site_rows`]).
+    ///
+    /// **The door that takes a face's last null edge off it re-mints
+    /// it whatever it misses**, as the minting pass would once the
+    /// scaffolding is gone: a null edge's first description, which
+    /// re-walks every loop, and an operator that rewires a loop out
+    /// from under the edge, as the pipelines' joins do. An operator
+    /// re-mints only the loops it rewires, so a gap on a loop it keeps
+    /// stays. **Any other gap is not the site mint's to fill**: a door
+    /// left the face half-minted ([`PcurveMintError::MissingCache`]
+    /// lists them) and the site mint leaves it as found, for the
+    /// producer's final pass.
+    pub(crate) fn remints(&self, open: &[LoopKey], released: bool) -> bool {
         self.window.is_some()
-            && self.loops.iter().all(|(_, cycle)| {
-                cycle.as_deref().is_some_and(|cycle| {
-                    cycle.iter().any(|&he| is_null_half(body, he))
-                        || cycle.iter().all(|&he| body.pcurve(he).is_some())
-                })
-            })
+            && self.loops.iter().all(|(_, cycle)| cycle.is_some())
+            && (released
+                || self.gaps.iter().all(|gap| {
+                    matches!(gap, RowGap::Missing { r#loop, .. } if open.contains(r#loop))
+                }))
     }
 }
 
-/// Whether `he` is a half of a null edge ([`CurveGeom::NullScaffold`]):
-/// scaffolding with no carrier to derive a row from.
-pub(crate) fn is_null_half<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> bool {
-    body.get_half_edge(he)
-        .and_then(|h| body.get_edge(h.edge))
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .is_some_and(|c| c.null_scaffold().is_some())
+impl<T: Decide> StoredRows<T> {
+    /// The loops of the face a null edge holds open ([`held_open`]), in
+    /// walk order. Empty, with nothing read, on a face that misses no
+    /// row: a null half never stores one, since every row derives from
+    /// its half's carrier and a null edge has none.
+    ///
+    /// # Errors
+    ///
+    /// [`held_open`]'s.
+    pub(crate) fn open_loops(&self, body: &Body<T>) -> Result<Vec<LoopKey>, SiteRowRefusal> {
+        let mut open = Vec::new();
+        if self.gaps.is_empty() {
+            return Ok(open);
+        }
+        for (lk, cycle) in &self.loops {
+            if let Some(cycle) = cycle
+                && held_open(body, cycle.iter().copied())?
+            {
+                open.push(*lk);
+            }
+        }
+        Ok(open)
+    }
+}
+
+/// **Whether a null edge holds a loop open**: one of `halves`, the
+/// loop's half-edges, is a half of a null edge
+/// ([`CurveGeom::NullScaffold`]), scaffolding with no carrier, so the
+/// loop cannot be walked. The site mint's one reading of it
+/// ([`StoredRows::open_loops`], [`site_rows`]).
+///
+/// # Errors
+///
+/// [`SiteRowRefusal::Corrupt`] where a half, its edge or its curve does
+/// not resolve — tier 1's corruption, which cannot be read as either.
+pub(crate) fn held_open<T: Decide>(
+    body: &Body<T>,
+    halves: impl IntoIterator<Item = HalfEdgeKey>,
+) -> Result<bool, SiteRowRefusal> {
+    let mut open = false;
+    for he in halves {
+        let curve = body
+            .get_half_edge(he)
+            .and_then(|h| body.get_edge(h.edge))
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .ok_or(SiteRowRefusal::Corrupt)?;
+        open |= curve.null_scaffold().is_some();
+    }
+    Ok(open)
 }
 
 /// One loop's half-edge cycle, as this module's walks read it —
@@ -1718,7 +1774,10 @@ pub(crate) fn stored_rows<T: Decide>(body: &Body<T>, face: &crate::entity::Face)
                     let (t0, t1) = row.params();
                     boxes.push(row.pcurve().chart_box(t0, t1));
                 }
-                None => gaps.push(RowGap::Missing(he)),
+                None => gaps.push(RowGap::Missing {
+                    half_edge: he,
+                    r#loop: lk,
+                }),
             }
         }
         loops.push((lk, Some(cycle)));
@@ -2214,9 +2273,10 @@ pub enum SiteRowRefusal {
     /// already incomplete, and is left as found instead
     /// ([`site_rows`]).
     SplineChart,
-    /// A half-edge of a loop the door re-mints did not resolve to a
-    /// carrier or a direction — tier 1's corruption, on a face the site
-    /// mint selected.
+    /// A half-edge of a face the site mint reads did not resolve: to an
+    /// edge and a curve, where it asks whether a null edge holds the
+    /// loop open ([`held_open`]), or to a carrier and a direction, where
+    /// it walks the loop — tier 1's corruption.
     Corrupt,
 }
 
@@ -2272,11 +2332,11 @@ pub(crate) struct SiteFace<T: Real> {
 /// What a site mint writes into the pcurve map for one face once its
 /// door has mutated ([`apply_site_rows`]).
 pub(crate) enum SiteRows<T: Real> {
-    /// The face is not re-minted — [`site_rows_from`] did not select
-    /// it, its chart mints nothing, it is on a spline chart with a null
-    /// edge holding it open, or every loop the door rewires still runs
-    /// through a null edge — and the door leaves its rows exactly as
-    /// found.
+    /// The face is not re-minted — [`StoredRows::remints`] did not
+    /// select it, its chart mints nothing, it is on a spline chart with
+    /// a null edge holding it open, or every loop the door rewires still
+    /// runs through a null edge — and the door leaves its rows exactly
+    /// as found.
     Leave,
     /// Every row of the loops the door rewires that run through no null
     /// edge, its two halves' among them. A loop the door keeps keeps
@@ -2289,33 +2349,53 @@ pub(crate) enum SiteRows<T: Real> {
     Clear(Vec<SiteHalf>),
 }
 
-/// The rows of `face` as found when a site mint re-mints it: its chart
-/// mints ([`chart_mints`]) and [`StoredRows::remints`] selects it — a
-/// COMPLETE face, or a minted one whose only gaps are on loops a null
-/// edge holds open. `None` for every other face, which the door leaves
-/// as found.
+/// A face as a site mint found it, and read further
+/// ([`site_rows_from`]).
+pub(crate) struct SiteFrom<T: Real> {
+    /// Its rows as found.
+    pub(crate) rows: StoredRows<T>,
+    /// Its loops a null edge holds open ([`StoredRows::open_loops`]).
+    pub(crate) open: Vec<LoopKey>,
+}
+
+/// `face` as found, when a site mint's door could re-mint it: its
+/// chart mints ([`chart_mints`]) and [`StoredRows::remints`] selects it
+/// were the door to release every loop a null edge holds open, the most
+/// a door can do. `None` for every other face, which the door leaves as
+/// found; [`site_rows`] asks the predicate again with what the door
+/// does.
 ///
 /// The chart is read first, so a face on a chart that mints nothing
 /// costs no walk.
+///
+/// # Errors
+///
+/// [`held_open`]'s.
 pub(crate) fn site_rows_from<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
     surface: &Surface<T>,
-) -> Option<StoredRows<T>> {
+) -> Result<Option<SiteFrom<T>>, SiteRowRefusal> {
     if !chart_mints(surface) {
-        return None;
+        return Ok(None);
     }
-    let stored = stored_rows(body, face);
-    stored.remints(body).then_some(stored)
+    let rows = stored_rows(body, face);
+    let open = rows.open_loops(body)?;
+    Ok(rows
+        .remints(&open, !open.is_empty())
+        .then_some(SiteFrom { rows, open }))
 }
 
 /// **The rows a site mint writes onto one face**, derived before its
 /// door mutates: a face an Euler operator adds half-edges to, or one a
 /// null edge's halves are on at its first description
 /// ([`crate::Body::set_edge_curve`]), which re-walks every loop of the
-/// face. `from` is the face's rows as found, on a face
-/// [`site_rows_from`] selected; every other face is left as found, and
-/// never reaches here.
+/// face. `from` is the face as found, on a face [`site_rows_from`]
+/// read further; every other face is left as found, and never reaches
+/// here. The face is re-minted where [`StoredRows::remints`] selects
+/// it, `released` being whether the door takes the last null edge off
+/// it: the face as found runs through one and the face as the door
+/// leaves it through none.
 ///
 /// - **The loops the surgery rewires are re-minted whole**, exactly as
 ///   [`mint_pcurves_of`] would re-mint them after the surgery: the same
@@ -2327,11 +2407,9 @@ pub(crate) fn site_rows_from<T: Decide>(
 ///   face whose stored rows are the pass's, the rows after the op are
 ///   the pass's, byte for byte.
 /// - **A rewired loop that still runs through a null edge keeps the
-///   rows it has**: the null halves have no carrier, so the loop cannot
-///   be walked, and its new halves go rowless until the null edge
-///   leaves it. A face whose only gaps are on such loops therefore
-///   leaves the door the same way — the rows it misses are the ones a
-///   null edge holds open — and every rewired loop the door leaves
+///   rows it has** ([`held_open`]): the null halves have no carrier,
+///   so the loop cannot be walked, and its new halves go rowless until
+///   the null edge leaves it. Every rewired loop the door leaves
 ///   running through no null edge is minted whole, the rows it missed
 ///   while it was held open among them.
 /// - **A face `mef` carves onto another chart**, or onto a chart that
@@ -2339,9 +2417,8 @@ pub(crate) fn site_rows_from<T: Decide>(
 ///   rows are dropped, and the minting pass owns it.
 /// - **On a spline chart the site mint refuses a COMPLETE face**
 ///   ([`SiteRowRefusal::SplineChart`]) and leaves a face a null edge
-///   holds open as found: that face is already incomplete, and a
-///   refusal there would strand the pipeline mid-surgery with its null
-///   edge, which tier 2 refuses at rest. The mint of an ANALYTIC chart
+///   holds open anywhere as found (the arm below says why per face).
+///   The mint of an ANALYTIC chart
 ///   needs nothing the fitted lane holds — [`chart_pcurve`],
 ///   [`walk_cycle`] and [`PcurveCache::certify`] are all `Decide` — and
 ///   the fitted lane is the spline chart's derivation
@@ -2360,43 +2437,63 @@ pub(crate) fn site_rows_from<T: Decide>(
 ///
 /// **Cost.** One walk and one certification per half-edge of the loops
 /// the surgery rewires, and one presence read per half-edge of the rest
-/// of the face ([`site_rows_from`]) — so N operators on one minted face
-/// whose loop grows with each cost O(N²)
+/// of the face ([`site_rows_from`]); on a face missing a row, three
+/// lookups more per half-edge of the face as found — its half, edge and
+/// curve — for which loops a null edge holds open, and as many again
+/// per half-edge of the rewired loops. So N operators on one minted
+/// face whose loop grows with each cost O(N²)
 /// (`work/topo/euler-site-mint-re-walks-the-rewired-loop-on-every-op`).
 ///
 /// # Errors
 ///
-/// [`SiteRowRefusal`]: the spline frontier, or a rewired half-edge that
-/// did not resolve.
+/// [`SiteRowRefusal`]: the spline frontier, or a half-edge that did not
+/// resolve.
 pub(crate) fn site_rows<T: Decide>(
     body: &Body<T>,
     face: &SiteFace<T>,
-    from: &StoredRows<T>,
+    from: &SiteFrom<T>,
     edge: &geom_brep::EdgeCurve<T>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
     if !face.carried || !chart_mints(&face.surface) {
         return Ok(SiteRows::Leave);
     }
+    // A spline chart's rows derive through the fitted lane, which a
+    // `Decide` door does not hold, so no loop of it is minted here and
+    // the question is per face: refuse, or leave as found. A face a
+    // null edge holds open anywhere is left as found — it is already
+    // incomplete, so an operator on one of its complete loops leaves
+    // that loop's new halves rowless too, as it did before the site
+    // mint read held-open faces, and a refusal would strand the
+    // pipeline mid-surgery with its null edge, which tier 2 refuses at
+    // rest. A complete face refuses rather than go half-minted.
     if face.surface.spline_chart().is_some() {
-        let held_open = from
-            .loops
-            .iter()
-            .flat_map(|(_, cycle)| cycle.iter().flatten())
-            .any(|&he| is_null_half(body, he));
-        return if held_open {
-            Ok(SiteRows::Leave)
-        } else {
+        return if from.open.is_empty() {
             Err(SiteRowRefusal::SplineChart)
+        } else {
+            Ok(SiteRows::Leave)
         };
     }
-    let open = |halves: &[SiteHalf]| {
-        halves
-            .iter()
-            .any(|&at| matches!(at, SiteHalf::Existing(he) if is_null_half(body, he)))
-    };
+    let mut open_after = Vec::with_capacity(face.loops.len());
+    for lp in &face.loops {
+        open_after.push(match lp {
+            SiteLoop::Rewired(halves) => held_open(
+                body,
+                halves.iter().filter_map(|&at| match at {
+                    SiteHalf::Existing(he) => Some(he),
+                    SiteHalf::NewPlus | SiteHalf::NewMinus | SiteHalf::Described(_) => None,
+                }),
+            )?,
+            SiteLoop::Kept(key) => from.open.contains(key),
+        });
+    }
+    let released = !from.open.is_empty() && !open_after.contains(&true);
+    if !from.rows.remints(&from.open, released) {
+        return Ok(SiteRows::Leave);
+    }
     let kept = |key: LoopKey| {
-        from.loops
+        from.rows
+            .loops
             .iter()
             .find(|(lk, _)| *lk == key)
             .and_then(|(_, cycle)| cycle.as_deref())
@@ -2436,11 +2533,11 @@ pub(crate) fn site_rows<T: Decide>(
         }
     };
     let mut walked: Vec<Walked<T, SiteHalf>> = Vec::new();
-    for lp in &face.loops {
+    for (lp, &open) in face.loops.iter().zip(&open_after) {
         let SiteLoop::Rewired(halves) = lp else {
             continue;
         };
-        if open(halves) {
+        if open {
             continue;
         }
         let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(halves.len());
@@ -3100,7 +3197,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
         if !stored.complete() {
             findings.extend(stored.gaps.iter().map(|gap| match *gap {
                 RowGap::Corrupt => PcurveMintError::Corrupt,
-                RowGap::Missing(half_edge) => PcurveMintError::MissingCache { half_edge },
+                RowGap::Missing { half_edge, .. } => PcurveMintError::MissingCache { half_edge },
             }));
             continue;
         }
@@ -3205,8 +3302,10 @@ pub(crate) mod staleness_posture {
         /// were complete, the loops it rewires are re-derived exactly
         /// as the pass derives them, and the loops it keeps held rows
         /// the surgery did not touch; on a face whose only gaps a null
-        /// edge holds open, so are the loops it leaves running through
-        /// no null edge, and a loop still held open keeps what it had.
+        /// edge holds open, or that the operator takes the last null
+        /// edge off, so are the loops it rewires and leaves running
+        /// through no null edge, and a loop still held open keeps what
+        /// it had.
         /// Where the pass would MINT — a face storing no row, or one
         /// half-minted any other way — an operator's site mint leaves
         /// the face as found: the pass owns it. Where the pass would
@@ -3250,7 +3349,8 @@ pub(crate) mod staleness_posture {
         /// it re-mints through the site mint ([`super::site_rows`])
         /// every loop of the face they are on that no other null edge
         /// holds open, on a face the site mint selects
-        /// ([`super::StoredRows::remints`]). Those loops leave
+        /// ([`super::StoredRows::remints`]) — every loop of it, whatever
+        /// it missed, once no null edge is left on it. Those loops leave
         /// complete, or the face rowless where the closed-form lane
         /// cannot mint it, or — on a spline chart — as found.
         Completes,
@@ -3525,7 +3625,8 @@ pub(crate) mod staleness_posture {
              would trade for a re-mint on every swap that certifies. A NULL edge's first \
              description is where its halves' rows can first be derived: on a face they are \
              on whose only gaps a null edge holds open, every loop no other null edge holds \
-             open is re-minted whole before the door mutates",
+             open is re-minted whole before the door mutates, and on one no null edge is \
+             left on, every loop, whatever it missed",
             ),
             (
                 "set_edge_curve_nurbs_lane",
