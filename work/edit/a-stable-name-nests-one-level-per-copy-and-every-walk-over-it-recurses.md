@@ -2,7 +2,8 @@
 id: a-stable-name-nests-one-level-per-copy-and-every-walk-over-it-recurses
 kind: issue
 title: editor-core: a StableName nests one NameRef per pattern copy, part instance or merge, and its drop, Debug and descent walks recurse without bound
-status: review
+status: closed
+closed: 2026-09-30
 branch: edit/name-nesting-stack-safe
 pr: 3512
 opened: 2026-09-30
