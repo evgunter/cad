@@ -697,7 +697,7 @@ mod tests {
     /// held set is untouched.
     #[test]
     fn a_target_whose_edges_the_index_cannot_name_refuses_the_load_in_its_words() {
-        let (eval, mut index, extrude) = plate_indexed();
+        let (eval, mut index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
         let target = BlendTarget {
             node: extrude,
             body: 0,
@@ -759,7 +759,7 @@ mod tests {
     /// and the load answers what it answers for a body with no edges.
     #[test]
     fn a_target_the_index_does_not_draw_is_not_a_naming_refusal() {
-        let (eval, index, extrude) = plate_indexed();
+        let (eval, index, extrude) = plate_indexed(pncad::geom_core::Tol::witness());
         let target = BlendTarget {
             node: extrude,
             body: 7,

@@ -838,7 +838,8 @@ mod tests {
 
     /// The spike plate's index — the picture a frame marks in.
     fn plate() -> (PickIndex, RecipeNodeId) {
-        let (_, index, extrude) = crate::test_support::plate_indexed();
+        let (_, index, extrude) =
+            crate::test_support::plate_indexed(pncad::geom_core::Tol::witness());
         (index, extrude)
     }
 
@@ -970,7 +971,8 @@ mod tests {
     /// refuses nothing.
     #[test]
     fn a_held_mark_the_index_cannot_wholly_name_carries_its_refusal() {
-        let (_, mut index, extrude) = crate::test_support::plate_indexed();
+        let (_, mut index, extrude) =
+            crate::test_support::plate_indexed(pncad::geom_core::Tol::witness());
         let drawn = index.edges_in(extrude, 0).to_vec();
         let names: BTreeSet<StableName> = drawn[..2]
             .iter()

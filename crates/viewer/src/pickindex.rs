@@ -2580,7 +2580,8 @@ mod tests {
     /// refusal.
     #[test]
     fn a_bodys_named_edges_count_the_loud_arm_and_not_the_ordinary_one() {
-        let (_, mut index, extrude) = crate::test_support::plate_indexed();
+        let (_, mut index, extrude) =
+            crate::test_support::plate_indexed(pncad::geom_core::Tol::witness());
         let drawn = index.edges_in(extrude, 0).to_vec();
         let clean = index.edge_names_in(extrude, 0);
         assert_eq!(clean.refused, None, "the plate names every edge it draws");

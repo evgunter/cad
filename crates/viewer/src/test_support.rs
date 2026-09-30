@@ -368,8 +368,7 @@ pub fn plate_delta() -> DisplayTolerance {
 /// rows that read it are vocabularies and a session is a driver
 /// (`crates/viewer/README.md`, Module boundaries), and the index only
 /// ever wanted the evaluation.
-pub fn plate_indexed() -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
-    let tol = Tol::witness();
+pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
     let (doc, extrude) = crate::scene::plate_with_hole(tol).expect("the plate authors");
     let eval = evaluate(
         &doc,

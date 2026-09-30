@@ -466,8 +466,8 @@ impl PickCache {
         self.index.as_ref()
     }
 
-    /// The held index, for a row to plant a fault in.
-    #[cfg(test)]
+    /// The held index, for a whole-app row to plant a fault in.
+    #[cfg(all(test, feature = "app"))]
     pub(crate) fn index_mut(&mut self) -> Option<&mut PickIndex> {
         self.index.as_mut()
     }
