@@ -673,21 +673,24 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
-        self.mekr_with(site, NewCurve::Given(curve), tol)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mekr_with(site, NewCurve::Given(curve), tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
+        Ok(created)
     }
 
-    /// [`Body::mekr`] with its curve as a [`NewCurve`], which the
-    /// chord sugar derives inside the plan.
+    /// [`Body::mekr`]'s plan and surgery, with its curve as a
+    /// [`NewCurve`], which the chord sugar derives inside the plan. The
+    /// door that calls it declares the postcondition.
     fn mekr_with(
         &mut self,
         site: MekrSite,
         curve: NewCurve<T>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
-        #[cfg(debug_assertions)]
-        let before = self.arena_counts();
-
-        let created = match site {
+        match site {
             MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve, tol),
             MekrSite::EmptyRing { target, ring } => {
                 self.mekr_empty_ring(site, target, ring, curve, tol)
@@ -698,20 +701,7 @@ impl<T: Decide> Body<T> {
             MekrSite::BothEmpty { target, ring } => {
                 self.mekr_both_empty(site, target, ring, curve, tol)
             }
-        }?;
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                loops: -1,
-                half_edges: 2,
-                edges: 1,
-                ..ArenaDelta::ZERO
-            },
-            "mekr",
-        );
-        Ok(created)
+        }
     }
 
     /// [`Body::mekr`] with derived scaffolding geometry — the
@@ -725,7 +715,12 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::mekr`].
     pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError> {
-        self.mekr_with(site, NewCurve::Chord, tol)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mekr_with(site, NewCurve::Chord, tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr_chord");
+        Ok(created)
     }
 
     /// KFMRH — *kill face, make ring–hole*: the connected sum. `f2`'s

@@ -1483,6 +1483,31 @@ impl ArenaDelta {
         edges: 0,
         vertices: 0,
     };
+
+    /// [`Body::mev`]'s shift, and its chord sugar's.
+    pub(crate) const MEV: Self = Self {
+        half_edges: 2,
+        edges: 1,
+        vertices: 1,
+        ..Self::ZERO
+    };
+
+    /// [`Body::mef`]'s shift, and its chord sugar's.
+    pub(crate) const MEF: Self = Self {
+        faces: 1,
+        loops: 1,
+        half_edges: 2,
+        edges: 1,
+        ..Self::ZERO
+    };
+
+    /// [`Body::mekr`]'s shift, and its chord sugar's.
+    pub(crate) const MEKR: Self = Self {
+        loops: -1,
+        half_edges: 2,
+        edges: 1,
+        ..Self::ZERO
+    };
 }
 
 #[cfg(debug_assertions)]
@@ -1774,11 +1799,17 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
         tol: Tol,
     ) -> Result<MevCreated, EulerOpError> {
-        self.mev_with(site, point, NewCurve::Given(curve), tol)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mev_with(site, point, NewCurve::Given(curve), tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEV, "mev");
+        Ok(created)
     }
 
-    /// [`Body::mev`] with its curve as a [`NewCurve`], which the
-    /// chord sugar derives inside the plan.
+    /// [`Body::mev`]'s plan and surgery, with its curve as a
+    /// [`NewCurve`], which the chord sugar derives inside the plan. The
+    /// door that calls it declares the postcondition.
     fn mev_with(
         &mut self,
         site: MevSite,
@@ -1786,26 +1817,10 @@ impl<T: Decide> Body<T> {
         curve: NewCurve<T>,
         tol: Tol,
     ) -> Result<MevCreated, EulerOpError> {
-        #[cfg(debug_assertions)]
-        let before = self.arena_counts();
-
-        let created = match site {
+        match site {
             MevSite::Fan { he1, he2 } => self.mev_fan(site, he1, he2, point, curve, tol),
             MevSite::Lone { r#loop } => self.mev_lone(site, r#loop, point, curve, tol),
-        }?;
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                half_edges: 2,
-                edges: 1,
-                vertices: 1,
-                ..ArenaDelta::ZERO
-            },
-            "mev",
-        );
-        Ok(created)
+        }
     }
 
     /// [`Body::mev`] with the chord-line spec derived from the site:
@@ -1824,7 +1839,12 @@ impl<T: Decide> Body<T> {
         point: Point3<T>,
         tol: Tol,
     ) -> Result<MevCreated, EulerOpError> {
-        self.mev_with(site, point, NewCurve::Chord, tol)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mev_with(site, point, NewCurve::Chord, tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEV, "mev_line");
+        Ok(created)
     }
 
     /// MEF — *make edge, face*: split a loop (or an empty loop) with a
@@ -1945,11 +1965,17 @@ impl<T: Decide> Body<T> {
         surface: FaceSurface<T>,
         tol: Tol,
     ) -> Result<MefCreated, EulerOpError> {
-        self.mef_with(site, NewCurve::Given(curve), surface, tol)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mef_with(site, NewCurve::Given(curve), surface, tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
+        Ok(created)
     }
 
-    /// [`Body::mef`] with its curve as a [`NewCurve`], which the
-    /// chord sugar derives inside the plan.
+    /// [`Body::mef`]'s plan and surgery, with its curve as a
+    /// [`NewCurve`], which the chord sugar derives inside the plan. The
+    /// door that calls it declares the postcondition.
     fn mef_with(
         &mut self,
         site: MefSite,
@@ -1957,27 +1983,10 @@ impl<T: Decide> Body<T> {
         surface: FaceSurface<T>,
         tol: Tol,
     ) -> Result<MefCreated, EulerOpError> {
-        #[cfg(debug_assertions)]
-        let before = self.arena_counts();
-
-        let created = match site {
+        match site {
             MefSite::Chords { he1, he2 } => self.mef_chords(site, he1, he2, curve, surface, tol),
             MefSite::Lone { r#loop } => self.mef_lone(site, r#loop, curve, surface, tol),
-        }?;
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                faces: 1,
-                loops: 1,
-                half_edges: 2,
-                edges: 1,
-                ..ArenaDelta::ZERO
-            },
-            "mef",
-        );
-        Ok(created)
+        }
     }
 
     /// [`Body::mef`] with derived scaffolding geometry and
@@ -1999,7 +2008,12 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::mef`].
     pub fn mef_chord(&mut self, site: MefSite, tol: Tol) -> Result<MefCreated, EulerOpError> {
-        self.mef_with(site, NewCurve::Chord, FaceSurface::Inherit, tol)
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mef_with(site, NewCurve::Chord, FaceSurface::Inherit, tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef_chord");
+        Ok(created)
     }
 
     /// Finds the half-edge running `from → to` in `face`, or `None`.
