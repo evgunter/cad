@@ -9,6 +9,7 @@ cost: H
 branch: emit/node-id-digest-mint
 blocked_on: [3565]
 refs: [name-order-was-insertion-order-under-the-counter]
+pr: 3594
 ---
 
 
