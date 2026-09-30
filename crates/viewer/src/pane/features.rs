@@ -9,7 +9,7 @@ use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::frame;
 use crate::session::{Selection, SessionOp};
 use crate::theme::Theme;
-use crate::tree::{self, RowStatus, TreeRow};
+use crate::tree::{self, Reading, RowStatus, TreeRow};
 
 /// Points of indent per level of the feature tree.
 pub(crate) const INDENT_STEP: f32 = 12.0;
@@ -138,6 +138,55 @@ pub(crate) fn failure_lines(
     clicked
 }
 
+/// **What the run said about a row, drawn beside it**: the badge of a
+/// row that is not `Ok`, and a measure's value on one that is.
+///
+/// Whether a row draws a badge at all is this pane's decision. How
+/// LOUD a drawn badge is, is not decided here — that is
+/// `RowStatus::tone()`.
+///
+/// A free function over the `Ui` for the reason [`row_label`] is one.
+pub(crate) fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) {
+    match &row.status {
+        // A healthy row draws no badge: a tree of unmarked rows is
+        // what makes the marked ones carry. The status still has one,
+        // which `examples/r1_e2e.rs` prints.
+        RowStatus::Ok => {
+            if let Some(Reading::Value(value)) = &row.reading {
+                ui.label(value);
+            }
+        }
+        RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
+            ui.label(toned(row.status.badge(), theme, row.status.tone()));
+        }
+    }
+}
+
+/// **Every line drawn under a row**, in order: a failure's
+/// ([`failure_lines`]), a measure's reason it has no value, and the
+/// node's standing caveat. Answers the node a click selects, as
+/// [`failure_lines`] does.
+///
+/// A free function over the `Ui` for the reason [`row_label`] is one.
+pub(crate) fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
+    let clicked = failure_lines(ui, row, theme);
+    if let Some(Reading::Unavailable(reason)) = &row.reading {
+        advisory_line(ui, row.depth, reason, theme);
+    }
+    if let Some(note) = &row.note {
+        advisory_line(ui, row.depth, note, theme);
+    }
+    clicked
+}
+
+/// One line under a row at `depth` that reports and links nowhere.
+fn advisory_line(ui: &mut egui::Ui, depth: usize, text: &str, theme: &Theme) {
+    ui.horizontal(|ui| {
+        ui.add_space(message_indent(ui, depth));
+        crate::widgets::message_toned(ui, text, theme, frame::Tone::Advisory);
+    });
+}
+
 impl ViewerBehavior<'_> {
     /// The feature tree: one row per recipe node, with its status
     /// badge from the evaluation's typed result.
@@ -178,37 +227,10 @@ impl ViewerBehavior<'_> {
                     });
                 }
             }
-            // Whether a row draws a badge at all is this pane's
-            // decision.
-            //
-            // How LOUD a drawn badge is, is not decided here — that is
-            // `RowStatus::tone()`, read below.
-            match &row.status {
-                // Silent: a healthy row's own line is the whole of
-                // what it has to say, and a tree of unmarked rows is
-                // what makes the marked ones carry. The status still
-                // has a badge, which `examples/r1_e2e.rs` prints.
-                RowStatus::Ok => {}
-                RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
-                    ui.label(toned(row.status.badge(), &self.theme, row.status.tone()));
-                }
-            }
+            row_result(ui, row, &self.theme);
         });
-        if let Some(to) = failure_lines(ui, row, &self.theme) {
+        if let Some(to) = lines_under(ui, row, &self.theme) {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
-        }
-        // The node's standing caveat (a mate class with no at-rest
-        // record) — the admission verdict, outliving the commit.
-        if let Some(note) = &row.note {
-            ui.horizontal(|ui| {
-                ui.add_space(message_indent(ui, row.depth));
-                crate::widgets::message_toned(
-                    ui,
-                    note.as_str(),
-                    &self.theme,
-                    frame::Tone::Advisory,
-                );
-            });
         }
     }
 }
@@ -225,11 +247,14 @@ mod tests {
 
     use eframe::egui;
 
-    use super::{INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, indent, message_indent, row_label};
+    use super::{
+        INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, indent, lines_under, message_indent,
+        row_label, row_result,
+    };
     use crate::app::GLYPH_ROOT;
     use crate::pane::headless::SLACK;
     use crate::pane::headless::{
-        find, landed, landed_voiced, painted_after_clicking, painted_text,
+        assert_under, find, landed, landed_voiced, painted, painted_after_clicking, painted_text,
     };
     use crate::theme::Theme;
     use crate::tree;
@@ -321,6 +346,7 @@ mod tests {
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
+            reading: None,
         }
     }
 
@@ -368,6 +394,7 @@ mod tests {
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
+            reading: None,
         };
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
@@ -413,6 +440,7 @@ mod tests {
             },
             note: None,
             repair_at,
+            reading: None,
         }
     }
 
@@ -532,5 +560,213 @@ mod tests {
             ..placer_refused_row(None)
         };
         assert_eq!(clicking(&row, &pointer), Some(through));
+    }
+
+    /// **A box's height, measured three ways over its two caps**, as
+    /// `tree::rows` builds the rows off a real evaluation: a
+    /// `distance`, which has a value; a `min_clearance`, which has none
+    /// at `f64`; and a distance over zero, whose node fails.
+    struct Measured {
+        doc: pncad::document::Doc<pncad::document::ProfileProgram>,
+        evaluation: pncad::document::Evaluation<f64>,
+        distance: RecipeNodeId,
+        clearance: RecipeNodeId,
+        failed: RecipeNodeId,
+        angle: RecipeNodeId,
+    }
+
+    /// The box's height, which the `distance` measure reads back.
+    const HEIGHT: f64 = 0.0125;
+
+    fn measured() -> Measured {
+        use pncad::document::{
+            CancelToken, Doc, EvalOptions, MeasureExpr, MeasurePrimitive, Node, SitedRef, evaluate,
+        };
+        use pncad::geom_core::Tol;
+        use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
+
+        use crate::test_support::{ang, framed_square, inserted, len, scl};
+
+        let tol = Tol::witness();
+        let run = |doc: &Doc<_>| {
+            evaluate(
+                doc,
+                None,
+                &CancelToken::default(),
+                &EvalOptions::default(),
+                tol,
+            )
+        };
+        let (doc, profile) = framed_square(&Doc::empty_derived("measure-rows", tol), 0.02, tol);
+        let (doc, solid) = inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: len(HEIGHT),
+            },
+            tol,
+        );
+        let box_run = run(&doc);
+        let cap = |end: CapEnd| {
+            let sel = Selector::of(
+                NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)),
+            );
+            let found = select(&box_run, solid, &sel);
+            assert_eq!(found.len(), 1, "one {end:?} cap: {found:?}");
+            SitedRef::new(solid, found[0].clone())
+        };
+        let caps = vec![cap(CapEnd::Start), cap(CapEnd::End)];
+        let across = || MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
+        let measure = |doc: &Doc<_>, expr: MeasureExpr| {
+            inserted(
+                doc,
+                Node::measure(expr, caps.clone()).expect("both caps are referenced"),
+                tol,
+            )
+        };
+        let (doc, distance) = measure(&doc, across());
+        let (doc, clearance) = measure(
+            &doc,
+            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        );
+        let (doc, failed) = measure(
+            &doc,
+            MeasureExpr::div(across(), MeasureExpr::value(scl(0.0)))
+                .expect("a length over a scalar is a length"),
+        );
+        let (doc, angle) = measure(&doc, MeasureExpr::value(ang(0.5)));
+        let evaluation = run(&doc);
+        Measured {
+            doc,
+            evaluation,
+            distance,
+            clearance,
+            failed,
+            angle,
+        }
+    }
+
+    impl Measured {
+        fn row(&self, id: RecipeNodeId) -> TreeRow {
+            tree::rows(
+                &self.doc,
+                Some(&self.evaluation),
+                &crate::parts::PartFiles::Unscanned,
+            )
+            .into_iter()
+            .find(|row| row.id == id)
+            .expect("every node has a row")
+        }
+    }
+
+    /// What `painted` says, in paint order.
+    fn texts(painted: &[crate::pane::headless::Landed]) -> Vec<&str> {
+        painted.iter().map(|landed| landed.text.as_str()).collect()
+    }
+
+    /// One row as `feature_row` draws it, less the indent and the
+    /// instance toggle: the row's line, then the lines under it.
+    fn feature_row_drawn(ui: &mut egui::Ui, row: &TreeRow) {
+        ui.horizontal(|ui| {
+            row_label(ui, row, false);
+            row_result(ui, row, &Theme::DEFAULT);
+        });
+        lines_under(ui, row, &Theme::DEFAULT);
+    }
+
+    /// **A measure with a value paints it on its own row**, in the
+    /// notation the chrome writes any computed value in: canonical,
+    /// with the unit's symbol.
+    ///
+    /// Red if `row_result` stops drawing `Reading::Value`, or if
+    /// `reading_of` spells the value any other way.
+    #[test]
+    fn a_measure_with_a_value_paints_it_beside_its_row() {
+        let fixture = measured();
+        let painted = landed(|ui| feature_row_drawn(ui, &fixture.row(fixture.distance)));
+        let value = find(&painted, "0.0125 m");
+        let kind = find(&painted, &format!("Measure {GLYPH_ROOT}"));
+        assert!(
+            (value.rows[0].center().y - kind.rows[0].center().y).abs() <= SLACK
+                && value.rows[0].left() > kind.rows[0].right(),
+            "the value stands beside the row's kind, on its line: {:?} / {:?}",
+            kind.rows,
+            value.rows
+        );
+        assert_eq!(
+            painted.len(),
+            2,
+            "and nothing else is painted: {:?}",
+            texts(&painted)
+        );
+    }
+
+    /// **The value is written in the kind its dimension is**: an
+    /// angle in radians, not a length.
+    ///
+    /// Red if `reading_of` renders every measure as a length.
+    #[test]
+    fn a_measured_angle_paints_in_radians() {
+        let fixture = measured();
+        let drawn = painted_text(|ui| feature_row_drawn(ui, &fixture.row(fixture.angle)));
+        assert!(drawn.contains("0.5 rad"), "{drawn}");
+    }
+
+    /// **A measure with no value at this scalar paints the kernel's
+    /// reason under its row, byte for byte**, quietly: the node
+    /// evaluated, so there is no badge, and the line is a report.
+    ///
+    /// Red if `lines_under` drops `Reading::Unavailable`, if
+    /// `reading_of` re-spells the reason, or if the line is drawn loud.
+    #[test]
+    fn a_measure_with_no_value_paints_the_kernels_reason_under_its_row() {
+        use pncad::document::ValuePayload;
+
+        let fixture = measured();
+        let reason = match fixture
+            .evaluation
+            .result(fixture.clearance)
+            .and_then(|result| result.value())
+            .map(|value| &value.payload)
+        {
+            Some(ValuePayload::MeasureUnavailable { reason, .. }) => reason.to_string(),
+            other => panic!("the premise: `min_clearance` has no value at f64: {other:?}"),
+        };
+        assert!(
+            reason.contains("clearance::min_separation"),
+            "the premise: the kernel's words name the door that answers: {reason}"
+        );
+        let row = fixture.row(fixture.clearance);
+        let (painted, voices) = landed_voiced(|ui| feature_row_drawn(ui, &row));
+        let line = find(&painted, &reason);
+        assert_under(find(&painted, &format!("Measure {GLYPH_ROOT}")), line);
+        assert_eq!(line.ink, Some(voices.weak), "said quietly");
+        assert_eq!(
+            painted.len(),
+            2,
+            "no badge and no value beside the row: {:?}",
+            texts(&painted)
+        );
+    }
+
+    /// **A measure whose node failed paints its failure and no value**:
+    /// the badge and the kernel's words, as any failed row.
+    #[test]
+    fn a_failed_measure_paints_its_failure_and_no_value() {
+        let fixture = measured();
+        let row = fixture.row(fixture.failed);
+        let RowStatus::Failed { message, .. } = &row.status else {
+            panic!("the premise: a distance over zero fails: {:?}", row.status)
+        };
+        let drawn = painted(|ui| feature_row_drawn(ui, &row));
+        assert_eq!(
+            drawn,
+            vec![
+                format!("Measure {GLYPH_ROOT}"),
+                "FAILED".to_owned(),
+                message.clone()
+            ],
+            "the kind, the badge, the words, and nothing measured"
+        );
     }
 }

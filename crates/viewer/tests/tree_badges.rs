@@ -1244,6 +1244,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         status,
         note: None,
         repair_at: None,
+        reading: None,
     };
     let rows = [
         row(1, RowStatus::Ok),

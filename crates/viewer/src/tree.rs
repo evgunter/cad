@@ -29,6 +29,10 @@
 //! and they are sited here because the tree and the creation forms'
 //! pickers have to name a node the same way.
 //!
+//! It also carries one thing a run said that is no failure: what a
+//! measure measured ([`Reading`]), spelled as the chrome spells any
+//! computed value, or the kernel's own words for why it has none.
+//!
 //! Because that is the other thing this module owns: the *shape* —
 //! which rows exist, in which order, at what indentation, which of
 //! them the selection is on, and which row a failure sends the eye to.
@@ -170,14 +174,14 @@ use std::collections::BTreeMap;
 use pncad::document::AssemblyError;
 use pncad::document::{
     CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProductError, ProfileProgram, RecipeNodeId,
+    NodeStanding, ProductError, ProfileProgram, RecipeNodeId, ValuePayload,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
-use crate::props::{in_written, render_number};
+use crate::props::{computed_text, in_written, render_number};
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the
@@ -342,6 +346,24 @@ pub struct TreeRow {
     /// link is its own `through`, and an `Ok` or `Unevaluated` row has
     /// no words to link from.
     pub repair_at: Option<RecipeNodeId>,
+    /// **What a measure node measured**, when its row is `Ok`
+    /// (`reading_of`). `None` on every other row.
+    pub reading: Option<Reading>,
+}
+
+/// **What a measure's row says it measured**: the landed run's value,
+/// or the kernel's reason it has none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Reading {
+    /// The value, as the chrome says any computed value
+    /// ([`computed_text`]): canonical notation, width-bounded, with its
+    /// unit's symbol.
+    Value(String),
+    /// No value at this build's scalar — a value of the node, not a
+    /// failure — in the kernel's own words
+    /// ([`pncad::document::MeasureUnavailableAt`]'s `Display`), which
+    /// name the door that can answer.
+    Unavailable(String),
 }
 
 /// The kind name of a recipe node — the node vocabulary's own
@@ -598,6 +620,7 @@ pub fn rows(
             status,
             note: node_note(node),
             repair_at,
+            reading: reading_of(id, evaluation),
         });
     }
     rows
@@ -655,6 +678,27 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::InstantiatePart { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
+    }
+}
+
+/// **What `id` measured in `evaluation`**, when it is a measure whose
+/// node evaluated; `None` for every other payload and every row that
+/// is not `Ok`, whose status already says why there is no value.
+fn reading_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> Option<Reading> {
+    match &evaluation?.result(id)?.value()?.payload {
+        ValuePayload::Measure { value, dim } => Some(Reading::Value(computed_text(*dim, *value))),
+        ValuePayload::MeasureUnavailable { reason, .. } => {
+            Some(Reading::Unavailable(reason.to_string()))
+        }
+        ValuePayload::Body(_)
+        | ValuePayload::Boolean(_)
+        | ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Split { .. }
+        | ValuePayload::Instances(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Assertion(_) => None,
     }
 }
 

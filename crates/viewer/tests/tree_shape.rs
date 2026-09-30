@@ -164,3 +164,63 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
         "one past the branch it consumes, not one past its own line"
     );
 }
+
+/// **A measure's row reads the landed run, as every row's badge
+/// does**: while the document has moved past the landed evaluation,
+/// the row shows what that run measured on the document it ran over,
+/// and the new value arrives with the run that measures it.
+///
+/// Red if the tree blanks a value while a run is outstanding, or keeps
+/// the old one once the new run has landed.
+#[test]
+fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
+    use pncad::document::{Dimension, DocParam, Expr, MeasureExpr, ParamName};
+    use viewer::props::SlotValue;
+    use viewer::session::{DocSession, SessionOp};
+    use viewer::tree::Reading;
+
+    let tol = Tol::witness();
+    let gap = ParamName::from_static("gap");
+    let mut doc = common::declared(
+        "measure-landed",
+        &gap,
+        DocParam::continuous(Dimension::Length, 0.01),
+        tol,
+    );
+    let measure = common::insert_into(
+        &mut doc,
+        Node::measure(
+            MeasureExpr::value(Expr::param(gap.clone(), Dimension::Length)),
+            Vec::new(),
+        )
+        .expect("a value measure references nothing"),
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let reading = |session: &DocSession| {
+        session
+            .tree_rows()
+            .into_iter()
+            .find(|row| row.id == measure)
+            .and_then(|row| row.reading)
+    };
+    let landed = Some(Reading::Value("0.01 m".to_owned()));
+    assert_eq!(reading(&session), landed);
+
+    session.perform(SessionOp::SetParam {
+        name: gap,
+        value: SlotValue::Continuous(0.012),
+    });
+    assert!(session.busy(), "the premise: the document has moved on");
+    assert_eq!(
+        reading(&session),
+        landed,
+        "the row is the landed picture's until the next one lands"
+    );
+    session.pump();
+    assert_eq!(
+        reading(&session),
+        Some(Reading::Value("0.012 m".to_owned()))
+    );
+}
