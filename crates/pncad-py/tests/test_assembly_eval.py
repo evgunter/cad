@@ -76,11 +76,14 @@ generated under.
 
 import ast
 import atexit
+import json
 import math
 import operator
 import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -300,9 +303,9 @@ class TestTheResolutionRefusals(CorpusCase):
     one at all, since a cycle with valid pins wants a content hash
     containing its own hash, and with invalid pins `part_pin_mismatch`
     fires first, so hand-crafted bytes do not get there either.
-    `part_depth_exceeded` is left UNCLAIMED: a hand-crafted acyclic
-    chain deep enough might reach it, and this unit did not establish
-    whether it does. Authoring any of these documents is G18b's half.
+    `part_depth_exceeded` is reached by `TestNestingPastTheBound`, with
+    an acyclic chain one document deeper than the bound. Authoring any
+    of the others is G18b's half.
     """
 
     def test_a_pin_that_moved_refuses_rather_than_retargeting(self):
@@ -562,6 +565,104 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         self.assertEqual(last.kind, "extrude")
         self.assertEqual((last.node, last.document), (self.extrude, self.part_ref))
         self.assertIsNone(last.__cause__, "the chain ends at the refusing node")
+
+
+#: The deepest nesting that evaluates: `part_depth_exceeded`'s sentence
+#: names it.
+DEPTH_BOUND = 1024
+
+#: The child process `TestNestingPastTheBound` runs: a chain of
+#: `DEPTH_BOUND + 1` documents over the post, each instantiating the one
+#: below, stored in a `Workspace` and evaluated from the top on a
+#: `threading.Thread`. It prints what the top instance's refusal chain
+#: says, one JSON object; a crash prints nothing and exits nonzero.
+_PAST_THE_BOUND = """
+import json, shutil, sys, tempfile, threading
+from pathlib import Path
+
+import bench_scene
+from pncad import DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
+
+levels = int(sys.argv[1])
+directory = Path(tempfile.mkdtemp())
+try:
+    store = Workspace(str(directory))
+    below = bench_scene.post()
+    store.create(below)
+    first = None
+    for level in range(1, levels + 1):
+        doc = Doc(f"pncad-depth-level-{level}")
+        doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+        store.create(doc)
+        first = first or doc
+        below = doc
+    top = Doc("pncad-depth-top")
+    instance = top.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+    said = {}
+
+    def descend():
+        try:
+            evaluate(top, resolver=store).value(instance)
+        except EvaluationError as refusal:
+            chain = [refusal]
+            while chain[-1].__cause__ is not None:
+                chain.append(chain[-1].__cause__)
+            said["top"] = chain[0].kind
+            said["causes"] = len(chain) - 1
+            said["last"] = chain[-1].kind
+            said["sentence"] = str(chain[-1])
+            said["in_the_first_level"] = chain[-1].document.id == first.id
+
+    thread = threading.Thread(target=descend)
+    thread.start()
+    thread.join()
+    print(json.dumps(said))
+finally:
+    shutil.rmtree(directory, ignore_errors=True)
+"""
+
+
+class TestNestingPastTheBound(unittest.TestCase):
+    """A chain one document past the bound refuses typed from a
+    `threading.Thread`, rather than killing the interpreter.
+
+    The evaluation runs in a child process because the failure this row
+    guards against is a dead process, which would take the suite with it
+    if it ran here.
+    """
+
+    def test_a_chain_one_past_the_bound_refuses_depth_exceeded_on_a_thread(self):
+        child = subprocess.run(
+            [sys.executable, "-c", _PAST_THE_BOUND, str(DEPTH_BOUND)],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+        self.assertEqual(
+            child.returncode,
+            0,
+            f"the interpreter survives the descent: {child.stderr[-2000:]}",
+        )
+        said = json.loads(child.stdout)
+        self.assertEqual(said["top"], "part_root_failed")
+        self.assertEqual(
+            said["causes"],
+            DEPTH_BOUND,
+            "one cause per document the refusal was carried up through",
+        )
+        self.assertEqual(said["last"], "part_depth_exceeded")
+        self.assertTrue(
+            said["in_the_first_level"],
+            "the refusal is raised by the document at the bound, the one "
+            "instantiating the post",
+        )
+        self.assertIn(f"deeper than {DEPTH_BOUND} documents", said["sentence"])
+        self.assertIn(
+            "Recourse: flatten the assembly so its parts nest fewer documents deep",
+            said["sentence"],
+        )
 
 
 class TestTheMemoIsObservable(CorpusCase):
