@@ -6487,3 +6487,114 @@ pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     h.write_str(serialized);
     h.finish()
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod name_feed_tests {
+    //! A name's content-key feed keeps its own stack, and feeds the
+    //! stream a descent level by level would.
+
+    use super::memo::ContentKey;
+    use super::{Fed, KeyHasher, SegFeed, feed_role_seg, feed_stable_name};
+    use crate::names::{
+        CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SideVerdict, SplitHalf, StableName,
+    };
+    use crate::node::RecipeNodeId;
+
+    fn key(name: &StableName) -> ContentKey {
+        let mut h = KeyHasher::new();
+        feed_stable_name(&mut h, name);
+        h.finish()
+    }
+
+    /// The feed as a descent: each held name fed, whole, where its
+    /// holder's segment meets it.
+    fn descending(h: &mut KeyHasher, name: &StableName) {
+        h.write_tag(match name.kind {
+            EntityKind::Body => 1,
+            EntityKind::Face => 2,
+            EntityKind::Edge => 3,
+            EntityKind::Vertex => 4,
+        });
+        h.write_u64(name.node.0);
+        h.write_u64(name.path.len() as u64);
+        for seg in &name.path {
+            let mut level = SegFeed(Vec::new());
+            feed_role_seg(&mut level, seg);
+            for item in level.0 {
+                match item {
+                    Fed::Tag(tag) => h.write_tag(tag),
+                    Fed::U64(x) => h.write_u64(x),
+                    Fed::Name(n) => descending(h, n),
+                }
+            }
+        }
+    }
+
+    fn leaf(node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    /// `name` one level deeper, held in turn by each shape a segment
+    /// holds a name in, beside payload the feed writes around it.
+    fn wrap(name: StableName, level: usize) -> StableName {
+        let r = NameRef::new(name.clone());
+        let seg = match level % 5 {
+            0 => RoleSeg::Instance { i: 3, of: r },
+            1 => RoleSeg::Fragment(Qualifier::SideOf(vec![
+                (leaf(7), SideVerdict::Mixed),
+                (name, SideVerdict::On),
+            ])),
+            2 => RoleSeg::BandCross {
+                edge: NameRef::new(leaf(8)),
+                band: vec![name],
+            },
+            3 => RoleSeg::SectionEdge {
+                side: SplitHalf::Below,
+                face: r,
+            },
+            _ => RoleSeg::Seam {
+                a: r,
+                b: NameRef::new(leaf(9)),
+            },
+        };
+        StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId(level as u64 + 10),
+            path: vec![
+                seg,
+                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_name_feeds_the_stream_a_descent_feeds() {
+        let mut name = leaf(1);
+        for level in 0..12 {
+            name = wrap(name, level);
+            let mut h = KeyHasher::new();
+            descending(&mut h, &name);
+            assert_eq!(key(&name), h.finish(), "at depth {level}");
+        }
+    }
+
+    #[test]
+    fn a_name_nested_past_every_stack_keys_on_the_smallest_stack() {
+        std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(|| {
+                let deep = |bottom| (0..20_000).fold(leaf(bottom), wrap);
+                let (a, again, b) = (deep(1), deep(1), deep(2));
+                assert_eq!(key(&a), key(&again), "one name, one key");
+                assert_ne!(key(&a), key(&b), "a difference at the bottom moves the key");
+            })
+            .expect("the thread starts")
+            .join()
+            .expect("the feed returns");
+    }
+}
