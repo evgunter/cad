@@ -327,7 +327,8 @@ pub fn ring_torus<T: geom_core::Decide>(
 }
 
 /// **The ring-torus convention's tube half, decided**: `r > 0`, as a
-/// length on the band under `torus_tube_positive`. The door that needs
+/// length on the band under `torus_tube_positive`, the verdict keeping
+/// its reporting margin as [`ring_torus`]'s does. The door that needs
 /// both halves asks this one first ([`ring_torus`]'s docs say why), or
 /// reads both through [`require_ring_torus`].
 ///
@@ -338,8 +339,8 @@ pub fn ring_torus<T: geom_core::Decide>(
 pub fn torus_tube<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
-) -> Result<geom_core::Sign, geom_core::Indeterminate> {
-    geom_core::k_stats::decide(
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(
         "torus_tube_positive",
         geom_core::Margin::of(minor_radius),
         band,
