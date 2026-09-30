@@ -79,8 +79,9 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
 
 /// **Only the row that refused is actionable**, over rows a real
 /// evaluation produced rather than hand-built statuses: the colour
-/// rule the Features pane draws is `RowStatus::tone()`'s answer, so a
-/// wrong tone is a wrong colour and this is where it goes red.
+/// rule the Features pane draws is `TreeRow::tone()`'s answer — the
+/// status's, on a document with no assertion — so a wrong tone is a
+/// wrong colour and this is where it goes red.
 #[test]
 fn only_the_row_whose_own_operation_refused_is_actionable() {
     let tol = Tol::witness();
@@ -94,7 +95,7 @@ fn only_the_row_whose_own_operation_refused_is_actionable() {
         session
             .tree_rows()
             .iter()
-            .all(|row| row.status.tone() == Tone::Advisory),
+            .all(|row| row.tone() == Tone::Advisory),
         "a document nobody has evaluated yet gives a reader nothing to act on"
     );
 
@@ -110,7 +111,7 @@ fn only_the_row_whose_own_operation_refused_is_actionable() {
     assert_eq!(tone_of(other_profile), Tone::Advisory, "a healthy row");
     assert_eq!(
         rows.iter()
-            .filter(|row| row.status.tone() == Tone::Actionable)
+            .filter(|row| row.tone() == Tone::Actionable)
             .count(),
         1,
         "one broken feature makes one loud row, whatever it poisons"
@@ -763,6 +764,24 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "blend.rs",
             ".usable(",
             "asks only `is_err()` and draws nothing; the node's row carries it",
+        ),
+        (
+            "tree.rs",
+            ".usable(",
+            "`measured_of` is asked only of a row `rows` has read `Ok`: it picks which payload \
+             to show, never whether the row stands",
+        ),
+        (
+            "tree.rs",
+            ".usable(",
+            "`asserted` reads the dimension of a measure its assertion's verdict already \
+             compared, so the measure stands `Ok` by construction",
+        ),
+        (
+            "features.rs",
+            ".usable(",
+            "a unit test's premise: reads the measure's payload to name the reason it expects, \
+             and draws nothing",
         ),
         (
             "pickindex.rs",

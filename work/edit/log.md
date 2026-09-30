@@ -1170,3 +1170,39 @@ track budgets, spec notes under `docs/doc-ledger/`.
 **Operations.**
 - A container restart at about 23:40 killed both live lanes. The P1 implementer had finished: its PR and CI were complete, and only its report was lost. The depth lane's uncommitted work was pushed as a WIP commit, and the lane was re-dispatched.
 - Wave 28: the two nesting P1 rows, dispatched as `edit/expr-nesting-bound` and `edit/name-nesting-stack-safe`.
+
+## 2026-09-30 — nineteenth sitting: both nesting crashes closed; main's census crossing fixed twice
+
+**Merged.**
+- **The expression nesting bound (#3510, row closed by #3520).** Single full review (APPROVE-WITH-FIXES, no MAJOR), then a fix pass.
+  - `expr::MAX_NESTING` = 128, refused typed at every door. The load door's `persist::nesting` pre-scan replaces serde_json's recursion limit: `BODY_NESTING` = 271, and `ENVELOPE` is pinned by a census over the snapshot's types.
+  - The ruling on the bound: it is not a limit ordinary use meets. The deepest expression in the 229 committed documents nests 6 levels, and on main a flat sum of about 62 terms already saved into a file that would not load. "A flat chain of more than 128 terms refuses" is stated in the Python and Rust docs.
+  - `-<number>` parses as a signed literal, so every tree the constructors admit renders to text that parses back to the same tree.
+  - Bracket depth and tree nesting are two bounds, each with its own true sentence.
+  - `test_utils::own_thread::{WASM_STACK, on_the_smallest_stack}` is the one 1 MiB-thread helper.
+- **Stable names stack-safe (#3512).** The review was dual, row DR-27.
+  - Both reviews: APPROVE-WITH-FIXES, no MAJOR. Both found the head equal to main's derived impls over hundreds of generated names, and saved bytes, pins and content keys unchanged.
+  - Blinded coding: no candidate, so the readout stays at 4 of 8.
+  - The fix pass took the union:
+    - reconciled onto #3510: the load door exempts exactly the names its reader proves it read, so a Pattern `kind` or user metadata exempts nothing;
+    - one JSON walker, `persist::jsontext::tokens`;
+    - a nested name's refusal is placed at its own byte, in the derived words;
+    - one linear descent driver for rewrite and collapse;
+    - the saved layout is compact past `BODY_NESTING`, so size is linear in depth (1 024 levels: 42 MB → 482 KB). No loadable file changes a byte;
+    - a test-only copy of the derived types checks the claims. `Hash` is claimed only as consistent with `Eq`, and `Debug` only for `{:?}`/`{:#?}`.
+- **Main's `NodeResult` census (#3536, then #3538).** AUTH-7 left two value reads outside `Evaluation::usable`. Its viewer-only diffs never select editor-core's tests, so main was latently red.
+  - #3536 reads both through `usable` and admits them by name in the viewer's `tree_badges` census.
+  - TOPO's #3537 fixed the same break a few minutes earlier by listing the reads. The two crossed, and main went red on the over-count.
+  - #3538 restored `READERS` to 11 entries (`tree.rs` 8, no `features.rs` line).
+  - Both fixes were ported into #3512 before it merged, and DR-27 records them. Seam note on TCOST's log.
+
+**Rows filed off these units:**
+- EDIT: `a-flat-chain-of-more-than-128-terms-refuses` (P4). It names both routes: an n-ary `Add`/`Mul` (`design: true`), or an iterative serde path for expression subtrees.
+- EDIT: `a-metadata-value-nested-deep-enough-kills-the-process` (P2). One type-agnostic scan gives `MetaValue` the deepest type's budget.
+- EDIT: `a-rank-rewrite-can-ask-the-rewriter-for-a-name-inside-another-documents-part` (P3).
+- EDIT: `a-name-through-a-non-json-serializer-recurses-once-per-level` (P3).
+- LIB: `a-python-pattern-builder-copies-the-whole-pattern-per-wrap` (P3).
+
+**`[ev]` #3505.** Ev leans A on choice 2 and B on choice 3, asked what inlining means here (choice 1), and asked whether an unplaced state belongs in the kernel at all or only in the GUI (choice 4). Both were answered on the PR, and it waits for Ev's rulings on 1 and 4. P2 is specced once they land.
+
+**Operations.** EDIT's load is over budget, so no new row is pulled until #3505 rules and P2 is dispatched. Main's census crossing is the lesson: before merging a fix for a red main, re-check main's head for a fix that has just landed.

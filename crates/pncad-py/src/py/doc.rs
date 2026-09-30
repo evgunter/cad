@@ -691,7 +691,7 @@ pub(crate) fn slot_expr(
 /// whitespace and parse to the same JSON value — and a name taken
 /// from either round-trips through the other.
 pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> PyResult<String> {
-    serde_json::to_string(name).map_err(|err| {
+    name.to_json().map_err(|err| {
         // Not a kernel arm: nothing in the document layer refuses a
         // name for failing to serialize — `StableName` has one
         // serialization and it does not fail — so there is no enum
@@ -736,7 +736,7 @@ pub(crate) fn piece_text(piece: &pncad::select::ProfileEdgeRef) -> PyResult<Stri
 /// nothing in this document refuses at the kernel's own door
 /// (`fillet_selection_resolve`), which is where that belongs.
 pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName> {
-    serde_json::from_str(text).map_err(|err| {
+    pncad::prelude::StableName::from_json(text).map_err(|err| {
         pyo3::exceptions::PyValueError::new_err(format!(
             "not a stable name: {text:?} ({err}) — names come from \
              `Evaluation.all_edges` and its siblings"

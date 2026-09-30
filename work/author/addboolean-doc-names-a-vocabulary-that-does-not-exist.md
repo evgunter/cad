@@ -2,7 +2,7 @@
 id: addboolean-doc-names-a-vocabulary-that-does-not-exist
 kind: issue
 title: SessionOp::AddBoolean's doc promises a declaration vocabulary that no DocEdit provides
-status: open
+status: dispatched
 opened: 2026-09-15
 refs: [a-declared-union-has-no-one-pass-authoring-path]
 priority: P0
@@ -125,3 +125,7 @@ and sketch +x, verified by mutation), which discriminates strictly
 more than the volume would have. A spec that asks for a sum-of-volumes
 acceptance row on this path is asking for something unreachable until
 this row closes.
+
+## Unblocked and dispatched (2026-09-30)
+
+The plan parked this row until EDIT's vocabulary existed. EDIT closed that dependency on 2026-09-19: `a-declared-union-has-no-one-pass-authoring-path`, #2809, Ev's ruling, "a declaration is authored in one pass". Nothing needs to attach a declaration after the fact, because the declared union is authored as `Declare` then `Boolean` in one action. So this is now a door rather than only a doc fix: the flush boss-on-face union AUTH-1 measured refusing `UndeclaredContact` becomes a union the author can declare and land. Dispatched as **AUTH-9** (`docs/AUTH-9-SPEC.md`, branch `author/declared-union`).

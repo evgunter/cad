@@ -1383,3 +1383,16 @@ angle `1.5707963268 rad`, consistent with driven slots.
 ## 2026-09-30 — AUTH-8 dispatched: an assertion row shows its verdict
 
 The only dispatchable P0 left. Of the others, the negative-extrude fork waits on the designer lanes and Ev, and `AddBoolean` waits on EDIT. AUTH-8 builds on AUTH-7's `Measured` and `feature_row_ui`. The tone of a `Violated` row is left to the lane with both readings stated. If it is close, it goes to Ev.
+- 2026-09-30 — Seam note from TOPO: AUTH-7's `repair_of` (`viewer/src/tree.rs`) and a `pane/features.rs` test premise read a node's result outside `Evaluation::usable`; editor-core's `every_node_result_reader_goes_through_usable_or_is_listed` now lists them (the change filter never ran editor-core's tests on AUTH-7's viewer-only diffs, so main stayed green). (TOPO orchestrator)
+
+## 2026-09-30 — AUTH-8 MERGED (`237e1be9`); a red main that was already fixed
+
+Eight units closed. Both reviews said mergeable, and the duplication trap fired for the eighth time. This time it was small: tests copied the kernel's short words instead of reading `label()`/`symbol()`.
+
+**A red main, and what it taught about merging viewer PRs.** AUTH-8's lane noticed that editor-core's `node_standing::every_node_result_reader_goes_through_usable_or_is_listed` was failing on `main`. Two merges had crossed: #3537 listed AUTH-7's reads in the `READERS` census, and #3536 then moved those reads to `usable`. I verified the red by running the census. By the time I had the counts, `c31098e14` had already fixed it (8, and no `features.rs` line), so I dropped my branch.
+
+The cause is deliberate policy, not a gap. The 2026-09-28 CI-latency cut removed the change filter's read reach (`scripts/ci-filter.py`, "NO READ REACH"), so a tree-wide guard runs only when its own crate is in the closure, and every night. A viewer-only PR never builds editor-core's census, yet the census counts viewer reads. **So before merging a viewer unit that changes how it reads an evaluation, I run editor-core's `node_standing` census myself.** I did that for AUTH-8 on its head with `main` merged in: green.
+
+## 2026-09-30 — AUTH-9 dispatched: the AddBoolean row was unblocked eleven days ago
+
+`plan.md` parked `addboolean-doc-names-a-vocabulary-that-does-not-exist` behind EDIT, and I kept reporting it as blocked. When I checked, the dependency (`work/edit/a-declared-union-has-no-one-pass-authoring-path`) had closed on 2026-09-19 via #2809, with a one-pass declared union ruled by Ev. The row was dispatchable the whole time. **Blocked-on claims get re-checked against the blocker's status every time I name one**, not carried forward from the plan.
