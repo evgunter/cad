@@ -276,8 +276,9 @@ mod tests {
     fn both_passes_write_what_serde_json_writes() {
         let text = r#"{"z":[1,-2.5e-7,{},[],{"b\"q":"x\u0001y","a":[[{"id":0}]],"é":true}],"id":"k","a":null}"#;
         let value: serde_json::Value = serde_json::from_str(text).unwrap();
-        let compact = serde_json::to_string(&serde_json::from_str::<serde_json::Value>(text).unwrap())
-            .unwrap();
+        let compact =
+            serde_json::to_string(&serde_json::from_str::<serde_json::Value>(text).unwrap())
+                .unwrap();
         // Laid out from the value's own compact text, since serde_json
         // re-sorts the keys it read; the layout is what is compared.
         assert_eq!(

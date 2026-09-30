@@ -805,16 +805,15 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 /// member face, or every constituent's of a `Merged` set, through any
 /// `Fragment` after either.
 fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
-    match name.path.first() {
-        Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Face => {
-            out.insert((*member, of.clone()));
-        }
-        Some(RoleSeg::Merged(set)) => {
-            for c in set {
-                member_faces(c, out);
+    let mut names = vec![name];
+    while let Some(name) = names.pop() {
+        match name.path.first() {
+            Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Face => {
+                out.insert((*member, of.clone()));
             }
+            Some(RoleSeg::Merged(set)) => names.extend(set),
+            _ => {}
         }
-        _ => {}
     }
 }
 
@@ -1427,12 +1426,139 @@ use super::merged::NESTED_MERGED;
 /// line as the fold-space name and the collapsed one write it. Each
 /// name the path embeds comes out of this function whole, so it is
 /// canonical before the path holding it is ordered.
-fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
-    let name = canonical::collapsed(name, orient(node, name)?, &mut |n| collapse(node, n))
-        .map_err(|stop| match stop {
-            Stop::Image(e) => e,
-            Stop::Unrankable(u) => NamingError::Emission { what: u.what() },
-        })?;
+///
+/// A fold name nests one level per fold step, so the collapse keeps
+/// its own stack: every held name a collapse reads is collapsed first
+/// ([`held_collapses`]), once, and kept by its address; a collapse that
+/// reads one not yet kept stops and is run again after it
+/// ([`Step::Needs`]).
+fn collapse(node: RecipeNodeId, root: &StableName) -> Result<StableName, NamingError> {
+    let unreached = || NamingError::Emission { what: UNREACHED };
+    let mut done = Collapsed(BTreeMap::new());
+    let mut stack: Vec<(&StableName, bool)> = vec![(root, false)];
+    while let Some(top) = stack.last_mut() {
+        let (name, gathered) = *top;
+        if done.0.contains_key(&address(name)) {
+            stack.pop();
+            continue;
+        }
+        if !gathered {
+            top.1 = true;
+            let first: Vec<&StableName> = held_collapses(name)
+                .into_iter()
+                .filter(|n| !done.0.contains_key(&address(n)))
+                .collect();
+            if !first.is_empty() {
+                stack.extend(first.into_iter().rev().map(|n| (n, false)));
+                continue;
+            }
+        }
+        match collapse_one(node, name, &done) {
+            Ok(collapsed) => {
+                done.0.insert(address(name), NameRef::new(collapsed));
+                stack.pop();
+            }
+            Err(Step::Refused(e)) => return Err(e),
+            Err(Step::Needs(at)) => stack.push((find_held(name, at).ok_or_else(unreached)?, false)),
+        }
+    }
+    done.0
+        .remove(&address(root))
+        .map(|r| r.name().clone())
+        .ok_or_else(unreached)
+}
+
+/// A collapse asked for a name it does not hold: a defect of this
+/// module.
+const UNREACHED: &str = "a union's collapse asked for a name the collapsed name does not hold";
+
+/// The collapses [`collapse`] has finished, by the address of the fold
+/// name each is the collapse of.
+struct Collapsed(BTreeMap<usize, NameRef>);
+
+impl Collapsed {
+    fn get(&self, name: &StableName) -> Result<NameRef, Step> {
+        self.0
+            .get(&address(name))
+            .cloned()
+            .ok_or(Step::Needs(address(name)))
+    }
+}
+
+/// Why one collapse did not finish.
+enum Step {
+    Refused(NamingError),
+    /// The name at this address is to be collapsed first.
+    Needs(usize),
+}
+
+impl From<NamingError> for Step {
+    fn from(e: NamingError) -> Self {
+        Step::Refused(e)
+    }
+}
+
+fn address(name: &StableName) -> usize {
+    core::ptr::from_ref(name) as usize
+}
+
+/// The held names `name`'s collapse reads: the seam sides and merged
+/// constituents at the foot of its `FromA`/`FromB` descent, and every
+/// `SideOf` partner along it, in the order the collapse meets them.
+fn held_collapses(name: &StableName) -> Vec<&StableName> {
+    let mut out = Vec::new();
+    let mut at = name;
+    while let Some((head, tail)) = at.path.split_first() {
+        match head {
+            RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => at = inner,
+            RoleSeg::Seam { .. } => {
+                for seg in &at.path {
+                    if let RoleSeg::Seam { a, b } = seg {
+                        out.extend([&**a, &**b]);
+                    }
+                }
+                break;
+            }
+            RoleSeg::Merged(set) => {
+                out.extend(set);
+                break;
+            }
+            _ => break,
+        }
+        for seg in tail {
+            if let RoleSeg::Fragment(Qualifier::SideOf(partners)) = seg {
+                out.extend(partners.iter().map(|(n, _)| n));
+            }
+        }
+    }
+    out
+}
+
+/// The name held somewhere under `root` at address `at`.
+fn find_held(root: &StableName, at: usize) -> Option<&StableName> {
+    let mut names = Vec::new();
+    root.each_held(&mut |h| names.push(h.name()));
+    while let Some(n) = names.pop() {
+        if address(n) == at {
+            return Some(n);
+        }
+        n.each_held(&mut |h| names.push(h.name()));
+    }
+    None
+}
+
+/// One fold name collapsed, every held name it reads read from `done`.
+fn collapse_one(
+    node: RecipeNodeId,
+    name: &StableName,
+    done: &Collapsed,
+) -> Result<StableName, Step> {
+    let oriented = orient(node, name, done)?;
+    let mut image = |n: &StableName| done.get(n).map(|r| r.name().clone());
+    let name = canonical::collapsed(name, oriented, &mut image).map_err(|stop| match stop {
+        Stop::Image(step) => step,
+        Stop::Unrankable(u) => Step::Refused(NamingError::Emission { what: u.what() }),
+    })?;
     // The junction's run is NOT deduplicated, unlike a `Merged` set.
     // The pair emitter deduplicates the lines before it mints, so the
     // run holds k DISTINCT fold-space lines; two collapsing to one
@@ -1444,7 +1570,8 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
     if is_junction(&name) && name.path.windows(2).any(|w| w[0] == w[1]) {
         return Err(NamingError::Emission {
             what: JUNCTION_LINES_COLLIDE,
-        });
+        }
+        .into());
     }
     Ok(name)
 }
@@ -1459,104 +1586,120 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
 /// the canonical form finds through the same wrapping: an edge's
 /// pieces all lie on its seam line, and a seam vertex's rank on its
 /// edge parent's.
-fn orient(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    if name.node != node {
-        return Err(bug(
-            "a union fold's table carries a row minted by another node",
-        ));
-    }
-    let Some((head, mut tail)) = name.path.split_first() else {
-        return Err(bug("a union fold's table carries a name with no role"));
-    };
-    let mut path = match head {
-        // Already member-keyed: the foot of a descent chain, put there
-        // by `member_view` before the step ran.
-        RoleSeg::FromMember { .. } => vec![head.clone()],
-        // The accumulated body's own name at every step, and the
-        // union's at the last one: one body out, one output-body row.
-        RoleSeg::OutputBody => vec![RoleSeg::OutputBody],
-        // The descent. Every operand of every step is in this node's
-        // space, so a `FromA`/`FromB` argument is always an earlier
-        // step's row: descended THROUGH, carrying its own
-        // discriminators out with it.
-        RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => orient(node, inner)?.into_path(),
-        // A seam: one line, each side collapsed, with any `Fragment`
-        // tail after it.
-        //
-        // Or a seam JUNCTION: the pair emitter names the VERTEX where
-        // k ≥ 2 seam lines meet by the run of those lines' `Seam`
-        // segments and nothing after them, so a run is admitted in
-        // exactly that shape — a vertex, the whole path — and any
-        // other run (an edge's, or one followed by a discriminator) is
-        // a shape the pair emitter does not mint. The pair emitter
-        // ordered the run in the fold's space; a name stable under
-        // member reordering is ordered by the member-space lines,
-        // which the canonicalization does.
-        RoleSeg::Seam { a, b }
-            if tail
-                .first()
-                .is_some_and(|s| matches!(s, RoleSeg::Seam { .. })) =>
-        {
-            if name.kind != EntityKind::Vertex {
-                return Err(bug(FOREIGN));
+///
+/// The descent is a loop: the tails of the levels it passes through
+/// are kept, and put after the foot's path innermost first, which is
+/// the order a descent level by level would write them in.
+fn orient(node: RecipeNodeId, name: &StableName, done: &Collapsed) -> Result<StableName, Step> {
+    let bug = |what| Step::Refused(NamingError::Emission { what });
+    let mut tails: Vec<&[RoleSeg]> = Vec::new();
+    let mut at = name;
+    let (mut path, foot_tail) = loop {
+        if at.node != node {
+            return Err(bug(
+                "a union fold's table carries a row minted by another node",
+            ));
+        }
+        let Some((head, mut tail)) = at.path.split_first() else {
+            return Err(bug("a union fold's table carries a name with no role"));
+        };
+        let path = match head {
+            // Already member-keyed: the foot of a descent chain, put there
+            // by `member_view` before the step ran.
+            RoleSeg::FromMember { .. } => vec![head.clone()],
+            // The accumulated body's own name at every step, and the
+            // union's at the last one: one body out, one output-body row.
+            RoleSeg::OutputBody => vec![RoleSeg::OutputBody],
+            // The descent. Every operand of every step is in this node's
+            // space, so a `FromA`/`FromB` argument is always an earlier
+            // step's row: descended THROUGH, carrying its own
+            // discriminators out with it.
+            RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => {
+                tails.push(tail);
+                at = inner;
+                continue;
             }
-            let mut lines = vec![seam_line(node, a, b)?];
-            for seg in std::mem::take(&mut tail) {
-                let RoleSeg::Seam { a, b } = seg else {
+            // A seam: one line, each side collapsed, with any `Fragment`
+            // tail after it.
+            //
+            // Or a seam JUNCTION: the pair emitter names the VERTEX where
+            // k ≥ 2 seam lines meet by the run of those lines' `Seam`
+            // segments and nothing after them, so a run is admitted in
+            // exactly that shape — a vertex, the whole path — and any
+            // other run (an edge's, or one followed by a discriminator) is
+            // a shape the pair emitter does not mint. The pair emitter
+            // ordered the run in the fold's space; a name stable under
+            // member reordering is ordered by the member-space lines,
+            // which the canonicalization does.
+            RoleSeg::Seam { a, b }
+                if tail
+                    .first()
+                    .is_some_and(|s| matches!(s, RoleSeg::Seam { .. })) =>
+            {
+                if at.kind != EntityKind::Vertex {
                     return Err(bug(FOREIGN));
-                };
-                lines.push(seam_line(node, a, b)?);
-            }
-            lines
-        }
-        RoleSeg::Seam { a, b } => {
-            vec![seam_line(node, a, b)?]
-        }
-        // An F7 merged face: its constituents are result-face names in
-        // the minting node's space (N3), so they stay in this union's
-        // space, each collapsed by this same rule.
-        //
-        // The pair emitter mints `Merged` for a DECLARED contact's
-        // merge groups, and a union carries a declaration channel of
-        // its own (`Node::Union`'s `declare` input), so a step whose
-        // bucket holds a coincident pair produces these rows and a
-        // union's published table carries them.
-        //
-        // The constituent set is FLAT (N3): a constituent is never
-        // itself a bare merged face. The mint (`emit_topo`'s
-        // merge-group loop) holds that at the first door; this is the
-        // same rule read at the union's second door — a constituent
-        // that collapses to a bare merged face is refused as the
-        // emission bug it is, never flattened. A fragment of a merged
-        // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
-        //
-        // The canonical form makes the constituent SET the name, the
-        // form the pair emitter's mint gives it too (review R8): two
-        // merge groups collapsing to ONE constituent set collide
-        // LOUDLY at insert (`DuplicateName` → typed `NamingError`),
-        // never silently aliasing two faces onto one name.
-        RoleSeg::Merged(constituents) => {
-            let mut set = Vec::with_capacity(constituents.len());
-            for c in constituents {
-                let c = collapse(node, c)?;
-                if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
-                    return Err(bug(NESTED_MERGED));
                 }
-                set.push(c);
+                let mut lines = vec![seam_line(a, b, done)?];
+                for seg in std::mem::take(&mut tail) {
+                    let RoleSeg::Seam { a, b } = seg else {
+                        return Err(bug(FOREIGN));
+                    };
+                    lines.push(seam_line(a, b, done)?);
+                }
+                lines
             }
-            vec![RoleSeg::Merged(set)]
-        }
-        // A `Fragment` is a TAIL segment — it discriminates a head,
-        // it is never one — and everything after it is a segment the
-        // boolean emitter does not mint at all, so a fold table
-        // carrying either is an emission bug. The long half is
-        // [`never_in_a_boolean_table`], which is where a new
-        // `RoleSeg` is classified; this match still stops the
-        // compiler if one is added and not classified there.
-        RoleSeg::Fragment(_) | never_in_a_boolean_table!() => return Err(bug(FOREIGN)),
+            RoleSeg::Seam { a, b } => {
+                vec![seam_line(a, b, done)?]
+            }
+            // An F7 merged face: its constituents are result-face names in
+            // the minting node's space (N3), so they stay in this union's
+            // space, each collapsed by this same rule.
+            //
+            // The pair emitter mints `Merged` for a DECLARED contact's
+            // merge groups, and a union carries a declaration channel of
+            // its own (`Node::Union`'s `declare` input), so a step whose
+            // bucket holds a coincident pair produces these rows and a
+            // union's published table carries them.
+            //
+            // The constituent set is FLAT (N3): a constituent is never
+            // itself a bare merged face. The mint (`emit_topo`'s
+            // merge-group loop) holds that at the first door; this is the
+            // same rule read at the union's second door — a constituent
+            // that collapses to a bare merged face is refused as the
+            // emission bug it is, never flattened. A fragment of a merged
+            // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
+            //
+            // The canonical form makes the constituent SET the name, the
+            // form the pair emitter's mint gives it too (review R8): two
+            // merge groups collapsing to ONE constituent set collide
+            // LOUDLY at insert (`DuplicateName` → typed `NamingError`),
+            // never silently aliasing two faces onto one name.
+            RoleSeg::Merged(constituents) => {
+                let mut set = Vec::with_capacity(constituents.len());
+                for c in constituents {
+                    let c = done.get(c)?.name().clone();
+                    if matches!(c.path.as_slice(), [RoleSeg::Merged(_)]) {
+                        return Err(bug(NESTED_MERGED));
+                    }
+                    set.push(c);
+                }
+                vec![RoleSeg::Merged(set)]
+            }
+            // A `Fragment` is a TAIL segment — it discriminates a head,
+            // it is never one — and everything after it is a segment the
+            // boolean emitter does not mint at all, so a fold table
+            // carrying either is an emission bug. The long half is
+            // [`never_in_a_boolean_table`], which is where a new
+            // `RoleSeg` is classified; this match still stops the
+            // compiler if one is added and not classified there.
+            RoleSeg::Fragment(_) | never_in_a_boolean_table!() => return Err(bug(FOREIGN)),
+        };
+        break (path, tail);
     };
-    for seg in tail {
+    for seg in core::iter::once(foot_tail)
+        .chain(tails.into_iter().rev())
+        .flatten()
+    {
         path.push(match seg {
             // The discriminator's partner names are OPERAND-space
             // names (N2) — this node's space, like every other embedded
@@ -1566,8 +1709,8 @@ fn orient(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingErr
             RoleSeg::Fragment(Qualifier::SideOf(vec)) => {
                 let partners = vec
                     .iter()
-                    .map(|(n, v)| Ok((collapse(node, n)?, *v)))
-                    .collect::<Result<Vec<_>, NamingError>>()?;
+                    .map(|(n, v)| Ok((done.get(n)?.name().clone(), *v)))
+                    .collect::<Result<Vec<_>, Step>>()?;
                 RoleSeg::Fragment(Qualifier::SideOf(partners))
             }
             // The rank is a place along the fold's direction; the
@@ -1609,10 +1752,10 @@ fn orient(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingErr
 /// name order: a union is commutative, so "which side" would record
 /// only which of the two members the fold reached first, which is the
 /// position this node exists not to record.
-fn seam_line(node: RecipeNodeId, a: &StableName, b: &StableName) -> Result<RoleSeg, NamingError> {
+fn seam_line(a: &StableName, b: &StableName, done: &Collapsed) -> Result<RoleSeg, Step> {
     Ok(RoleSeg::Seam {
-        a: NameRef::new(collapse(node, a)?),
-        b: NameRef::new(collapse(node, b)?),
+        a: done.get(a)?,
+        b: done.get(b)?,
     })
 }
 

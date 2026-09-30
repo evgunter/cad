@@ -198,10 +198,7 @@ impl RoleSeg {
                 vertex: a,
                 support: b,
             }
-            | RoleSeg::EndArc {
-                vertex: a,
-                edge: b,
-            } => {
+            | RoleSeg::EndArc { vertex: a, edge: b } => {
                 f(Shared(a));
                 f(Shared(b));
             }
@@ -249,10 +246,7 @@ impl RoleSeg {
                 vertex: a,
                 support: b,
             }
-            | RoleSeg::EndArc {
-                vertex: a,
-                edge: b,
-            } => {
+            | RoleSeg::EndArc { vertex: a, edge: b } => {
                 f(Shared(a));
                 f(Shared(b));
             }
@@ -484,7 +478,9 @@ pub(super) fn render_nested<'a, T>(
         write_indented(f, top.text.get(top.at..hole).unwrap_or(""), &top.indent)?;
         top.at = hole + HOLE.len_utf8();
         let before = top.text.get(..hole).unwrap_or("");
-        let line = before.rfind('\n').map_or(before, |nl| before.get(nl + 1..).unwrap_or(""));
+        let line = before
+            .rfind('\n')
+            .map_or(before, |nl| before.get(nl + 1..).unwrap_or(""));
         let lead = line.len() - line.trim_start_matches(' ').len();
         let indent = format!("{}{}", top.indent, " ".repeat(lead));
         // A level renders exactly the values it holds; a hole with no
@@ -890,7 +886,10 @@ fn scan(text: &str) -> Result<(Vec<Object>, Vec<usize>), String> {
         });
         within.push(up);
     }
-    Ok((objects, within.into_iter().map(|w| w.unwrap_or(0)).collect()))
+    Ok((
+        objects,
+        within.into_iter().map(|w| w.unwrap_or(0)).collect(),
+    ))
 }
 
 /// **A name read from its JSON text, one level at a time.**
@@ -936,7 +935,10 @@ fn read_json(text: &str) -> Result<StableName, String> {
         let mut cut = String::new();
         let mut at = object.open;
         for &child in &held {
-            let span = named.get(child).and_then(|&c| objects.get(c)).ok_or(MISPLACED)?;
+            let span = named
+                .get(child)
+                .and_then(|&c| objects.get(c))
+                .ok_or(MISPLACED)?;
             cut.push_str(text.get(at..span.open).ok_or(MISPLACED)?);
             cut.push_str(HOLE_JSON);
             at = span.close + 1;

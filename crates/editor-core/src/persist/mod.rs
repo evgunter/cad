@@ -140,8 +140,8 @@
 
 mod canon;
 mod check;
-mod jsontext;
 pub mod hexbytes;
+mod jsontext;
 /// The bytes of kernel types, described from above the layering
 /// boundary — see the module's own docs for the rules a new one
 /// follows.

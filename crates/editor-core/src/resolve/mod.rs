@@ -2656,19 +2656,37 @@ enum Partners {
     Skip,
 }
 
-/// Visits every name embedded in `name`'s role path, recursively,
+/// Visits every name embedded in `name`'s role path, at every depth,
 /// in path order (operand names, seam pairs, merged constituents,
 /// pattern masters — and discriminator partners iff `partners` says
-/// so). The match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
+/// so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
 /// [`Qualifier`] variant embedding names must be
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
 /// that answer is written for every match that shares it.
 /// (Review Finding 7 — no fail-quiet wildcard.)
+///
+/// The walk keeps the names still to visit on its own stack: a name
+/// nests as deep as its derivation, with no bound.
 fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
-    fn visit<'a>(n: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
+    let mut names = Vec::new();
+    embedded(name, partners, &mut names);
+    names.reverse();
+    while let Some(n) = names.pop() {
         f(n);
-        walk_names(n, partners, f);
+        let deeper = names.len();
+        embedded(n, partners, &mut names);
+        if let Some(held) = names.get_mut(deeper..) {
+            held.reverse();
+        }
+    }
+}
+
+/// The names [`walk_names`] visits one level down from `name`, in path
+/// order.
+fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a StableName>) {
+    fn visit<'a>(n: &'a StableName, _: Partners, f: &mut Vec<&'a StableName>) {
+        f.push(n);
     }
     for seg in &name.path {
         match seg {
@@ -3090,8 +3108,7 @@ mod tests {
             member(3, face(5, 1), &[]),
             &[],
         );
-        let vertex =
-            |on: StableName, cutter: StableName| seam(EntityKind::Vertex, on, cutter, &[]);
+        let vertex = |on: StableName, cutter: StableName| seam(EntityKind::Vertex, on, cutter, &[]);
         let mut piece = line.clone();
         piece.path.push(rank(1, 2));
         let cutter = |seg| member(4, face(6, seg), &[]);

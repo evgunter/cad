@@ -32,26 +32,34 @@ pub(crate) const NESTED_MERGED: &str =
 /// tail (`[Merged(cs), Fragment(q)]`) is a FRAGMENT of a merged face,
 /// a face in its own right, and is left whole.
 pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<StableName>> {
-    let rewrap = |inner: Vec<StableName>, side: fn(NameRef) -> RoleSeg| {
-        inner
-            .into_iter()
-            .map(|c| StableName {
-                kind: EntityKind::Face,
-                node: name.node,
-                path: vec![side(NameRef::new(c))],
-            })
-            .collect()
+    // The wrappers peeled, outermost first, each with its level's node;
+    // the foot's constituents are re-wrapped innermost first.
+    let mut wrappers: Vec<(fn(NameRef) -> RoleSeg, crate::node::RecipeNodeId)> = Vec::new();
+    let mut at = name;
+    let foot = loop {
+        let (side, inner): (fn(NameRef) -> RoleSeg, &NameRef) = match at.path.as_slice() {
+            [RoleSeg::Merged(cs)] => break cs,
+            [RoleSeg::FromA(inner)] => (RoleSeg::FromA, inner),
+            [RoleSeg::FromB(inner)] => (RoleSeg::FromB, inner),
+            _ => return None,
+        };
+        wrappers.push((side, at.node));
+        at = inner;
     };
-    match name.path.as_slice() {
-        [RoleSeg::Merged(cs)] => Some(cs.clone()),
-        [RoleSeg::FromA(inner)] => {
-            constituents_through_wrappers(inner).map(|cs| rewrap(cs, RoleSeg::FromA))
-        }
-        [RoleSeg::FromB(inner)] => {
-            constituents_through_wrappers(inner).map(|cs| rewrap(cs, RoleSeg::FromB))
-        }
-        _ => None,
-    }
+    Some(
+        foot.iter()
+            .map(|c| {
+                wrappers
+                    .iter()
+                    .rev()
+                    .fold(c.clone(), |inner, &(side, node)| StableName {
+                        kind: EntityKind::Face,
+                        node,
+                        path: vec![side(NameRef::new(inner))],
+                    })
+            })
+            .collect(),
+    )
 }
 
 /// True iff a merged row whose constituent set is `set` covers

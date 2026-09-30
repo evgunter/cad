@@ -3389,31 +3389,38 @@ fn look_through_fold<'n>(
 /// covering the name is the look-through's, and `None` here.
 fn fold_descent(row: &names::StableName, name: &names::StableName) -> Option<FoldConsumption> {
     use crate::names::RoleSeg;
-    if !names::face_descends_from(row, name) {
-        return None;
+    // A worklist in the order the first answer is looked for: a row's
+    // constituents in set order, each's own before the next's.
+    let mut rows = vec![row];
+    while let Some(row) = rows.pop() {
+        if !names::face_descends_from(row, name) {
+            continue;
+        }
+        let tail = row
+            .path
+            .iter()
+            .rev()
+            .take_while(|seg| matches!(seg, RoleSeg::Fragment(_)))
+            .count();
+        let head = &row.path[..row.path.len() - tail];
+        let fragmented = tail > 0;
+        // No node or kind test needed: the guard's other routes descend
+        // into names nested inside the path, and no name descends from a
+        // name that contains it, so a head equal to the name's path is the
+        // name's own node and kind.
+        if fragmented && head == name.path.as_slice() {
+            return Some(FoldConsumption::Split);
+        }
+        let [RoleSeg::Merged(set)] = head else {
+            continue;
+        };
+        if !names::merged::covers(set, name) {
+            rows.extend(set.iter().rev());
+        } else if fragmented {
+            return Some(FoldConsumption::FragmentedMerge);
+        }
     }
-    let tail = row
-        .path
-        .iter()
-        .rev()
-        .take_while(|seg| matches!(seg, RoleSeg::Fragment(_)))
-        .count();
-    let head = &row.path[..row.path.len() - tail];
-    let fragmented = tail > 0;
-    // No node or kind test needed: the guard's other routes descend
-    // into names nested inside the path, and no name descends from a
-    // name that contains it, so a head equal to the name's path is the
-    // name's own node and kind.
-    if fragmented && head == name.path.as_slice() {
-        return Some(FoldConsumption::Split);
-    }
-    let [RoleSeg::Merged(set)] = head else {
-        return None;
-    };
-    if names::merged::covers(set, name) {
-        return fragmented.then_some(FoldConsumption::FragmentedMerge);
-    }
-    set.iter().find_map(|c| fold_descent(c, name))
+    None
 }
 
 /// A union's accumulation lists one member face in the constituent
@@ -5100,7 +5107,7 @@ mod route_tests {
             (Operand::B, f(ms[3], CapEnd::End)),
         );
         let merged_u = |set| renode(union, merged(set));
-        let inner =|| merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]);
+        let inner = || merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]);
         let cases = [
             (
                 "every fragment of the name merged later",
