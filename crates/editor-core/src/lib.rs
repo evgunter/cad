@@ -83,6 +83,7 @@ pub mod step_mint;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub mod test_support;
+mod tree;
 pub mod update;
 mod verbs;
 pub mod witness;
@@ -163,9 +164,9 @@ pub use names::{
     FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef,
     NameTable, NamingError, NotAFaceName, OpGroup, PieceRole, ProfileEdgeRef, ProfileVertexRef,
     Qualifier, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat,
-    SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet,
-    TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
-    carried, declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame,
+    SegTag, SelectRefusal, Selector, Side, SplitHalf, StableName, SurfaceKindSet, TagPat,
+    all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, carried,
+    declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame,
     face_carrier_kind, face_frame, find_flush_candidates, meridian_vertex, select, select_where,
     vertex_position,
 };
@@ -204,13 +205,13 @@ pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    Diagnosis, FlipSet, FlipSource, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
+    Diagnosis, FlipSet, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
     NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
-    ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, SHADOW_EXEC_MAX_PAIRS,
-    ShadowExecRefusal, TieWitness, Tombstone, UnnamedEntity, UpstreamCause, VerdictFlip,
-    appearance_rebind_suggestions, apply_with_names, body_name, derivation_nodes, diff_verdicts,
-    edge_name, enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
-    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
+    ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
+    UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
+    body_name, derivation_nodes, diff_verdicts, edge_name, enrich_appearance_loss,
+    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
+    resolve_with_prior, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,

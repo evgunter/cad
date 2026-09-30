@@ -3,9 +3,10 @@
 //! of two lengths, the world xy frame a sketch is drawn on, the rays a
 //! pick row aims, the near-tangent candidate the certified test is
 //! probed with, the door's answer read as a list, the uncertified
-//! determinant the review rows read the certified one against, and the
+//! determinant the review rows read the certified one against, the
 //! recipe walks' pass-through classification a row holds against the
-//! evaluator.
+//! evaluator, and the load door's nesting limit a row holds against
+//! what a save writes.
 //!
 //! One home for every reader in this crate and the crates that test
 //! against it: the unit-test modules reach it as `crate::test_support`,
@@ -216,3 +217,11 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
         VerbatimEdge::Intact => VerbatimKind::Intact,
     })
 }
+
+// --- the load door's nesting limit ----------------------------------
+
+/// **The deepest a body the load door reads may nest**, in JSON
+/// brackets: `persist::nesting`'s limit, lifted out of the crate so a
+/// row can hold it against the deepest body a save writes
+/// (`tests/expr_nesting_bound.rs`).
+pub const BODY_NESTING: usize = crate::persist::nesting::BODY_NESTING;

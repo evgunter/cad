@@ -833,7 +833,7 @@ mod tests {
         ];
         let mut out = leaves.clone();
         for x in &leaves {
-            out.push(Expr::neg(x.clone()));
+            out.extend(Expr::neg(x.clone()).ok());
             for y in &leaves {
                 out.extend(Expr::add(x.clone(), y.clone()).ok());
                 out.extend(Expr::sub(x.clone(), y.clone()).ok());

@@ -1427,6 +1427,12 @@ impl Doc {
     /// promotion, so the decimal point is what makes the divisor
     /// dimensionless.
     ///
+    /// An expression nests at most 128 levels along its longest chain
+    /// from the root to a leaf. The operators associate to the left, so
+    /// a flat chain of more than 128 terms (`"a + b + ..."`) refuses
+    /// `nested_too_deep`; the same terms grouped (`"(a + b) + (c + d)"`)
+    /// nest less. Brackets alone nest nothing.
+    ///
     /// Refuses typed on `ParseError`, carrying `variant` and the byte
     /// offset `pos`; a reduction the dimension checker refused
     /// arrives as `variant == "dimension"` with the constructor's own

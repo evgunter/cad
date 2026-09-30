@@ -46,6 +46,9 @@ door's recourse, for a door that states its own.)
   puts an intermediate one-argument write's whole refusal in
   parentheses. The viewer generated that write, so the edit door's
   recourse is not the user's; the arm's own sentence ends without one.
+  *(Retired by #3446 with the per-argument write order it reported on:
+  a profile edit is now one `SetProgram`, whose refusal is the edit
+  door's own, `Refusal::Edit`. Only `SceneDocError::Edit` stands.)*
 - `SceneDocError::Edit` (`crates/viewer/src/scene.rs`) forwards the
   edit door's whole sentence for the spike scene's fixed literals,
   which only a kernel defect refuses.

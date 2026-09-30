@@ -5645,7 +5645,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
 /// Feeds one role segment: its word from [`seg_content_tag`], then the
 /// payload its variant carries.
 fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
-    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg};
     let cap = |c: CapEnd| match c {
         CapEnd::End => 1u8,
         CapEnd::Start => 2,
@@ -5706,20 +5706,14 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
     };
     let qual = |h: &mut SegFeed<'a>, q: &'a Qualifier| {
         h.write_tag(match q {
-            Qualifier::SideOf(..) => 1,
             Qualifier::OrderAlong { .. } => 2,
+            Qualifier::Borders(..) => 3,
         });
         match q {
-            Qualifier::SideOf(vec) => {
-                h.write_u64(vec.len() as u64);
-                for (name, v) in vec {
+            Qualifier::Borders(walls) => {
+                h.write_u64(walls.len() as u64);
+                for name in walls {
                     h.name(name);
-                    h.write_tag(match v {
-                        SideVerdict::Positive => 1,
-                        SideVerdict::Negative => 2,
-                        SideVerdict::Mixed => 3,
-                        SideVerdict::On => 4,
-                    });
                 }
             }
             Qualifier::OrderAlong { rank, of } => {
@@ -5729,8 +5723,8 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         }
     };
     // The segment's word first, from `seg_content_tag`; the match
-    // below feeds payloads only. The closures above (qualifier,
-    // verdict, cap end, meridian end, split half, rim support) are
+    // below feeds payloads only. The closures above (qualifier, cap
+    // end, meridian end, split half, rim support) are
     // vocabularies of their own, each read under a segment word.
     h.write_tag(seg_content_tag(SegTag::of(seg)));
     match seg {
@@ -6224,7 +6218,7 @@ mod tag_vocabulary_tests {
     /// sharing a tag make two different names hash alike, and a content
     /// key that collides serves one node's cached geometry for
     /// another's. The nested vocabularies a segment carries (qualifier,
-    /// verdict, cap end, meridian end, split half, rim support) are
+    /// cap end, meridian end, split half, rim support) are
     /// each read under a segment word this row holds unique.
     #[test]
     fn seg_content_tags_are_injective() {
@@ -6497,7 +6491,7 @@ mod name_feed_tests {
     use super::memo::ContentKey;
     use super::{Fed, KeyHasher, SegFeed, feed_role_seg, feed_stable_name};
     use crate::names::{
-        CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SideVerdict, SplitHalf, StableName,
+        CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName,
     };
     use crate::node::RecipeNodeId;
 
@@ -6545,10 +6539,7 @@ mod name_feed_tests {
         let r = NameRef::new(name.clone());
         let seg = match level % 5 {
             0 => RoleSeg::Instance { i: 3, of: r },
-            1 => RoleSeg::Fragment(Qualifier::SideOf(vec![
-                (leaf(7), SideVerdict::Mixed),
-                (name, SideVerdict::On),
-            ])),
+            1 => RoleSeg::Fragment(Qualifier::Borders(vec![leaf(7), name])),
             2 => RoleSeg::BandCross {
                 edge: NameRef::new(leaf(8)),
                 band: vec![name],

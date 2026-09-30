@@ -395,16 +395,17 @@ pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation,
-    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact,
+    CompletedPolygonPair, ContactRecords, ContainError, Contradiction, CurveContact, DiscardRow,
     FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
     PairRefusalSite, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneIdentity, PlaneRelation, PointInSolidError, SectorRung, SideCode, SolidContainment,
-    SolidFaces, SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with,
-    boolean_reduce, boolean_reduce_declared, carrier_eq, contfp, curved_face_containment,
-    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
-    intersect_with, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
-    subtract, subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
+    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, SectorRung, SideCode,
+    SolidContainment, SolidFaces, SweepStrategy, SweepTrace, TangentLocus, TangentLocusError,
+    TorusConvention, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted,
+    VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, intersect_with, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_locus,
+    tangent_pair_relation, union, union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -453,7 +454,7 @@ pub use instance::{
     graft_disjoint_all_onto_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
-    MergeCoplanarError, MergeCoplanarOutcome, MergeKind, MergedGroup, SkippedMerge,
+    MergeCoplanarError, MergeCoplanarOutcome, MergeDecision, MergeKind, MergedGroup, SkippedMerge,
 };
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_axial::{is_axial, offset_charts_together};

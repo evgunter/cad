@@ -178,7 +178,7 @@ fn in_json_door() -> bool {
 
 /// A name a segment holds: through a shared handle, or by value (the
 /// sets of [`RoleSeg::Merged`], [`RoleSeg::BandFace`] and the bands,
-/// and a `SideOf` qualifier's partners).
+/// and a `Borders` qualifier's walls).
 #[derive(Clone, Copy)]
 pub(crate) enum Held<'a> {
     Shared(&'a NameRef),
@@ -247,9 +247,7 @@ impl RoleSeg {
                 f(Shared(edge));
                 band.iter().for_each(|n| f(Owned(n)));
             }
-            RoleSeg::Fragment(Qualifier::SideOf(partners)) => {
-                partners.iter().for_each(|(n, _)| f(Owned(n)));
-            }
+            RoleSeg::Fragment(Qualifier::Borders(walls)) => walls.iter().for_each(|n| f(Owned(n))),
             RoleSeg::Fragment(Qualifier::OrderAlong { .. }) | super::name_free_seg!() => {}
         }
     }
@@ -297,8 +295,8 @@ impl RoleSeg {
                 f(Shared(edge));
                 band.iter_mut().for_each(|n| f(Owned(n)));
             }
-            RoleSeg::Fragment(Qualifier::SideOf(partners)) => {
-                partners.iter_mut().for_each(|(n, _)| f(Owned(n)));
+            RoleSeg::Fragment(Qualifier::Borders(walls)) => {
+                walls.iter_mut().for_each(|n| f(Owned(n)));
             }
             RoleSeg::Fragment(Qualifier::OrderAlong { .. }) | super::name_free_seg!() => {}
         }
@@ -1131,7 +1129,7 @@ pub(super) mod tests {
     use crate::names::SegTag;
     use crate::names::role::{
         CapEnd, MeridianEnd, PieceRole, ProfileEdgeRef, ProfileVertexRef, RimSupport,
-        SectionCircle, SideVerdict, SplitHalf,
+        SectionCircle, SplitHalf,
     };
     use crate::node::StepId;
 
@@ -1246,10 +1244,7 @@ pub(super) mod tests {
             },
             R::Seam { a: r(a), b: r(b) },
             R::Merged(vec![a.clone(), b.clone()]),
-            R::Fragment(Qualifier::SideOf(vec![
-                (a.clone(), SideVerdict::On),
-                (b.clone(), SideVerdict::Mixed),
-            ])),
+            R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
             R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
             R::SplitBody(SplitHalf::Below),
             R::SectionFace {
@@ -1418,7 +1413,7 @@ pub(super) mod tests {
                 1 => RoleSeg::Instance { i: 1, of: r },
                 2 => RoleSeg::InPart { of: r },
                 3 => RoleSeg::Merged(vec![n]),
-                4 => RoleSeg::Fragment(Qualifier::SideOf(vec![(n, SideVerdict::On)])),
+                4 => RoleSeg::Fragment(Qualifier::Borders(vec![n])),
                 5 => RoleSeg::Seam {
                     a: r,
                     b: NameRef::new(side.clone()),

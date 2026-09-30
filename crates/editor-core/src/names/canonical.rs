@@ -8,8 +8,8 @@
 //! - a [`RoleSeg::Merged`] constituent set and a [`RoleSeg::BandFace`]
 //!   edge set: sorted, and deduplicated, because the SET is the name
 //!   (N3);
-//! - a [`Qualifier::SideOf`] vector: one entry per partner, sorted by
-//!   partner name;
+//! - a [`Qualifier::Borders`] set: sorted, and deduplicated, because
+//!   the set of walls is the qualifier (N2);
 //! - a seam JUNCTION, the vertex where k ≥ 2 seam lines meet, named by
 //!   the run of those lines' [`RoleSeg::Seam`] segments and nothing
 //!   else: the run is sorted and NOT deduplicated. The lines are
@@ -356,9 +356,8 @@ fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
             edge,
             band: sorted_set(band),
         },
-        RoleSeg::Fragment(Qualifier::SideOf(mut partners)) => {
-            partners.sort();
-            RoleSeg::Fragment(Qualifier::SideOf(partners))
+        RoleSeg::Fragment(Qualifier::Borders(walls)) => {
+            RoleSeg::Fragment(Qualifier::Borders(sorted_set(walls)))
         }
         // Everything else carries its names, or none, in an order of
         // its own.
@@ -412,7 +411,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
-    use crate::names::role::{CapEnd, NameRef, SideVerdict};
+    use crate::names::role::{CapEnd, NameRef};
     use crate::node::RecipeNodeId;
 
     fn seam(a: StableName, b: StableName) -> RoleSeg {
@@ -546,28 +545,28 @@ mod tests {
     }
 
     #[test]
-    fn a_side_of_vector_is_one_form_in_every_order() {
-        let ps = [
-            (face(9, 2), SideVerdict::Negative),
-            (face(9, 1), SideVerdict::Positive),
-            (face(9, 3), SideVerdict::Positive),
-        ];
+    fn a_borders_set_is_one_form_in_every_order() {
+        let ws = [face(9, 2), face(9, 1), face(9, 3), face(9, 1)];
         for seams in [Seams::Sided, Seams::ByName] {
-            let out = one_form(&ps, seams, |p| {
+            let out = one_form(&ws, seams, |w| {
                 name(
                     EntityKind::Face,
                     9,
                     vec![
                         RoleSeg::Cap(CapEnd::Start),
-                        RoleSeg::Fragment(Qualifier::SideOf(p)),
+                        RoleSeg::Fragment(Qualifier::Borders(w)),
                     ],
                 )
             });
-            let Some(RoleSeg::Fragment(Qualifier::SideOf(v))) = out.path.last() else {
-                panic!("the qualifier is kept");
-            };
-            let partners: Vec<&StableName> = v.iter().map(|(n, _)| n).collect();
-            assert_eq!(partners, vec![&face(9, 1), &face(9, 2), &face(9, 3)]);
+            assert_eq!(
+                out.path.last(),
+                Some(&RoleSeg::Fragment(Qualifier::Borders(vec![
+                    face(9, 1),
+                    face(9, 2),
+                    face(9, 3)
+                ]))),
+                "the walls are sorted and a repeat is one wall"
+            );
         }
     }
 

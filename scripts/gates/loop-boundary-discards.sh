@@ -141,6 +141,7 @@ REGISTER=(
   "crates/sweep/src/blend/surgery.rs|loop_walk||1|unaudited"
   "crates/sweep/src/swept.rs|describe_face_rim_at_rest||1|unaudited"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
+  "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
   "crates/topo/src/boolean/finish.rs|classify_shell||1|unaudited"
   "crates/topo/src/boolean/join.rs|face_vertex_points||1|unaudited"
   "crates/topo/src/boolean/join.rs|resolve_roles_geometric||2|unaudited"

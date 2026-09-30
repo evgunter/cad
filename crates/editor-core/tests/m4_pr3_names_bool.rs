@@ -1,5 +1,5 @@
 //! M4 PR 3 naming tests, part 2 (spec D3/D5/D6): boolean roles
-//! (FromA/FromB/Seam), N2 discriminators (SideOf sign vectors,
+//! (FromA/FromB/Seam), N2 discriminators (`Borders` wall sets,
 //! OrderAlong sub-edge ranks), the genuine-tie fixture, and
 //! discriminator-flip localization (counted).
 #![allow(
@@ -166,10 +166,10 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
     assert!(t.iter().all(|(_, e)| matches!(e, Entry::Unique(_))));
 }
 
-// ---- SideOf sign vectors on the through-slot subtract. ----
+// ---- Borders wall sets on the through-slot subtract. ----
 
 #[test]
-fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
+fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 3×3×1 block; B: a slot crossing the top cap fully in y.
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
@@ -186,9 +186,9 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
     let ev = run(&doc);
     let t = table(&ev, sub);
     let end = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
-    // Exactly two fragments of A's end cap, SideOf-qualified, with
-    // DISTINCT vectors (each Unique — no tie: the slot walls
-    // discriminate).
+    // Exactly two pieces of A's end cap, `Borders`-qualified, with
+    // DISTINCT wall sets (each Unique — no tie: each borders its own
+    // slot wall).
     let frags: Vec<&StableName> = t
         .iter()
         .filter_map(|(n, e)| {
@@ -197,25 +197,24 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
                     n.path.first(),
                     Some(RoleSeg::FromA(inner)) if **inner == end
                 )
-                && matches!(n.path.get(1), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
+                && matches!(
+                    n.path.get(1),
+                    Some(RoleSeg::Fragment(Qualifier::Borders(_)))
+                );
             (is_frag && matches!(e, Entry::Unique(_))).then_some(n)
         })
         .collect();
-    assert_eq!(
-        frags.len(),
-        2,
-        "expected two SideOf-qualified cap fragments"
-    );
+    assert_eq!(frags.len(), 2, "expected two Borders-qualified cap pieces");
     assert_ne!(frags[0], frags[1]);
-    // The vectors' partners are B lateral names (recipe-covariant
-    // references), and every verdict is a definite sign.
+    // The walls are B lateral names (recipe-covariant references),
+    // one per piece: the slot wall on its side.
     for f in frags {
-        let Some(RoleSeg::Fragment(Qualifier::SideOf(vec))) = f.path.get(1) else {
+        let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = f.path.get(1) else {
             unreachable!()
         };
-        assert!(!vec.is_empty());
-        for (partner, _verdict) in vec {
-            assert_eq!(partner.node, b, "partner is not a B-operand carrier");
+        assert_eq!(walls.len(), 1, "{f:?}");
+        for wall in walls {
+            assert_eq!(wall.node, b, "a wall is not a B-operand face");
         }
     }
 }
@@ -230,9 +229,9 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     // B: U-shaped prongs along −x, base OUTSIDE A (x ∈ [5,6]), prong
     // tips crossing A's wall x = 4; z ∈ [1,3] (inside A). B's caps
     // (z = 1 and z = 3, U-shaped, horizontal) are each cut by A's
-    // wall x = 4 into TWO prong fragments on the SAME side of the
-    // only cutting carrier — no covariant qualifier separates them:
-    // the N2 tie, recorded, naming total.
+    // wall x = 4 into TWO prong fragments that border the same one
+    // wall — no covariant qualifier separates them: the N2 tie,
+    // recorded, naming total.
     let (doc, p) = on_frame(
         doc,
         [0.0, 0.0, 1.0],

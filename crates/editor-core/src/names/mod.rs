@@ -20,6 +20,7 @@
 //! birth facts; THIS module (editor-core) names things.
 
 mod attribute;
+mod borders;
 mod canonical;
 mod defer;
 mod discriminate;
@@ -35,6 +36,7 @@ mod flush;
 mod geompred;
 mod groups;
 pub(crate) mod interrogate;
+mod least_root;
 pub(crate) mod merged;
 mod nest;
 mod role;
@@ -44,7 +46,7 @@ mod table;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
-pub(crate) use discriminate::{FAMILY, SIDE_OF, aggregate_side, decision_words, shadow_side_of};
+pub(crate) use discriminate::{FAMILY, decision_words};
 pub(crate) use emit::name_in_part;
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
@@ -56,8 +58,8 @@ pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
 pub(crate) use emit_union::{
-    Member as UnionMember, collapse_name, collapse_table, is_fold_ranked_member_edge, member_name,
-    member_view, name_union,
+    Fold as UnionFold, Member as UnionMember, collapse_name, collapse_table,
+    is_fold_ranked_member_edge, member_name, member_view, name_union,
 };
 pub use flush::{
     CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
@@ -79,8 +81,8 @@ pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;
 pub use role::{
     CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, ProfileEdgeRef,
-    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle, SideVerdict,
-    SplitHalf, StableName, band, band_pi, band_rim, carried, meridian_vertex,
+    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle, SplitHalf,
+    StableName, band, band_pi, band_rim, carried, meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};

@@ -53,7 +53,7 @@ use super::refusal_routes::Contradiction;
 use crate::contact::ContactVerdict;
 use crate::validate::decide;
 
-use super::plane_eq::{PlaneDesc, PlaneIdentity, oriented_plane_eq_verdict};
+use super::plane_eq::{PlaneDesc, PlaneIdentity, PlaneRung, oriented_plane_eq_verdict};
 
 /// The relation between two oriented carriers: the three outcomes
 /// every kind's ladder produces.
@@ -79,8 +79,16 @@ pub enum CarrierRelation {
 /// `PlaneEqError`.
 #[derive(Debug)]
 pub enum CarrierEqError {
-    /// A margin landed in the sliver band.
-    Escalated(Indeterminate),
+    /// A rung of the plane ladder could not decide: the only rungs that
+    /// escalate here (the curved data rungs refuse `Undeclared` or
+    /// `Contradicted` instead).
+    Escalated {
+        /// The rung that could not decide.
+        rung: PlaneRung,
+        /// Its diagnostics: the margin in band, or the one the rung
+        /// decided at zero where zero does not pass.
+        diag: Indeterminate,
+    },
     /// Geometrically coincident-or-near without shared source or
     /// declared intent: an undeclared coincidence (F6). Carries the
     /// orientation the data rungs had ALREADY decided before the

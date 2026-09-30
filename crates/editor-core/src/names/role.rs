@@ -753,49 +753,25 @@ impl SplitHalf {
     }
 }
 
-/// A recorded side-of verdict (N2: a margined predicate's SIGN, never
-/// a value). `Mixed` aggregates a fragment whose probe vertices sit
-/// definitely on both sides (wrap-around fragments) — still a
-/// verdict vector entry, still flip-localized (it changes only when
-/// a vertex's side verdict flips).
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-pub enum SideVerdict {
-    /// Every off-plane probe decided positive.
-    Positive,
-    /// Every off-plane probe decided negative.
-    Negative,
-    /// Definite probes on both sides.
-    Mixed,
-    /// Every probe coincident with the carrier (the fragment lies in
-    /// it).
-    On,
-}
-
-/// An N2 fragment discriminator: covariant margined predicate
-/// verdicts against recipe-covariant references. NO values, NO bare
-/// indices — `OrderAlong.rank` is an ordinal under the named
-/// order-along comparison (N2's sanctioned order-along(oriented
-/// parent carrier)), or for a union's member-edge piece the index of a
-/// cell of that edge, and changes only at a recorded flip.
+/// An N2 fragment discriminator against recipe-covariant references.
+/// NO values, NO bare indices — `Borders` cites names, and
+/// `OrderAlong.rank` is an ordinal under the named order-along
+/// comparison (N2's sanctioned order-along(oriented parent carrier)),
+/// or for a union's member-edge piece the index of a cell of that
+/// edge, and changes only at a recorded flip.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub enum Qualifier {
-    /// Sign vector of side-of(partner's oriented carrier plane), one
-    /// entry per partner, sorted by partner name (`name_frag_side_of`
-    /// through `k_stats`). Partners are the cutting entities' names —
-    /// recipe-covariant by construction.
-    ///
-    /// "Oriented" means **outward**-oriented: a partner face's
-    /// reference plane takes its normal from the face's material side
-    /// — the stored chart normal with `topo::Face::sense` folded in
-    /// (M5 S10). The verdicts are signs against that plane, so the
-    /// orientation sense is part of the geometry these names are
-    /// covariant with; see `emit_topo::face_plane`.
-    SideOf(Vec<(StableName, SideVerdict)>),
+    /// The divider walls a boolean's or a union's face piece borders,
+    /// each cited by its parent's name, sorted and deduplicated (N2,
+    /// `names::borders`): the faces across its edges where it meets an
+    /// obstacle — a connected part of the parent face's region no piece
+    /// holds — that borders two or more pieces. A pure function of the
+    /// result's topology and the boolean's record of what it discarded;
+    /// the pieces the wall set does not tell apart are N2's tie.
+    Borders(Vec<StableName>),
     /// Ordinal position under order-along(oriented parent line)
     /// (`name_frag_order_along` through `k_stats`): rank `rank` of
     /// `of` fragments, ordered along the parent's oriented line.
@@ -1746,8 +1722,8 @@ impl RoleSeg {
     /// [`RoleSeg`]'s shape that every rewrite of a role path goes
     /// through ([`SegRewrite`] says which three).
     ///
-    /// A segment rebuilt alone is NOT canonical: its sets, its `SideOf`
-    /// partners and a union seam's sides are in whatever order the
+    /// A segment rebuilt alone is NOT canonical: its sets, its `Borders`
+    /// walls and a union seam's sides are in whatever order the
     /// rewrite left them, and a rank may lie along a line the rewrite
     /// reversed. So the walk is private to [`StableName::rewrite_path`],
     /// which rebuilds the whole path and puts it in canonical form.
@@ -1812,12 +1788,7 @@ impl RoleSeg {
             },
             R::Merged(v) => R::Merged(rewrite_set(v, w)?),
             R::Fragment(q) => R::Fragment(match q {
-                Qualifier::SideOf(entries) => Qualifier::SideOf(
-                    entries
-                        .iter()
-                        .map(|(n, s)| Ok((w.carried(n)?.unwrap_or_else(|| n.clone()), *s)))
-                        .collect::<Result<_, _>>()?,
-                ),
+                Qualifier::Borders(walls) => Qualifier::Borders(rewrite_set(walls, w)?),
                 Qualifier::OrderAlong { .. } => q.clone(),
             }),
             R::SectionEdge { side, face } => R::SectionEdge {
@@ -1889,7 +1860,7 @@ impl StableName {
     ///
     /// The canonical form is `names::canonical`'s, the one the emitters
     /// mint: a rewrite that moves the names in a name-ordered position
-    /// (a set, a `SideOf` vector, a junction's run, a union seam's two
+    /// (a set, a `Borders` set, a junction's run, a union seam's two
     /// sides) can change their order, and a name the emitter would not
     /// mint for the same entity resolves to nothing. A seam whose sides
     /// come out swapped — in this name, or in a name it embeds — reverses

@@ -2,13 +2,14 @@
 id: kill-ops-loop-anchor-on-an-unproven-next-step
 kind: issue
 title: kef, kemr and kev re-anchor a surviving loop's first on a next step whose loop no plan proves: a torn next carries a loop anchored in another loop through Ok
-status: review
+status: closed
 opened: 2026-09-29
 refs: [kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
 priority: P2
 cost: E
 pr: 3495
 branch: topo/kill-loop-anchor-proof
+closed: 2026-09-30
 ---
 
 ## What
@@ -89,3 +90,35 @@ the moved run), and that a loop it empties keeps no member, and
 refuses typed otherwise, naming the loop (`LoopCycleBroken`, or a
 variant the owner picks). Pin a counterexample per operator from the
 probe above, and make the probe assert its loop column is 0.
+
+## Closed (2026-09-30, PR 3495)
+
+`kef`, `kev` (every door) and `kemr` prove in their plans every
+anchor they write, through `Body::require_kill_anchors` over
+`KillAnchor` writes (`Step`, `Merged`, `Lone`) and `KillRun`:
+- A `Cycle`'s `first` is not killed and lies in its loop after the
+  kill.
+- An `Empty` loop keeps no member but the killed halves, holds a
+  `Lone` vertex, and is the only `Empty` loop at it.
+- Every `Lone` write is held by an `Empty` loop the kill writes.
+- The moved run's members claim the walked loop.
+
+A torn input refuses `LoopCycleBroken` or `OrbitBroken`, typed and
+before mutating. `kef` (`KefSplice`) and `kev` (`KevUnsplice`) each
+decide their arm once. The adjacency and same-loop checks share
+`shared_loop`.
+
+The single review found two mutant survivors hiding constructed
+cases, the corrupting public door (`kev_describing` with chords)
+unpinned, and the `Empty`/`None` pairing class open. The fix pass
+closed all three. On the widened probe (seven bodies; NextForeign,
+EdgeBijection, StartForeign and ParentLoopForeign), every loop and
+vertex column is 0 for all three operators, and a non-ignored slice
+runs in CI.
+
+What remains is filed:
+- `kef-and-mekr-kill-a-loop-whose-members-they-read-by-the-walk`
+- `mef-and-mekr-move-a-walked-run-they-never-prove-is-the-loops`
+- `kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names`
+- `loop-cycle-broken-display-names-one-of-its-causes`
+- the mate-edge row
