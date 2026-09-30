@@ -152,7 +152,7 @@ struct SolidJoin {
 }
 
 impl SolidJoin {
-    fn new<T: Decide>(red: &BooleanReduction<T>, operand: Operand, band: Band) -> Self {
+    fn new<T: Decide>(red: &BooleanReduction<T>, operand: Operand, band: Band, tol: Tol) -> Self {
         let mut in_set = SecondaryMap::new();
         let mut out_set = SecondaryMap::new();
         for r in red.null_edges_of(operand) {
@@ -160,7 +160,7 @@ impl SolidJoin {
             out_set.insert(r.attr.above_end, ());
         }
         Self {
-            joiner: ChordJoiner::new(band),
+            joiner: ChordJoiner::new(band, tol),
             in_set,
             out_set,
             aux_partner: std::collections::BTreeMap::new(),
@@ -247,8 +247,8 @@ pub(super) fn bool_connect<T: Decide>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let mut sa = SolidJoin::new(red, Operand::A, band);
-    let mut sb = SolidJoin::new(red, Operand::B, band);
+    let mut sa = SolidJoin::new(red, Operand::A, band, tol);
+    let mut sb = SolidJoin::new(red, Operand::B, band, tol);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
 
     // Register every pair record up front (germ facings from the

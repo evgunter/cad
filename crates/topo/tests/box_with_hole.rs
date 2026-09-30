@@ -174,7 +174,9 @@ fn build_holed_box(body: &mut Body<f64>) -> HoledBox {
 
     // ---- (l) the connected sum: kill the membrane into the bottom
     // face; its loop becomes the bottom face's ring. Genus 1. ----
-    let plug = body.kfmrh(f_bottom.face, mef_top.face).unwrap();
+    let plug = body
+        .kfmrh(f_bottom.face, mef_top.face, Tol::witness())
+        .unwrap();
     ck(body);
 
     HoledBox {

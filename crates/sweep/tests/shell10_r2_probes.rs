@@ -363,7 +363,7 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
         .map(|(_, e)| e.he_plus)
         .expect("a wall seam");
     let had_row = b.pcurve(seam).is_some();
-    match b.kef(seam) {
+    match b.kef(seam, Tol::witness()) {
         Ok(_) => {}
         Err(e) => {
             println!("[r2-10] kef refused the seam: {e} — row not demonstrable this way");

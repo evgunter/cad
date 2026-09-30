@@ -496,7 +496,7 @@ mod tests {
             },
         )
         .unwrap();
-        body.kfmrh(f1, f2).unwrap();
+        body.kfmrh(f1, f2, Tol::witness()).unwrap();
         assert_eq!(body.null_face_pair(f2), None);
         assert_eq!(validate(&body), Ok(()));
     }
@@ -519,7 +519,7 @@ mod tests {
         let crate::LoopBoundary::Cycle { first } = body.get_loop(outer2).unwrap().boundary else {
             panic!("cube outer loops are cycles");
         };
-        let killed = body.kef(first).unwrap();
+        let killed = body.kef(first, Tol::witness()).unwrap();
         assert_eq!(killed.killed_loop, outer2);
         assert_eq!(validate(&body), Ok(()));
         // The public door refuses the dead key...

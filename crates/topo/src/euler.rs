@@ -2481,10 +2481,10 @@ impl<T: Decide> Body<T> {
                     &[(loop_key, with(SiteHalf::NewPlus, old_side))],
                     None,
                 )?;
-                let new = body.mef_new_site_face(
+                let new = body.new_site_face(
                     face_key,
                     &surface,
-                    carried,
+                    !carried,
                     with(SiteHalf::NewMinus, new_side),
                 )?;
                 Ok(vec![old, new])
@@ -2510,7 +2510,6 @@ impl<T: Decide> Body<T> {
             (u2, new_loop),
             &provenance,
         );
-        crate::pcurves::apply_site_rows(self, rows, Some((he_plus.key(), he_minus.key())));
 
         // Splice (derivation in the module docs — Mäntylä's tail swap,
         // re-derived): he_minus closes he1's side into the new loop,
@@ -2544,11 +2543,13 @@ impl<T: Decide> Body<T> {
         // is exactly the set of half-edges whose `parent_loop` moved
         // above, so it is exactly what the new loop's walk
         // (`pcurves::loop_rows`) attributes to the moved half-edges
-        // once re-anchored: the new loop is the run plus `he_minus`,
-        // which gets its row above only where the run's stand.
+        // once re-anchored. The drop comes first, so the site mint's
+        // rows for the new loop — `he_minus` and the run, walked on the
+        // new face's chart — are what the map keeps.
         if !carried {
             self.drop_rows(run.iter().copied());
         }
+        crate::pcurves::apply_site_rows(self, rows, Some((he_plus, he_minus)));
         // Re-anchor both loops deterministically (the old loop's first
         // may have migrated to the new loop).
         let Some(l) = self.get_loop_mut(loop_key) else {
@@ -2614,7 +2615,7 @@ impl<T: Decide> Body<T> {
             |body| {
                 let old = body.site_face(face_key, &[(loop_key, vec![SiteHalf::NewPlus])], None)?;
                 let new =
-                    body.mef_new_site_face(face_key, &surface, carried, vec![SiteHalf::NewMinus])?;
+                    body.new_site_face(face_key, &surface, !carried, vec![SiteHalf::NewMinus])?;
                 Ok(vec![old, new])
             },
             &certified,
@@ -3235,32 +3236,20 @@ impl<T: Decide> Body<T> {
         edge: &EdgeCurve<T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        self.plan_site_mint(touched, |body, _| faces(body), edge, tol)
+        self.plan_site_mint(touched, |body, _| faces(body), Some(edge), tol)
     }
 
     /// **A site mint's plan**: which faces it re-mints, and the rows it
     /// writes onto each, decided before its door mutates.
     ///
     /// `touched` names the loops the door's halves are in, as the body
-    /// holds them now. Their faces are read first, once each — one walk
-    /// of each face on a chart that mints — and only a face
-    /// [`crate::pcurves::site_rows_from`] reads further can be
-    /// re-minted; every other face is left as found. So whether the
-    /// door reads more than those faces, and whether it can refuse
-    /// here, depends on the touched faces alone — never on rows held
-    /// elsewhere in the body — and when none is read further, `faces`
-    /// does not run. `faces` is handed those faces as found and
-    /// describes the faces as the door leaves them;
-    /// [`crate::pcurves::site_rows`] decides each one.
+    /// holds them now; their faces are what [`Body::plan_site_mint_of`]
+    /// reads.
     ///
     /// # Errors
     ///
-    /// In this order: a touched loop or its face does not resolve
-    /// ([`EulerOpError::StaleKey`]), or the face's surface does not
-    /// ([`EulerOpError::StaleGeometry`]), or a half of the face does not
-    /// ([`EulerOpError::PcurveMint`] naming the face); then, only when a
-    /// face is read further, what `faces` raises; then
-    /// [`EulerOpError::PcurveMint`] naming the face.
+    /// A touched loop does not resolve ([`EulerOpError::StaleKey`]);
+    /// then [`Body::plan_site_mint_of`]'s.
     pub(crate) fn plan_site_mint(
         &self,
         touched: &[LoopKey],
@@ -3268,10 +3257,9 @@ impl<T: Decide> Body<T> {
             &Self,
             &[(FaceKey, crate::pcurves::SiteFrom<T>)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
-        edge: &EdgeCurve<T>,
+        edge: Option<&EdgeCurve<T>>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
         let mut read: Vec<FaceKey> = Vec::new();
         for &lk in touched {
             let face = self
@@ -3280,10 +3268,49 @@ impl<T: Decide> Body<T> {
                     key: EntityId::Loop(lk),
                 })?
                 .face;
-            if read.contains(&face) {
-                continue;
+            if !read.contains(&face) {
+                read.push(face);
             }
-            read.push(face);
+        }
+        self.plan_site_mint_of(&read, faces, edge, tol)
+    }
+
+    /// **A site mint's plan over the faces whose rows decide it**
+    /// (`read`, as the body holds them now), decided before its door
+    /// mutates.
+    ///
+    /// Each face is read first, once — one walk of each face on a
+    /// chart that mints — and only a face
+    /// [`crate::pcurves::site_rows_from`] reads further can be
+    /// re-minted; every other face is left as found. So whether the
+    /// door reads more than those faces, and whether it can refuse
+    /// here, depends on them alone — never on rows held elsewhere in
+    /// the body — and when none is read further, `faces` does not run.
+    /// `faces` is handed those faces as found and describes the faces
+    /// as the door leaves them; [`crate::pcurves::site_rows`] decides
+    /// each one. `edge` carries the door's new or described halves, and
+    /// is `None` for a door that names existing halves alone.
+    ///
+    /// # Errors
+    ///
+    /// In this order: a face does not resolve
+    /// ([`EulerOpError::StaleKey`]), or its surface does not
+    /// ([`EulerOpError::StaleGeometry`]), or a half of it does not
+    /// ([`EulerOpError::PcurveMint`] naming the face); then, only when a
+    /// face is read further, what `faces` raises; then
+    /// [`EulerOpError::PcurveMint`] naming the face.
+    pub(crate) fn plan_site_mint_of(
+        &self,
+        read: &[FaceKey],
+        faces: impl FnOnce(
+            &Self,
+            &[(FaceKey, crate::pcurves::SiteFrom<T>)],
+        ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
+        edge: Option<&EdgeCurve<T>>,
+        tol: Tol,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
+        for &face in read {
             let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
                 key: EntityId::Face(face),
             })?;
@@ -3350,7 +3377,7 @@ impl<T: Decide> Body<T> {
         Ok(SiteFace {
             rows_from: face,
             surface,
-            carried: true,
+            moved: false,
             loops,
         })
     }
@@ -3365,14 +3392,17 @@ impl<T: Decide> Body<T> {
             .ok_or(EulerOpError::LoopCycleBroken { r#loop })
     }
 
-    /// `mef`'s new face as the surgery leaves it: one loop, `halves`,
-    /// on the chart `surface` names, carrying the rows of `from` only
-    /// where `carried` says that chart is `from`'s.
-    fn mef_new_site_face(
+    /// A face a door makes out of `from` as the surgery leaves it —
+    /// `mef`'s new face, `mfkrh`'s promoted one: one loop, `halves`, on
+    /// the chart `surface` names, whose rows `from`'s decide. `moved`
+    /// is whether that loop arrives without its rows standing
+    /// ([`SiteFace::moved`]): stated in `from`'s chart where the new
+    /// face's is another, or missing.
+    pub(crate) fn new_site_face(
         &self,
         from: FaceKey,
         surface: &FaceSurface<T>,
-        carried: bool,
+        moved: bool,
         halves: Vec<SiteHalf>,
     ) -> Result<SiteFace<T>, EulerOpError> {
         let from_surface = self
@@ -3396,7 +3426,7 @@ impl<T: Decide> Body<T> {
         Ok(SiteFace {
             rows_from: from,
             surface: chart,
-            carried,
+            moved,
             loops: vec![SiteLoop::Rewired(halves)],
         })
     }

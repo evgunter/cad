@@ -1305,10 +1305,10 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             body.mekr_chord(site, tol).unwrap();
         }
         OpChoice::Kfmrh(f1, f2) | OpChoice::KfmrhFuse(f1, f2) => {
-            body.kfmrh(f1, f2).unwrap();
+            body.kfmrh(f1, f2, tol).unwrap();
         }
         OpChoice::Mfkrh(ring) => {
-            body.mfkrh_plug(ring, true).unwrap();
+            body.mfkrh_plug(ring, true, tol).unwrap();
         }
         OpChoice::Movefac(shell) => {
             body.movefac(shell).unwrap();
@@ -1320,13 +1320,13 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             body.kev_describing(he, &chords, tol).unwrap();
         }
         OpChoice::Kef(he) => {
-            body.kef(he).unwrap();
+            body.kef(he, tol).unwrap();
         }
         OpChoice::Kvfs(solid) => {
             body.kvfs(solid).unwrap();
         }
         OpChoice::RingMove(ring, to_face) => {
-            body.ring_move(ring, to_face).unwrap();
+            body.ring_move(ring, to_face, tol).unwrap();
         }
         OpChoice::SplitEdge(e) => {
             let (t, _) =
@@ -1401,11 +1401,11 @@ pub(crate) fn roundtrip(
         }
         OpChoice::MefChords(he1, he2) => {
             let created = body.mef_chord(MefSite::Chords { he1, he2 }, tol).unwrap();
-            body.kef(created.he_minus).unwrap();
+            body.kef(created.he_minus, tol).unwrap();
         }
         OpChoice::MefLone(l) => {
             let created = body.mef_chord(MefSite::Lone { r#loop: l }, tol).unwrap();
-            body.kef(created.he_minus).unwrap();
+            body.kef(created.he_minus, tol).unwrap();
         }
         OpChoice::Mekr(site) => {
             let created = body.mekr_chord(site, tol).unwrap();
@@ -1413,15 +1413,15 @@ pub(crate) fn roundtrip(
         }
         OpChoice::Mfkrh(ring) => {
             let old_face = body.get_loop(ring).expect("ring resolves").face;
-            let created = body.mfkrh_plug(ring, true).unwrap();
-            body.kfmrh(old_face, created.face).unwrap();
+            let created = body.mfkrh_plug(ring, true, tol).unwrap();
+            body.kfmrh(old_face, created.face, tol).unwrap();
         }
         OpChoice::RingMove(ring, to_face) => {
             // Self-paired: move there, move back. Exact up to ring-list
             // order, which the canonical form sorts away (iso docs).
             let old_face = body.get_loop(ring).expect("ring resolves").face;
-            body.ring_move(ring, to_face).unwrap();
-            body.ring_move(ring, old_face).unwrap();
+            body.ring_move(ring, to_face, tol).unwrap();
+            body.ring_move(ring, old_face, tol).unwrap();
         }
         OpChoice::SplitEdge(e) => {
             // The inverse is a kill that re-describes: `split_edge`
@@ -1465,8 +1465,8 @@ pub(crate) fn roundtrip(
             body.mekr_chord(site, tol).unwrap();
         }
         OpChoice::Kfmrh(f1, f2) => {
-            let result = body.kfmrh(f1, f2).unwrap();
-            body.mfkrh_plug(result.ring, true).unwrap();
+            let result = body.kfmrh(f1, f2, tol).unwrap();
+            body.mfkrh_plug(result.ring, true, tol).unwrap();
         }
         OpChoice::KfmrhFuse(f1, f2) => {
             // The fusion is two surgeries at once, so its re-make is
@@ -1478,8 +1478,8 @@ pub(crate) fn roundtrip(
             let Some(surviving_shell) = fusion_remake_shell(body, f1, f2) else {
                 return RoundtripOutcome::SkippedIrreversible;
             };
-            let result = body.kfmrh(f1, f2).unwrap();
-            body.mfkrh_plug(result.ring, true).unwrap();
+            let result = body.kfmrh(f1, f2, tol).unwrap();
+            body.mfkrh_plug(result.ring, true, tol).unwrap();
             body.movefac(surviving_shell).unwrap();
         }
         OpChoice::Movefac(_) => {
@@ -1555,11 +1555,11 @@ pub(crate) fn roundtrip(
                 if survivor_face_data.outer != l2 || !survivor_face_data.rings.is_empty() {
                     return RoundtripOutcome::SkippedIrreversible;
                 }
-                body.kef(he).unwrap();
+                body.kef(he, tol).unwrap();
                 body.mef_chord(MefSite::Chords { he1: b, he2: b }, tol)
                     .unwrap();
             } else {
-                body.kef(he).unwrap();
+                body.kef(he, tol).unwrap();
                 let site = if b == he && d == mate {
                     MefSite::Lone { r#loop: l2 } // self-loop pair kill
                 } else if b == he {
@@ -1619,7 +1619,7 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
             return;
         }
         if let Some(OpChoice::Kef(he)) = kef_candidates(body, tol).first().copied() {
-            body.kef(he).unwrap();
+            body.kef(he, tol).unwrap();
             continue;
         }
         if let Some(OpChoice::Kev(he)) = kev_candidates(body, tol).first().copied() {
@@ -1633,7 +1633,7 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
         }
         // Cycle rings: promote to a face (kef will consume it next).
         if let Some(ring) = first_cycle_ring(body) {
-            body.mfkrh_plug(ring, true).unwrap();
+            body.mfkrh_plug(ring, true, tol).unwrap();
             continue;
         }
         // Empty rings: absorb with mekr, then kill the fresh edge (and
@@ -1647,7 +1647,7 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
         // Extra empty-outer faces (mfkrh leftovers): fold into a
         // sibling face as an empty ring.
         if let Some((f1, f2)) = first_empty_outer_extra_face(body) {
-            body.kfmrh(f1, f2).unwrap();
+            body.kfmrh(f1, f2, tol).unwrap();
             continue;
         }
         if let Some(OpChoice::Kvfs(solid)) = kvfs_candidates(body, tol).first().copied() {

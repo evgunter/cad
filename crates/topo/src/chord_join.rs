@@ -562,15 +562,19 @@ pub(crate) struct ChordJoiner {
     fragments: Vec<(FaceKey, FaceKey)>,
     /// The run band (ring re-homing containment).
     band: Band,
+    /// The run's tolerance: the band the loop-moving doors re-mint a
+    /// minted face at ([`Body::ring_move`], [`Body::kef`]).
+    tol: Tol,
 }
 
 impl ChordJoiner {
     /// A fresh core.
-    pub(crate) fn new(band: Band) -> Self {
+    pub(crate) fn new(band: Band, tol: Tol) -> Self {
         Self {
             slivers: SecondaryMap::new(),
             fragments: Vec::new(),
             band,
+            tol,
         }
     }
 
@@ -2387,7 +2391,7 @@ impl ChordJoiner {
             }
             let rep = ring_representative(body, ring)?;
             match point_in_loop(body, run, normal, rep, self.band)? {
-                LoopContainment::In => body.ring_move(ring, newf)?,
+                LoopContainment::In => body.ring_move(ring, newf, self.tol)?,
                 LoopContainment::Out => {}
                 LoopContainment::OnBoundary => {
                     return Err(SplitJoinError::RingHomingAmbiguous { ring });
@@ -2448,7 +2452,7 @@ impl ChordJoiner {
             } else {
                 return Err(SplitJoinError::CutInvariant { edge });
             };
-            let killed = body.kef(victim)?;
+            let killed = body.kef(victim, self.tol)?;
             self.slivers.remove(killed.killed_face);
             Ok(CutOutcome::Merged)
         }

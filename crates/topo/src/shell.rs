@@ -1450,8 +1450,8 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // afterwards from what stopped resolving.
         // The designated chart reduced to one face — the mouth — and
         // its counterpart chart reduced to one.
-        let mouth = canonicalize_chart(&mut out, &group, band, &mut naming.dead)?;
-        let counterpart = canonicalize_chart(&mut out, &sources, band, &mut naming.dead)?;
+        let mouth = canonicalize_chart(&mut out, &group, band, tol, &mut naming.dead)?;
+        let counterpart = canonicalize_chart(&mut out, &sources, band, tol, &mut naming.dead)?;
 
         // **The glue's roles.** `kfmrh(host, guest)` kills `guest` and
         // makes its outer loop a ring of `host`, so `host` must be the
@@ -1539,6 +1539,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                         key: host_surface,
                         sense: host_sense,
                     },
+                    tol,
                 )
                 .map_err(|error| ShellError::Rim {
                     face: designated,
@@ -1622,10 +1623,12 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // host's RING, and the guest's shell fuses into the host's (the
         // first chart does the fusion; any further chart is same-shell
         // genus surgery).
-        let fused = out.kfmrh(host, guest).map_err(|error| ShellError::Rim {
-            face: designated,
-            error,
-        })?;
+        let fused = out
+            .kfmrh(host, guest, tol)
+            .map_err(|error| ShellError::Rim {
+                face: designated,
+                error,
+            })?;
         naming.dead.faces.push(fused.killed_face);
         naming.dead.surfaces.extend(fused.killed_surface);
         naming.dead.shells.extend(fused.killed_shell);
@@ -1681,7 +1684,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // fusion put every face in one shell, which is `ring_move`'s
         // precondition.
         for (face, host_ring) in promoted {
-            out.ring_move(host_ring, face)
+            out.ring_move(host_ring, face, tol)
                 .map_err(|error| ShellError::Rim {
                     face: designated,
                     error,
@@ -1842,6 +1845,7 @@ fn canonicalize_chart<T: Decide>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     band: Band,
+    tol: Tol,
     dead: &mut ShellRetired,
 ) -> Result<FaceKey, ShellError<T>> {
     let anchor = *faces.first().ok_or(ShellError::Corrupt {
@@ -1876,7 +1880,7 @@ fn canonicalize_chart<T: Decide>(
             } else {
                 continue;
             };
-            let killed = body.kef(he).map_err(|error| ShellError::Rim {
+            let killed = body.kef(he, tol).map_err(|error| ShellError::Rim {
                 face: anchor,
                 error,
             })?;

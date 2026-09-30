@@ -238,7 +238,7 @@ use crate::euler::FaceSurface;
 use crate::euler::{EulerOpError, KillAnchor, KillInto, KillRun, shared_loop};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Live, require_key};
-use crate::pcurves::{SiteHalf, SiteRows};
+use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 use geom_core::Tol;
 
@@ -814,7 +814,12 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
+    pub fn kfmrh(
+        &mut self,
+        f1: FaceKey,
+        f2: FaceKey,
+        tol: Tol,
+    ) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -864,6 +869,14 @@ impl<T: Decide> Body<T> {
             }
             require_key(&self.solids, s2_data.solid, EntityId::Solid)?;
         }
+        let ring_halves = self.site_cycle(ring)?;
+        let rows = self.plan_moved_rows(
+            &ring_halves,
+            self.same_chart(f2_data.surface, f1_surface),
+            f1,
+            |body| body.site_face_receiving(f1, &ring_halves),
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         // The surviving loop is repointed and demoted; nothing else at
@@ -877,6 +890,7 @@ impl<T: Decide> Body<T> {
         };
         face.rings.push(ring);
         self.drop_rows_on_chart_change(ring, f2_data.surface, f1_surface);
+        crate::pcurves::apply_site_rows(self, rows, None);
         let killed_shell = if cross_shell {
             // Shell fusion: f2's surviving faces re-home into f1's
             // shell — appended in their surviving f2-shell list order
@@ -1018,7 +1032,12 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    pub fn ring_move(&mut self, ring: LoopKey, to_face: FaceKey) -> Result<(), EulerOpError> {
+    pub fn ring_move(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+        tol: Tol,
+    ) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -1045,6 +1064,18 @@ impl<T: Decide> Body<T> {
                 f2: to_face,
             });
         }
+        let rows = if from_face == to_face {
+            Vec::new()
+        } else {
+            let ring_halves = self.site_cycle(ring)?;
+            self.plan_moved_rows(
+                &ring_halves,
+                self.same_chart(from_surface, to_surface),
+                to_face,
+                |body| body.site_face_receiving(to_face, &ring_halves),
+                tol,
+            )?
+        };
 
         // ---- Mutation (infallible; no-op when the faces coincide). ----
         if from_face != to_face {
@@ -1062,6 +1093,7 @@ impl<T: Decide> Body<T> {
             l.face = to_face;
         }
         self.drop_rows_on_chart_change(ring, from_surface, to_surface);
+        crate::pcurves::apply_site_rows(self, rows, None);
 
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
@@ -1125,6 +1157,65 @@ impl<T: Decide> Body<T> {
             return;
         };
         self.drop_rows(cycle);
+    }
+
+    /// **The site mint of a door that moves a loop or run onto a
+    /// face**, planned before the door mutates. `moved` is the loop's
+    /// or run's half-edges, and `same_chart` whether the face it lands
+    /// on is on the chart it leaves ([`Body::same_chart`]).
+    ///
+    /// Where every moved half carries a row and the chart is one, the
+    /// rows move with their keys: nothing is derived, and there is
+    /// nothing to plan. Otherwise the moved rows do not stand on the
+    /// destination — they are about another chart, which the door drops
+    /// them for ([`Body::drop_rows`]), or missing — and the destination
+    /// is re-minted exactly as an Euler operator's rewired face is
+    /// ([`Body::plan_site_mint_of`]): the rows of `rows_from` as found
+    /// decide ([`crate::pcurves::StoredRows::remints`]), and `site`
+    /// describes the destination as the door leaves it, with the moved
+    /// loop rewired and [`crate::pcurves::SiteFace::moved`] set. So a
+    /// destination that was complete stays complete, walked in its own
+    /// chart; one that was unminted or half-minted, or is on a spline
+    /// chart, is left as found, its moved rows dropped. An empty `moved`
+    /// moves nothing and plans nothing.
+    ///
+    /// The face a loop LEAVES needs nothing: it loses that loop's
+    /// half-edges and their rows together, its other loops and its
+    /// chart are untouched, so it is left as complete as it was, or
+    /// more.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::plan_site_mint_of`]'s, and what `site` raises.
+    pub(crate) fn plan_moved_rows(
+        &self,
+        moved: &[HalfEdgeKey],
+        same_chart: bool,
+        rows_from: FaceKey,
+        site: impl FnOnce(&Self) -> Result<SiteFace<T>, EulerOpError>,
+        tol: Tol,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        let stand = same_chart && moved.iter().all(|&he| self.pcurve(he).is_some());
+        if moved.is_empty() || stand {
+            return Ok(Vec::new());
+        }
+        self.plan_site_mint_of(&[rows_from], |body, _| Ok(vec![site(body)?]), None, tol)
+    }
+
+    /// `face` as a door leaves it that moves the loop `halves` walk onto
+    /// it as a new ring ([`Body::kfmrh`], [`Body::ring_move`]): its own
+    /// loops kept, the moved loop rewired after them.
+    fn site_face_receiving(
+        &self,
+        face: FaceKey,
+        halves: &[HalfEdgeKey],
+    ) -> Result<SiteFace<T>, EulerOpError> {
+        let mut site = self.site_face(face, &[], None)?;
+        site.moved = true;
+        site.loops.push(SiteLoop::Rewired(
+            halves.iter().copied().map(SiteHalf::Existing).collect(),
+        ));
+        Ok(site)
     }
 
     /// Removes the stored pcurve row of every half-edge in
@@ -2817,7 +2908,7 @@ mod tests {
         let edges_before = arena_lines(body.edges());
         let vertices_before = arena_lines(body.vertices());
 
-        let result = body.kfmrh(seed.face, split.face).unwrap();
+        let result = body.kfmrh(seed.face, split.face, Tol::witness()).unwrap();
         assert_eq!(validate(&body), Ok(()));
 
         assert_eq!(result.ring, split.r#loop);
@@ -2893,7 +2984,7 @@ mod tests {
         t.body.get_shell_mut(t.shell).unwrap().faces.push(face_c);
         assert_eq!(validate(&t.body), Ok(()), "fixture must be tier-1 valid");
 
-        let result = t.body.kfmrh(t.face_a, face_c).unwrap();
+        let result = t.body.kfmrh(t.face_a, face_c, Tol::witness()).unwrap();
         assert_eq!(validate(&t.body), Ok(()));
         // The Empty outer became an Empty RING of face A — §9.3 (g)'s
         // hole-planting state, reached through kfmrh instead of kemr.
@@ -2914,7 +3005,7 @@ mod tests {
         let (mut body, seed, _seg, _split) = ops_pillow();
         let expected = EulerOpError::SameFace { face: seed.face };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, seed.face).unwrap_err()
+            b.kfmrh(seed.face, seed.face, Tol::witness()).unwrap_err()
         });
         // A second mvfs is a second solid+shell in the same body:
         // cross-SOLID kfmrh stays a typed error (M3 PR 1 lifted only
@@ -2925,7 +3016,7 @@ mod tests {
             f2: other.face,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, other.face).unwrap_err()
+            b.kfmrh(seed.face, other.face, Tol::witness()).unwrap_err()
         });
     }
 
@@ -2958,7 +3049,7 @@ mod tests {
             key: EntityId::Face(dead),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, other.face).unwrap_err()
+            b.kfmrh(seed.face, other.face, Tol::witness()).unwrap_err()
         });
     }
 
@@ -2977,7 +3068,7 @@ mod tests {
             key: EntityId::Solid(dead),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, other.face).unwrap_err()
+            b.kfmrh(seed.face, other.face, Tol::witness()).unwrap_err()
         });
     }
 
@@ -3001,7 +3092,7 @@ mod tests {
         assert_eq!(validate(&body), Ok(()));
         let expected = EulerOpError::FaceHasRings { face: split.face };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, split.face).unwrap_err()
+            b.kfmrh(seed.face, split.face, Tol::witness()).unwrap_err()
         });
     }
 
@@ -3013,10 +3104,10 @@ mod tests {
             key: EntityId::Face(dead),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(dead, split.face).unwrap_err()
+            b.kfmrh(dead, split.face, Tol::witness()).unwrap_err()
         });
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, dead).unwrap_err()
+            b.kfmrh(seed.face, dead, Tol::witness()).unwrap_err()
         });
     }
 
@@ -3057,7 +3148,8 @@ mod tests {
             body.half_edges().count(),
         );
 
-        body.ring_move(kill.ring, split.face).unwrap();
+        body.ring_move(kill.ring, split.face, Tol::witness())
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(
             body.get_face(seed.face).unwrap().rings,
@@ -3079,7 +3171,8 @@ mod tests {
         assert_eq!(body.provenance(EntityId::Loop(kill.ring)).cloned(), birth);
 
         // And back.
-        body.ring_move(kill.ring, seed.face).unwrap();
+        body.ring_move(kill.ring, seed.face, Tol::witness())
+            .unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(body.get_face(seed.face).unwrap().rings, vec![kill.ring]);
     }
@@ -3088,7 +3181,7 @@ mod tests {
     fn ring_move_to_its_own_face_is_a_noop() {
         let (mut body, seed, _split, kill) = pillow_with_ring();
         let before = deep_snapshot(&body);
-        assert_eq!(body.ring_move(kill.ring, seed.face), Ok(()));
+        assert_eq!(body.ring_move(kill.ring, seed.face, Tol::witness()), Ok(()));
         // Deeply untouched — in particular the rings order was not
         // perturbed (no retain+push cycle), keeping replay byte-stable.
         assert_eq!(deep_snapshot(&body), before);
@@ -3102,7 +3195,8 @@ mod tests {
             r#loop: seed.r#loop,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.ring_move(seed.r#loop, split.face).unwrap_err()
+            b.ring_move(seed.r#loop, split.face, Tol::witness())
+                .unwrap_err()
         });
         // Stale ring key.
         let dead_loop = LoopKey::default();
@@ -3110,7 +3204,8 @@ mod tests {
             key: EntityId::Loop(dead_loop),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.ring_move(dead_loop, split.face).unwrap_err()
+            b.ring_move(dead_loop, split.face, Tol::witness())
+                .unwrap_err()
         });
         // Stale destination face.
         let dead_face = FaceKey::default();
@@ -3118,7 +3213,8 @@ mod tests {
             key: EntityId::Face(dead_face),
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.ring_move(kill.ring, dead_face).unwrap_err()
+            b.ring_move(kill.ring, dead_face, Tol::witness())
+                .unwrap_err()
         });
         // Cross-shell destination: a second solid's face.
         let other = body.mvfs(p(9.0), true).unwrap();
@@ -3127,7 +3223,8 @@ mod tests {
             f2: other.face,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.ring_move(kill.ring, other.face).unwrap_err()
+            b.ring_move(kill.ring, other.face, Tol::witness())
+                .unwrap_err()
         });
     }
 
@@ -3230,7 +3327,7 @@ mod tests {
                 tol,
             )
             .unwrap();
-        body.kfmrh(seed.face, circle.face).unwrap();
+        body.kfmrh(seed.face, circle.face, tol).unwrap();
         let in_outer =
             |b: &Body<f64>, x: HalfEdgeKey| b.get_half_edge(x).unwrap().parent_loop == seed.r#loop;
         let (he1, he2) = if in_outer(&body, circle.he_plus) {

@@ -2102,7 +2102,7 @@ impl<T: Decide> Body<T> {
                 );
                 #[cfg(test)]
                 tear_before_ring_move(self, ring);
-                self.ring_move(ring, rep)?;
+                self.ring_move(ring, rep, tol)?;
             }
             // The two facts `kef` could contradict. The drain above is
             // exactly the mutation that invalidates a fact read before
@@ -2122,7 +2122,7 @@ impl<T: Decide> Body<T> {
             );
             #[cfg(test)]
             tear_before_kef(self, dying_he, edge_key, other);
-            self.kef(dying_he)?;
+            self.kef(dying_he, tol)?;
             group.absorbed.push(other);
             group.killed_edges.push(edge_key);
         }
@@ -2948,7 +2948,7 @@ mod tests {
                 }
             })
             .expect("the seed face has a neighbour");
-        body.kef(victim).expect("the seed face is absorbed");
+        body.kef(victim, tol).expect("the seed face is absorbed");
         let host = body
             .faces()
             .map(|(k, _)| k)

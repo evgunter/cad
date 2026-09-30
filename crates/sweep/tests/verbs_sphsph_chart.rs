@@ -785,7 +785,7 @@ fn a_full_period_azimuth_window_is_served_by_the_ray_lane_and_refused_by_the_fac
     let seam = seam_meridian(&planted, sphere_faces(&planted)[0]).0;
     let he = planted.get_edge(seam).unwrap().he_plus;
     planted
-        .kef(he)
+        .kef(he, Tol::witness())
         .expect("the two half-bands merge into one face");
     let faces = sphere_faces(&planted);
     assert_eq!(faces.len(), 1, "one sphere face spanning the whole period");
@@ -821,7 +821,7 @@ fn a_ringed_sphere_face_refuses_at_both_doors() {
     let ch = chart(&planted, f);
     let disc = flat_disc(&planted);
     planted
-        .kfmrh(f, disc)
+        .kfmrh(f, disc, Tol::witness())
         .expect("the disc's loop re-homes as a ring");
     assert_eq!(planted.get_face(f).unwrap().rings.len(), 1);
     assert_eq!(

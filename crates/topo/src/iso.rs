@@ -732,7 +732,7 @@ mod tests {
                 // Euler op; counts are unchanged.
                 let other_face = body.face_of_half_edge(seg.he_minus).unwrap();
                 assert_ne!(other_face, split_faces.face);
-                body.ring_move(r1.ring, other_face).unwrap();
+                body.ring_move(r1.ring, other_face, Tol::witness()).unwrap();
             }
             assert_eq!(crate::validate::validate(&body), Ok(()));
             body

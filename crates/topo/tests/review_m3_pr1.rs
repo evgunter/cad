@@ -179,7 +179,9 @@ fn plant_detached_box(
         .unwrap();
     body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
         .unwrap();
-    body.mfkrh_plug(planted.ring, true).unwrap().face
+    body.mfkrh_plug(planted.ring, true, Tol::witness())
+        .unwrap()
+        .face
 }
 
 /// [`common::declined_cube`] at `f64`, reduced to the two things this
@@ -276,7 +278,10 @@ fn movefac_empty_outer_face_is_own_component() {
         .unwrap();
     let planted = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // Promote the EMPTY ring directly: an empty-outer face, detached.
-    let lone_face = body.mfkrh_plug(planted.ring, true).unwrap().face;
+    let lone_face = body
+        .mfkrh_plug(planted.ring, true, Tol::witness())
+        .unwrap()
+        .face;
     assert_eq!(validate(&body), Ok(()));
     let errs = validate_closed(&body).unwrap_err();
     let pass11 = errs
@@ -311,7 +316,7 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
     // Two closed genus-0 components: chi = 2 + 2.
     assert_eq!(chi(&body), 4);
     let before = census(&body);
-    let fused = body.kfmrh(seed.face, inner).unwrap();
+    let fused = body.kfmrh(seed.face, inner, Tol::witness()).unwrap();
     assert_eq!(fused.killed_shell, Some(shells[1]));
     let after = census(&body);
     assert_eq!(
@@ -345,7 +350,9 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
         })
         .last()
         .unwrap();
-    let handle = body.kfmrh(cube_bottom, inner_bottom).unwrap();
+    let handle = body
+        .kfmrh(cube_bottom, inner_bottom, Tol::witness())
+        .unwrap();
     assert_eq!(
         handle.killed_shell, None,
         "same-shell form must not kill a shell"
@@ -358,7 +365,7 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
     let shells2 = body.movefac(seed.shell).unwrap();
     assert_eq!(shells2.len(), 2);
     assert_eq!(chi(&body), 2); // genus-1 (chi 0) + genus-0 (chi 2)
-    let fused2 = body.kfmrh(seed.face, inner2).unwrap();
+    let fused2 = body.kfmrh(seed.face, inner2, Tol::witness()).unwrap();
     assert_eq!(fused2.killed_shell, Some(shells2[1]));
     assert_eq!(chi(&body), 0, "genera add: 1 + 0 = 1");
     assert_eq!(validate(&body), Ok(()));
@@ -645,7 +652,7 @@ fn ring_move_laringmv_roundtrip_and_noop() {
     let (mut body, seed) = declined_cube_and_seed();
     let inner = plant_detached_box(&mut body, seed.face, Point3::new(0.3, 0.3, 1.4));
     body.movefac(seed.shell).unwrap();
-    let fused = body.kfmrh(seed.face, inner).unwrap();
+    let fused = body.kfmrh(seed.face, inner, Tol::witness()).unwrap();
     let ring = fused.ring;
     assert_eq!(validate_closed(&body), Ok(()));
     let other_face = body
@@ -655,14 +662,14 @@ fn ring_move_laringmv_roundtrip_and_noop() {
         .unwrap();
     let before = dump(&body);
     // Same-face move: documented no-op, byte-stable.
-    body.ring_move(ring, seed.face).unwrap();
+    body.ring_move(ring, seed.face, Tol::witness()).unwrap();
     assert_eq!(dump(&body), before);
     // Cross-face round trip restores the original bytes exactly.
-    body.ring_move(ring, other_face).unwrap();
+    body.ring_move(ring, other_face, Tol::witness()).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(body.get_face(other_face).unwrap().rings, vec![ring]);
     assert!(body.get_face(seed.face).unwrap().rings.is_empty());
-    body.ring_move(ring, seed.face).unwrap();
+    body.ring_move(ring, seed.face, Tol::witness()).unwrap();
     assert_eq!(dump(&body), before, "round trip is not byte-stable");
 }
 
@@ -1340,8 +1347,10 @@ fn null_edge_cannot_be_laundered_through_set_edge_curve() {
     let (mut body, seed) = declined_cube_and_seed();
     let inner = plant_detached_box(&mut body, seed.face, Point3::new(0.3, 0.3, 1.4));
     body.movefac(seed.shell).unwrap();
-    let fused = body.kfmrh(seed.face, inner).unwrap();
-    let promoted = body.mfkrh(fused.ring, FaceSurface::Inherit).unwrap();
+    let fused = body.kfmrh(seed.face, inner, Tol::witness()).unwrap();
+    let promoted = body
+        .mfkrh(fused.ring, FaceSurface::Inherit, Tol::witness())
+        .unwrap();
     assert_eq!(
         body.get_face(promoted.face).unwrap().surface,
         body.get_face(seed.face).unwrap().surface,

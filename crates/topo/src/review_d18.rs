@@ -247,7 +247,7 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
 
     let mut control = base.clone();
     assert!(
-        control.kef(split.he_minus).is_ok(),
+        control.kef(split.he_minus, tol).is_ok(),
         "control kef must succeed on the undamaged body"
     );
     for dead in [HalfEdgeKey::default(), recycled] {
@@ -263,7 +263,7 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
             "fixture: tearing prev must not disturb the next-walk"
         );
         let before = deep_snapshot(&body);
-        let err = body.kef(he).unwrap_err();
+        let err = body.kef(he, tol).unwrap_err();
         assert_eq!(
             err,
             EulerOpError::StaleKey {
@@ -1377,7 +1377,7 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
             for (row, op) in ops.iter().enumerate() {
                 let mut trial = body.clone();
                 let outcome = match *op {
-                    "kef" => trial.kef(he).map(|_| ()),
+                    "kef" => trial.kef(he, tol).map(|_| ()),
                     "kemr" => trial.kemr(he, m).map(|_| ()),
                     _ => kev_either_door(&mut trial, he, tol).map(|_| ()),
                 };
@@ -1483,7 +1483,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                         let mut trial = body.clone();
                         let mut scope = trial.begin_surgery();
                         let outcome = match row {
-                            0 => scope.kef(he).map(|_| ()),
+                            0 => scope.kef(he, tol).map(|_| ()),
                             1 => match body.mate(he) {
                                 Some(m) => scope.kemr(he, m).map(|_| ()),
                                 None => Err(EulerOpError::StaleKey {

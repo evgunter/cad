@@ -68,7 +68,7 @@ fn reglue_pair<T: geom_core::Decide>(
     above_face: FaceKey,
     tol: Tol,
 ) {
-    let fused = body.kfmrh(below_face, above_face).unwrap();
+    let fused = body.kfmrh(below_face, above_face, tol).unwrap();
     let ring = fused.ring; // the above loop, now a ring of below_face
     let outer = body.get_face(below_face).unwrap().outer;
 
@@ -138,9 +138,9 @@ fn reglue_pair<T: geom_core::Decide>(
             )
             .unwrap();
         body.kev_describing(nj.he_plus, &[], tol).unwrap();
-        body.kef(rs[(j + 1) % n]).unwrap();
+        body.kef(rs[(j + 1) % n], tol).unwrap();
     }
-    body.kef(rs[1 % n]).unwrap();
+    body.kef(rs[1 % n], tol).unwrap();
 }
 
 /// The generic-plane oracle on a cube: split at y = 0.5, re-glue at
@@ -167,7 +167,7 @@ fn reassembly_oracle_generic_cube() {
     } else {
         section.above_loop
     };
-    let promoted = body.mfkrh(ring, FaceSurface::Inherit).unwrap();
+    let promoted = body.mfkrh(ring, FaceSurface::Inherit, tol).unwrap();
     let (above_face, below_face) = if ring == section.above_loop {
         (promoted.face, section.face)
     } else {

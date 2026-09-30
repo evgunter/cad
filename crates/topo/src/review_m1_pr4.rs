@@ -247,7 +247,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
             tol,
         )
         .unwrap();
-    body.kef(cut.he_minus).unwrap();
+    body.kef(cut.he_minus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "Chords general mef∘kef");
 
@@ -263,7 +263,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
             tol,
         )
         .unwrap();
-    body.kef(circ.he_minus).unwrap();
+    body.kef(circ.he_minus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "circular mef∘kef");
 
@@ -279,7 +279,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
             tol,
         )
         .unwrap();
-    body.kef(circ.he_minus).unwrap();
+    body.kef(circ.he_minus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(deep_snapshot(&body), before, "Lone mef∘kef deep identity");
 
@@ -301,7 +301,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
             tol,
         )
         .unwrap();
-    body.kef(cut.he_minus).unwrap();
+    body.kef(cut.he_minus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "ring-split mef∘kef");
 }
@@ -527,7 +527,7 @@ fn some_single_op_reaches(
     let rings: Vec<LoopKey> = body.faces().flat_map(|(_, f)| f.rings.clone()).collect();
     for ring in rings {
         let mut probe = body.clone();
-        if probe.mfkrh_plug(ring, true).is_ok() {
+        if probe.mfkrh_plug(ring, true, tol).is_ok() {
             candidates.push(probe);
         }
     }
@@ -535,7 +535,7 @@ fn some_single_op_reaches(
     for &f1 in &faces {
         for &f2 in &faces {
             let mut probe = body.clone();
-            if probe.kfmrh(f1, f2).is_ok() {
+            if probe.kfmrh(f1, f2, tol).is_ok() {
                 candidates.push(probe);
             }
         }
@@ -575,7 +575,7 @@ fn kef_mate_alone_has_a_single_op_remake_when_survivor_is_bare_outer() {
         .unwrap();
     let before = canonical_form(&body);
     let b = body.get_half_edge(circ.he_plus).unwrap().next;
-    body.kef(circ.he_plus).unwrap();
+    body.kef(circ.he_plus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     // The single-op re-make:
     let remake = body
@@ -622,7 +622,7 @@ fn kef_mate_alone_with_ring_on_survivor_has_no_single_op_remake() {
     assert_eq!(validate(&body), Ok(()));
     let before = canonical_form(&body);
     let mut after = body.clone();
-    after.kef(circ.he_plus).unwrap();
+    after.kef(circ.he_plus, tol).unwrap();
     assert_eq!(validate(&after), Ok(()));
     let coords = [p(0.0), p(1.0), p(5.0)];
     assert!(
@@ -808,7 +808,7 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
 
     // Promote the planted (non-handle) ring: the naive per-body genus
     // 2h = 2s − (v − e + f − r) goes NEGATIVE...
-    body.mfkrh_plug(kill.ring, true).unwrap();
+    body.mfkrh_plug(kill.ring, true, tol).unwrap();
     assert_eq!(validate(&body), Ok(()), "tier-1 accepts the result");
     let counts = euler_counts(&body);
     assert_eq!(counts.genus(), Ok(-1), "naive derived h = -1 (the finding)");
@@ -1058,7 +1058,7 @@ fn oracle_distinguishes_ring_attachment_even_at_shared_coordinates() {
         if split {
             let other = body.face_of_half_edge(seg.he_minus).unwrap();
             assert_ne!(other, faces.face);
-            body.ring_move(r1.ring, other).unwrap();
+            body.ring_move(r1.ring, other, tol).unwrap();
         }
         assert_eq!(validate(&body), Ok(()));
         body
@@ -1109,8 +1109,8 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
             )
             .unwrap();
         if with_failures {
-            assert!(body.kef(HalfEdgeKey::default()).is_err()); // stale
-            assert!(body.mfkrh_plug(LoopKey::default(), true).is_err()); // stale
+            assert!(body.kef(HalfEdgeKey::default(), tol).is_err()); // stale
+            assert!(body.mfkrh_plug(LoopKey::default(), true, tol).is_err()); // stale
         }
         let strut = body
             .mev_line(
@@ -1124,7 +1124,7 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
             .unwrap();
         body.kev(strut.he_plus).unwrap();
         if with_failures {
-            assert!(body.mfkrh_plug(seed.r#loop, true).is_err()); // outer, RingIsOuter
+            assert!(body.mfkrh_plug(seed.r#loop, true, tol).is_err()); // outer, RingIsOuter
             assert!(body.kvfs(seed.solid).is_err());
         }
         let cut = body
@@ -1136,7 +1136,7 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
                 tol,
             )
             .unwrap();
-        body.kef(cut.he_minus).unwrap();
+        body.kef(cut.he_minus, tol).unwrap();
         body
     };
     let clean = run(false);
@@ -1174,7 +1174,8 @@ fn kvfs_slot_recycling_is_generation_safe() {
         }
     );
     assert_eq!(
-        body.mfkrh_plug(first.r#loop, true).unwrap_err(),
+        body.mfkrh_plug(first.r#loop, true, Tol::witness())
+            .unwrap_err(),
         EulerOpError::StaleKey {
             key: EntityId::Loop(first.r#loop)
         }
@@ -1204,7 +1205,7 @@ fn kef_rejects_a_corrupt_edge_bijection() {
     // Corrupt: seg.edge no longer claims seg.he_plus.
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
     body.get_edge_mut(seg.edge).unwrap().he_minus = split.he_minus;
-    let err = body.kef(seg.he_plus).unwrap_err();
+    let err = body.kef(seg.he_plus, tol).unwrap_err();
     assert_eq!(
         err,
         EulerOpError::UnclaimedHalfEdge {
@@ -1307,7 +1308,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
             body.clone().kev_describing(he, &[], tol).is_err(),
             "kev_describing({he:?}) on the torn chain"
         );
-        let _ = body.clone().kef(he);
+        let _ = body.clone().kef(he, tol);
     }
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     for s in solids {
@@ -1315,7 +1316,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     }
     let loops: Vec<_> = body.loops().map(|(k, _)| k).collect();
     for l in loops {
-        let _ = body.clone().mfkrh_plug(l, true);
+        let _ = body.clone().mfkrh_plug(l, true, tol);
     }
     assert!(
         started.elapsed() < std::time::Duration::from_secs(30),
@@ -1583,7 +1584,7 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     let mut body = t.body;
     let top = t.seed.face;
     let front = t.mefs[1].face;
-    body.kfmrh(top, front).unwrap();
+    body.kfmrh(top, front, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     // Find a half-edge whose mate is in a different loop of the SAME
     // face.
@@ -1599,7 +1600,7 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
         .expect("kfmrh on adjacent faces creates a bridge edge");
     // kef: SameFace, atomic.
     let before = deep_snapshot(&body);
-    let err = body.kef(bridge).unwrap_err();
+    let err = body.kef(bridge, tol).unwrap_err();
     assert!(matches!(err, EulerOpError::SameFace { .. }));
     assert_eq!(deep_snapshot(&body), before);
     // kev (the error text's advice): endpoints are distinct cube
@@ -1651,14 +1652,14 @@ fn same_face_self_loop_bridge_has_no_direct_killer_but_mfkrh_frees_it() {
             tol,
         )
         .unwrap();
-    body.kfmrh(seed.face, circ.face).unwrap();
+    body.kfmrh(seed.face, circ.face, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert!(matches!(
         body.kev(circ.he_plus).unwrap_err(),
         EulerOpError::SelfLoopEdge { .. }
     ));
     assert!(matches!(
-        body.kef(circ.he_plus).unwrap_err(),
+        body.kef(circ.he_plus, tol).unwrap_err(),
         EulerOpError::SameFace { .. }
     ));
     assert!(matches!(
@@ -1666,9 +1667,9 @@ fn same_face_self_loop_bridge_has_no_direct_killer_but_mfkrh_frees_it() {
         EulerOpError::NotSameLoop { .. }
     ));
     // Escape hatch: promote the ring back to a face, then kef.
-    let promoted = body.mfkrh_plug(circ.r#loop, true).unwrap();
+    let promoted = body.mfkrh_plug(circ.r#loop, true, tol).unwrap();
     let _ = promoted;
-    body.kef(circ.he_minus).unwrap();
+    body.kef(circ.he_minus, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(
         body.get_loop(seed.r#loop).unwrap().boundary,

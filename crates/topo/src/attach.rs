@@ -406,7 +406,7 @@ impl<T: Decide> Body<T> {
                     })
                     .collect()
             },
-            curve,
+            Some(curve),
             tol,
         )
     }

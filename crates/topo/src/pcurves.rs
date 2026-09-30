@@ -2312,19 +2312,24 @@ pub(crate) enum SiteLoop {
 }
 
 /// A face a site mint re-mints — one an Euler operator's new
-/// half-edges land on, or one a null edge's halves are on at its
-/// description — described as its door leaves it.
+/// half-edges land on, one a null edge's halves are on at its
+/// description, or one a door moves a loop or run onto — described as
+/// its door leaves it.
 pub(crate) struct SiteFace<T: Real> {
     /// The face whose rows decide whether this one is minted: the face
-    /// itself, or — for `mef`'s new face — the face it is carved from.
-    /// Named by the refusal.
+    /// itself, or — for a face a door makes (`mef`'s new face,
+    /// `mfkrh`'s) — the face it is carved or promoted from. Named by
+    /// the refusal.
     pub(crate) rows_from: FaceKey,
     /// The chart the face is on after the surgery.
     pub(crate) surface: Surface<T>,
-    /// Whether `rows_from`'s rows stand on this face: `false` only for
-    /// a face `mef` carves onto another chart, whose moved run loses
-    /// its rows ([`crate::Body::drop_rows`]).
-    pub(crate) carried: bool,
+    /// Whether a door moves a loop or run onto this face whose rows do
+    /// not stand on it: stated in another chart, or missing
+    /// ([`crate::Body::drop_rows`]). Such a loop is a rewired loop like
+    /// any other, and on an analytic chart it is minted like one; on a
+    /// spline chart the face is left as found rather than refused
+    /// ([`site_rows`] says why).
+    pub(crate) moved: bool,
     /// Its loops after the surgery, outer first.
     pub(crate) loops: Vec<SiteLoop>,
 }
@@ -2387,10 +2392,11 @@ pub(crate) fn site_rows_from<T: Decide>(
 }
 
 /// **The rows a site mint writes onto one face**, derived before its
-/// door mutates: a face an Euler operator adds half-edges to, or one a
+/// door mutates: a face an Euler operator adds half-edges to, one a
 /// null edge's halves are on at its first description
 /// ([`crate::Body::set_edge_curve`]), which re-walks every loop of the
-/// face. `from` is the face as found, on a face [`site_rows_from`]
+/// face, or one a door moves a loop or run onto whose rows do not
+/// stand there ([`crate::Body::drop_rows`] names the doors). `from` is the face as found, on a face [`site_rows_from`]
 /// read further; every other face is left as found, and never reaches
 /// here. The face is re-minted where [`StoredRows::remints`] selects
 /// it, `released` being whether the door takes the last null edge off
@@ -2412,12 +2418,16 @@ pub(crate) fn site_rows_from<T: Decide>(
 ///   the null edge leaves it. Every rewired loop the door leaves
 ///   running through no null edge is minted whole, the rows it missed
 ///   while it was held open among them.
-/// - **A face `mef` carves onto another chart**, or onto a chart that
-///   mints nothing, stays unminted ([`SiteRows::Leave`]): its moved
-///   rows are dropped, and the minting pass owns it.
+/// - **A moved loop or run is a rewired loop** ([`SiteFace::moved`]):
+///   its rows are stated in the chart it left, or missing, so it is
+///   walked whole in the destination's chart, exactly as the minting
+///   pass would walk it there. Which face's rows decide is the door's
+///   (`rows_from`): the destination as found where one receives the
+///   loop, and the face a new one is carved or promoted from.
 /// - **On a spline chart the site mint refuses a COMPLETE face**
 ///   ([`SiteRowRefusal::SplineChart`]) and leaves a face a null edge
-///   holds open anywhere as found (the arm below says why per face).
+///   holds open anywhere, or one a door moves a loop or run onto, as
+///   found (the arm below says why per face).
 ///   The mint of an ANALYTIC chart
 ///   needs nothing the fitted lane holds — [`chart_pcurve`],
 ///   [`walk_cycle`] and [`PcurveCache::certify`] are all `Decide` — and
@@ -2452,10 +2462,10 @@ pub(crate) fn site_rows<T: Decide>(
     body: &Body<T>,
     face: &SiteFace<T>,
     from: &SiteFrom<T>,
-    edge: &geom_brep::EdgeCurve<T>,
+    edge: Option<&geom_brep::EdgeCurve<T>>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
-    if !face.carried || !chart_mints(&face.surface) {
+    if !chart_mints(&face.surface) {
         return Ok(SiteRows::Leave);
     }
     // A spline chart's rows derive through the fitted lane, which a
@@ -2465,10 +2475,15 @@ pub(crate) fn site_rows<T: Decide>(
     // and an operator on one of its complete loops leaves that loop's
     // new halves rowless too, by intent: the face is already
     // incomplete, and a refusal would strand the pipeline mid-surgery
-    // with its null edge, which tier 2 refuses at rest. A complete face
-    // refuses rather than go half-minted.
+    // with its null edge, which tier 2 refuses at rest. A face a door
+    // moves a loop or run onto is left as found too, its moved rows
+    // dropped: the doors that move a loop are the ones that fuse and
+    // merge bodies that arrive minted (a boolean's seam zip, the merge
+    // door, a blend's kills), which have no "move before minting" to
+    // take as a refusal's recourse. A complete face the door adds
+    // half-edges to refuses rather than go half-minted.
     if face.surface.spline_chart().is_some() {
-        return if from.open.is_empty() {
+        return if from.open.is_empty() && !face.moved {
             Err(SiteRowRefusal::SplineChart)
         } else {
             Ok(SiteRows::Leave)
@@ -2513,6 +2528,14 @@ pub(crate) fn site_rows<T: Decide>(
             })
             .collect()
     };
+    fn named<T: Real>(edge: Option<&geom_brep::EdgeCurve<T>>) -> &geom_brep::EdgeCurve<T> {
+        edge.unwrap_or_else(|| {
+            unreachable!(
+                "site_rows: a plan names a new or described half only beside the edge that \
+                 carries it; a door that moves a loop names existing halves alone"
+            )
+        })
+    }
     let traversal = |at: SiteHalf| -> Result<(geom::Curve3<T>, T, T, bool), ItemFail> {
         match at {
             SiteHalf::Existing(he) => {
@@ -2522,10 +2545,12 @@ pub(crate) fn site_rows<T: Decide>(
                 Ok((carrier, t0, t1, plus))
             }
             SiteHalf::NewPlus | SiteHalf::NewMinus => {
+                let edge = named(edge);
                 let (t0, t1) = edge.params();
                 Ok((edge.carrier().clone(), t0, t1, at == SiteHalf::NewPlus))
             }
             SiteHalf::Described(he) => {
+                let edge = named(edge);
                 let (t0, t1) = edge.params();
                 let plus = is_plus(body, he).map_err(|_| ItemFail::Corrupt)?;
                 Ok((edge.carrier().clone(), t0, t1, plus))

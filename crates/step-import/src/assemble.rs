@@ -377,6 +377,7 @@ impl<'a> Builder<'a> {
         edge_id: u64,
         keep: LoopKey,
         dying: LoopKey,
+        tol: Tol,
     ) -> Result<(), StepImportError> {
         let err = |what| StepImportError::Topology { id: edge_id, what };
         let keep_face = self
@@ -403,9 +404,9 @@ impl<'a> Builder<'a> {
             // one of its rings: promote `keep` to a fresh face, then
             // fall through to the cross-face demotion below.
             self.body
-                .mfkrh_plug(keep, true)
+                .mfkrh_plug(keep, true, tol)
                 .map_err(Self::op_err(edge_id))?;
-            return self.make_ring_of(edge_id, keep, dying);
+            return self.make_ring_of(edge_id, keep, dying, tol);
         }
         if dying_is_outer {
             // Demote `dying`'s face wholesale: rings off first
@@ -423,11 +424,11 @@ impl<'a> Builder<'a> {
                 .face;
             for ring in rings {
                 self.body
-                    .ring_move(ring, keep_face)
+                    .ring_move(ring, keep_face, tol)
                     .map_err(Self::op_err(edge_id))?;
             }
             self.body
-                .kfmrh(keep_face, dying_face)
+                .kfmrh(keep_face, dying_face, tol)
                 .map_err(Self::op_err(edge_id))?;
         } else {
             let keep_face = self
@@ -436,7 +437,7 @@ impl<'a> Builder<'a> {
                 .ok_or(err("internal: keep loop does not resolve"))?
                 .face;
             self.body
-                .ring_move(dying, keep_face)
+                .ring_move(dying, keep_face, tol)
                 .map_err(Self::op_err(edge_id))?;
         }
         Ok(())
@@ -485,7 +486,7 @@ impl<'a> Builder<'a> {
                     r#loop: l2,
                 },
             ) => {
-                self.make_ring_of(edge_id, l1, l2)?;
+                self.make_ring_of(edge_id, l1, l2, tol)?;
                 let c = self
                     .body
                     .mekr_chord(
@@ -507,7 +508,7 @@ impl<'a> Builder<'a> {
             ) => {
                 let s_r = self.anchor(rev).ok_or(no_anchor)?;
                 let dying = self.parent_loop(s_r, edge_id)?;
-                self.make_ring_of(edge_id, l1, dying)?;
+                self.make_ring_of(edge_id, l1, dying, tol)?;
                 let c = self
                     .body
                     .mekr_chord(
@@ -529,7 +530,7 @@ impl<'a> Builder<'a> {
             ) => {
                 let s_f = self.anchor(fwd).ok_or(no_anchor)?;
                 let keep = self.parent_loop(s_f, edge_id)?;
-                self.make_ring_of(edge_id, keep, l2)?;
+                self.make_ring_of(edge_id, keep, l2, tol)?;
                 let c = self
                     .body
                     .mekr_chord(
@@ -562,7 +563,7 @@ impl<'a> Builder<'a> {
                             .map_err(Self::op_err(edge_id))?;
                         (c.he_plus, c.he_minus, v1, v2)
                     } else {
-                        self.make_ring_of(edge_id, lf, lr)?;
+                        self.make_ring_of(edge_id, lf, lr, tol)?;
                         let c = self
                             .body
                             .mekr_chord(

@@ -431,7 +431,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
     }
 
     // ---- (3) Excise the crease across its two strips. ----
-    sources.kef_minted(body, hp, "ruled crease kef")?;
+    sources.kef_minted(body, hp, "ruled crease kef", tol)?;
     rec.dead.edges.push(crease);
 
     // ---- (4) Per cap: fold the sliver into the band across the
@@ -450,7 +450,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
         } else {
             ahp
         };
-        sources.kef_minted(body, dying, "cap sliver kef")?;
+        sources.kef_minted(body, dying, "cap sliver kef", tol)?;
         let (bhp, bhm) = halves_of(body, b.near)
             .ok_or_else(|| not_intact(EntityId::Edge(b.near), "a split rim's near piece"))?;
         let spur = if body.half_edge_end(bhm) == Some(v) {

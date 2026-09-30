@@ -931,7 +931,7 @@ pub fn drill_hole<T: geom_core::Decide>(
         )
         .unwrap(),
     );
-    let plug = body.kfmrh(exit, ring.membrane.face).unwrap();
+    let plug = body.kfmrh(exit, ring.membrane.face, tol).unwrap();
     HoleOps {
         ring,
         drops: verticals,

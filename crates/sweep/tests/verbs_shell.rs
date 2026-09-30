@@ -1332,7 +1332,7 @@ fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("the raw glue");
+            sealed.kfmrh(rim, source, tol).expect("the raw glue");
         }
         let errors = topo::validate_geometric(&sealed, tol)
             .expect_err("a ring standing on its outer loop must refuse");
@@ -1729,7 +1729,7 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("the raw glue");
+            sealed.kfmrh(rim, source, tol).expect("the raw glue");
         }
         let new_door = topo::validate_geometric(&sealed, tol).expect_err("must refuse");
         let old_door = topo::contact_marks(&sealed, tol).expect_err("must refuse");
@@ -1805,7 +1805,7 @@ fn r2_probe_other_two_passes_dump() {
         let back = (o_onto - o_from).dot(n_from);
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol).expect("lift");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("glue");
+            sealed.kfmrh(rim, source, tol).expect("glue");
         }
         corpus.push((what.into(), sealed));
     }
@@ -1869,7 +1869,7 @@ fn the_composed_doors_vector_is_the_batterys_on_a_check_9_body() {
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("the raw glue");
+            sealed.kfmrh(rim, source, tol).expect("the raw glue");
         }
         let composed = topo::validate_geometric(&sealed, tol).expect_err("the composed door");
         let battery = topo::contact_marks(&sealed, tol).expect_err("the battery");

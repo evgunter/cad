@@ -715,7 +715,7 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
         body.detach_pcurve(he).unwrap();
     }
     assert_eq!(validate_pcurves(&body, band()), vec![]);
-    body.kef(made.he_plus).unwrap();
+    body.kef(made.he_plus, tol()).unwrap();
     let mut want: Vec<HalfEdgeKey> = unminted
         .into_iter()
         .filter(|&he| he != made.he_minus)
