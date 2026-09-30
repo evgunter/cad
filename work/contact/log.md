@@ -898,3 +898,24 @@ Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `contact_verify::fit_steer` takes the `Contradiction` the rung set instead of reading `diag.predicate`, with unchanged behaviour. In `solid_contain.rs`, the quartic count check returns `TorusRoots::CountDisagrees` instead of an `INVALID` escalation; the ray cast maps it back to `PointInSolidError::Escalated` under `bool_ray_torus_count` (behaviour unchanged there), and the Boolean's root lanes refuse on it as `ClassificationInvariant`. `QuarticRows` loses its `count` name. Evidence added to `contain-escalation-carries-no-decision`. (TOPO implementer)
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/census.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
 - 2026-09-30 — Seam note from TOPO: PR 3493's fix pass ends the Boolean's `BooleanDecision::Containment` on its lever alone, as `validate::classify_contain` does, since the escalation does not carry which rung refused and the rungs' pass sets differ by caller. What carrying the rung needs is added to `contain-escalation-carries-no-decision`. (TOPO implementer)
+
+- 2026-09-30 — **Owed by CONTACT-10 on resume: TOPO's PR 3493 overlaps it**
+  (merged on main, with notes on
+  `contain-escalation-carries-no-decision`).
+  - **What 3493 added:** a closed `boolean::BooleanDecision::Containment`
+    for the Boolean's face-containment escalations
+    (`boolean::refusal_routes`).
+  - **What its fix pass found:** `bool_curved_contain_carrier` is a
+    residual at `reduce::wall_crossing` (it passes only at Zero), and
+    `bool_curved_contain_period` refuses a negative margin. So
+    `Containment` ends on its lever alone at every wrap site.
+  - **Where that contradicts CONTACT-10:** the stopped fix pass
+    (`b4d1bcab6`) gives `ContainDecision::Carrier` a two-sided valued
+    tighten.
+  - **On resume:** merge main first. Take 3493's residual finding for
+    Carrier (lever alone, or the pass set that holds only at Zero).
+    Reconcile `ContainDecision` with `BooleanDecision::Containment`,
+    so the boolean path carries the walk's decision rather than a
+    second spelling. Re-check the filed
+    `boolean-door-drops-the-containment-decision` against what 3493
+    already did.
