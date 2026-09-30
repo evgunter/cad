@@ -663,7 +663,6 @@ impl SlotId {
             Self::TubeWindowStart => "tube window start".to_owned(),
             Self::TubeWindowEnd => "tube window end".to_owned(),
             Self::TubeWall => "tube wall".to_owned(),
-            Self::RotationAngle => "rotation angle".to_owned(),
             Self::Spacing => "spacing".to_owned(),
             Self::Step => "angular step".to_owned(),
             Self::Count => "count".to_owned(),
@@ -673,10 +672,11 @@ impl SlotId {
             Self::Profile { loop_, step, arg } => {
                 format!("loop {loop_} step {step} · {}", arg.label())
             }
-            Self::PlacementStep { step, arg } => match arg {
-                RigidArg::RotationAngle => rigid_label(step.get(), "rotation angle"),
-                // Components, answered above.
-                RigidArg::Translation(_) | RigidArg::RotationAxis(_) => String::from("component"),
+            // A rigid step's angle, at any step; its components were
+            // answered above.
+            Self::RotationAngle | Self::PlacementStep { .. } => match self.rigid_arg() {
+                Some((step, RigidArg::RotationAngle)) => rigid_label(step, "rotation angle"),
+                _ => String::from("component"),
             },
             // Every component variant answered above.
             Self::Origin(_)
