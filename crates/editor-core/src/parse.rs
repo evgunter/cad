@@ -954,6 +954,148 @@ fn function(pos: usize, name: &str) -> Result<(&'static str, usize), ParseError>
 }
 
 #[cfg(test)]
+#[path = "parse_main_probe.rs"]
+mod main_probe;
+
+#[cfg(test)]
+mod review_fuzz {
+    #![allow(clippy::all, clippy::pedantic, clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+    use super::*;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+    }
+
+    const ATOMS: &[&str] = &[
+        "1", "2", "0", "3.5", "1e3", "2.0", "1e-2", "9223372036854775808", "7 mm", "2 m",
+        "1 in", "3 deg", "1 rad", "2 pi rad", "1 pi", "4 foo", "1.5 cm", "w", "h", "n", "a",
+        "s", "x", "sin", "0.0", "1e", "5 mm mm", "1 rad x",
+    ];
+    const FUNCS: &[&str] = &["sin", "cos", "tan", "scalar", "atan2", "min", "max", "foo"];
+    const OPS: &[&str] = &["+", "-", "*", "/"];
+    const NOISE: &[&str] = &["(", ")", ",", "+", "-", "*", "/", "#", " ", "", "sin(", "1", "w"];
+
+    fn generate(r: &mut Rng, depth: usize, out: &mut String) {
+        let pick = if depth > 5 { r.below(3) } else { r.below(9) };
+        match pick {
+            0 | 1 | 2 => out.push_str(ATOMS[r.below(ATOMS.len())]),
+            3 | 4 => {
+                generate(r, depth + 1, out);
+                out.push_str(OPS[r.below(OPS.len())]);
+                generate(r, depth + 1, out);
+            }
+            5 => {
+                for _ in 0..r.below(3) + 1 {
+                    out.push('-');
+                }
+                generate(r, depth + 1, out);
+            }
+            6 => {
+                out.push('(');
+                generate(r, depth + 1, out);
+                out.push(')');
+            }
+            _ => {
+                out.push_str(FUNCS[r.below(FUNCS.len())]);
+                out.push('(');
+                for i in 0..r.below(4) {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    generate(r, depth + 1, out);
+                }
+                out.push(')');
+            }
+        }
+        if r.below(6) == 0 {
+            out.push(' ');
+        }
+    }
+
+    fn mutate(r: &mut Rng, s: &str) -> String {
+        let mut chars: Vec<char> = s.chars().collect();
+        for _ in 0..r.below(3) {
+            let at = if chars.is_empty() { 0 } else { r.below(chars.len() + 1) };
+            match r.below(3) {
+                0 if at < chars.len() => {
+                    chars.remove(at);
+                }
+                _ => {
+                    let ins: Vec<char> = NOISE[r.below(NOISE.len())].chars().collect();
+                    for (k, c) in ins.into_iter().enumerate() {
+                        chars.insert(at + k, c);
+                    }
+                }
+            }
+        }
+        chars.into_iter().collect()
+    }
+
+    fn same(a: &Result<Expr, ParseError>, b: &Result<Expr, ParseError>) -> bool {
+        match (a, b) {
+            (Ok(x), Ok(y)) => x.bit_eq(y) && x == y && x.nesting() == y.nesting(),
+            (Err(x), Err(y)) => x == y,
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn review_the_rewritten_parser_agrees_with_the_merge_base_one() {
+        let mut params = BTreeMap::new();
+        for (n, d) in [
+            ("w", Dimension::Length),
+            ("h", Dimension::Length),
+            ("n", Dimension::Count),
+            ("a", Dimension::Angle),
+            ("s", Dimension::Scalar),
+        ] {
+            params.insert(ParamName::new(n).unwrap(), d);
+        }
+        let mut r = Rng(0x9E37_79B9_7F4A_7C15);
+        let (mut ok, mut err, mut cases) = (0usize, 0usize, 0usize);
+        let mut kinds = std::collections::BTreeMap::<String, usize>::new();
+        for i in 0..400_000 {
+            let mut s = String::new();
+            generate(&mut r, 0, &mut s);
+            if i % 2 == 1 {
+                s = mutate(&mut r, &s);
+            }
+            let new = parse_expr(&s, &params);
+            let old = main_probe::parse_expr(&s, &params);
+            assert!(same(&new, &old), "{s:?}\n new: {new:?}\n old: {old:?}");
+            cases += 1;
+            match &new {
+                Ok(_) => ok += 1,
+                Err(e) => {
+                    err += 1;
+                    let k = format!("{e:?}");
+                    let k = k.split(|c: char| !c.is_alphanumeric()).next().unwrap().to_string();
+                    let k = match e {
+                        ParseError::Dimension { error, .. } => format!("{k}:{error:?}")
+                            .split(|c: char| c == '{' || c == '(')
+                            .next()
+                            .unwrap()
+                            .to_string(),
+                        _ => k,
+                    };
+                    *kinds.entry(k).or_default() += 1;
+                }
+            }
+        }
+        eprintln!("REVIEW-FUZZ cases {cases} ok {ok} err {err} kinds {kinds:?}");
+    }
+}
+
+#[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
 
