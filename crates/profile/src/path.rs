@@ -153,7 +153,7 @@
 //!
 //! ```
 //! use geom_core::{Point2, Tol};
-//! use profile::{Open, Profile, SketchPlane, Start};
+//! use profile::{ConstructedProfile, Open, SketchPlane, Start};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let tol = Tol::witness();
@@ -170,7 +170,7 @@
 //! // The chain also RECORDED itself: the program replays to the same
 //! // loop, bit for bit (profiles-as-programs v2 — see [`program`]).
 //! assert_eq!(square.program.len(), 13);
-//! Profile::new(SketchPlane::xy(), vec![square.loop_]).validate(tol)?;
+//! ConstructedProfile::new(SketchPlane::xy(), vec![square.loop_]).validate(tol)?;
 //! # Ok(())
 //! # }
 //! ```
