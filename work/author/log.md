@@ -1438,3 +1438,13 @@ B moved to A's answer and withdrew its oracle. A kept its answer and adopted B's
 - Corrected `plan.md`'s `E` price for it (it is `M`, design).
 
 **Measured, not filed; seam note on EDIT (owner of `editor-core/src/range.rs`):** `plate_param`'s nominal sits exactly on `bool_join_nearest` Zero verdicts. That is probably authored coincident geometry, and would bear on the certified range's "certifies nothing on the corpus" table.
+
+## 2026-09-30 — AUTH-10 MERGED (`ff728d14`): a held face pick is drawn
+
+Ten units closed. **The duplication trap fired a tenth time**, as two colour decisions in `gpu.rs` beside `theme.rs`, plus a half-done rename. The style review caught both.
+
+**This unit's lesson is about CI's reach, not duplication.** The first head's edge shader used `@interpolate(linear)`. naga validates it, and it builds on Vulkan (lavapipe), but it cannot be written as GLSL ES, so the viewer would have panicked on WebGL2 and native GLES. No CI job exercises the GL backend: the device row is Vulkan and the wasm32 job only runs clippy. The correctness reviewer found it by running naga's GLSL writer. The unit now carries a no-GPU row, `gpu::tests::every_entry_point_translates_to_glsl_es_300`, which holds the class.
+
+**A re-verification after the fix pass was worth it.** The fix pass reached new code (a refusal arm, an opaque `Composed`, a `HeldEdges` refactor). The reviewer confirmed that F1 and F2 were closed, and found the fix's own "exact interpolation" claim false; it was fixed before merge.
+
+Review tier: correctness + style, then a correctness re-verification of the fix pass.
