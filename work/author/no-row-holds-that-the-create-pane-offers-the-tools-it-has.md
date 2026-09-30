@@ -2,12 +2,13 @@
 id: no-row-holds-that-the-create-pane-offers-the-tools-it-has
 kind: issue
 title: No row holds that the chrome CALLS its tool panels — nine activation buttons across create_ui and properties_ui are reachable only through a ViewerBehavior no test can build
-status: review
+status: closed
 opened: 2026-09-22
 priority: P1
 cost: D
 branch: author/tool-census
 pr: 3573
+closed: 2026-09-30
 ---
 
 
@@ -119,3 +120,12 @@ for its two panels and for the seven that shipped before them, is that
   words are `pane::create` consts. `ToolKind::label` is now the bare
   noun, with `says`, `button` and `commit` composing over it, which
   closed `a-tools-commit-button-spells-its-name-a-second-time`.
+
+## Closed 2026-09-30 — PR 3573 merged (`0c9f05e1`)
+
+**Every tool the chrome has is reachable, and a row says so.**
+- The census `every_tool_opens_from_its_activation_button` sweeps `ToolKind::ALL` through one whole-app run. For each kind it opens that kind's section (`section_of`), clicks the button whose text is `kind.button()`, and asserts that exactly that tool opened.
+- It turns red if any panel call is deleted, if a button is spelled differently, or if a tool moves to another section, including to the top level.
+- `the_extrude_form_and_the_part_chooser_are_reachable` holds the two parts of the create pane that nothing held.
+
+**One name home.** `ToolKind::label()` is the bare noun, and `says`, `button` and `commit` compose over it. The nine activation buttons, the nine commit buttons and the section headings no longer spell their words twice. This also closed `a-tools-commit-button-spells-its-name-a-second-time`. Filed: `the-mate-and-blend-commit-rows-restate-tool-commit-row` (P4).
