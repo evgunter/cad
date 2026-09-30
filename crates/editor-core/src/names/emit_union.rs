@@ -10,7 +10,7 @@
 //! step already wrapped in one [`RoleSeg::FromMember`] carrying that
 //! member's node id. Every operand of every step is therefore in the
 //! union's own name space, and every name the pair emitter embeds — a
-//! seam's two sides, a merge's constituents, a fragment's partners —
+//! seam's two sides, a merge's constituents, a fragment's walls —
 //! already says which member it came from. It has to be put there: a
 //! pass-through op mints no name (N1), so N placements of one
 //! prototype carry N IDENTICAL tables and no inner name can tell them

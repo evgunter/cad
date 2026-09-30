@@ -1,5 +1,5 @@
 //! M4 PR 3 naming tests, part 2 (spec D3/D5/D6): boolean roles
-//! (FromA/FromB/Seam), N2 discriminators (SideOf sign vectors,
+//! (FromA/FromB/Seam), N2 discriminators (`Borders` wall sets,
 //! OrderAlong sub-edge ranks), the genuine-tie fixture, and
 //! discriminator-flip localization (counted).
 #![allow(
@@ -166,10 +166,10 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
     assert!(t.iter().all(|(_, e)| matches!(e, Entry::Unique(_))));
 }
 
-// ---- SideOf sign vectors on the through-slot subtract. ----
+// ---- Borders wall sets on the through-slot subtract. ----
 
 #[test]
-fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
+fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 3×3×1 block; B: a slot crossing the top cap fully in y.
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
@@ -229,9 +229,9 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
     // B: U-shaped prongs along −x, base OUTSIDE A (x ∈ [5,6]), prong
     // tips crossing A's wall x = 4; z ∈ [1,3] (inside A). B's caps
     // (z = 1 and z = 3, U-shaped, horizontal) are each cut by A's
-    // wall x = 4 into TWO prong fragments on the SAME side of the
-    // only cutting carrier — no covariant qualifier separates them:
-    // the N2 tie, recorded, naming total.
+    // wall x = 4 into TWO prong fragments that border the same one
+    // wall — no covariant qualifier separates them: the N2 tie,
+    // recorded, naming total.
     let (doc, p) = on_frame(
         doc,
         [0.0, 0.0, 1.0],

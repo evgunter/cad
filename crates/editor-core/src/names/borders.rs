@@ -94,7 +94,30 @@ impl<K: Ord + Clone> Obstacles<K> {
             .iter()
             .flat_map(|d| d.seams.iter().copied())
             .collect();
+        // A row's chains are in its operand's clone keys: A's are the
+        // result's, B's are read through the graft's edge rows, and an
+        // ancestor the graft does not carry ends the chain.
+        if !naming.discards.is_empty()
+            && (naming.a_keys, naming.b_keys)
+                != (topo::OperandKeys::Direct, topo::OperandKeys::Grafted)
+        {
+            return Err(bug("a boolean recorded discards in a key layout it has no rows for"));
+        }
+        let grafted: BTreeMap<EdgeKey, EdgeKey> = naming
+            .graft_edges
+            .iter()
+            .chain(&naming.graft_dead_edges)
+            .copied()
+            .collect();
         for row in &naming.discards {
+            let chains: Vec<Vec<EdgeKey>> = row
+                .boundary_chains
+                .iter()
+                .map(|chain| match row.operand {
+                    topo::Operand::A => chain.clone(),
+                    topo::Operand::B => chain.iter().map_while(|k| grafted.get(k).copied()).collect(),
+                })
+                .collect();
             let mut seams = Vec::new();
             for &(u, w) in &row.bordered {
                 let (u, w) = (settle(u)?, settle(w)?);
@@ -104,13 +127,12 @@ impl<K: Ord + Clone> Obstacles<K> {
                     seams.extend(es.iter().copied());
                 }
             }
-            for chain in &row.boundary_chains {
+            for chain in &chains {
                 for w in chain.windows(2) {
                     self.dead_split.insert(w[0], w[1]);
                 }
             }
-            let touches = row
-                .boundary_chains
+            let touches = chains
                 .iter()
                 .flatten()
                 .filter(|k| earlier.contains(k))
