@@ -10,8 +10,8 @@ cost: E
 
 ## Finding
 
-`crates/editor-core/src/names/emit_topo.rs`, `face_plane`'s doc
-(~:57) says the sense fold is the identity and no name moves, because
+`crates/editor-core/src/names/emit_topo.rs`, `carrier_plane`'s doc
+(it was `face_plane`'s until PR 3542 moved the paragraph) says the sense fold is the identity and no name moves, because
 "every face this build mints has `sense: true`". That has not held
 since M5 S11: extrude states `false` on a concave arc wall, and
 revolve on its inward walls (`crates/sweep/tests/m5_s11_concave_sense.rs`).

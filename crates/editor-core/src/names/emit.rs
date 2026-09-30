@@ -322,18 +322,16 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
-    /// A seam's pieces, ranked along their two sides' `n_a × n_b`, where
-    /// a side has no one oriented plane: its carrier is curved, or (in a
-    /// union) a tie leaves it as several faces on different carriers.
-    /// Every ranker along a seam line reads that direction — the pair
-    /// boolean's seam chain, the rankers that know a seam by its name,
-    /// and the union's seam pieces.
+    /// A group ranked along a seam line's `n_a × n_b`, where a side has
+    /// no one oriented plane: its carrier is curved, or a tie leaves it
+    /// as several faces on different carriers.
     ///
     /// The recipe is legal and the body sound; the naming has no rule
     /// for a curved reference or for choosing among tied ones, so this
     /// is a missing rule and not an [`Self::Emission`].
     SplitReference {
-        /// The seam the pieces share.
+        /// The group being ranked along the seam line: the seam's
+        /// pieces, or the pieces or crossings of an edge that lies on it.
         group: Box<StableName>,
         /// The side without a plane, by the name the seam records it
         /// under.
@@ -438,6 +436,22 @@ impl core::fmt::Display for RimShare {
 // op variants unaltered (`NodeErrorKind`'s Display note, D2), this is
 // editor-core's OWN error: rendering it IS the op's vocabulary, and
 // there is no other path by which it reaches a human.
+impl NamingError {
+    /// [`Self::SplitReference`]: the one spelling every seam ranker
+    /// refuses with.
+    pub(crate) fn split_reference(
+        group: &StableName,
+        reference: &StableName,
+        curved: bool,
+    ) -> Self {
+        Self::SplitReference {
+            group: Box::new(group.clone()),
+            reference: Box::new(reference.clone()),
+            curved,
+        }
+    }
+}
+
 impl core::fmt::Display for NamingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

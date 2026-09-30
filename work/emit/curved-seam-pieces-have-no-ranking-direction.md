@@ -19,9 +19,18 @@ over the two sides' outward plane normals:
   reached from the descent ranker and `resolve_edge_carrier`);
 - the union's seam pieces (`emit_union::name_by_parents`).
 
-A side on a curved carrier has no plane, so each of them refuses
-`NamingError::SplitReference { curved: true }`, a missing rule. The
-recipe is legal and the body sound.
+A side on a curved carrier has no plane, and each ranker refuses a
+curved side with `NamingError::SplitReference { curved: true }`, a
+missing rule. The recipe is legal and the body sound.
+
+Two details of the refusal as it stands:
+- `resolve_edge_carrier` (the seam-vertex carrier) prefers the A
+  parent's carrier and falls back to B only when A has none. A curved
+  A side refuses; it does not fall back to B.
+- In a union the refusal comes from the fold's pair step, which names
+  the seam `Seam { a, b }` in member order. The `group` a refusal
+  carries therefore depends on member order: every order cites the
+  same seam, but which side is `a` changes.
 
 ## Evidence
 
@@ -30,14 +39,30 @@ A cylinder of radius 0.3 lying along y across a plate's top (the plate
 for 5.0) unions to a sound body. The pair boolean and the union in both
 member orders refuse `SplitReference`, citing the cylinder's wall
 (`crates/editor-core/tests/emit_union_borders.rs`,
-`a_curved_divider_answers_as_the_pair_boolean_does`).
+`a_curved_divider_answers_as_the_pair_boolean_does`). That fixture
+reaches the pair boolean's seam chain; in the union it reaches the same
+site through the fold's pair step, not `emit_union`'s own ranker.
+
+**Untested: `seam_line_dir`'s curved refusal.** Reaching it needs a
+curved seam minted in one step and cut by a later step that mints no
+curved seam chain of its own. The seam-chain site runs first in a step,
+so a new curved chain refuses there before any descent is ranked. Two
+cheap attempts, a vertically sunk cylinder boss on a plate with a slab
+subtracted across it, did not reach it:
+- a slab from inside the plate (z 0.5 to 1.2) refuses in the kernel
+  (`CurvedSectorSideUnsupported`);
+- a slab from above, x in [-1, 4] and y in [1.4, 1.6], refuses at the
+  new step's seam chain.
+
+Turned 90°, the slab from above refuses `Duplicate` instead
+(`a-slot-across-a-sunk-cylinder-boss-refuses-duplicate-merged-face-name`).
 
 ## The question
 
 Which direction a curved seam's pieces are ranked along. It has to be
 one direction that every ranker along the seam reads, whichever step
 cut it (`seam_line_dir`'s contract), and its sign has to move only when
-the two faces' material sides do (S10, `emit_topo::face_plane`). Some
+the two faces' material sides do (S10, `emit_topo::carrier_plane`). Some
 candidates:
 - the planar side's normal crossed with the curved side's normal
   sampled at a point of the seam: one line, but the sample has to be
