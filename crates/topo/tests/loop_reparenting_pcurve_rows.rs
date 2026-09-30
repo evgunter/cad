@@ -1624,7 +1624,8 @@ fn outer_cycle(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
 /// is accepted unmeasured.
 ///
 /// That is a property of the pass rather than of the door, and it is
-/// why `set_edge_curve` stays `Neither` with the blind spot named
+/// why `set_edge_curve` keeps the rows it finds with the blind spot
+/// named — re-minting only where a null edge gets its first carrier —
 /// rather than dropping rows to convert it into a `MissingCache`:
 /// every content staleness in the tree meets the same silence, and the
 /// row that closes it closes them all.
