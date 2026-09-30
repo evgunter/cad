@@ -1116,3 +1116,57 @@ track budgets, spec notes under `docs/doc-ledger/`.
 - CHROME's `viewer-own-refusals-are-held-to-no-shape-guard`
 
 - 2026-09-30 — Seam note from TOPO: PR 3493 (`topo/route-refusal-subjects`) gives `topo::decision_words` words for the containment walk's predicates, the sector rungs and `split_edge_param_interior`, read from the Boolean's closed decision types, and takes none for `bool_contact_vertex` or `bool_contact_arc`, each raised under two decisions. In your files, `edit_refusal_recourse.rs`'s `WORDLESS` drops the ten predicates that now have words and lists `bool_contact_vertex` under "one name, two decisions"; `refusal_concision_chains.rs` builds `SplitReduceError::CrossingEscalated` with a `topo::ConicRootFault`. The new counts are on `flip-reports-name-no-decision-for-most-predicates`. (TOPO implementer)
+
+## 2026-09-30 — eighteenth sitting: the Placement type and the depth bound merged; split and inline under gauges put to Ev
+
+**Merged.**
+- **The part-refusal feature-tree half (#3492).** Single review, then a fix pass.
+  - The `Workspace` door's unknown-id recourse is worded per door: "…then open the store again". `WorkspaceError::resolve_failure` takes the resolver's `Scan` posture (`AtOpen`, `PerResolution`), because a `Workspace` is a snapshot by contract.
+  - The resolve door's `Io` and `Pin` arms state their recourses.
+  - `WithPart`'s pin arm is reachable, so it states a recourse and not a defect ending.
+  - One `sentence::Staged` rendering serves three error types.
+  - The viewer carries a `NoFile` resolver, so a no-file session's badge moves from `NoResolver` to `Unresolved`.
+  - Both riders are closed; the main row stays open.
+- **Triage (#3498).** Three rows banded P3: the name-door role check (`design: true`), the flip-report words, and persist's replay recourse.
+- **P1 of the placement slate: `Node::Transform` holds a `Placement` (#3497).** The review was dual, row DR-26.
+  - Both reviews: APPROVE-WITH-FIXES, no MAJOR. Both found every corpus motion bit-identical, base against head.
+  - The blinded coding tallied 0 of 21 groups, so the readout counts stay at 4 of 8 and 9 of 12.
+  - The fix pass took the union:
+    - `then` is retired for `compose`, in `Frame::compose`'s order.
+    - The content key's arm is guarded.
+    - A non-rigid literal, registry frame or listed frame is refused at the edit and load doors by the evaluation's own predicate, `topo::check_rigid`. The mate solve's `PlacerRefused` now names the transform.
+    - The A6 arms carry the frame site and a recourse: 2 of the shape-guard row's 7 placement arms are done.
+    - There is one composition rule, so an identity step moves no bit.
+    - `Step::Rigid` has named fields, and Python's `Placement.rigid` is keyword-only, so no positional `[Expr; 3]` swap is minted.
+    - `Step::Literal` is the name everywhere, wire included.
+    - Labels count from one.
+  - The placement row returned to `spec` for P2 (#3507).
+- **The part depth bound (#3501).** Single review, then a fix pass.
+  - The part descent runs bottom-up on the heap, so a chain one past `MAX_DEPTH` (still 1024) refuses `DepthExceeded` on a 1 MiB stack.
+  - A miss below the top is a typed kernel defect, `PartFault::NotEntered`, and never a recursion.
+  - Below the top, every instantiated part is evaluated whether or not its instance asks. This is disclosed: a sym session or shape report sees the extra decisions and the bottom-up order, but no shipped door installs one over a resolver.
+  - Python chains fold past 256 links, because CPython 3.11's excepthook gives up at about 1000.
+
+**Rows filed off these units:**
+- EXCH: `step-parser-recurses-once-per-nested-list-and-a-deep-file-kills-the-process` (P1).
+- ORIGIN: `a-source-expr-nests-one-level-per-placement-and-every-copy-clones-the-chain` (P2); time at the depth bound is quadratic.
+- LIB: `python-slot-words-stop-short-of-a-step-index`.
+- OFFER: `viewer-free-move-decides-rigidity-by-its-own-predicate`, for P3.
+- EDIT: the expression-nesting and stable-name-nesting P1 crash rows.
+
+**`[ev]` #3505: what split and inline do with gauges** (fork-log row 21; designer pair, one reconciliation round).
+- The designers agree on these points:
+  - Gauges nest.
+  - Split and inline move authored structure verbatim and compute no frame.
+  - Anything needing a computed frame refuses, typed.
+  - A mate crosses the seam only when its frame's coordinates do not change.
+- Four choices are stated at my leans.
+- The broader fix, M1 (a mate frame written in the face's own document), is its own MSOLVE question. Ev asked whether it supersedes the PR; I answered that it does not, since it only dissolves the frame rule and settles choice 1.
+- Defects on main that the designers found, moot once P2 lands and to be pinned by P2's rows:
+  - inline reads the cluster's frame (`gauge_of`), not the instance's pose;
+  - inline rebinds mate heads without re-coordinating their frames;
+  - the code's cluster "gauge" (`gauge_of`, `TornCluster { gauge }`) needs renaming to "root" before gauge nodes land.
+
+**Operations.**
+- A container restart at about 23:40 killed both live lanes. The P1 implementer had finished: its PR and CI were complete, and only its report was lost. The depth lane's uncommitted work was pushed as a WIP commit, and the lane was re-dispatched.
+- Wave 28: the two nesting P1 rows, dispatched as `edit/expr-nesting-bound` and `edit/name-nesting-stack-safe`.
