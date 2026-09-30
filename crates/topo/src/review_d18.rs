@@ -906,7 +906,7 @@ const SPENT_GRAFT_EXPOSURE: [(&str, usize); 9] = [
     ("kemr", 2),
     (KEMR_CYCLE_RING, 2),
     (KEMR_EMPTY_RING, 0),
-    ("kev", 50),
+    ("kev", 25),
     ("mef_chord", 90),
     ("mev_line", 54),
     ("mfkrh_plug", 7),
