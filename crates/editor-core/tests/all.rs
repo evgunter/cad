@@ -654,3 +654,5 @@ mod emit_union_flush_names;
 mod emit_union_rim_piece_ranks;
 #[path = "zz_place1_r1_motion.rs"]
 mod zz_place1_r1_motion;
+#[path = "zz_place1_r1_probes.rs"]
+mod zz_place1_r1_probes;

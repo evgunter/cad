@@ -709,9 +709,7 @@ fn transform_map<P: crate::ProfilePayload>(
     let Some(Node::Transform { placement, .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
     };
-    let m = placement.eval(env, band).map_err(here)?;
-    eprintln!("PROBE_MATE {} {:?}", node.0, m);
-    Ok(m)
+    placement.eval(env, band).map_err(here)
 }
 
 /// **The placer's slots, in `env`** — [`eval_slots`], the
