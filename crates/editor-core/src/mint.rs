@@ -69,11 +69,12 @@ impl Minted {
     }
 }
 
-/// Why the mint refused a node id.
+/// Why the mint refused a node id; the insert door reports it as
+/// [`crate::EditError::NodeIdCollides`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NodeIdCollides {
+pub(crate) struct NodeIdCollides {
     /// The id the insert drew, which the log already holds.
-    pub id: RecipeNodeId,
+    pub(crate) id: RecipeNodeId,
 }
 
 /// **A minting edit**, as the mint reads it: the node an `InsertNode`
@@ -157,14 +158,16 @@ impl Mint {
     }
 
     /// The chain digest the next minting edit extends.
+    #[cfg(test)]
     #[must_use]
-    pub fn chain(&self) -> [u8; 32] {
+    pub(crate) fn chain(&self) -> [u8; 32] {
         self.chain
     }
 
     /// Every id the document has minted, ascending by id.
+    #[cfg(test)]
     #[must_use]
-    pub fn log(&self) -> &[Minted] {
+    pub(crate) fn log(&self) -> &[Minted] {
         &self.log
     }
 
@@ -177,7 +180,8 @@ impl Mint {
     }
 
     /// Every node id the document has minted, ascending.
-    pub fn nodes(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {
+    #[cfg(test)]
+    pub(crate) fn nodes(&self) -> impl Iterator<Item = RecipeNodeId> + '_ {
         self.log.iter().filter_map(|entry| match *entry {
             Minted::Node(id) => Some(id),
             Minted::Step(_) => None,
@@ -190,9 +194,10 @@ impl Mint {
             .is_ok_and(|at| self.log[at] == entry)
     }
 
-    /// Whether the document minted `id` as a node's id.
+    /// Whether the document minted `id` as a node's id: what
+    /// [`crate::Doc::has_minted`] answers.
     #[must_use]
-    pub fn has_node(&self, id: RecipeNodeId) -> bool {
+    pub(crate) fn has_node(&self, id: RecipeNodeId) -> bool {
         self.holds(Minted::Node(id))
     }
 

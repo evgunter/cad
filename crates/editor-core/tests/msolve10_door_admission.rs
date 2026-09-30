@@ -387,10 +387,11 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
         "nothing was minted for the refusal"
     );
     assert_eq!(after.order().len(), before.order().len() + 1);
+    let (unasked, _) = insert(before, mate(body, ids[0], ids[1], seat(None)));
     assert_eq!(
-        after.mint().nodes().count(),
-        before.mint().nodes().count() + 1,
-        "one insert, one node id"
+        after.mint(),
+        unasked.mint(),
+        "the refusal left the chain and the log as though it was never asked"
     );
 }
 
