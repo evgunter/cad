@@ -19,11 +19,19 @@ Ev's ruling on PR 2527 (recorded in
 "a typed refusal at the fitted frontier". `mev`, `mef` and `mekr` hold
 that: on a complete SPLINE face they refuse `PcurveMint { SplineChart }`
 before mutating (`pcurves::site_rows`). The doors that move a loop or
-run onto a face (`kfmrh`, `ring_move`, `mfkrh`, `kef`, their
-`_minting` twins, and `mef`'s new face across a chart change) do not: on a complete spline destination
-whose moved rows do not stand, they drop the moved rows and leave the
-destination half-minted (`SiteFace::moved`, `site_rows`' spline arm),
-because the item's shape said "a spline destination keeps the drop".
+run onto an existing face (`kfmrh`, `ring_move`, `kef` and their
+`_minting` twins) do not: on a complete spline destination whose moved
+rows do not stand, they drop the moved rows and leave the destination
+half-minted (`SiteFace::moved`, `site_rows`' spline arm), because the
+item's shape said "a spline destination keeps the drop". The doors
+that MAKE the face a loop or run lands on are not in this class: that
+face stores no row of its own, so dropping the moved rows leaves it
+unminted, not half-minted. `mfkrh`'s new face is bounded by the
+promoted ring alone (`mfkrh_plug_drops_the_promoted_rings_rows` reads
+`(0, 4)` on the placeholder chart); `mef` carving
+the sheet's minted lower panel with its new face on a NURBS patch
+leaves that face `(0, 4)` and the panel `(4, 0)` (measured by
+execution at this item's fix pass, not committed).
 The reason given at the site: the doors that move a loop are the ones
 that fuse and merge bodies arriving minted, which have no "move before
 minting" to take as a refusal's recourse.

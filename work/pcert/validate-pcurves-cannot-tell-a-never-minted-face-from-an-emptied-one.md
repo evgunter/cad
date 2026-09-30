@@ -140,17 +140,26 @@ left as found, and still reads as never minted. What moved:
   (`kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart`);
   so do `kfmrh` and `ring_move` of a rowless or re-charted loop onto a
   minted curved face.
-- **A new silent case, larger than the one it replaces.** Where the
-  moved loop does not walk in the destination's chart as the door
-  leaves it, the site mint empties the destination rather than leave
-  it half-minted, and this pass then reads it as never minted. Measured
-  on sweep's `ci` profile (probes on every moving door, not committed):
-  of the `kef`s that land a remnant across a chart change on a
-  complete analytic face, 723 now mint it and 316 empty it, nearly
-  all of those in the blend surgery's `kef_minted` mid-carve and 6 in
-  `curved_mergedoor`'s rows (the walk refuses at certification,
-  `MapResidual`, or at the closed-form derivation);
-  on the merge base each of those left the face half-minted, which
-  this pass reported per rowless half. Most are re-minted by the
-  blend's closing pass; the rest are probe rows that stop mid-carve.
+- **A new silent case, and where it goes.** Where the moved loop does
+  not walk in the destination's chart as the door leaves it, the site
+  mint empties the destination rather than leave it half-minted, and
+  this pass then reads it as never minted. Measured on sweep's `ci`
+  profile (the PR's review instrumented every band door's plan and
+  every whole-body mint, not committed, and the fix pass re-ran it
+  after moving the merge door onto the twins): the band doors empty a
+  face 317 times, nearly all in the blend surgery's `kef_minted`
+  mid-carve and 6 in `curved_mergedoor`'s rows (the walk refuses at
+  certification, `MapResidual`, or at the closed-form derivation). Of
+  those 317, the producer's closing `mint_pcurves` re-mints 147; 169
+  faces are killed later in the same carve or zip, all within carves
+  that complete; and 1 reaches its caller emptied —
+  `verbs_sphsph_chart::a_ringed_sphere_face_refuses_at_both_doors`,
+  whose ringed sphere face `kfmrh_minting` leaves storing no row. On
+  the merge base each of those left the face half-minted, which this
+  pass reported per rowless half.
+- **An emptied face reads as never minted to every reader, and no
+  move carries rows onto one.** The site mints that later read an
+  emptied face read it as unminted and leave it as found, and no door
+  in that run moved a loop whose rows stand onto an emptied face (0
+  such moves), so no emptied face came back half-minted.
 - A spline destination keeps the drop and stays half-minted, loud.
