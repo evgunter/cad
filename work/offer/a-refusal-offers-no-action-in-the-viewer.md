@@ -66,3 +66,45 @@ unknown-parameter offer. What an OFFER unit inherits from it:
   thing and as a control where one exists, is the fix. AUTH-9 left it
   for this row rather than trimming the kernel's sentence in the
   viewer.
+
+## Evidence: a pin mismatch now has a control (AUTH-15, 2026-09-30)
+
+An instance whose part's pin no longer holds now offers **Accept
+updated version** under its tree row (`author/accept-part-version`).
+It is this row's third refuse-then-offer instance, and the first whose
+refusal is a landed node failure rather than a refused batch. It uses
+the same homes: `Refusal::version_question` for the wording,
+`frame::version_offer` beside `creation_offer` and `declare_offer` for
+the reader, and `session::VersionOffer` beside `DeclareOffer` for the
+value. Two things differ, and an OFFER unit inherits both:
+
+- **Nothing holds it.** The offer is read off the landed run when the
+  tree's rows are built (`TreeRow::version_offer`), so it stands exactly
+  as long as the FAILED badge it is drawn under. There is no `drafts`
+  field and no staleness rule. The store can still move between the
+  landing and the click. The op therefore mints the pin at the commit,
+  and a store that has nothing newer refuses in its own words.
+- **The recourse is doubled again**, as in the Boolean case. The badge
+  prints `PIN_MISMATCH_RECOURSE`, and directly under it is the
+  button that records the edit that sentence quotes by name.
+
+**Sweep residue: the tolerance lever has no viewer door.**
+`geom_core::predicate::COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE`,
+`SPLIT_PLANE_RECOURSE` and `KERNEL_LIMIT_RECOURSE` all end on "lower"
+or "loosen the tolerance". So do recourses in fourteen kernel files
+across `editor-core`, `geom-brep`, `profile`, `sweep` and `topo`
+(`grep -rliE "(lower|loosen)(ing)? the tolerance" crates/*/src`). The
+ε-seam part refusal
+(`PartFault::Unresolved { fault: EpsilonSeam }`,
+`crates/editor-core/src/eval/parts.rs`) says to "record the edit that
+sets this process's tolerance". No `SessionOp` emits
+`DocEdit::SetTolerance`, and a session's ε is fixed when it is built.
+So a GUI author reads a recourse the viewer cannot take and is not told
+so. The sweep counted every `DocEdit` variant no viewer door emits (the
+constructions in `crates/viewer/src`), then grepped the kernel's
+sentences for each one's name or act. The tolerance edit is the only one
+a refusal reaching the viewer names. `Rebind` and `ReWitness` are named
+only by refusals of those same edits, and of the split refactor, and no
+viewer door raises any of those. What the grep cannot see is a recourse
+naming the act in other words. The 40 recourse constants and `Recourse`
+literals were read by eye for that, and none names a door beyond these.
