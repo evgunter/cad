@@ -9,8 +9,10 @@
 //! `NodeError`'s own `Display`, and nothing here composes a sentence
 //! about what went wrong. The two sentences this module writes ABOUT
 //! A FAILURE are a downstream row's pointer ([`downstream_wording`])
-//! and a failed row's link to the node to repair
-//! ([`repair_wording`]), and both say only WHERE to go.
+//! and a failed row's link to the node to repair ([`link_wording`]),
+//! and both say only WHERE to go. What it writes about an assertion's
+//! verdict is the comparison it decided ([`Asserted::comparison`]),
+//! out of the kernel's own relation and two computed values.
 //!
 //! A failure that CARRIES another node's refusal — a part whose root
 //! failed or was poisoned, a mate whose placer refused — points at the
@@ -340,13 +342,12 @@ pub struct TreeRow {
     /// a certifiable one.
     pub note: Option<String>,
     /// **The node a [`RowStatus::Failed`] row's words name as the one
-    /// to repair, when that is not this node** — the row a click on
-    /// [`repair_wording`] selects: whatever `repair_named` answers for
-    /// the row's own error.
+    /// to repair, when that is not this node**: whatever
+    /// `repair_named` answers for the row's own error.
     ///
-    /// `None` on every row that is not `Failed`: a `Poisoned` row's
-    /// link is its own `through`, and an `Ok` or `Unevaluated` row has
-    /// no words to link from.
+    /// `None` on every row that is not `Failed`. A row's other links
+    /// carry their own target: a `Poisoned` row's is its `through`,
+    /// and an assertion's is its [`Asserted::measure`].
     pub repair_at: Option<RecipeNodeId>,
     /// **What a measure node measured, or an assertion found**, on a
     /// row that is `Ok`; `None` on every other row, whose status says
@@ -354,9 +355,21 @@ pub struct TreeRow {
     pub measured: Option<Measured>,
 }
 
-/// **What a measure's row says it measured**: the landed run's value,
-/// or the kernel's reason it has none — and an assertion's verdict
-/// over that value.
+impl TreeRow {
+    /// **How loud this row is drawn**: its status's tone
+    /// ([`RowStatus::tone`]), except on an assertion's row, which is
+    /// `Ok` and as loud as its verdict ([`Asserted::tone`]).
+    pub fn tone(&self) -> Tone {
+        match &self.measured {
+            Some(Measured::Asserted(asserted)) => asserted.tone(),
+            Some(Measured::Value(_) | Measured::Unavailable(_)) | None => self.status.tone(),
+        }
+    }
+}
+
+/// **What a measure's or an assertion's row says the run found**: a
+/// measure's value or the kernel's reason it has none, and on an
+/// assertion's row, its verdict over that value.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Measured {
     /// The value, already spelled ([`computed_text`]: canonical
@@ -741,7 +754,7 @@ fn measured_of(
     node: &Node<ProfileProgram>,
     evaluation: &Evaluation<f64>,
 ) -> Option<Measured> {
-    match &evaluation.result(id)?.value()?.payload {
+    match &evaluation.value(id)?.payload {
         ValuePayload::Measure { value, dim } => Some(Measured::Value(computed_text(*dim, *value))),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Measured::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => {
@@ -991,11 +1004,10 @@ pub fn downstream_wording(through: RecipeNodeId) -> String {
     )
 }
 
-/// What a row's link to another row says: that node's name, as
-/// [`node_number`] spells it, and nothing about why — a failed row's
-/// words are the line above it, and an assertion's measure says on its
-/// own row why it has no value — so this names only WHERE to go.
-pub fn repair_wording(at: RecipeNodeId) -> String {
+/// **What a link to a node says**: that node's name, as
+/// [`node_number`] spells it, and nothing about why — the why is
+/// drawn elsewhere, so this names only WHERE to go.
+pub fn link_wording(at: RecipeNodeId) -> String {
     format!("see {}", node_number(at))
 }
 

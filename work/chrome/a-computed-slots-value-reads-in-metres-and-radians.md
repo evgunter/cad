@@ -65,3 +65,10 @@ that does carry a written unit, unlike the measure, and AUTH-8 still
 did not spell it in that unit: the two numbers of one comparison would
 then read in two notations. The crate-wide preference above moves both
 together.
+
+Inside ε the comparison reads false on its face: the kernel decides a
+margin within ε as `Sign::Zero`, which a non-strict relation holds, so
+a `Holds` row can print `0.0125 m >= 0.0125000005 m`. That is the
+kernel's rule shown faithfully, and `Violated` never does the reverse.
+It is notation evidence: the spelling shows a margin the decision
+treats as zero.

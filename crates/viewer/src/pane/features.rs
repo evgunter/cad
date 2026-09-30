@@ -162,10 +162,8 @@ pub(crate) fn failure_lines(
             advisory_line(ui, depth, &carried.line, theme);
         }
     }
-    if let Some(to) = row.repair_at
-        && link_line(ui, row.depth, &tree::repair_wording(to))
-    {
-        clicked = Some(to);
+    if let Some(to) = row.repair_at {
+        clicked = link_to(ui, row.depth, to).or(clicked);
     }
     clicked
 }
@@ -177,7 +175,7 @@ pub(crate) fn failure_lines(
 ///
 /// Whether a row draws a badge at all is this pane's decision. How
 /// LOUD a drawn badge or verdict is, is not decided here — that is
-/// `RowStatus::tone()` and `Asserted::tone()`.
+/// `TreeRow::tone()`.
 fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) {
     match &row.status {
         // A healthy row draws no badge: a tree of unmarked rows is
@@ -188,7 +186,7 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) {
                 ui.label(value);
             }
             Some(Measured::Asserted(asserted)) => {
-                ui.label(toned(asserted.verdict.label(), theme, asserted.tone()));
+                ui.label(toned(asserted.verdict.label(), theme, row.tone()));
                 if let Some(comparison) = asserted.comparison() {
                     ui.label(comparison);
                 }
@@ -197,7 +195,7 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) {
             Some(Measured::Unavailable(_)) | None => {}
         },
         RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
-            ui.label(toned(row.status.badge(), theme, row.status.tone()));
+            ui.label(toned(row.status.badge(), theme, row.tone()));
         }
     }
 }
@@ -215,11 +213,7 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         Some(Measured::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
-            } => {
-                if link_line(ui, row.depth, &tree::repair_wording(asserted.measure)) {
-                    clicked = Some(asserted.measure);
-                }
-            }
+            } => clicked = link_to(ui, row.depth, asserted.measure).or(clicked),
             AssertionVerdict::Unevaluated {
                 reason:
                     reason @ (UnevaluatedReason::Indeterminate
@@ -243,6 +237,14 @@ fn advisory_line(ui: &mut egui::Ui, depth: usize, text: &str, theme: &Theme) {
         ui.add_space(message_indent(ui, depth));
         crate::widgets::message_toned(ui, text, theme, frame::Tone::Advisory);
     });
+}
+
+/// **A line under a row at `depth` that links to the node `to`**, in
+/// [`tree::link_wording`]'s words: `to` when it was clicked. The
+/// wording and the target are one argument, so they cannot name two
+/// different nodes.
+fn link_to(ui: &mut egui::Ui, depth: usize, to: RecipeNodeId) -> Option<RecipeNodeId> {
+    link_line(ui, depth, &tree::link_wording(to)).then_some(to)
 }
 
 /// A line under a row at `depth` that is a click; whether it was
@@ -572,7 +574,7 @@ mod tests {
     fn a_failed_rows_link_to_the_node_to_repair_selects_it() {
         let placer = RecipeNodeId(3);
         let row = placer_refused_row(Some(placer));
-        let link = tree::repair_wording(placer);
+        let link = tree::link_wording(placer);
         assert_eq!(link, "see feature 3", "the chrome's one spelling of a node");
         assert_eq!(clicking(&row, &link), Some(placer));
         assert_eq!(
@@ -623,11 +625,11 @@ mod tests {
     /// `tree::rows` builds the rows off a real evaluation: a
     /// `distance`, which has a value; a `min_clearance`, which has none
     /// at `f64`; and a distance over zero, whose node fails. And
-    /// assertions over them, which leave no measure a root: the height
-    /// at least 0.01 m (holds), at least 0.02 m (violated), at least
-    /// itself and 2ε, in the band between ε and K·ε (indeterminate); the
-    /// clearance and the failed measure at least 0.01 m; and the angle
-    /// at most 1 rad.
+    /// assertions: the height, measured a second time, at least 0.01 m
+    /// (holds), at least 0.02 m (violated), and at least itself and 2ε,
+    /// in the band between ε and K·ε (indeterminate); the clearance and
+    /// the failed measure at least 0.01 m; and the angle at most 1 rad.
+    /// The first `distance` is consumed by none, so its row is a root.
     struct MeasureFixture {
         doc: pncad::document::Doc<pncad::document::ProfileProgram>,
         evaluation: pncad::document::Evaluation<f64>,
@@ -715,11 +717,12 @@ mod tests {
                 tol,
             )
         };
-        let (doc, holds) = assertion(&doc, distance, len(0.01), AssertionDir::AtLeast);
-        let (doc, violated) = assertion(&doc, distance, len(0.02), AssertionDir::AtLeast);
+        let (doc, height) = measure(&doc, across());
+        let (doc, holds) = assertion(&doc, height, len(0.01), AssertionDir::AtLeast);
+        let (doc, violated) = assertion(&doc, height, len(0.02), AssertionDir::AtLeast);
         let (doc, indeterminate) = assertion(
             &doc,
-            distance,
+            height,
             len(HEIGHT + 2.0 * tol.eps()),
             AssertionDir::AtLeast,
         );
@@ -746,10 +749,7 @@ mod tests {
     impl MeasureFixture {
         /// What `id` evaluated to.
         fn payload(&self, id: RecipeNodeId) -> Option<&pncad::document::ValuePayload<f64>> {
-            self.evaluation
-                .result(id)
-                .and_then(|result| result.value())
-                .map(|value| &value.payload)
+            self.evaluation.value(id).map(|value| &value.payload)
         }
 
         fn row(&self, id: RecipeNodeId) -> TreeRow {
@@ -787,7 +787,7 @@ mod tests {
         let fixture = measure_fixture();
         let painted = landed(|ui| feature_row_drawn(ui, &fixture.row(fixture.distance)));
         let value = find(&painted, "0.0125 m");
-        let kind = find(&painted, "Measure");
+        let kind = find(&painted, &format!("Measure {GLYPH_ROOT}"));
         assert!(
             (value.rows[0].center().y - kind.rows[0].center().y).abs() <= SLACK
                 && value.rows[0].left() > kind.rows[0].right(),
@@ -902,6 +902,22 @@ mod tests {
         }
     }
 
+    /// The kernel's word for the state of `id`'s verdict.
+    fn state_of(fixture: &MeasureFixture, id: RecipeNodeId) -> &'static str {
+        verdict_of(fixture, id).label()
+    }
+
+    /// `measured` and `bound` — the chrome's spelling, written out —
+    /// with the kernel's relation for the side assertion `id` records.
+    fn compared(fixture: &MeasureFixture, id: RecipeNodeId, measured: &str, bound: &str) -> String {
+        match fixture.doc.node(id) {
+            Some(pncad::document::Node::Assertion { dir, .. }) => {
+                format!("{measured} {} {bound}", dir.symbol())
+            }
+            other => panic!("the premise: {id:?} is an assertion: {other:?}"),
+        }
+    }
+
     /// **An assertion that holds paints its verdict and both numbers on
     /// its own line**: the kernel's word, quietly, then the comparison
     /// in the measure's notation with the kernel's relation between.
@@ -922,8 +938,11 @@ mod tests {
         let (painted, voices) =
             landed_voiced(|ui| feature_row_drawn(ui, &fixture.row(fixture.holds)));
         let kind = find(&painted, &format!("Assertion {GLYPH_ROOT}"));
-        let state = find(&painted, "Holds");
-        let comparison = find(&painted, "0.0125 m >= 0.01 m");
+        let state = find(&painted, state_of(&fixture, fixture.holds));
+        let comparison = find(
+            &painted,
+            &compared(&fixture, fixture.holds, "0.0125 m", "0.01 m"),
+        );
         for beside in [state, comparison] {
             assert!(
                 (beside.rows[0].center().y - kind.rows[0].center().y).abs() <= SLACK
@@ -955,17 +974,25 @@ mod tests {
     #[test]
     fn a_violated_assertion_paints_its_verdict_loud_beside_both_numbers() {
         let fixture = measure_fixture();
+        let state = state_of(&fixture, fixture.violated);
+        assert!(
+            matches!(
+                verdict_of(&fixture, fixture.violated),
+                pncad::document::AssertionVerdict::Violated { .. }
+            ),
+            "the premise: 0.0125 m is not at least 0.02 m"
+        );
         let (painted, voices) =
             landed_voiced(|ui| feature_row_drawn(ui, &fixture.row(fixture.violated)));
         assert_eq!(
             texts(&painted),
             vec![
                 format!("Assertion {GLYPH_ROOT}").as_str(),
-                "Violated",
-                "0.0125 m >= 0.02 m"
+                state,
+                &compared(&fixture, fixture.violated, "0.0125 m", "0.02 m"),
             ],
         );
-        assert_eq!(find(&painted, "Violated").ink, Some(voices.unresolved));
+        assert_eq!(find(&painted, state).ink, Some(voices.unresolved));
     }
 
     /// **An assertion's numbers are spelled in its measure's
@@ -977,9 +1004,10 @@ mod tests {
     fn an_assertion_over_an_angle_paints_both_numbers_in_radians() {
         let fixture = measure_fixture();
         let drawn = painted(|ui| feature_row_drawn(ui, &fixture.row(fixture.angle_holds)));
+        let comparison = compared(&fixture, fixture.angle_holds, "0.5 rad", "1 rad");
         assert!(
-            drawn.iter().any(|text| text == "0.5 rad <= 1 rad"),
-            "{drawn:?}"
+            drawn.contains(&comparison),
+            "`{comparison}` among {drawn:?}"
         );
     }
 
@@ -999,20 +1027,21 @@ mod tests {
             } => reason.to_string(),
             other => panic!("the premise: a margin of 2ε is in the sliver band: {other:?}"),
         };
+        let state = state_of(&fixture, fixture.indeterminate);
         let (painted, voices) =
             landed_voiced(|ui| feature_row_drawn(ui, &fixture.row(fixture.indeterminate)));
         assert_eq!(
             texts(&painted),
             vec![
                 format!("Assertion {GLYPH_ROOT}").as_str(),
-                "Unevaluated",
+                state,
                 reason.as_str()
             ],
         );
         let line = find(&painted, &reason);
-        assert_under(find(&painted, "Unevaluated"), line);
+        assert_under(find(&painted, state), line);
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
-        assert_eq!(find(&painted, "Unevaluated").ink, Some(voices.weak));
+        assert_eq!(find(&painted, state).ink, Some(voices.weak));
     }
 
     /// **An assertion whose measure has no value points at the
@@ -1033,13 +1062,13 @@ mod tests {
             other => panic!("the premise: `min_clearance` has no value at f64: {other:?}"),
         };
         let row = fixture.row(fixture.unavailable);
-        let pointer = tree::repair_wording(fixture.clearance);
+        let pointer = tree::link_wording(fixture.clearance);
         let drawn = painted(|ui| feature_row_drawn(ui, &row));
         assert_eq!(
             drawn,
             vec![
                 format!("Assertion {GLYPH_ROOT}"),
-                "Unevaluated".to_owned(),
+                state_of(&fixture, fixture.unavailable).to_owned(),
                 pointer.clone()
             ],
         );
