@@ -311,8 +311,14 @@ fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
         })
         .map(|(k, _)| k)
         .expect("the brick has an x = 3 face");
-    b.set_face_surface(face, topo::FaceSurface::New(surface))
-        .unwrap();
+    b.set_face_surface(
+        face,
+        topo::FaceSurface::New {
+            surface,
+            sense: true,
+        },
+    )
+    .unwrap();
     b
 }
 

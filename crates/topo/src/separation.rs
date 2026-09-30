@@ -636,9 +636,9 @@ mod owner_index {
         let mut body = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let brick = body.solids().next().expect("the box's solid").0;
 
-        let bare = body.mvfs(Point3::new(5.0, 0.0, 0.0)).unwrap();
+        let bare = body.mvfs(Point3::new(5.0, 0.0, 0.0), true).unwrap();
 
-        let grown = body.mvfs(Point3::new(9.0, 0.0, 0.0)).unwrap();
+        let grown = body.mvfs(Point3::new(9.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {

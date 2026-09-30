@@ -469,10 +469,22 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
         );
         let (mut a_body, mut b_body) = (a.body, b.body);
         a_body
-            .set_face_surface(a.top_face, FaceSurface::New(surface.clone()))
+            .set_face_surface(
+                a.top_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
         b_body
-            .set_face_surface(b.bottom_face, FaceSurface::New(surface.clone()))
+            .set_face_surface(
+                b.bottom_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
         match declared_pair_overlap(
             &a_body,

@@ -758,7 +758,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
 /// v0–v1–…–vn in one loop, cycle [e0+ … e(n−1)+ e(n−1)− … e0−].
 fn chain(n: usize, tol: Tol) -> (Body<f64>, MvfsCreated, Vec<MevCreated>) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let mut es = Vec::new();
     let first = body
         .mev_line(
@@ -1924,7 +1924,7 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
     // CrossSolid (two solids in one body): since M3 PR 1 kfmrh accepts
     // cross-shell faces of ONE solid (shell fusion); across solids it
     // stays a typed error under the new name.
-    let other = body.mvfs(Point3::new(9.0, 0.0, 0.0)).unwrap();
+    let other = body.mvfs(Point3::new(9.0, 0.0, 0.0), true).unwrap();
     assert_err_deep_unchanged(
         &mut body,
         &EulerOpError::CrossSolid {

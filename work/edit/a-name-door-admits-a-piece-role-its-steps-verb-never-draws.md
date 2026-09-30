@@ -4,6 +4,9 @@ kind: issue
 title: The name-writing doors admit a profile piece whose role its step's verb never draws
 status: open
 opened: 2026-09-29
+priority: P3
+cost: M
+design: true
 ---
 
 

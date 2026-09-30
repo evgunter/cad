@@ -136,11 +136,14 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
     };
     body.set_face_surface(
         fk,
-        FaceSurface::New(Surface::Plane {
-            origin: origin + normal * 0.05,
-            normal,
-            u_ref,
-        }),
+        FaceSurface::New {
+            surface: Surface::Plane {
+                origin: origin + normal * 0.05,
+                normal,
+                u_ref,
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();

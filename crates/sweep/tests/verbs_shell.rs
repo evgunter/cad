@@ -891,8 +891,15 @@ fn a_mixed_sense_chart_refuses_typed() {
         "the tube's two walls face opposite ways, which is the point"
     );
     let shared = body.get_face(outer).unwrap().surface;
-    body.set_face_surface(inner, topo::FaceSurface::Shared(shared))
-        .expect("the attach-layer door shares a live key");
+    let inner_sense = body.get_face(inner).unwrap().sense;
+    body.set_face_surface(
+        inner,
+        topo::FaceSurface::Shared {
+            key: shared,
+            sense: inner_sense,
+        },
+    )
+    .expect("the attach-layer door shares a live key");
 
     let e = topo::shell(&body, 0.1, Tol::witness())
         .expect_err("a mixed-sense chart has no single inward");
