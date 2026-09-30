@@ -1306,3 +1306,37 @@ described above:
 - `Refusal::parse_error` lists `Duplicate(_)` under `None`.
 
 (CHROME implementer lane, chrome/subset-policy)
+
+## 2026-09-30 — AUTH-5 MERGED (`5255964e`); Ev ruled on the edit door and confirmed AUTH-6's P0
+
+**Ev's rulings this stretch.** (1) The P0 triage of
+`the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`
+is confirmed ("your p0 ranking call is good"). (2) The edit door during
+a refused edit: hide the committed shape, consistently — the review had
+found the picture flipped on whether a prefix happened to replay — and
+file a faint ghost of it as a follow-up (on VGEOM).
+
+**AUTH-5's arc.** Implementer, two reviews, a fix pass, a follow-up for
+Ev's ruling, and a narrow review of the fix pass's new acceptance rule.
+The narrow review found the rule sound and one claim overstated (C4),
+filed rather than fixed, since it is not a regression.
+
+**CI policy changed under this program on 2026-09-28** (discipline §2):
+the per-PR gate is sized for latency and the nightly runs the full
+matrix, k-lint and the render lanes. My specs had kept telling lanes to
+count the full matrix; AUTH-5's lane read the new §2 and corrected me.
+A red nightly is now a red main owned by the orchestrator.
+
+**Merges I resolve myself are built, not just resolved.** AUTH-6's
+merge of main had one textual conflict and two semantic clashes with no
+markers (`resolver_seam()` returning `Arc`; `ParamName::new` now
+fallible). And `cargo test` stops at the first failing target: the two
+no-adapter GPU rows in the lib suite hid that the integration suite had
+not run. The integration suite is now its own run.
+
+**A mistake of mine.** While narrowing the C4 claim in PR 3440's body I
+called the update with a stub and replaced the whole body with the word
+"PLACEHOLDER". Restored within a minute from the copy I had saved before
+editing, and verified by length, the edited sentence, and the footer.
+The saved copy is why it was recoverable: edit a PR body from a file,
+and keep the file until the update is verified.
