@@ -2,10 +2,12 @@
 id: part-nesting-segfaults-before-the-depth-bound
 kind: issue
 title: editor-core: a chain of a few hundred nested parts kills the process with SIGSEGV before instantiation reaches MAX_DEPTH, so DepthExceeded never renders
-status: open
+status: review
 opened: 2026-09-29
 priority: P1
 cost: M
+pr: 3501
+branch: edit/part-depth-bound
 ---
 
 
@@ -65,3 +67,29 @@ stack sized for `MAX_DEPTH`), or lower `MAX_DEPTH` to a depth measured
 to fit the smallest stack a door runs on (a Python thread's, a viewer
 worker's), with a row that evaluates a chain one past the bound and
 reads `DepthExceeded` back typed.
+
+## Built (2026-09-30)
+
+The descent below the top runs bottom-up on an explicit heap stack
+(`PartCache::resolve_and_evaluate`, `Entered`, `Reached`): every
+document is resolved and entered before any is evaluated, and each is
+evaluated over its parts' rows, so the thread's stack holds one nested
+evaluation at any depth. `MAX_DEPTH` stays 1024. Every door descends
+through `PartCache::get`, so every door is covered.
+
+Measured on `origin/main`: about 35 KiB of stack per level in dev and
+20 KiB in release, on top of the leaf's own evaluation. A 1 MiB (wasm32)
+thread died at 30 levels in dev, and a Python thread under CI's dev
+wheel died at 250. On this branch the evaluation's peak is flat: 281 KiB
+in dev and 103 KiB in release at 1024 levels.
+
+Rows: `editor-core::all part_depth_bound::*` (one past the bound refuses
+`DepthExceeded` through `evaluate` and through the mate reach, and the
+refused chain flattened by one level evaluates at the bound, both on a
+1 MiB thread) and `test_assembly_eval.TestNestingPastTheBound` (one past
+the bound on a `threading.Thread`). Each is red on main, where the
+process dies.
+
+Filed from the sweep:
+`an-expression-nested-deep-enough-kills-the-process` and
+`a-stable-name-nests-one-level-per-copy-and-every-walk-over-it-recurses`.
