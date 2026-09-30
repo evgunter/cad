@@ -4,7 +4,7 @@ kind: issue
 title: fixtures::deep_snapshot walks the ten arenas and live provenance but none of the body's side tables, so an atomicity row cannot see a side-table write
 status: open
 opened: 2026-09-30
-priority: P3
+priority: P2
 ---
 
 
