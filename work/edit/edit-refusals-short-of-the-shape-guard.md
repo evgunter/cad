@@ -161,3 +161,12 @@ this row, so it stays open, and the unit sets the `## Built` section.
 **What remains on this row:** the seven placement arms held for `placement-is-spelled-three-ways-node-registry-and-rule`.
 
 **Filed:** `part-refusal-over-a-store-that-will-not-scan-or-load-states-no-recourse` (the scan and load arms of a real store that no row renders), `part-nesting-segfaults-before-the-depth-bound` (`DepthExceeded` is unreachable: the stack runs out first), and `no-file-part-recourse-names-a-save-the-browser-build-lacks` on CHROME.
+
+## Built (2026-09-30, PR 3497's fix pass) — two of the seven placement arms
+
+- **`ImproperPlacement` and `NonFinitePlacement` state a recourse and name their frame.** Each carries a `FrameSite` (`crates/editor-core/src/placement.rs`): the instance's placement frame (`SetPlacement`), an explicit rule's listed placement, or a transform's literal step, by index. The sentence is the site's subject, the frame rule's clause (`FrameFault`'s `Display`) and `FrameFault::recourse`, which every raising door honours: each refuses the edit that carried the frame, so making it again with the frame repaired gets through.
+- **A third arm, `NonRigidPlacement`, meets the standard from birth**: a proper frame that is not definitely rigid at tolerance, refused at the same three doors by `topo::check_rigid`, the predicate the evaluation's `NotRigid` applies.
+- The load door's `SnapshotError::PlacementNonFinite`/`PlacementImproper`/`PlacementNonRigid` carry the site too, and end in the kernel-or-file ending (the edit doors never admitted a non-finite or mirrored frame) or, for a non-rigid one earlier builds admitted, the regenerate recourse.
+- Their `FILED_NO_RECOURSE` entries in `crates/viewer/tests/refusal_concision_edits.rs` are gone.
+
+**What remains on this row:** five placement arms held for `placement-is-spelled-three-ways-node-registry-and-rule`'s P2: `MaintenanceUnrecorded`, `PlacementOnNonInstance`, `PlacementAxis`, `PlacementRuleMismatch`, `EmptyPlacementList`.

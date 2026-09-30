@@ -4889,8 +4889,32 @@ where
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Split { .. }
-        | Node::Boolean { .. }
-        | Node::Transform { .. } => {}
+        | Node::Boolean { .. } => {}
+        // A placement's STEP STRUCTURE and its literal frames are
+        // recipe payload outside the slots: the slot values below are
+        // fed by position, so a chain's kinds and order must feed here
+        // or `[rigid, literal]` and `[literal, rigid]` over the same
+        // numbers would share a key. Frames by bits, as an explicit
+        // rule's are.
+        Node::Transform { placement, .. } => {
+            h.write_u64(placement.steps.len() as u64);
+            for step in &placement.steps {
+                match step {
+                    crate::placement::Step::Rigid { .. } => h.write_tag(0),
+                    crate::placement::Step::Literal(frame) => {
+                        h.write_tag(1);
+                        for x in frame
+                            .columns
+                            .iter()
+                            .flatten()
+                            .chain(frame.translation.iter())
+                        {
+                            h.write_f64_bits(*x);
+                        }
+                    }
+                }
+            }
+        }
         // The member list is edges, so the upstream keys carry it — in
         // list order, and prefixed by their total length, so neither a
         // reordering nor a dropped member can alias another list. What

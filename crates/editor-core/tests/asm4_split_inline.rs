@@ -731,12 +731,14 @@ fn row3_further_typed_refusals() {
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let (host, consumer) = insert(
         host,
-        Node::Transform {
-            input: inst,
-            translation: [len(1.0), len(0.0), len(0.0)],
-            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            inst,
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     match inline(&host, inst, &resolver, Tol::witness()) {
         Err(InlineError::InstanceConsumed { node, by }) => {

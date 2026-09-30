@@ -195,26 +195,12 @@ impl core::fmt::Display for TransformError {
                 "an edge the map moved failed re-certification: {}",
                 source.render(geom_brep::recourse::Reading::Build)
             ),
-            Self::NotRigid { check } => {
-                // Raised on a definite defect AND on an in-band margin
-                // (the rigidity checks refuse on anything but a decided
-                // `Zero`), and the payload does not say which, so the
-                // sentence says what the check found possible, not a
-                // verdict. The checks run in this order: the mirror
-                // check is reached only by columns decided orthonormal.
-                let how = match *check {
-                    "transform_rigid_col01_orth"
-                    | "transform_rigid_col12_orth"
-                    | "transform_rigid_col02_orth" => "it may shear",
-                    "transform_rigid_det_plus_one" => "it may mirror",
-                    _ => "it may scale an axis, or hold a number that is not finite",
-                };
-                write!(
-                    f,
-                    "the map is not definitely rigid at tolerance: {how}. Recourse: use only a \
-                     rotation and a translation"
-                )
-            }
+            Self::NotRigid { check } => write!(
+                f,
+                "the map is not definitely rigid at tolerance: {}. Recourse: use only a \
+                 rotation and a translation",
+                not_rigid_reading(check)
+            ),
             Self::NonFiniteMap { check } => {
                 let axis = match *check {
                     "transform_rigid_trans_finite_x" => "x",
@@ -269,10 +255,40 @@ fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
     map.linear * v
 }
 
-/// The decided rigidity door (module docs): every margin must classify
-/// `Zero` against the linear band — definite non-zero AND in-band
-/// indeterminacy both refuse (a maybe-rigid map is not a rigid map).
-fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformError> {
+/// **What a [`TransformError::NotRigid`] check found possible**, in
+/// words — the one reading of [`check_rigid`]'s check names, for every
+/// sentence that reports one.
+///
+/// The check refuses on a definite defect AND on an in-band margin (it
+/// refuses anything but a decided `Zero`), and the name does not say
+/// which, so the reading says what the check found possible, not a
+/// verdict. The checks run in order: the mirror check is reached only
+/// by columns decided orthonormal.
+#[must_use]
+pub fn not_rigid_reading(check: &str) -> &'static str {
+    match check {
+        "transform_rigid_col01_orth"
+        | "transform_rigid_col12_orth"
+        | "transform_rigid_col02_orth" => "it may shear",
+        "transform_rigid_det_plus_one" => "it may mirror",
+        _ => "it may scale an axis, or hold a number that is not finite",
+    }
+}
+
+/// **The decided rigidity door** (module docs), and the one home of the
+/// rule: every margin must classify `Zero` against the linear band —
+/// definite non-zero AND in-band indeterminacy both refuse (a
+/// maybe-rigid map is not a rigid map). [`transform_rigid_via`] asks it
+/// of every map it moves a body by, and a document door that admits a
+/// literal frame asks it of that frame, so the two cannot come to hold
+/// a map to different standards.
+///
+/// # Errors
+///
+/// [`TransformError::NotRigid`] naming the check that refused, and
+/// [`TransformError::NonFiniteMap`] for a translation component that
+/// is not finite.
+pub fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformError> {
     let l = &map.linear;
     let one = T::one();
     // A table of K row names: they reach the funnel through the loop
