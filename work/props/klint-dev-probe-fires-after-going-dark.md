@@ -234,3 +234,23 @@ further places, in instr's territory:
 `k-lint (dev-probe)` stays red on the nightly until the chart row is
 fixed or the germ row is ruled on. That is the gate working: it is red
 because the kernel is, and this unit is not entitled to green it.
+
+### 8. Reproduced hosted at a third population
+
+`nightly.yml` dispatched on `props/klint-baseline` (run **36691873111**,
+job `k-lint (dev-probe)`, job id 109810896182) re-cut the sweep at
+today's main and read **3,927,679 samples** (1,309,217 / 1,309,225 /
+1,309,237) — 145,464 more than the failing nightly. It flags **the same
+35**: the same three shapes' `chart_bound_outer_span` NaNs, and the same
+four `bool_circle_torus_root_slack` margins to every digit. So the 35
+are not a sampling artefact of one population; they survive a corpus that
+has moved again underneath them.
+
+A local sweep at today's tip was started twice under
+`local-scripts/with-build-slot.sh` and abandoned: the first was reaped at
+the harness's background limit two hours in, the second was still queued
+behind another lane when the hosted reading above superseded it. No local
+sweep was taken at the comparison point either — the hosted job logs at
+both ends carry the sample counts and the per-rule counts, and rule 1's
+zero at the comparison point settles the population question without a
+CSV.
