@@ -1448,3 +1448,13 @@ Ten units closed. **The duplication trap fired a tenth time**, as two colour dec
 **A re-verification after the fix pass was worth it.** The fix pass reached new code (a refusal arm, an opaque `Composed`, a `HeldEdges` refactor). The reviewer confirmed that F1 and F2 were closed, and found the fix's own "exact interpolation" claim false; it was fixed before merge.
 
 Review tier: correctness + style, then a correctness re-verification of the fix pass.
+
+## 2026-09-30 — AUTH-11 dispatched: an unfinished chain awaiting a binder is drawn
+
+The row was marked design, but its one open call is which sentence to show beside a drawn prefix. I decided it in the spec: the tip-state sentence, which is true, rather than `OpenChain`'s, which is false for a binder-awaiting tip. Not a fork.
+
+Review tier: correctness + style, as before. The unit changes what an existing preview case says, and it is AUTH-5's walk-back applied to a new class.
+
+Still not taken:
+- `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
+- `no-row-holds-that-the-create-pane-offers-the-tools-it-has` wants its own sitting. AUTH-10's `Composed` shows a type-level hold is sometimes cheaper than a harness, which may bear on its shape.
