@@ -297,10 +297,22 @@ pub(crate) enum KillAnchorFault {
     HeldTwice(VertexKey),
     /// A vertex no half-edge starts at and no `Empty` loop holds.
     Orphan(VertexKey),
-    /// A half-edge whose `parent_loop` does not resolve.
-    DeadLoop(HalfEdgeKey),
-    /// A half-edge whose start does not resolve.
-    DeadStart(HalfEdgeKey),
+    /// A half-edge whose `parent_loop` does not resolve, or a face
+    /// that lists a loop that does not.
+    DeadLoop(EntityId),
+    /// A half-edge whose start does not resolve, or an `Empty` loop
+    /// whose vertex does not.
+    DeadStart(EntityId),
+    /// A loop whose `face` does not resolve, or a shell that lists a
+    /// face that does not.
+    DeadFace(EntityId),
+    /// A face whose `shell` does not resolve, or a solid that lists a
+    /// shell that does not.
+    DeadShell(EntityId),
+    /// A shell whose `solid` does not resolve.
+    DeadSolid(ShellKey),
+    /// A half-edge whose `edge` does not resolve.
+    DeadEdge(HalfEdgeKey),
 }
 
 /// Every [`KillAnchorFault`] on `body`.
@@ -344,10 +356,47 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
     }
     for (he, data) in body.half_edges() {
         if body.get_loop(data.parent_loop).is_none() {
-            faults.push(KillAnchorFault::DeadLoop(he));
+            faults.push(KillAnchorFault::DeadLoop(EntityId::HalfEdge(he)));
         }
         if body.get_vertex(data.start).is_none() {
-            faults.push(KillAnchorFault::DeadStart(he));
+            faults.push(KillAnchorFault::DeadStart(EntityId::HalfEdge(he)));
+        }
+        if body.get_edge(data.edge).is_none() {
+            faults.push(KillAnchorFault::DeadEdge(he));
+        }
+    }
+    for (l, data) in body.loops() {
+        if let LoopBoundary::Empty { vertex } = data.boundary
+            && body.get_vertex(vertex).is_none()
+        {
+            faults.push(KillAnchorFault::DeadStart(EntityId::Loop(l)));
+        }
+        if body.get_face(data.face).is_none() {
+            faults.push(KillAnchorFault::DeadFace(EntityId::Loop(l)));
+        }
+    }
+    for (f, data) in body.faces() {
+        if core::iter::once(&data.outer)
+            .chain(&data.rings)
+            .any(|&l| body.get_loop(l).is_none())
+        {
+            faults.push(KillAnchorFault::DeadLoop(EntityId::Face(f)));
+        }
+        if body.get_shell(data.shell).is_none() {
+            faults.push(KillAnchorFault::DeadShell(EntityId::Face(f)));
+        }
+    }
+    for (s, data) in body.shells() {
+        if data.faces.iter().any(|&f| body.get_face(f).is_none()) {
+            faults.push(KillAnchorFault::DeadFace(EntityId::Shell(s)));
+        }
+        if body.get_solid(data.solid).is_none() {
+            faults.push(KillAnchorFault::DeadSolid(s));
+        }
+    }
+    for (solid, data) in body.solids() {
+        if data.shells.iter().any(|&s| body.get_shell(s).is_none()) {
+            faults.push(KillAnchorFault::DeadShell(EntityId::Solid(solid)));
         }
     }
     faults

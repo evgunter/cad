@@ -1210,3 +1210,15 @@ The row's Sizing section carries the probe inline.
 Under either answer:
 - `eval::schedule` must break ties by `Doc::order`;
 - one mint chain serves node and step ids.
+
+## 2026-09-30 — each part's body comes from its part (PR 3581)
+
+The assembly suites no longer name every part's body by one constant, `PART_BODY` (329 uses in 34 files). Each part builder returns the id its own extrude minted, and `in_part` takes it. The change is test-only.
+
+It was checked with a per-document salted scramble: main failed 419 tests and the branch 125, and the branch's failures are all unit 2's or artefacts of the probe itself.
+
+**Review.** One blocking finding: the docm6 own-mate row borrowed the good stand's cube ids for the broken stand. It is fixed. The review also added asserts that a re-pinned part keeps its body, and folded two duplicate local `in_part` helpers into the fixture.
+
+Nothing yet catches a body paired with the wrong part's instance while ids come from the counter. That is filed as `tint/part-body-paired-with-the-wrong-instance-stays-green-under-the-counter` (P3).
+
+**Next:** node-id unit 2, the digest mint, is unblocked on the test side. The display half waits on [ev] #3565.
