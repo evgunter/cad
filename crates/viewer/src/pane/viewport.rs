@@ -836,6 +836,7 @@ impl ViewerBehavior<'_> {
             self.tools,
             self.drafts,
         );
+        *self.held_edges_refused = composed.edges().held_refused.clone();
         // **The three lanes this pane composes itself**, each as the
         // value that owns the display seam's rule
         // ([`marks::LegLane`]) rather than as a bare `Vec` each block

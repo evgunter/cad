@@ -64,7 +64,7 @@ use pncad::prelude::{NameOrigin, StableName, attribute};
 
 use crate::display::DisplayView;
 use crate::narrowing::Narrow;
-use crate::pickindex::{EdgeId, IdMap, PickIndex};
+use crate::pickindex::{EdgeId, EdgeNamesRefused, IdMap, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
 use crate::vocab::vocabulary;
 
@@ -212,8 +212,9 @@ pub struct HeldEdges<'a> {
 }
 
 impl HeldEdges<'_> {
-    /// **The drawn segments of the whole set**: one pass over the
-    /// body's drawn edges, testing membership per edge.
+    /// **The held mark**: the drawn segments of the whole set, from one
+    /// pass over the body's drawn edges testing membership per edge —
+    /// and the index's refusal when some of those edges have no name.
     ///
     /// Not one [`edge_segments`] search per held name, which scans the
     /// body's whole edge run each time — `O(E²)` name comparisons every
@@ -221,17 +222,23 @@ impl HeldEdges<'_> {
     /// selection's: scoped to (node, body), empty for a body this index
     /// does not draw or the display hides, and silent about a held name
     /// with no drawn edge.
-    pub fn segments(&self, index: &PickIndex, display: &DisplayView) -> Vec<[f32; 3]> {
+    ///
+    /// **The refusal is not silent**: a drawn edge with no name cannot
+    /// be told held or not, so the segments may be short by it, and
+    /// [`EdgeOverlay::held_refused`] carries it to the chrome.
+    pub fn mark(
+        &self,
+        index: &PickIndex,
+        display: &DisplayView,
+    ) -> (Vec<[f32; 3]>, Option<EdgeNamesRefused>) {
+        let drawn = index.edge_names_in(self.node, self.body);
         let mut out = Vec::new();
-        for &id in index.edges_in(self.node, self.body) {
-            if index
-                .edge_name_of(id)
-                .is_ok_and(|name| self.names.contains(name))
-            {
+        for (id, name) in drawn.named {
+            if self.names.contains(name) {
                 out.extend(edge_id_segments(index, display, id));
             }
         }
-        out
+        (out, drawn.refused)
     }
 }
 
@@ -239,7 +246,7 @@ impl HeldEdges<'_> {
 /// hover ([`highlight`], [`edge_overlay`]) with every [`Held`] pick
 /// added — the held faces' ids in [`Highlight::held`] through
 /// [`drawn_patch`], and the held edges in [`EdgeOverlay::held`]
-/// through [`HeldEdges::segments`], flagged off the set's one body for
+/// through [`HeldEdges::mark`], flagged off the set's one body for
 /// [`EdgeOverlay::selected_probed`]'s reason.
 pub fn compose(
     index: &PickIndex,
@@ -255,11 +262,13 @@ pub fn compose(
         }),
         ..highlight(index, selection, hover)
     };
+    let (held_segments, held_refused) = held
+        .edges
+        .map(|set| set.mark(index, display))
+        .unwrap_or_default();
     let edges = EdgeOverlay {
-        held: held
-            .edges
-            .map(|set| set.segments(index, display))
-            .unwrap_or_default(),
+        held: held_segments,
+        held_refused,
         held_probed: held.edges.is_some_and(|set| moved(display, set.node)),
         ..edge_overlay(index, display, selection, hover)
     };
@@ -318,6 +327,11 @@ pub struct EdgeOverlay {
     /// segment: the held mark. Not narrowed against the selected or
     /// hovered edge — [`Held`] states which wins.
     pub held: Vec<[f32; 3]>,
+    /// **What the index could not name on the held body**
+    /// ([`HeldEdges::mark`]): [`EdgeOverlay::held`] may be short by
+    /// those edges. `None` when every drawn edge there is named, and
+    /// when nothing is held.
+    pub held_refused: Option<EdgeNamesRefused>,
     /// Whether the held edges belong to a free-moved instance — one
     /// flag, because a held set is on one body
     /// ([`crate::blend::BlendTarget`]). See
@@ -498,6 +512,7 @@ pub fn edge_overlay(
         // either — they are simply what the document holds — so the
         // same line covers them.
         held: Vec::new(),
+        held_refused: None,
         held_probed: false,
         preview: Vec::new(),
         datums: Vec::new(),
@@ -510,7 +525,7 @@ pub fn edge_overlay(
 ///
 /// Scoped to the selection's own (node, body), empty for a name this
 /// index does not draw there. It SEARCHES the target's edge run for
-/// the name, so a SET is marked through [`HeldEdges::segments`], which
+/// the name, so a SET is marked through [`HeldEdges::mark`], which
 /// walks the run once.
 pub fn edge_segments(
     index: &PickIndex,
@@ -800,7 +815,8 @@ fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bo
 /// counted. It is asserted here rather than at the arithmetic because
 /// the question is REACHABILITY — whether the legs a frame asks for
 /// come back short — and a row against a private helper answers a
-/// different question.
+/// different question. The held mark's other way of coming back short,
+/// a drawn edge the index cannot name, is asked the same way.
 #[cfg(test)]
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -808,40 +824,21 @@ mod tests {
 
     use std::collections::BTreeMap;
 
-    use pncad::document::{CancelToken, EvalOptions, Frame, RecipeNodeId, evaluate};
-    use pncad::geom_core::{Point3, Tol};
+    use pncad::document::{Frame, RecipeNodeId};
+    use pncad::geom_core::Point3;
 
-    use super::{LegLane, edge_id_lane, edge_id_segments};
+    use std::collections::BTreeSet;
+
+    use pncad::prelude::StableName;
+
+    use super::{HELD_FACES, Held, HeldEdges, LegLane, compose, edge_id_lane, edge_id_segments};
     use crate::display::DisplayView;
-    use crate::generation::Generation;
-    use crate::pickindex::{EdgeId, PickIndex, PictureKey};
-    use crate::scene;
-    use crate::test_support::plate_delta;
+    use crate::pickindex::{EdgeId, EdgeNameFault, EdgeNamesRefused, PickIndex};
+    use crate::session::Selection;
 
-    /// The spike plate, evaluated, indexed — the picture a frame marks
-    /// in.
-    ///
-    /// Evaluated through the kernel door rather than through a
-    /// session: this module is a vocabulary and a session is a driver
-    /// (`crates/viewer/README.md`, Module boundaries), and the index
-    /// only ever wanted the evaluation.
+    /// The spike plate's index — the picture a frame marks in.
     fn plate() -> (PickIndex, RecipeNodeId) {
-        let tol = Tol::witness();
-        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
-        let eval = evaluate(
-            &doc,
-            None,
-            &CancelToken::default(),
-            &EvalOptions::default(),
-            tol,
-        );
-        let index = PickIndex::build(
-            &doc,
-            &eval,
-            PictureKey::of(Generation::FIRST, plate_delta()),
-            tol,
-        )
-        .expect("the plate indexes");
+        let (_, index, extrude) = crate::test_support::plate_indexed();
         (index, extrude)
     }
 
@@ -963,5 +960,51 @@ mod tests {
             vec![[0.0_f32, 0.0, 0.0], [1.0, 2.0, 3.0]]
         );
         assert_eq!(lane.undrawn(), 1);
+    }
+
+    /// **A held mark on a body the index cannot wholly name carries the
+    /// index's refusal** to the composed value, and draws the held edges
+    /// it can name. The naming layer's refusal is planted on a held
+    /// edge (`PickIndex::unname_edge`). A held set on a body the index
+    /// does not draw — the ordinary arm's case — marks nothing and
+    /// refuses nothing.
+    #[test]
+    fn a_held_mark_the_index_cannot_wholly_name_carries_its_refusal() {
+        let (_, mut index, extrude) = crate::test_support::plate_indexed();
+        let drawn = index.edges_in(extrude, 0).to_vec();
+        let names: BTreeSet<StableName> = drawn[..2]
+            .iter()
+            .map(|id| index.edge_name_of(*id).expect("named").clone())
+            .collect();
+        let held = |body| Held {
+            faces: [None; HELD_FACES],
+            edges: Some(HeldEdges {
+                node: extrude,
+                body,
+                names: &names,
+            }),
+        };
+        let display = DisplayView::none();
+        let first = index.unname_edge(drawn[1]);
+
+        let (_, marked) = compose(&index, &display, &Selection::None, None, &held(0));
+        assert_eq!(
+            marked.held,
+            edge_id_segments(&index, &display, drawn[0]),
+            "the held edge the index names is drawn, and only it"
+        );
+        assert_eq!(
+            marked.held_refused,
+            Some(EdgeNamesRefused {
+                first: EdgeNameFault::Unnamed(first),
+                refused: 1,
+                drawn: drawn.len(),
+            }),
+            "the held edge it cannot name is not dropped silently"
+        );
+
+        let (_, elsewhere) = compose(&index, &display, &Selection::None, None, &held(7));
+        assert!(elsewhere.held.is_empty());
+        assert_eq!(elsewhere.held_refused, None, "the ordinary arm stays quiet");
     }
 }

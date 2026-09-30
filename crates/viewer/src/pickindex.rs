@@ -745,6 +745,24 @@ impl<K: DrawnKind> PartWindows<K> {
         }
     }
 
+    /// Replace the name at a position within a drawn window with the
+    /// naming layer's refusal, taking the entity out of the name
+    /// inverse with it.
+    #[cfg(test)]
+    #[allow(clippy::expect_used)] // A fixture's failure mechanism (workspace lint note).
+    fn unname(&mut self, node: RecipeNodeId, body: u32, position: usize, error: UnnamedEntity) {
+        let window = *self.window(node, body).expect("a drawn (node, body)");
+        assert!(position < window.len, "a position inside the window");
+        let flat = window.start + position;
+        let id = self.entities[flat];
+        if let Ok(name) = &self.names[flat]
+            && let Some(ids) = self.by_name.get_mut(name)
+        {
+            ids.retain(|drawn| *drawn != id);
+        }
+        self.names[flat] = Err(error);
+    }
+
     /// Every entity a name is drawn as, across every part.
     fn of_name(&self, name: &StableName) -> &[K::Id] {
         self.by_name.get(name).map_or(&[], Vec::as_slice)
@@ -1365,6 +1383,51 @@ impl PickIndex {
                 },
                 WindowFault::Unnamed(error) => EdgeNameFault::Unnamed(error),
             })
+    }
+
+    /// **Every drawn edge of one (node, body), named**:
+    /// [`PickIndex::edges_in`] with [`PickIndex::edge_name_of`] asked of
+    /// each, and the refusals counted rather than filtered out.
+    ///
+    /// **Every refusal here is loud.** The ids come from this index's
+    /// own window, so none of them is the ordinary arm: a body this
+    /// index does not draw — [`EdgeNameFault::NotDrawn`]'s case — has
+    /// no window, and answers no edges and no refusal.
+    pub fn edge_names_in(&self, node: RecipeNodeId, body: u32) -> EdgeNames<'_> {
+        let drawn = self.edges_in(node, body);
+        let mut named = Vec::with_capacity(drawn.len());
+        let mut refused: Option<EdgeNamesRefused> = None;
+        for &id in drawn {
+            match (self.edge_name_of(id), &mut refused) {
+                (Ok(name), _) => named.push((id, name)),
+                (Err(_), Some(refused)) => refused.refused += 1,
+                (Err(first), None) => {
+                    refused = Some(EdgeNamesRefused {
+                        first,
+                        refused: 1,
+                        drawn: drawn.len(),
+                    });
+                }
+            }
+        }
+        EdgeNames { named, refused }
+    }
+
+    /// **A naming-emission bug, planted**: the drawn edge `id` refuses
+    /// its name with the naming layer's own refusal — the slot a part
+    /// whose table could not name that edge is pushed with — which is
+    /// answered so a row can look for it.
+    #[cfg(test)]
+    pub(crate) fn unname_edge(&mut self, id: EdgeId) -> UnnamedEntity {
+        let error = UnnamedEntity {
+            node: id.node,
+            entity: editor_core::EntityRef {
+                body: id.body,
+                key: editor_core::EntityKey::Edge(pncad::topo::EdgeKey::default()),
+            },
+        };
+        self.edges.unname(id.node, id.body, id.boundary, error);
+        error
     }
 
     /// The drawn edges an edge selection denotes: the edges of its own
@@ -2180,7 +2243,7 @@ pub enum PickError {
 }
 
 /// Why an [`EdgeId`] names no stable name here (closed enum, D4 ¶3).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EdgeNameFault {
     /// This index draws no body at that (node, body): an ordinary
     /// answer for a selection made against another generation, or
@@ -2236,6 +2299,48 @@ impl core::fmt::Display for EdgeNameFault {
 }
 
 impl core::error::Error for EdgeNameFault {}
+
+/// One drawn body's edges, as [`PickIndex::edge_names_in`] answers
+/// them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EdgeNames<'a> {
+    /// The edges the index names, in boundary order.
+    pub named: Vec<(EdgeId, &'a StableName)>,
+    /// The rest, when there is a rest.
+    pub refused: Option<EdgeNamesRefused>,
+}
+
+/// **Some drawn edges of one body have no name here**: how many, of
+/// how many the body draws, and the first refusal in boundary order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EdgeNamesRefused {
+    /// The first refusal, in boundary order.
+    pub first: EdgeNameFault,
+    /// How many of the body's drawn edges refused.
+    pub refused: usize,
+    /// How many edges the body draws.
+    pub drawn: usize,
+}
+
+impl core::fmt::Display for EdgeNamesRefused {
+    /// The refusal itself forwards to [`EdgeNameFault`]'s own
+    /// `Display`, which names the body.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            first,
+            refused,
+            drawn,
+        } = self;
+        let verb = if *refused == 1 { "has" } else { "have" };
+        write!(
+            f,
+            "{refused} of the {drawn} edges drawn on that body {verb} no name here; the first: \
+             {first}"
+        )
+    }
+}
+
+impl core::error::Error for EdgeNamesRefused {}
 
 impl core::fmt::Display for PickError {
     /// The rule this crate follows is that the layer which raised a
@@ -2463,6 +2568,63 @@ mod tests {
         ];
         let best = best_segment([0.0, 0.0], 0, &at).expect("a segment at the radius is within it");
         assert!((best.distance - EDGE_PICK_RADIUS_PX).abs() <= 1.0e-12);
+    }
+
+    /// **A body's named edges count the loud arm and keep the rest.**
+    /// The naming layer's refusal is planted on two of the plate's
+    /// drawn edges (`PickIndex::unname_edge`, the slot
+    /// [`PartWindows::push_names`] holds for an entity its table could
+    /// not name); the answer names the rest, counts both, and carries
+    /// the first in boundary order. A body the index does not draw is
+    /// [`EdgeNameFault::NotDrawn`]'s case, and answers no edges and no
+    /// refusal.
+    #[test]
+    fn a_bodys_named_edges_count_the_loud_arm_and_not_the_ordinary_one() {
+        let (_, mut index, extrude) = crate::test_support::plate_indexed();
+        let drawn = index.edges_in(extrude, 0).to_vec();
+        let clean = index.edge_names_in(extrude, 0);
+        assert_eq!(clean.refused, None, "the plate names every edge it draws");
+        assert_eq!(clean.named.len(), drawn.len());
+
+        let first = index.unname_edge(drawn[1]);
+        index.unname_edge(drawn[3]);
+        let names = index.edge_names_in(extrude, 0);
+        assert_eq!(
+            names.refused,
+            Some(EdgeNamesRefused {
+                first: EdgeNameFault::Unnamed(first),
+                refused: 2,
+                drawn: drawn.len(),
+            })
+        );
+        let named: Vec<EdgeId> = names.named.iter().map(|(id, _)| *id).collect();
+        let rest: Vec<EdgeId> = drawn
+            .iter()
+            .copied()
+            .filter(|id| ![drawn[1], drawn[3]].contains(id))
+            .collect();
+        assert_eq!(named, rest, "the named rest is kept, in boundary order");
+
+        let absent = EdgeId {
+            node: extrude,
+            body: 7,
+            boundary: 0,
+        };
+        assert_eq!(
+            index.edge_name_of(absent),
+            Err(EdgeNameFault::NotDrawn {
+                node: extrude,
+                body: 7
+            }),
+            "body 7 is the ordinary arm's case"
+        );
+        assert_eq!(
+            index.edge_names_in(extrude, 7),
+            EdgeNames {
+                named: Vec::new(),
+                refused: None,
+            }
+        );
     }
 
     /// The id map's keys are the windows' own entities, so the two

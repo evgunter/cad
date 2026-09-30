@@ -1182,9 +1182,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + bare_badge
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 10, "the badge family");
+    assert_eq!(badge_doors, 11, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
+        readme.contains("`frame` function returning `Option<Badge>`** — eleven"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -3409,7 +3409,7 @@ fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
 /// **Every arm of every tool's event vocabulary answers for itself.**
 /// `a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not`
 /// drives two of them through the ranking; this one
-/// reads the answer off each of the six, so an arm that flips sides
+/// reads the answer off each of them, so an arm that flips sides
 /// goes red by name rather than waiting for a frame that happens to
 /// carry it beside a refusal.
 #[test]
@@ -3488,6 +3488,23 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: the all-edges door found none",
             ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { target }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: the all-edges door's target draws edges the index cannot name",
+            ToolNotice::Blend(BlendEvent::EdgesUnnamed {
+                target,
+                refused: pickindex::EdgeNamesRefused {
+                    first: pickindex::EdgeNameFault::OutOfRange {
+                        node: target.node,
+                        body: 0,
+                        boundary: 12,
+                        drawn: 12,
+                    },
+                    refused: 1,
+                    drawn: 12,
+                },
+            }),
             frame::Retold::Again,
         ),
         (

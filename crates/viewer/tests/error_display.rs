@@ -35,7 +35,9 @@ use pncad::mesh::TessellateError;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
 use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
-use viewer::pickindex::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
+use viewer::pickindex::{
+    EdgeNameFault, EdgeNamesRefused, IdMapError, PatchId, PickError, PickIndexError,
+};
 use viewer::scene::{SceneDocError, SceneError};
 
 /// Whether a rendering looks like a derived `Debug` rather than prose:
@@ -364,6 +366,41 @@ fn edge_name_fault_forwards_its_unnamed_arm() {
     let picked = PickError::EdgeName(EdgeNameFault::Unnamed(inner)).to_string();
     assert!(picked.contains(&inner.to_string()), "{picked}");
     assert!(!picked.contains("hit test"), "{picked}");
+}
+
+/// A body's edge-name refusal forwards its first arm in the index's own
+/// words — here the address arm, at an address minted by hand past the
+/// body's last edge — and counts in agreeing prose.
+#[test]
+fn edge_names_refused_forwards_its_first_refusal() {
+    let first = EdgeNameFault::OutOfRange {
+        node: RecipeNodeId(4),
+        body: 0,
+        boundary: 12,
+        drawn: 12,
+    };
+    let one = EdgeNamesRefused {
+        first: first.clone(),
+        refused: 1,
+        drawn: 12,
+    }
+    .to_string();
+    assert!(one.contains(&first.to_string()), "{one}");
+    assert!(
+        one.contains("1 of the 12 edges drawn on that body has no name"),
+        "{one}"
+    );
+    prose(&one, "EdgeNamesRefused");
+    let two = EdgeNamesRefused {
+        first,
+        refused: 2,
+        drawn: 12,
+    }
+    .to_string();
+    assert!(
+        two.contains("2 of the 12 edges drawn on that body have no name"),
+        "{two}"
+    );
 }
 
 /// The replay forwards the refusal's problem and ends as a damaged

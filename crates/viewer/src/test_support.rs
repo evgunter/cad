@@ -1,7 +1,7 @@
 //! **The fixture doors a test in this crate authors a document with** —
 //! literals of each dimension, the world xy frame, an axis-aligned
-//! rectangle, one edit or insert through the document's own `apply`, and
-//! the display tolerances the suites index at.
+//! rectangle, one edit or insert through the document's own `apply`, the
+//! display tolerances the suites index at, and the plate indexed at one.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no toolkit
 //! type; every door is a pure function over document and display
@@ -31,6 +31,8 @@ use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 use pncad::profile::{PathErrorKind, TipState, Verb};
 use pncad::profile::{Step, Target};
 
+use crate::generation::Generation;
+use crate::pickindex::{PickIndex, PictureKey};
 use crate::scene::DisplayTolerance;
 
 // --- literals -------------------------------------------------------
@@ -356,6 +358,34 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
 /// fixture's.
 pub fn plate_delta() -> DisplayTolerance {
     DisplayTolerance::new(2.0e-4).expect("a positive delta")
+}
+
+/// **The spike plate, evaluated and indexed at [`plate_delta`]**, with
+/// the extrude whose body it draws — the picture a unit row marks, loads
+/// or names edges in.
+///
+/// Evaluated through the kernel door rather than through a session: the
+/// rows that read it are vocabularies and a session is a driver
+/// (`crates/viewer/README.md`, Module boundaries), and the index only
+/// ever wanted the evaluation.
+pub fn plate_indexed() -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
+    let tol = Tol::witness();
+    let (doc, extrude) = crate::scene::plate_with_hole(tol).expect("the plate authors");
+    let eval = evaluate(
+        &doc,
+        None,
+        &CancelToken::default(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let index = PickIndex::build(
+        &doc,
+        &eval,
+        PictureKey::of(Generation::FIRST, plate_delta()),
+        tol,
+    )
+    .expect("the plate indexes");
+    (eval, index, extrude)
 }
 
 /// The display tolerance the corpus suites hand the pick seam,

@@ -203,7 +203,8 @@
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
 //! store that keeps no preferences ([`prefs_badge`]), the datums this
 //! view draws nothing of ([`datums_badge`]), the profiles it draws
-//! nothing of ([`profiles_badge`]), and the three display seams that
+//! nothing of ([`profiles_badge`]), the held edges the index cannot
+//! name ([`held_edges_badge`]), and the three display seams that
 //! hold a refusal — the scene ([`scene_badge`]), the pick index
 //! ([`index_badge`]) and the projection ([`projection_badge`]).
 //! The population is every function here returning `Option<Badge>`,
@@ -238,7 +239,7 @@ use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
 use crate::pickcache::NotIndexed;
-use crate::pickindex::{PickError, PickIndexError};
+use crate::pickindex::{EdgeNamesRefused, PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
@@ -1808,6 +1809,12 @@ impl SeamSubject for NotIndexed {
     const SUBJECT: Subject = PICK_INDEX_SEAM;
 }
 
+/// The pick index seam again: the index that could not name an edge
+/// is the one the next build replaces.
+impl SeamSubject for EdgeNamesRefused {
+    const SUBJECT: Subject = PICK_INDEX_SEAM;
+}
+
 // # The subject-assigning doors
 //
 // **A subject is a decision, so it lives where a decision can be
@@ -2070,7 +2077,9 @@ pub fn tool_notice(notice: &ToolNotice) -> Message {
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
         ToolNotice::Blend(
-            BlendEvent::NoEdgesOnTarget { .. } | BlendEvent::TargetHasNoValue { .. },
+            BlendEvent::NoEdgesOnTarget { .. }
+            | BlendEvent::EdgesUnnamed { .. }
+            | BlendEvent::TargetHasNoValue { .. },
         ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.to_string(), retold)
@@ -2557,6 +2566,27 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
         Badge::read(
             Subject::Document,
             format!("profiles: {undrawn} {noun} with an arc the viewport cannot draw"),
+            Tone::Advisory,
+        )
+    })
+}
+
+/// **What the chrome badges about a held edge set whose body the index
+/// cannot wholly name**, and `None` while it can, or while nothing is
+/// held.
+///
+/// The held mark lights the drawn edges whose names a tool holds
+/// ([`crate::marks::HeldEdges::mark`]), and a drawn edge with no name
+/// cannot be told held or not, so the mark may be short by it. This is
+/// what says so. Per-frame and unlatched, for [`datums_badge`]'s
+/// reasons: the viewport writes it from the marks it composes. The
+/// refusal is the naming layer's bug report, which no reader can act
+/// on, so [`Tone::Advisory`].
+pub fn held_edges_badge(refused: Option<&EdgeNamesRefused>) -> Option<Badge> {
+    refused.map(|refused| {
+        Badge::read(
+            EdgeNamesRefused::SUBJECT,
+            format!("held edges: the mark may leave some out — {refused}"),
             Tone::Advisory,
         )
     })

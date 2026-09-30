@@ -466,6 +466,12 @@ impl PickCache {
         self.index.as_ref()
     }
 
+    /// The held index, for a row to plant a fault in.
+    #[cfg(test)]
+    pub(crate) fn index_mut(&mut self) -> Option<&mut PickIndex> {
+        self.index.as_mut()
+    }
+
     /// Whether a build is outstanding: the indexing state the chrome
     /// reads, as a value (`crate::frame::progress`).
     ///
