@@ -88,6 +88,22 @@ fn zz_r2_corpus_bytes() {
     });
 }
 
+#[test]
+fn zz_r2_corrupt_deep_name_refusal() {
+    let d = dir();
+    let text = std::fs::read_to_string(d.join("deep-froma-20.save")).unwrap();
+    let bad = text.replacen("\"RimEdge\"", "\"RimEdgf\"", 1);
+    let at = bad.find("RimEdgf").unwrap();
+    let line = bad[..at].matches('\n').count() + 1;
+    let msg = match load(&bad, Tol::witness()) {
+        Ok(_) => "loaded".to_owned(),
+        Err(e) => format!("{e}"),
+    };
+    let short: String = msg.chars().take(70).collect();
+    let tail: String = msg.chars().rev().take(70).collect::<Vec<_>>().into_iter().rev().collect();
+    std::fs::write(d.join("corrupt.txt"), format!("token line {line}; refusal [{short} ... {tail}]")).unwrap();
+}
+
 /// A square extrude, then k patterns.
 fn chain(label: &str, k: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
