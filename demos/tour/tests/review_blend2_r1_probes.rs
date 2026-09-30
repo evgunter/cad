@@ -12,7 +12,7 @@ use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
-use pncad::prelude::{ArcSweep, BlendError, Center, Open, ConstructedLoop, SketchPlane, Start};
+use pncad::prelude::{ArcSweep, BlendError, Center, ConstructedLoop, Open, SketchPlane, Start};
 use pncad::prelude::{fillet_edges, mass_properties, subtract, validate_geometric};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};

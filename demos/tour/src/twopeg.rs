@@ -205,7 +205,8 @@ fn plate<S: Scalar>(z0: f64, tol: Tol) -> Body<S> {
 /// A peg: [`rim`] extruded `h` from `z0`.
 fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> Body<S> {
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
-    let profile = validated(plane, vec![rim::<S>(cx, tol)], tol).expect("the peg profile validates");
+    let profile =
+        validated(plane, vec![rim::<S>(cx, tol)], tol).expect("the peg profile validates");
     extrude(&profile, Extrusion::Distance(S::from_f64(h)), tol)
         .expect("the peg extrudes")
         .body
