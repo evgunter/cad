@@ -221,10 +221,9 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
         lever_of(&doc, &opts, &ids, &alignment).to_bits(),
         "the door's lever is the solve's, to the bit"
     );
-    // The id the door named is the one a mate inserted next mints.
-    let (_, minted) =
-        at_the_door(&doc, &reach, mate(body, ids[0], ids[1], seat(None))).expect("admitted");
-    assert_eq!(minted, named);
+    // The id the door named is the one the insert would have minted:
+    // drawn for this mate, and none the document holds.
+    assert!(!doc.has_minted(named), "the named id is not the document's");
     // The refusal's sentence names the node and forwards the fault's.
     let err = doc
         .apply(
@@ -332,10 +331,12 @@ fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
 /// **A rider through the refusing reach refuses `Unleverable`** in the
 /// resolver's own voice — exactly as the solve answers it — and a
 /// coincidence WITHOUT a rider through the same reach is admitted with
-/// no ask at all: the door levers only what the table decides.
+/// no ask at all: the door levers only what the table decides. The id
+/// the refusal names is the one the same mate mints through the store's
+/// reach, which admits it.
 #[test]
 fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
-    let (doc, ids, _, body) = instances("msolve10-a4-reach", 2);
+    let (doc, ids, opts, body) = instances("msolve10-a4-reach", 2);
     let counting = Counting(core::cell::Cell::new(0), &RefusingReach);
     let (named, fault) = at_the_door(&doc, &counting, mate(body, ids[0], ids[1], seat(Some(0.0))))
         .expect_err("refused");
@@ -356,14 +357,17 @@ fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     let (_, plain) =
         at_the_door(&doc, &counting, mate(body, ids[0], ids[1], seat(None))).expect("admitted");
     assert_eq!(counting.0.get(), 1, "no rider, no ask");
-    assert_eq!(plain, named);
+    assert_ne!(plain, named, "another mate, another id");
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let (_, admitted) = at_the_door(&doc, &reach, mate(body, ids[0], ids[1], seat(Some(0.0))))
+        .expect("the store's reach admits the rider");
+    assert_eq!(admitted, named, "the refusal named the id the mate mints");
 }
 
 // ---- The history and the log ----
 
 /// **A refused insert leaves no entry**: the document is the one it
-/// was, and the next insert mints the id the refused one was named
-/// with.
+/// was, and the next insert mints one id, not the refused one's.
 #[test]
 fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     let (doc, ids, _, body) = instances("msolve10-a1-history", 2);
@@ -377,8 +381,17 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     assert_eq!(doc.order(), before.order());
     assert_eq!(doc.node(named), None);
     let (after, minted) = insert(doc, mate(body, ids[0], ids[1], seat(None)));
-    assert_eq!(minted, named, "nothing was minted for the refusal");
+    assert_ne!(minted, named, "another mate, another id");
+    assert!(
+        !after.has_minted(named),
+        "nothing was minted for the refusal"
+    );
     assert_eq!(after.order().len(), before.order().len() + 1);
+    assert_eq!(
+        after.mint().nodes().count(),
+        before.mint().nodes().count() + 1,
+        "one insert, one node id"
+    );
 }
 
 /// **Replay re-applies what the recording door decided, and refuses

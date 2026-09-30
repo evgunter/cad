@@ -532,7 +532,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
             .flatten()
             .copied()
             .collect::<std::collections::BTreeSet<_>>(),
-        doc.step_mint().log().iter().copied().collect(),
+        doc.mint().steps().collect(),
         "the profile's steps are the document's only mints"
     );
     assert_eq!(minted.ids.iter().flatten().count(), 5, "five steps");

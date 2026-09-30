@@ -4644,11 +4644,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-/// - **The step mint** (`StepMint`): the chain and log a document mints
-///   its profile step ids from, which `Doc::step_mint` answers. The
-///   doors read it and a consumer never writes it; what a consumer
-///   holds is the ids themselves (`StepId`), carried.
-const NOT_CARRIED: [&str; 92] = [
+/// - **The mint** (`Mint`, its log's `Minted` entries, and the
+///   insert door's `NodeIdCollides`): the chain and log a document
+///   mints its node and profile step ids from, which `Doc::mint`
+///   answers. The doors read it and a consumer never writes it; what a
+///   consumer holds is the ids themselves (`RecipeNodeId`, `StepId`),
+///   carried.
+const NOT_CARRIED: [&str; 94] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4683,8 +4685,11 @@ const NOT_CARRIED: [&str; 92] = [
     "MetaValue",
     "MinClearanceLane",
     "MinClearanceOperand",
+    "Mint",
+    "Minted",
     "NamingKey",
     "NodeChange",
+    "NodeIdCollides",
     "NodeVerdictDelta",
     "NodeVerdicts",
     "PairingViolation",
@@ -4702,7 +4707,6 @@ const NOT_CARRIED: [&str; 92] = [
     "RunStatus",
     "SectionScalar",
     "SeedScalar",
-    "StepMint",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",

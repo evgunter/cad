@@ -309,7 +309,7 @@ fn vanished_ranked(ev1: &Evaluation<f64>, ev2: &Evaluation<f64>, cut: RecipeNode
 
 /// The reviewer's two-run chain. Last-good: `cut = a − X`, `X =
 /// Union[tr, P]`, `P = Union[c1, c2]`; `R`, an unrelated plate-with-
-/// bar, is built first (lowest id). The edit re-lists `X → [tr, c3]`
+/// bar, is built first. The edit re-lists `X → [tr, c3]`
 /// and `P → [c1, R]`, and slides `R`'s bar (a flip at `R`) and the
 /// cutter along y. `R` feeds `cut` in NEITHER run — only a walk that
 /// crosses from the old `X → P` edge to the new `P → R` edge reaches
@@ -356,9 +356,10 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     assert!(ancestors_in(&doc, cut).contains(&p) && !ancestors_in(&doc2, cut).contains(&p));
     let flips = editor_core::diff_verdicts(&ev1, &ev2).report();
     assert!(flips.iter().any(|(n, _)| *n == r), "R flips: {flips:?}");
+    let at = |n| doc2.order().iter().position(|&m| m == n);
     assert!(
-        r < p,
-        "R is first in deterministic order: a walk reaching it reports it"
+        at(r) < at(p),
+        "R is first in document order: a walk reaching it reports it"
     );
     let name = vanished_ranked(&ev1, &ev2, cut);
     match diagnosis((&doc2, &ev2), (&doc, &ev1), &name) {

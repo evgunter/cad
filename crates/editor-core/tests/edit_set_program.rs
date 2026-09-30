@@ -581,7 +581,7 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
 fn never_minted(doc: &ProfileDoc) -> StepId {
     (0..)
         .map(StepId)
-        .find(|s| !doc.step_mint().has_minted(*s))
+        .find(|s| !doc.mint().has_step(*s))
         .expect("a u64 the log does not hold")
 }
 
@@ -758,7 +758,7 @@ fn the_insert_door_mints_every_step_and_refuses_ids_of_the_callers() {
         "no id stands for two steps: {mine:?} {theirs:?}"
     );
     assert_eq!(
-        doc.step_mint().log(),
+        doc.mint().steps().collect::<Vec<_>>(),
         every.iter().copied().collect::<Vec<_>>(),
         "the mint log holds exactly the minted ids, ascending"
     );
@@ -1115,10 +1115,10 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     }
     // A program id the log does not hold, taken out of the log.
     let unlogged = edited(&|v| {
-        let log = v["snapshot"]["step_mint"]["log"]
+        let log = v["snapshot"]["mint"]["log"]
             .as_array_mut()
             .expect("the file carries its mint log");
-        log.retain(|id| id.as_u64() != Some(theirs[1].0));
+        log.retain(|entry| entry["step"].as_u64() != Some(theirs[1].0));
     });
     assert_eq!(
         step_fault(unlogged, other),
@@ -1126,28 +1126,29 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     );
     // A log entry twice, and a log out of order: a snapshot fault the
     // load door names, not a vocabulary this build lacks.
-    let log_of = |v: &serde_json::Value| -> Vec<u64> {
-        v["snapshot"]["step_mint"]["log"]
+    let log_of = |v: &serde_json::Value| -> Vec<serde_json::Value> {
+        v["snapshot"]["mint"]["log"]
             .as_array()
             .expect("the file carries its mint log")
-            .iter()
-            .map(|id| id.as_u64().expect("an id"))
-            .collect()
+            .clone()
     };
     let written = log_of(&body);
-    let set_log =
-        |log: Vec<u64>| edited(&|v| v["snapshot"]["step_mint"]["log"] = log.clone().into());
+    let set_log = |log: Vec<serde_json::Value>| {
+        edited(&|v| v["snapshot"]["mint"]["log"] = log.clone().into())
+    };
     let mut twice = written.clone();
-    twice.insert(1, written[0]);
+    twice.insert(1, written[0].clone());
     let mut swapped = written.clone();
     swapped.swap(0, 1);
-    for (label, log, at) in [
-        ("an entry twice", twice, written[0]),
-        ("two entries out of order", swapped, written[0]),
+    let first: editor_core::Minted =
+        serde_json::from_value(written[0].clone()).expect("a log entry");
+    for (label, log) in [
+        ("an entry twice", twice),
+        ("two entries out of order", swapped),
     ] {
         match refused(set_log(log)) {
-            editor_core::SnapshotError::MintLogOrder { step } => {
-                assert_eq!(step, StepId(at), "{label}");
+            editor_core::SnapshotError::MintLogOrder { entry } => {
+                assert_eq!(entry, first, "{label}");
             }
             other => panic!("{label} refuses as a snapshot fault, got {other:?}"),
         }
@@ -1157,14 +1158,14 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         v["snapshot"]
             .as_object_mut()
             .expect("the snapshot")
-            .remove("step_mint")
-            .expect("the file carries its step mint");
+            .remove("mint")
+            .expect("the file carries its mint");
     });
     match load(&no_mint, tol()) {
         Err(PersistError::Unreadable { detail, .. }) => {
-            assert!(detail.contains("step_mint"), "{detail}");
+            assert!(detail.contains("mint"), "{detail}");
         }
-        other => panic!("a file without a step mint is unreadable, got {other:?}"),
+        other => panic!("a file without a mint is unreadable, got {other:?}"),
     }
 }
 

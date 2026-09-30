@@ -2,11 +2,13 @@
 id: sibling-branches-mint-one-node-id-for-different-nodes
 kind: issue
 title: Two inserts applied to one base mint the same node id for different nodes
-status: open
+status: review
 opened: 2026-09-29
-design: true
 priority: P1
 cost: H
+branch: emit/node-id-digest-mint
+blocked_on: [3565]
+refs: [name-order-was-insertion-order-under-the-counter]
 ---
 
 

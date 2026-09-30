@@ -995,7 +995,7 @@ test_utils::f6_variants! {
     /// invariant that earns an arm earns a rendered case with it.
     const SNAPSHOT_ERROR: SnapshotError = [
         OrderMismatch,
-        IdBeyondCounter,
+        NodeNotMinted,
         DanglingInput,
         ForwardInput,
         DeclareInput,
@@ -1074,11 +1074,8 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["`order` list", "disagree"],
         ),
         (
-            SnapshotError::IdBeyondCounter {
-                id: node,
-                next_id: 4,
-            },
-            vec!["node id 5", "mint counter 4"],
+            SnapshotError::NodeNotMinted { id: node },
+            vec!["node id 5", "not in the document's mint log"],
         ),
         (
             SnapshotError::DanglingInput {
@@ -1280,7 +1277,9 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::MintLogOrder { step: StepId(6) },
+            SnapshotError::MintLogOrder {
+                entry: editor_core::Minted::Step(StepId(6)),
+            },
             vec!["not strictly ascending at id 6", "which no mint writes"],
         ),
         (

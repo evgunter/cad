@@ -196,7 +196,7 @@ pub(crate) enum Walk {
     /// predicate both doors ask, and this walk only names the answer in
     /// the load door's vocabulary. What is stated THERE and nowhere
     /// else is what only a FILE can be wrong about — `order` against
-    /// the node map, ids past the mint counter, a forward input, and
+    /// the node map, ids the mint log does not hold, a forward input, and
     /// the placement registry's gauge — plus the two liveness walks
     /// whose rule is the node map's own lookup. Each site says which it
     /// is.
@@ -730,12 +730,11 @@ pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
     /// duplicated ids).
     OrderMismatch,
-    /// An id at or beyond the mint counter appears in the document.
-    IdBeyondCounter {
+    /// A node id the mint log does not hold as a node's appears in
+    /// the document — one the document never minted.
+    NodeNotMinted {
         /// The offending id.
         id: RecipeNodeId,
-        /// The counter.
-        next_id: u64,
     },
     /// A profile's step ids are not the ones its edit doors would have
     /// minted (`names/README.md`, "N1, the profile pieces"): not one
@@ -747,11 +746,11 @@ pub enum SnapshotError {
         /// What is wrong.
         fault: crate::program::StepIdFault,
     },
-    /// The step mint's log is not strictly ascending: an id logged
+    /// The mint's log is not strictly ascending by id: an id logged
     /// twice, or out of order — a log no mint wrote.
     MintLogOrder {
         /// The first entry not greater than the one before it.
-        step: crate::node::StepId,
+        entry: crate::Minted,
     },
     /// A name the document holds spells a profile step its mint log
     /// does not hold — one the document never minted.
@@ -1071,20 +1070,19 @@ impl core::fmt::Display for SnapshotError {
                 "the `order` list and the node map disagree — an id is missing, extra or \
                  duplicated",
             ),
-            Self::IdBeyondCounter { id, next_id } => write!(
+            Self::NodeNotMinted { id } => write!(
                 f,
-                "node id {} is at or beyond the mint counter {next_id} — replay would \
-                 re-mint a referenced id",
+                "node id {} is not in the document's mint log — the document never minted it",
                 id.0
             ),
             Self::StepIds { node, fault } => {
                 write!(f, "profile node {}'s step ids: {fault}", node.0)
             }
-            Self::MintLogOrder { step } => write!(
+            Self::MintLogOrder { entry } => write!(
                 f,
-                "the step mint's log is not strictly ascending at id {} — an id logged twice or \
-                 out of order, which no mint writes",
-                step.0
+                "the mint's log is not strictly ascending at id {} — an id logged twice or out \
+                 of order, which no mint writes",
+                entry.bits()
             ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
@@ -1283,18 +1281,15 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // after load must never re-mint a referenced id.
     let check_id = |id: RecipeNodeId| -> Result<(), SnapshotError> {
         if !doc.has_minted(id) {
-            Err(SnapshotError::IdBeyondCounter {
-                id,
-                next_id: doc.next_id,
-            })
+            Err(SnapshotError::NodeNotMinted { id })
         } else {
             Ok(())
         }
     };
     // The mint log first, since every check below asks it: strictly
     // ascending, the only log a mint writes.
-    if let Some(step) = doc.step_mint.out_of_order() {
-        return Err(SnapshotError::MintLogOrder { step });
+    if let Some(entry) = doc.mint.out_of_order() {
+        return Err(SnapshotError::MintLogOrder { entry });
     }
     // Every profile's step ids: one per authored step, each one the
     // mint log holds, and no id standing for two steps anywhere in the
@@ -1309,7 +1304,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         program.check_id_shape().map_err(fault)?;
         for ids in &program.ids {
             for &step in ids {
-                if !doc.step_mint.has_minted(step) {
+                if !doc.mint.has_step(step) {
                     return Err(fault(crate::program::StepIdFault::NotMinted { step }));
                 }
                 if !seen_steps.insert(step) {
@@ -1338,7 +1333,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         }
         // Every node a reference is READ AT that is not also an
         // input (`Node::payload_read_sites` — a mate's two operands):
-        // an id past the counter inside an operand is as corrupt as
+        // an id the mint log does not hold inside an operand is as corrupt as
         // one inside the name beside it, and as unrepairable.
         for at in node.payload_read_sites() {
             check_id(at)?;
@@ -1427,7 +1422,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // Every `StableName` the document holds, in ONE pass over the
     // carrier enumeration rather than a payload walk inside the node
     // loop above and a store walk down here, hundreds of lines apart
-    // and neither reading as half of one list. An id past the counter
+    // and neither reading as half of one list. An id the mint log lacks
     // inside a mate head, a fillet selection or an appearance key is
     // as corrupt as one inside a `Declare` pair, and as unrepairable
     // by `Rebind` (whose source door refuses a never-minted id) if it
@@ -1443,7 +1438,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             .name()
             .piece_steps()
             .iter()
-            .find(|s| !doc.step_mint.has_minted(**s))
+            .find(|s| !doc.mint.has_step(**s))
         {
             return Err(SnapshotError::NameStepNotMinted {
                 name: Box::new(carrier.name().clone()),
@@ -1673,7 +1668,7 @@ mod tests {
         /// that weld does and does not buy.
         const SNAPSHOT_ERROR: SnapshotError = [
             OrderMismatch,
-            IdBeyondCounter,
+            NodeNotMinted,
             StepIds,
             MintLogOrder,
             NameStepNotMinted,
@@ -1718,7 +1713,7 @@ mod tests {
             | SnapshotError::PayloadDocParamDimension { .. } => Walk::PayloadParamRef,
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::OrderMismatch
-            | SnapshotError::IdBeyondCounter { .. }
+            | SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
             | SnapshotError::MintLogOrder { .. }
             | SnapshotError::NameStepNotMinted { .. }
@@ -1769,10 +1764,7 @@ mod tests {
         // the roster holds and red in the comparison.
         let cases = [
             SnapshotError::OrderMismatch,
-            SnapshotError::IdBeyondCounter {
-                id: node,
-                next_id: 4,
-            },
+            SnapshotError::NodeNotMinted { id: node },
             SnapshotError::StepIds {
                 node,
                 fault: crate::program::StepIdFault::Repeated {
@@ -1780,7 +1772,7 @@ mod tests {
                 },
             },
             SnapshotError::MintLogOrder {
-                step: crate::node::StepId(3),
+                entry: crate::Minted::Step(crate::node::StepId(3)),
             },
             SnapshotError::NameStepNotMinted {
                 name: Box::new(crate::names::StableName {
@@ -2107,13 +2099,13 @@ mod tests {
     }
 
     /// **The store half of the load door's id check**: a document
-    /// whose ONLY fault is an appearance key minted by a node past
-    /// the mint counter refuses typed, with that id named.
+    /// whose ONLY fault is an appearance key minted by a node the mint
+    /// log does not hold refuses typed, with that id named.
     ///
     /// Before this row the store half was held by nothing — dropping
     /// the whole name pass reds two rows, dropping only its `Store`
     /// arm red none. The check is reachable, not dead: no edit door
-    /// mints a key past the counter, but `SetAppearance` is the one
+    /// writes a key the log lacks, but `SetAppearance` is the one
     /// name-carrying edit the insert door deliberately does not check
     /// (`resolve::walk_names`' match says why — an appearance name
     /// resolves at evaluation, where a miss is a typed
@@ -2122,21 +2114,23 @@ mod tests {
     /// needs in-crate reach for the same reason.
     ///
     /// The twin on the payload side is
-    /// `asm_r2a_mate_solve::row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter`.
+    /// `asm_r2a_mate_solve::row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted`.
     #[test]
-    fn rv_an_appearance_key_past_the_mint_counter_refuses_typed() {
+    fn rv_an_appearance_key_the_mint_never_minted_refuses_typed() {
         let mut doc = ProfileDoc::empty_derived("rv-store-id", Tol::witness());
-        assert_eq!(doc.next_id, 0, "the empty document has minted nothing");
+        assert!(
+            doc.mint.log().is_empty(),
+            "the empty document has minted nothing"
+        );
         doc.appearance.insert(
             rv_name(7, crate::names::EntityKind::Face),
             crate::appearance::AppearanceRecord::default(),
         );
         match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id })) => {
+            Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
                 assert_eq!(id, RecipeNodeId(7));
-                assert_eq!(next_id, 0);
             }
-            other => panic!("an appearance key past the counter must refuse, got {other:?}"),
+            other => panic!("an appearance key the mint never minted must refuse, got {other:?}"),
         }
     }
 
@@ -2163,7 +2157,10 @@ mod tests {
     #[test]
     fn rv_the_name_pass_refuses_in_document_order() {
         let mut doc = ProfileDoc::empty_derived("rv-name-order", Tol::witness());
-        doc.next_id = 2;
+        doc.mint = doc
+            .mint
+            .clone()
+            .logged([0, 1].map(|id| crate::Minted::Node(RecipeNodeId(id))));
         for (id, derived) in [(0u64, 50u64), (1, 60)] {
             doc.nodes.insert(
                 RecipeNodeId(id),
@@ -2186,7 +2183,7 @@ mod tests {
         }
         doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];
         match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, .. })) => {
+            Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
                 assert_eq!(
                     id,
                     RecipeNodeId(60),

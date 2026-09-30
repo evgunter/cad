@@ -887,7 +887,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (sketch, gone) = (doc.order()[1], doc.order()[2]);
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
-    // is then the site rule's and not `IdBeyondCounter`.
+    // is then the site rule's and not `NodeNotMinted`.
     let doc = apply(
         &doc,
         &DocEdit::DeleteNode { id: gone },

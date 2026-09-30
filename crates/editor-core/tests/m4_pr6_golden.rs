@@ -59,6 +59,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             .expect("golden edit")
             .doc
     };
+    // The node an insert just minted: the document's last.
+    let last = |d: &ProfileDoc| *d.order().last().expect("an insert landed");
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
     // v15: `depth` carries a distribution, so the frozen bytes pin the
     // populated `distribution` key rather than only its absence.
@@ -88,7 +90,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         },
     );
     // Every sketch in this fixture is drawn on the world xy plane, so
-    // ONE frame node (node 0) serves them all — a profile names its
+    // ONE frame node serves them all — a profile names its
     // plane now, and four copies of the same frame would say four
     // planes where the document has one.
     doc = push(
@@ -97,7 +99,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: fixture::xy_frame(),
         },
     );
-    let plane = editor_core::RecipeNodeId(0);
+    let plane = last(&doc);
     // v4 re-authoring (content-preserving): the quad with one arc
     // segment authors as a chain whose arc step carries its AUTHORED
     // bulge — the same 0.25 the retired form stored on vertex 1.
@@ -118,21 +120,22 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::Profile(d),
         },
     );
+    let arc_profile = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: editor_core::RecipeNodeId(1),
+                profile: arc_profile,
                 distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
             },
         },
     );
+    let bulged = last(&doc);
     // #101 tangency coverage in the FROZEN bytes: a hand-DECLARED
-    // line/arc tangency (node 3 — the #100 bracket: the quarter arc
+    // line/arc tangency (the #100 bracket: the quarter arc
     // leaving (1.5,1), bulge −(√2−1), is exactly tangent to both
     // neighboring lines; joints 3 and 4 declared BY HAND) and a
-    // fillet-CONSTRUCTED loop (node 4, joints declared by
-    // construction) — the wire's tangent_joints field is pinned by
+    // fillet-CONSTRUCTED loop (joints declared by construction) — the wire's tangent_joints field is pinned by
     // the golden from day one. (#120: this replaced the original
     // COLLINEAR declaration, which the #101 same-carrier rule
     // refuses — the old exemplar was sick.)
@@ -201,8 +204,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // pinned by no golden, against this fixture's shape-covering
     // charter.
     //
-    // It gets its OWN square prism (nodes 5 and 6) rather than reusing
-    // node 2, and the reason is the door rather than tidiness: node 2's
+    // It gets its OWN square prism rather than reusing the bulged
+    // block, and the reason is the door rather than tidiness: that
     // profile carries an ARC, so its barrel is a cylinder; the
     // chamfer's v1 door is plane-plane, and every closed edge chain on
     // that body runs into the curved lateral and refuses
@@ -213,9 +216,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // requested is the smallest thing the door actually accepts, and a
     // golden that froze a refusing node would be the sick-bytes failure
     // #117/#120 named.
-    //
-    // Appended, so every existing node id — and every name the
-    // appearance rows above address — is untouched.
     let square = desc(
         plane,
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
@@ -226,29 +226,27 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::Profile(square),
         },
     );
+    let square = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: editor_core::RecipeNodeId(5),
+                profile: square,
                 distance: len(0.5),
             },
         },
     );
+    let prism = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::chamfer(
-                editor_core::RecipeNodeId(6),
-                len(0.1),
-                fixture::prism_edges(&doc, editor_core::RecipeNodeId(6), 4),
-            ),
+            node: Node::chamfer(prism, len(0.1), fixture::prism_edges(&doc, prism, 4)),
         },
     );
     doc = push(
         &doc,
         &DocEdit::ReWitness {
-            node: editor_core::RecipeNodeId(1),
+            node: arc_profile,
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x00, 0x7f, 0x80, 0xff],
@@ -257,7 +255,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     let body = StableName {
         kind: EntityKind::Body,
-        node: editor_core::RecipeNodeId(2),
+        node: bulged,
         path: vec![RoleSeg::OutputBody],
     };
     doc = push(
@@ -304,27 +302,21 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     editor_core::MeasureExpr::value(len(0.25)),
                 )
                 .expect("same-dimension subtraction"),
-                // Read at node 2, the extrude that owns the body: the
+                // Read at the extrude that owns the body: the
                 // reference is unindexed by this expression, so it is
                 // carried data the measure never reads.
-                vec![editor_core::SitedRef::new(
-                    editor_core::RecipeNodeId(2),
-                    body.clone(),
-                )],
+                vec![editor_core::SitedRef::new(bulged, body.clone())],
             )
             .expect("every index addresses a reference"),
         },
     );
+    let measure = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Assertion {
-                // The `Measure` pushed immediately above. Ids in this
-                // document are positional, so a node inserted EARLIER
-                // shifts this one — the insert door catches that
-                // typed (`AssertionTarget`) rather than letting a
-                // golden freeze an assertion over the wrong node.
-                measure: editor_core::RecipeNodeId(8),
+                // The `Measure` pushed immediately above.
+                measure,
                 bound: len(0.1),
                 dir: editor_core::AssertionDir::AtLeast,
             },
@@ -344,13 +336,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // slot beside the two window-angle slots — the widest slot list
     // either kind can carry — in the same node.
     //
-    // Appended LAST — nodes 9, 10, 11, after the measurement pair —
-    // so every existing id and every name the appearance rows and the
-    // assertion address is untouched. Ids here are positional, and
-    // inserting earlier is exactly what the assertion's own
-    // `AssertionTarget` door refuses; this block was written when the
-    // document ended at node 6 and moved here when it did not. R > r
-    // holds for both (the ring-torus convention), and the hollow
+    // R > r holds for both (the ring-torus convention), and the hollow
     // one's wall clears its own bore.
     doc = push(
         &doc,
@@ -361,21 +347,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             }),
         },
     );
-    // The axis just inserted, found by kind rather than by the literal
-    // id this block was written with: the sketch frame is a node too,
-    // so the spine is no longer node 9. It is the document's only
-    // 3-D axis.
-    let spine = doc
-        .order()
-        .iter()
-        .copied()
-        .find(|&id| {
-            matches!(
-                doc.node(id),
-                Some(Node::Datum(editor_core::Datum::Axis { .. }))
-            )
-        })
-        .expect("the golden document carries one 3-D axis");
+    let spine = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -408,12 +380,10 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // DESIGNATION ORDER (the first named face carries the rim), here
     // one name — a box's end cap. The box is its own three nodes (a
     // square on the sketch frame, its extrude, the shell) rather than
-    // a shell of node 2: the shell verb refuses the bulged block's
+    // a shell of the bulged block: the shell verb refuses the bulged block's
     // cylindrical wall at its inward offset (`ReanchorOffCarrier`), a
     // kernel scope fact this fixture is not the place to argue.
-    // Appended after the tubes for the reason they were appended after
-    // the measurement pair: every existing id and every name the rows
-    // above address is untouched. The wall clears every dimension of
+    // The wall clears every dimension of
     // the box by an order of magnitude, so the golden evaluates green.
     doc = push(
         &doc,
@@ -424,7 +394,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             )),
         },
     );
-    let box_profile = *doc.order().last().expect("the square was inserted");
+    let box_profile = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -434,7 +404,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             },
         },
     );
-    let block = *doc.order().last().expect("the box was inserted");
+    let block = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -454,7 +424,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // wire's per-literal `unit` field is pinned in the FROZEN bytes
     // (§4g: value canonical meters, `"unit": "mm"` on the wire).
     let edits = vec![DocEdit::SetParam {
-        node: editor_core::RecipeNodeId(2),
+        node: bulged,
         slot: editor_core::SlotId::Distance,
         expr: editor_core::parse_expr("500 mm", &std::collections::BTreeMap::new())
             .expect("golden unit literal"),

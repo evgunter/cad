@@ -1021,7 +1021,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         0.0,
         1.0,
     );
-    let doc_ref = store.insert(part, Tol::witness());
+    let doc_ref = store.insert(part.clone(), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row5e"), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..2 {
@@ -1046,19 +1046,16 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         "pre-move the declaration is not contradicted: {before:?}"
     );
 
-    // The move: SAME node layout, different geometry — the cube is
-    // half as tall, so its top cap is at z = 0.5 while the mate still
-    // seats the second instance's bottom at z = 1.
-    let (shorter, shorter_body) = block(
-        ProfileDoc::empty(part_id, Tol::witness()),
-        (0.0, 1.0),
-        (0.0, 1.0),
-        0.0,
-        0.5,
-    );
-    assert_eq!(
-        shorter_body, body,
-        "the same node layout keeps the body's id"
+    // The move: SAME node layout, different geometry — a value edit
+    // makes the cube half as tall, so its top cap is at z = 0.5 while
+    // the mate still seats the second instance's bottom at z = 1.
+    let (shorter, _) = step(
+        part,
+        DocEdit::SetParam {
+            node: body,
+            slot: editor_core::SlotId::Distance,
+            expr: len(0.5),
+        },
     );
     let new_pin = content_pin(&shorter, Tol::witness()).expect("the pin computes");
     store.replace_without_repinning(part_id, shorter);
@@ -1135,7 +1132,6 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
     };
     let (with, id_with) = insert(host.clone(), Node::instantiate_part_with(doc_ref, record));
     let (without, id_without) = insert(host, Node::instantiate_part(doc_ref));
-    assert_eq!(id_with, id_without, "same id, same reference, same pin");
 
     let key = |d: &ProfileDoc, id| {
         run(d, &with_resolver(store.clone()))

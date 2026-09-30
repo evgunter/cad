@@ -1638,7 +1638,7 @@ fn a_split_step_map_follows_a_non_contiguous_re_mint() {
     let part_profile = out.node_map[&p2];
     let minted = flat_ids(&out.part, part_profile);
     assert_eq!(
-        out.part.step_mint().log(),
+        out.part.mint().steps().collect::<Vec<_>>(),
         minted
             .iter()
             .copied()

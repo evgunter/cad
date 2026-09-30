@@ -610,11 +610,13 @@ fn a_mixed_chain_evaluates_in_the_interval_lane() {
 }
 
 /// **The content key tells every chain apart.** Two documents under
-/// one identity, whose transform differs only in its chain; B
-/// evaluated with A's evaluation as its prior recomputes the transform
-/// and places the body as a cold evaluation of B does — over a chain's
-/// order, its length, a literal's signed zero, and two rigid steps
-/// swapped.
+/// one identity, whose transform differs only in its chain: the two
+/// transforms key apart, and B evaluated with A's evaluation as its
+/// prior recomputes the transform and places the body as a cold
+/// evaluation of B does — over a chain's order, its length, a literal's
+/// signed zero, and two rigid steps swapped. (The two transforms are
+/// two inserts, so the mint gives them two ids; the key is compared
+/// directly, since the memo is by id first.)
 #[test]
 fn the_content_key_tells_every_chain_apart() {
     let literal = Step::Literal(Frame::translation([0.0, 3.0, 0.0]));
@@ -654,10 +656,18 @@ fn the_content_key_tells_every_chain_apart() {
             let (doc, body) = cube("placement-key");
             insert(doc, Node::transform(body, Placement { steps: b }))
         };
-        assert_eq!((ta, doc_a.id()), (tb, doc_b.id()), "{what}: one identity");
+        assert_eq!(doc_a.id(), doc_b.id(), "{what}: one identity");
         let prior = run(&doc_a, None);
         let warm = run(&doc_b, Some(&prior));
         let cold = run(&doc_b, None);
+        let key = |ev: &editor_core::Evaluation<f64>, t| {
+            ev.value(t).expect("the transform evaluates").content_key
+        };
+        assert_ne!(
+            key(&prior, ta),
+            key(&cold, tb),
+            "{what}: the two chains key apart"
+        );
         assert!(
             warm.recomputed >= 1,
             "{what}: the transform was served from the other chain's evaluation"

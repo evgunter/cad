@@ -101,13 +101,7 @@ pub(crate) fn declared_union(
     pairs: Vec<(SitedRef, SitedRef)>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, decl) = insert(doc, Node::declare_rest(pairs));
-    let (doc, union) = insert(
-        doc,
-        Node::Union {
-            members: members.to_vec(),
-            declare: Some(decl),
-        },
-    );
+    let (doc, union) = crate::fixture::union_over(doc, members, Some(decl));
     (doc, union, decl)
 }
 
@@ -937,7 +931,7 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
 /// pinned the opposite: a `Declare` carrying member-space names was
 /// written BEFORE the union it named, so the saved document held a
 /// payload name pointing FORWARD in `order()`; the file round-tripped
-/// because the load door checks the mint counter rather than the
+/// because the load door checks the mint log rather than the
 /// order, and re-inserting the same nodes in document order refused at
 /// the `Declare`. A sited declaration names only what precedes it, so
 /// the forward reference is gone and the asymmetry with it: the same

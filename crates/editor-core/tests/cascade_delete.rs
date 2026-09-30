@@ -17,7 +17,7 @@ use editor_core::{Doc, DocEdit, EditError, Node, RecipeNodeId, apply, cascade_de
 use geom_core::Tol;
 
 /// The opaque profile payload: this suite never looks inside `P`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 impl editor_core::ProfilePayload for FakeProfile {}
 

@@ -197,13 +197,14 @@ fn both_blends_evaluate_in_one_document() {
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
 /// Re-blessed again when step ids became digests of the document's mint
-/// chain: the names spell different ids, and the same id-free pins held.
+/// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
+/// and with the same pins holding.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x91d8_06d5_7561_4105_u64),
-        ("die_chamfer", 0x2ac7_0d65_6064_540f),
+        ("die_fillet", 0x9fb5_6836_6cae_dfc7_u64),
+        ("die_chamfer", 0x7551_70d5_e450_5811),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -291,14 +292,15 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
 /// green across this change untouched, and those are id-free.
 /// Re-blessed again when step ids became digests of the document's mint
-/// chain: the names spell different ids, and the same id-free pins held.
+/// chain: the names spell different ids, and the same id-free pins held. And again when node ids moved onto that mint, for the same reason
+/// and with the same pins holding.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x100c_c483_5f1c_4d3b_u64),
-        ("heat_sink", 0xd68c_866a_03dd_72e1),
-        ("kiss_carry", 0xa21d_7737_3ae7_b1ee),
+        ("crossing_slots", 0x37bf_90e5_3bcd_95de_u64),
+        ("heat_sink", 0x4003_39e3_bb54_5654),
+        ("kiss_carry", 0x48e8_cd2c_4d74_80dc),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -384,7 +386,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xeb0c_29dc_fd93_2da5,
+        got, 0xe2d3_5b86_9456_400b,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

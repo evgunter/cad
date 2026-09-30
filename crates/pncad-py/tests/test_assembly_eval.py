@@ -692,12 +692,13 @@ class TestNestingPastTheBound(unittest.TestCase):
         self.assertNotIn("lost sys.stderr", child.stderr)
         self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
         self.assertEqual(
-            child.stderr.count("the part's node 0 failed"),
+            len(re.findall(r"the part's node \d+ failed", child.stderr)),
             DEPTH_BOUND,
             "one line for the instance and one for each document above the bound",
         )
-        self.assertTrue(
-            child.stderr.rstrip().splitlines()[-1].startswith("pncad.EvaluationError: node 0 failed"),
+        self.assertRegex(
+            child.stderr.rstrip().splitlines()[-1],
+            r"^pncad\.EvaluationError: node \d+ failed",
             "the traceback ends at the refusal that was raised",
         )
 

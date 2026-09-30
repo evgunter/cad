@@ -56,6 +56,45 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
     doc
 }
 
+/// `part` (a [`box_part`]) re-valued in place: its square's half-width
+/// and its extrude's height edited, every id kept — a later version of
+/// the same document.
+fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
+    let profile = part
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(part.node(id), Some(Node::Profile(_))))
+        .expect("a box part has one profile");
+    let Some(Node::Profile(program)) = part.node(profile) else {
+        unreachable!("found as a profile")
+    };
+    let ids = program
+        .ids
+        .iter()
+        .map(|lp| lp.iter().copied().map(Some).collect())
+        .collect();
+    let loops = fixture::desc(program.plane, vec![fixture::square(0.0, 0.0, half)]).loops;
+    let body = body_node(&part);
+    let (part, _) = fixture::step(
+        part,
+        DocEdit::SetProgram {
+            node: profile,
+            loops,
+            ids,
+        },
+    );
+    let (part, _) = fixture::step(
+        part,
+        DocEdit::SetParam {
+            node: body,
+            slot: editor_core::SlotId::Distance,
+            expr: len(height),
+        },
+    );
+    part
+}
+
 /// A cylinder part: a rectangle `radius × height` in the xy plane,
 /// revolved a full turn about the plane's +y through the origin. The
 /// cylinder stands on the origin along +y; its farthest point from
@@ -627,16 +666,12 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
 #[test]
 fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     let theta = 1e-8;
-    // Two versions of ONE part document: the same id, so the
-    // reference can be re-pinned in place; different extents.
+    // Two versions of ONE part document, the later a value edit of the
+    // earlier: the same ids, so the reference can be re-pinned in
+    // place; different extents.
     let small = box_part("msolve6-a5-memo-part", 0.005, 0.01);
     let body = body_node(&small);
-    let large = box_part("msolve6-a5-memo-part", 5.0, 10.0);
-    assert_eq!(
-        body_node(&large),
-        body,
-        "the re-pinned part keeps its body's id"
-    );
+    let large = resized(small.clone(), 5.0, 10.0);
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -1706,12 +1741,7 @@ fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
 fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     let small = box_part("msolve6-p3c-part", 0.005, 0.01);
     let body = body_node(&small);
-    let large = box_part("msolve6-p3c-part", 5.0, 10.0);
-    assert_eq!(
-        body_node(&large),
-        body,
-        "the re-pinned part keeps its body's id"
-    );
+    let large = resized(small.clone(), 5.0, 10.0);
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());

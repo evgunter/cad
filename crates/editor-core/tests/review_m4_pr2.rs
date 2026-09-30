@@ -125,13 +125,14 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// R2: Subtract(A,B)'s memo entry offered as prior to a doc holding
-/// Subtract(B,A) at the SAME node id with the SAME upstream keys in
-/// swapped order — a key collision here silently reuses A−B for B−A.
+/// Subtract(B,A) with the SAME upstream keys in swapped order — a key
+/// collision here silently reuses A−B for B−A. (The two subtracts are
+/// two nodes, so the mint gives them two ids; the upstream nodes are
+/// one recipe and share theirs.)
 #[test]
 fn operand_swap_never_reuses_the_prior_subtract() {
     let (d1, s1) = subtract_doc(false);
     let (d2, s2) = subtract_doc(true);
-    assert_eq!(s1, s2, "attack precondition: aligned node ids");
     let e1 = run(&d1, None, false);
     let e2_scratch = run(&d2, None, false);
     let e2 = run(&d2, Some(&e1), false);
@@ -902,8 +903,9 @@ fn wire_doors_refuse_typed() {
 }
 
 /// R2: same evaluated floats under DIFFERENT op tags must not collide
-/// — a Plane and an Axis datum with identical slot values at the same
-/// node id (parallel docs), prior offered across: no reuse.
+/// — a Plane and an Axis datum with identical slot values (parallel
+/// docs, whose two nodes the mint gives two ids), prior offered
+/// across: no reuse.
 #[test]
 fn datum_kind_is_key_separated() {
     let build = |axis: bool| {
@@ -923,7 +925,6 @@ fn datum_kind_is_key_separated() {
     };
     let (d1, n1) = build(false);
     let (d2, n2) = build(true);
-    assert_eq!(n1, n2);
     let e1 = run(&d1, None, false);
     let e2 = run(&d2, Some(&e1), false);
     assert_ne!(

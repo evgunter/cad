@@ -469,7 +469,7 @@ pub struct ProfileProgram {
     /// profile pieces").
     ///
     /// The document's edit doors mint them from its mint chain
-    /// ([`crate::StepMint`]) — `InsertNode` every one, `SetProgram` each step it does
+    /// ([`crate::Mint`]) — `InsertNode` every one, `SetProgram` each step it does
     /// not keep — so a program on its way IN carries none (`InsertNode`
     /// refuses one that does), and a program at rest carries exactly
     /// one per step, unique across the document, which the load door
@@ -496,8 +496,10 @@ type Replayed = (
 /// What `Node<P>` needs from a profile payload so slot addressing and
 /// the authoring-time check stay generic (`Doc<P>` keeps its fake test
 /// payloads — the defaults are the slot-free, check-free behavior the
-/// retired opaque payload had).
-pub trait ProfilePayload {
+/// retired opaque payload had). `Serialize`, because the insert door
+/// mints a node's id from the node's bytes, payload included
+/// ([`crate::Mint`]).
+pub trait ProfilePayload: serde::Serialize {
     /// **The program's slot table**: every expression it holds, keyed
     /// by its `(loop, step, arg)` address, in that deterministic order.
     /// `Node::Profile` reads its slots, and answers
@@ -553,20 +555,16 @@ pub trait ProfilePayload {
     {
         None
     }
-    /// **Mints an id for every authored step** of this payload, entering
-    /// the document as `node`, from the document's mint
-    /// ([`crate::StepMint`]): the insert door's half of N1's minting. A
-    /// payload with no program mints nothing.
+    /// **Mints an id for every authored step** of this payload from the
+    /// document's mint ([`crate::Mint`]), after the insert door minted
+    /// the payload's node from it: the insert door's half of N1's
+    /// minting. A payload with no program mints nothing.
     ///
     /// # Errors
     ///
     /// [`StepIdFault::Preminted`] where the program already carries
     /// ids; the mint's own refusals.
-    fn mint_step_ids(
-        &mut self,
-        _node: crate::RecipeNodeId,
-        _mint: &mut crate::StepMint,
-    ) -> Result<(), StepIdFault> {
+    fn mint_step_ids(&mut self, _mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         Ok(())
     }
     /// **The document node this payload is drawn ON**, if it names one
@@ -2361,11 +2359,7 @@ impl ProfilePayload for ProfileProgram {
             ids,
         })
     }
-    fn mint_step_ids(
-        &mut self,
-        node: crate::RecipeNodeId,
-        mint: &mut crate::StepMint,
-    ) -> Result<(), StepIdFault> {
+    fn mint_step_ids(&mut self, mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         if self.carries_step_ids() {
             return Err(StepIdFault::Preminted);
         }
@@ -2374,14 +2368,7 @@ impl ProfilePayload for ProfileProgram {
             .iter()
             .map(|lp| vec![None; lp.authored_steps()])
             .collect();
-        self.ids = mint.mint(
-            &crate::step_mint::MintingEdit::InsertNode {
-                node,
-                plane: self.plane,
-                loops: &self.loops,
-            },
-            &every_new,
-        )?;
+        self.ids = mint.steps_of_insert(&every_new)?;
         Ok(())
     }
 }

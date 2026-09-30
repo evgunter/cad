@@ -365,17 +365,11 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// pinned byte-wise where it is ε-free (`pncad`'s `plate_param`
 /// fixture) and observed here as a round-trip.
 ///
-/// RE-BLESSED for the sketch frame: the digest feeds node ids and
-/// `StableName`s, and a profile's plane became a node, so the part
-/// gained one and its later nodes renumbered. The VOLUME bits and the
-/// solid count beside it are id-free and did not move, which is the
-/// half of this row that is about geometry. Re-blessed again when a
-/// profile's pieces became named by minted step ids: the walls' names
-/// spell `{ step, role }` where they spelled a canonical position, and
-/// the volume and solid count did not move. Re-blessed again when step
-/// ids became digests of the document's mint chain: the walls spell
-/// different ids, and the volume and solid count did not move.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 3_203_822_082_972_576_845;
+/// The digest feeds node ids and `StableName`s, so it moves whenever
+/// the mint gives the part's nodes or steps other ids; the VOLUME bits
+/// and the solid count beside it are id-free, which is the half of this
+/// row that is about geometry.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 9_527_859_537_356_735_907;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]
