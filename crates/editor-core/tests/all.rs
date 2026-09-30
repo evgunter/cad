@@ -447,6 +447,8 @@ mod parallel_node_map_interval;
 mod parallel_node_map_probe;
 #[path = "part_depth_bound.rs"]
 mod part_depth_bound;
+#[path = "depth_rev_probes.rs"]
+mod depth_rev_probes;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
