@@ -109,6 +109,46 @@ impl Drop for Shallow {
     }
 }
 
+/// **How many levels `Eq`, `Ord` and `Hash` recurse natively** before
+/// they go on from their own stack. Native recursion allocates nothing,
+/// and nearly every comparison a name table makes is decided within a
+/// few levels, so the walks take it while it is cheap; the frames of
+/// this many levels fit any stack a door runs on (a few hundred bytes
+/// each in a dev build). Both routes give the same answer, and `Hash`
+/// feeds the same sequence on both.
+const NATIVE_LEVELS: u32 = 64;
+
+thread_local! {
+    /// The native levels the walk on this thread is inside.
+    static NATIVE: Cell<u32> = const { Cell::new(0) };
+}
+
+fn native_levels() -> u32 {
+    #[cfg(test)]
+    if let Some(levels) = tests::native_levels() {
+        return levels;
+    }
+    NATIVE_LEVELS
+}
+
+/// `f`, one native level deeper, while the budget lasts; `None` past
+/// it.
+fn natively<R>(f: impl FnOnce() -> R) -> Option<R> {
+    struct Out(u32);
+    impl Drop for Out {
+        fn drop(&mut self) {
+            NATIVE.with(|n| n.set(self.0));
+        }
+    }
+    let depth = NATIVE.with(Cell::get);
+    if depth >= native_levels() {
+        return None;
+    }
+    let _out = Out(depth);
+    NATIVE.with(|n| n.set(depth + 1));
+    Some(f())
+}
+
 /// A held name's order, settled by its handle (`NameRef::cmp`),
 /// recorded when a shallow [`Ord`] level asked for it.
 pub(super) fn settled(order: Ordering) {
@@ -291,6 +331,12 @@ impl StableName {
         out
     }
 
+    fn holds_names(&self) -> bool {
+        let mut any = false;
+        self.each_held(&mut |_| any = true);
+        any
+    }
+
     fn holds_by_value(&self) -> bool {
         let mut any = false;
         self.each_held(&mut |h| any |= matches!(h, Held::Owned(_)));
@@ -306,12 +352,16 @@ impl Drop for StableName {
     fn drop(&mut self) {
         // Every segment below this name whose names this is the last
         // holder of is moved here before it goes, so each name dropped
-        // in the loop has an empty path and drops nothing of its own.
+        // in the loop drops at most its own segments. A held name that
+        // holds none drops no deeper than that where it is, so its
+        // handle is not asked whether it is the last.
         let mut segs = core::mem::take(&mut self.path);
         while let Some(mut seg) = segs.pop() {
             seg.each_name_mut(&mut |h| match h {
                 HeldMut::Shared(r) => {
-                    if let Some(name) = r.get_mut() {
+                    if r.holds_names()
+                        && let Some(name) = r.get_mut()
+                    {
                         segs.append(&mut name.path);
                     }
                 }
@@ -531,9 +581,8 @@ impl PartialEq for StableName {
             } = b;
             kind == b_kind && node == b_node && path == b_path
         };
-        #[cfg(test)]
-        if tests::recursing() {
-            return same(self, other);
+        if let Some(answer) = natively(|| same(self, other)) {
+            return answer;
         }
         let _shallow = Shallow::enter(Walk::Eq, Family::Name);
         let mut pairs = vec![(self, other)];
@@ -559,17 +608,36 @@ impl core::hash::Hash for StableName {
         if shallow(Walk::Hash, Family::Name) {
             return;
         }
-        // Each level's own fields, in pre-order: equal names feed the
-        // same sequence, which is all `Hash` owes `Eq`.
-        let _shallow = Shallow::enter(Walk::Hash, Family::Name);
-        let mut names = vec![self];
-        while let Some(n) = names.pop() {
-            n.kind.hash(state);
-            n.node.hash(state);
-            n.path.hash(state);
-            names.extend(n.held().into_iter().rev());
-        }
+        hash_from(self, state);
     }
+}
+
+// Each level's own fields, the names it holds fed nothing, in pre-order:
+// equal names feed the same sequence, which is all `Hash` owes `Eq`.
+// The pre-order is walked natively while the budget lasts and from a
+// heap stack past it, and the two feed the same sequence.
+
+fn hash_level<H: core::hash::Hasher>(n: &StableName, state: &mut H) {
+    use core::hash::Hash as _;
+    let _shallow = Shallow::enter(Walk::Hash, Family::Name);
+    let StableName { kind, node, path } = n;
+    kind.hash(state);
+    node.hash(state);
+    path.hash(state);
+}
+
+fn hash_from<H: core::hash::Hasher>(root: &StableName, state: &mut H) {
+    hash_level(root, state);
+    root.each_held(&mut |held| {
+        let held = held.name();
+        if natively(|| hash_from(held, state)).is_none() {
+            let mut names = vec![held];
+            while let Some(n) = names.pop() {
+                hash_level(n, state);
+                names.extend(n.held().into_iter().rev());
+            }
+        }
+    });
 }
 
 // ---------------------------------------------------------------
@@ -601,11 +669,14 @@ impl Ord for StableName {
         if core::ptr::eq(self, other) {
             return Ordering::Equal;
         }
-        #[cfg(test)]
-        if tests::recursing() {
-            return (self.kind, self.node)
-                .cmp(&(other.kind, other.node))
-                .then_with(|| self.path.cmp(&other.path));
+        let derived = || {
+            let StableName { kind, node, path } = self;
+            (kind, node)
+                .cmp(&(&other.kind, &other.node))
+                .then_with(|| path.cmp(&other.path))
+        };
+        if let Some(order) = natively(derived) {
+            return order;
         }
         let _shallow = Shallow::enter(Walk::Ord, Family::Name);
         let mut stack = vec![OrdLevel::of(self, other)];
@@ -1065,21 +1136,35 @@ pub(super) mod tests {
     use crate::node::StepId;
 
     thread_local! {
-        static RECURSING: Cell<bool> = const { Cell::new(false) };
+        /// The native levels a walk takes, where a row sets them.
+        static LEVELS: Cell<Option<u32>> = const { Cell::new(None) };
     }
 
-    /// Whether the walks answer by the derived impls' own recursion —
-    /// the reference each walk here is checked against.
-    pub(in crate::names) fn recursing() -> bool {
-        RECURSING.with(Cell::get)
+    pub(super) fn native_levels() -> Option<u32> {
+        LEVELS.with(Cell::get)
+    }
+
+    /// Whether the walks answer by the derived impls' own recursion,
+    /// unbounded — the reference each walk here is checked against.
+    pub(super) fn recursing() -> bool {
+        native_levels() == Some(u32::MAX)
+    }
+
+    fn with_levels<R>(levels: u32, f: impl FnOnce() -> R) -> R {
+        let was = LEVELS.with(|l| l.replace(Some(levels)));
+        let out = f();
+        LEVELS.with(|l| l.set(was));
+        out
     }
 
     /// `f`, answered by the derived recursion.
     fn derived<R>(f: impl FnOnce() -> R) -> R {
-        let was = RECURSING.with(|r| r.replace(true));
-        let out = f();
-        RECURSING.with(|r| r.set(was));
-        out
+        with_levels(u32::MAX, f)
+    }
+
+    /// `f`, answered from the walks' own stacks from the first level.
+    fn iterative<R>(f: impl FnOnce() -> R) -> R {
+        with_levels(0, f)
     }
 
     /// The wasm32 build's default stack, the smallest any door runs on.
@@ -1293,9 +1378,9 @@ pub(super) mod tests {
             let copy = a.clone();
             assert!(derived(|| copy == *a), "a clone equals its source: {shown}");
             assert_eq!(
-                hash(&copy),
+                iterative(|| hash(&copy)),
                 hash(a),
-                "a clone hashes as its source: {shown}"
+                "a clone hashes as its source, on either route: {shown}"
             );
             let text = a.to_json().unwrap();
             assert_eq!(
@@ -1311,8 +1396,11 @@ pub(super) mod tests {
                 "the door reads the pretty spelling: {shown}"
             );
             for b in &names {
-                assert_eq!(a == b, derived(|| a == b), "eq: {shown} / {b:?}");
-                assert_eq!(a.cmp(b), derived(|| a.cmp(b)), "cmp: {shown} / {b:?}");
+                let (eq, cmp) = (derived(|| a == b), derived(|| a.cmp(b)));
+                assert_eq!(iterative(|| a == b), eq, "eq: {shown} / {b:?}");
+                assert_eq!(iterative(|| a.cmp(b)), cmp, "cmp: {shown} / {b:?}");
+                assert_eq!(a == b, eq, "eq on the budget: {shown} / {b:?}");
+                assert_eq!(a.cmp(b), cmp, "cmp on the budget: {shown} / {b:?}");
             }
         }
     }
