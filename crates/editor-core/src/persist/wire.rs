@@ -119,49 +119,6 @@ pub(crate) enum WireExpr {
     CountToScalar(Child<WireExpr>),
 }
 
-impl Default for WireExpr {
-    /// A leaf, what a node's children are left as while it is freed.
-    fn default() -> Self {
-        WireExpr::Count(0)
-    }
-}
-
-impl Drop for WireExpr {
-    /// Frees the tree from an explicit stack, as [`Expr`]'s drop does.
-    fn drop(&mut self) {
-        let mut stack = Vec::new();
-        self.detach_children(&mut stack);
-        while let Some(mut child) = stack.pop() {
-            child.detach_children(&mut stack);
-        }
-    }
-}
-
-impl WireExpr {
-    /// Moves this node's children onto `out`, leaving leaves in their
-    /// place.
-    fn detach_children(&mut self, out: &mut Vec<WireExpr>) {
-        match self {
-            WireExpr::Add(a, b)
-            | WireExpr::Sub(a, b)
-            | WireExpr::Mul(a, b)
-            | WireExpr::Div(a, b)
-            | WireExpr::Atan2(a, b)
-            | WireExpr::Min(a, b)
-            | WireExpr::Max(a, b) => {
-                out.push(*core::mem::take(&mut a.0));
-                out.push(*core::mem::take(&mut b.0));
-            }
-            WireExpr::Neg(a)
-            | WireExpr::Sin(a)
-            | WireExpr::Cos(a)
-            | WireExpr::Tan(a)
-            | WireExpr::CountToScalar(a) => out.push(*core::mem::take(&mut a.0)),
-            WireExpr::Literal { .. } | WireExpr::Count(_) | WireExpr::Param { .. } => {}
-        }
-    }
-}
-
 impl From<&Expr> for WireExpr {
     fn from(e: &Expr) -> Self {
         let b = |x: &Expr| Child::new(WireExpr::from(x));
@@ -385,46 +342,6 @@ pub(crate) enum WireMeasureExpr {
     Min(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
     /// Same-dimension maximum.
     Max(Child<WireMeasureExpr>, Child<WireMeasureExpr>),
-}
-
-impl Default for WireMeasureExpr {
-    /// A leaf, what a node's children are left as while it is freed.
-    fn default() -> Self {
-        WireMeasureExpr::Value(Box::default())
-    }
-}
-
-impl Drop for WireMeasureExpr {
-    /// Frees the tree from an explicit stack, as [`MeasureExpr`]'s drop
-    /// does.
-    fn drop(&mut self) {
-        let mut stack = Vec::new();
-        self.detach_children(&mut stack);
-        while let Some(mut child) = stack.pop() {
-            child.detach_children(&mut stack);
-        }
-    }
-}
-
-impl WireMeasureExpr {
-    /// Moves this node's children onto `out`, leaving leaves in their
-    /// place. A value leaf's expression frees through [`WireExpr`]'s
-    /// own drop.
-    fn detach_children(&mut self, out: &mut Vec<WireMeasureExpr>) {
-        match self {
-            WireMeasureExpr::Add(a, b)
-            | WireMeasureExpr::Sub(a, b)
-            | WireMeasureExpr::Mul(a, b)
-            | WireMeasureExpr::Div(a, b)
-            | WireMeasureExpr::Min(a, b)
-            | WireMeasureExpr::Max(a, b) => {
-                out.push(*core::mem::take(&mut a.0));
-                out.push(*core::mem::take(&mut b.0));
-            }
-            WireMeasureExpr::Neg(a) => out.push(*core::mem::take(&mut a.0)),
-            WireMeasureExpr::Primitive(_) | WireMeasureExpr::Value(_) => {}
-        }
-    }
 }
 
 impl From<&MeasureExpr> for WireMeasureExpr {

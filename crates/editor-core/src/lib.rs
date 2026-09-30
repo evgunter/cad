@@ -83,6 +83,7 @@ pub mod step_mint;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub mod test_support;
+mod tree;
 pub mod update;
 mod verbs;
 pub mod witness;

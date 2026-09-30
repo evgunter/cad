@@ -160,6 +160,12 @@ impl MeasurePrimitive {
 /// Private fields and fallible constructors, exactly as [`Expr`]: an
 /// ill-dimensioned tree is unrepresentable, so the cached
 /// [`Self::dim`] is trustworthy by construction.
+///
+/// **A measurement nests at most 128 levels**, the bound it shares with
+/// [`Expr`], a value leaf counting as the expression it holds: a
+/// constructor that would pass it refuses with
+/// [`DimensionError::NestedTooDeep`], so a flat chain of more than 128
+/// terms refuses.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MeasureExpr {
     dim: Dimension,
@@ -171,15 +177,10 @@ pub struct MeasureExpr {
 }
 
 impl Drop for MeasureExpr {
-    /// Frees the tree from an explicit stack, as [`Expr`]'s drop does.
+    /// Frees the tree from a heap stack, as [`Expr`]'s drop does.
     fn drop(&mut self) {
-        if matches!(self.kind, MeasureKind::Primitive(_) | MeasureKind::Value(_)) {
-            return;
-        }
-        let mut stack = Vec::new();
-        self.kind.detach_children(&mut stack);
-        while let Some(mut child) = stack.pop() {
-            child.kind.detach_children(&mut stack);
+        if !matches!(self.kind, MeasureKind::Primitive(_) | MeasureKind::Value(_)) {
+            crate::tree::free(self, |e, out| e.kind.detach_children(out));
         }
     }
 }
@@ -229,15 +230,15 @@ impl MeasureKind {
     }
 
     /// How many levels the node's children nest, the deeper one's.
-    fn below(&self) -> usize {
+    fn below(&self) -> u8 {
         match self {
             MeasureKind::Add(a, b)
             | MeasureKind::Sub(a, b)
             | MeasureKind::Mul(a, b)
             | MeasureKind::Div(a, b)
             | MeasureKind::Min(a, b)
-            | MeasureKind::Max(a, b) => usize::from(a.nesting.max(b.nesting)),
-            MeasureKind::Neg(a) => usize::from(a.nesting),
+            | MeasureKind::Max(a, b) => a.nesting.max(b.nesting),
+            MeasureKind::Neg(a) => a.nesting,
             MeasureKind::Primitive(_) | MeasureKind::Value(_) => 0,
         }
     }
@@ -338,11 +339,11 @@ impl MeasureExpr {
     /// An operator node over the children `kind` holds, refused when it
     /// would nest past [`MAX_NESTING`].
     fn over(dim: Dimension, kind: MeasureKind) -> Result<Self, DimensionError> {
-        let nesting = kind.below() + 1;
-        match u8::try_from(nesting) {
-            Ok(nesting) if usize::from(nesting) <= MAX_NESTING => Ok(Self { dim, nesting, kind }),
-            _ => Err(DimensionError::NestedTooDeep { bound: MAX_NESTING }),
-        }
+        Ok(Self {
+            dim,
+            nesting: crate::expr::nesting_over(kind.below())?,
+            kind,
+        })
     }
 
     fn binary(
@@ -1043,14 +1044,13 @@ pub(crate) fn decide_assertion<T: Decide>(
 /// (`docs/K-REPORT.md`) rather than a literal at the decide site.
 pub const ASSERT_BOUND: &str = "assert_bound";
 
-/// A measurement `levels` deep of negations over one value leaf, built
-/// past the constructors (which refuse it past the bound), for the rows
-/// that measure the walks keeping their own stack.
+/// A negation over `e`, built past the constructors, which refuse it
+/// past the bound.
 #[cfg(test)]
-pub(crate) fn raw_negations(levels: usize) -> MeasureExpr {
-    (1..levels).fold(MeasureExpr::value(Expr::count(0)), |e, _| MeasureExpr {
+pub(crate) fn raw_neg(e: MeasureExpr) -> MeasureExpr {
+    MeasureExpr {
         dim: e.dim,
         nesting: u8::MAX,
         kind: MeasureKind::Neg(Box::new(e)),
-    })
+    }
 }

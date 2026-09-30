@@ -35,24 +35,32 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::expr::{DimensionError, MAX_NESTING};
 
-/// The deepest JSON nesting of an expression slot's position in a body,
-/// with room to spare. The deepest a save writes is a profile step's
-/// target point in the edit log (the file object, the log, an edit, its
-/// node, the program, a loop, a step and its target), sixteen levels
-/// down; `expr_nesting_bound`'s at-bound row saves an expression at the
-/// bound there and loads it back.
-pub(crate) const ENVELOPE: usize = 32;
+/// The most JSON brackets that enclose an expression's root anywhere a
+/// save writes one, a measurement's root counting as one of those that
+/// enclose the expression its value leaf holds. The deepest is a
+/// profile step's target point inside an arc step, in the edit log.
+///
+/// Not a hand count: `expr_nesting_bound`'s
+/// `the_load_doors_limit_is_the_deepest_body_a_save_writes` finds every
+/// expression and measurement in the corpus (every node kind and every
+/// edit kind), saved both ways, by its wire shape, and fails when the
+/// deepest disagrees with [`BODY_NESTING`]; its at-bound row saves an
+/// expression at the bound in that position and loads it back.
+pub(crate) const ENVELOPE: usize = 15;
 
-/// JSON levels per expression level: an operator is a tag object around
-/// its operand array (`{"Add": [a, b]}`), and a leaf a tag object
-/// around its fields (`{"Literal": {...}}`). A measurement's value leaf
-/// adds one tag object above the expression it holds.
+/// JSON levels per expression level, at most: a binary operator is a
+/// tag object around its operand array (`{"Add": [a, b]}`) and a leaf a
+/// tag object around its fields (`{"Literal": {...}}`), two each; a
+/// unary operator is the tag object alone (`{"Neg": a}`), one. So an
+/// expression nested `n` levels spans at most `2n` brackets from its
+/// root's own, and a measurement `2n` from its root's (a primitive leaf
+/// is three, and counts one level).
 const LEVELS_PER_NESTING: usize = 2;
 
-/// The deepest a body this build saves can nest: an expression nested
-/// to [`MAX_NESTING`] under a measurement's value leaf, in the deepest
-/// slot position.
-pub(crate) const BODY_NESTING: usize = ENVELOPE + LEVELS_PER_NESTING * MAX_NESTING + 1;
+/// The deepest a body this build saves can nest: an expression or a
+/// measurement nested to [`MAX_NESTING`] in the deepest position one
+/// sits.
+pub(crate) const BODY_NESTING: usize = ENVELOPE + LEVELS_PER_NESTING * MAX_NESTING;
 
 /// Where a body first nests past [`BODY_NESTING`]: the 1-based line and
 /// column of the bracket that does, counted as serde_json counts them
@@ -153,7 +161,7 @@ impl Drop for Restore {
 
 /// A child of an expression node on the wire (module docs): written
 /// and read as the `Box<T>` it holds, one expression level down.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct Child<T>(pub(crate) Box<T>);
 
 impl<T> Child<T> {

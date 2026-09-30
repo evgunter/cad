@@ -13,7 +13,7 @@
 //! ```text
 //! expr    := term (('+' | '-') term)*                 left-assoc
 //! term    := unary (('*' | '/') unary)*               left-assoc
-//! unary   := '-' unary | primary
+//! unary   := '-' NUMBER [UNIT] | '-' unary | primary  first match
 //! primary := NUMBER [UNIT]                            literals
 //!          | IDENT '(' expr (',' expr)* ')'           calls
 //!          | IDENT                                    param refs
@@ -35,6 +35,12 @@
 //! minmax family, chosen as the round-trip fixed point for
 //! [`Expr::count_to_scalar`].
 //!
+//! A minus sign directly before a number is that literal's own sign:
+//! `-25 mm` is the literal −25 mm, and the negation of 25 mm is
+//! spelled `-(25 mm)`. Every literal the constructors admit therefore
+//! has a spelling, and [`crate::unparse`]'s text reads back as the tree
+//! it came from, node for node.
+//!
 //! Functions are `sin cos tan` (Angle→Scalar), `atan2 min max`
 //! (binary), `scalar` (Count→Scalar). `-` is both unary and binary
 //! with standard precedence; child order is argument order, matching
@@ -51,7 +57,7 @@ use std::collections::BTreeMap;
 use quantity::{UnitDef, unit_by_symbol};
 
 use crate::doc::ParamName;
-use crate::expr::{Dimension, DimensionError, Expr, MAX_NESTING, UnitSym};
+use crate::expr::{Dimension, DimensionError, Expr, UnitSym};
 
 /// Typed refusal from the text door. Positions are byte offsets into
 /// the source string.
@@ -94,14 +100,9 @@ pub enum ParseError {
         /// Its text.
         text: String,
     },
-    /// A bare integer literal outside `i64` — Count literals are
-    /// exact, so an unrepresentable count refuses rather than rounds.
-    ///
-    /// Corner (inherent to the grammar): `-9223372036854775808`
-    /// (i64::MIN) also refuses — the MAGNITUDE lexes as its own token
-    /// (9223372036854775808 > i64::MAX) before unary minus applies.
-    /// Harmless: no structural count is anywhere near it, and it stays
-    /// spellable as an expression if ever needed.
+    /// A bare integer literal outside `i64`, read with its sign — Count
+    /// literals are exact, so an unrepresentable count refuses rather
+    /// than rounds.
     IntegerOverflow {
         /// Byte offset of the number.
         pos: usize,
@@ -145,10 +146,9 @@ pub enum ParseError {
     },
     /// A reduction the dimension checker refused — the smart
     /// constructors are the only door, so the text door surfaces
-    /// their refusal verbatim. Text nested deeper than the
-    /// constructors' nesting bound refuses here too, with
-    /// [`DimensionError::NestedTooDeep`], at the bracket the parser
-    /// declines to descend into.
+    /// their refusal verbatim, [`DimensionError::NestedTooDeep`]
+    /// included: the operator, sign or call whose node would nest past
+    /// the bound is the one named.
     Dimension {
         /// Byte offset of the token whose reduction was refused (the
         /// operator, function name, or literal).
@@ -520,11 +520,20 @@ fn param_name_reason(text: &str) -> ParamNameReason {
 /// is the declared parameter table refs resolve against — a document's
 /// would be its params' names and dimensions.
 ///
+/// **An expression nests at most 128 levels** (`expr::MAX_NESTING`),
+/// counted along the longest chain from the root to a leaf. Operators
+/// associate to the left, so a flat chain of more than 128 terms
+/// (`a + b + … `, 129 of them) refuses; the same terms grouped
+/// (`(a + b) + (c + d)`) nest less, and a sum of 10⁵ terms grouped as a
+/// balanced tree nests 18 levels. Brackets alone nest nothing.
+///
 /// # Errors
 ///
 /// [`ParseError`], including [`ParseError::Dimension`] wrapping the
 /// smart constructor's [`DimensionError`] whenever the refusal is
-/// dimensional rather than syntactic.
+/// dimensional rather than syntactic, and
+/// [`DimensionError::NestedTooDeep`] for an expression nested past the
+/// bound.
 pub fn parse_expr(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Result<Expr, ParseError> {
     let toks = lex(src).map_err(|(pos, ch)| ParseError::UnexpectedChar { pos, ch })?;
     Parser {
@@ -626,33 +635,20 @@ impl Parser<'_> {
         }
     }
 
-    /// Opens a bracket level at `pos`. Text nested past [`MAX_NESTING`]
-    /// brackets refuses at the bracket, so the levels are bounded as
-    /// every expression is.
-    fn open(&self, levels: &mut Vec<Level>, pos: usize, close: Close) -> Result<(), ParseError> {
-        if levels.len() > MAX_NESTING {
-            return Err(ParseError::Dimension {
-                pos,
-                error: DimensionError::NestedTooDeep { bound: MAX_NESTING },
-            });
-        }
-        levels.push(Level::new(close));
-        Ok(())
-    }
-
     /// The whole text, by the module docs' grammar:
     ///
     /// ```text
     /// expr    := term (('+' | '-') term)*     left-assoc
     /// term    := unary (('*' | '/') unary)*   left-assoc
-    /// unary   := '-' unary | primary
+    /// unary   := '-' NUMBER [UNIT] | '-' unary | primary
     /// ```
     ///
     /// Each operator reduces through its smart constructor the moment
     /// its right side is complete, in the order a recursive descent
     /// reduces them, so every refusal is the one it would raise, at the
     /// same offset. Minus signs apply innermost first, after their
-    /// operand and before any `*` or `/` takes it.
+    /// operand and before any `*` or `/` takes it; the innermost one is
+    /// the literal's own sign when a number follows it.
     fn expr(&mut self) -> Result<Expr, ParseError> {
         let mut levels = vec![Level::new(Close::End)];
         loop {
@@ -660,11 +656,12 @@ impl Parser<'_> {
             while let Some((_, Tok::Minus)) = self.peek() {
                 self.i += 1;
             }
+            let signed = self.i > first && matches!(self.peek(), Some((_, Tok::Number { .. })));
             let Some(level) = levels.last_mut() else {
                 unreachable!("the text's own level stays open until the text is read")
             };
-            level.signs = first..self.i;
-            let mut value = match self.primary(&mut levels)? {
+            level.signs = first..self.i - usize::from(signed);
+            let mut value = match self.primary(&mut levels, signed)? {
                 Some(value) => value,
                 // A bracket opened: its first operand comes next.
                 None => continue,
@@ -747,26 +744,27 @@ impl Parser<'_> {
 
     /// `primary := NUMBER [UNIT] | IDENT '(' expr (',' expr)* ')' |
     /// IDENT | '(' expr ')'`: the operand at the cursor, or `None` once
-    /// a bracket opens (its contents are the next operands read).
-    fn primary(&mut self, levels: &mut Vec<Level>) -> Result<Option<Expr>, ParseError> {
+    /// a bracket opens (its contents are the next operands read). A
+    /// number is `negative` when the sign before it is its own.
+    fn primary(
+        &mut self,
+        levels: &mut Vec<Level>,
+        negative: bool,
+    ) -> Result<Option<Expr>, ParseError> {
         match self.next() {
             Some((pos, Tok::Number { text, integral })) => {
-                self.literal(pos, &text, integral).map(Some)
+                self.literal(pos, &text, integral, negative).map(Some)
             }
             Some((pos, Tok::Ident(name))) => {
                 if let Some((_, Tok::LParen)) = self.peek() {
                     let (canonical, arity) = function(pos, &name)?;
-                    let open = self.expect(&Tok::LParen, "`(`")?;
-                    self.open(
-                        levels,
-                        open,
-                        Close::Call {
-                            pos,
-                            canonical,
-                            arity,
-                            args: Vec::new(),
-                        },
-                    )?;
+                    self.expect(&Tok::LParen, "`(`")?;
+                    levels.push(Level::new(Close::Call {
+                        pos,
+                        canonical,
+                        arity,
+                        args: Vec::new(),
+                    }));
                     Ok(None)
                 } else {
                     // Looked up by the lexed text (`ParamName:
@@ -780,8 +778,8 @@ impl Parser<'_> {
                     }
                 }
             }
-            Some((pos, Tok::LParen)) => {
-                self.open(levels, pos, Close::Paren)?;
+            Some((_, Tok::LParen)) => {
+                levels.push(Level::new(Close::Paren));
                 Ok(None)
             }
             Some((pos, tok)) => Err(ParseError::UnexpectedToken {
@@ -830,8 +828,17 @@ impl Parser<'_> {
     }
     /// `NUMBER [UNIT]` (module docs' literal semantics): suffixed →
     /// continuous literal in canonical units (one f64 multiply); bare
-    /// integral → exact Count; bare real → Scalar.
-    fn literal(&mut self, pos: usize, text: &str, integral: bool) -> Result<Expr, ParseError> {
+    /// integral → exact Count; bare real → Scalar. `negative` is the
+    /// sign written before the number; a refusal names the number's own
+    /// offset and text.
+    fn literal(
+        &mut self,
+        pos: usize,
+        text: &str,
+        integral: bool,
+        negative: bool,
+    ) -> Result<Expr, ParseError> {
+        let signed = |value: f64| if negative { -value } else { value };
         // An identifier DIRECTLY after a number can only be a unit
         // suffix — juxtaposition means nothing else in this grammar.
         if let Some((upos, first)) = self.peeked_ident() {
@@ -850,6 +857,7 @@ impl Parser<'_> {
                 pos,
                 text: text.to_string(),
             })?;
+            let value = signed(value);
             // What the suffix MEASURES is one fact, asked once
             // (`UnitSym::measures`) rather than re-laddered here: the
             // literal door re-derives it from the same unit to check
@@ -870,7 +878,13 @@ impl Parser<'_> {
                 .map_err(|error| ParseError::Dimension { pos, error });
         }
         if integral {
-            let value: i64 = text.parse().map_err(|_| ParseError::IntegerOverflow {
+            // Read with its sign, so `-9223372036854775808` is `i64::MIN`.
+            let digits = if negative {
+                format!("-{text}")
+            } else {
+                text.to_string()
+            };
+            let value: i64 = digits.parse().map_err(|_| ParseError::IntegerOverflow {
                 pos,
                 text: text.to_string(),
             })?;
@@ -880,7 +894,7 @@ impl Parser<'_> {
             pos,
             text: text.to_string(),
         })?;
-        Expr::literal(value, Dimension::Scalar)
+        Expr::literal(signed(value), Dimension::Scalar)
             .map_err(|error| ParseError::Dimension { pos, error })
     }
 
@@ -958,23 +972,31 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::*;
+    use crate::expr::MAX_NESTING;
 
-    /// The parser keeps its own stack: text nested to the bound, in
-    /// brackets and in calls, reads on a quarter of the wasm32 stack,
-    /// which a frame per grammar level would exhaust several times over.
+    /// The parser keeps its own stack: text nested to the bound in calls
+    /// and signs, and brackets nested far past it, read on a quarter of
+    /// the wasm32 stack, which a frame per grammar level would exhaust
+    /// several times over. Brackets nest no expression, so `1` in 10⁵ of
+    /// them is the literal.
     #[test]
     fn the_parser_keeps_its_own_stack() {
         std::thread::Builder::new()
-            .stack_size(1 << 18)
+            .stack_size(test_utils::own_thread::WASM_STACK / 4)
             .spawn(|| {
                 let open = MAX_NESTING - 1;
-                for text in [
-                    format!("{}1{}", "(".repeat(MAX_NESTING), ")".repeat(MAX_NESTING)),
-                    format!("{}1{}", "max(1, ".repeat(open), ")".repeat(open)),
-                    format!("{}1", "-".repeat(open)),
+                let deep = 100_000;
+                for (text, nesting) in [
+                    (format!("{}1{}", "(".repeat(deep), ")".repeat(deep)), 1),
+                    (
+                        format!("{}1{}", "max(1, ".repeat(open), ")".repeat(open)),
+                        MAX_NESTING,
+                    ),
+                    // The innermost sign is the literal's own.
+                    (format!("{}1", "-".repeat(MAX_NESTING)), MAX_NESTING),
                 ] {
                     let parsed = parse_expr(&text, &BTreeMap::new());
-                    assert!(parsed.is_ok(), "{parsed:?}");
+                    assert_eq!(parsed.map(|e| e.nesting()), Ok(nesting));
                 }
             })
             .expect("the thread starts")

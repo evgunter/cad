@@ -445,10 +445,12 @@ def run():
     said["loaded_volume"] = (
         evaluate(load(doc.save()).doc).value(box).body().mass_properties().volume
     )
+    negative = doc.parse_expr(" + ".join(["-1 m"] + ["0 m"] * (bound - 1)))
+    said["negative_reads_back"] = doc.parse_expr(negative.text) == negative
+    said["brackets"] = doc.parse_expr("(" * far + "1" + ")" * far).text
     refusals = {}
     for label, text in [
         ("one past", "+".join(["1"] * (bound + 1))),
-        ("brackets", "(" * far + "1" + ")" * far),
         ("signs", "-" * far + "1"),
         ("terms", "+".join(["1"] * far)),
     ]:
@@ -476,8 +478,10 @@ print(json.dumps(said))
 
 class TestNestingBound(unittest.TestCase):
     """An expression nested to the bound passes every door from a
-    `threading.Thread`, and text or a measurement nested past it
-    refuses typed there rather than killing the interpreter.
+    `threading.Thread`, its text included when its deepest leaf is a
+    negative literal, and text or a measurement nested past it refuses
+    typed there rather than killing the interpreter. Brackets nest no
+    expression, so a literal in a hundred thousand of them reads.
 
     The rows run in a child process because the failure they guard
     against is a dead process, which would take the suite with it if
@@ -504,6 +508,11 @@ class TestNestingBound(unittest.TestCase):
             1.0,
             f"a slot at the bound saves and loads back: {child.stderr[-2000:]}",
         )
+        self.assertTrue(
+            said.get("negative_reads_back"),
+            "a sum at the bound over a negative literal reads back from its text",
+        )
+        self.assertEqual(said.get("brackets"), "1", "brackets nest nothing")
         for label, refusal in said["parse"].items():
             with self.subTest(text=label):
                 self.assertIsNotNone(refusal, "the text door refuses")

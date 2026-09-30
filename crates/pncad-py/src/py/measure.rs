@@ -336,6 +336,11 @@ const fn _binds_every_kernel_direction(kernel: d::AssertionDir) -> AssertionDir 
 /// an ill-dimensioned tree is unrepresentable, so `dimension` is
 /// trustworthy by construction.
 ///
+/// **It nests at most 128 levels**, the bound it shares with `Expr`, a
+/// value leaf counting as the expression it holds: a constructor that
+/// would nest deeper refuses `nested_too_deep`, so a flat chain of more
+/// than 128 terms refuses.
+///
 /// **No `__hash__`**, for `Expr`'s reason: equality is the kernel's
 /// own `PartialEq`, an IEEE comparison of the literals inside, so
 /// `0.0` and `-0.0` are equal trees whose bit patterns are not, and

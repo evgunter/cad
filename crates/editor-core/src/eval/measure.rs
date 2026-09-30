@@ -802,84 +802,45 @@ fn eval_measure_inner<T: Decide>(
     clearance_cursor: &mut usize,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
-    enum Step<'e> {
-        Visit(&'e MeasureExpr),
-        Combine(&'e MeasureExpr),
-    }
-    let operand = |values: &mut Vec<T>| match values.pop() {
-        Some(value) => value,
-        None => unreachable!(
-            "a measure walk combined an operator with no operand left, yet every child is \
-             visited, and leaves its value, before its parent combines"
-        ),
-    };
-    let mut work = vec![Step::Visit(root)];
-    let mut values: Vec<T> = Vec::new();
-    while let Some(step) = work.pop() {
-        let expr = match step {
-            Step::Combine(expr) => {
-                let value = match expr.kind() {
-                    MeasureKind::Neg(_) => -operand(&mut values),
-                    MeasureKind::Add(..) => {
-                        let y = operand(&mut values);
-                        operand(&mut values) + y
-                    }
-                    MeasureKind::Sub(..) => {
-                        let y = operand(&mut values);
-                        operand(&mut values) - y
-                    }
-                    MeasureKind::Mul(..) => {
-                        let y = operand(&mut values);
-                        operand(&mut values) * y
-                    }
-                    MeasureKind::Div(..) => {
-                        let y = operand(&mut values);
-                        operand(&mut values) / y
-                    }
-                    MeasureKind::Min(..) => {
-                        let y = operand(&mut values);
-                        operand(&mut values).min(y)
-                    }
-                    MeasureKind::Max(..) => {
-                        let y = operand(&mut values);
-                        operand(&mut values).max(y)
-                    }
-                    MeasureKind::Primitive(_) | MeasureKind::Value(_) => {
-                        unreachable!("a leaf is valued when visited, never scheduled to combine")
-                    }
-                };
-                values.push(value);
-                continue;
-            }
-            Step::Visit(expr) => expr,
-        };
-        match expr.kind() {
-            MeasureKind::Primitive(_) | MeasureKind::Value(_) => values.push(leaf_value(
-                expr,
-                carriers,
-                leaves,
-                cursor,
-                clearances,
-                clearance_cursor,
-                band,
-            )?),
-            MeasureKind::Neg(a) => {
-                work.push(Step::Combine(expr));
-                work.push(Step::Visit(a));
-            }
-            MeasureKind::Add(a, b)
-            | MeasureKind::Sub(a, b)
-            | MeasureKind::Mul(a, b)
-            | MeasureKind::Div(a, b)
-            | MeasureKind::Min(a, b)
-            | MeasureKind::Max(a, b) => {
-                work.push(Step::Combine(expr));
-                work.push(Step::Visit(b));
-                work.push(Step::Visit(a));
-            }
-        }
-    }
-    Ok(operand(&mut values))
+    use crate::tree::{Operands as O, Visit};
+    crate::tree::fold(
+        root,
+        |expr| {
+            Ok(match expr.kind() {
+                MeasureKind::Primitive(_) | MeasureKind::Value(_) => Visit::Value(leaf_value(
+                    expr,
+                    carriers,
+                    leaves,
+                    cursor,
+                    clearances,
+                    clearance_cursor,
+                    band,
+                )?),
+                MeasureKind::Neg(a) => Visit::One(a),
+                MeasureKind::Add(a, b)
+                | MeasureKind::Sub(a, b)
+                | MeasureKind::Mul(a, b)
+                | MeasureKind::Div(a, b)
+                | MeasureKind::Min(a, b)
+                | MeasureKind::Max(a, b) => Visit::Two(a, b),
+            })
+        },
+        |expr, operands| {
+            Ok(match (expr.kind(), operands) {
+                (MeasureKind::Neg(_), O::One(a)) => -a,
+                (MeasureKind::Add(..), O::Two(a, b)) => a + b,
+                (MeasureKind::Sub(..), O::Two(a, b)) => a - b,
+                (MeasureKind::Mul(..), O::Two(a, b)) => a * b,
+                (MeasureKind::Div(..), O::Two(a, b)) => a / b,
+                (MeasureKind::Min(..), O::Two(a, b)) => a.min(b),
+                (MeasureKind::Max(..), O::Two(a, b)) => a.max(b),
+                _ => unreachable!(
+                    "a leaf is valued when visited, and an operator combined from as many \
+                     operands as it has children"
+                ),
+            })
+        },
+    )
 }
 
 /// A leaf's value: a primitive against its carriers, or the next value
@@ -979,27 +940,23 @@ mod tests {
     /// the wasm32 stack.
     #[test]
     fn the_measurement_walk_and_drop_keep_their_own_stack() {
-        std::thread::Builder::new()
-            .stack_size(1 << 20)
-            .spawn(|| {
-                let deep = crate::measure::raw_negations(1_000_000);
-                let (mut cursor, mut clearance_cursor) = (0, 0);
-                let band = Band::new(1e-9, 1e-6).expect("a valid band");
-                let value = eval_measure_inner::<f64>(
-                    &deep,
-                    &[],
-                    &[2.5],
-                    &mut cursor,
-                    &[],
-                    &mut clearance_cursor,
-                    band,
-                );
-                assert_eq!(value.ok(), Some(-2.5));
-                assert_eq!(cursor, 1, "the one value leaf is read once");
-                drop(deep);
-            })
-            .expect("the thread starts")
-            .join()
-            .expect("a million levels evaluate and drop on the smallest stack");
+        test_utils::own_thread::on_the_smallest_stack(|| {
+            let leaf = MeasureExpr::value(crate::expr::Expr::count(0));
+            let deep = crate::tree::raw_chain(leaf, 1_000_000, crate::measure::raw_neg);
+            let (mut cursor, mut clearance_cursor) = (0, 0);
+            let band = Band::new(1e-9, 1e-6).expect("a valid band");
+            let value = eval_measure_inner::<f64>(
+                &deep,
+                &[],
+                &[2.5],
+                &mut cursor,
+                &[],
+                &mut clearance_cursor,
+                band,
+            );
+            assert_eq!(value.ok(), Some(-2.5));
+            assert_eq!(cursor, 1, "the one value leaf is read once");
+            drop(deep);
+        });
     }
 }
