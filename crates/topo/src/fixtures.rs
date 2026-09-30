@@ -235,8 +235,10 @@ pub(crate) enum KillAnchorFault {
     HeldTwice(VertexKey),
     /// A vertex no half-edge starts at and no `Empty` loop holds.
     Orphan(VertexKey),
-    /// A half-edge whose `parent_loop` or start does not resolve.
-    Dangling(HalfEdgeKey),
+    /// A half-edge whose `parent_loop` does not resolve.
+    DeadLoop(HalfEdgeKey),
+    /// A half-edge whose start does not resolve.
+    DeadStart(HalfEdgeKey),
 }
 
 /// Every [`KillAnchorFault`] on `body`.
@@ -279,8 +281,11 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
         }
     }
     for (he, data) in body.half_edges() {
-        if body.get_loop(data.parent_loop).is_none() || body.get_vertex(data.start).is_none() {
-            faults.push(KillAnchorFault::Dangling(he));
+        if body.get_loop(data.parent_loop).is_none() {
+            faults.push(KillAnchorFault::DeadLoop(he));
+        }
+        if body.get_vertex(data.start).is_none() {
+            faults.push(KillAnchorFault::DeadStart(he));
         }
     }
     faults
@@ -1154,6 +1159,35 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
     );
     assert_eq!(crate::validate::validate(&body), Ok(()));
     OpsStrutCube { body, outer, strut }
+}
+
+/// The segment body: `mvfs` at the origin, then `mev_line` at its
+/// `Lone` site to `(1, 0, 0)` — one loop `[he_plus, he_minus]`.
+pub(crate) fn ops_segment(tol: Tol) -> (Body<f64>, MvfsCreated, MevCreated) {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    let site = MevSite::Lone {
+        r#loop: seed.r#loop,
+    };
+    let seg = body
+        .mev_line(site, Point3::new(1.0, 0.0, 0.0), tol)
+        .unwrap();
+    (body, seed, seg)
+}
+
+/// [`ops_segment`] with one strut at its far vertex, to `(2, 0, 0)`:
+/// cycle `[seg+, strut+, strut−, seg−]`. Returns the body, the seed, the
+/// segment and the strut.
+pub(crate) fn ops_strutted(tol: Tol) -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
+    let (mut body, seed, seg) = ops_segment(tol);
+    let site = MevSite::Fan {
+        he1: seg.he_minus,
+        he2: seg.he_minus,
+    };
+    let strut = body
+        .mev_line(site, Point3::new(2.0, 0.0, 0.0), tol)
+        .unwrap();
+    (body, seed, seg, strut)
 }
 
 // ---------------------------------------------------------------------

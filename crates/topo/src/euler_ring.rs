@@ -240,7 +240,7 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
-use crate::euler::{EulerOpError, KillAnchor, KillInto, KillRun, RunExtent, shared_loop};
+use crate::euler::{EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, RunExtent, shared_loop};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Live, require_key};
 use crate::pcurves::{SiteHalf, SiteRows};
@@ -673,6 +673,17 @@ impl<T: Decide> Body<T> {
         curve: EdgeCurveSpec<T>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
+        self.mekr_with(site, NewCurve::Given(curve), tol)
+    }
+
+    /// [`Body::mekr`] with its curve as a [`NewCurve`], which the
+    /// chord sugar derives inside the plan.
+    fn mekr_with(
+        &mut self,
+        site: MekrSite,
+        curve: NewCurve<T>,
+        tol: Tol,
+    ) -> Result<MekrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -714,40 +725,7 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::mekr`].
     pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError> {
-        let anchor_of = |body: &Self, r#loop: LoopKey| -> Result<VertexKey, EulerOpError> {
-            let loop_data = body.get_loop(r#loop).ok_or(EulerOpError::StaleKey {
-                key: EntityId::Loop(r#loop),
-            })?;
-            match loop_data.boundary {
-                LoopBoundary::Empty { vertex } => Ok(vertex),
-                LoopBoundary::Cycle { .. } => Err(EulerOpError::LoopNotEmpty { r#loop }),
-            }
-        };
-        let (u, w) = match site {
-            MekrSite::Cycles { target, ring } => (
-                self.resolve_half_edge(target)?.start,
-                self.resolve_half_edge(ring)?.start,
-            ),
-            MekrSite::EmptyRing { target, ring } => (
-                self.resolve_half_edge(target)?.start,
-                anchor_of(self, ring)?,
-            ),
-            MekrSite::EmptyTarget { target, ring } => (
-                anchor_of(self, target)?,
-                self.resolve_half_edge(ring)?.start,
-            ),
-            MekrSite::BothEmpty { target, ring } => {
-                (anchor_of(self, target)?, anchor_of(self, ring)?)
-            }
-        };
-        let p_u = self.resolve_vertex_point(u)?;
-        let spec = if u == w {
-            EdgeCurveSpec::self_loop_circle_at(p_u)
-        } else {
-            let p_w = self.resolve_vertex_point(w)?;
-            EdgeCurveSpec::line_between(p_u, p_w)
-        };
-        self.mekr(site, spec, tol)
+        self.mekr_with(site, NewCurve::Chord, tol)
     }
 
     /// KFMRH — *kill face, make ring–hole*: the connected sum. `f2`'s
@@ -1282,7 +1260,7 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         target: HalfEdgeKey,
         ring: HalfEdgeKey,
-        curve: EdgeCurveSpec<T>,
+        curve: NewCurve<T>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
@@ -1338,7 +1316,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
@@ -1396,7 +1374,7 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         target: HalfEdgeKey,
         ring: LoopKey,
-        curve: EdgeCurveSpec<T>,
+        curve: NewCurve<T>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
@@ -1432,7 +1410,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
@@ -1474,7 +1452,7 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         target: LoopKey,
         ring: HalfEdgeKey,
-        curve: EdgeCurveSpec<T>,
+        curve: NewCurve<T>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
@@ -1520,7 +1498,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus.
         let rows = self.plan_site_rows(
@@ -1569,7 +1547,7 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         target: LoopKey,
         ring: LoopKey,
-        curve: EdgeCurveSpec<T>,
+        curve: NewCurve<T>,
         tol: Tol,
     ) -> Result<MekrResult, EulerOpError> {
         // ---- Preconditions. ----
@@ -1601,7 +1579,7 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus.
         let rows = self.plan_site_rows(
@@ -1795,38 +1773,15 @@ mod tests {
             .collect()
     }
 
-    /// mvfs + mev(Lone): the segment body (v0 —e0— v1, one loop
-    /// `[he_plus, he_minus]`, tol).
+    /// [`crate::fixtures::ops_segment`] (v0 —e0— v1) at the witness tol.
     fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0), true).unwrap();
-        let seg = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p(1.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        (body, seed, seg)
+        crate::fixtures::ops_segment(Tol::witness())
     }
 
-    /// Segment + one strut at v1: cycle
-    /// `[e0+, strut+, strut−, e0−]` (v0→v1→v2→v1→v0).
+    /// [`crate::fixtures::ops_strutted`] (v0→v1→v2→v1→v0) at the
+    /// witness tol.
     fn strutted() -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
-        let (mut body, seed, seg) = segment();
-        let strut = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: seg.he_minus,
-                    he2: seg.he_minus,
-                },
-                p(2.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        (body, seed, seg, strut)
+        crate::fixtures::ops_strutted(Tol::witness())
     }
 
     /// The 3-edge open chain v0–v1–v2–v3 in one loop: mvfs + segment +
@@ -3456,5 +3411,31 @@ mod tests {
                 Tol::witness(),
             )
         });
+    }
+
+    #[test]
+    fn mekr_chord_refuses_in_mekrs_own_order() {
+        // Two faults at once, after the review's two-fault probe: the
+        // ring's walk torn short, as above, and the target's lone vertex
+        // removed, which `mekr` checks after the walk. The sugar derives
+        // its chord inside `mekr`'s plan, so it refuses what `mekr` does.
+        let (mut body, seed, seg, strut) = strutted();
+        body.kemr(strut.he_minus, strut.he_plus).unwrap();
+        let ring = seg.he_minus;
+        let ring_loop = body.get_half_edge(ring).unwrap().parent_loop;
+        body.get_half_edge_mut(ring).unwrap().next = ring;
+        let mut body = body
+            .with_entity_removed_for_tests(EntityId::Vertex(strut.vertex))
+            .unwrap();
+        let site = MekrSite::EmptyTarget {
+            target: seed.r#loop,
+            ring,
+        };
+        let torn = EulerOpError::LoopCycleBroken { r#loop: ring_loop };
+        let spec = EdgeCurveSpec::line_between(p(0.0), p(1.0));
+        assert_make_refuses(&mut body.clone(), &torn, |b| {
+            b.mekr(site, spec, Tol::witness())
+        });
+        assert_make_refuses(&mut body, &torn, |b| b.mekr_chord(site, Tol::witness()));
     }
 }

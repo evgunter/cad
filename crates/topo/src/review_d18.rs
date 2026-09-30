@@ -1336,21 +1336,12 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
     );
 }
 
-/// A face whose outer loop is `Empty` beside a cycle ring (a segment
-/// with a strut, the strut killed from its tip by `kemr`): the one
-/// valid body here that offers `mekr` an `Empty` target.
+/// A face whose outer loop is `Empty` beside a cycle ring
+/// ([`crate::fixtures::ops_strutted`], the strut killed from its tip by
+/// `kemr`): the one valid body here that offers `mekr` an `Empty`
+/// target.
 const RING_ABOUT_AN_EMPTY_OUTER: (&str, BuildFixture) = ("ring about an empty outer", |tol| {
-    let mut body = Body::new();
-    let seed = body.mvfs(p(0.0), true).unwrap();
-    let site = MevSite::Lone {
-        r#loop: seed.r#loop,
-    };
-    let seg = body.mev_line(site, p(1.0), tol).unwrap();
-    let site = MevSite::Fan {
-        he1: seg.he_minus,
-        he2: seg.he_minus,
-    };
-    let strut = body.mev_line(site, p(2.0), tol).unwrap();
+    let (mut body, _, _, strut) = crate::fixtures::ops_strutted(tol);
     body.kemr(strut.he_minus, strut.he_plus).unwrap();
     body
 });
@@ -1524,10 +1515,10 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
             }
         }
     }
-    for (row, (op, [ok, emptied])) in ANCHOR_OPS.iter().zip(ran).enumerate() {
+    for (op, [ok, emptied]) in ANCHOR_OPS.iter().zip(ran) {
         assert!(ok > 0, "no `{op}` ran to Ok on the valid bodies: {ran:?}");
         assert!(
-            row > 2 || emptied > 0,
+            !["kef", "kemr", "kev"].contains(op) || emptied > 0,
             "no `{op}` emptied a loop on the valid bodies: {ran:?}"
         );
     }
@@ -1559,9 +1550,10 @@ const ANCHOR_TEARS: [Tear; 4] = [
 /// `Err`, and the `Ok` results that wrote a vertex anchor off its
 /// vertex, a `None` on a vertex that keeps edges, a loop anchor off
 /// ([`KillAnchorFault::LoopOff`], [`KillAnchorFault::HeldTwice`] or
-/// [`KillAnchorFault::Orphan`]), and a half-edge naming a dead loop or
-/// vertex ([`KillAnchorFault::Dangling`]).
-type AnchorRows = [[usize; 6]; ANCHOR_OPS.len()];
+/// [`KillAnchorFault::Orphan`]), a half-edge naming a dead loop
+/// ([`KillAnchorFault::DeadLoop`]), and a half-edge starting at a dead
+/// vertex ([`KillAnchorFault::DeadStart`]).
+type AnchorRows = [[usize; 7]; ANCHOR_OPS.len()];
 
 /// [`kill_anchor_rows`] for each tear kind of [`ANCHOR_TEARS`].
 type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
@@ -1588,7 +1580,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
         BESIDE_A_LONE_VERTEX[1],
         RING_ABOUT_AN_EMPTY_OUTER,
     ];
-    let mut table = [[0usize; 6]; ANCHOR_OPS.len()];
+    let mut table = [[0usize; 7]; ANCHOR_OPS.len()];
     for &seed in seeds {
         for tears in [1, 2] {
             for (_, build) in bodies {
@@ -1609,7 +1601,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                         cells[1] += 1;
                         continue;
                     }
-                    let mut columns = [false; 4];
+                    let mut columns = [false; ANCHOR_COLUMNS.len()];
                     for fault in kill_anchor_faults(&trial) {
                         if planted.contains(&fault) {
                             continue;
@@ -1620,7 +1612,8 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                             KillAnchorFault::LoopOff(_)
                             | KillAnchorFault::HeldTwice(_)
                             | KillAnchorFault::Orphan(_) => 2,
-                            KillAnchorFault::Dangling(_) => 3,
+                            KillAnchorFault::DeadLoop(_) => 3,
+                            KillAnchorFault::DeadStart(_) => 4,
                         };
                         columns[column] = true;
                     }
@@ -1635,11 +1628,12 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
 }
 
 /// The fault columns of an [`AnchorRows`] cell, after calls and `Err`.
-const ANCHOR_COLUMNS: [&str; 4] = [
+const ANCHOR_COLUMNS: [&str; 5] = [
     "a vertex anchor off its vertex",
     "`None` on a vertex that keeps edges",
     "a loop anchor off its loop",
-    "a half-edge naming a dead loop or vertex",
+    "a half-edge naming a dead loop",
+    "a half-edge starting at a dead vertex",
 ];
 
 /// The fault cells a filed row owns, by operator and column, which
@@ -1647,7 +1641,7 @@ const ANCHOR_COLUMNS: [&str; 4] = [
 /// vertex on the strength of its orbit walk, and a half-edge the walk
 /// never reached is left starting at the dead vertex
 /// (`work/topo/kev-kills-a-far-vertex-whose-fan-it-reads-by-the-walk.md`).
-const FILED_CELLS: [(&str, &str); 1] = [("kev", ANCHOR_COLUMNS[3])];
+const FILED_CELLS: [(&str, &str); 1] = [("kev", ANCHOR_COLUMNS[4])];
 
 /// Asserts every fault column of `table` is 0 but [`FILED_CELLS`],
 /// naming the cell and `context` otherwise.
@@ -1694,7 +1688,7 @@ fn kill_anchors_on_a_few_torn_bodies() {
 fn kill_anchors_on_torn_bodies() {
     let seeds: Vec<u64> = (1..=2000).collect();
     // Two tear kinds at a time, one thread each.
-    let mut table: AnchorTable = [[[0usize; 6]; ANCHOR_OPS.len()]; ANCHOR_TEARS.len()];
+    let mut table: AnchorTable = [[[0usize; 7]; ANCHOR_OPS.len()]; ANCHOR_TEARS.len()];
     for (pair, rows) in ANCHOR_TEARS.chunks(2).zip(table.chunks_mut(2)) {
         std::thread::scope(|scope| {
             let handles: Vec<_> = pair
@@ -1710,14 +1704,14 @@ fn kill_anchors_on_torn_bodies() {
         });
     }
     println!(
-        "| tear | op | calls | `Err` | `Ok`, anchor off | `Ok`, `None` on a vertex with edges | `Ok`, loop anchor off | `Ok`, dangling |"
+        "| tear | op | calls | `Err` | `Ok`, anchor off | `Ok`, `None` on a vertex with edges | `Ok`, loop anchor off | `Ok`, dead loop | `Ok`, dead start |"
     );
-    println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
+    println!("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
     for (tear, rows) in ANCHOR_TEARS.iter().zip(&table) {
         for (op, cells) in ANCHOR_OPS.iter().zip(rows) {
             println!(
-                "| `{tear:?}` | `{op}` | {} | {} | {} | {} | {} | {} |",
-                cells[0], cells[1], cells[2], cells[3], cells[4], cells[5]
+                "| `{tear:?}` | `{op}` | {} | {} | {} | {} | {} | {} | {} |",
+                cells[0], cells[1], cells[2], cells[3], cells[4], cells[5], cells[6]
             );
         }
     }

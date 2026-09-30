@@ -212,9 +212,10 @@
 //! `Body::require_kill_anchors`): a `Some` starts at its endpoint, a
 //! `None` leaves it lone (no half-edge but the killed two starts there,
 //! and the `Empty` surviving loop holds it), the remnant claims the
-//! dying loop and is all of it but `he`, the surviving loop's `first` is not killed and lies in it
-//! once the remnant has moved in, and an `Empty` surviving loop keeps no
-//! member but the killed two and holds a vertex no other loop holds.
+//! dying loop and is all of it but `he`, the surviving loop's `first`
+//! is not killed and lies in it once the remnant has moved in, and an
+//! `Empty` surviving loop keeps no member but the killed two and holds
+//! a vertex no other loop holds.
 //!
 //! # `mfkrh` — inverse of `kfmrh`
 //!
@@ -556,14 +557,16 @@ impl<T: Decide> Body<T> {
     /// (`StaleKey`); it has no rings ([`EulerOpError::FaceHasRings`]);
     /// its outer loop resolves (`StaleKey`); the loop is empty
     /// ([`EulerOpError::LoopNotEmpty`]); the lone vertex resolves
-    /// (`StaleKey`); no half-edge claims the loop, then none starts at
-    /// the vertex ([`EulerOpError::LoopCycleBroken`] naming the loop —
-    /// tier-1-invalid input: a torn `parent_loop` or start makes a
-    /// half-edge of another shell name them, and the kill would leave
-    /// it naming a dead loop or vertex). (A lone vertex with
-    /// `emanating: Some` — or one held by a second empty loop — is
-    /// tier-1-invalid input and is not re-checked here; the debug
-    /// postcondition would report the resulting garbage.)
+    /// (`StaleKey`); no half-edge claims the loop
+    /// ([`EulerOpError::LoopCycleBroken`] naming the loop); no half-edge
+    /// starts at the vertex ([`EulerOpError::OrbitBroken`] naming the
+    /// first that does, the `Lone` proof every kill that leaves a vertex
+    /// lone makes). Both are tier-1-invalid input: a torn `parent_loop`
+    /// or start makes a half-edge of another shell name the loop or the
+    /// vertex, and the kill would leave it naming a dead one. A second
+    /// `Empty` loop holding the vertex is tier-1-invalid input this plan
+    /// does not check; the kill would leave that loop holding a dead
+    /// vertex.
     ///
     /// # Errors
     ///
@@ -610,8 +613,8 @@ impl<T: Decide> Body<T> {
         })?;
         let point = vertex_data.point;
         self.require_run_of([], loop_key, RunExtent::Whole, &[])?;
-        if self.half_edges.values().any(|data| data.start == vertex) {
-            return Err(EulerOpError::LoopCycleBroken { r#loop: loop_key });
+        if let Some(he) = self.starts_at_besides(vertex, &[]) {
+            return Err(EulerOpError::OrbitBroken { he });
         }
 
         // ---- Mutation (infallible from here on). ----
@@ -1716,37 +1719,14 @@ mod tests {
         Point3::new(x, 0.0, 0.0)
     }
 
-    /// mvfs + mev(Lone): the segment body.
+    /// [`crate::fixtures::ops_segment`] at the witness tol.
     fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0), true).unwrap();
-        let seg = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p(1.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        (body, seed, seg)
+        crate::fixtures::ops_segment(Tol::witness())
     }
 
-    /// Segment + one strut at the far vertex: cycle
-    /// `[seg+, strut+, strut−, seg−]`.
+    /// [`crate::fixtures::ops_strutted`] at the witness tol.
     fn strutted() -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
-        let (mut body, seed, seg) = segment();
-        let strut = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: seg.he_minus,
-                    he2: seg.he_minus,
-                },
-                p(2.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        (body, seed, seg, strut)
+        crate::fixtures::ops_strutted(Tol::witness())
     }
 
     // ------------------------------------------------------------------
@@ -3989,9 +3969,7 @@ mod tests {
         // and returns `Ok`.
         let (mut body, he, lone) = segment_beside_a_lone_solid();
         body.get_half_edge_mut(he).unwrap().start = lone.vertex;
-        let torn = EulerOpError::LoopCycleBroken {
-            r#loop: lone.r#loop,
-        };
+        let torn = EulerOpError::OrbitBroken { he };
         assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
     }
 }
