@@ -2,10 +2,11 @@
 id: viewer-has-no-door-to-accept-a-parts-updated-version
 kind: issue
 title: viewer: no door emits DocEdit::UpdateReference, so a repaired part's new version cannot be accepted from the GUI
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P3
 cost: M
+branch: author/accept-part-version
 ---
 
 
@@ -36,3 +37,5 @@ stops short of "then accept the updated version" for this reason
 A door on the instance row (or the pin-mismatch refusal's line) that
 records `DocEdit::UpdateReference` against the store's current pin,
 beside the `Add part…` door (`crates/viewer/src/parts.rs`).
+
+Dispatched 2026-09-30 as **AUTH-15** (`docs/AUTH-15-SPEC.md`, branch `author/accept-part-version`). Checked first: `DocEdit::UpdateReference`, `workspace::update_to_store` (one edit per site, typed refusal) and `PIN_MISMATCH_RECOURSE` all exist, the viewer emits neither, and `docio::DirResolver::workspace` gives the viewer a `Workspace`.
