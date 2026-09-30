@@ -3884,3 +3884,40 @@ green gate (run 36697184288).
   crossing into guard's gate register; the hand-built-fixture caveat.
 
 The fix pass is out on the walk target.
+
+## PR 3513's fix-pass review: APPROVE-WITH-FIXES with a MAJOR; second fix pass out (2026-09-30)
+
+The fix-pass review at `472122ca57` took 363,444 tokens, 134 tools and
+2,819 s, on a green gate (run 36696622697).
+
+**Closed:** m-3, m-5/m-7, m-6 and the DESIGN.md phrase. m-4 is closed
+at the Boolean.
+
+**MAJOR N-1.** Two of the five sites the fix pass kept on
+`Coincidence` still offer a declaration that nothing settles. That is
+M-1 re-minted:
+- **The uncovered circle clearance** (`reduce.rs:~1419`). Declaring
+  moves the refusal to another site that offers "declare" again.
+- **The plane rung at the declared-`Tangent` doors.** The conformal
+  screen hard-codes `PlaneDoor::Undeclared`, and `PlaneDoor::of` maps
+  `Tangent` to `Undeclared`. Real `union_with` raises G2, G5 and G6,
+  declared `Tangent`, offer "declare".
+
+**MINORs:**
+- Six of the reviewer's nine own mutants survive: most of the table
+  is unpinned.
+- `PROXIMITY`'s `AnySign` is false where a decided zero refuses.
+- The m-2 row still mis-lists an arm.
+- The margin carried by m-4 leaks into `validate`'s and `certify`'s
+  text: an angle tolerance valued from a length.
+- A real raise breaks the 75-word budget (78 words).
+
+**Ruled.** A second fix pass fixes every item. Two rounds of routing
+by hand have each left false offers, so the brief asks the lane to
+consider the root cause first: carry "was a declaration read here" to
+the raise as data, which `PlaneDoor` already half-does. If that is
+not local, the lane pins every site by mutant. Out on the loop-anchor
+target.
+
+Disk is at 2.8 GB free. The build lanes are asked to trim their own
+targets.
