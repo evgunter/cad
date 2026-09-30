@@ -3153,3 +3153,22 @@ posture.
 - the two filed rows get priorities (P2 M, P3 E).
 
 The fix pass runs on the reviewer's warm target.
+
+## The torus + merge one-story unit out (2026-09-30)
+
+Dispatched **`pierced-torus-convention-arms-tell-two-stories`** and
+**`merge-coplanar-escalation-offers-a-declaration-already-made`**
+together (P2, E each; tier SINGLE, full). Both are D4 ¶1 (i)/(iv) work
+on topo refusal text, on PR 3493's machinery. The brief names PR 3352
+and asks for `git log -S` provenance first.
+- **The torus half has a real choice:** a spindle or horn torus is
+  either a shape the kernel never pierces, or coverage not built yet.
+  The lane decides from ratified text and the tree. If neither
+  settles it, it stops and reports both stories, and delivers the
+  merge half alone. It becomes a fork for Ev only if both stories are
+  consistent with ratified text.
+- **The merge half:** a closed `PlaneRung` and the orientation rung's
+  decided margin replace the whole-`Indeterminate` render. No
+  declaration is offered on a declared pair.
+
+It runs on a fresh target beside the two fix passes.

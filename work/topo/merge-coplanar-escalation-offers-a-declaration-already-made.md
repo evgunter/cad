@@ -2,7 +2,7 @@
 id: merge-coplanar-escalation-offers-a-declaration-already-made
 kind: issue
 title: topo: MergeCoplanarError::Escalated renders its payload whole, advising a declaration on a pair already declared
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P2
 cost: E
