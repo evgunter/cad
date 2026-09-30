@@ -2,11 +2,12 @@
 id: refusal-rows-that-count-instead-of-snapshot
 kind: issue
 title: Two in-lib refusal rows check the body unchanged by one arena count, and null.rs keeps a pcurve-rows check the deep snapshot now subsumes
-status: review
+status: closed
 opened: 2026-09-30
 priority: P3
 pr: 3580
 branch: topo/set-face-surface-proves-edges
+closed: 2026-09-30
 ---
 
 
