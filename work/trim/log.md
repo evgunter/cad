@@ -757,3 +757,20 @@ the class and this does not grow it). The run door
 primitive `Body::drop_rows` sits under every decision site, and the
 header's two references to the doors follow it. Signed (TOPO, the
 mef/kef fix pass).
+
+## Resumed after the protocol changes (2026-09-30)
+
+See CURVED's log for what changed on main. Tracker moves: the two
+`pcurves.rs` doc items filed on TRIM before the cut
+(`pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`,
+`the-pcurves-module-header-restates-the-posture-table-below-it`) go to
+CHART, which owns `pcurves.rs` since 2026-09-20.
+
+**Dispatch this sitting, with its tier**: one unit on `nurbs_iso.rs` —
+`boundary-iso-doors-panic-before-they-can-refuse` (E) with
+`trim-escalations-offer-a-declaration-the-door-cannot-take` (E) as its
+rider — Opus implementer, **single STYLE review** (a length check that
+refuses instead of indexing, and an escalation's rendered text; both
+can be read and believed). It is outside any A/B block (the protocol
+is suspended), so TRIM-B2 slot 2 stays unspent and the block's record
+closes by the suspension at the walk.
