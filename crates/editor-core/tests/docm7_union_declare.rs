@@ -757,11 +757,14 @@ fn a_declare_on_the_edge_is_not_a_declare_in_the_member_list() {
     assert!(failure(&ev, miswired).is_some(), "and it refuses typed");
 }
 
-/// **The declare edge recomputes the union and nothing upstream.**
+/// **The declare edge moves nothing upstream of the union.**
 ///
-/// The same members, once without the edge and once with it: every
-/// node the two documents share hits the memo, and the union — which
-/// is the node whose inputs changed — does not.
+/// The same members, once under a bare union and once under a declared
+/// one: every node the two documents share hits the memo, and a
+/// member's key does not move. The declared union and its `Declare` are
+/// other nodes, with other ids, so they recompute by the id alone; the
+/// edge's feed into the union's key is D8 key hygiene, which no row can
+/// reach (the A5 row above says why).
 #[test]
 fn the_declare_edge_recomputes_the_union_alone() {
     let base = ProfileDoc::empty_derived("docm7_memo", Tol::witness());
@@ -793,12 +796,10 @@ fn the_declare_edge_recomputes_the_union_alone() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    // Everything the two documents share is reused: the members and
-    // their whole upstream. What is not is the union and its Declare.
     assert_eq!(
         ev.reused,
         doc.order().len() - 2,
-        "the declare edge recomputed more than the union and its declaration"
+        "a node the two documents share recomputed"
     );
     assert_eq!(
         ev.value(a).expect("the member evaluated").content_key,
