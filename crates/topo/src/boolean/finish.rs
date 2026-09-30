@@ -33,6 +33,7 @@ use geom_core::{Band, Decide};
 use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
+use super::discard::{DiscardRow, discard_row};
 use super::join::CompletedPolygonPair;
 use super::solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
 use super::{BooleanError, BooleanOp, BooleanReduction, ContactRecords, Operand, SideCode};
@@ -41,6 +42,7 @@ use crate::entity::{FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
+use std::collections::BTreeMap;
 
 /// The finish product: the combined result body (still un-zipped) plus
 /// the seam bookkeeping the zip consumes.
@@ -55,6 +57,8 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     pub vertex_map: SecondaryMap<VertexKey, VertexKey>,
     /// The B-side graft bridge (contact-record remapping).
     pub graft: GraftMap,
+    /// The faces the selection discarded (`BooleanNaming::discards`).
+    pub discards: Vec<DiscardRow>,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -394,10 +398,80 @@ pub(super) fn setopfinish<T: Decide>(
         }
     }
 
+    let mut discards = discarded(&red, a_solid, &a_kept_shells, &a_sides, Operand::A, None)?;
+    discards.extend(discarded(
+        &red,
+        b_solid,
+        &b_kept_shells,
+        &b_sides,
+        Operand::B,
+        Some(&graft),
+    )?);
+
     Ok(FinishOut {
         body,
         seams,
         vertex_map,
         graft,
+        discards,
     })
+}
+
+/// The discarded faces of one operand solid (`boolean::discard`): every
+/// face of a shell the selection dropped, the section faces aside. A
+/// stretch it bordered a kept face along runs along a section face; the
+/// kept side's copy of each end is the other end of that end's null
+/// edge, read through `graft` on the B side.
+fn discarded<T: Decide>(
+    red: &BooleanReduction<T>,
+    solid: SolidKey,
+    kept: &[ShellKey],
+    sides: &SecondaryMap<FaceKey, SideCode>,
+    operand: Operand,
+    graft: Option<&GraftMap>,
+) -> Result<Vec<DiscardRow>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let body = match operand {
+        Operand::A => &red.a,
+        Operand::B => &red.b,
+    };
+    let mut copy: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
+    for r in red.null_edges.iter().filter(|r| r.operand == operand) {
+        copy.insert(r.attr.below_end, r.attr.above_end);
+        copy.insert(r.attr.above_end, r.attr.below_end);
+    }
+    let kept_end = |v: VertexKey| -> Result<VertexKey, BooleanError> {
+        let k = *copy
+            .get(&v)
+            .ok_or_else(|| desync("a section vertex has no null-edge copy"))?;
+        match graft {
+            None => Ok(k),
+            Some(g) => g
+                .vertices
+                .get(k)
+                .copied()
+                .ok_or_else(|| desync("a kept section vertex is missing from the graft")),
+        }
+    };
+    let kept_ends = |u, w| Ok((kept_end(u)?, kept_end(w)?));
+    let kept_across = |f: FaceKey| sides.contains_key(f);
+    let mut out = Vec::new();
+    for &shell in body
+        .shells_of_solid(solid)
+        .ok_or_else(|| desync("an operand solid no longer resolves"))?
+    {
+        if kept.contains(&shell) {
+            continue;
+        }
+        for &face in &body
+            .get_shell(shell)
+            .ok_or_else(|| desync("a discarded shell no longer resolves"))?
+            .faces
+        {
+            if !sides.contains_key(face) {
+                out.push(discard_row(body, face, operand, &kept_across, &kept_ends)?);
+            }
+        }
+    }
+    Ok(out)
 }

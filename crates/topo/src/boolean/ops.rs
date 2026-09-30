@@ -245,6 +245,10 @@ pub struct BooleanNaming {
     /// naming layer reads even when one side's key was consumed
     /// (`BooleanBody::contacts` drops such rows by design).
     pub reduction_contacts: ContactRecords,
+    /// Every face an operand lost to the result, with the kept faces it
+    /// bordered (`boolean::discard`, which says which paths record
+    /// rows and why the others have none to record).
+    pub discards: Vec<super::DiscardRow>,
 }
 
 /// The typed result of a boolean op: a body, or the typed empty
@@ -640,6 +644,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_a: connected.a_fragments,
         face_fragments_b: connected.b_fragments,
         reduction_contacts,
+        discards: fin.discards,
     };
     Ok(BooleanResult::Body(BooleanBody {
         body,
