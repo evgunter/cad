@@ -8,6 +8,7 @@ priority: P2
 cost: M
 design: true
 refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist, no-docedit-splices-a-deleted-node]
+needs_ev: true
 ---
 
 
@@ -48,3 +49,31 @@ a narrow edit that attaches a declaration to a live `Boolean`/`Union`,
 or a viewer seat that replaces the node through a splice. Both reopen
 DM6, so this goes to EDIT and Ev with a designer weighing before
 anything is built. `needs_ev` is not set yet.
+
+## Declaring a contact on a live boolean (2026-09-30)
+
+Two designers weighed this together with `the-boolean-door-evaluates-its-boolean-twice`. Their evidence is in `work/author/log.md` (2026-09-30, "boolean-judge fork").
+
+**Most booleans are mid-chain, not leaves.** A boolean stops being a leaf as soon as anything takes it as an input, and a sketch frame on one of its faces is such an input (`Datum::FaceFrame { at }`). So after the boss-on-face gesture the union is already mid-chain. An upstream edit to any finished model is this row's case.
+
+**The kernel's own recourse prescribes an edit that does not exist.** `UndeclaredContactFinding::recourse` says "wire it into the Boolean's declare input". No edit can do that on a committed boolean.
+
+**The answer both designers reach:**
+- Commit every boolean. The seam evaluates it once.
+- A contact refusal shows on the boolean's own row with a **Declare** control.
+- That control **sets the declaration on the live boolean**.
+
+**Why this is not what DM6 rules out.** A declaration is a parameter, not an operand:
+- It carries no material and mints no names. `Node::Declare` evaluates with an empty name table, and a boolean names only its operands.
+- Its sites must be the consumer's operands (`DeclareSiteNotAnOperand`).
+- So changing it changes no name anywhere. DM6's reasons (which input survives; names composed over a removed node) do not reach it.
+
+**Two shapes of the edit:**
+- **A1: keep the `Declare` node** and add one edit that points a live boolean's or union's `declare` edge at a `Declare`, or clears it. DM6 then reads "no edit rewires a live node's *operands*", with this edit beside `SetMembers` as its second named exception.
+- **A2: the declared pairs become the boolean's or union's own payload,** set by a whole-list edit shaped like `SetMembers`. The separate node, its orphan report, its re-rooting and its kind check become unrepresentable. DM6 needs no exception, because there is no edge. This changes DM4's node shape and the persisted form. What it gives up is one `Declare` shared by two consumers: legal today, but used nowhere in the tree.
+
+Both designers lean A2 and are unsure. A1 is the reversible minimum.
+
+**Undo.** The boolean is one step and the declaration another. Undo walks the declaration off first, then the boolean.
+
+**If neither shape is taken,** the fallback is to *replace* a boolean nothing refers to: delete it and its `Declare`, then insert `Declare` + boolean as one action. It needs no ruling, but it dead-ends every mid-chain boolean, and the new id strands appearance keys and display state on the old one.

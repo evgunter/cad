@@ -7,6 +7,7 @@ opened: 2026-09-30
 priority: P2
 cost: M
 refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist]
+needs_ev: true
 ---
 
 Filed by AUTH-9 as the residue of its own design call. Re-priced at
@@ -61,3 +62,13 @@ recorded document, so the seam's run is skipped. (2) Move the judge
 into the seam as a request whose answer the session records or
 refuses. Both touch `evalseam`'s landing contract. Either one, with
 cancellation, also answers case 2.
+
+## One question with its sibling (2026-09-30)
+
+Two designers weighed this row and reached the same final state after one reconciliation round. It is the same question as `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added`, and it is answered there. The evidence is in `work/author/log.md` (2026-09-30, "boolean-judge fork").
+
+**The judge at the door is a workaround.** The door evaluates a boolean before recording it only because a committed boolean cannot be given a declaration afterwards. Once a committed boolean can be given one, nothing needs judging before the commit. The door then becomes a plain commit, the seam evaluates the boolean once (off the frame thread, cancellable), and every cost case above disappears by construction.
+
+**Measured, and rejected as a cheaper judge:** `find_flush_candidates`. It shares the boolean's per-pair verifier, but it compares carriers without checking extent. Two blocks apart on one ground plane report four pairs while their union builds undeclared.
+
+**Also measured:** n undeclared contacts cost n+1 evaluations today, because the kernel reports one pair per refusal.
