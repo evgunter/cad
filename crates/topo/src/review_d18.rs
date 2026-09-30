@@ -2859,3 +2859,168 @@ fn mekr_refuses_a_ring_another_face_lists() {
         }
     }
 }
+
+/// A loop of `body` none of whose half-edges starts or ends at a vertex
+/// of `ends`, with its `first`: records no walk of a kill with those
+/// endpoints reads, since every walk a kill takes steps the killed
+/// halves' loops or the orbits of their endpoints.
+fn far_loop(
+    body: &Body<f64>,
+    ends: [crate::entity::VertexKey; 2],
+) -> (crate::entity::LoopKey, HalfEdgeKey) {
+    let touches = |h: HalfEdgeKey| {
+        let start = body.get_half_edge(h).unwrap().start;
+        ends.contains(&start) || body.half_edge_end(h).is_some_and(|end| ends.contains(&end))
+    };
+    body.loops()
+        .find_map(|(l, data)| {
+            let LoopBoundary::Cycle { first } = data.boundary else {
+                return None;
+            };
+            let cycle = body.loop_cycle(first)?;
+            (!cycle.into_iter().any(touches)).then_some((l, first))
+        })
+        .expect("a loop away from both endpoints")
+}
+
+/// Every way a record a kill keeps can name one of the halves `[he, m]`
+/// it removes, each planted on its own copy of `body` away from every
+/// walk the kill takes ([`far_loop`]), with the refusal each earns: a
+/// half-edge's `next`, then its `prev`, a loop's `first`, a vertex's
+/// `emanating`, and an edge's slot.
+fn half_edge_tears(body: &Body<f64>, [he, m]: [HalfEdgeKey; 2]) -> [(Body<f64>, EulerOpError); 5] {
+    let start = |h| body.get_half_edge(h).unwrap().start;
+    let (l, x) = far_loop(body, [start(he), start(m)]);
+    let (v, e) = (start(x), body.get_half_edge(x).unwrap().edge);
+    let broken = EulerOpError::LoopCycleBroken { r#loop: l };
+    let torn = |tear: &dyn Fn(&mut Body<f64>)| {
+        let mut copy = body.clone();
+        tear(&mut copy);
+        copy
+    };
+    [
+        (
+            torn(&|b| b.get_half_edge_mut(x).unwrap().next = he),
+            broken.clone(),
+        ),
+        (
+            torn(&|b| b.get_half_edge_mut(x).unwrap().prev = m),
+            broken.clone(),
+        ),
+        (
+            torn(&|b| b.get_loop_mut(l).unwrap().boundary = LoopBoundary::Cycle { first: he }),
+            broken,
+        ),
+        (
+            torn(&|b| b.get_vertex_mut(v).unwrap().emanating = Some(m)),
+            dangling(EntityId::Vertex(v), EntityId::HalfEdge(m)),
+        ),
+        (
+            torn(&|b| b.get_edge_mut(e).unwrap().he_plus = he),
+            dangling(EntityId::Edge(e), EntityId::HalfEdge(he)),
+        ),
+    ]
+}
+
+#[test]
+fn kef_refuses_a_killed_half_another_record_names() {
+    // The declined cube, a half-edge of a face away from both endpoints
+    // torn to name a killed half, then a loop's `first`, a vertex's
+    // `emanating` and an edge's slot. Unchecked, the kill leaves each
+    // naming a dead half-edge.
+    let cube = declined_cube::<f64>(Tol::witness()).body;
+    let he = arena_halves(&cube)[6];
+    let m = cube.mate(he).unwrap();
+    for (mut body, torn) in half_edge_tears(&cube, [he, m]) {
+        assert_kef_refuses(&mut body, he, &torn);
+    }
+}
+
+#[test]
+fn kev_refuses_a_killed_half_another_record_names() {
+    // As `kef_refuses_a_killed_half_another_record_names`, for `kev`.
+    let cube = declined_cube::<f64>(Tol::witness()).body;
+    let he = arena_halves(&cube)[3];
+    let m = cube.mate(he).unwrap();
+    for (mut body, torn) in half_edge_tears(&cube, [he, m]) {
+        assert_kev_refuses(&mut body, he, &torn);
+    }
+}
+
+#[test]
+fn kemr_refuses_a_killed_half_another_record_names() {
+    // As `kef_refuses_a_killed_half_another_record_names`, for `kemr` at
+    // the strut cube's strut.
+    let fixture = ops_strut_cube(Tol::witness());
+    let (he1, he2) = (fixture.strut.he_plus, fixture.strut.he_minus);
+    for (mut body, torn) in half_edge_tears(&fixture.body, [he1, he2]) {
+        assert_kill_refuses(&mut body, &torn, |b| b.kemr(he1, he2));
+    }
+}
+
+/// Asserts that `kfmrh(f1, f2)` and `kfmrh_minting(f1, f2, tol)` refuse
+/// `torn` with the body deep-unchanged.
+fn assert_kfmrh_refuses(body: &mut Body<f64>, f1: FaceKey, f2: FaceKey, torn: &EulerOpError) {
+    assert_kill_refuses(body, torn, |b| b.kfmrh(f1, f2));
+    assert_kill_refuses(body, torn, |b| b.kfmrh_minting(f1, f2, Tol::witness()));
+}
+
+#[test]
+fn kfmrh_refuses_a_face_another_record_names() {
+    // The same-shell form on the declined cube: a loop other than the
+    // ring torn to name `f2`, then another shell torn to list it.
+    // Unchecked, the kill leaves each naming a dead face.
+    let tol = Tol::witness();
+    let build = || {
+        let body = declined_cube::<f64>(tol).body;
+        let faces: Vec<FaceKey> = body.faces().map(|(f, _)| f).collect();
+        (body, faces[0], faces[1])
+    };
+    let (mut body, f1, f2) = build();
+    let ring = body.get_face(f2).unwrap().outer;
+    let (third, _) = body
+        .loops()
+        .find(|&(l, data)| l != ring && data.face != f1)
+        .unwrap();
+    body.get_loop_mut(third).unwrap().face = f2;
+    let torn = dangling(EntityId::Loop(third), EntityId::Face(f2));
+    assert_kfmrh_refuses(&mut body, f1, f2, &torn);
+
+    let (mut body, f1, f2) = build();
+    let other = body.mvfs(p(9.0), true).unwrap();
+    body.get_shell_mut(other.shell).unwrap().faces.push(f2);
+    let torn = dangling(EntityId::Shell(other.shell), EntityId::Face(f2));
+    assert_kfmrh_refuses(&mut body, f1, f2, &torn);
+}
+
+#[test]
+fn kfmrh_refuses_in_its_fusion_form_a_face_or_shell_another_record_names() {
+    // The fusion form on two shells of one solid: `f1`'s own shell torn
+    // to list `f2`, a face of `f1`'s shell torn to name `f2`'s, and
+    // another solid torn to list `f2`'s shell. Unchecked, the fusion
+    // leaves each naming a dead face or shell.
+    let tol = Tol::witness();
+    let build = || {
+        let body = (TWO_SHELLS_OF_ONE_SOLID.1)(tol);
+        let (_, solid) = body.solids().next().unwrap();
+        let (a, b) = (solid.shells[0], solid.shells[1]);
+        let faces = |s| body.get_shell(s).unwrap().faces.clone();
+        let (fa, fb) = (faces(a), faces(b));
+        (body, a, b, fa, fb[0])
+    };
+    let (mut body, a, _, fa, f2) = build();
+    body.get_shell_mut(a).unwrap().faces.push(f2);
+    let torn = dangling(EntityId::Shell(a), EntityId::Face(f2));
+    assert_kfmrh_refuses(&mut body, fa[0], f2, &torn);
+
+    let (mut body, _, b, fa, f2) = build();
+    body.get_face_mut(fa[1]).unwrap().shell = b;
+    let torn = dangling(EntityId::Face(fa[1]), EntityId::Shell(b));
+    assert_kfmrh_refuses(&mut body, fa[0], f2, &torn);
+
+    let (mut body, _, b, fa, f2) = build();
+    let other = body.mvfs(p(9.0), true).unwrap();
+    body.get_solid_mut(other.solid).unwrap().shells.push(b);
+    let torn = dangling(EntityId::Solid(other.solid), EntityId::Shell(b));
+    assert_kfmrh_refuses(&mut body, fa[0], f2, &torn);
+}
