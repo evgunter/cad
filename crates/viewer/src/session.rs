@@ -65,14 +65,14 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{FlushFinding, Resolution, RunCtx, declare_node, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
-use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
+use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator, evaluate_beside};
 use crate::g1;
 use crate::generation::Generation;
 use crate::history::History;
@@ -94,7 +94,8 @@ pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, admits, face_frame_seat,
+    DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
+    admits, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -368,6 +369,10 @@ pub struct DocSession {
     /// landed pair and the outstanding request name the SAME document
     /// value for as long as they agree, which is most of the time.
     requested_doc: Arc<Doc<ProfileProgram>>,
+    /// The resolver that request resolves through — the landed run's
+    /// memo is only a memo for a run under the same one
+    /// ([`DocSession::memo_under`]).
+    requested_resolver: Option<Arc<dyn PartResolver>>,
     /// Everything this session knows *because of* the document under
     /// it — one value, so that replacing that document is one
     /// assignment ([`DocSession::clear_for_new_document`]).
@@ -533,6 +538,8 @@ impl core::fmt::Debug for Derived {
 /// else here is present whenever the gather was.
 struct LandedRun {
     evaluation: Arc<Evaluation<f64>>,
+    /// The resolver [`LandedRun::evaluation`] resolved through.
+    resolver: Option<Arc<dyn PartResolver>>,
     /// The document [`LandedRun::evaluation`] answers.
     ///
     /// **Resolution is a question about a PAIR.** `resolve` reads the
@@ -625,6 +632,7 @@ impl core::fmt::Debug for LandedRun {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             evaluation: _,
+            resolver: _,
             doc: _,
             generation,
             fault,
@@ -737,6 +745,7 @@ impl DocSession {
             // than a clone of `doc` because a clone here would be a
             // second copy nobody ever looks at.
             requested_doc: Arc::new(Doc::empty_derived("unsubmitted", tol)),
+            requested_resolver: None,
             history: History::new(doc),
             tol,
             gesture: g1::Slot::closed(),
@@ -998,10 +1007,25 @@ impl DocSession {
     /// a suite reading the solve back) resolves each mated part the
     /// way the landed evaluation resolved it.
     pub fn eval_options(&self) -> EvalOptions {
-        EvalOptions {
-            resolver: Some(self.resolver_seam()),
-            ..EvalOptions::default()
-        }
+        crate::evalseam::options(&self.run_resolver())
+    }
+
+    /// **The resolver every evaluation of this session's documents runs
+    /// under** — the seam's runs and the ones taken beside it alike.
+    fn run_resolver(&self) -> Option<Arc<dyn PartResolver>> {
+        Some(self.resolver_seam())
+    }
+
+    /// **The landed run as a memo for a run under `resolver`**, or
+    /// `None` when it resolved through another seam — the seam's own
+    /// priming rule ([`crate::evalseam::same_resolver`]), for the runs
+    /// taken beside it.
+    fn memo_under(&self, resolver: &Option<Arc<dyn PartResolver>>) -> Option<Arc<Evaluation<f64>>> {
+        self.derived
+            .landed
+            .as_ref()
+            .filter(|run| crate::evalseam::same_resolver(&run.resolver, resolver))
+            .map(|run| Arc::clone(&run.evaluation))
     }
 
     /// **The session's resolver as the document seam** — the directory
@@ -1252,6 +1276,7 @@ impl DocSession {
         // value, which is the same value `Derived::none` clears.
         self.derived.landed = Some(LandedRun {
             evaluation: done.evaluation,
+            resolver: self.requested_resolver.clone(),
             doc: Arc::clone(&self.requested_doc),
             generation: done.generation,
             fault,
@@ -1424,7 +1449,7 @@ impl DocSession {
                 axis,
                 angle,
             } => self.add_revolve(profile, axis, angle),
-            SessionOp::AddBoolean { op, a, b } => self.add_boolean(op, a, b),
+            SessionOp::AddBoolean { op, a, b, declare } => self.add_boolean(op, a, b, declare),
             SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
             SessionOp::AddTransform {
                 input,
@@ -1635,15 +1660,8 @@ impl DocSession {
         // candidate is judged against, so a probe cannot seed from one
         // document and search another.
         let base = self.doc().clone();
-        let prior = self
-            .derived
-            .landed
-            .as_ref()
-            .map(|run| Arc::clone(&run.evaluation));
-        let resolver = self
-            .resolver
-            .as_ref()
-            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>);
+        let resolver = self.run_resolver();
+        let prior = self.memo_under(&resolver);
         match probe::probe_bounds(&base, target, prior.as_deref(), &resolver, self.tol) {
             Ok(reading) => {
                 self.derived.bounds = Some(reading);
@@ -2364,9 +2382,16 @@ impl DocSession {
         })
     }
 
-    /// Insert one regularized boolean of two existing bodies
+    /// Insert one regularized boolean of two existing bodies, and the
+    /// declaration of the contacts it names
     /// ([`SessionOp::AddBoolean`]).
-    fn add_boolean(&mut self, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> OpOutcome {
+    fn add_boolean(
+        &mut self,
+        op: BooleanOp,
+        a: RecipeNodeId,
+        b: RecipeNodeId,
+        declare: Vec<FlushFinding>,
+    ) -> OpOutcome {
         for seat in [a, b] {
             if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
@@ -2380,14 +2405,43 @@ impl DocSession {
         // first, which is what keeps two PROFILES in both seats
         // reported as "that is not a body" — the fact the user can act
         // on — rather than as the narrower complaint about the pair.
-        self.commit(DocEdit::InsertNode {
-            node: Node::Boolean {
-                op,
-                a,
-                b,
-                declare: None,
-            },
-        })
+        let declaration = if declare.is_empty() {
+            None
+        } else {
+            Some(declare_node(&declare).unwrap_or_else(|error| {
+                unreachable!(
+                    "`declare_node` refuses only an empty list, and this one is not: {error}"
+                )
+            }))
+        };
+        let boolean = |declare| DocEdit::InsertNode {
+            node: Node::Boolean { op, a, b, declare },
+        };
+        let staged = self.stage_run(|minted| match (minted, &declaration) {
+            ([], None) => Some(boolean(None)),
+            ([], Some(node)) => Some(DocEdit::InsertNode { node: node.clone() }),
+            ([Some(declared)], Some(_)) => Some(boolean(Some(*declared))),
+            _ => None,
+        });
+        let staged = match staged {
+            Ok(staged) => staged,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        let Some(Some(node)) = staged.minted.last().copied() else {
+            unreachable!("the run ends on the boolean's `InsertNode`")
+        };
+        // Judged before it is recorded: the one recourse to a contact
+        // refusal is a declaration in the same action, which cannot be
+        // added to a committed node.
+        let resolver = self.run_resolver();
+        let memo = self.memo_under(&resolver);
+        let judged = evaluate_beside(&staged.doc, memo.as_deref(), &resolver, self.tol);
+        if let Some(refused) =
+            RefusedBoolean::read(&judged, node, (op, [a, b]), declare, self.generation)
+        {
+            return OpOutcome::refused(Refusal::Contact(Box::new(refused)));
+        }
+        self.record_run(staged)
     }
 
     /// Insert one split of an existing body by an existing datum plane
@@ -2749,7 +2803,19 @@ impl DocSession {
     }
 
     /// The same door again, for an action whose later edits name the
-    /// ids its earlier ones MINTED.
+    /// ids its earlier ones MINTED: [`Self::stage_run`], then
+    /// [`Self::record_run`].
+    fn commit_run<F>(&mut self, next: F) -> OpOutcome
+    where
+        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
+    {
+        match self.stage_run(next) {
+            Ok(staged) => self.record_run(staged),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
+    }
+
+    /// **An action's edits, applied and not yet recorded.**
     ///
     /// `next` is handed what each edit so far minted, in order — an
     /// `InsertNode`'s new id, `None` for every edit that creates no
@@ -2759,12 +2825,12 @@ impl DocSession {
     /// with a fixed list ([`Self::commit_action`]) ignores it.
     ///
     /// **All or nothing**: each edit is applied to the value the last
-    /// one produced and nothing is recorded until every one has
-    /// succeeded, so a refusal anywhere leaves the session on the
-    /// document it started from. That is purity doing the work — no
-    /// rollback exists to be got wrong. The whole run is one history
-    /// state, so one user action is one undo.
-    fn commit_run<F>(&mut self, mut next: F) -> OpOutcome
+    /// one produced and nothing is recorded until [`Self::record_run`]
+    /// takes the result, so a refusal anywhere — or a caller that
+    /// drops the staged run — leaves the session on the document it
+    /// started from. That is purity doing the work — no rollback
+    /// exists to be got wrong.
+    fn stage_run<F>(&self, mut next: F) -> Result<StagedRun, Refusal>
     where
         F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
     {
@@ -2797,12 +2863,29 @@ impl DocSession {
                     net.push(&applied);
                     produced = Some(applied.doc);
                 }
-                Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
+                Err(error) => return Err(Refusal::Edit(Box::new(error))),
             }
         }
         let Some(doc) = produced else {
             unreachable!("an action commits at least one edit")
         };
+        Ok(StagedRun {
+            doc,
+            logged,
+            net,
+            minted,
+        })
+    }
+
+    /// **A staged run, recorded**: the whole run is one history state,
+    /// so one user action is one undo.
+    fn record_run(&mut self, staged: StagedRun) -> OpOutcome {
+        let StagedRun {
+            doc,
+            logged,
+            net,
+            minted,
+        } = staged;
         let committed = logged.iter().map(|entry| entry.edit.clone()).collect();
         // Net over the action: a row an earlier edit reported can be
         // made moot by a later one ([`MaintenanceNet`]).
@@ -2843,13 +2926,27 @@ impl DocSession {
         // takes a value so a worker owns its copy) and is not a
         // retained copy — the session keeps exactly one.
         self.requested_doc = Arc::new(self.doc().clone());
+        self.requested_resolver = self.run_resolver();
         self.eval.submit(EvalRequest {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
-            resolver: Some(self.resolver_seam()),
+            resolver: self.requested_resolver.clone(),
         });
     }
+}
+
+/// An action's edits applied in order and not yet recorded
+/// ([`DocSession::stage_run`]).
+struct StagedRun {
+    /// The document the last edit produced.
+    doc: Doc<ProfileProgram>,
+    /// Each edit with the maintenance it performed, for the history.
+    logged: Vec<LoggedEdit<ProfileProgram>>,
+    /// The maintenance, netted over the whole action.
+    net: MaintenanceNet,
+    /// What each edit minted, in the order the edits applied.
+    minted: Vec<Option<RecipeNodeId>>,
 }
 
 /// Whether a document is assembly-shaped — one of the two conditions
@@ -2959,6 +3056,7 @@ impl core::fmt::Debug for DocSession {
             eval: _,
             generation,
             requested_doc: _,
+            requested_resolver: _,
             derived,
             path,
             display: _,

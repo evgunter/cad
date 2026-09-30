@@ -21,7 +21,7 @@ use pncad::document::{
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::ContactClass;
+use pncad::select::{ContactClass, FlushFinding};
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
@@ -559,7 +559,7 @@ pub enum SessionOp {
         angle: Expr,
     },
     /// Insert one regularized boolean of two existing bodies — the
-    /// boolean tool's one committed edit (GAUTH-4).
+    /// boolean tool's one committed action (GAUTH-4).
     ///
     /// **The operand order is data**: `Subtract` keeps `a` and removes
     /// `b`, so the two seats are not interchangeable and the form says
@@ -570,11 +570,19 @@ pub enum SessionOp {
     /// fact about any node's inputs, not about booleans, so it is
     /// stated once where every node kind reaches it.
     ///
-    /// `declare` is authored `None`: coincidence intent is a
-    /// `Node::Declare` input, and authoring one needs the entity picks
-    /// (a face pair) that this tool does not take. A declaration is
-    /// added afterwards through the vocabulary that owns it, never
-    /// guessed at here.
+    /// **A contact is declared in the same action or not at all.** No
+    /// edit attaches a declaration to a live node, so an empty
+    /// `declare` authors the node's `declare` as `None` and a non-empty
+    /// one commits a `Node::Declare` of exactly those findings and then
+    /// the boolean naming it — one action, one undo. The door evaluates
+    /// the boolean before recording it, and one that refuses an
+    /// undeclared contact of its own is not committed:
+    /// [`Refusal::Contact`] carries the kernel's finding back, and its
+    /// offer is this op again with that finding added. The door
+    /// declares what it is handed and guesses nothing; that the boolean
+    /// tool hands it only pairs a refusal reported and the author
+    /// accepted is the tool's gesture, not a property of the findings'
+    /// type.
     AddBoolean {
         /// The operation — the KERNEL's enum, which the recipe node
         /// carries unconverted.
@@ -583,6 +591,8 @@ pub enum SessionOp {
         a: RecipeNodeId,
         /// The second operand: the body a subtraction removes.
         b: RecipeNodeId,
+        /// The contacts declared, in the refusals' own finding shape.
+        declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
     /// plane — the split tool's one committed edit.

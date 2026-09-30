@@ -84,10 +84,8 @@ fn probe_a_cross_kind_rebind_refuses_at_its_own_door() {
     use editor_core::EditError;
     let doc = ProfileDoc::empty(DocumentId::derive("rv-matehead-rebind"), Tol::witness());
     let from = face_name(RecipeNodeId(0), CapEnd::End);
-    let to = StableName {
-        kind: EntityKind::Edge,
-        ..face_name(RecipeNodeId(0), CapEnd::Start)
-    };
+    let mut to = face_name(RecipeNodeId(0), CapEnd::Start);
+    to.kind = EntityKind::Edge;
     match apply(
         &doc,
         &DocEdit::Rebind { from, to },

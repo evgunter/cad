@@ -279,6 +279,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             op: BooleanOp::Union,
             a: node,
             b: node,
+            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: node,

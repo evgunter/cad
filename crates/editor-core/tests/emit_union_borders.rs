@@ -14,8 +14,9 @@
 //! A boss standing on one piece, a notch in one, a feature on one piece
 //! aligned with a divider elsewhere: each is an obstacle bordering one
 //! piece, so none is cited. Further rows hold a tie that nothing divides
-//! as a tie, a split's names under an edit that moves its divider, and a
-//! curved divider to the pair boolean's own answer.
+//! as a tie, a split's names under an edit that moves its divider, a
+//! curved divider to the pair boolean's own answer, and a merged wall a
+//! slot divides.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -27,8 +28,9 @@ use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, scl, step, table};
 
 use editor_core::{
-    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, Node,
-    ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId, StableName,
+    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NamingError,
+    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -1149,9 +1151,15 @@ fn cylinder(
 /// **A curved divider answers in the union as it does in the pair
 /// boolean.** A cylinder lying along y across the plate's top divides
 /// it in two with curved walls. `Borders` reads no plane, so the pieces
-/// need none; whatever the lone pair boolean does with this recipe —
-/// publish, or refuse where its other rules have no answer for a curved
-/// side — each member order of the union does the same.
+/// need none; whatever the lone pair boolean does with this recipe,
+/// each member order of the union does the same.
+///
+/// What both do is refuse as a missing rule: the seam chain along the
+/// cylinder's wall is ranked along `n_a × n_b`, and the wall has no
+/// plane (`NamingError::SplitReference`, curved, citing the wall). In
+/// the union it is the fold's pair step that refuses, so which of the
+/// seam's sides is `a` follows member order; every order cites the one
+/// seam.
 #[test]
 fn a_curved_divider_answers_as_the_pair_boolean_does() {
     let doc = ProfileDoc::empty_derived("union-dividing-across", Tol::witness());
@@ -1166,10 +1174,112 @@ fn a_curved_divider_answers_as_the_pair_boolean_does() {
             declare: None,
         },
     );
-    let alone = failure(&run(&pair_doc), pair).map(|e| format!("{e:?}"));
+    let member = |n: &StableName| match n.path.as_slice() {
+        [RoleSeg::FromMember { of, .. }] => of.name().clone(),
+        _ => n.clone(),
+    };
+    // A curved refusal as (the curved side, the seam's two sides), each
+    // read through the union's `FromMember` to the member's own name so
+    // the pair boolean's and the union's spellings compare. The sides
+    // are a set: which is `a` follows member order.
+    let curved = |e: Option<&NodeErrorKind>| match e {
+        Some(NodeErrorKind::Naming(NamingError::SplitReference {
+            group,
+            reference,
+            curved: true,
+        })) => match group.path.as_slice() {
+            [RoleSeg::Seam { a, b }] => Some((
+                member(reference),
+                BTreeSet::from([member(a.name()), member(b.name())]),
+            )),
+            _ => None,
+        },
+        _ => None,
+    };
+    let pair_ev = run(&pair_doc);
+    let alone = curved(failure(&pair_ev, pair));
+    assert!(
+        alone
+            .as_ref()
+            .is_some_and(|(wall, sides)| wall.node == cyl && sides.contains(wall)),
+        "the pair boolean refuses the seam chain along the cylinder's wall as a missing \
+         rule: {:?}",
+        failure(&pair_ev, pair)
+    );
     for order in permutations(&[0, 1]) {
         let (docx, u) = union_of(doc.clone(), &[plate, cyl], &order);
-        let refused = failure(&run(&docx), u).map(|e| format!("{e:?}"));
-        assert_eq!(refused, alone, "{order:?}");
+        let ev = run(&docx);
+        assert_eq!(
+            curved(failure(&ev, u)),
+            alone,
+            "{order:?}: {:?}",
+            failure(&ev, u)
+        );
+    }
+}
+
+/// **A merged face cut in two is two pieces of one parent.** A cylinder
+/// boss of radius 0.3 sunk into a plate keeps its wall as the profile's
+/// two semicircular pieces; a slab subtracted across it along y cuts
+/// each piece in two, and the subtract merges the two cosurface pieces
+/// on each side of the slot. Both merges list the same two pieces, so
+/// they are one parent, `Merged` of both, held as two faces; each is
+/// qualified by the slab wall it borders (N2) rather than both
+/// publishing the parent's bare name.
+///
+/// The faces name; what refuses is the seam chord where a slab wall
+/// meets a merged face, which holds two faces of the boss on the side
+/// the chord reads through to (`NamingError::MergedChordConstituents`,
+/// the missing rule
+/// `work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`
+/// owns); when that rule lands, this row's expectation flips. The boss
+/// is joined by a pair boolean and by a union in both member orders,
+/// and each refuses the same way.
+#[test]
+fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
+    let doc = ProfileDoc::empty_derived("sunk-boss-slot", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, boss) = cylinder(doc, [1.5, 1.5, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
+    let (doc, slab) = block(doc, (1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
+    let (pair_doc, pair) = insert(
+        doc.clone(),
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: plate,
+            b: boss,
+            declare: None,
+        },
+    );
+    let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
+    for order in permutations(&[0, 1]) {
+        let (d, u) = union_of(doc.clone(), &[plate, boss], &order);
+        joins.push((format!("union {order:?}"), d, u));
+    }
+    for (label, doc, joined) in joins {
+        let (doc, cut) = insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Subtract,
+                a: joined,
+                b: slab,
+                declare: None,
+            },
+        );
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, joined).is_none(),
+            "{label}: the boss joins the plate: {:?}",
+            failure(&ev, joined)
+        );
+        assert!(
+            matches!(
+                failure(&ev, cut),
+                Some(NodeErrorKind::Naming(
+                    NamingError::MergedChordConstituents { several: 2, .. }
+                ))
+            ),
+            "{label}: the slot's faces name and only the chord rule is missing: {:?}",
+            failure(&ev, cut)
+        );
     }
 }

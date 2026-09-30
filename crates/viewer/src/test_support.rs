@@ -18,13 +18,18 @@
 
 // Panicking is a fixture's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EditError, Expr, LoopProgram, Node, ParamName,
-    ProfileProgram, RecipeNodeId, RefusingReach, apply,
+    BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions,
+    Evaluation, Expr, LoopProgram, Node, ParamName, ProfileProgram, RecipeNodeId, RefusingReach,
+    ValuePayload, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
+use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 use pncad::profile::{Step, Target};
+#[cfg(test)]
+use pncad::profile::{TipState, Verb};
 
 use crate::scene::DisplayTolerance;
 
@@ -228,6 +233,116 @@ pub fn framed_square(
     inserted(&doc, square(plane, side), tol)
 }
 
+/// The boss-on-a-face scene's block: 40 × 20 × 10 mm, centred on the
+/// world xy frame and extruded up ([`boss_on_block`]).
+pub const BOSS_BLOCK: [f64; 3] = [0.04, 0.02, 0.01];
+/// The scene's boss: a disc of this radius on the block's top cap…
+pub const BOSS_RADIUS: f64 = 0.005;
+/// …extruded this far up.
+pub const BOSS_HEIGHT: f64 = 0.004;
+
+/// **A block and a boss drawn on its top cap**, answering the document,
+/// the block and the boss — FLUSH with each other at that cap by
+/// construction, which is the whole point of the scene: their union
+/// refuses until the contact is declared.
+///
+/// The boss's frame is read off the block's top cap
+/// (`Datum::FaceFrame`, zero spin), the node the add-datum form mints
+/// from a face pick. `tests/creation_ops.rs`'s boss row authors the same
+/// scene through the op vocabulary, because the gesture is what that
+/// row is about; this is the scene alone. Its union's volume is
+/// [`boss_on_block_union_volume`].
+pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
+    let [width, height, depth] = BOSS_BLOCK;
+    let (doc, plane) = inserted(&Doc::empty_derived(label, tol), xy_frame(), tol);
+    let (doc, section) = inserted(
+        &doc,
+        rectangle(plane, [-width / 2.0, -height / 2.0], width, height),
+        tol,
+    );
+    let (doc, block) = inserted(
+        &doc,
+        Node::Extrude {
+            profile: section,
+            distance: len(depth),
+        },
+        tol,
+    );
+    let (doc, frame) = inserted(
+        &doc,
+        Node::Datum(Datum::FaceFrame {
+            at: block,
+            face: StableName {
+                kind: EntityKind::Face,
+                node: block,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            spin: ang(0.0),
+        }),
+        tol,
+    );
+    let (doc, disc) = inserted(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane: frame,
+            loops: vec![LoopProgram::circle(0.0, 0.0, BOSS_RADIUS).expect("a finite circle")],
+            ids: Vec::new(),
+        }),
+        tol,
+    );
+    let (doc, boss) = inserted(
+        &doc,
+        Node::Extrude {
+            profile: disc,
+            distance: len(BOSS_HEIGHT),
+        },
+        tol,
+    );
+    (doc, block, boss)
+}
+
+/// The closed-form volume of [`boss_on_block`]'s union: the block's
+/// box and the boss's cylinder, which meet only at the cap.
+pub fn boss_on_block_union_volume() -> f64 {
+    let [width, height, depth] = BOSS_BLOCK;
+    width * height * depth + core::f64::consts::PI * BOSS_RADIUS * BOSS_RADIUS * BOSS_HEIGHT
+}
+
+/// **`doc` with `node` inserted, evaluated from scratch** — what the
+/// kernel answers for a node, for a row comparing a session door's
+/// verdict with the kernel's own. Answers the evaluation and the id.
+pub fn evaluated_insert(
+    doc: &Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> (Evaluation<f64>, RecipeNodeId) {
+    let (doc, id) = inserted(doc, node, tol);
+    let eval = evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    (eval, id)
+}
+
+/// **The volume of `node`'s single body in `eval`** — an extrude's, a
+/// blend's or a boolean's. A node with no value panics with its own
+/// recorded error, not just the absence of a value.
+pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) -> f64 {
+    let value = eval
+        .value(node)
+        .unwrap_or_else(|| panic!("the node evaluated: {:?}", eval.node_error(node)));
+    let body = match &value.payload {
+        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        other => panic!("expected a body, got {other:?}"),
+    };
+    pncad::topo::mass_properties(body, tol)
+        .expect("mass properties")
+        .volume
+}
+
 // --- the display tolerances the suites index at ---------------------
 
 /// The display tolerance the plate-scale suites run the display
@@ -271,4 +386,20 @@ pub fn two_legs(x: f64, y: f64) -> Vec<Step<f64>> {
         Step::LineTo(Target::Point(Point2::new(x + 0.01, y))),
         Step::LineTo(Target::Point(Point2::new(x + 0.01, y + 0.01))),
     ]
+}
+
+/// **Every unclosable tip state** — one an unfinished chain can end on
+/// that no `line_to` leaves, so the provisional close is ill-typed
+/// there — read off the lattice table over the kernel's census of
+/// states (`profile::test_support`). `Closed` refuses `line_to` too,
+/// and is finished.
+#[cfg(test)]
+pub fn unclosable_tips() -> Vec<TipState> {
+    ::profile::test_support::every_state()
+        .into_iter()
+        .filter(|&state| {
+            state != TipState::Closed
+                && crate::sketch::admits_at(Some(state), Verb::LineTo).is_err()
+        })
+        .collect()
 }

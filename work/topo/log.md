@@ -3742,3 +3742,531 @@ where PR 3513's fix pass is working. It goes after PR 3513 merges.
 
 **Live lanes:** PR 3513's fix pass (the loop-anchor target), the
 reparent re-mint (the rebase target) and D262 (the walk target).
+
+## PR 3513's fix pass delivered; main's latent red fixed as PR 3537; fix-pass review out (2026-09-30)
+
+PR 3513's fix pass took 614,090 tokens, 393 tools and 5,694 s. Head is
+`b8811e1140`.
+
+**What it did** (fix-pass diff `d034042e5c..b8811e1140`, 48 files,
++1,424/−418):
+- **M-1.** A new decision, `BooleanDecision::Proximity(Coincide)`,
+  for sites that read no declaration ahead of the escalation. Its
+  ending is "move the parts so they clearly meet or clearly stand
+  apart", with the valued tolerance, pass set `AnySign`, and no
+  declaration offered.
+  - 18 sites are routed there.
+  - `vtxfac`'s coplanar sector now reads `declared.class_of` first.
+  - 5 sites stay `Coincidence`, where a declaration is read ahead.
+  - The class residue is filed as
+    `boolean-in-band-arms-read-ahead-of-the-declaration`.
+- **m-4.** `decide_positive_reported` at the three arm gates. The
+  helper is filed on VERDICT's slate.
+- **m-5/m-7.** `CoplanarNeighbours { offset: NeighbourOffset }` is
+  typed.
+- **m-6.** `Coincide::subject()` opens every coincidence refusal.
+- **m-8.** `RestZipFrontier`, a closed type of 17 variants.
+- All twelve mutants are red.
+
+**CI run 36694091725 was red, and not for this PR.**
+`node_standing::every_node_result_reader_goes_through_usable_or_is_listed`
+finds AUTH-7's two new viewer result reads (`viewer/src/tree.rs`
+8 → 9, `viewer/src/pane/features.rs` 1). AUTH-7's viewer-only diffs
+never selected editor-core's tests, so main stayed green while it was
+latently red.
+- I opened the fix as PR 3537, `topo/readers-census-auth7`: two
+  `READERS` lines, with seam notes on tcost's and author's logs.
+- I ported it into PR 3513 by merging the fix branch (`472122ca57`,
+  which also brings in main). `cargo check` passes for topo and sweep
+  on all targets, and fmt and lint are clean.
+
+**Provenance correction.** The D9 addendum commit 7c997576f9 merged
+via #628, not #1347 as this log said twice above. The fix-pass lane
+had it right.
+
+**A fix-pass review is dispatched,** frozen at `472122ca57`. The fix
+pass answered the MAJOR with a new decision class, re-routed 18 sites
+and re-worded every coincidence refusal: too much for an orchestrator
+read. It is on the loop-anchor target. The reviewer's brief:
+- falsify each site's routing with declared and undeclared pairs;
+- check that `PROXIMITY`'s `AnySign` passes a definite zero at every
+  site;
+- check the certify side effect;
+- run the new mutants.
+
+**Disk** is at 3.0 GB free. I asked the two build lanes to trim their
+own targets. I did not delete anything in the rebase target, where an
+earlier lane was denied.
+
+PR 3537 merged (`5234f64389`) after CI run 36696455175 went green, so
+main's `READERS` census is whole again. PR 3513 already carries the
+same change.
+
+## D262 delivered as PR 3532; its single review out (2026-09-30)
+
+The implementer took 364,458 tokens, 166 tools and 3,875 s. Head
+`0792b0121c` was red on the same census test as PR 3513, main's
+latent red. I merged main (now carrying PR 3537) into the branch at
+`5e07bfe8e0`; main's side touches only viewer and editor-core.
+
+**Reachability, measured.** The entry gate refuses every tear that
+reaches the adjacency-scan lookups (pinned). The role pass reads the
+staged body after surgery.
+
+**What changed:**
+- Each lookup arm refuses row 1 naming its key, or goes by row 0. The
+  lane chose row 1 over row 4 for the gate-covered arms, reading row 4
+  as barring tier-1 validity as the proof. That reading is to be
+  checked.
+- The unit-1 lever substitution is gone.
+- `TornLoop` carries its key.
+- The second pass found `outermost_survivor` defaulting an unclaimed
+  mate to the plus half; it now refuses `UnclaimedHalfEdge`.
+- `MergedFaceRoleAmbiguous` carries `OutlineVerdict`, with four
+  endings. The zero winding keeps its margin via `decide_reported` and
+  ends in the winding's sized story.
+
+**Filed:**
+- `declared-pair-verdict-answers-an-unreachable-distinct`;
+- `merge-coplanar-refusals-open-with-a-stage-label`, twelve more arms;
+- `reach/section-sense-drops-a-zero-windings-margin`;
+- `restfront/check-6-planar-arm-skips-a-torn-winding-walk`.
+
+The lane trimmed its own target, bringing free space to about 4 GB.
+
+**The review.** A single full review, frozen at `5e07bfe8e0`, on the
+walk target. The claims it tests:
+- try to beat the entry gate;
+- check the row 1 vs row 4 reading;
+- check whether `outermost_survivor`'s new refusal over-refuses a
+  valid body (self-loops, seams, genus 1);
+- render each outline verdict and test the unread-over-zero
+  precedence;
+- run the mutants.
+
+## PR 3532's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of PR 3532 at `5e07bfe8e0` took 300,399 tokens,
+152 tools and 2,174 s. It found 0 MAJOR, 7 MINOR and 4 NOTE, on a
+green gate (run 36697184288).
+
+**Confirmed by execution:**
+- The entry gate covers every tear, the boolean stage by
+  construction.
+- `outermost_survivor`'s new refusal ran 4,136 times with no
+  over-refusal.
+- The zero arm's tolerance is valued and conditional, and appears
+  only there.
+
+**Ruled for the fix pass:**
+- **MINOR-1.** The unread-over-zero precedence rests on a false
+  premise. A tighter tolerance decides the zero ring, and an unread
+  loop already counts as not-positive. It is inverted and pinned; the
+  reviewer's M9 survived.
+- **MINOR-2.** `TornLoop::CycleBroken` splits into a stale link and a
+  walk that fails to close. Every key gets a row.
+- **MINOR-3.** `loop_winding.rs`'s `he_plus == he` reads an unclaimed
+  half-edge silently. That is the default the PR fixed in
+  `outermost_survivor`, re-minted in the function it rewrote. The fix
+  refuses through one mate helper (three ladders today). Siblings
+  outside the fence are filed as one class row.
+- **MINOR-4.** The surface arm has a same-call proof (`kind_census`),
+  so it takes row 0. The face, vertex and point arms stay typed. Their
+  classification is stated as "unreachable at the door, proven only by
+  the whole-body gate". The addendum has no row for that state, so the
+  gap is filed as a question and DESIGN.md is not edited.
+- **MINOR-5.** `boolean/reduce.rs`'s twin `edge_chord_len` still
+  substitutes 1 m. PIN's row is updated; `boolean/` is not touched
+  while PR 3513 is open.
+- **MINOR-6 and MINOR-7.** An `Empty` loop is not-positive. What is
+  left of `Unread` gets an `Unsupported*` name (D2 row 2).
+- **Notes.** A stale comment; the #628 provenance; the undisclosed
+  crossing into guard's gate register; the hand-built-fixture caveat.
+
+The fix pass is out on the walk target.
+
+## PR 3513's fix-pass review: APPROVE-WITH-FIXES with a MAJOR; second fix pass out (2026-09-30)
+
+The fix-pass review at `472122ca57` took 363,444 tokens, 134 tools and
+2,819 s, on a green gate (run 36696622697).
+
+**Closed:** m-3, m-5/m-7, m-6 and the DESIGN.md phrase. m-4 is closed
+at the Boolean.
+
+**MAJOR N-1.** Two of the five sites the fix pass kept on
+`Coincidence` still offer a declaration that nothing settles. That is
+M-1 re-minted:
+- **The uncovered circle clearance** (`reduce.rs:~1419`). Declaring
+  moves the refusal to another site that offers "declare" again.
+- **The plane rung at the declared-`Tangent` doors.** The conformal
+  screen hard-codes `PlaneDoor::Undeclared`, and `PlaneDoor::of` maps
+  `Tangent` to `Undeclared`. Real `union_with` raises G2, G5 and G6,
+  declared `Tangent`, offer "declare".
+
+**MINORs:**
+- Six of the reviewer's nine own mutants survive: most of the table
+  is unpinned.
+- `PROXIMITY`'s `AnySign` is false where a decided zero refuses.
+- The m-2 row still mis-lists an arm.
+- The margin carried by m-4 leaks into `validate`'s and `certify`'s
+  text: an angle tolerance valued from a length.
+- A real raise breaks the 75-word budget (78 words).
+
+**Ruled.** A second fix pass fixes every item. Two rounds of routing
+by hand have each left false offers, so the brief asks the lane to
+consider the root cause first: carry "was a declaration read here" to
+the raise as data, which `PlaneDoor` already half-does. If that is
+not local, the lane pins every site by mutant. Out on the loop-anchor
+target.
+
+Disk is at 2.8 GB free. The build lanes are asked to trim their own
+targets.
+
+## The reparent re-mint delivered as PR 3531; sent back to keep the kills keys-only (2026-09-30)
+
+The implementer took 562,013 tokens, 313 tools and 9,139 s. Head
+`9cbec20cdf` is green on CI run 36701279775.
+
+**Measured at base.** `kef` moved a remnant across a chart onto a
+complete analytic face 1,011 times, leaving it half-minted every time.
+`kfmrh` did so twice.
+
+**At head:**
+- 723 of those destinations go complete and 316 are emptied (a failed
+  walk).
+- The whole-body mints meet 2 half-minted faces instead of 659.
+
+**The rule** is one predicate, `StoredRows::remints`, applied to the
+face the door finds. The same chart with every row present moves its
+rows. A spline destination keeps the drop.
+
+**The lane's Deviation 1** gave `kef`, `kfmrh`, `mfkrh`,
+`mfkrh_plug` and `ring_move` a `tol` argument, rippling to about 280
+call sites. It asked whether that needs Ev.
+
+**Ruled: no, and reshape.**
+- PR 2527's ruling (`kevs-fan-merge-needs-a-re-describing-kill-door`
+  `## Ruled`, Ev: "(c) sounds good then!") keeps the kill family
+  keys-only. A band-taking sibling door takes geometry, and the
+  keys-only kill refuses typed where it would leave stale state.
+- Two doors keep that ruling and "a half-minted face becomes a state
+  no door can produce" together, so under the PR 3156 lesson the
+  choice is mine.
+- `kef` and `kfmrh` stay keys-only and refuse typed, before mutating,
+  where a re-mint is owed. Band-taking sibling doors re-mint.
+- The make and move operators take `tol` only if they decide against
+  ε.
+- The signature ripple reverts wherever the keys-only door suffices.
+
+Deviations 2 (a failed walk empties the face, which widens PCERT's
+silent case) and 3 (a spline destination keeps the drop, filed as a
+question) are accepted for the review to check.
+
+The lane is resumed with its context. The review follows the rework.
+
+## PR 3532's fix pass delivered; rows closed on the branch (2026-09-30)
+
+The fix pass took 294,538 tokens, 152 tools and 3,161 s. Head
+`b31115b13e` is green on CI run 36705205279.
+
+What the fix pass did:
+- **Precedence.** The zero winding now outranks an unsupported loop;
+  pinned, and M9 reds.
+- **`TornLoop`.** Split into a stale link, naming the half-edge, and
+  a walk that never closes. Each key has its row.
+- **One claim helper.** `Edge::claim` is the single reading of the
+  edge ↔ half-edge pairing. `Body::mate`, `outermost_survivor`,
+  `edge_mate` and the winding walk read it, and the walk refuses
+  `UnclaimedHalfEdge`.
+- **The surface arm.** Row 0: `KindCensus` carries the resolved
+  surface.
+- **Empty loops.** An `Empty` loop is not-positive, and `Unread` is
+  now `UnsupportedWinding`.
+- **Filed.** The unclaimed-half-edge class, one row per owning slate
+  (8), and the addendum's "gate-only" gap as a design question on
+  VERDICT.
+- **Deviations, accepted:**
+  - the guard register entry is marked audited, with its reason, and
+    disclosed;
+  - `euler_kill.rs`'s ladders are left alone, since they test both
+    slots and the reparent lane is live there.
+
+The orchestrator read the diff (`5e07bfe8e0..b31115b13e`); it is
+clean. D262 and the role row close on the branch (`6d0fbfe5d8`).
+Merge after CI. Single tier, no DR row.
+
+## PR 3532 merged; revert-anchors dispatched (2026-09-30)
+
+PR 3532 merged at `6d0fbfe5d8` (merge `9e5c80df7a`) after CI run
+36706611476 went green, closing D262 and
+`merged-face-role-ambiguity-ends-in-no-recourse`. I unsubscribed.
+
+**Next on the walk target:**
+`revert-anchors-trust-a-torn-next-or-prev` (P3, E), branch
+`topo/revert-anchors`.
+- It lives in `revert.rs` only, so it overlaps no live lane.
+- The brief names D1's atomic contract and the D2 addendum (fail-loud)
+  with their provenance, and PR 3483/3495/3511 as precedent.
+- It takes the row's "prove the anchors" option, not "document the
+  carry". The lane is to stop and report if the proof is wrong for
+  `revert`.
+
+**Held back:**
+- The P3s in the kill plans (the far vertex, the empty loop or lone
+  vertex, face/shell/solid removals, the mate's own edge) wait for
+  PR 3531's rework, which is live in those plans.
+- `vertex-orbit-reads-no-start-vertex` reaches `boolean/` and waits
+  for PR 3513.
+
+## PR 3531 reworked to keys-only kills; its single review out (2026-09-30)
+
+The rework brought the lane's total to 700,020 tokens, 422 tools and
+15,723 s. Head `f7746ac162` is green on CI run 36713008162.
+
+**The shape.**
+- `kef`, `kfmrh`, `ring_move` and `mfkrh` stay keys-only. Where a
+  re-mint is owed, they refuse `PcurveMint { KeysOnly }` before they
+  mutate.
+- The `_minting` twins take `tol` and re-mint. One plan serves both:
+  `plan_site_mint_of(Option<Tol>)`, with `site_selects` split out of
+  `site_rows`.
+- `mfkrh_plug` keeps its signature, since its spline placeholder
+  never owes.
+
+**Callers, by probe of the `KeysOnly` refusal across both suites:**
+- Seven production sites moved to a twin: `zip.rs` ×3 and `rest.rs`
+  ×3 among them.
+- The rest stay keys-only, and 0 refusals remain.
+- `chord_join::cut_core` stays keys-only. It never reached a re-mint in
+  the suites; an unmeasured path would now refuse typed instead of
+  half-minting.
+
+**The gate re-pin.** `bit-identity-debug-only.sh` goes 17 → 19 and
+19 → 23 for the new doors' debug-only arena-delta checks. That is a
+re-count under the gate's own rule, as with the bounds pin on PR 3508,
+not a new decision.
+
+**The review.** A single full review, frozen at `f7746ac162`, on the
+rebase target. The claims it tests:
+- the refusal and the twin agree at every boundary case;
+- whether an unmeasured public path now refuses a valid Boolean;
+- the emptied faces (deviation 2);
+- red-first, honestly at base;
+- atomicity;
+- the gate re-pin.
+
+## revert-anchors delivered as PR 3546; rows closed on the branch (2026-09-30)
+
+The implementer took 235,229 tokens, 131 tools and 4,337 s. Head
+`a9cb2589a7` is green on CI run 36714001885. An earlier run had a
+`gate ok` job with no runner. The lane could not re-run it (403), so
+it merged main for a fresh run instead of pushing an empty commit.
+
+**What changed.** `revert` proves both anchors it writes before it
+builds:
+- the new `emanating` must end at its vertex (`RevertLink::Emanating`);
+- the new `first` must claim its loop (`RevertLink::LoopMember`).
+
+The precondition order is documented.
+
+**Measured.** On `declined_cube` it refuses exactly the base's 168 of
+576 `next` and 120 of 576 `prev` anchor-fault tears, and nothing
+else. Eight bodies are covered in a release-only row. 14 valid bodies
+revert both ways.
+
+**Filed:** `revert-writes-each-start-through-an-unproven-next` (P3, E).
+
+**The orchestrator's read** (`revert.rs`, +175/−14).
+- The proofs read `half_edge_end`, the function the new-start map
+  uses. Not reusing the Euler helpers is right: they are
+  kill-shaped, `EulerOpError`-typed, and read the stored start.
+- Every mutant reds, except that the loop proof moved after the build
+  is equivalent with assertions off, since `revert` builds a fresh
+  value.
+- Dropping the deep-unchanged assertion is correct: `revert` takes
+  `&self`.
+
+Single tier, orchestrator read, no DR row. The row closes on the
+branch (`db70c234a2`). Merge after CI.
+
+## Container restart: three lanes recovered (2026-09-30)
+
+A container restart stopped three lanes. I inspected their worktrees
+and branches before clearing them.
+
+- **PR 3513's second fix pass.**
+  - The lane had pushed five commits past `472122ca57`. It took the
+    root-cause change: `DeclarationRead`, carried to every
+    coincidence raise.
+  - One committed but unpushed commit (`7875062bcb`: rows, filings,
+    seam notes) was pushed by me.
+  - The only uncommitted edits were the reviewer's probe hooks
+    (`zz_coincfr_*`), which I discarded.
+  - Not yet done: `## Fix pass 2`, the rewritten table, the mutant
+    re-run, and a conflict with main.
+  - A continuation lane is dispatched. Its brief is the original
+    prefixed with this state.
+- **PR 3531's review.** It is read-only, so nothing was lost but time.
+  Re-dispatched on the same brief.
+- **The deep snapshot.** Nothing was pushed. I saved the uncommitted
+  diff (389 lines) to the lane's scratch as `prerestart.patch`; the new
+  lane may apply it.
+
+All three stale worktrees are removed, and the targets survived. PR
+3546's CI is still running on `db70c234a2`.
+
+PR 3546 merged (`19477d8632`) after CI run 36715545721 went green, and
+`revert-anchors-trust-a-torn-next-or-prev` is closed. Its follow-up,
+`revert-writes-each-start-through-an-unproven-next` (P3, E), waits for
+the walk target, which the snapshot lane is using.
+
+## The deep snapshot delivered as PR 3557; row closed on the branch (2026-09-30)
+
+The continuation lane took 164,826 tokens, 77 tools and 2,595 s. It
+applied the pre-restart patch after checking it. Head `29af49417b` is
+green on CI run 36719464234.
+
+**What changed.** One `fixtures::deep_snapshot`:
+- `review_m1_pr2`'s copy had no callers at all. The row was wrong
+  there; a `#![allow(dead_code)]` hid it, and that allow is gone too.
+- `review_m1_pr3`'s 7 call sites now read the one copy.
+- The copies walked the same arenas, so the union gained nothing.
+
+**Pinned.** The new row moves the snapshot for every arena and every
+provenance record, and kills 17 mutants.
+
+**Filed:**
+- `tint/topo-integration-tests-hand-write-partial-body-unchanged-walks`
+  (P3): four hand walks in `tests/`.
+- `deep-snapshot-does-not-walk-the-body-side-tables`. **Raised to P2**
+  on the branch. Every `assert_err_deep_unchanged` row is blind to a
+  failed op's writes to pcurves, null-face records, origins and
+  sources. That is the atomicity claim every site-mint unit (PR 3500,
+  3508 and 3531) rests on.
+
+The orchestrator read the diff and accepted it. The row closes at
+`2ccf366f48`; merge after CI. Next on the walk target: the side-tables
+row (P2), once PR 3557 merges, since it needs the one snapshot. Then
+`revert-writes-each-start-through-an-unproven-next`.
+
+PR 3557 merged (`7a6979ed91`) after CI run 36721532947 went green.
+Dispatched on the walk target: `deep-snapshot-does-not-walk-the-body-side-tables`
+(P2), branch `topo/snapshot-side-tables`.
+- The lane extends the snapshot to every side table, preferring a
+  compile guard over a hand list.
+- It then measures which atomicity rows newly red. Each is a real D1
+  defect.
+- It fixes those in files no live lane touches. For any in PR 3531's
+  or PR 3513's files it stops and reports, so I can sequence them after
+  those merge.
+
+## PR 3531's review: APPROVE-WITH-FIXES with a MAJOR; fix pass out (2026-09-30)
+
+The single full review of PR 3531 at `f7746ac162` took 360,650 tokens,
+169 tools and 3,608 s. It re-ran after the restart. The gate was green.
+
+**Confirmed:**
+- The keys-only refusal and the twin agree on every boundary case.
+- Atomicity holds for all eight doors.
+- The gate pins are exact.
+- The base before-state reproduces.
+
+**MAJOR.** `merge_coplanar_faces` stayed on keys-only `kef` and
+`ring_move`. On a curved same-key run where one sector was never
+minted, it now skips the group (`KeysOnly`, `groups=0`) where main
+merged it. The door holds `tol`, so it moves to the twins, and every
+production keys-only caller is re-checked for the same shape.
+
+**MINORs:**
+- `site_rows_owed` restates `site_rows`' walked-loop predicate, so a
+  mutant survives: one predicate.
+- The twins' same-chart carry is unpinned.
+- The account of the emptied faces is off. The truth is 317 clears:
+  147 re-minted, 169 killed later in completed carves, 1 reaching a
+  caller.
+- A sweep fixture's doc is stale.
+- The spline row lists `mef` wrongly.
+
+**On the review's provenance note.** Applying "a half-minted face
+becomes a state no door can produce" to the moving doors is my reading
+of the comment Ev approved, not Ev's recorded words. The PR body will
+say so.
+
+**Not taken:** the review's Q7, to fold `mfkrh` into one banded make
+door. `mfkrh` was keys-only before this PR and its twin is additive,
+so no finding requires the signature change.
+
+The fix pass is out on the rebase target.
+
+## Side tables delivered as PR 3559; revert-starts dispatched (2026-09-30)
+
+The side-tables lane took 186,393 tokens, 130 tools and 2,591 s. Head
+`0f69daa872` is green on CI run 36726547214.
+
+**What changed.** `deep_snapshot` walks all 24 tables on `Body`. It
+destructures `Body` with no `..`, so a new field fails to compile
+until the snapshot walks it. Provenance is walked as a table, so a row
+left for a dead key now shows.
+
+**No atomicity row newly reds:**
+- topo's whole suite, slow set included: 1815;
+- sweep `ci`: 1763.
+
+So no D1 defect is hiding behind the side tables in today's rows. All
+24 mutants are killed.
+
+**Filed (P3):**
+- `refusal-rows-that-count-instead-of-snapshot`: three refusal rows
+  that check counts only;
+- `deep-snapshot-cannot-see-a-consumed-key-slot`: D1's "consumes no
+  key slots" is not observed.
+
+The orchestrator read the diff and accepted it. The row closes at
+`72bb7ff7b8`; merge after CI.
+
+**Dispatched on the walk target:**
+`revert-writes-each-start-through-an-unproven-next` (P3, E), branch
+`topo/revert-starts`.
+- It follows PR 3546's precedent and proves the starts.
+- It first splits the `prev` tears into renamed faults and written
+  faults.
+
+## PR 3513's second fix pass delivered; fix-pass review out (2026-09-30)
+
+The continuation lane took 301,530 tokens, 148 tools and 6,299 s. That
+is on top of the cut-off lane's pushed commits. Head `dba0ffb29a` is
+green on CI run 36719336411, and the PR is `mergeable_state: clean`.
+
+**The root-cause change was taken.** `BooleanDecision::Coincidence(Coincide, DeclarationRead)`,
+where `DeclarationRead` is `{Settles, Spent(class), Moot}`.
+- The ending follows from the read. `Proximity` is gone.
+- `PlaneDoor` is now `Pair(DeclarationRead) | Neighbours`.
+- Only three site groups now offer "declare" (`Settles`).
+- Two sites state `Moot` by hand, since a verified declaration only
+  moves their refusal: the uncovered clearance and circle × torus.
+
+**Also done:**
+- New decisions for the direction sense (`DirectionSense`, `NonZero`)
+  and the bisector (`BisectorSide`).
+- Circle × torus routed to `TorusRoots`.
+- One corner-edges lever (`CORNER_EDGES`), and `DIHEDRAL_ARM` as a
+  length at `certify`/`validate`, with real raises.
+- Every decision within the 75-word budget.
+- All 24 mutants red on the merged head.
+
+**A process note.** The lane updated the PR body through the GitHub
+REST API with the session's token (`gh` is not installed). Briefs
+point lanes at the GitHub MCP tools, and from now on they say so
+explicitly.
+
+**The fix-pass review.** The change is architectural, so it gets a
+review, frozen at `dba0ffb29a`, on the loop-anchor target. The review:
+- executes every site's stated read (`Settles`, `Spent` or `Moot`),
+  with the two hand-stated `Moot`s first;
+- asks whether `DeclarationRead` could be derived from the door's read
+  rather than stated;
+- re-runs the mutants and adds its own;
+- counts the words of every decision rendered in band.
+
+PR 3559 merged (`685dc36544`) after CI run 36728287648 went green,
+closing `deep-snapshot-does-not-walk-the-body-side-tables`.

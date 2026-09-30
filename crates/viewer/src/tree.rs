@@ -9,8 +9,10 @@
 //! `NodeError`'s own `Display`, and nothing here composes a sentence
 //! about what went wrong. The two sentences this module writes ABOUT
 //! A FAILURE are a downstream row's pointer ([`downstream_wording`])
-//! and a failed row's link to the node to repair
-//! ([`repair_wording`]), and both say only WHERE to go.
+//! and a failed row's link to the node to repair ([`link_wording`]),
+//! and both say only WHERE to go. What it writes about an assertion's
+//! verdict is the comparison it decided ([`Asserted::comparison`]),
+//! out of the kernel's own relation and two computed values.
 //!
 //! A failure that CARRIES another node's refusal — a part whose root
 //! failed or was poisoned, a mate whose placer refused — points at the
@@ -35,7 +37,8 @@
 //!
 //! One thing a run said that is no failure rides the row as well: what
 //! a measure measured ([`Measured`]) — its value, spelled as the chrome
-//! spells any computed value, or the kernel's typed reason it has none.
+//! spells any computed value, or the kernel's typed reason it has none
+//! — and what an assertion found of it ([`Asserted`]).
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -173,9 +176,9 @@ use std::collections::BTreeMap;
 
 use pncad::document::AssemblyError;
 use pncad::document::{
-    CarriedIn, Datum, Doc, Evaluation, Expr, MateFault, MeasureUnavailableAt, Node, NodeError,
-    NodeErrorKind, NodeResult, NodeStanding, ProductError, ProfileProgram, RecipeNodeId,
-    ValuePayload,
+    AssertionDir, AssertionVerdict, CarriedIn, Datum, Doc, Evaluation, Expr, MateFault,
+    MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding, ProductError,
+    ProfileProgram, RecipeNodeId, ValuePayload,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
@@ -339,21 +342,34 @@ pub struct TreeRow {
     /// a certifiable one.
     pub note: Option<String>,
     /// **The node a [`RowStatus::Failed`] row's words name as the one
-    /// to repair, when that is not this node** — the row a click on
-    /// [`repair_wording`] selects: whatever `repair_named` answers for
-    /// the row's own error.
+    /// to repair, when that is not this node**: whatever
+    /// `repair_named` answers for the row's own error.
     ///
-    /// `None` on every row that is not `Failed`: a `Poisoned` row's
-    /// link is its own `through`, and an `Ok` or `Unevaluated` row has
-    /// no words to link from.
+    /// `None` on every row that is not `Failed`. A row's other links
+    /// carry their own target: a `Poisoned` row's is its `through`,
+    /// and an assertion's is its [`Asserted::measure`].
     pub repair_at: Option<RecipeNodeId>,
-    /// **What a measure node measured**, on a row that is `Ok`;
-    /// `None` on every other row, whose status says why there is none.
+    /// **What a measure node measured, or an assertion found**, on a
+    /// row that is `Ok`; `None` on every other row, whose status says
+    /// why there is none.
     pub measured: Option<Measured>,
 }
 
-/// **What a measure's row says it measured**: the landed run's value,
-/// or the kernel's reason it has none.
+impl TreeRow {
+    /// **How loud this row is drawn**: its status's tone
+    /// ([`RowStatus::tone`]), except on an assertion's row, which is
+    /// `Ok` and as loud as its verdict ([`Asserted::tone`]).
+    pub fn tone(&self) -> Tone {
+        match &self.measured {
+            Some(Measured::Asserted(asserted)) => asserted.tone(),
+            Some(Measured::Value(_) | Measured::Unavailable(_)) | None => self.status.tone(),
+        }
+    }
+}
+
+/// **What a measure's or an assertion's row says the run found**: a
+/// measure's value or the kernel's reason it has none, and on an
+/// assertion's row, its verdict over that value.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Measured {
     /// The value, already spelled ([`computed_text`]: canonical
@@ -366,6 +382,51 @@ pub enum Measured {
     /// failure. Its `Display` is the kernel's sentence, which names
     /// the door that can answer.
     Unavailable(MeasureUnavailableAt),
+    /// An assertion's verdict over its measure.
+    Asserted(Asserted),
+}
+
+/// **An assertion's verdict, as its row says it**: the kernel's
+/// verdict with both numbers spelled as the measure's own value is
+/// ([`computed_text`], in the measure's dimension), the side of the
+/// bound the measure must fall on, and which measure that is.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Asserted {
+    /// The landed verdict.
+    pub verdict: AssertionVerdict<String>,
+    /// Which side of the bound the measure must fall on.
+    pub dir: AssertionDir,
+    /// The measure node the assertion constrains.
+    pub measure: RecipeNodeId,
+}
+
+// `AssertionVerdict` derives `PartialEq` alone, for its scalar's sake;
+// over `String` numbers and an `Eq` reason it is an equivalence.
+impl Eq for Asserted {}
+
+impl Asserted {
+    /// **How loud the verdict is drawn**: a `Violated` requirement is
+    /// one the author recorded and the geometry fails, which is a
+    /// verdict a reader may need to act on. `Holds` is a report, and
+    /// `Unevaluated` is no verdict at all.
+    pub fn tone(&self) -> Tone {
+        match self.verdict.holds() {
+            Some(false) => Tone::Actionable,
+            Some(true) | None => Tone::Advisory,
+        }
+    }
+
+    /// **The comparison the verdict decided**, as a report reads it —
+    /// `0.0125 m >= 0.01 m` — or `None` where there is no verdict.
+    pub fn comparison(&self) -> Option<String> {
+        match &self.verdict {
+            AssertionVerdict::Holds { measured, bound }
+            | AssertionVerdict::Violated { measured, bound } => {
+                Some(format!("{measured} {} {bound}", self.dir.symbol()))
+            }
+            AssertionVerdict::Unevaluated { .. } => None,
+        }
+    }
 }
 
 /// The kind name of a recipe node — the node vocabulary's own
@@ -611,7 +672,7 @@ pub fn rows(
         let status = status_of(id, evaluation, files);
         let (repair_at, measured) = match status {
             RowStatus::Failed { .. } => (evaluation.and_then(|ev| repair_of(id, ev)), None),
-            RowStatus::Ok => (None, evaluation.and_then(|ev| measured_of(id, ev))),
+            RowStatus::Ok => (None, evaluation.and_then(|ev| measured_of(id, node, ev))),
             RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None),
         };
         rows.push(TreeRow {
@@ -686,11 +747,19 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
 
 /// **What `id` measured in `evaluation`** — asked only of a row
 /// [`rows`] has read `Ok`, so this decides which payload, never
-/// whether there is one. `None` for every payload but a measure's.
-fn measured_of(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Measured> {
+/// whether there is one. `None` for every payload but a measure's or
+/// an assertion's.
+fn measured_of(
+    id: RecipeNodeId,
+    node: &Node<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+) -> Option<Measured> {
     match &evaluation.usable(id).ok()?.payload {
         ValuePayload::Measure { value, dim } => Some(Measured::Value(computed_text(*dim, *value))),
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Measured::Unavailable(*reason)),
+        ValuePayload::Assertion(verdict) => {
+            Some(Measured::Asserted(asserted(node, verdict, evaluation)))
+        }
         ValuePayload::Body(_)
         | ValuePayload::Boolean(_)
         | ValuePayload::Datum(_)
@@ -698,8 +767,32 @@ fn measured_of(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Measure
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_)
-        | ValuePayload::Assertion(_) => None,
+        | ValuePayload::Mate(_) => None,
+    }
+}
+
+/// **An assertion's verdict, its numbers spelled in its measure's
+/// dimension.** A verdict carries numbers only when its measure
+/// evaluated to a value, so the dimension is that value's.
+fn asserted(
+    node: &Node<ProfileProgram>,
+    verdict: &AssertionVerdict<f64>,
+    evaluation: &Evaluation<f64>,
+) -> Asserted {
+    let Node::Assertion { measure, dir, .. } = node else {
+        unreachable!("only an assertion node evaluates to a verdict")
+    };
+    let dim = || match evaluation.usable(*measure).ok().map(|value| &value.payload) {
+        Some(ValuePayload::Measure { dim, .. }) => *dim,
+        other => unreachable!(
+            "a verdict with numbers compared a measured value, yet its measure holds {:?}",
+            other.map(ValuePayload::kind_name)
+        ),
+    };
+    Asserted {
+        verdict: verdict.clone().map(|number| computed_text(dim(), number)),
+        dir: *dir,
+        measure: *measure,
     }
 }
 
@@ -799,6 +892,17 @@ pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<Recip
         Standing::Status(
             RowStatus::Poisoned { message: None, .. } | RowStatus::Ok | RowStatus::Unevaluated,
         ) => None,
+    }
+}
+
+/// **`id`'s own failure, as this tree reads it**: `Some` exactly when
+/// its row is drawn from its own error, off the same [`standing`] as
+/// [`status_of`]. A poisoned node answers `None` — its cause is an
+/// ancestor's, and so is the row the tree sends a reader to.
+pub fn own_error(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<&NodeError> {
+    match standing(id, Some(evaluation)) {
+        Standing::Failed(error) => Some(error),
+        Standing::Status(_) => None,
     }
 }
 
@@ -911,10 +1015,10 @@ pub fn downstream_wording(through: RecipeNodeId) -> String {
     )
 }
 
-/// What a failed row's link to the node to repair says: that node's
-/// name, as [`node_number`] spells it — the failure's own words are
-/// the line above it, so this names only WHERE to go.
-pub fn repair_wording(at: RecipeNodeId) -> String {
+/// **What a link to a node says**: that node's name, as
+/// [`node_number`] spells it, and nothing about why — the why is
+/// drawn elsewhere, so this names only WHERE to go.
+pub fn link_wording(at: RecipeNodeId) -> String {
     format!("see {}", node_number(at))
 }
 

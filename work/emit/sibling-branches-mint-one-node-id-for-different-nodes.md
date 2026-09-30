@@ -4,6 +4,8 @@ kind: issue
 title: Two inserts applied to one base mint the same node id for different nodes
 status: open
 opened: 2026-09-29
+priority: P1
+cost: H
 ---
 
 
