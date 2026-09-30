@@ -45,12 +45,13 @@ impl<T: Real> Arc2<T> {
         }
     }
 
-    /// The same carrier traversed the other way: the sweep negated
-    /// (as `0 − sweep`), the centre and radius untouched.
+    /// The same carrier traversed the other way: the sweep negated, the
+    /// centre and radius untouched. Negation is exact and flips the sign
+    /// of a zero too, so reversal is an involution bit for bit.
     #[must_use]
     pub fn reversed(self) -> Self {
         Self {
-            sweep: T::zero() - self.sweep,
+            sweep: -self.sweep,
             ..self
         }
     }
@@ -122,18 +123,35 @@ impl<T: Real> Arc2<T> {
         self.point_from(a, T::one())
     }
 
-    /// **Registers the four endpoint facts** of this arc between `a`
-    /// and `b` ([`Real::register_equal`]): the rim at each end is the
-    /// radius, the landing from `a` is `b`, and the reversed arc's
-    /// landing from `b` is `a` — the last two per component, which is
-    /// what a consumer's `distance` asks of them. Each derived node is
-    /// registered against the held one (`rim` against `radius`, a
-    /// landing against its endpoint), and each answer is handed back
-    /// with the fact it states, for the caller to handle by arm.
+    /// The carrier's point at the end of the sweep, reached from the
+    /// direction of `a`: `centre + radius·R(sweep)·(a − centre)/‖a − centre‖`.
+    ///
+    /// It reads the carrier alone — `a` gives only the direction the
+    /// sweep starts from — so it is the point a carrier built from this
+    /// arc's centre, radius and sweep evaluates to at its span, whatever
+    /// `a` is. It is [`Arc2::landing`] exactly when `a` lies on the
+    /// carrier (`rim(a) = radius`), which is the construction's fact to
+    /// state, not this reading's.
+    pub fn carrier_end(self, a: Point2<T>) -> Point2<T> {
+        let u = (a - self.centre) / self.rim(a);
+        let (sin, cos) = (self.sweep.sin(), self.sweep.cos());
+        self.centre + Vec2::new(u.x * cos - u.y * sin, u.x * sin + u.y * cos) * self.radius
+    }
+
+    /// **Registers the endpoint facts** of this arc between `a` and `b`
+    /// ([`Real::register_equal`]): the rim at each end is the radius,
+    /// the landing from `a` is `b` and the reversed arc's landing from
+    /// `b` is `a`, and the carrier's end from `a` is `b` and the
+    /// reversed carrier's end from `b` is `a` ([`Arc2::carrier_end`]) —
+    /// the points per component, which is what a consumer's `distance`
+    /// asks of them. Each derived node is registered against the held
+    /// one (`rim` against `radius`, a landing or carrier end against its
+    /// endpoint), and each answer is handed back with the fact it
+    /// states, for the caller to handle by arm.
     ///
     /// **An axiom, not a check.** The door's witness cannot tell an
     /// identity from a coincidence, so this is sound only where the
-    /// CALLER built the arc so that the four facts hold over the reals
+    /// CALLER built the arc so that these facts hold over the reals
     /// at every value of its inputs, and its doc comment carries that
     /// proof. The type states the facts in its own spelling
     /// ([`Arc2::rim`], [`Arc2::landing`], [`Arc2::reversed`]) and
@@ -145,9 +163,11 @@ impl<T: Real> Arc2<T> {
         a: Point2<T>,
         b: Point2<T>,
         tol: Tol,
-    ) -> [(&'static str, SymRegistration); 6] {
+    ) -> [(&'static str, SymRegistration); 10] {
         let forward = self.landing(a);
         let backward = self.reversed().landing(b);
+        let forward_end = self.carrier_end(a);
+        let backward_end = self.reversed().carrier_end(b);
         [
             (
                 "the rim at the start",
@@ -166,6 +186,22 @@ impl<T: Real> Arc2<T> {
             (
                 "the reversed landing's y",
                 backward.y.register_equal(a.y, tol),
+            ),
+            (
+                "the carrier end's x",
+                forward_end.x.register_equal(b.x, tol),
+            ),
+            (
+                "the carrier end's y",
+                forward_end.y.register_equal(b.y, tol),
+            ),
+            (
+                "the reversed carrier end's x",
+                backward_end.x.register_equal(a.x, tol),
+            ),
+            (
+                "the reversed carrier end's y",
+                backward_end.y.register_equal(a.y, tol),
             ),
         ]
     }
@@ -194,6 +230,43 @@ mod tests {
         );
     }
 
+    /// Reversal is an involution bit for bit, a zero sweep's sign
+    /// included.
+    #[test]
+    fn reversed_twice_is_the_arc_bit_for_bit_at_a_signed_zero() {
+        for sweep in [-0.0, 0.0, 0.75, -0.75] {
+            let arc = Arc2 { sweep, ..quarter() };
+            let once = arc.reversed();
+            let twice = once.reversed();
+            assert_eq!(
+                (once.sweep.to_bits(), twice.sweep.to_bits()),
+                ((-sweep).to_bits(), sweep.to_bits()),
+                "sweep {sweep:?}"
+            );
+        }
+    }
+
+    /// The carrier end reads the carrier, not the start's rim: a start
+    /// off the circle along the same ray ends where the on-circle start
+    /// does, and an on-circle start ends at its landing.
+    #[test]
+    fn the_carrier_end_is_the_landing_exactly_on_the_carrier() {
+        let arc = quarter();
+        let on = arc.centre + Vec2::new(0.6, 0.8) * arc.radius;
+        let off = arc.centre + Vec2::new(0.6, 0.8) * (arc.radius * 1.25);
+        let (end_on, end_off) = (arc.carrier_end(on), arc.carrier_end(off));
+        assert!(end_on.distance(end_off) < 1e-15, "{end_on:?} vs {end_off:?}");
+        assert!(
+            end_on.distance(arc.landing(on)) < 1e-15,
+            "on the carrier: {end_on:?} vs {:?}",
+            arc.landing(on)
+        );
+        assert!(
+            arc.landing(off).distance(end_off) > 0.1,
+            "off the carrier the landing leaves it"
+        );
+    }
+
     #[test]
     fn map_carries_each_field_to_its_own_place() {
         let lifted = quarter().map(Interval::from_f64);
@@ -219,7 +292,7 @@ mod tests {
 
     /// The first quarter of the unit circle about the origin, from
     /// (1, 0) to (0, 1): every coordinate and the sweep enclose their
-    /// reals, so the four endpoint facts hold on the enclosures.
+    /// reals, so the endpoint facts hold on the enclosures.
     fn quarter_circle<T: Real>() -> (Arc2<T>, Point2<T>, Point2<T>) {
         let arc = Arc2 {
             centre: Point2::new(T::zero(), T::zero()),
@@ -261,8 +334,20 @@ mod tests {
             "both rims against a planted radius"
         );
         assert!(
-            got[2..].iter().all(|&r| r == SymRegistration::Witnessed),
+            got[2..6].iter().all(|&r| r == SymRegistration::Witnessed),
             "the landings never read the radius: {got:?}"
+        );
+        // The carrier ends do: (0, 1.5) against (0, 1), and (1.5, 0)
+        // against (1, 0), each off in one component.
+        assert_eq!(
+            [got[6], got[7], got[8], got[9]],
+            [
+                SymRegistration::Witnessed,
+                SymRegistration::Contradicted,
+                SymRegistration::Contradicted,
+                SymRegistration::Witnessed,
+            ],
+            "the carrier ends against a planted radius: {got:?}"
         );
         // Swapped ends: the forward landing from (0, 1) is (−1, 0), off
         // the claimed (1, 0) in x; the reversed landing from (1, 0) is
@@ -270,8 +355,8 @@ mod tests {
         // each meets.
         let got = answers(arc, b, a);
         assert_eq!(
-            [got[2], got[5]],
-            [SymRegistration::Contradicted; 2],
+            [got[2], got[5], got[6], got[9]],
+            [SymRegistration::Contradicted; 4],
             "a sweep that turns the wrong end onto the other: {got:?}"
         );
     }

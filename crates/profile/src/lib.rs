@@ -151,7 +151,6 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::sym::SymRegistration;
 use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Tol, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
@@ -264,7 +263,7 @@ pub(crate) fn lower_chain<T: Real>(
 
 /// **The arc lowering**: the carrier [`seg::arc_carrier`] puts on the
 /// chord `start → end` for `bulge`, and the sweep Δθ = 4·atan(b) — and,
-/// given the run's ε, the arc's four endpoint facts registered on the
+/// given the run's ε, the arc's endpoint facts registered on the
 /// values it built ([`Arc2::register_endpoints`]). Without one (a
 /// fixture holds no witness) nothing is registered and the arc is the
 /// same.
@@ -281,7 +280,9 @@ pub(crate) fn lower_chain<T: Real>(
 /// quarter-tangent the bulge is by definition (crate docs), and
 /// `4·atan(b)` is that θ for every finite `b` (|θ| < 2π): turning
 /// `start` about the centre by the sweep lands on `end`, and turning
-/// `end` back by the negated sweep lands on `start`. Each is a theorem
+/// `end` back by the negated sweep lands on `start`. Since each end is
+/// on the carrier, the carrier's own end from either one
+/// ([`Arc2::carrier_end`]) is that same landing. Each is a theorem
 /// of the reals at every value of `start`, `end` and a nonzero finite
 /// `b`, which is what the door's axiom asks of its registrant; a lie
 /// the exact witness disproves aborts here, live in release.
@@ -304,33 +305,10 @@ pub(crate) fn lower_arc<T: Real>(
     };
     if let Some(tol) = tol {
         for (fact, answer) in arc.register_endpoints(start, end, tol) {
-            handle_registration(answer, fact);
+            answer.handle(fact);
         }
     }
     arc
-}
-
-/// What the lowering does with the door's typed answer, by arm: a
-/// `Contradicted` is the EXACT witness's proof that the lowering's
-/// theorem failed on the values it was handed, and is loud (live in
-/// release — this workspace ships `debug-assertions = true` there);
-/// every other arm is a record, a no-op, or an inexact witness's
-/// refusal, which is counted in the session's receipt and never
-/// asserted. Exhaustive by hand, so a new arm is a compile error here.
-fn handle_registration(answer: SymRegistration, fact: &'static str) {
-    match answer {
-        SymRegistration::Contradicted => debug_assert!(
-            !matches!(answer, SymRegistration::Contradicted),
-            "the EXACT witness separated {fact} of a lowered arc: either the lowering's \
-             theorem is false for its inputs, or an upstream enclosure does not contain its real"
-        ),
-        SymRegistration::Disputed
-        | SymRegistration::Recorded
-        | SymRegistration::Already
-        | SymRegistration::Witnessed
-        | SymRegistration::Unwitnessed
-        | SymRegistration::Cyclic => {}
-    }
 }
 
 /// Whether a bulge is exactly zero, of either sign — the line of the

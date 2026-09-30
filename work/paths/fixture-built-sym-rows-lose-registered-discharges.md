@@ -4,6 +4,9 @@ kind: issue
 title: Fixture-built Sym rows lose the discharges the sweep used to register
 status: open
 opened: 2026-09-30
+priority: P3
+cost: M
+refs: [retire-the-stored-bulge, 3527]
 ---
 
 
@@ -12,7 +15,7 @@ Found in 5a (`retire-the-stored-bulge`). Under #3453 a table-built arc
 proves an arc's endpoint facts registers them (`profile::lower_arc`
 through `Arc2::register_endpoints`), and the sweep registers only
 rigidity (`sweep::swept::register_rigidity`,
-`register_placed_landing`). A `Sym` row whose profile is written
+`register_placed_carrier_end`). A `Sym` row whose profile is written
 through the fixture door therefore has no 2-D rim or landing to chain
 the placed carrier through, and the discharges the sweep used to
 register unconditionally are gone.

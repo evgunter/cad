@@ -4,6 +4,9 @@ kind: issue
 title: A registration cannot reach an identity sealed inside a frozen compound; discharge depends on which side of the term cap a spelling lands
 status: open
 opened: 2026-09-30
+priority: P3
+cost: M
+refs: [retire-the-stored-bulge, 3527]
 ---
 
 
