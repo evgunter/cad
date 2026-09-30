@@ -35,6 +35,16 @@ Evaluation itself does not recurse on it (the peak below is flat), so
 the crash lands after it: when the evaluation is dropped, or a name is
 printed.
 
+The fix pass's mutual-recursion sweep found three more walks over the
+same nesting: the content key's `feed_stable_name` ↔ `feed_role_seg`
+(`crates/editor-core/src/eval/mod.rs`), and the union emitter's
+`collapse` ↔ `orient` ↔ `seam_line` and `member_faces`
+(`crates/editor-core/src/names/emit_union.rs`). The selector patterns
+that match names nest the same way: a `SegPat` holds `args:
+Vec<NamePat>` (`crates/editor-core/src/names/select.rs`), a Python
+caller can nest them as deep as it likes, and their matching and
+derived impls recurse once per level.
+
 ## Evidence
 
 One document: a square extrude, then K `Node::Pattern`s, each over the

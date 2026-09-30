@@ -93,3 +93,26 @@ process dies.
 Filed from the sweep:
 `an-expression-nested-deep-enough-kills-the-process` and
 `a-stable-name-nests-one-level-per-copy-and-every-walk-over-it-recurses`.
+
+## Fix pass (2026-09-30)
+
+- Below the top, every part a document instantiates is evaluated,
+  asked or not, and bottom-up. That is kept and stated: its failure
+  reaches no node, product or refusal. `part_evaluations` counts it,
+  and a shape report or symbolic session installed around the
+  evaluation sees its decisions, in bottom-up order (measured at
+  `Sym<Interval>`; no shipped door installs either over a resolver).
+- A nested cache never descends: a miss below the top is the typed
+  kernel defect `PartFault::NotEntered` (`part_not_entered`), and
+  `parts::instantiated` is the one census the descent and the mate
+  solve's reach read.
+- Python links at most 256 causes and folds deeper levels into the
+  last, one line each, so CPython 3.11's excepthook prints the refusal.
+- Rows: the loop check before the depth check at the bound, nested
+  rows equal the document's own, both askers find their rows below the
+  top, the unasked part reaches nothing, a nested miss never resolves,
+  and the uncaught refusal prints every level.
+- Filed: `exch/step-parser-recurses-once-per-nested-list-and-a-deep-file-kills-the-process`
+  (P1), `origin/a-source-expr-nests-one-level-per-placement-and-every-copy-clones-the-chain`
+  (the cause of the time at the bound). The expression and name rows
+  gained the sweep's further walks and the dev-wheel numbers.

@@ -23,6 +23,12 @@ memo's `feed` (`crates/editor-core/src/eval/memo.rs`), the derived
 `write_nested`. `MeasureExpr` (`crates/editor-core/src/measure.rs`,
 `eval_measure_inner` in `eval/measure.rs`) has the same shape.
 
+The fix pass's mutual-recursion sweep names the rest of the cycle:
+the parser's `sum` → `product` → `unary` → `primary` → `call` (and
+the parenthesised sub-expression) → `sum` (`crates/editor-core/src/parse.rs`),
+and the parameter-source key's `encode` ↔ `binary` ↔ `unary`
+(`crates/editor-core/src/param_source.rs`).
+
 So an expression nested deep enough kills the process with a stack
 overflow instead of refusing typed. The text an author types into a
 parameter field reaches `parse_expr` as written, so this is a crash
