@@ -34,19 +34,33 @@ The rules that pick by it:
 
 ## Evidence
 
-Measured on `emit/node-id-digest-mint`: every registered corpus
-document's name tables, node by node in document order, with every
-`RecipeNodeId` and `StepId` blanked, are the same multiset of
-`name=entity` rows before and after the mint. So no rank reversed and
-no flush stretch changed hands in the corpus. The difference shows
-where a member is re-authored: under the counter a re-inserted member
-took the highest id, so the older member kept the stretch; under the
-mint the re-inserted member's id may sort first, and then a name held
-on the stretch, spelled through the older member, goes `Vanished`.
-That is loud, not a rebind (a seam's rank direction flips only with
-the names that spell the seam), but a person sees a held reference
-lost where the counter kept it. This is reasoned from the rules, not
-measured.
+Measured on `emit/node-id-digest-mint` against `origin/main` at
+3bc4df6595, with
+`crates/editor-core/tests/name_tables_by_position.rs` (its module doc
+has the command): every registered corpus document's name tables, node
+by node in document order, with every `RecipeNodeId` read as its
+position in `Doc::order` and every `StepId` as its profile's position,
+loop and step. 29 documents, 359 tables (189 non-empty), 13,420 rows,
+819 `FromMember` segments over 21 distinct members:
+
+- 353 tables are identical, row for row;
+- 6 tables, all in `nested_islands_105` and `nested_islands_106_*`,
+  respell 30 rows, and only the order of the walls inside a
+  `Fragment(Borders([...]))`: with every list sorted the tables are
+  identical, and each respelled row names the entity it named before;
+- no `FromMember`'s member moved, so no flush stretch changed hands,
+  and no rank moved.
+
+The walls reorder because `Borders` lists them in name order, which
+reads their step ids, and the two trees mint different step ids for
+one step: digests on both, over different chains. The corpus has no re-authored member, which is where a stretch
+would change hands: under the counter a re-inserted member took the
+highest id, so the older member kept the stretch; under the mint the
+re-inserted member's id may sort first, and then a name held on the
+stretch, spelled through the older member, goes `Vanished`. That is
+loud, not a rebind (a seam's rank direction flips only with the names
+that spell the seam), but a person sees a held reference lost where the
+counter kept it. This is reasoned from the rules, not measured.
 
 ## The question
 
