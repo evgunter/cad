@@ -4312,3 +4312,41 @@ bundled with `refusal-rows-that-count-instead-of-snapshot` (branch
 PR 3562 merged (`f0cce79cbb`) after CI run 36733898770 went green,
 closing `revert-writes-each-start-through-an-unproven-next`. `revert`
 now proves every map it writes.
+
+## PR 3531's fix pass delivered; item closed on the branch (2026-09-30)
+
+The fix pass took 422,292 tokens, 233 tools and 5,696 s. Head
+`b4164771a4` is green on CI run 36733865284.
+
+What the fix pass did:
+- **MAJOR.** `merge_group` moved to `ring_move_minting` and
+  `kef_minting`. The review's public-door probe is now a sweep row,
+  red on the old merge-door code for the absorbed-sector case, green
+  for both cases, and red under the keys-only mutant.
+- **The caller re-check** found one more of the same shape:
+  `boolean/rest.rs`'s band-run `kef`, now `kef_minting`. The rest cannot
+  owe, and each is stated.
+- **One predicate.** `pcurves::site_walks`. `site_rows` walks exactly
+  its list, and `site_rows_owed` is "the list is not empty".
+- **The twins are pinned** on the same-chart and spline rows through a
+  shared `both_doors`.
+- **The emptied-face account** was re-measured with the review's tool:
+  317 → 147 / 169 / 1 / 0 carried.
+- **Style.** `kfmrh` split into plan and execute, so all four pairs
+  share one postcondition shape and the two `ALLOWED` rows are gone.
+  `seqgen` drives both doors. Deviation 4 is reverted to main's
+  `StaleKey` order.
+- **Q7** not taken, as ruled.
+
+**Pins that moved, re-counts under their gates' own rules:**
+- `seqgen`'s fingerprint moved (both doors offered). The module's
+  stream-set counts were re-measured, and the method reproduces the old
+  numbers with the twins withheld.
+- `bit-identity-debug-only.sh`'s `euler_ring.rs` pin went 19 → 20.
+
+The orchestrator read the diff and accepted it. The item closes at
+`70211795ed`; merge after CI. Single tier, no DR row.
+
+After the merge, the kill-plan P3s can go, since their files are free:
+the far vertex, the empty loop or lone vertex, face/shell/solid
+removals, and the mate's own edge.
