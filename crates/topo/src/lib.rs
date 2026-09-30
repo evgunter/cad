@@ -292,6 +292,37 @@ pub mod test_support {
     pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_samples::validation_error_samples;
 
+    /// The boolean pipeline through its join: both operand clones with
+    /// every null edge killed, before the finish and the closing mint
+    /// (`boolean::through_the_join`).
+    ///
+    /// # Errors
+    ///
+    /// The reduction's or the join's refusal.
+    pub fn boolean_through_the_join<T: geom_core::Decide + geom_core::Bounds>(
+        op: crate::BooleanOp,
+        a: &Body<T>,
+        b: &Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<(Body<T>, Body<T>), crate::BooleanError> {
+        crate::boolean::through_the_join(op, a, b, tol)
+    }
+
+    /// The direct split run through its join: the scratch body with
+    /// every null edge killed, before the finish and the closing mint
+    /// (`splitting::through_the_join`).
+    ///
+    /// # Errors
+    ///
+    /// The reduction's or the join's refusal.
+    pub fn split_through_the_join<T: geom_core::Decide>(
+        operand: &Body<T>,
+        plane: &crate::SplitPlane<T>,
+        tol: geom_core::Tol,
+    ) -> Result<Body<T>, crate::SplitError> {
+        crate::splitting::through_the_join(operand, plane, tol)
+    }
+
     /// The topology-arena lengths of `body`. A free function because
     /// `Body::arena_counts` is `pub(crate)` — an inherent method's
     /// reach follows its own visibility, not its module's, so making

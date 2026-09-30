@@ -273,7 +273,7 @@ use crate::entity::{
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::live::{Live, require_key};
-use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteMint, SiteRows};
+use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
 use crate::test_support_impl::ArenaCounts;
@@ -3115,9 +3115,8 @@ impl<T: Decide> Body<T> {
 
     /// **The pcurve rows the surgery's new halves need**, one plan per
     /// face they land on, decided before the surgery mutates: the site
-    /// mint as an Euler operator runs it ([`SiteMint::Operator`]), over
-    /// [`Body::plan_site_rows_as`]. `faces` describes the faces as the
-    /// surgery will leave them.
+    /// mint as an Euler operator runs it, over [`Body::plan_site_mint`].
+    /// `faces` describes the faces as the surgery will leave them.
     pub(crate) fn plan_site_rows(
         &self,
         touched: &[LoopKey],
@@ -3125,13 +3124,7 @@ impl<T: Decide> Body<T> {
         edge: &EdgeCurve<T>,
         tol: Tol,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        self.plan_site_rows_as(
-            SiteMint::Operator,
-            touched,
-            |body, _| faces(body),
-            edge,
-            tol,
-        )
+        self.plan_site_mint(touched, |body, _| faces(body), edge, tol)
     }
 
     /// **A site mint's plan**: which faces it re-mints, and the rows it
@@ -3139,8 +3132,9 @@ impl<T: Decide> Body<T> {
     ///
     /// `touched` names the loops the door's halves are in, as the body
     /// holds them now. Their faces are read first, once each, and only
-    /// a face `mint` selects is re-minted
-    /// ([`crate::pcurves::site_rows_from`]); every other face is left
+    /// a face [`crate::pcurves::site_rows_from`] selects is re-minted —
+    /// a complete face, or one whose only gaps are on loops a null edge
+    /// holds open; every other face is left
     /// as found. So whether the door reads more than those faces, and
     /// whether it can refuse here, depends on the touched faces alone —
     /// never on rows held elsewhere in the body — and when none is
@@ -3156,9 +3150,8 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::StaleGeometry`]); then, only when a face is
     /// selected, what `faces` raises; then [`EulerOpError::PcurveMint`]
     /// naming the face.
-    pub(crate) fn plan_site_rows_as(
+    pub(crate) fn plan_site_mint(
         &self,
-        mint: SiteMint,
         touched: &[LoopKey],
         faces: impl FnOnce(
             &Self,
@@ -3188,7 +3181,7 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleGeometry {
                         key: GeomRef::Surface(face_data.surface),
                     })?;
-            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface, mint) {
+            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface) {
                 minted.push((face, rows));
             }
         }
@@ -3204,7 +3197,7 @@ impl<T: Decide> Body<T> {
                 let Some((_, from)) = minted.iter().find(|(f, _)| *f == face.rows_from) else {
                     return Ok(SiteRows::Leave);
                 };
-                crate::pcurves::site_rows(self, face, from, edge, band, mint).map_err(|refusal| {
+                crate::pcurves::site_rows(self, face, from, edge, band).map_err(|refusal| {
                     EulerOpError::PcurveMint {
                         face: face.rows_from,
                         refusal,
@@ -3214,7 +3207,7 @@ impl<T: Decide> Body<T> {
             .collect()
     }
 
-    /// `face` as a surgery leaves it, for [`Body::plan_site_rows_as`]: its
+    /// `face` as a surgery leaves it, for [`Body::plan_site_mint`]: its
     /// chart, and its loops outer first — each loop named in `rewired`
     /// replaced by the half-edge sequence given there, `killed` gone,
     /// every other loop kept.

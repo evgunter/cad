@@ -2143,6 +2143,38 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     Ok((ab, ba))
 }
 
+/// **The boolean pipeline through its join**, undeclared and realized:
+/// the two operand clones as the join leaves them, every null edge
+/// killed, before the finish, the zip and the closing mint. Test
+/// vocabulary (`topo::test_support`), for the rows that read the rows
+/// a face carries at that point.
+///
+/// # Errors
+///
+/// The reduction's or the join's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn through_the_join<T: Decide + Bounds>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    tol: Tol,
+) -> Result<(Body<T>, Body<T>), BooleanError> {
+    let band = Band::linear(tol)?;
+    let mut red = boolean_reduce_declared_strategy(
+        op,
+        a,
+        b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        tol,
+    )?;
+    red.enter_join_surgery();
+    let connected = join::bool_connect(&mut red, a, b, band, tol);
+    red.leave_join_surgery(connected.is_ok());
+    connected?;
+    Ok((red.a, red.b))
+}
+
 /// [`boolean_reduce_declared`] with an explicit [`SweepStrategy`] —
 /// the idealized/realized door (PERF-PLAN §4.4): production always
 /// runs `Realized`; the differential suite runs both and pins
