@@ -260,7 +260,7 @@ fn distributed_plate() -> ProfileDoc {
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {
-            centre: [Expr::neg(hs.clone()), len(0.0)],
+            centre: [Expr::neg(hs.clone()).expect("a shallow negation"), len(0.0)],
             radius: Expr::param(name("hole_a_r"), Dimension::Length),
         }],
         ids: Vec::new(),

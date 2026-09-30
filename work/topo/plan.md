@@ -127,7 +127,7 @@ with its brief and tier on its item:
 
 **Not yet, and why:**
 
-- `D262` waits on `work/meta`'s `decide_flagged` register.
+- (`D262` no longer waits on the `decide_flagged` register: its residue is fail-loud lookups, not a dimension; dispatched 2026-09-30.)
 - `the-re-basing-gate-refuses-m7-8-where-nothing-moves` waits on Ev
   (PR 3156).
 

@@ -1354,6 +1354,10 @@ impl<T: Real> Body<T> {
     /// link is stale, or if `he` itself is stale — it never spins on a
     /// corrupted body. A foreign `he` on a live slot
     /// [walks another loop's cycle](self#key-validity-stale-vs-foreign) and returns it whole.
+    ///
+    /// The walk steps `next` and reads no `parent_loop`, so on a torn
+    /// body a `Some` need not be the loop's cycle: a torn `next` can
+    /// close it through another loop's half-edges, or short of a member.
     pub fn loop_cycle(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.loop_walk(he) {
             Walk::Closed(members) => Some(members),

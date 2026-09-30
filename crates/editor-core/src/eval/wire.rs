@@ -2864,6 +2864,9 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         },
     )?;
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
+    // What the end pass reads of every step: each face's member faces
+    // and each step's discards.
+    let mut fold = names::UnionFold::new(members[0], &acc_body);
     // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
     let mut step_groups = Vec::with_capacity(rest.len());
     for step in 0..rest.len() {
@@ -2927,6 +2930,8 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
+                fold.step(rest[step], &naming, &out.body)
+                    .map_err(NodeErrorKind::Naming)?;
                 acc_table = emitted.table;
                 step_groups.push(emitted.groups);
                 acc_body = Arc::new(out.body);
@@ -2948,8 +2953,9 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             table,
         })
         .collect();
-    let table = names::name_union(id, &acc_body, &acc_table, &member_views, tol)
-        .map_err(NodeErrorKind::Naming)?;
+    let (table, published_groups) =
+        names::name_union(id, &acc_body, &acc_table, &member_views, &fold, tol)
+            .map_err(NodeErrorKind::Naming)?;
     let mut body = (*acc_body).clone();
     // ONCE, over the finished body: the stamp numbers from zero, so a
     // per-step pass would reuse an earlier step's index.
@@ -2972,7 +2978,11 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         }),
         table,
     )
-    .grouped(Arc::new(names::FragmentGroups::folded(id, &step_groups))))
+    .grouped(Arc::new(names::FragmentGroups::folded(
+        id,
+        &step_groups,
+        &published_groups,
+    ))))
 }
 
 /// **DM4's contact rule: every member pair is judged as its own
@@ -3285,7 +3295,9 @@ fn member_site(
 ///
 /// A face merged at an earlier step is in exactly one `[Merged(set)]`
 /// row (`names::merged::covers`): the one consumption with a unique
-/// successor, so the one looked through.
+/// successor, so the one looked through. A face one step cut and
+/// partly merged is in that row and in a fragment of its own beside
+/// it, so it is a split.
 ///
 /// A split, and a merge a later step fragmented, have no unique
 /// successor, so the pair refuses `Vanished` with
@@ -3307,8 +3319,8 @@ fn member_site(
 /// disagree about which composition consumed it (the first
 /// composition retires the bare name). Disagreement is read across
 /// rows only; within a row [`fold_descent`]'s first reading decides,
-/// so a merged row whose constituents disagree, and a bare merged row
-/// beside a fragment, go unseen: shapes the mint cannot produce either.
+/// so a merged row whose constituents disagree goes unseen: a shape
+/// the mint cannot produce either.
 fn look_through_fold<'n>(
     bucket: &[SidedPair<'n>],
     acc_table: &NameTable,
@@ -3322,6 +3334,9 @@ fn look_through_fold<'n>(
         if *op == topo::Operand::B || acc_table.lookup(name).is_some() {
             return Ok(None);
         }
+        let split = acc_table
+            .iter()
+            .any(|(row, _)| fold_descent(row, name) == Some(FoldConsumption::Split));
         let mut rows = acc_table
             .iter()
             .filter_map(|(row, _)| match row.path.as_slice() {
@@ -3329,13 +3344,13 @@ fn look_through_fold<'n>(
                 _ => None,
             });
         match (rows.next(), rows.next()) {
-            (Some(row), None) => return Ok(Some(row.clone())),
+            (Some(row), None) if !split => return Ok(Some(row.clone())),
             (Some(_), Some(_)) => {
                 return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: MEMBER_FACE_IN_TWO_MERGES,
                 }));
             }
-            (None, _) => {}
+            _ => {}
         }
         let mut ways = acc_table
             .iter()
@@ -5051,6 +5066,14 @@ mod route_tests {
                 table_of(vec![
                     fragment(named.clone(), 0),
                     merged_u(vec![fragment(named.clone(), 1), f(ms[1], CapEnd::End)]),
+                ]),
+                FoldConsumption::Split,
+            ),
+            (
+                "split and partly merged in one step",
+                table_of(vec![
+                    fragment(named.clone(), 0),
+                    merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]),
                 ]),
                 FoldConsumption::Split,
             ),
