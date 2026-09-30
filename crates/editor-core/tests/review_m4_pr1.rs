@@ -227,7 +227,7 @@ fn r2_dimension_smuggling_probes() {
         Dimension::Angle
     );
     // Neg is dimension-transparent: Neg(Length) still refuses ×Length.
-    let neg_l = Expr::neg(len(1.0));
+    let neg_l = Expr::neg(len(1.0)).expect("a shallow negation");
     assert!(Expr::mul(neg_l, len(1.0)).is_err());
     // Trig on promoted Count refused (Scalar, not Angle).
     assert!(Expr::sin(inner).is_err());
@@ -788,7 +788,8 @@ fn r8_interval_lane_representative_and_zero_divisor() {
         Expr::min(ang(1.0), Expr::atan2(scl(1.0), scl(1.0)).unwrap()).unwrap(),
         Expr::max(len(-0.0), len(0.0)).unwrap(),
         Expr::mul(Expr::count_to_scalar(Expr::count(21)).unwrap(), len(0.002)).unwrap(),
-        Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap()),
+        Expr::neg(Expr::sub(len(1.0), len(f64::from_bits(0x3FF0000000000001))).unwrap())
+            .expect("a shallow negation"),
     ];
     for (i, e) in cases.iter().enumerate() {
         let vf = eval::<f64>(e, &env_f).unwrap();

@@ -1452,6 +1452,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
     match kind {
         BooleanErrorKind::Band => "band",
         BooleanErrorKind::CurvedBooleanUnsupported => "curved_boolean_unsupported",
+        BooleanErrorKind::DegenerateTorus => "degenerate_torus",
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
         BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
@@ -2046,6 +2047,7 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::NonFiniteLiteral => "non_finite",
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
+        DimensionError::NestedTooDeep { .. } => "nested_too_deep",
     }
 }
 

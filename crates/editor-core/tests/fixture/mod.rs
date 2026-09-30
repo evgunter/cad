@@ -710,7 +710,8 @@ pub fn die() -> Die {
             distance: Expr::neg(Expr::param(
                 ParamName::from_static("pip_depth"),
                 Dimension::Length,
-            )),
+            ))
+            .expect("a shallow negation"),
         });
         masters.push((ext, u, v, pips));
     }
