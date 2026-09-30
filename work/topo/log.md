@@ -4506,3 +4506,49 @@ kill-proofs lane, whose both-ways edge-claim helper it should reuse.
 
 PR 3574 merged (`4085f56827`) after CI run 36748519761 went green,
 closing the two `movefac` rows.
+
+## The kill proofs delivered as PR 3570; its single review out (2026-09-30)
+
+The implementer took 497,180 tokens, 247 tools and 7,932 s. Head
+`1c474a7f32` is green on CI run 36750910239.
+
+**What changed.** One proof helper per relation, each a single arena
+scan with its cost stated:
+- `require_vertex_unnamed`;
+- `require_edge_pair`, both ways through `Edge::claim`, which replaces
+  `kemr`'s inline `claims_both`;
+- `require_loop_unlisted`;
+- `require_face_unnamed`, `require_shell_unnamed`, `require_solid_unnamed`.
+
+`kev`, `kef`, `kvfs`, `kemr` and all four `mekr` sites read them.
+
+**Refusals.** `OrbitBroken`, `LoopCycleBroken`, `NotSameEdge` and
+`UnclaimedHalfEdge` are reused. One new variant,
+`KillLeavesDangling { from, to }`, covers spine ownership lists. It
+ends in `KERNEL_OR_FILE_DEFECT_ENDING` while its siblings end in
+"(malformed body)", which the review checks against
+`euler-op-corruption-refusals-end-in-a-tag`.
+
+**The probe.** 22 faulted cells before, every cell 0 after. The
+`FILED_CELLS` admission is gone, and no fault-free cell's `Err` count
+moved.
+
+**Baseline.** `SPENT_GRAFT_EXPOSURE`'s `kev` count went 50 → 25: the
+25 kills that now refuse each left a dead record named at base.
+
+**Filed:**
+- `kills-remove-half-edges-another-record-names`;
+- `kfmrh-removes-a-face-or-shell-another-record-names`;
+- evidence on REACH's `carve` row.
+
+**Deviation.** Red-first was shown with the proofs switched off,
+because the new variant does not compile on base. The review
+reproduces it on the true base.
+
+The lane freed about 2.4 GB of stale files in its own target, with
+nothing denied; the disk is at 9.3 GB free.
+
+**The review.** A single full review, frozen at `1c474a7f32`, on the
+rebase target. It checks each helper against valid bodies (self-loops,
+seams, genus 2, both twin doors), the late proof order in `kef` and
+`kev`, and the new variant's ending.
