@@ -4723,9 +4723,11 @@ mod properties_pane_tests {
             .expect("the settled app holds an index")
             .unname_edge(drawn[1]);
         let refused = crate::pickindex::EdgeNamesRefused {
-            first: crate::pickindex::EdgeNameFault::Unnamed(first),
+            node: EXTRUDE,
+            body: 0,
+            first,
+            named: drawn.len() - 1,
             refused: 1,
-            drawn: drawn.len(),
         };
         let badge = crate::frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
         let badged = driven.quiet();
@@ -4734,13 +4736,33 @@ mod properties_pane_tests {
             "the toolbar reads the held mark's refusal: {badged:?}"
         );
 
+        // A read of the frame the viewport drew, not a latch: with the
+        // viewport not drawn, the same held set and the same refusing
+        // index badge nothing, and drawn again they badge again.
+        let viewport = driven
+            .app
+            .tree
+            .tiles
+            .find_pane(&super::Pane::Viewport)
+            .expect("the layout has a viewport");
+        driven.app.tree.set_visible(viewport, false);
+        let undrawn = driven.quiet();
+        assert!(
+            !undrawn
+                .iter()
+                .any(|(run, _)| run.starts_with("held edges:")),
+            "a viewport that did not draw leaves no badge standing: {undrawn:?}"
+        );
+        driven.app.tree.set_visible(viewport, true);
+        assert!(driven.quiet().iter().any(|(run, _)| run == badge.label()));
+
         driven.click(crate::pane::create::BLEND_EDGES);
         driven.click("Select all edges");
         let said = driven.quiet();
         let line = said
             .iter()
             .map(|(run, _)| run)
-            .find(|run| run.contains("the tool loaded no edges of"))
+            .find(|run| run.contains("the tool loaded no edges:"))
             .unwrap_or_else(|| panic!("the refused load is on the line: {said:?}"));
         assert!(line.contains(&refused.to_string()), "{line}");
         assert!(!line.contains("has no edges to select"), "{line}");
@@ -4748,6 +4770,23 @@ mod properties_pane_tests {
             driven.app.tools.blend().map(crate::blend::BlendTool::count),
             Some(1),
             "the held edge stands"
+        );
+
+        // The badge is a read of this frame's held set, not a latch: with
+        // the picks cleared there is nothing held to mark, and the same
+        // index's refusal is no longer the toolbar's to say.
+        driven.click("Clear picks");
+        let cleared = driven.quiet();
+        assert_eq!(
+            driven.app.tools.blend().map(crate::blend::BlendTool::count),
+            Some(0),
+            "the picks are cleared"
+        );
+        assert!(
+            !cleared
+                .iter()
+                .any(|(run, _)| run.starts_with("held edges:")),
+            "a badge with nothing held is gone: {cleared:?}"
         );
     }
 }

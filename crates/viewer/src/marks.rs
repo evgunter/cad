@@ -28,7 +28,7 @@
 //!
 //! **They read the index through its public doors only** —
 //! `ids`, `name_of`, `ids_of_node`, `ids_of_target`, `edges_of_target`,
-//! `edges_in`, `edge_name_of` and `edge_polyline_for` — so no layout inside `PickIndex` is
+//! `edge_names_in` and `edge_polyline_for` — so no layout inside `PickIndex` is
 //! reachable from here and none of these answers can be tightened by
 //! reaching past one. That property is what made the module separable,
 //! and keeping it is what keeps the two files independent.
@@ -822,26 +822,17 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use pncad::document::{Frame, RecipeNodeId};
-    use pncad::geom_core::Point3;
-
-    use std::collections::BTreeSet;
-
+    use pncad::geom_core::{Point3, Tol};
     use pncad::prelude::StableName;
 
     use super::{HELD_FACES, Held, HeldEdges, LegLane, compose, edge_id_lane, edge_id_segments};
     use crate::display::DisplayView;
-    use crate::pickindex::{EdgeId, EdgeNameFault, EdgeNamesRefused, PickIndex};
+    use crate::pickindex::{EdgeId, EdgeNamesRefused, PickIndex};
     use crate::session::Selection;
-
-    /// The spike plate's index — the picture a frame marks in.
-    fn plate() -> (PickIndex, RecipeNodeId) {
-        let (_, index, extrude) =
-            crate::test_support::plate_indexed(pncad::geom_core::Tol::witness());
-        (index, extrude)
-    }
+    use crate::test_support::plate_indexed;
 
     /// The view that puts `node`'s drawn geometry `shift` metres out.
     fn moved(node: RecipeNodeId, shift: f64) -> DisplayView {
@@ -869,7 +860,7 @@ mod tests {
     /// the same list both times.
     #[test]
     fn an_edge_placed_past_the_display_seam_is_not_drawn_at_all() {
-        let (index, extrude) = plate();
+        let (_, index, extrude) = plate_indexed(Tol::witness());
         let id = some_edge(&index, extrude);
         let here = edge_id_lane(&index, &DisplayView::none(), id);
         assert!(
@@ -971,8 +962,7 @@ mod tests {
     /// refuses nothing.
     #[test]
     fn a_held_mark_the_index_cannot_wholly_name_carries_its_refusal() {
-        let (_, mut index, extrude) =
-            crate::test_support::plate_indexed(pncad::geom_core::Tol::witness());
+        let (_, mut index, extrude) = plate_indexed(Tol::witness());
         let drawn = index.edges_in(extrude, 0).to_vec();
         let names: BTreeSet<StableName> = drawn[..2]
             .iter()
@@ -998,9 +988,11 @@ mod tests {
         assert_eq!(
             marked.held_refused,
             Some(EdgeNamesRefused {
-                first: EdgeNameFault::Unnamed(first),
+                node: extrude,
+                body: 0,
+                first,
+                named: drawn.len() - 1,
                 refused: 1,
-                drawn: drawn.len(),
             }),
             "the held edge it cannot name is not dropped silently"
         );

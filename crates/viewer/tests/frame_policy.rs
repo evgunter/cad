@@ -1250,6 +1250,44 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         None,
         "every committed profile drew, or there are none — the same zero"
     );
+    assert_eq!(
+        frame::held_edges_badge(None),
+        None,
+        "nothing held, or a held body the index names whole"
+    );
+}
+
+/// A refusal of one of `target`'s drawn edges' names, as
+/// `PickIndex::edge_names_in` answers it.
+fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused {
+    pickindex::EdgeNamesRefused {
+        node: target.node,
+        body: target.body,
+        first: common::unnamed_edge(target.node, target.body),
+        named: 11,
+        refused: 1,
+    }
+}
+
+/// **One fault, one subject.** A drawn edge the index cannot name is
+/// badged on the held mark and said on the line by the refused load,
+/// and both wear the document's subject: the names are the document's
+/// evaluation's, so what can change the answer is an edit the document
+/// accepts, not another index build over the same table.
+#[test]
+fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::tools::ToolNotice;
+
+    let target = BlendTarget {
+        node: RecipeNodeId(3),
+        body: 0,
+    };
+    let refused = unnamed_on(target);
+    let badge = frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
+    let line = frame::tool_notice(&ToolNotice::Blend(BlendEvent::EdgesUnnamed { refused }));
+    assert_eq!(badge.subject(), frame::Subject::Document);
+    assert_eq!(line.subject(), badge.subject());
 }
 
 /// **The profiles badge counts, in agreeing words, and says it is the
@@ -3493,17 +3531,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: the all-edges door's target draws edges the index cannot name",
             ToolNotice::Blend(BlendEvent::EdgesUnnamed {
-                target,
-                refused: pickindex::EdgeNamesRefused {
-                    first: pickindex::EdgeNameFault::OutOfRange {
-                        node: target.node,
-                        body: 0,
-                        boundary: 12,
-                        drawn: 12,
-                    },
-                    refused: 1,
-                    drawn: 12,
-                },
+                refused: unnamed_on(target),
             }),
             frame::Retold::Again,
         ),

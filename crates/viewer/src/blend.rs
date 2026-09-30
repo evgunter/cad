@@ -245,9 +245,7 @@ pub enum BlendEvent {
     /// "every edge" is not a set the tool can hold: nothing was loaded
     /// and the held set is untouched.
     EdgesUnnamed {
-        /// The body that was asked.
-        target: BlendTarget,
-        /// The index's refusal.
+        /// The index's refusal, which names the body that was asked.
         refused: EdgeNamesRefused,
     },
     /// The target has no value in this evaluation, so there are no
@@ -300,8 +298,8 @@ impl core::fmt::Display for BlendEvent {
             Self::NoEdgesOnTarget { target } => {
                 write!(f, "{target} has no edges to select")
             }
-            Self::EdgesUnnamed { target, refused } => {
-                write!(f, "the tool loaded no edges of {target}: {refused}")
+            Self::EdgesUnnamed { refused } => {
+                write!(f, "the tool loaded no edges: {refused}")
             }
             Self::TargetHasNoValue { target, standing } => {
                 write!(f, "{target} has no edges to select: {standing}")
@@ -497,13 +495,13 @@ impl BlendTool {
                 standing: crate::tree::standing_as_drawn(standing, eval),
             });
         }
+        let drawn = index.edge_names_in(target.node, target.body);
+        if let Some(refused) = drawn.refused {
+            return Some(BlendEvent::EdgesUnnamed { refused });
+        }
         let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
             .into_iter()
             .collect();
-        let drawn = index.edge_names_in(target.node, target.body);
-        if let Some(refused) = drawn.refused {
-            return Some(BlendEvent::EdgesUnnamed { target, refused });
-        }
         let edges: BTreeSet<StableName> = drawn
             .named
             .into_iter()
@@ -714,9 +712,11 @@ mod tests {
 
         let first = index.unname_edge(drawn[2]);
         let refused = EdgeNamesRefused {
-            first: EdgeNameFault::Unnamed(first),
+            node: extrude,
+            body: 0,
+            first,
+            named: drawn.len() - 1,
             refused: 1,
-            drawn: drawn.len(),
         };
         let partly = tool
             .load_all_edges(target, &eval, &index)
@@ -724,14 +724,14 @@ mod tests {
         assert_eq!(
             partly,
             BlendEvent::EdgesUnnamed {
-                target,
                 refused: refused.clone(),
             }
         );
         assert_eq!(tool, before, "nothing was loaded and the held set stands");
         let said = partly.to_string();
         assert!(
-            said.contains(&refused.to_string()) && said.contains(&refused.first.to_string()),
+            said.contains(&refused.to_string())
+                && said.contains(&EdgeNameFault::Unnamed(first).to_string()),
             "the index's own words, through its Display: {said}"
         );
         assert!(
@@ -745,9 +745,13 @@ mod tests {
         index.unname_edge(drawn[0]);
         index.unname_edge(drawn[1]);
         match tool.load_all_edges(target, &eval, &index) {
-            Some(BlendEvent::EdgesUnnamed { refused, .. }) => {
-                assert_eq!(refused.refused, drawn.len(), "every drawn edge refused");
-                assert_eq!(refused.first, EdgeNameFault::Unnamed(first));
+            Some(BlendEvent::EdgesUnnamed { refused }) => {
+                assert_eq!(
+                    (refused.named, refused.refused),
+                    (0, drawn.len()),
+                    "every drawn edge refused"
+                );
+                assert_eq!(refused.first, first);
             }
             other => panic!("every name refusing is still the index's refusal: {other:?}"),
         }

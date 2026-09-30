@@ -700,6 +700,21 @@ impl<K: DrawnKind> PartWindows<K> {
             .unwrap_or_default()
     }
 
+    /// Every entity one (node, body) draws beside its name slot, in
+    /// position order — [`Self::in_target`] and the names in one read,
+    /// so nothing addresses into the window.
+    fn named_in(
+        &self,
+        node: RecipeNodeId,
+        body: u32,
+    ) -> impl Iterator<Item = (K::Id, &Result<StableName, UnnamedEntity>)> {
+        let range = self
+            .window(node, body)
+            .map_or(0..0, |window| window.start..window.start + window.len);
+        let names = self.names.get(range).unwrap_or_default();
+        self.in_target(node, body).iter().copied().zip(names)
+    }
+
     /// Every entity one NODE draws, across all its output bodies.
     ///
     /// A node's windows are consecutive — the parts are laid out in
@@ -1385,30 +1400,36 @@ impl PickIndex {
             })
     }
 
-    /// **Every drawn edge of one (node, body), named**:
-    /// [`PickIndex::edges_in`] with [`PickIndex::edge_name_of`] asked of
-    /// each, and the refusals counted rather than filtered out.
+    /// **Every drawn edge of one (node, body), named**: the body's
+    /// window read whole, and the edges its node's table could not name
+    /// counted rather than filtered out.
     ///
-    /// **Every refusal here is loud.** The ids come from this index's
-    /// own window, so none of them is the ordinary arm: a body this
-    /// index does not draw — [`EdgeNameFault::NotDrawn`]'s case — has
+    /// **Only the loud arm can refuse here, by construction.** The walk
+    /// reads the window's own entities and names side by side, so it
+    /// has no address to fall outside the window
+    /// ([`EdgeNameFault::OutOfRange`]), and a body this index does not
+    /// draw — [`EdgeNameFault::NotDrawn`]'s case, the ordinary one — has
     /// no window, and answers no edges and no refusal.
     pub fn edge_names_in(&self, node: RecipeNodeId, body: u32) -> EdgeNames<'_> {
-        let drawn = self.edges_in(node, body);
-        let mut named = Vec::with_capacity(drawn.len());
+        let mut named = Vec::new();
         let mut refused: Option<EdgeNamesRefused> = None;
-        for &id in drawn {
-            match (self.edge_name_of(id), &mut refused) {
+        for (id, name) in self.edges.named_in(node, body) {
+            match (name, &mut refused) {
                 (Ok(name), _) => named.push((id, name)),
                 (Err(_), Some(refused)) => refused.refused += 1,
                 (Err(first), None) => {
                     refused = Some(EdgeNamesRefused {
-                        first,
+                        node,
+                        body,
+                        first: *first,
+                        named: 0,
                         refused: 1,
-                        drawn: drawn.len(),
                     });
                 }
             }
+        }
+        if let Some(refused) = &mut refused {
+            refused.named = named.len();
         }
         EdgeNames { named, refused }
     }
@@ -1419,13 +1440,7 @@ impl PickIndex {
     /// answered so a row can look for it.
     #[cfg(test)]
     pub(crate) fn unname_edge(&mut self, id: EdgeId) -> UnnamedEntity {
-        let error = UnnamedEntity {
-            node: id.node,
-            entity: editor_core::EntityRef {
-                body: id.body,
-                key: editor_core::EntityKey::Edge(pncad::topo::EdgeKey::default()),
-            },
-        };
+        let error = crate::test_support::unnamed_edge(id.node, id.body);
         self.edges.unname(id.node, id.body, id.boundary, error);
         error
     }
@@ -2243,7 +2258,7 @@ pub enum PickError {
 }
 
 /// Why an [`EdgeId`] names no stable name here (closed enum, D4 ¶3).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum EdgeNameFault {
     /// This index draws no body at that (node, body): an ordinary
     /// answer for a selection made against another generation, or
@@ -2310,32 +2325,47 @@ pub struct EdgeNames<'a> {
     pub refused: Option<EdgeNamesRefused>,
 }
 
-/// **Some drawn edges of one body have no name here**: how many, of
-/// how many the body draws, and the first refusal in boundary order.
+/// **Some drawn edges of one body have no name here**: which body, how
+/// many edges it draws named and unnamed, and the naming layer's
+/// refusal for the first unnamed one in boundary order.
+///
+/// The refusal is [`EdgeNameFault::Unnamed`]'s payload rather than an
+/// [`EdgeNameFault`], because it is the one arm
+/// [`PickIndex::edge_names_in`] can meet, and a type that could hold
+/// the ordinary [`EdgeNameFault::NotDrawn`] would leave "every refusal
+/// here is loud" to a doc.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EdgeNamesRefused {
-    /// The first refusal, in boundary order.
-    pub first: EdgeNameFault,
-    /// How many of the body's drawn edges refused.
+    /// The node whose body was walked.
+    pub node: RecipeNodeId,
+    /// Which output body of it.
+    pub body: u32,
+    /// The first unnamed edge's refusal, in boundary order.
+    pub first: UnnamedEntity,
+    /// How many of the body's drawn edges are named.
+    pub named: usize,
+    /// How many are not.
     pub refused: usize,
-    /// How many edges the body draws.
-    pub drawn: usize,
 }
 
 impl core::fmt::Display for EdgeNamesRefused {
-    /// The refusal itself forwards to [`EdgeNameFault`]'s own
-    /// `Display`, which names the body.
+    /// The refusal itself is [`EdgeNameFault::Unnamed`]'s, through its
+    /// own `Display`.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
+            node,
+            body,
             first,
+            named,
             refused,
-            drawn,
         } = self;
-        let verb = if *refused == 1 { "has" } else { "have" };
         write!(
             f,
-            "{refused} of the {drawn} edges drawn on that body {verb} no name here; the first: \
-             {first}"
+            "the index names {named} of the {} edges it draws on body {body} of node {}; the \
+             first it cannot: {}",
+            named.saturating_add(*refused),
+            node.0,
+            EdgeNameFault::Unnamed(*first)
         )
     }
 }
@@ -2593,9 +2623,11 @@ mod tests {
         assert_eq!(
             names.refused,
             Some(EdgeNamesRefused {
-                first: EdgeNameFault::Unnamed(first),
+                node: extrude,
+                body: 0,
+                first,
+                named: drawn.len() - 2,
                 refused: 2,
-                drawn: drawn.len(),
             })
         );
         let named: Vec<EdgeId> = names.named.iter().map(|(id, _)| *id).collect();

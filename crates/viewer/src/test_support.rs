@@ -387,6 +387,20 @@ pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
     (eval, index, extrude)
 }
 
+/// **The naming layer's refusal for a drawn edge of `node`'s output
+/// `body`** — what a part whose table could not name that edge holds in
+/// its slot. The edge's own key is not the index's to know, so it is
+/// the default one.
+pub fn unnamed_edge(node: RecipeNodeId, body: u32) -> pncad::select::UnnamedEntity {
+    pncad::select::UnnamedEntity {
+        node,
+        entity: editor_core::EntityRef {
+            body,
+            key: editor_core::EntityKey::Edge(pncad::topo::EdgeKey::default()),
+        },
+    }
+}
+
 /// The display tolerance the corpus suites hand the pick seam,
 /// 2*10^-3 m.
 ///

@@ -1774,10 +1774,12 @@ trait SeamSubject {
 }
 
 /// **The pick-index seam's subject**, named by both of the types its
-/// refusals arrive as. One edit here moves both channels; that is the
-/// "by construction" the trait's argument rests on, and it is written
+/// build refusals arrive as. One edit here moves both channels; that is
+/// the "by construction" the trait's argument rests on, and it is written
 /// as a constant because a seam whose two impls each spelled a literal
-/// would be back to the convention.
+/// would be back to the convention. A built index's refusal to NAME an
+/// edge ([`EdgeNamesRefused`]) is not one of them: its subject is the
+/// document's, and its impl says why.
 const PICK_INDEX_SEAM: Subject = Subject::Display;
 
 /// **The scene seam's subject**, named by the rebuild's refusal and by
@@ -1809,10 +1811,14 @@ impl SeamSubject for NotIndexed {
     const SUBJECT: Subject = PICK_INDEX_SEAM;
 }
 
-/// The pick index seam again: the index that could not name an edge
-/// is the one the next build replaces.
+/// **The document, not the pick-index seam.** The index reads the
+/// names off the evaluation's tables, so an index rebuilt over the same
+/// evaluation refuses the same edge again; what can change the answer is
+/// an edit the document accepts. The refused load says it on the line
+/// through [`tool_notice`], which is [`Subject::Document`] too, so the
+/// one fault wears one subject on both channels.
 impl SeamSubject for EdgeNamesRefused {
-    const SUBJECT: Subject = PICK_INDEX_SEAM;
+    const SUBJECT: Subject = Subject::Document;
 }
 
 // # The subject-assigning doors
@@ -2581,7 +2587,8 @@ pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
 /// what says so. Per-frame and unlatched, for [`datums_badge`]'s
 /// reasons: the viewport writes it from the marks it composes. The
 /// refusal is the naming layer's bug report, which no reader can act
-/// on, so [`Tone::Advisory`].
+/// on, so [`Tone::Advisory`]; its subject is the document's
+/// (`SeamSubject for EdgeNamesRefused` says why).
 pub fn held_edges_badge(refused: Option<&EdgeNamesRefused>) -> Option<Badge> {
     refused.map(|refused| {
         Badge::read(

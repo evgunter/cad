@@ -368,39 +368,28 @@ fn edge_name_fault_forwards_its_unnamed_arm() {
     assert!(!picked.contains("hit test"), "{picked}");
 }
 
-/// A body's edge-name refusal forwards its first arm in the index's own
-/// words — here the address arm, at an address minted by hand past the
-/// body's last edge — and counts in agreeing prose.
+/// A body's edge-name refusal names the body and its counts, and
+/// forwards its refusal through [`EdgeNameFault::Unnamed`]'s own words
+/// rather than saying "no name" again in its own.
 #[test]
 fn edge_names_refused_forwards_its_first_refusal() {
-    let first = EdgeNameFault::OutOfRange {
+    let first = crate::common::unnamed_edge(RecipeNodeId(4), 1);
+    let said = EdgeNamesRefused {
         node: RecipeNodeId(4),
-        body: 0,
-        boundary: 12,
-        drawn: 12,
-    };
-    let one = EdgeNamesRefused {
-        first: first.clone(),
-        refused: 1,
-        drawn: 12,
-    }
-    .to_string();
-    assert!(one.contains(&first.to_string()), "{one}");
-    assert!(
-        one.contains("1 of the 12 edges drawn on that body has no name"),
-        "{one}"
-    );
-    prose(&one, "EdgeNamesRefused");
-    let two = EdgeNamesRefused {
+        body: 1,
         first,
-        refused: 2,
-        drawn: 12,
+        named: 11,
+        refused: 1,
     }
     .to_string();
-    assert!(
-        two.contains("2 of the 12 edges drawn on that body have no name"),
-        "{two}"
+    let fault = EdgeNameFault::Unnamed(first).to_string();
+    assert_eq!(
+        said,
+        format!(
+            "the index names 11 of the 12 edges it draws on body 1 of node 4; the first it cannot: {fault}"
+        )
     );
+    prose(&said, "EdgeNamesRefused");
 }
 
 /// The replay forwards the refusal's problem and ends as a damaged
