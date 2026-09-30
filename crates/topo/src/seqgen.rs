@@ -82,7 +82,7 @@
 //!   pairing is exercised from the fusion's side instead (below), so
 //!   nothing about the `movefac`/`kfmrh` pair goes untested; what is
 //!   missing is the pair driven from this end.
-//!   `work/topo/movefac-row-skips-three-component-shells.md` carries
+//!   `work/topo/movefac-roundtrip-re-make-is-unbuilt.md` carries
 //!   it.
 //! - `kfmrh`'s fusion form, where the three-op re-make
 //!   (`mfkrh` re-promotes the demoted ring, `movefac` re-partitions
@@ -111,12 +111,12 @@
 //!   invertible.)
 //!
 //!   **Measured** on the 64 × 32 stream set
-//!   [`tests::selection_is_pinned_over_a_fixed_stream_set`] pins: 133
-//!   `Kev` selections, of which 46 execute the roundtrip (the strut
-//!   and segment kills) and 87 skip — 20 the mirror adjacency and 67
+//!   [`tests::selection_is_pinned_over_a_fixed_stream_set`] pins: 134
+//!   `Kev` selections, of which 48 execute the roundtrip (the strut
+//!   and segment kills) and 86 skip — 20 the mirror adjacency and 66
 //!   the general fan merge. [`mev_fan_candidates`] offers strut sites
-//!   only (377 selected on those streams), and
-//!   [`assert_run_site_refuses`] reaches its refusal 292 times over
+//!   only (375 selected on those streams), and
+//!   [`assert_run_site_refuses`] reaches its refusal 290 times over
 //!   them, so the refusal that replaced the run-moving steps is itself
 //!   fuzzed. No step of those streams holds an edge whose carrier its
 //!   own endpoints left, which [`split_site`] and
@@ -185,8 +185,8 @@ pub(crate) enum OpChoice {
     /// the choice stays `Copy`/`Eq` and the site stays deterministic.
     SplitEdge(EdgeKey),
     /// The other non-Euler public mutator (`movefac(shell)`): the
-    /// shell whose incidence complex has fallen into two components is
-    /// partitioned into one shell per component (`crate::movefac`).
+    /// shell whose incidence complex has fallen into `c ≥ 2` components
+    /// is partitioned into one shell per component (`crate::movefac`).
     ///
     /// **It is in the catalog because it is the only door that mints a
     /// shell into an existing solid**, and therefore the only way a
@@ -267,8 +267,9 @@ fn ring_move_by(body: &mut Body<f64>, ring: LoopKey, to_face: FaceKey, door: Doo
 }
 
 impl OpChoice {
-    /// The op's Euler vector (Mäntylä Table 9.1, our per-op docs).
-    pub(crate) fn ep_vector(&self) -> EulerVector {
+    /// The op's Euler vector (Mäntylä Table 9.1, our per-op docs) when
+    /// it is applied to `body`, which is read before the op runs.
+    pub(crate) fn ep_vector(&self, body: &Body<f64>) -> EulerVector {
         match self {
             Self::Mvfs => EulerVector {
                 v: 1,
@@ -344,17 +345,21 @@ impl OpChoice {
             // NOT an Euler operator: pure reparenting, zero vector.
             Self::RingMove(..) => EulerVector::default(),
             // NOT an Euler operator either, but not zero: the
-            // partition mints a shell, and the ledger's `s` is the
-            // shell count. Eq. 9.2 then moves `h` with it — the
-            // promotion that disconnected the shell drove the derived
-            // genus one BELOW the honest per-component sum (see
-            // [`Ledger::check`]), and distributing the components into
-            // real shells is what pays it back.
-            Self::Movefac(_) => EulerVector {
-                h: 1,
-                s: 1,
-                ..Default::default()
-            },
+            // partition of a `c`-component shell mints `c − 1` shells,
+            // and the ledger's `s` is the shell count. Eq. 9.2 then
+            // moves `h` with it — each promotion that disconnected the
+            // shell drove the derived genus one BELOW the honest
+            // per-component sum (see [`Ledger::check`]), and
+            // distributing the components into real shells is what
+            // pays it back.
+            Self::Movefac(shell) => {
+                let minted = shell_components(body, *shell) as i64 - 1;
+                EulerVector {
+                    h: minted,
+                    s: minted,
+                    ..Default::default()
+                }
+            }
         }
     }
 
@@ -564,7 +569,7 @@ pub(crate) fn choose_op(body: &Body<f64>, d1: u32, d2: u32, tol: Tol) -> Option<
         // The shell partition — the catalog's only door to a
         // multi-shell solid, and make-direction in the shell arena, so
         // it is weighted out once the body stops growing. Its
-        // candidates are the two-component shells `mfkrh` leaves
+        // candidates are the multi-component shells `mfkrh` leaves
         // behind, and finding them is a glue walk per shell, so the
         // row answers emptiness through a probe that stops at the
         // first one rather than labelling every shell.
@@ -827,19 +832,13 @@ fn any_multi_shell_solid(body: &Body<f64>) -> bool {
     body.solids().any(|(_, solid)| solid.shells.len() > 1)
 }
 
-/// Every shell whose incidence complex has fallen into EXACTLY two
+/// Every shell whose incidence complex has fallen into two or more
 /// connected components — the post-`mfkrh` transient `movefac` exists
 /// to distribute.
 ///
-/// **Why exactly two and not two-or-more.** A row's Euler vector is a
-/// per-variant constant, and `movefac` on a `c`-component shell mints
-/// `c − 1` shells; offering only `c == 2` keeps `s +1` constant
-/// without carrying a derived count in the choice (the shape
-/// [`OpChoice::SplitEdge`] avoids for the same reason). The coverage
-/// this costs is stated rather than hidden: **a shell that reaches
-/// three components is never partitioned by this walk.** It is a
-/// smaller loss than it reads, because the row fires on the
-/// two-component shells that a third component would have grown from.
+/// A site is the shell alone: `movefac` on a `c`-component shell mints
+/// `c − 1` shells, and [`OpChoice::ep_vector`] derives `c` from the body
+/// it is applied to rather than carrying it in the choice.
 fn movefac_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     movefac_sites(body).map(OpChoice::Movefac).collect()
 }
@@ -851,13 +850,13 @@ fn movefac_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 ///
 /// The saving is the tail of the shell scan and the `Vec`: a shell
 /// that answers the predicate ends the walk, and a body with no
-/// two-component shell — the common case — still pays one
+/// multi-component shell — the common case — still pays one
 /// [`shell_components`] per shell, which is the price of the
 /// predicate itself.
 ///
 /// **The shell-count gate [`any_kfmrh_fuse`] uses does not transfer
 /// here, and gating on it would kill the row.** This row's candidates
-/// are the two-component shells inside a ONE-shell solid — that is
+/// are the multi-component shells inside a ONE-shell solid — that is
 /// the post-`mfkrh` transient the partition exists to resolve, and it
 /// is the state every multi-shell solid is reached THROUGH. A gate of
 /// "some solid holds two shells" would answer `false` on exactly the
@@ -870,7 +869,7 @@ fn any_movefac(body: &Body<f64>, _tol: Tol) -> bool {
 
 fn movefac_sites(body: &Body<f64>) -> impl Iterator<Item = ShellKey> + '_ {
     body.shells()
-        .filter(move |&(shell, _)| shell_components(body, shell) == 2)
+        .filter(move |&(shell, _)| shell_components(body, shell) >= 2)
         .map(|(shell, _)| shell)
 }
 
@@ -879,7 +878,7 @@ fn movefac_sites(body: &Body<f64>) -> impl Iterator<Item = ShellKey> + '_ {
 /// pass 11 enumerates: a face glues all its loops, a cycle loop glues
 /// across each edge via `mate`, and an empty-loop face is its own
 /// dartless component.
-fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
+pub(crate) fn shell_components(body: &Body<f64>, shell: ShellKey) -> usize {
     let faces = &body.get_shell(shell).expect("shell resolves").faces;
     let mut seen: slotmap::SecondaryMap<FaceKey, ()> = slotmap::SecondaryMap::new();
     let mut components = 0;
@@ -1563,7 +1562,7 @@ pub(crate) fn roundtrip(
             // partition runs, because a skip decided afterwards has
             // already mutated the body. The `movefac`/`kfmrh` pair is
             // exercised from the fusion's side meanwhile; module docs,
-            // and `work/topo/movefac-row-skips-three-component-shells.md`.
+            // and `work/topo/movefac-roundtrip-re-make-is-unbuilt.md`.
             return RoundtripOutcome::SkippedIrreversible;
         }
         OpChoice::Kvfs(solid) => {
@@ -1911,8 +1910,9 @@ mod tests {
                 }
                 // The ledger is unchanged by a balanced pair.
             } else {
+                let delta = choice.ep_vector(&body);
                 apply(&mut body, choice, &mut counter, Tol::witness());
-                ledger.apply(choice.ep_vector());
+                ledger.apply(delta);
             }
             // Property (a): tier-1 validity after every op. (The debug
             // postconditions inside each op already asserted this along
@@ -1995,8 +1995,9 @@ mod tests {
             let mut counter = 0_u32;
             for &(d1, d2, _) in &decisions {
                 let choice = choose_op(&body, d1, d2, Tol::witness()).expect("an op applies");
+                let delta = choice.ep_vector(&body);
                 apply(&mut body, choice, &mut counter, Tol::witness());
-                ledger.apply(choice.ep_vector());
+                ledger.apply(delta);
                 assert_eq!(ledger.check(&body), Ok(()));
             }
             body
@@ -2032,7 +2033,7 @@ mod tests {
     /// never adjust a filter to bring the old number back.
     #[test]
     fn selection_is_pinned_over_a_fixed_stream_set() {
-        const FINGERPRINT: u64 = 4_100_587_364_059_809_467;
+        const FINGERPRINT: u64 = 10_871_328_829_263_095_025;
         let mut hash = 0xcbf2_9ce4_8422_2325_u64;
         let mut fold = |bytes: &[u8]| {
             for b in bytes {
