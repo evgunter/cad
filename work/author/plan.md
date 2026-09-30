@@ -52,9 +52,9 @@ Then the two node-kind gaps (`viewer-cannot-author-a-part-node`,
 `viewer-cannot-author-a-duplicate-node` — the second is Ev's own
 request and is the cheaper of the pair).
 
-`addboolean-doc-names-a-vocabulary-that-does-not-exist` waits on
-EDIT's `DocEdit` vocabulary rather than on anything here; ask before
-specifying it. The two E rows are drive-bys rather than dispatches
+`addboolean-doc-names-a-vocabulary-that-does-not-exist` closed as
+AUTH-9 (#3543) once EDIT's one-pass declared union landed (#2809).
+The two E rows are drive-bys rather than dispatches
 (`work/README.md`, "The tracker is not comprehensive"), and they ride
 different lanes because they are in different files.
 `add-parameter-form-authors-canonical-only` is

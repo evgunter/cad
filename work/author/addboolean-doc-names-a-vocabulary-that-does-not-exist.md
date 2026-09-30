@@ -2,12 +2,14 @@
 id: addboolean-doc-names-a-vocabulary-that-does-not-exist
 kind: issue
 title: SessionOp::AddBoolean's doc promises a declaration vocabulary that no DocEdit provides
-status: review
+status: closed
 branch: author/declared-union
 opened: 2026-09-15
 refs: [a-declared-union-has-no-one-pass-authoring-path]
 priority: P0
 cost: D
+closed: 2026-09-30
+pr: 3543
 ---
 
 Found while auditing CHROME's slate against the tree on 2026-09-15,
@@ -197,3 +199,18 @@ Two cases are deliberately not offered:
 - ZIP's `a-rest-zip-refusal-tells-a-declared-contact-to-declare-the-coincidence`
 - OFFER's `a-refusal-offers-no-action-in-the-viewer` (evidence: the
   doubled recourse)
+
+## Closed 2026-09-30 — PR 3543 merged (`8bc49ad7`)
+
+**A boss drawn on a face can be added to the body it sits on.** The
+union's refusal offers to declare the contact the kernel found, and
+accepting commits the `Declare` and the union as one action and one
+undo. `SessionOp::AddBoolean`'s doc now says what is true: a contact
+is declared in the same action or not at all.
+
+Both reviews said mergeable. Correctness found no defect: the judge
+reaches the seam's verdict (same options, tolerance and resolver; the
+memo changes cost, not the answer), and no path loops. The fix pass
+put the offer into the homes the viewer's first offer already had
+(`session::refuse`, `frame`), and took every hardening the correctness
+review listed.
