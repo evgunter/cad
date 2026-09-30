@@ -5,9 +5,11 @@
 //! half-edge. `kfmrh`, `mfkrh` and `ring_move` move a whole LOOP from
 //! one face to another, which changes which chart every row on that
 //! loop is about while changing no key. Each row below is one door in
-//! one direction, and the claim under all of them is one sentence: a
-//! moved loop keeps its rows exactly where the two faces are on one
-//! surface key, and keeps none where they are not.
+//! one direction, and the claim under all of them is two sentences: a
+//! moved loop keeps its rows where the two faces are on one chart, and
+//! keeps none where they are not; and a destination that was complete
+//! is complete after the door, the moved loop walked in its own chart
+//! (the site mint), except on a spline chart, which keeps the drop.
 //!
 //! **The subject is the class, not the three loop doors alone.** After
 //! them come the two doors that move a RUN of half-edges between two
@@ -16,7 +18,9 @@
 //! place: no loop moves and no key changes, and every row the face
 //! stores is a curve stated in the chart the face LEFT. Each is rowed
 //! on this same fixture, and each takes the same answer — carried
-//! across one chart, dropped across two. The last three headings row
+//! across one chart, dropped across two, and re-minted where the
+//! destination was complete (the surface setter re-charts the face
+//! whole, so it drops and does not re-mint). The last three headings row
 //! the one tie between two keys the doors read (a shared payload
 //! `Arc`), the `sense` a minted or re-charted face takes on the same
 //! chart answer (D1), and the stamp door whose assertion keeps a
@@ -301,14 +305,6 @@ fn ring_of(body: &Body<f64>, face: FaceKey) -> LoopKey {
     rings[0]
 }
 
-/// How many findings report a half-edge carrying no row.
-fn missing(findings: &[PcurveMintError]) -> usize {
-    findings
-        .iter()
-        .filter(|f| matches!(f, PcurveMintError::MissingCache { .. }))
-        .count()
-}
-
 /// The two curved panels carry a complete row set and the pcurve pass
 /// accepts the body. That is the whole of what this fixture is for and
 /// the whole of what this row asserts — the row below measures what it
@@ -373,16 +369,18 @@ fn kfmrh_onto_a_chart_that_mints_nothing_drops_the_demoted_loops_rows() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// The other direction is loud and stays loud: the demoted loop brought
-/// no row, so nothing is dropped, and the curved face it joined is
-/// half-minted until a caller re-mints.
+/// The other direction: the demoted loop brings no row onto a minted
+/// curved face, and the door re-mints that face with the loop walked in
+/// the face's own chart. Its six halves lie on the cylinder (two rim
+/// arcs and four meridian lines), so the face is complete, with the
+/// rows the minting pass derives for it.
 #[test]
-fn kfmrh_onto_a_curved_face_leaves_it_incomplete_and_tier_three_says_so() {
+fn kfmrh_onto_a_minted_curved_face_mints_the_demoted_loop_in_its_chart() {
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.plane).unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (4, 6));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (6, 6));
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (10, 0));
+    assert_rows_are_the_pass(&s.body, s.low);
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 /// One surface key on both faces is the case where nothing a row says
@@ -409,18 +407,173 @@ fn ring_move_onto_a_chart_that_mints_nothing_drops_the_rings_rows() {
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
-/// A rowless ring moved onto a minted curved face has nothing to drop
-/// and leaves that face incomplete, which tier 3 reports per half-edge.
+/// A ring whose rows do not stand on the minted curved face it moves
+/// onto is walked in that face's chart, whichever way they fail to
+/// stand: stated in another chart (the upper panel re-charted onto
+/// [`rotated_cylinder`] and minted there), or missing (the ring's rows
+/// detached, the two panels on one key). Either way the upper panel is
+/// complete, with the rows the minting pass derives for it, and the
+/// lower panel keeps its own four.
 #[test]
-fn ring_move_onto_a_curved_face_leaves_it_incomplete() {
+fn ring_move_onto_a_minted_curved_face_mints_the_ring_in_its_chart() {
+    for rowless in [false, true] {
+        let mut s = sheet();
+        if !rowless {
+            s.body
+                .set_face_surface(
+                    s.up,
+                    FaceSurface::New {
+                        surface: rotated_cylinder(),
+                        sense: true,
+                    },
+                )
+                .unwrap();
+            topo::mint_pcurves_of(&mut s.body, &[s.up], tol()).unwrap();
+        }
+        s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
+        let ring = ring_of(&s.body, s.low);
+        if rowless {
+            for he in loop_halves(&s.body, ring) {
+                s.body.detach_pcurve(he);
+            }
+        }
+        assert_eq!(rows_of(&s.body, s.up), (4, 0), "rowless: {rowless}");
+        s.body.ring_move_minting(ring, s.up, tol()).unwrap();
+        assert_eq!(rows_of(&s.body, s.up), (10, 0), "rowless: {rowless}");
+        assert_eq!(rows_of(&s.body, s.low), (4, 0), "rowless: {rowless}");
+        assert_rows_are_the_pass(&s.body, s.up);
+        assert_eq!(
+            validate_pcurves(&s.body, band()),
+            vec![],
+            "rowless: {rowless}"
+        );
+    }
+}
+
+/// **The keys-only doors refuse a re-mint they owe, and touch
+/// nothing.** Each door below moves a loop or run onto a complete
+/// curved face where the moved rows do not stand — rowless, or stated
+/// in another chart — so the face would leave half-minted, and a
+/// keys-only door holds no band to re-mint it. Each refuses
+/// `PcurveMint { KeysOnly }` naming that face, before it mutates: the
+/// body, arenas and pcurve map alike, is as it was. Its `_minting`
+/// twin makes the same move whole (the completion rows above and
+/// below).
+#[test]
+fn the_keys_only_doors_refuse_a_re_mint_they_owe_and_touch_nothing() {
+    let refuses = |body: &mut Body<f64>,
+                   face: FaceKey,
+                   door: &str,
+                   op: &dyn Fn(&mut Body<f64>) -> topo::EulerOpError| {
+        let before = format!("{body:?}");
+        assert_eq!(
+            op(body),
+            topo::EulerOpError::PcurveMint {
+                face,
+                refusal: topo::pcurves::SiteRowRefusal::KeysOnly,
+            },
+            "{door}"
+        );
+        assert_eq!(format!("{body:?}"), before, "{door}: the body is untouched");
+    };
+
+    // `kfmrh`: the plane's rowless loop onto the minted lower panel.
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.plane).unwrap();
+    let (low, plane) = (s.low, s.plane);
+    refuses(&mut s.body, low, "kfmrh", &|b| {
+        b.kfmrh(low, plane).unwrap_err()
+    });
+
+    // `ring_move`: a rowless ring onto the minted upper panel.
+    let mut s = sheet();
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
     let ring = ring_of(&s.body, s.low);
-    s.body.ring_move(ring, s.up).unwrap();
-    assert_eq!(rows_of(&s.body, s.up), (4, 6));
-    assert_eq!(rows_of(&s.body, s.low), (4, 0));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (6, 6));
+    for he in loop_halves(&s.body, ring) {
+        s.body.detach_pcurve(he);
+    }
+    let up = s.up;
+    refuses(&mut s.body, up, "ring_move", &|b| {
+        b.ring_move(ring, up).unwrap_err()
+    });
+
+    // `mfkrh`: a minted ring promoted onto a second key — another chart
+    // — out of a complete face.
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let low = s.low;
+    refuses(&mut s.body, low, "mfkrh", &|b| {
+        b.mfkrh(
+            ring,
+            FaceSurface::New {
+                surface: cylinder(),
+                sense: true,
+            },
+        )
+        .unwrap_err()
+    });
+
+    // `kef`: the lower panel killed into the upper across their shared
+    // rim, one remnant row detached.
+    let mut s = sheet();
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let gap = s.body.get_half_edge(he).unwrap().next;
+    s.body.detach_pcurve(gap);
+    let up = s.up;
+    refuses(&mut s.body, up, "kef", &|b| b.kef(he).unwrap_err());
+}
+
+/// **The keys-only door refuses exactly where its twin writes.** A
+/// null edge in `kef`'s remnant holds the surviving loop open, so the
+/// site mint cannot walk it and its `_minting` twin writes nothing —
+/// on one chart, where the remnant's rows carry, and across two, where
+/// they drop. So `kef` owes nothing and proceeds, and the two doors
+/// leave one body. A keys-only refusal that read the loop's rewiring
+/// without asking whether a null edge holds it open would refuse here.
+///
+/// Adopted from the review of the loop-reparenting doors' re-mint (its
+/// `reviewer_c1x_null_edge_in_moved_run` probe).
+#[test]
+fn a_remnant_held_open_by_a_null_edge_is_owed_nothing_by_either_kef() {
+    for recharted in [false, true] {
+        let mut s = sheet();
+        let up = s.up;
+        if recharted {
+            s.body
+                .set_face_surface(
+                    up,
+                    FaceSurface::New {
+                        surface: rotated_cylinder(),
+                        sense: true,
+                    },
+                )
+                .unwrap();
+            topo::mint_pcurves_of(&mut s.body, &[up], tol()).unwrap();
+        }
+        let he = he_at(&s.body, s.low, at(U1, VM));
+        let h0 = *cycle_of(&s.body, s.low).iter().find(|&&h| h != he).unwrap();
+        s.body
+            .mev_null(
+                MevSite::Fan { he1: h0, he2: h0 },
+                topo::NewVertexSide::Above,
+            )
+            .unwrap();
+        let (up_rows, _) = rows_of(&s.body, up);
+        assert!(
+            up_rows > 0,
+            "recharted {recharted}: the survivor stores rows"
+        );
+        let (body, _) = both_doors(
+            &format!("kef, recharted {recharted}"),
+            &s.body,
+            |b| b.kef(he).map(|_| ()),
+            |b| b.kef_minting(he, tol()).map(|_| ()),
+        );
+        assert!(
+            rows_of(&body, up).1 > 0,
+            "recharted {recharted}: the survivor keeps the gaps its null edge holds open"
+        );
+    }
 }
 
 /// A ring moved back onto its own face moves nothing and keeps every
@@ -439,25 +592,31 @@ fn ring_move_to_its_own_face_keeps_every_row() {
 /// nothing a row says changed, so nothing is dropped. The second
 /// cylinder face is promoted out of the sheet's planar side onto the
 /// cylinder's own key, which is how this fixture holds two live curved
-/// faces beside a ring. The face that receives the ring is left
-/// incomplete, but by its OWN promoted loop, which the minting pass
-/// never ran on — the carried rows are all four of the rows tier 3
-/// finds present.
+/// faces beside a ring. That promoted loop was walked in the cylinder
+/// chart when `kfmrh` demoted it into the minted upper panel, so the
+/// face it bounds is complete, and so is the face the ring joins.
 #[test]
 fn ring_move_between_faces_on_one_surface_carries_every_row() {
     let mut s = sheet();
     s.body.kfmrh(s.up, s.low).unwrap();
-    s.body.kfmrh(s.up, s.plane).unwrap();
+    s.body.kfmrh_minting(s.up, s.plane, tol()).unwrap();
     let rings = s.body.get_face(s.up).unwrap().rings.clone();
     assert_eq!(rings.len(), 2, "the rows ring, then the rowless one");
     let sibling = s.body.mfkrh(rings[1], FaceSurface::Inherit).unwrap().face;
     assert_eq!(rows_of(&s.body, s.up), (8, 0));
-    assert_eq!(rows_of(&s.body, sibling), (0, 6));
+    assert_eq!(rows_of(&s.body, sibling), (6, 0));
+    let before = rows_deep(&s.body, s.up);
     s.body.ring_move(rings[0], sibling).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (4, 0));
-    assert_eq!(rows_of(&s.body, sibling), (4, 6));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (6, 6));
+    assert_eq!(rows_of(&s.body, sibling), (10, 0));
+    let after = rows_deep(&s.body, sibling);
+    for row in before
+        .iter()
+        .filter(|row| !rows_deep(&s.body, s.up).contains(row))
+    {
+        assert!(after.contains(row), "the ring's row did not carry: {row}");
+    }
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 /// `mfkrh` is the third loop re-parenting, and its default sugar always
@@ -513,12 +672,13 @@ fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     };
     let made = s
         .body
-        .mfkrh(
+        .mfkrh_minting(
             ring,
             FaceSurface::New {
                 surface: other,
                 sense: true,
             },
+            tol(),
         )
         .unwrap();
     assert_eq!(rows_of(&s.body, made.face), (0, 4));
@@ -546,6 +706,143 @@ fn rows_deep(body: &Body<f64>, face: FaceKey) -> Vec<String> {
         }
     }
     out
+}
+
+/// `face`'s rows are the rows [`topo::mint_pcurves_of`] derives for it
+/// on the body as it stands, interval, image and certificate alike —
+/// what a door that re-mints a face promises.
+fn assert_rows_are_the_pass(body: &Body<f64>, face: FaceKey) {
+    let mut minted = body.clone();
+    topo::mint_pcurves_of(&mut minted, &[face], tol()).unwrap();
+    assert_eq!(
+        rows_deep(body, face),
+        rows_deep(&minted, face),
+        "the door's rows are not the rows the minting pass derives"
+    );
+}
+
+/// The half-edges of `r#loop`.
+fn loop_halves(body: &Body<f64>, r#loop: LoopKey) -> Vec<topo::HalfEdgeKey> {
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(r#loop).unwrap().boundary else {
+        panic!("the fixture's loops are cycles")
+    };
+    body.loop_cycle(first).unwrap()
+}
+
+/// Runs a keys-only door and its `_minting` twin on two clones of
+/// `body`, asserts they return the same answer and leave the same body,
+/// arenas and pcurve map alike, and hands back the keys-only door's.
+fn both_doors<R: core::fmt::Debug>(
+    door: &str,
+    body: &Body<f64>,
+    keys_only: impl FnOnce(&mut Body<f64>) -> R,
+    twin: impl FnOnce(&mut Body<f64>) -> R,
+) -> (Body<f64>, R) {
+    let (mut a, mut b) = (body.clone(), body.clone());
+    let (ra, rb) = (keys_only(&mut a), twin(&mut b));
+    assert_eq!(
+        format!("{ra:?}"),
+        format!("{rb:?}"),
+        "{door}: the two doors answer alike"
+    );
+    assert_eq!(
+        format!("{a:?}"),
+        format!("{b:?}"),
+        "{door}: the two doors leave one body"
+    );
+    (a, ra)
+}
+
+/// Swaps the row of `halves[0]` for `halves[1]`'s, so a door that
+/// re-derived the loop would restore it; returns the planted row.
+fn plant_swap(body: &mut Body<f64>, halves: &[topo::HalfEdgeKey]) -> String {
+    let neighbour = body.pcurve(halves[1]).unwrap().clone();
+    body.attach_pcurve(halves[0], neighbour.clone());
+    format!("{neighbour:?}")
+}
+
+/// **Where the moved rows stand, the door moves them and derives
+/// nothing.** Across one key with every moved half carrying a row, the
+/// rows travel as found: one moved row is swapped for its neighbour's
+/// before the move, so a door that re-derived the loop would restore
+/// it, and the carried map still holds the swap. Each door that moves a
+/// loop or run is run keys-only and as its `_minting` twin, which carry
+/// alike: nothing is owed, so the two are one door.
+#[test]
+fn a_move_whose_rows_stand_carries_them_as_found() {
+    let carried = |door: &str, body: &Body<f64>, he: topo::HalfEdgeKey, planted: &str| {
+        assert_eq!(
+            format!("{:?}", body.pcurve(he).unwrap()),
+            planted,
+            "{door}: the door re-derived a row that stood"
+        );
+    };
+
+    // `kfmrh`: the lower panel's loop demoted into the upper panel.
+    let mut s = sheet();
+    let halves = cycle_of(&s.body, s.low);
+    let planted = plant_swap(&mut s.body, &halves);
+    let (up, low) = (s.up, s.low);
+    let (body, _) = both_doors(
+        "kfmrh",
+        &s.body,
+        |b| b.kfmrh(up, low).map(|_| ()),
+        |b| b.kfmrh_minting(up, low, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, up), (8, 0), "kfmrh");
+    carried("kfmrh", &body, halves[0], &planted);
+
+    // `kef`: the lower panel killed into the upper across their shared
+    // rim, its remnant spliced into the upper panel's loop.
+    let mut s = sheet();
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let remnant: Vec<_> = s.body.loop_cycle(he).unwrap().into_iter().skip(1).collect();
+    let planted = plant_swap(&mut s.body, &remnant);
+    let up = s.up;
+    let (body, _) = both_doors(
+        "kef",
+        &s.body,
+        |b| b.kef(he).map(|_| ()),
+        |b| b.kef_minting(he, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, up), (6, 0), "kef");
+    carried("kef", &body, remnant[0], &planted);
+
+    // `ring_move`: the demoted ring moved on to a sibling face on the
+    // cylinder's key (as `ring_move_between_faces_on_one_surface_…`).
+    let mut s = sheet();
+    s.body.kfmrh(s.up, s.low).unwrap();
+    s.body.kfmrh_minting(s.up, s.plane, tol()).unwrap();
+    let rings = s.body.get_face(s.up).unwrap().rings.clone();
+    let sibling = s.body.mfkrh(rings[1], FaceSurface::Inherit).unwrap().face;
+    let ring_halves = loop_halves(&s.body, rings[0]);
+    let planted = plant_swap(&mut s.body, &ring_halves);
+    let (body, _) = both_doors(
+        "ring_move",
+        &s.body,
+        |b| b.ring_move(rings[0], sibling),
+        |b| b.ring_move_minting(rings[0], sibling, tol()),
+    );
+    assert_eq!(rows_of(&body, sibling), (10, 0), "ring_move");
+    carried("ring_move", &body, ring_halves[0], &planted);
+
+    // `mfkrh`: the demoted ring promoted onto the chart it is on.
+    let mut s = sheet();
+    s.body.kfmrh(s.low, s.up).unwrap();
+    let ring = ring_of(&s.body, s.low);
+    let ring_halves = loop_halves(&s.body, ring);
+    let planted = plant_swap(&mut s.body, &ring_halves);
+    let (body, made) = both_doors(
+        "mfkrh",
+        &s.body,
+        |b| b.mfkrh(ring, FaceSurface::Inherit).map(|made| made.face),
+        |b| {
+            b.mfkrh_minting(ring, FaceSurface::Inherit, tol())
+                .map(|made| made.face)
+        },
+    );
+    assert_eq!(rows_of(&body, made.unwrap()), (4, 0), "mfkrh");
+    carried("mfkrh", &body, ring_halves[0], &planted);
 }
 
 /// A carry across one surface key moves nothing: the rows on the far
@@ -596,10 +893,11 @@ fn a_carried_row_is_the_row_the_minting_pass_derives() {
 }
 
 /// And the other side of the trade: what a drop gives up is a re-mint
-/// and nothing else. Each move below dropped every row it moved; the
-/// pass makes the body whole, on the destination's own chart — none
-/// on a planar face, which is that pass's posture, and the full set on
-/// a curved one.
+/// and nothing else. The first two moves below dropped every row they
+/// moved, and the pass makes the body whole on the destination's own
+/// chart — none on a planar face, which is that pass's posture. The
+/// third left its curved destination whole already, and the pass
+/// derives the same set.
 #[test]
 fn the_minting_pass_restores_what_each_move_left_the_caller() {
     // `kfmrh` onto the plane: there is nothing to restore, and the
@@ -621,14 +919,16 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 
-    // `ring_move` onto a curved face left it incomplete; the pass
-    // mints the ring's rows on the chart it is now on.
+    // `ring_move` onto a minted curved face leaves it complete; the
+    // pass mints the same rows on the chart it is on.
     let mut s = sheet();
-    s.body.kfmrh(s.low, s.plane).unwrap();
+    s.body.kfmrh_minting(s.low, s.plane, tol()).unwrap();
     let ring = ring_of(&s.body, s.low);
     s.body.ring_move(ring, s.up).unwrap();
+    let moved = rows_deep(&s.body, s.up);
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.up), (10, 0));
+    assert_eq!(rows_deep(&s.body, s.up), moved);
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
@@ -641,8 +941,8 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
 /// two keys hold one DESCRIPTION, and answers from identity alone — one
 /// key, or one shared payload `Arc`; a `GeomSource` stamp declares what
 /// the recipe intended and proves nothing about the values. So the
-/// moved loop's rows go, and what that costs is a re-mint, never a
-/// wrong row.
+/// moved loop's rows go, and the door walks the loop again in the
+/// destination's chart: what that costs is a walk, never a wrong row.
 #[test]
 fn two_keys_holding_one_surface_read_as_two_charts_whatever_recipe_they_carry() {
     for stamped in [false, true] {
@@ -670,26 +970,28 @@ fn two_keys_holding_one_surface_read_as_two_charts_whatever_recipe_they_carry() 
         assert_eq!(rows_of(&s.body, s.up), (4, 0), "stamped: {stamped}");
         assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 
-        s.body.kfmrh(s.low, s.up).unwrap();
-        assert_eq!(rows_of(&s.body, s.low), (4, 4), "stamped: {stamped}");
-        let findings = validate_pcurves(&s.body, band());
-        assert_eq!(
-            (missing(&findings), findings.len()),
-            (4, 4),
-            "stamped: {stamped}"
-        );
-
-        topo::mint_pcurves(&mut s.body, tol()).unwrap();
+        let up_rows = rows_deep(&s.body, s.up);
+        s.body.kfmrh_minting(s.low, s.up, tol()).unwrap();
         assert_eq!(rows_of(&s.body, s.low), (8, 0), "stamped: {stamped}");
+        assert_rows_are_the_pass(&s.body, s.low);
         assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+        // Re-walked, not carried: the moved rows are the pass's on
+        // `low`'s key, and the keys were read as two charts.
+        let low_rows = rows_deep(&s.body, s.low);
+        assert!(
+            up_rows.iter().all(|row| low_rows.contains(row)),
+            "one surface on two keys derives the same rows (stamped: {stamped})"
+        );
     }
 }
 
-/// The same through `mfkrh`: a ring promoted onto a second key that
-/// carries the old key's recipe loses its rows, and the pass restores
-/// them on the key the new face is on.
+/// **`mfkrh`'s promoted face is minted in its own chart.** A ring
+/// promoted onto a second key that carries the old key's recipe loses
+/// its rows, which are about the old key, and the door walks the ring
+/// on the key the new face is on — its face promoted out of a complete
+/// one, so complete itself, with the rows the pass derives.
 #[test]
-fn mfkrh_onto_a_second_key_sharing_a_recipe_drops_the_rings_rows_until_the_pass() {
+fn mfkrh_onto_a_second_key_sharing_a_recipe_mints_the_promoted_face_in_its_chart() {
     let mut s = sheet();
     let cyl = s.body.get_face(s.low).unwrap().surface;
     let second = s
@@ -710,19 +1012,18 @@ fn mfkrh_onto_a_second_key_sharing_a_recipe_drops_the_rings_rows_until_the_pass(
     let ring = ring_of(&s.body, s.low);
     let made = s
         .body
-        .mfkrh(
+        .mfkrh_minting(
             ring,
             FaceSurface::Shared {
                 key: second,
                 sense: true,
             },
+            tol(),
         )
         .unwrap();
-    assert_eq!(rows_of(&s.body, made.face), (0, 4));
-    assert_eq!(rows_of(&s.body, s.low), (4, 0));
-
-    topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, made.face), (4, 0));
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_rows_are_the_pass(&s.body, made.face);
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
@@ -1003,14 +1304,14 @@ fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
 
 /// **A second key holding the same cylinder, with or without the old
 /// key's recipe stamped on both, is not the same chart to this door**:
-/// a `Shared` naming it drops the run's rows, exactly as a rowless
-/// curved chart of its own does. The operator mints nothing on the new
-/// face either, although the closed-form lane could: a face whose rows
-/// did not stand is the minting pass's, and a row minted onto it would
-/// claim a chart identity the body does not hold. The old face, still
-/// on its own key, is complete with the minted half's row.
+/// a `Shared` naming it drops the run's rows, which are about the old
+/// key. The operator walks the new face's loop — its new half and the
+/// run — in the chart of the key it names instead, as it would for any
+/// face carved out of a complete one: every row is derived there and
+/// none is carried, so no row claims a chart identity the body does not
+/// hold. Both pieces are complete, with the rows the pass derives.
 #[test]
-fn mef_onto_a_second_key_holding_one_surface_drops_the_runs_rows_and_mints_none_there() {
+fn mef_onto_a_second_key_holding_one_surface_mints_the_new_face_in_its_chart() {
     for stamped in [false, true] {
         let mut s = sheet();
         let cyl = s.body.get_face(s.low).unwrap().surface;
@@ -1037,8 +1338,9 @@ fn mef_onto_a_second_key_holding_one_surface_drops_the_runs_rows_and_mints_none_
                 sense: true,
             },
         );
-        assert_eq!(rows_of(&s.body, made.face), (0, 4), "stamped: {stamped}");
+        assert_eq!(rows_of(&s.body, made.face), (4, 0), "stamped: {stamped}");
         assert_eq!(rows_of(&s.body, s.low), (4, 0), "stamped: {stamped}");
+        assert_rows_are_the_pass(&s.body, made.face);
         assert_eq!(
             validate_pcurves(&s.body, band()),
             vec![],
@@ -1330,16 +1632,16 @@ fn rotated_cylinder() -> Surface<f64> {
     }
 }
 
-/// **`kef` drops the remnant's rows and no others.** The surviving
+/// **`kef` walks its remnant in the survivor's chart.** The surviving
 /// face is MINTED on a different chart (the sheet's cylinder,
-/// re-charted), so the remnant's three rows go — and the surviving
-/// loop's own three, stated in its own chart already, stay byte for
-/// byte, with the pass naming exactly the three rowless arrivals. A
-/// `kef` that disposed of the destination LOOP's rows (the loop doors'
-/// walk) would read `(0, 6)` and be silent; no other row here reaches
-/// a minted survivor on another chart.
+/// re-charted), so the remnant's three rows, stated in the dying
+/// face's chart, go; the surviving loop — its own members from its new
+/// anchor, then the remnant — is walked in the survivor's chart, and
+/// the survivor is complete with the rows the pass derives, its own
+/// three among them unchanged. A `kef` that walked the loop from the
+/// wrong anchor, or left the remnant out, would not be the pass's.
 #[test]
-fn kef_into_a_minted_face_on_another_chart_keeps_the_survivors_own_rows() {
+fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
     let mut s = sheet();
     s.body
         .set_face_surface(
@@ -1356,17 +1658,14 @@ fn kef_into_a_minted_face_on_another_chart_keeps_the_survivors_own_rows() {
     let up_before = rows_deep(&s.body, s.up);
 
     let he = he_at(&s.body, s.low, at(U1, VM));
-    let killed = s.body.kef(he).unwrap();
+    let killed = s.body.kef_minting(he, tol()).unwrap();
     assert_eq!(killed.killed_face, s.low);
-    assert_eq!(rows_of(&s.body, s.up), (3, 3));
-    for row in rows_deep(&s.body, s.up) {
-        assert!(
-            up_before.contains(&row),
-            "kef restated a surviving row: {row}"
-        );
-    }
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!((missing(&findings), findings.len()), (3, 3));
+    assert_eq!(rows_of(&s.body, s.up), (6, 0));
+    assert_rows_are_the_pass(&s.body, s.up);
+    let after = rows_deep(&s.body, s.up);
+    let kept = up_before.iter().filter(|row| after.contains(row)).count();
+    assert_eq!(kept, 3, "the survivor's own three rows stand: {after:#?}");
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 // ---------------------------------------------------------------
@@ -1820,6 +2119,67 @@ fn kfmrh_carries_every_row_across_one_payload() {
         let want = if tied { (8, 0) } else { (4, 4) };
         assert_eq!(rows_of(&s.body, s.low), want, "tied: {tied}");
     }
+}
+
+/// **A spline destination keeps the drop.** On the deep-copied patch
+/// sheet every face is complete on a SPLINE chart of its own, where a
+/// moved loop's rows could be derived only through the fitted lane,
+/// which the doors do not hold. The door neither refuses nor mints: it
+/// drops the moved rows, as on any other chart change, and leaves the
+/// destination's own rows exactly as they were — `kfmrh`'s demoted
+/// loop, `kef`'s remnant and `ring_move`'s ring alike, keys-only and
+/// as the `_minting` twin, which drop alike.
+#[test]
+fn a_spline_destination_keeps_the_drop() {
+    let ArcSheet { s, .. } = arc_sheet(false);
+    let low_before = rows_deep(&s.body, s.low);
+    let (up, low, plane) = (s.up, s.low, s.plane);
+    let (body, _) = both_doors(
+        "kfmrh",
+        &s.body,
+        |b| b.kfmrh(low, up).map(|_| ()),
+        |b| b.kfmrh_minting(low, up, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, low), (4, 4), "kfmrh");
+    assert_eq!(rows_deep(&body, low), low_before, "kfmrh");
+
+    let ArcSheet { s, .. } = arc_sheet(false);
+    let up_before = rows_deep(&s.body, s.up);
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let (body, _) = both_doors(
+        "kef",
+        &s.body,
+        |b| b.kef(he).map(|_| ()),
+        |b| b.kef_minting(he, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, up), (3, 3), "kef");
+    let up_after = rows_deep(&body, up);
+    assert!(
+        up_after.iter().all(|row| up_before.contains(row)),
+        "kef: the survivor keeps its own rows and gains none"
+    );
+
+    // The plane face's rowless loop demotes into `low`, then moves on
+    // as a ring onto `up`: two complete spline destinations in turn.
+    let ArcSheet { s, .. } = arc_sheet(false);
+    let (low_before, up_before) = (rows_deep(&s.body, s.low), rows_deep(&s.body, s.up));
+    let (body, _) = both_doors(
+        "kfmrh of a rowless loop",
+        &s.body,
+        |b| b.kfmrh(low, plane).map(|_| ()),
+        |b| b.kfmrh_minting(low, plane, tol()).map(|_| ()),
+    );
+    assert_eq!(rows_of(&body, low), (4, 6), "kfmrh of a rowless loop");
+    assert_eq!(rows_deep(&body, low), low_before, "kfmrh of a rowless loop");
+    let ring = ring_of(&body, low);
+    let (body, _) = both_doors(
+        "ring_move",
+        &body,
+        |b| b.ring_move(ring, up),
+        |b| b.ring_move_minting(ring, up, tol()),
+    );
+    assert_eq!(rows_of(&body, up), (4, 6), "ring_move");
+    assert_eq!(rows_deep(&body, up), up_before, "ring_move");
 }
 
 /// `up` is first moved onto `low`'s key, so the demotion into `low`

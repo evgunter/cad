@@ -1416,3 +1416,80 @@ Nine units closed. The flush boss-on-a-face union is now a refusal with a Declar
 Not taken yet, with reasons:
 - `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
 - `no-row-holds-that-the-create-pane-offers-the-tools-it-has` is a harness-or-refactor choice across seven panels in a five-program file, and wants its own sitting.
+
+## 2026-09-30 — negative-extrude fork: the designers converged; `[ev]` PR opened
+
+Two designers, one problem statement, no candidate answers (byte 92 on `analysis/design-fork/author-negative-extrude-2026-09-30`).
+
+**First reports disagreed.** A: extrude distance becomes a positive depth, plus a structural `side`, refused in the kernel door. B: keep the signed distance and have the range probe ask "same build?" over the decision logs.
+
+**Round 1** gave each the other's report and asked each to settle the claim the other's case rested on. Both ran fixtures.
+- **A downstream reference to the end cap follows the flip silently: true.** A boss on the block's `Cap(End)` rebuilds below the plane at −10 mm, and nothing fails. The decision diff is `extrusion_normal_component` ×1 and `side_planes_cosurface` ×4.
+- **"Ordinary edits flip no decisions": false.**
+  - `plate_param`: 78 of 138 small literal edits (down to 1e-7 relative) flip a decision without failing, e.g. `bool_join_nearest` Zero→nonzero at the boss height and a `point_in_loop_arm` count.
+  - Corpus: 4 of 29 documents diff under their own recorded bump.
+  - A same-build oracle would therefore collapse ranges to a point on most documents with a boolean.
+
+B moved to A's answer and withdrew its oracle. A kept its answer and adopted B's idea of naming the refusal at a bracket's invalid end. A converged recommendation, not a crossover. The `[ev]` PR (#3551) carries both reports' `For Ev` sections verbatim as A and B; fork-log row 22.
+
+**Filed off the question**, not waiting on Ev:
+- CHROME: `the-range-panels-open-sentence-claims-values-it-never-sampled` (the Open sentence claims more than was sampled; a bracket's invalid end could name what refused).
+- Corrected the vacuity row's two stale citations of this row (it lives in `work/author/`, not `work/chrome/`).
+- Corrected `plan.md`'s `E` price for it (it is `M`, design).
+
+**Measured, not filed; seam note on EDIT (owner of `editor-core/src/range.rs`):** `plate_param`'s nominal sits exactly on `bool_join_nearest` Zero verdicts. That is probably authored coincident geometry, and would bear on the certified range's "certifies nothing on the corpus" table.
+
+## 2026-09-30 — AUTH-10 MERGED (`ff728d14`): a held face pick is drawn
+
+Ten units closed. **The duplication trap fired a tenth time**, as two colour decisions in `gpu.rs` beside `theme.rs`, plus a half-done rename. The style review caught both.
+
+**This unit's lesson is about CI's reach, not duplication.** The first head's edge shader used `@interpolate(linear)`. naga validates it, and it builds on Vulkan (lavapipe), but it cannot be written as GLSL ES, so the viewer would have panicked on WebGL2 and native GLES. No CI job exercises the GL backend: the device row is Vulkan and the wasm32 job only runs clippy. The correctness reviewer found it by running naga's GLSL writer. The unit now carries a no-GPU row, `gpu::tests::every_entry_point_translates_to_glsl_es_300`, which holds the class.
+
+**A re-verification after the fix pass was worth it.** The fix pass reached new code (a refusal arm, an opaque `Composed`, a `HeldEdges` refactor). The reviewer confirmed that F1 and F2 were closed, and found the fix's own "exact interpolation" claim false; it was fixed before merge.
+
+Review tier: correctness + style, then a correctness re-verification of the fix pass.
+
+## 2026-09-30 — AUTH-11 dispatched: an unfinished chain awaiting a binder is drawn
+
+The row was marked design, but its one open call is which sentence to show beside a drawn prefix. I decided it in the spec: the tip-state sentence, which is true, rather than `OpenChain`'s, which is false for a binder-awaiting tip. Not a fork.
+
+Review tier: correctness + style, as before. The unit changes what an existing preview case says, and it is AUTH-5's walk-back applied to a new class.
+
+Still not taken:
+- `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
+- `no-row-holds-that-the-create-pane-offers-the-tools-it-has` wants its own sitting. AUTH-10's `Composed` shows a type-level hold is sometimes cheaper than a harness, which may bear on its shape.
+
+## 2026-09-30 — AUTH-11 MERGED (`ede1dc1d`): an unclosable chain draws its prefix
+
+Eleven units closed. **The duplication trap fired an eleventh time, in tests:** the tip-state census and the per-state fixture were copied from `profile`'s `arc_spec_census.rs`. The style review caught it, and the fix pass hosted both in `profile::test_support`.
+
+**My spec's premise was loose.** I called `OpenChain`'s "target the start" false for a binder-awaiting tip. The correctness review noted that the chosen `Transition` sentence also ends "…the last verb has to target the start". That clause is true of the loop as a whole, and the sentence names the tip state first, which is the gain. No change. Also, "the kernel's `Display`" was the viewer's own `PreviewError` `Display`; the lane said so.
+
+**Before merging I ran main's new gate** (`bit-identity-debug-only.sh`, from #3531, which landed after the head) on a trial merge: OK. No code overlap.
+
+Filed from the unit: `a-close-refused-on-its-geometry-draws-nothing` (P2, M). Its measured members are the zero-length close, the straight-on close (`JunctionTangent`) and the pending-fillet family (`NoCornerForFillet`). A collinear back-track was run and is *not* a member.
+
+## 2026-09-30 — AUTH-12 dispatched: a tool census; face-pick naming to the designers
+
+**AUTH-12** takes `no-row-holds-that-the-create-pane-offers-the-tools-it-has`. It had waited on a harness-or-refactor choice that no longer exists: the whole-app harness in `app.rs` (2026-09-25) already paints the full app. The unit is therefore a census row over `ToolKind::ALL`. It also routes the nine literal button labels through `ToolKind::label()`, which already claims to be their one home. Review tier: style only. The change is a test row and a label routing, readable end to end.
+
+Blockers re-checked before choosing: `materole-has-no-display` (MSOLVE) and `clearance-refusal-names-one-face-twice-across-bodies` (CLEAR) are both still open.
+
+## 2026-09-30 — face-naming fork: the designers agreed on their first reports; `[ev]` #3571
+
+The designer pair was given one problem statement and no candidate answers (byte on `analysis/design-fork/author-face-naming-2026-09-30`). Both first reports recommended the same final state:
+- a face is told apart by its **leaf role in words**, from one public names-layer renderer promoted from `resolve::role_words`;
+- `StableName`'s own `Display` carries that role;
+- one viewer composer, which also settles "face of feature N" (it currently names three different features across sites);
+- a picture where the face is drawn, including a hover mark on each line of the declare offer;
+- **not the pose.**
+
+No reconciliation round was needed. Both corrected the row's premises: role words already exist, privately, and "prose never renders the role path" is agent text (#1454) that #3205 already contradicts.
+
+**Why it went to Ev anyway.** No ratified text is involved, but `StableName`'s `Display` changes across editor-core, pncad and viewer, and a stated stance is reversed. The names layer is EDIT's ground, so the editor-core unit is EDIT's and the viewer unit is AUTHOR's. Fork-log row 23.
+
+**Filed off the question:**
+- CHROME: `focus-per-segment-is-no-longer-blocked-on-a-guess`.
+- AUTHOR: `committed-nodes-do-not-light-the-faces-they-reference`.
+- Already on file: the flush refusal's `Debug` face keys (`work/issues/flush-in-band-refusal-advises-widening-the-tolerance`).
+- Folded into the design, not filed: `descent_leaf` and `SegOrigin` listing the carry-through wrappers twice, and `SelectRefusal`'s hand-spelled `named` helper.

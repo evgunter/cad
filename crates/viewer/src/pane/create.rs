@@ -27,7 +27,7 @@ use crate::props::render_number;
 use crate::seats::{Seats, seat_line};
 use crate::session::{
     DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp,
-    Standing, face_frame_seat,
+    Standing, face_frame_seat_drawn,
 };
 use crate::sketch;
 use crate::theme::Theme;
@@ -459,7 +459,8 @@ fn face_frame_fault(
         FaceFrameFault::Unresolved { .. } => said_by_selection,
         FaceFrameFault::NotLanded
         | FaceFrameFault::NotOneBody { .. }
-        | FaceFrameFault::NotPlanar { .. } => false,
+        | FaceFrameFault::NotPlanar { .. }
+        | FaceFrameFault::NotDrawn => false,
     };
     if !said_elsewhere {
         crate::widgets::message_toned(ui, fault.to_string(), theme, fault.tone());
@@ -482,10 +483,10 @@ fn selection_says_unresolved(standing: &Standing, latched: Option<&FaceSelection
     }
 }
 
-/// **Why the add-profile button is held**, when it is — and how loud
+/// **Why the add-profile button is withheld**, when it is — and how loud
 /// that is, which depends on which of two things it is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Held {
+enum Withheld {
     /// The form is waiting for its next input: a frame, a shape, a
     /// first step. The form asking, [`Tone::Advisory`].
     Waiting(&'static str),
@@ -494,7 +495,7 @@ enum Held {
     Refused(&'static str),
 }
 
-impl Held {
+impl Withheld {
     fn words(self) -> &'static str {
         match self {
             Self::Waiting(words) | Self::Refused(words) => words,
@@ -509,7 +510,7 @@ impl Held {
     }
 }
 
-/// **The one reason the add-profile button is held for**, out of every
+/// **The one reason the add-profile button is withheld for**, out of every
 /// reason the form found, handed over in the form's own top-to-bottom
 /// order.
 ///
@@ -519,27 +520,27 @@ impl Held {
 /// other number in its field and has no other voice. Between two of
 /// one kind the earlier in the form is said, so the first thing a
 /// person is asked for is the first thing the form lacks.
-fn held_for(holds: impl IntoIterator<Item = Held>) -> Option<Held> {
+fn withheld_for(holds: impl IntoIterator<Item = Withheld>) -> Option<Withheld> {
     holds.into_iter().reduce(|said, next| match (said, next) {
-        (Held::Waiting(_), Held::Refused(_)) => next,
+        (Withheld::Waiting(_), Withheld::Refused(_)) => next,
         _ => said,
     })
 }
 
-/// **What a bored circle holds the button for**: a bore at least as
+/// **What a bored circle withholds the button for**: a bore at least as
 /// wide as the radius, which is an input the reader gave and the form
-/// refuses — [`Held::Refused`], not a request for the next input.
-fn bore_held(bored: bool, bore: f64, radius: f64) -> Option<Held> {
-    (bored && bore >= radius).then_some(Held::Refused(
+/// refuses — [`Withheld::Refused`], not a request for the next input.
+fn bore_withholds(bored: bool, bore: f64, radius: f64) -> Option<Withheld> {
+    (bored && bore >= radius).then_some(Withheld::Refused(
         "the bore must be smaller than the radius — which loop is the hole is decided by \
          containment, so a larger bore would swap the roles rather than refuse",
     ))
 }
 
-/// The held button's reason, drawn in its own voice. A free function
+/// The withheld button's reason, drawn in its own voice. A free function
 /// over the `Ui` so a headless drive can reach it.
-fn held_line(ui: &mut egui::Ui, theme: &Theme, held: Held) {
-    crate::widgets::message_toned(ui, held.words(), theme, held.tone());
+fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
+    crate::widgets::message_toned(ui, withheld.words(), theme, withheld.tone());
 }
 
 impl ViewerBehavior<'_> {
@@ -860,15 +861,25 @@ impl ViewerBehavior<'_> {
         }
         // The face-frame gate, on the kind that has one, asked ONCE:
         // its `Ok` is the pair the spec is lowered from and its `Err`
-        // is the sentence over the held button, so the button is gated
-        // by the same computation it commits. A second derivation of
-        // the picks would gate on one and commit the other.
-        let seat = (kind == DatumKindChoice::FaceFrame)
-            .then(|| face_frame_seat(self.session.landed_pair(), self.drafts.datum_face.as_ref()));
+        // is the sentence over the withheld button, so the button is
+        // gated by the same computation it commits. A second
+        // derivation of the picks would gate on one and commit the
+        // other. The kind test is not `held_face`'s: under another
+        // kind there is no gate to ask, where `held_face`'s `None`
+        // would ask it and read "no face".
+        let on_screen = crate::pane::viewport::drawn_index(self.index, self.scene_key)
+            .map(|index| (index, self.display));
+        let seat = (kind == DatumKindChoice::FaceFrame).then(|| {
+            face_frame_seat_drawn(
+                self.session.landed_pair(),
+                self.drafts.held_face(),
+                on_screen,
+            )
+        });
         let refused = seat.as_ref().and_then(|seat| seat.as_ref().err());
         // Lowered every frame, so the button's enabling and its commit
         // read one value: `Ok(None)` is a seat still unfilled, and it
-        // is what holds the button. The sentence over it follows the
+        // is what withholds the button. The sentence over it follows the
         // KIND — the two picking kinds want different things from
         // different places, so one sentence for the form would be
         // false of whichever is not showing.
@@ -882,10 +893,7 @@ impl ViewerBehavior<'_> {
         // `NoFace` is the unmet seat above, in the same words from its
         // one home: the sentence asking for the pick is drawn once.
         if let Some(fault) = refused {
-            let said = selection_says_unresolved(
-                &self.session.standing(),
-                self.drafts.datum_face.as_ref(),
-            );
+            let said = selection_says_unresolved(&self.session.standing(), self.drafts.held_face());
             face_frame_fault(ui, &self.theme, fault, said);
         }
         if ui
@@ -923,7 +931,7 @@ impl ViewerBehavior<'_> {
     /// moves the seat, and nothing else clears it.
     ///
     /// Only the picks are decided here. Whether the face may carry a
-    /// frame at all is [`face_frame_seat`]'s answer, rendered by the
+    /// frame at all is [`face_frame_seat_drawn`]'s answer, rendered by the
     /// caller over the button it holds.
     fn datum_face_frame_rows(&mut self, ui: &mut egui::Ui) {
         if let Selection::Face(face) = self.session.selection() {
@@ -931,7 +939,7 @@ impl ViewerBehavior<'_> {
         }
         ui.horizontal(|ui| {
             ui.label("face");
-            match &self.drafts.datum_face {
+            match self.drafts.held_face() {
                 // The drawn body a pick is on, in the one sentence
                 // this crate names that scope with
                 // (`Display for BlendTarget`): a target that grew a
@@ -1067,17 +1075,17 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.profile_plane,
         );
         let shape = self.drafts.profile_shape;
-        // Every reason the button is held, in the form's order; which
-        // one is said is `held_for`'s to decide, not any one arm's.
-        let mut holds: Vec<Held> = Vec::new();
+        // Every reason the button is withheld, in the form's order; which
+        // one is said is `withheld_for`'s to decide, not any one arm's.
+        let mut withholds: Vec<Withheld> = Vec::new();
         if self.drafts.profile_plane.is_none() {
-            holds.push(Held::Waiting("pick a frame to draw on"));
+            withholds.push(Withheld::Waiting("pick a frame to draw on"));
         }
         match shape {
             // No shape chosen: the form is at rest. It says what it is
             // waiting for and draws nothing — no fields to fill in for
             // a shape nobody picked, and no preview in the viewport.
-            None => holds.push(Held::Waiting("choose a shape to add")),
+            None => withholds.push(Withheld::Waiting("choose a shape to add")),
             Some(ShapeKind::Circle) => {
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
@@ -1105,7 +1113,7 @@ impl ViewerBehavior<'_> {
                         unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
                     }
                 });
-                holds.extend(bore_held(
+                withholds.extend(bore_withholds(
                     self.drafts.profile_bored,
                     self.drafts.profile_bore,
                     self.drafts.profile_radius,
@@ -1152,13 +1160,13 @@ impl ViewerBehavior<'_> {
                 // this the empty list drew the lattice's own refusal
                 // about a program nobody had started writing.
                 if self.drafts.profile_path.is_empty() {
-                    holds.push(Held::Waiting("add a step to the chain"));
+                    withholds.push(Withheld::Waiting("add a step to the chain"));
                 }
             }
         }
-        let blocked = held_for(holds);
-        if let Some(held) = blocked {
-            held_line(ui, &self.theme, held);
+        let blocked = withheld_for(withholds);
+        if let Some(withheld) = blocked {
+            withheld_line(ui, &self.theme, withheld);
         }
         // **What the loops would draw, said before they are
         // authored.** The preview ran the commit door's own ladder,
@@ -2297,8 +2305,8 @@ mod tone_tests {
     use pncad::select::{InterrogateError, Resolution};
 
     use super::{
-        Held, bore_held, face_frame_fault, held_for, held_line, part_listing,
-        selection_says_unresolved,
+        Withheld, bore_withholds, face_frame_fault, part_listing, selection_says_unresolved,
+        withheld_for, withheld_line,
     };
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::parts::{PartCensus, PartChooser, PartEntry};
@@ -2492,37 +2500,45 @@ mod tone_tests {
     #[test]
     fn a_bore_as_wide_as_the_radius_is_refused() {
         assert!(matches!(
-            bore_held(true, 0.01, 0.01),
-            Some(Held::Refused(_))
+            bore_withholds(true, 0.01, 0.01),
+            Some(Withheld::Refused(_))
         ));
-        assert_eq!(bore_held(true, 0.005, 0.01), None);
-        assert_eq!(bore_held(false, 0.02, 0.01), None);
+        assert_eq!(bore_withholds(true, 0.005, 0.01), None);
+        assert_eq!(bore_withholds(false, 0.02, 0.01), None);
     }
 
-    /// **Which held reason is said**: a refused input over the form
+    /// **Which withholding reason is said**: a refused input over the form
     /// waiting for one, wherever it came in the form; between two of
     /// one kind, the earlier.
     #[test]
     fn a_refused_input_outranks_a_missing_one_and_the_form_order_breaks_ties() {
-        let frame = Held::Waiting("pick a frame to draw on");
-        let chain = Held::Waiting("add a step to the chain");
-        let bore = Held::Refused("the bore is too wide");
-        let wider = Held::Refused("the bore is wider still");
-        assert_eq!(held_for([frame, chain]), Some(frame));
-        assert_eq!(held_for([frame, bore]), Some(bore));
-        assert_eq!(held_for([bore, frame]), Some(bore));
-        assert_eq!(held_for([frame, bore, chain]), Some(bore));
-        assert_eq!(held_for([bore, wider]), Some(bore));
-        assert_eq!(held_for([]), None);
+        let frame = Withheld::Waiting("pick a frame to draw on");
+        let chain = Withheld::Waiting("add a step to the chain");
+        let bore = Withheld::Refused("the bore is too wide");
+        let wider = Withheld::Refused("the bore is wider still");
+        assert_eq!(withheld_for([frame, chain]), Some(frame));
+        assert_eq!(withheld_for([frame, bore]), Some(bore));
+        assert_eq!(withheld_for([bore, frame]), Some(bore));
+        assert_eq!(withheld_for([frame, bore, chain]), Some(bore));
+        assert_eq!(withheld_for([bore, wider]), Some(bore));
+        assert_eq!(withheld_for([]), None);
     }
 
-    /// **The add-profile form's held reason**: a refused input is loud,
+    /// **The add-profile form's withholding reason**: a refused input is loud,
     /// the form waiting for one is quiet.
     #[test]
-    fn a_held_profile_button_says_why_in_the_reasons_own_voice() {
+    fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
         let (painted, voices) = landed_voiced(|ui| {
-            held_line(ui, &Theme::DEFAULT, Held::Refused("the bore is too wide"));
-            held_line(ui, &Theme::DEFAULT, Held::Waiting("choose a shape to add"));
+            withheld_line(
+                ui,
+                &Theme::DEFAULT,
+                Withheld::Refused("the bore is too wide"),
+            );
+            withheld_line(
+                ui,
+                &Theme::DEFAULT,
+                Withheld::Waiting("choose a shape to add"),
+            );
         });
         assert_eq!(
             find(&painted, "the bore is too wide").ink,
