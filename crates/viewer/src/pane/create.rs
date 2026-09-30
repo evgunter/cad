@@ -323,6 +323,29 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
 /// What [`part_entry`]'s pick button says.
 const PICK_PART: &str = "add";
 
+/// What the button that opens the part chooser says.
+pub(crate) const ADD_PART: &str = "Add part…";
+
+/// What the extrude form's commit button says, before the profile's
+/// number once one is selected.
+pub(crate) const EXTRUDE: &str = "Extrude";
+
+/// What the add-datum form's commit button says.
+pub(crate) const ADD_DATUM: &str = "Add datum";
+
+/// What the add-profile form's commit button says.
+pub(crate) const ADD_PROFILE: &str = "Add profile";
+
+/// The heading of the section that makes a body out of nothing.
+pub(crate) const ADD_FEATURE: &str = "Add feature";
+
+/// The heading of the section whose tools take bodies that exist and
+/// make another one.
+pub(crate) const COMBINE_BODIES: &str = "Combine bodies";
+
+/// The heading of the section whose tools reshape a body's edges.
+pub(crate) const BLEND_EDGES: &str = "Blend edges";
+
 /// **What the add-profile form calls the frame it offers to mint.**
 ///
 /// A choice in the same combo as the document's own frames, because
@@ -544,15 +567,13 @@ fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
 }
 
 impl ViewerBehavior<'_> {
-    /// The creation section (GAUTH-1): the add-datum, add-profile and
-    /// extrude forms plus the modal revolve tool. Each form is
-    /// minimal — its few required fields with sensible defaults — and
-    /// emits exactly one creation op; the property panel is the
-    /// editor for everything after the insert — for a profile, through
-    /// this section's own path editor opened on the node
-    /// ([`Self::edit_profile_ui`]).
+    /// The creation sections. Each form is minimal — its few required
+    /// fields with sensible defaults — and emits exactly one creation
+    /// op; the property panel is the editor for everything after the
+    /// insert — for a profile, through this section's own path editor
+    /// opened on the node ([`Self::edit_profile_ui`]).
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
-        ui.collapsing("Add feature", |ui| {
+        ui.collapsing(ADD_FEATURE, |ui| {
             self.add_datum_ui(ui);
             ui.separator();
             self.add_profile_ui(ui);
@@ -561,10 +582,10 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.revolve_tool_ui(ui);
         });
-        // The combining tools sit in their own section (GAUTH-4):
+        // The combining tools sit in their own section:
         // everything above makes a body out of nothing, everything
         // here takes bodies that exist and makes another one.
-        ui.collapsing("Combine bodies", |ui| {
+        ui.collapsing(COMBINE_BODIES, |ui| {
             self.boolean_tool_ui(ui);
             ui.separator();
             self.split_tool_ui(ui);
@@ -581,11 +602,11 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.duplicate_tool_ui(ui);
         });
-        // The blend tools sit in their own section (GAUTH-5): they
+        // The blend tools sit in their own section: they
         // take a body that exists and reshape its EDGES, which is a
         // third kind of move again — and the only one whose picks are
         // a set rather than a seat.
-        ui.collapsing("Blend edges", |ui| {
+        ui.collapsing(BLEND_EDGES, |ui| {
             self.blend_tool_ui(ui);
         });
         ui.separator();
@@ -600,7 +621,7 @@ impl ViewerBehavior<'_> {
         // copy stays in the application and is only ever REPLACED
         // whole (activation, deactivation), never edited here.
         let Some(tool) = self.tools.mate().cloned() else {
-            if ui.button("Mate tool…").clicked() {
+            if ui.button(ToolKind::Mate.button()).clicked() {
                 // ONE modal tool at a time — `Tools::open` closes
                 // whatever was open, the rule and its argument living
                 // in that value rather than at each activation.
@@ -649,7 +670,7 @@ impl ViewerBehavior<'_> {
         ui.checkbox(&mut self.drafts.mate_opposed, "axes opposed");
         let mut close = false;
         ui.horizontal(|ui| {
-            if ui.button("Commit mate").clicked() {
+            if ui.button(ToolKind::Mate.commit()).clicked() {
                 match (
                     classes.get(self.drafts.mate_class),
                     self.session.landed_pair(),
@@ -722,7 +743,7 @@ impl ViewerBehavior<'_> {
     pub(crate) fn add_part_ui(&mut self, ui: &mut egui::Ui) {
         if self.part_chooser.is_none() {
             if ui
-                .button("Add part…")
+                .button(ADD_PART)
                 .on_hover_text("insert an instance of another document in this one's directory")
                 .clicked()
             {
@@ -897,10 +918,7 @@ impl ViewerBehavior<'_> {
             face_frame_fault(ui, &self.theme, fault, said);
         }
         if ui
-            .add_enabled(
-                !unpicked && refused.is_none(),
-                egui::Button::new("Add datum"),
-            )
+            .add_enabled(!unpicked && refused.is_none(), egui::Button::new(ADD_DATUM))
             .clicked()
         {
             match datum {
@@ -1189,7 +1207,7 @@ impl ViewerBehavior<'_> {
         if ui
             .add_enabled(
                 blocked.is_none() && !refused,
-                egui::Button::new("Add profile"),
+                egui::Button::new(ADD_PROFILE),
             )
             .clicked()
         {
@@ -1240,7 +1258,7 @@ impl ViewerBehavior<'_> {
         match self.session.selection().node() {
             Some(node) => {
                 if ui
-                    .button(format!("Extrude {}", tree::node_number(node)))
+                    .button(format!("{EXTRUDE} {}", tree::node_number(node)))
                     .clicked()
                 {
                     match self.drafts.length(self.drafts.extrude_distance) {
@@ -1258,7 +1276,7 @@ impl ViewerBehavior<'_> {
                 }
             }
             None => {
-                ui.add_enabled(false, egui::Button::new("Extrude"))
+                ui.add_enabled(false, egui::Button::new(EXTRUDE))
                     .on_disabled_hover_text("select the profile to extrude first");
             }
         }
@@ -1273,7 +1291,7 @@ impl ViewerBehavior<'_> {
         // closing the tool; the authoritative copy is only ever
         // replaced whole.
         let Some(tool) = self.tools.revolve() else {
-            if ui.button("Revolve tool…").clicked() {
+            if ui.button(ToolKind::Revolve.button()).clicked() {
                 // ONE modal tool at a time — `Tools::open` closes
                 // whatever was open, the rule and its argument living
                 // in that value rather than at each activation.
@@ -1296,7 +1314,7 @@ impl ViewerBehavior<'_> {
             );
             angle_picker(ui, "revolve_angle", &mut self.drafts.angle_unit);
         });
-        self.tool_commit_row(ui, "Commit revolve", ToolKind::Revolve, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Revolve, |drafts| {
             Ok(tool.op(drafts.angle(drafts.revolve_angle)?)?)
         });
     }
@@ -1309,7 +1327,7 @@ impl ViewerBehavior<'_> {
     /// is which cannot author the operation they mean.
     pub(crate) fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.boolean() else {
-            if ui.button("Boolean tool…").clicked() {
+            if ui.button(ToolKind::Boolean.button()).clicked() {
                 self.tools.open(ToolKind::Boolean);
             }
             return;
@@ -1335,7 +1353,7 @@ impl ViewerBehavior<'_> {
                 Tone::Advisory,
             );
         }
-        self.tool_commit_row(ui, "Commit boolean", ToolKind::Boolean, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Boolean, |drafts| {
             Ok(tool.op(drafts.boolean_op)?)
         });
         declare_offer_rows(
@@ -1351,7 +1369,7 @@ impl ViewerBehavior<'_> {
     /// the one committed edit.
     pub(crate) fn split_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.split() else {
-            if ui.button("Split tool…").clicked() {
+            if ui.button(ToolKind::Split.button()).clicked() {
                 self.tools.open(ToolKind::Split);
             }
             return;
@@ -1361,14 +1379,14 @@ impl ViewerBehavior<'_> {
             ToolKind::Split.says(&"pick the body, then the datum plane"),
         );
         seats_row(ui, tool.seats(), &self.theme);
-        self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Split, |_| Ok(tool.op()?));
     }
 
     /// The transform tool's panel: one body pick plus the placement
     /// fields, and the one committed edit.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.transform() else {
-            if ui.button("Transform tool…").clicked() {
+            if ui.button(ToolKind::Transform.button()).clicked() {
                 self.tools.open(ToolKind::Transform);
             }
             return;
@@ -1401,7 +1419,7 @@ impl ViewerBehavior<'_> {
             );
             angle_picker(ui, "transform_angle", &mut self.drafts.angle_unit);
         });
-        self.tool_commit_row(ui, "Commit transform", ToolKind::Transform, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Transform, |drafts| {
             Ok(tool.op(
                 drafts.lengths(drafts.transform_translation)?,
                 scalars(drafts.transform_axis)?,
@@ -1420,7 +1438,7 @@ impl ViewerBehavior<'_> {
     /// boolean seat refuses.
     pub(crate) fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.pattern() else {
-            if ui.button("Pattern tool…").clicked() {
+            if ui.button(ToolKind::Pattern.button()).clicked() {
                 self.tools.open(ToolKind::Pattern);
             }
             return;
@@ -1484,24 +1502,19 @@ impl ViewerBehavior<'_> {
                 });
             }
         }
-        self.tool_commit_row(
-            ui,
-            "Commit pattern",
-            ToolKind::Pattern,
-            |drafts| match drafts.pattern_kind {
-                PatternKindChoice::Linear => Ok(tool.linear_op(
-                    drafts.pattern_output,
-                    drafts.pattern_count,
-                    scalars(drafts.pattern_direction)?,
-                    drafts.length(drafts.pattern_spacing)?,
-                )?),
-                PatternKindChoice::Circular => Ok(tool.circular_op(
-                    drafts.pattern_output,
-                    drafts.pattern_count,
-                    drafts.angle(drafts.pattern_step)?,
-                )?),
-            },
-        );
+        self.tool_commit_row(ui, ToolKind::Pattern, |drafts| match drafts.pattern_kind {
+            PatternKindChoice::Linear => Ok(tool.linear_op(
+                drafts.pattern_output,
+                drafts.pattern_count,
+                scalars(drafts.pattern_direction)?,
+                drafts.length(drafts.pattern_spacing)?,
+            )?),
+            PatternKindChoice::Circular => Ok(tool.circular_op(
+                drafts.pattern_output,
+                drafts.pattern_count,
+                drafts.angle(drafts.pattern_step)?,
+            )?),
+        });
     }
 
     /// The projection tool's panel — [`crate::combine::PartTool`],
@@ -1522,7 +1535,7 @@ impl ViewerBehavior<'_> {
     /// rather than having one silently substituted.
     pub(crate) fn projection_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.part() else {
-            if ui.button("Projection tool…").clicked() {
+            if ui.button(ToolKind::Part.button()).clicked() {
                 self.tools.open(ToolKind::Part);
             }
             return;
@@ -1542,7 +1555,7 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.part_half,
             &mut self.drafts.part_instance,
         );
-        self.tool_commit_row(ui, "Commit projection", ToolKind::Part, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Part, |drafts| {
             Ok(match drafts.part_select {
                 PartSelectChoice::Half => tool.half_op(drafts.part_half)?,
                 PartSelectChoice::Instance => tool.instance_op(drafts.part_instance)?,
@@ -1560,7 +1573,7 @@ impl ViewerBehavior<'_> {
     /// which [`duplicate_note`] states.
     pub(crate) fn duplicate_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.duplicate() else {
-            if ui.button("Duplicate tool…").clicked() {
+            if ui.button(ToolKind::Duplicate.button()).clicked() {
                 self.tools.open(ToolKind::Duplicate);
             }
             return;
@@ -1568,9 +1581,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
         seats_row(ui, tool.seats(), &self.theme);
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
-        self.tool_commit_row(ui, "Commit duplicate", ToolKind::Duplicate, |_| {
-            Ok(tool.op()?)
-        });
+        self.tool_commit_row(ui, ToolKind::Duplicate, |_| Ok(tool.op()?));
     }
 
     /// The blend tool's panel: activation, the freeze sentence, the
@@ -1590,7 +1601,7 @@ impl ViewerBehavior<'_> {
         // door is re-borrowed at the click.
         let Some((target, count)) = self.tools.blend().map(|tool| (tool.target(), tool.count()))
         else {
-            if ui.button("Blend tool…").clicked() {
+            if ui.button(ToolKind::Blend.button()).clicked() {
                 self.tools.open(ToolKind::Blend);
             }
             return;
@@ -1690,7 +1701,7 @@ impl ViewerBehavior<'_> {
     pub(crate) fn blend_commit_row(&mut self, ui: &mut egui::Ui, count: usize) {
         let mut close = false;
         ui.horizontal(|ui| {
-            if ui.button("Commit blend").clicked() {
+            if ui.button(ToolKind::Blend.commit()).clicked() {
                 match self.drafts.length(self.drafts.blend_size) {
                     Ok(size) => {
                         let op: Option<Result<SessionOp, BlendError>> =
@@ -1743,13 +1754,12 @@ impl ViewerBehavior<'_> {
     pub(crate) fn tool_commit_row(
         &mut self,
         ui: &mut egui::Ui,
-        label: &str,
         kind: ToolKind,
         op: impl FnOnce(&Drafts) -> Result<SessionOp, CommitFault>,
     ) {
         let mut close = false;
         ui.horizontal(|ui| {
-            if ui.button(label).clicked() {
+            if ui.button(kind.commit()).clicked() {
                 match op(self.drafts) {
                     Ok(op) => self.ops.push(op),
                     Err(error) => {
