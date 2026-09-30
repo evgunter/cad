@@ -4,6 +4,7 @@ kind: issue
 title: an Assertion row shows that it exists and never its verdict
 status: review
 branch: author/assertion-verdict
+pr: 3535
 opened: 2026-09-30
 priority: P0
 cost: M
