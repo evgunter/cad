@@ -46,7 +46,7 @@ fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
     let mut b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
     let cyl = b
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             faces[0],
             FaceSurface::New {
                 surface: cylinder(),
@@ -55,7 +55,7 @@ fn two_axis_faces() -> (Body<f64>, [SurfaceKey; 2]) {
         )
         .unwrap();
     let cone = b
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             faces[1],
             FaceSurface::New {
                 surface: cone(),

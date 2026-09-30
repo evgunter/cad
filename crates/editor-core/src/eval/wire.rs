@@ -5338,8 +5338,12 @@ mod place_tests {
             },
             sense: true,
         };
-        let stamped = b.set_face_surface(faces[0], cylinder(0.25)).unwrap();
-        let pending = b.set_face_surface(faces[1], cylinder(0.3)).unwrap();
+        let stamped = b
+            .set_face_surface_stranding_for_tests(faces[0], cylinder(0.25))
+            .unwrap();
+        let pending = b
+            .set_face_surface_stranding_for_tests(faces[1], cylinder(0.3))
+            .unwrap();
         let axis = AxisSource::from_lowered(b"D");
         b.set_surface_axis_source(stamped, axis.clone()).unwrap();
         b.set_surface_axis_source(pending, axis.clone()).unwrap();

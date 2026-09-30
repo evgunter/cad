@@ -262,6 +262,16 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          surgery scope",
     ),
     (
+        "set_face_surface_stranding_for_tests",
+        "the failure-injection twin of `set_face_surface`: the same door with its \
+         stranding refusal taken out, so the same postcondition",
+    ),
+    (
+        "set_face_surfaces_describing",
+        "declares the tier-1 postcondition directly, on `set_face_surface`'s terms: its \
+         swaps and re-descriptions can orphan keys",
+    ),
+    (
         "set_edge_curve",
         "declares the tier-1 postcondition directly (a curve swap can orphan a key), on \
          `set_face_surface`'s terms",

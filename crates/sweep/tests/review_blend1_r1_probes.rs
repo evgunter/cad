@@ -96,7 +96,7 @@ fn tilt_raised_cap(
         normal: normal * theta.cos() + u_ref.cross(normal) * theta.sin(),
         u_ref,
     };
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         cap,
         FaceSurface::New {
             surface: tilted,

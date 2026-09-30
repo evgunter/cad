@@ -250,7 +250,7 @@ fn r1_e2e_direct_door_over_one_of_two_with_an_unmintable_neighbour() {
     // A cylinder the box's face cannot be charted on: structurally
     // sound, tier-2 clean, and the whole-body mint refuses it.
     let victim = faces_of(&pair, bx)[0];
-    pair.set_face_surface(
+    pair.set_face_surface_stranding_for_tests(
         victim,
         topo::FaceSurface::New {
             surface: geom::Surface::Cylinder {

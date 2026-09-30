@@ -3061,7 +3061,7 @@ mod tests {
             .expect("the diagonal splits the top face");
         let diagonal = (p1 - p0).norm();
         let along = (p1 - p0) * (1.0 / diagonal);
-        body.set_face_surface(
+        body.set_face_surface_stranding_for_tests(
             half.face,
             crate::euler::FaceSurface::New {
                 surface: plane(p0, along, diagonal),
