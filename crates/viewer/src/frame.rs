@@ -227,8 +227,8 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, NodeStanding, ParamName, ParseError, ProductError,
-    ProductErrorKind, RecipeNodeId, SlotId,
+    ChecksReport, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
+    PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault, SlotId,
 };
 use pncad::select::HitTestError;
 
@@ -244,7 +244,10 @@ use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
-use crate::session::{AtRestBadge, DeclareOffer, OpOutcome, Outstanding, Refusal, SessionOp};
+use crate::parts::PartFiles;
+use crate::session::{
+    AtRestBadge, DeclareOffer, OpOutcome, Outstanding, Refusal, SessionOp, VersionOffer,
+};
 use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
 
@@ -791,7 +794,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. } => true,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => true,
     }
 }
 
@@ -2758,6 +2762,46 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
         | Refusal::Workspace(_)
         | Refusal::SelfInstance { .. }
         | Refusal::ProfileEditStale { .. } => None,
+    }
+}
+
+/// **The accept offer an instance's own failure makes** — the offer to
+/// move its part's references onto the version the store holds, when
+/// the failure is that the reference's pin no longer holds. The part is
+/// named by its file in `files`, as the instance's row names it. `None`
+/// for every other failure.
+///
+/// Unlike [`creation_offer`] and [`declare_offer`], it is read off a
+/// landed run rather than a refused batch, so nothing holds it: it
+/// stands exactly as long as the row it is drawn under.
+///
+/// The outer pattern takes the one [`NodeErrorKind`] arm a part's
+/// resolution fails through; the decision is over that arm's faults.
+pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionOffer> {
+    let NodeErrorKind::Part { doc_ref, fault } = kind else {
+        return None;
+    };
+    match fault {
+        PartFault::Unresolved { fault, .. } => match fault {
+            ResolveFault::PinMismatch => Some(VersionOffer::new(
+                doc_ref.id,
+                files.name(doc_ref.id).to_owned(),
+            )),
+            // The part's file cannot be read here, or records another
+            // ε: there is no version of it this process could accept.
+            ResolveFault::EpsilonSeam | ResolveFault::Unresolved => None,
+        },
+        // The reference resolved, or was never tried: the pin is not
+        // what failed. A part root failing on a mismatch of its OWN
+        // references is repaired in that part, not here.
+        PartFault::NoResolver
+        | PartFault::PartRootFailed { .. }
+        | PartFault::PartRootPoisoned { .. }
+        | PartFault::RootFailureUnrecorded { .. }
+        | PartFault::PartProduct { .. }
+        | PartFault::ReferenceCycle { .. }
+        | PartFault::DepthExceeded
+        | PartFault::NotEntered => None,
     }
 }
 

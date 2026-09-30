@@ -676,6 +676,17 @@ impl Refusal {
         format!("declare {what} and commit the boolean?")
     }
 
+    /// The accept-offer question, and its one home — shown under an
+    /// instance row whose pin no longer holds. It names the part by
+    /// its file, as the row does, and says the accept reaches every
+    /// instance of it.
+    pub fn version_question(offer: &VersionOffer) -> String {
+        format!(
+            "accept the updated version of {}, at every instance of it?",
+            offer.part
+        )
+    }
+
     /// **One pair an offer declares, as the panel names it**: each
     /// side's operand through the chrome's one spelling of a node, and
     /// the class the declaration asserts. The face within each operand
@@ -964,6 +975,33 @@ impl DeclareOffer {
             b: self.b,
             declare: self.findings.clone(),
         }
+    }
+}
+
+/// **The offer an instance whose pin no longer holds makes**: accept
+/// its part's updated version ([`crate::frame::version_offer`] reads
+/// it off the instance's own failure).
+///
+/// It names the part and nothing about versions: the failure line it is
+/// drawn under already names both pins in the store's words, and the
+/// version accepted is the one on disk at the click.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VersionOffer {
+    id: DocumentId,
+    part: String,
+}
+
+impl VersionOffer {
+    /// The offer for the part `id`, named by its file `part`.
+    pub(crate) fn new(id: DocumentId, part: String) -> Self {
+        Self { id, part }
+    }
+
+    /// **Accepting the offer**: every reference to the part moved onto
+    /// the store's version, one action at the session door, so one
+    /// undo.
+    pub fn accept(&self) -> SessionOp {
+        SessionOp::AcceptPartVersion { id: self.id }
     }
 }
 

@@ -112,7 +112,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 46;
+const OP_COUNT: usize = 47;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -325,6 +325,9 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
+        SessionOp::AcceptPartVersion {
+            id: DocumentId::derive("view1b-no-such-part"),
+        },
         SessionOp::EditProfile {
             node,
             base: pncad::document::ProfileProgram {
@@ -415,6 +418,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // protected from.
         SessionOp::AddPart { .. } => (44, false),
         SessionOp::Duplicate { .. } => (45, false),
+        // It commits one action to the history, as every insert does.
+        SessionOp::AcceptPartVersion { .. } => (46, false),
     }
 }
 
@@ -864,7 +869,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. } => false,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => false,
     }
 }
 
@@ -1466,7 +1472,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. } => false,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => false,
     }
 }
 

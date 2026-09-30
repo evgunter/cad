@@ -7,7 +7,7 @@ use pncad::document::{AssertionVerdict, RecipeNodeId, UnevaluatedReason};
 
 use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::frame;
-use crate::session::{Selection, SessionOp};
+use crate::session::{Refusal, Selection, SessionOp, VersionOffer};
 use crate::theme::Theme;
 use crate::tree::{self, Measured, RowStatus, TreeRow};
 
@@ -105,7 +105,24 @@ pub(crate) fn feature_row_ui(
     if let Some(to) = lines_under(ui, row, theme) {
         clicks.select = Some(to);
     }
+    if let Some(offer) = &row.version_offer
+        && version_offer_lines(ui, row.depth, offer, theme)
+    {
+        clicks.accept = Some(offer.accept());
+    }
     clicks
+}
+
+/// **The accept a pin-mismatched instance row offers, drawn** under
+/// its failure: the question, and the button that is the edit the
+/// failure's recourse names. Whether the button was clicked.
+fn version_offer_lines(ui: &mut egui::Ui, depth: usize, offer: &VersionOffer, theme: &Theme) -> bool {
+    advisory_line(ui, depth, &Refusal::version_question(offer), theme);
+    ui.horizontal(|ui| {
+        ui.add_space(message_indent(ui, depth));
+        ui.button("Accept updated version").clicked()
+    })
+    .inner
 }
 
 /// What a click on one drawn feature row asked for.
@@ -117,6 +134,9 @@ pub(crate) struct RowClicks {
     /// Whether the instance should now be hidden, when its toggle was
     /// clicked.
     pub(crate) hide: Option<bool>,
+    /// The operation accepting the row's [`TreeRow::version_offer`],
+    /// when its button was clicked.
+    pub(crate) accept: Option<SessionOp>,
 }
 
 /// **The lines under a row that a failure writes, drawn** — and the
@@ -291,6 +311,9 @@ impl ViewerBehavior<'_> {
                 hidden,
             });
         }
+        if let Some(accept) = clicks.accept {
+            self.ops.push(accept);
+        }
     }
 }
 
@@ -406,6 +429,7 @@ mod tests {
             note: None,
             repair_at: None,
             measured: None,
+            version_offer: None,
         }
     }
 
@@ -454,6 +478,7 @@ mod tests {
             note: None,
             repair_at: None,
             measured: None,
+            version_offer: None,
         };
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
@@ -500,6 +525,7 @@ mod tests {
             note: None,
             repair_at,
             measured: None,
+            version_offer: None,
         }
     }
 
@@ -1117,6 +1143,7 @@ mod tests {
         super::RowClicks {
             select: select.get(),
             hide: hide.get(),
+            accept: None,
         }
     }
 
@@ -1132,6 +1159,7 @@ mod tests {
             note: None,
             repair_at: None,
             measured: None,
+            version_offer: None,
         }
     }
 
