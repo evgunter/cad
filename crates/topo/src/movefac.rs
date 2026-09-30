@@ -830,14 +830,13 @@ mod tests {
         body.get_half_edge_mut(b2).unwrap().edge = ea;
     }
 
-    /// **A neighbour in another shell would join two components.** The
-    /// detached digon's shell before the partition, and a pillow in
+    /// The detached digon's shell before the partition, and a pillow in
     /// another shell traded one edge's mates with the seed face and the
     /// other's with the digon: each mate hop names its edge, and the
-    /// walk would reach the digon only through the pillow, which the
-    /// shell does not list, and leave the two in one shell.
-    #[test]
-    fn movefac_refuses_a_neighbour_in_another_shell() {
+    /// walk reaches the digon only through the pillow. Returns the body,
+    /// the shell, the pillow's shell and faces, and the pillow face the
+    /// seed face's walk reaches last, which the worklist pops first.
+    fn bridged_through_a_pillow() -> (Body<f64>, ShellKey, ShellKey, [FaceKey; 2], FaceKey) {
         let (mut body, shell, seed_face, promoted) = detached_digons(1);
         let seed = body.mvfs(p(9.0), true).unwrap();
         let seg = body
@@ -862,13 +861,53 @@ mod tests {
         let y = outer_first(&body, promoted[0]);
         trade_mates(&mut body, x, seg.he_plus);
         trade_mates(&mut body, y, chord.he_plus);
-        // The pillow face the seed face's walk reaches last, which the
-        // worklist pops first.
-        let neighbour = body
-            .get_loop(body.get_half_edge(seg.he_plus).unwrap().parent_loop)
-            .unwrap()
-            .face;
-        assert_eq!(body.get_face(neighbour).unwrap().shell, seed.shell);
+        let face_of = |he| {
+            let l = body.get_half_edge(he).unwrap().parent_loop;
+            body.get_loop(l).unwrap().face
+        };
+        let reached = face_of(seg.he_plus);
+        (body, shell, seed.shell, [seed.face, chord.face], reached)
+    }
+
+    /// **A neighbour in another shell would join two components**: the
+    /// walk would reach the digon through the pillow ([`bridged_through_a_pillow`]),
+    /// which the shell does not list, and leave the two in one shell.
+    /// First the pillow's faces as its own shell has them, then with
+    /// their `shell` torn to the walked one, which still does not list
+    /// them.
+    #[test]
+    fn movefac_refuses_a_neighbour_in_another_shell() {
+        for torn_back in [false, true] {
+            let (mut body, shell, _, pillow, reached) = bridged_through_a_pillow();
+            if torn_back {
+                for face in pillow {
+                    body.get_face_mut(face).unwrap().shell = shell;
+                }
+            }
+            assert_refuses_torn(
+                &mut body,
+                shell,
+                &EulerOpError::NotOwned {
+                    child: EntityId::Face(reached),
+                    owner: EntityId::Shell(shell),
+                },
+            );
+        }
+    }
+
+    /// A face the shell lists whose `shell` is torn to another: the walk
+    /// reaches it from the seed face, and the partition would leave it
+    /// naming the other shell.
+    #[test]
+    fn movefac_refuses_a_face_it_lists_that_names_another_shell() {
+        let (mut body, shell, seed_face, _) = detached_digons(1);
+        let other = body.mvfs(p(9.0), true).unwrap();
+        let x = outer_first(&body, seed_face);
+        let mate = body.mate(x).unwrap();
+        let l = body.get_half_edge(mate).unwrap().parent_loop;
+        let neighbour = body.get_loop(l).unwrap().face;
+        assert_ne!(neighbour, seed_face);
+        body.get_face_mut(neighbour).unwrap().shell = other.shell;
         assert_refuses_torn(
             &mut body,
             shell,
