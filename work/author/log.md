@@ -1353,3 +1353,11 @@ its own proof (all 1369 pairs of 37 steps agree with the old rule).
 
 Merged over 42 commits of `main` that changed no viewer file; GitHub
 reported a clean merge with nothing to resolve.
+
+## 2026-09-30 — AUTH-7 dispatched: a measure shows its value
+
+Next P0 on the slate. Tiers 1 and 2 of the row: the value, or the kernel's typed absence and the door it names. The clearance consumer (tier 3) is a design item and is split out. Verified before specifying: the kernel exposes both payloads through `pncad::document`, and nothing in the viewer reads them.
+
+`a-negative-extrude-distance-probes-as-valid` is re-priced from `E` to `M` with `design: true`. Its own text says the fix is a kernel/document decision (does a negative distance build, or does a thickness get a declared domain), so it is a design fork, not a drive-by.
+
+`addboolean-doc-names-a-vocabulary-that-does-not-exist` still waits on EDIT's `DocEdit` vocabulary, as `plan.md` says.
