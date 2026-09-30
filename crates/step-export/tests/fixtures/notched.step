@@ -5,7 +5,7 @@ FILE_NAME('notched.step', '1970-01-01T00:00:00', (''), (''), 'step-export', '', 
 FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
 ENDSEC;
 DATA;
-#1 = CARTESIAN_POINT('', (1.0, 0.6119288125423017, 1.0));
+#1 = CARTESIAN_POINT('', (1.0, 0.6119288125423016, 1.0));
 #2 = DIRECTION('', (0.0, 0.0, 1.0));
 #3 = DIRECTION('', (1.0, -0.0, -0.0));
 #4 = AXIS2_PLACEMENT_3D('', #1, #2, #3);
