@@ -72,8 +72,10 @@ payloads: `PlaneRung` (under `CarrierEqError::Escalated`,
 ## More rungs (TOPO, PR 3513)
 
 PR 3513 adds, re-exported beside `BooleanDecision`: `Coincide`,
-`LeverArm`, `WallRung` and `SectionRadius` one rung under
-`BooleanDecision`; `NeighbourOffset`, carried by
+`DeclarationRead` (what a coincidence's door read of the pair's
+declaration, carried with its `Coincide` by
+`BooleanDecision::Coincidence`), `LeverArm`, `WallRung` and
+`SectionRadius` one rung under `BooleanDecision`; `NeighbourOffset`, carried by
 `BooleanError::CoplanarNeighbours { offset, .. }`; and
 `RestZipFrontier`, carried by `BooleanError::RestZipUnsupported { what }`.
 The last two are payload rungs of `BooleanError` itself, so the sweep

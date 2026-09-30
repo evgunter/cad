@@ -3217,12 +3217,13 @@ mod declaration_order_rows {
         let cube = |map: fn(f64, f64, f64, f64) -> Point3<f64>| {
             mapped_cube::<f64>(move |u, v, w| map(u, v, w, d), tol)
         };
-        let poses: [(
-            &str,
+        type Pose = (
+            &'static str,
             crate::body::Body<f64>,
             crate::body::Body<f64>,
             [f64; 3],
-        ); 3] = [
+        );
+        let poses: [Pose; 3] = [
             (
                 "G2, a tilted block on a block",
                 brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol),
