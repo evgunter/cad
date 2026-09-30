@@ -101,8 +101,8 @@ use crate::entity::{EntityId, HalfEdgeKey, LoopBoundary, SolidKey};
 use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::fixtures::{
-    KillAnchorFault, deep_snapshot, kill_anchor_faults, ops_genus2, ops_holed_box, ops_ring_bridge,
-    ops_strut_cube,
+    KillAnchorFault, assert_kill_refuses, deep_snapshot, kill_anchor_faults, ops_genus2,
+    ops_holed_box, ops_ring_bridge, ops_strut_cube,
 };
 use crate::test_support_fixtures::declined_cube;
 use geom_core::Tol;
@@ -1497,10 +1497,7 @@ impl AnchorCall {
 /// The chord `mekr_chord` derives at `site`: the line between its two
 /// anchor vertices' points, or the scaffolding circle where both are one
 /// vertex. `None` where an anchor does not resolve.
-fn mekr_site_chord(
-    body: &Body<f64>,
-    site: MekrSite,
-) -> Option<geom_brep::EdgeCurveSpec<f64>> {
+fn mekr_site_chord(body: &Body<f64>, site: MekrSite) -> Option<geom_brep::EdgeCurveSpec<f64>> {
     let start = |he| body.get_half_edge(he).map(|h| h.start);
     let lone = |l| match body.get_loop(l)?.boundary {
         LoopBoundary::Empty { vertex } => Some(vertex),
@@ -1615,7 +1612,11 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
     ("null strut on the declined cube", |tol| {
         let cube = declined_cube::<f64>(tol);
         let mut body = cube.body;
-        let he = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let he = body
+            .get_vertex(cube.seed.vertex)
+            .unwrap()
+            .emanating
+            .unwrap();
         let site = MevSite::Fan { he1: he, he2: he };
         body.mev_null(site, crate::NewVertexSide::Above).unwrap();
         body
@@ -1623,7 +1624,11 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
     ("null fan split on the declined cube", |tol| {
         let cube = declined_cube::<f64>(tol);
         let mut body = cube.body;
-        let he1 = body.get_vertex(cube.seed.vertex).unwrap().emanating.unwrap();
+        let he1 = body
+            .get_vertex(cube.seed.vertex)
+            .unwrap()
+            .emanating
+            .unwrap();
         let orbit = body.vertex_orbit(he1).unwrap();
         let site = MevSite::Fan {
             he1,
@@ -2310,4 +2315,390 @@ fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
         refused_per_tear.iter().all(|&n| n > 0),
         "refusals per tear kind {REVERT_TEARS:?}: {refused_per_tear:?}"
     );
+}
+
+// ----------------------------------------------------------------------
+// The removal proofs' rows: each kill removes a record another record
+// still names. Every row is the measured witness of a filed row, or the
+// constructed case it names, and every one returns `Ok` with the name
+// left dangling where its proof is absent. Each runs through every door
+// that runs its operator's plan, inside a surgery scope
+// (`fixtures::assert_kill_refuses`), so it holds with debug assertions
+// off as on; the release-profile job runs this module.
+// ----------------------------------------------------------------------
+
+/// Asserts that `kev(he)` refuses `torn` with the body deep-unchanged
+/// through each door: `kev_describing` with every merged member
+/// re-described as its chord where the plan reads members, which takes
+/// the describing door past its gates to the writes wherever the plan
+/// passes, then `kev`, and `kev_merged_members`.
+fn assert_kev_refuses(body: &mut Body<f64>, he: HalfEdgeKey, torn: &EulerOpError) {
+    let tol = Tol::witness();
+    let chords = crate::seqgen::try_chord_redescriptions(body, he).unwrap_or_default();
+    assert_kill_refuses(body, torn, |b| b.kev_describing(he, &chords, tol));
+    assert_kill_refuses(body, torn, |b| b.kev(he));
+    assert_eq!(body.kev_merged_members(he).map(|_| ()), Err(torn.clone()));
+}
+
+/// Asserts that `kef(he)` and `kef_minting(he, tol)` refuse `torn` with
+/// the body deep-unchanged.
+fn assert_kef_refuses(body: &mut Body<f64>, he: HalfEdgeKey, torn: &EulerOpError) {
+    assert_kill_refuses(body, torn, |b| b.kef(he));
+    assert_kill_refuses(body, torn, |b| b.kef_minting(he, Tol::witness()));
+}
+
+/// Asserts that `mekr_chord(site)` and `mekr` handed the same chord
+/// refuse `torn` with the body deep-unchanged.
+fn assert_mekr_refuses(body: &mut Body<f64>, site: MekrSite, torn: &EulerOpError) {
+    let tol = Tol::witness();
+    let chord = mekr_site_chord(body, site).expect("the site's anchors resolve");
+    assert_kill_refuses(body, torn, |b| b.mekr_chord(site, tol));
+    assert_kill_refuses(body, torn, |b| b.mekr(site, chord, tol));
+}
+
+/// The first half-edge in arena order that starts at `end(he)` and is
+/// off the orbit `kev(he)` walks from the mate: the record the kill would
+/// leave starting at its dead far vertex.
+fn stray_at_the_far_vertex(body: &Body<f64>, he: HalfEdgeKey) -> HalfEdgeKey {
+    let m = body.mate(he).unwrap();
+    let w = body.get_half_edge(m).unwrap().start;
+    let orbit = body.vertex_orbit(m).unwrap();
+    body.half_edges()
+        .find(|&(x, data)| data.start == w && !orbit.contains(&x))
+        .map(|(x, _)| x)
+        .expect("a half-edge off the walk starts at the far vertex")
+}
+
+fn arena_halves(body: &Body<f64>) -> Vec<HalfEdgeKey> {
+    body.half_edges().map(|(k, _)| k).collect()
+}
+
+#[test]
+fn kev_refuses_a_far_vertex_a_torn_next_hides_from_its_walk() {
+    // `kill_anchors_on_torn_bodies`' first `NextForeign` witness: two
+    // `next` tears close the far vertex's orbit early, so the walk from
+    // the mate misses a half-edge that starts there.
+    let mut body = ops_ring_bridge(Tol::witness()).body;
+    let halves = arena_halves(&body);
+    body.get_half_edge_mut(halves[5]).unwrap().next = halves[37];
+    body.get_half_edge_mut(halves[11]).unwrap().next = halves[1];
+    let he = halves[0];
+    let stray = stray_at_the_far_vertex(&body, he);
+    assert_kev_refuses(&mut body, he, &EulerOpError::OrbitBroken { he: stray });
+}
+
+#[test]
+fn kev_refuses_a_far_vertex_a_torn_bijection_hides_from_its_walk() {
+    // The strut cube with one `EdgeBijection` tear, `kev(halves[8])`:
+    // the torn edge claims `halves[17]`, so the orbit walk through it
+    // leaves the far vertex's fan short of a half-edge that starts there.
+    let mut body = ops_strut_cube(Tol::witness()).body;
+    let halves = arena_halves(&body);
+    let edge = body.get_half_edge(halves[23]).unwrap().edge;
+    let torn = body.get_edge_mut(edge).unwrap();
+    (torn.he_plus, torn.he_minus) = (halves[23], halves[17]);
+    let he = halves[8];
+    let stray = stray_at_the_far_vertex(&body, he);
+    assert_kev_refuses(&mut body, he, &EulerOpError::OrbitBroken { he: stray });
+}
+
+#[test]
+fn kev_refuses_a_far_vertex_a_torn_start_puts_a_half_edge_on() {
+    // A `StartForeign` tear on the declined cube: a half-edge of another
+    // vertex torn to start at the far vertex, where no walk reaches it.
+    let mut body = declined_cube::<f64>(Tol::witness()).body;
+    let halves = arena_halves(&body);
+    let vertices: Vec<_> = body.vertices().map(|(k, _)| k).collect();
+    body.get_half_edge_mut(halves[0]).unwrap().start = vertices[1];
+    let he = halves[3];
+    assert_eq!(stray_at_the_far_vertex(&body, he), halves[0]);
+    let torn = EulerOpError::OrbitBroken { he: halves[0] };
+    assert_kev_refuses(&mut body, he, &torn);
+}
+
+#[test]
+fn kev_refuses_a_far_vertex_a_torn_empty_loop_holds() {
+    // A loop of the declined cube torn `Empty` at the far vertex: the
+    // kill would leave it holding a dead vertex.
+    let mut body = declined_cube::<f64>(Tol::witness()).body;
+    let halves = arena_halves(&body);
+    let vertices: Vec<_> = body.vertices().map(|(k, _)| k).collect();
+    let (l, _) = body.loops().next().unwrap();
+    body.get_loop_mut(l).unwrap().boundary = LoopBoundary::Empty {
+        vertex: vertices[0],
+    };
+    let he = halves[1];
+    let m = body.mate(he).unwrap();
+    assert_eq!(body.get_half_edge(m).unwrap().start, vertices[0]);
+    assert_kev_refuses(&mut body, he, &EulerOpError::LoopCycleBroken { r#loop: l });
+}
+
+#[test]
+fn kev_refuses_a_mate_whose_own_edge_is_another() {
+    // An `EdgeBijection` tear on the declined cube: `halves[0]`'s edge
+    // claims `halves[3]`, whose own edge is another. Unchecked, the kill
+    // removes that edge's half, and the half its edge used to claim is
+    // left naming the dead edge.
+    let mut body = declined_cube::<f64>(Tol::witness()).body;
+    let halves = arena_halves(&body);
+    let (he, m) = (halves[0], halves[3]);
+    let edge = body.get_half_edge(he).unwrap().edge;
+    let torn = body.get_edge_mut(edge).unwrap();
+    (torn.he_plus, torn.he_minus) = (he, m);
+    assert_ne!(body.get_half_edge(m).unwrap().edge, edge);
+    assert_kev_refuses(
+        &mut body,
+        he,
+        &EulerOpError::NotSameEdge { he1: he, he2: m },
+    );
+}
+
+#[test]
+fn kef_refuses_a_mate_whose_own_edge_is_another() {
+    // A theta: the digon pillow with its back face split by a chord
+    // parallel to both edges. The front face's `a0` has its edge torn to
+    // claim the chord's `v1 → v0` half, which lies in another face and
+    // runs where `a0`'s mate runs, so every anchor the kill reads holds.
+    // Unchecked, the kill removes the chord's half and `a0`'s edge, and
+    // `a0`'s true mate is left naming the dead edge.
+    let tol = Tol::witness();
+    let pillow = crate::fixtures::pillow(tol);
+    let mut body = pillow.body;
+    let (a0, b0, b1) = (pillow.hes_a[0], pillow.hes_b[0], pillow.hes_b[1]);
+    let chord = body
+        .mef_chord(MefSite::Chords { he1: b0, he2: b1 }, tol)
+        .unwrap();
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    let torn = body.get_edge_mut(pillow.edges[0]).unwrap();
+    assert_eq!((torn.he_plus, torn.he_minus), (a0, b0));
+    torn.he_minus = chord.he_plus;
+    let refusal = EulerOpError::NotSameEdge {
+        he1: a0,
+        he2: chord.he_plus,
+    };
+    assert_kef_refuses(&mut body, a0, &refusal);
+}
+
+#[test]
+fn kef_and_kev_refuse_a_third_half_edge_naming_the_killed_edge() {
+    // A half-edge of the declined cube whose `edge` is torn to the edge
+    // the kill removes. Unchecked, the kill leaves it naming the dead
+    // edge.
+    let tol = Tol::witness();
+    let mut cube = declined_cube::<f64>(tol).body;
+    let halves = arena_halves(&cube);
+    let edge = cube.get_half_edge(halves[2]).unwrap().edge;
+    cube.get_half_edge_mut(halves[0]).unwrap().edge = edge;
+    let torn = EulerOpError::UnclaimedHalfEdge {
+        he: halves[0],
+        edge,
+    };
+    assert_kef_refuses(&mut cube, halves[2], &torn);
+    assert_kev_refuses(&mut cube, halves[2], &torn);
+}
+
+#[test]
+fn kemr_refuses_a_third_half_edge_naming_the_killed_edge() {
+    // The strut cube with a half-edge's `edge` torn to the strut's, then
+    // `kemr` at the strut. Unchecked, the kill leaves it naming the dead
+    // edge.
+    let fixture = ops_strut_cube(Tol::witness());
+    let mut body = fixture.body;
+    let (he1, he2) = (fixture.strut.he_plus, fixture.strut.he_minus);
+    let stray = arena_halves(&body)[0];
+    body.get_half_edge_mut(stray).unwrap().edge = fixture.strut.edge;
+    let torn = EulerOpError::UnclaimedHalfEdge {
+        he: stray,
+        edge: fixture.strut.edge,
+    };
+    assert_kill_refuses(&mut body, &torn, |b| b.kemr(he1, he2));
+}
+
+#[test]
+fn kef_refuses_a_dying_face_or_loop_another_record_names() {
+    // The declined cube: a third loop's `face` torn to the dying face,
+    // then a third face's `rings` torn to list the dying loop, then
+    // another shell torn to list the dying face.
+    let tol = Tol::witness();
+    let build = || {
+        let body = declined_cube::<f64>(tol).body;
+        let he = arena_halves(&body)[6];
+        let l1 = body.get_half_edge(he).unwrap().parent_loop;
+        let l2 = body
+            .get_half_edge(body.mate(he).unwrap())
+            .unwrap()
+            .parent_loop;
+        let f1 = body.get_loop(l1).unwrap().face;
+        let (third, _) = body.loops().find(|&(l, _)| l != l1 && l != l2).unwrap();
+        (body, he, l1, f1, third)
+    };
+    let (mut body, he, _, f1, third) = build();
+    body.get_loop_mut(third).unwrap().face = f1;
+    let torn = EulerOpError::KillLeavesDangling {
+        from: EntityId::Loop(third),
+        to: EntityId::Face(f1),
+    };
+    assert_kef_refuses(&mut body, he, &torn);
+
+    let (mut body, he, l1, _, third) = build();
+    let face = body.get_loop(third).unwrap().face;
+    body.get_face_mut(face).unwrap().rings.push(l1);
+    let torn = EulerOpError::KillLeavesDangling {
+        from: EntityId::Face(face),
+        to: EntityId::Loop(l1),
+    };
+    assert_kef_refuses(&mut body, he, &torn);
+
+    let (mut body, he, _, f1, _) = build();
+    let other = body.mvfs(p(9.0), true).unwrap();
+    body.get_shell_mut(other.shell).unwrap().faces.push(f1);
+    let torn = EulerOpError::KillLeavesDangling {
+        from: EntityId::Shell(other.shell),
+        to: EntityId::Face(f1),
+    };
+    assert_kef_refuses(&mut body, he, &torn);
+}
+
+/// A segment's solid beside a lone vertex's: the segment's `mvfs` keys,
+/// and the lone solid's.
+fn segment_beside_a_lone_solid() -> (
+    Body<f64>,
+    crate::euler::MvfsCreated,
+    crate::euler::MvfsCreated,
+) {
+    let mut body = Body::new();
+    let seed = body.mvfs(p(0.0), true).unwrap();
+    let site = MevSite::Lone {
+        r#loop: seed.r#loop,
+    };
+    body.mev_line(site, p(1.0), Tol::witness()).unwrap();
+    let lone = body.mvfs(p(5.0), true).unwrap();
+    (body, seed, lone)
+}
+
+/// A kill's refusal of a record it keeps naming one it removes.
+fn dangling(from: EntityId, to: EntityId) -> EulerOpError {
+    EulerOpError::KillLeavesDangling { from, to }
+}
+
+#[test]
+fn kvfs_refuses_a_lone_record_another_record_names() {
+    // A segment's solid beside a lone solid, one tear at a time: the
+    // segment's loop, face or shell torn to name the lone face, shell or
+    // solid, the segment's face torn to list the lone loop, its shell to
+    // list the lone face, its solid to list the lone shell, and a third
+    // solid's loop torn `Empty` at the lone vertex. Unchecked, each kill
+    // leaves the torn record naming a dead one.
+    use crate::euler::MvfsCreated;
+    type Tear = fn(&mut Body<f64>, &MvfsCreated, &MvfsCreated) -> EulerOpError;
+    let tears: [Tear; 7] = [
+        |b, seg, lone| {
+            b.get_loop_mut(seg.r#loop).unwrap().face = lone.face;
+            dangling(EntityId::Loop(seg.r#loop), EntityId::Face(lone.face))
+        },
+        |b, seg, lone| {
+            b.get_face_mut(seg.face).unwrap().shell = lone.shell;
+            dangling(EntityId::Face(seg.face), EntityId::Shell(lone.shell))
+        },
+        |b, seg, lone| {
+            b.get_shell_mut(seg.shell).unwrap().solid = lone.solid;
+            dangling(EntityId::Shell(seg.shell), EntityId::Solid(lone.solid))
+        },
+        |b, seg, lone| {
+            b.get_face_mut(seg.face).unwrap().rings.push(lone.r#loop);
+            dangling(EntityId::Face(seg.face), EntityId::Loop(lone.r#loop))
+        },
+        |b, seg, lone| {
+            b.get_shell_mut(seg.shell).unwrap().faces.push(lone.face);
+            dangling(EntityId::Shell(seg.shell), EntityId::Face(lone.face))
+        },
+        |b, seg, lone| {
+            b.get_solid_mut(seg.solid).unwrap().shells.push(lone.shell);
+            dangling(EntityId::Solid(seg.solid), EntityId::Shell(lone.shell))
+        },
+        |b, _, lone| {
+            let third = b.mvfs(p(9.0), true).unwrap();
+            b.get_loop_mut(third.r#loop).unwrap().boundary = LoopBoundary::Empty {
+                vertex: lone.vertex,
+            };
+            EulerOpError::LoopCycleBroken {
+                r#loop: third.r#loop,
+            }
+        },
+    ];
+    for tear in tears {
+        let (mut body, seg, lone) = segment_beside_a_lone_solid();
+        let torn = tear(&mut body, &seg, &lone);
+        assert_kill_refuses(&mut body, &torn, |b| b.kvfs(lone.solid));
+    }
+}
+
+#[test]
+fn mekr_refuses_an_empty_ring_a_torn_half_edge_claims() {
+    // An `Empty` ring (the strut killed from its root), and two `Empty`
+    // loops of one face (the segment killed), each beside a bystander
+    // segment's solid whose plus half is torn to claim the ring.
+    // Unchecked, the kill removes the ring the half-edge claims.
+    let tol = Tol::witness();
+    for build in [EMPTY_RING_BESIDE_A_CYCLE, TWO_EMPTY_LOOPS] {
+        let mut body = (build.1)(tol);
+        let empties: Vec<_> = body
+            .loops()
+            .filter(|(_, l)| matches!(l.boundary, LoopBoundary::Empty { .. }))
+            .map(|(k, _)| k)
+            .collect();
+        let ring = *empties.last().unwrap();
+        let face = body.get_loop(ring).unwrap().face;
+        assert!(body.get_face(face).unwrap().rings.contains(&ring));
+        let site = match empties[..] {
+            [_] => {
+                let (target, _) = body
+                    .half_edges()
+                    .find(|(_, h)| h.parent_loop != ring)
+                    .unwrap();
+                MekrSite::EmptyRing { target, ring }
+            }
+            [target, _] => MekrSite::BothEmpty { target, ring },
+            _ => unreachable!("{}: one or two empty loops", build.0),
+        };
+        let seed = body.mvfs(p(7.0), true).unwrap();
+        let lone = MevSite::Lone {
+            r#loop: seed.r#loop,
+        };
+        let bystander = body.mev_line(lone, p(8.0), tol).unwrap();
+        body.get_half_edge_mut(bystander.he_plus)
+            .unwrap()
+            .parent_loop = ring;
+        let torn = EulerOpError::LoopCycleBroken { r#loop: ring };
+        assert_mekr_refuses(&mut body, site, &torn);
+    }
+}
+
+#[test]
+fn mekr_refuses_a_cycle_ring_another_face_lists() {
+    // The holed box: a side face's `rings` torn to list the top face's
+    // hole ring. Unchecked, the ring's own face drops it and the side
+    // face is left listing a dead loop.
+    let hb = ops_holed_box(Tol::witness());
+    let mut body = hb.body;
+    let ring = hb.plug.ring;
+    let top = body.get_loop(ring).unwrap().face;
+    let outer = body.get_face(top).unwrap().outer;
+    let member = |l| {
+        body.half_edges()
+            .find(|(_, h)| h.parent_loop == l)
+            .map(|(k, _)| k)
+            .unwrap()
+    };
+    let site = MekrSite::Cycles {
+        target: member(outer),
+        ring: member(ring),
+    };
+    let (side, _) = body
+        .faces()
+        .find(|&(f, data)| f != top && data.rings.is_empty())
+        .unwrap();
+    body.get_face_mut(side).unwrap().rings.push(ring);
+    let torn = dangling(EntityId::Face(side), EntityId::Loop(ring));
+    assert_mekr_refuses(&mut body, site, &torn);
 }
