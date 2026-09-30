@@ -1155,3 +1155,27 @@ A pair boolean whose seam chain runs along a curved face (a cylinder across a pl
 - `curved-seam-pieces-have-no-ranking-direction` (P0, design): the open question.
 - `a-plane-split-of-a-curved-face-refuses-as-an-emission-bug` (P0, design): the split ranker's sibling.
 - `a-slot-across-a-sunk-cylinder-boss-refuses-duplicate-merged-face-name` (P0): found while looking for a fixture.
+
+## 2026-09-30 — a merged parent held as several faces (PR 3547)
+
+The pair boolean gave every kernel merge group a bare `Merged(set)` name. A slab slot across a sunk boss therefore minted two faces under one name, and the table refused `Duplicate`.
+
+**The fix.** Merged parents are now keyed by the set of operand-face entities their merges list, as N2 says, and never by name:
+- A parent held by one face keeps its bare name, and tied parents stay tied.
+- A parent held by several faces takes `Merged(set)` plus a `Borders` tag.
+
+The recipe now refuses one step later, with a typed missing rule: the wire row's `MergedChordConstituents`, which is now P0 with two witnesses.
+
+**Review.** One blocking finding: the first version keyed by name, which merged tied parents into one and refused them as an emission bug. It was fixed, and the reviewer's repro is now a test. The review also exposed an unrecorded single-holder group that would make `GroupResized` report `now = 0`; that is fixed too.
+
+Not added: a positive synthetic test that two holders get distinct `Borders`. No cheap body gets through the edge pass. The end-to-end test gains that positive check when the chord rule lands.
+
+## 2026-09-30 — curved seam pieces: designer pair (fork-log row 22, PR 3553)
+
+Put to a designer pair (byte 119). Both reject the framing "which direction?": the fixture's seam is two parallel lines. After two rounds they converged:
+- edge pieces take `Ends`, the sorted end-vertex names, and the union's cell count retires with them;
+- crossing vertices are ranked along the crossed edge by its curve parameter;
+- the Split's same-side face pieces take `Keeps`;
+- nothing refuses.
+
+A separate question for Ev is whether section chords (Ev's A2 on PR 512) take `Ends`. The probes filed `a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank` (P0; a lane is diagnosing it) and `edge-dir-is-a-chord-so-curved-edge-pieces-misrank` (P1).
