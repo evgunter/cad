@@ -3317,3 +3317,40 @@ Tier SINGLE, full. It runs on a fresh target.
 
 `loop-reparenting-doors…` waits for the null-kill unit, which works
 in the same site-mint code.
+
+## PR 3506's review: APPROVE-WITH-FIXES, one MAJOR; fix pass out (2026-09-30)
+
+The single full review of `80f2c8cd80` took 370,001 tokens, 187 tools
+and 28 min (harness); archived privately. The torus half is sound as
+executed.
+
+**MAJOR (accepted): one orientation table serves two doors that
+accept different outcomes.**
+- The Boolean's Rest verify passes both orientations, so `NonZero` is
+  right there.
+- The merge passes only `SameOriented`, so its pass set is Positive.
+- As built, the merge's in-band arm offers "…or clearly opposite ways"
+  and a valued tolerance, which lead only to its opposite-orientation
+  refusal. That refusal itself fails the shape guard four ways.
+- The new rows pinned the shared sentence. The fix minted a fresh
+  instance of the (iv) fork it closed.
+
+**Also accepted:**
+- The orientation lever names a move that cannot reach the refusal:
+  the margin is cos·arm, with a chord of 0 on a closed shared edge.
+  The chord reading is filed.
+- `gate_maximal_faces` offers "declare" on a same-operand pair.
+- The pierce story is not reached through the Boolean's front door.
+  Degenerate tori still stop at `CurvedPierceUnsupported`, with the
+  declare menu, or at `Containment`, which says "the solid itself is
+  fine". Either pin it or file it.
+- Revolve's `rc − radius` fork is filed on its owner's slate.
+- `LOOP_WINDING` should be `NonZero`.
+- "No production text moves" is false (`chart_region`).
+- `TorusConvention` moves to the crate that owns the torus convention,
+  so geom-brep can share it.
+- The offset `INVALID` encoding is filed.
+- The crossings get seam notes.
+- The `unreachable!` becomes typed.
+
+The fix pass runs on the loop-anchor target.
