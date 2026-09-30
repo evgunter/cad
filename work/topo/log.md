@@ -4713,3 +4713,41 @@ real raise just below the offered ε, which must pass. For each
 It also tries to lie to the type, checks the split questions' pass
 sets, the `SelfCheck` reachability and `SpheresMeet`'s wiring, and
 runs mutants.
+
+## PR 3580's review: APPROVE-WITH-FIXES; fix pass out, with the describing door kept to PR 2527's shape (2026-09-30)
+
+The single full review at `8325571ad6` took 346,264 tokens, 179 tools
+and 4,849 s, on a green gate.
+
+**Confirmed:**
+- The keys-only refusal matches tier 3's `DescriptionNotAdjacent`
+  exactly over 328 swaps.
+- The refusals are atomic.
+- The bypass door is unreachable from non-test builds (`cargo tree`).
+- The four composers' 1,041 results are identical to base.
+
+**MINORs:**
+- A residual hole: both doors pass a swap that moves a face off its
+  boundary, left for tier 3 by a new prose obligation (S93 class).
+- 12 fixture sites take the bypass though the real doors serve them.
+- Two docs still cite the deleted clause.
+- The multi-chart order and the `repoint` tie-break are unpinned.
+- The refusal text is one message for two decisions.
+- Harmony with PR 2527's family.
+
+**Ruled (MINOR-6).** The describing door departs from Ev's PR 2527
+shape in two ways: it is not a superset of the plain door (a stranding
+`Shared` swap has no public door), and it carries unlisted edges by
+default. Ev said of a default in this family, "that's not great".
+- The option that keeps the ruling is mine to take (the PR 3156
+  lesson): the describing door accepts every spec, refuses an unlisted
+  stranded edge, and callers state their re-descriptions, through a
+  helper if useful.
+- The multi-chart shape stays, on its true reason: one call avoids an
+  observable `ScaffoldAtRest` intermediate.
+
+**MINOR-1.** The describing door checks its moved faces' residuals
+under its band. The plain door's gap is filed.
+
+The fix pass is out on the walk target. It must keep the composers'
+output identical, re-running the review's dump.
