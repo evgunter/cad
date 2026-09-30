@@ -1406,3 +1406,13 @@ Nine units closed. The flush boss-on-a-face union is now a refusal with a Declar
 **Fix pass reached the evaluator, so I read it before merging.** `probe::evaluate_with` became `evalseam::evaluate_beside`, with one `EvalOptions` spelling. The range probe now resolves through the seam's resolver instead of `None`, and both it and the judge prime only under the same resolver (`memo_under`). I checked that `same_resolver`'s pointer compare means something: `resolver_seam()` returns the session's one directory `Arc` or the one shared `NoFile::seam()`. `node_standing::` census on the head: 7 pass.
 
 **For Ev, separately:** `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added` (design). A union made flush by a later edit, or by a repaired ancestor, has no recourse but delete and re-add. The correctness review reads that as DM6's own reopening trigger. Filed without `needs_ev`.
+
+## 2026-09-30 — AUTH-10 dispatched: a held face pick is drawn; negative-extrude designers out
+
+**The P0 fork went to the designer pair** (`docs/prompts/designer.md`), dispatched together with one problem statement and no candidate answers. The blinding byte is on `analysis/design-fork/author-negative-extrude-2026-09-30`. The `[ev]` PR follows once the two reports are reconciled.
+
+**AUTH-10** takes the P1 `held-face-pick-is-invisible-in-the-viewport`, the add-datum form's latched face pick that nothing draws. The mate tool's held faces look undrawn as well, so the unit covers the class, not the one site. Review tier: correctness + style, as for every unit so far. The change reaches the viewport's marks, and possibly the shader, both shared ground.
+
+Not taken yet, with reasons:
+- `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
+- `no-row-holds-that-the-create-pane-offers-the-tools-it-has` is a harness-or-refactor choice across seven panels in a five-program file, and wants its own sitting.
