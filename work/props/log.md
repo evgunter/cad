@@ -2149,3 +2149,73 @@ Signed: (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `geom_core::SizedPass` gains `Negative` (a decision that passes on a definitely negative margin: `sector_shape`'s straightness rung off a strut), with its rows in `predicate.rs`'s pass-set tests and `geom_brep::recourse`'s no-unvalued-offer sweep. The Boolean's coincidence route still composes `COINCIDENCE_RECOURSE`, whose unvalued tolerance arm is `coincidence-recourse-says-lower-where-d4-says-tighten` on this slate. (TOPO implementer)
 - 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits two props paths. `geom_core::IndeterminatePayload` gains an arm for a margin at or inside the zero band ("margin m lies within the zero band (±z)", and the enclosure form), for the zero verdict of a decision that does not pass at zero, carried with its decided margin; the one production text it moves is `topo::chart_region`'s decided-zero echo (`definite_diag`), which claimed "lies inside the ambiguity band" before and now says the true thing. `geom::torus_tube` returns `Decided` (`decide_reported`) as `geom::ring_torus` does. The convention's closed type, `TorusConvention`, lives beside them one crate up in `crates/geom-brep/src/torus_convention.rs`. (TOPO, PR 3506 fix pass)
+
+## Back after eight days; the protocol moved under us (2026-09-29)
+
+Read on return, because the tracker and the experiment machinery both
+changed while PROPS was parked:
+
+- **The model A/B experiment is SUSPENDED** (2026-09-23,
+  `memories/experiments.md`). The 2026-09-20 HOLD entry above is
+  therefore **discharged, not lifted** — there is no longer an
+  experiment to hold for. `ab_band: 2400-2499` in `program.md` is
+  vestigial and stays until someone has a reason to touch it.
+- **Reviews are their own live experiment now**: dual OPUS concordance,
+  `docs/DUAL-REVIEW-PROTOCOL.md`, read before dispatching a dual. Two
+  Opus reviewers, same frozen head, fix pass off the adjudicated union.
+  Nothing we dispatch is exposed to the fable credit limit any more —
+  only design FORKS are, since those still want one Opus and one Fable
+  designer.
+- **Review tiers choose the treatment** (`memories/orchestration-model.md`):
+  orchestrator's read, single review, or dual — named with its reason
+  at dispatch so no call is invisible. Both specs below do that.
+- **Tracker**: `cost` is `E|M|H` and effort only (`D` legacy, refused by
+  lint on new rows); `design: true` is a separate flag; and
+  `docs/DOC-LEDGER.md` is now a directory of notes under
+  `docs/doc-ledger/`, which changes how our spec deletions are recorded.
+- **`docs/prompts/implementer-discipline.md` was rewritten.** The clause
+  that lands on this desk: **a red nightly is a red main, and the
+  orchestrator owns it.**
+
+## Two units dispatched (2026-09-29)
+
+**k-lint baseline** (`props/klint-baseline`, M, **single review /
+FULL**) — the red main. `k-lint (dev-probe)` failed the 2026-09-29
+nightly with 35 flags: 27 rule-1 at **nine per eps row**, which is
+eps-INDEPENDENT and so not threshold-crowding at all, plus 8 rule-2 at
+1e-12 only. The other half of the story is that the instrument had gone
+dark — `dev-probe` moved off the per-PR gate at `49d5b2aee` on
+2026-09-28, nightlies 09-22..28 ran zero k-lint jobs, and no main commit
+in 09-25..28 carries a dev-probe check run. So the unit measures before
+it concludes: date the darkness, separate a population change from a
+distribution change, name the nine and the eight by predicate and site,
+and only then pick a recourse from the lint's own list. The single
+review is FULL rather than style because the small mechanical change
+goes one of two ways and picking wrong either hides a defect or
+re-baselines over one.
+
+A hypothesis was handed down with the item and explicitly marked as one:
+ENCL's PR 3418 made every classify outcome carry a reporting margin,
+which would put newly-visible `Invalid` margins into rule 1
+eps-independently with no geometry having moved. The lane is told to
+test it, not inherit it — a hypothesis an orchestrator hands down and a
+lane confirms without evidence is worse than no hypothesis.
+
+**convex-insert** (`props/convex-insert`, H, **DUAL review**) — the
+fifth site of `f64-refinement-inside-an-enclosure-has-five-more-sites`,
+and the fix **two ENCL rows are parked on**, one of them P0. The site is
+already SOUND; what it gives away is width, because the lerp form reads
+`coeffs[i-1]` twice so interval dust enters with coefficient `1 + α` and
+compounds per insertion — `p` deep per interior knot through
+`to_bezier_spans`. The fix is the convex form with `β` derived from the
+KNOTS rather than as `1 − α`, and the spec says why: `1 − α` inherits
+α's rounding and routes the soundness argument through a subtraction,
+and a lane that makes the two sum to exactly one has misunderstood the
+invariant.
+
+Dual because the failure mode is a bound that is too TIGHT — an unsound
+certificate in a kernel whose whole job is certified enclosure, and the
+kind of error that reads as an improvement. So the spec demands
+containment against exact rational arithmetic and says in terms that a
+narrower bound is the expected outcome and therefore not evidence of
+correctness.
