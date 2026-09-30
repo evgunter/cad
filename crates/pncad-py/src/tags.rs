@@ -2048,6 +2048,7 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::NonFiniteLiteral => "non_finite",
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
+        DimensionError::NestedTooDeep { .. } => "nested_too_deep",
     }
 }
 

@@ -78,3 +78,21 @@ typed where a name is minted); `name_and_path` rendering the path
 without `Debug`. A row that evaluates a chain of patterns deeper than
 the smallest stack allows today, drops the evaluation and renders a
 name, on the wasm32 build's stack.
+
+## The load door since PR 3510
+
+The load door now scans a body against
+`persist::nesting::BODY_NESTING` (271 JSON brackets) and reads within
+it with serde_json's own recursion limit off, where it used to stop at
+serde_json's 128. So a name nested between about 32 and 65 `InPart`
+levels, which refused at load before, now loads (measured in a
+`Datum::FaceFrame`'s face, saved from a snapshot and from an edit log;
+66 refuses at the scan), and every walk over a loaded name meets it.
+
+The scan is type-agnostic (the review of PR 3510, its Q7): one limit
+for every value in a body. Raising `BODY_NESTING` so deeper names load
+would hand `MetaValue`'s recursive load
+(`a-metadata-value-nested-deep-enough-kills-the-process`), and any
+other recursive reader of a body, the same budget. A name that must
+load deeper wants its own counter, as `persist::nesting::Child` counts
+an expression's levels, rather than a larger scan limit.

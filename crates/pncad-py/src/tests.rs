@@ -4872,6 +4872,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "div_needs_scalar_divisor",
             "mismatch",
             "mul_needs_scalar",
+            "nested_too_deep",
             "non_finite",
             "not_count",
             "trig_needs_angle",
