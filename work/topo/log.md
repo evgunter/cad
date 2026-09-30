@@ -3054,3 +3054,23 @@ tier, so no DR row.
 
 PR 3500's single full reviewer is dispatched on frozen `223c63054e`,
 on the freed warm target.
+
+## PR 3493 merged; the refusal rows get priorities (2026-09-30)
+
+PR 3493 merged (`7eaba79415`), closing
+`topo-escalations-offer-a-declaration-the-door-cannot-take`,
+`declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu`
+and `split-param-not-interior-offers-the-declare-menu`. It was a
+single-tier review, so there is no DR row.
+
+The refusal rows it left get their priority and cost:
+
+| Row | Priority, cost | Note |
+| --- | --- | --- |
+| `pierced-torus-convention-arms-tell-two-stories` | P2, E | a D4 (iv) fork |
+| `merge-coplanar-escalation-offers-a-declaration-already-made` | P2, E | |
+| `boolean-coincidence-route-holds-decisions-no-face-pair-names` | P2, M | |
+| `boolean-coincidence-wrap-sites-name-no-decision` | P2, M | the ~55-site default |
+
+The last two overlap, and they could go out as one unit when their
+turn comes.

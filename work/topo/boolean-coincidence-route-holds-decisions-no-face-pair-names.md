@@ -4,6 +4,8 @@ kind: issue
 title: topo: the Boolean's coincidence route still carries lever-arm, operand-radius and frontier decisions a face-pair declaration cannot name
 status: open
 opened: 2026-09-29
+priority: P2
+cost: M
 ---
 
 (TOPO, the §5 second pass of PR 3493.)

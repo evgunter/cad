@@ -4,6 +4,8 @@ kind: issue
 title: topo: MergeCoplanarError::Escalated renders its payload whole, advising a declaration on a pair already declared
 status: open
 opened: 2026-09-29
+priority: P2
+cost: E
 ---
 
 (TOPO, the §5 second pass of PR 3493. `work.py territory` gives
