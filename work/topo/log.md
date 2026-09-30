@@ -4054,3 +4054,37 @@ rebase target. The claims it tests:
 - red-first, honestly at base;
 - atomicity;
 - the gate re-pin.
+
+## revert-anchors delivered as PR 3546; rows closed on the branch (2026-09-30)
+
+The implementer took 235,229 tokens, 131 tools and 4,337 s. Head
+`a9cb2589a7` is green on CI run 36714001885. An earlier run had a
+`gate ok` job with no runner. The lane could not re-run it (403), so
+it merged main for a fresh run instead of pushing an empty commit.
+
+**What changed.** `revert` proves both anchors it writes before it
+builds:
+- the new `emanating` must end at its vertex (`RevertLink::Emanating`);
+- the new `first` must claim its loop (`RevertLink::LoopMember`).
+
+The precondition order is documented.
+
+**Measured.** On `declined_cube` it refuses exactly the base's 168 of
+576 `next` and 120 of 576 `prev` anchor-fault tears, and nothing
+else. Eight bodies are covered in a release-only row. 14 valid bodies
+revert both ways.
+
+**Filed:** `revert-writes-each-start-through-an-unproven-next` (P3, E).
+
+**The orchestrator's read** (`revert.rs`, +175/−14).
+- The proofs read `half_edge_end`, the function the new-start map
+  uses. Not reusing the Euler helpers is right: they are
+  kill-shaped, `EulerOpError`-typed, and read the stored start.
+- Every mutant reds, except that the loop proof moved after the build
+  is equivalent with assertions off, since `revert` builds a fresh
+  value.
+- Dropping the deep-unchanged assertion is correct: `revert` takes
+  `&self`.
+
+Single tier, orchestrator read, no DR row. The row closes on the
+branch (`db70c234a2`). Merge after CI.
