@@ -7,7 +7,6 @@ opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-needs_ev: true
 ---
 
 
@@ -95,3 +94,25 @@ here must cover the segment as it crosses into `geom-brep`, not only the
 profile's stored segment. Taking `segment_curve`'s radius from
 `|a − centre|` was tried and moves the elbow's STEP golden, sidecars and
 mesh digests, so it was left for this unit.
+
+## Ruling (Ev, #3453, 2026-09-30)
+
+The design is in D1's Profile-format clause as merged:
+- **The program is the stored authored form; the loop is its cache.**
+  Each arc mode's lowering is that mode's one conversion.
+- **Validate's consistency checks, three per stored arc, as
+  ε-decisions:** the start lies on the circle, the rotated start lands
+  on the end, and 0 < |Δθ| ≤ 2π (a one-segment loop is a full turn).
+- **Lifts:** pinned lifts and `reversed` copy the stored fields; the
+  guided lift replays the program.
+- **Foldable spelling.** Each lowering spells its output in the shape's
+  own algebra: the radius as authored, and Δθ as one `4·atan(X)` with X
+  algebraic, never `atan2`.
+- **Registrations** only for what the algebra cannot close: the
+  construction registers, and the sweep registers rigidity.
+- **The writer** emits `Center`.
+- **One shared `geom-core` arc type**, with `radius` kept.
+
+Order: 5a, then the shared type, then 5b. The register-equal allowlist
+gains the shared type's site; it was named on the PR and approved with
+it.

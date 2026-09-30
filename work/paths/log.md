@@ -427,3 +427,17 @@ New PATHS issues from other programs (queued behind unit 5):
   - D1 text updated; awaiting Ev's confirmation.
 - **Carried into 5b's spec:** a census row over the modes' minted
   forms, and re-opening DECIDE's rule-D row for measurement.
+
+## 2026-09-30 — #3453 approved by Ev
+
+Ev: "this looks great". The fork's decision half is recorded in
+DESIGN-FORK-LOG row 20 (decision, match, and A/B = Fable/Opus by byte
+55). No `analysis/design-fork/` branch was pushed; the mapping sits in
+the row. The ruling is on the unit row.
+
+Next: split `store-constructed-carriers` into three:
+1. 5a;
+2. the shared `geom-core` arc type (mechanical);
+3. 5b.
+
+Spec 5a first.
