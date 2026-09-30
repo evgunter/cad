@@ -1180,6 +1180,42 @@ fn saddle_wall(theta: f64) -> NurbsSurface<f64> {
 /// requests below `d ~ 1e-6` stalled; sweep again, and pin a request
 /// that stalls on `OFFSET_FIT_BUDGET`'s round.
 #[test]
+fn zz_stall_sweep() {
+    let target = 1e-17;
+    let mut stalls: Vec<(f64, f64, u32, (usize, usize), f64)> = Vec::new();
+    let mut other = 0usize;
+    for ti in 0..24 {
+        let theta = 0.05 + (1.2 - 0.05) * f64::from(ti) / 23.0;
+        let base = saddle_wall(theta);
+        for de in 0..19 {
+            let d = 10f64.powf(-11.0 + 9.0 * f64::from(de) / 18.0);
+            for sgn in [1.0f64, -1.0] {
+                match fit_offset_at(&base, sgn * d, target, band()) {
+                    Err(OffsetFitError::RefinementStalled { rounds, grid, achieved, .. }) => {
+                        stalls.push((theta, sgn * d, rounds, grid, achieved));
+                    }
+                    _ => other += 1,
+                }
+            }
+        }
+    }
+    let budget = u32::try_from(OFFSET_FIT_BUDGET).unwrap();
+    println!("SWEEP: {} stalls, {other} other", stalls.len());
+    for (theta, d, rounds, grid, achieved) in &stalls {
+        if *rounds == budget {
+            println!("LAST theta={theta:.6} d={d:e} round={rounds} grid={grid:?} achieved={achieved:.6e}");
+        }
+    }
+    for (theta, d, rounds, grid, achieved) in &stalls {
+        if *rounds != budget {
+            println!("EARLY theta={theta:.6} d={d:e} round={rounds} grid={grid:?} achieved={achieved:.6e}");
+        }
+    }
+    // Measurement artefact: panic so nextest prints the table.
+    panic!("ZZ SWEEP DONE: {} stalls", stalls.len());
+}
+
+#[test]
 fn the_second_non_improving_round_is_the_stalls_face() {
     let base = saddle_wall(0.3);
     let target = 1e-14;
