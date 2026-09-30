@@ -331,6 +331,11 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
 
 /// FNV-1a 64 over an evaluation's name tables in node order, arena
 /// keys included — the replay-identity digest (M4 PR 3's shape).
+///
+/// The assembly's own node ids are read as their positions in its
+/// evaluation order: an instance's id is minted from its insert, which
+/// states the part's content pin, and the pin covers the part's
+/// recorded ε, so the id itself moves with CI's ε row.
 fn digest(ev: &Evaluation<f64>) -> u64 {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     let mut feed = |s: &str| {
@@ -339,11 +344,16 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
             h = h.wrapping_mul(0x1000_0000_01b3);
         }
     };
-    for id in &ev.order {
-        feed(&format!("#{id:?}"));
+    let at_position = |text: String| {
+        ev.order.iter().enumerate().fold(text, |text, (at, id)| {
+            text.replace(&format!("{id:?}"), &format!("RecipeNodeId(@{at})"))
+        })
+    };
+    for (at, id) in ev.order.iter().enumerate() {
+        feed(&format!("#{at}"));
         if let Some(v) = ev.value(*id) {
             for (n, e) in v.name_table.iter() {
-                feed(&format!("{n:?}={e:?};"));
+                feed(&at_position(format!("{n:?}={e:?};")));
             }
         }
     }
@@ -369,7 +379,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// the mint gives the part's nodes or steps other ids; the VOLUME bits
 /// and the solid count beside it are id-free, which is the half of this
 /// row that is about geometry.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 9_527_859_537_356_735_907;
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 6_104_778_039_035_903_067;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]
