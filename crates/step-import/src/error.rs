@@ -447,8 +447,9 @@ impl fmt::Display for StepImportError {
             ),
             Self::WallColumnStructure { id, source } => write!(
                 f,
-                "step import: edge #{id}: an adjacent NURBS wall's own boundary column \
-                 will not re-wrap as a curve — {source}. No validated surface can be in \
+                "step import: edge #{id}: an adjacent NURBS wall's control net, or the \
+                 boundary column read from it, is not valid spline structure — {source}. \
+                 No validated surface can be in \
                  that state, so the file is refused rather than adopted against a wall \
                  whose stored structure is corrupt"
             ),

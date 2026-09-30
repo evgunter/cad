@@ -1562,21 +1562,48 @@ impl Indeterminate {
 
 impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.payload())?;
-        match self.margin.kind() {
-            MarginKind::Value => write!(f, " — a near-coincidence; {COINCIDENCE_RECOURSE}"),
+        write!(f, "{}", self.under(COINCIDENCE_RECOURSE))
+    }
+}
+
+/// An [`Indeterminate`] rendered with its margin kind's own advice and
+/// a recourse the door supplies in place of [`COINCIDENCE_RECOURSE`] —
+/// for a door that takes no declaration
+/// ([`NO_DECLARATION_RECOURSE`]). The bare [`Indeterminate`] Display
+/// is this view under [`COINCIDENCE_RECOURSE`].
+#[derive(Debug, Clone, Copy)]
+pub struct IndeterminateUnder<'a> {
+    diag: &'a Indeterminate,
+    recourse: &'a str,
+}
+
+impl Indeterminate {
+    /// This escalation's sentence with `recourse` as the levers the
+    /// door has — see [`IndeterminateUnder`].
+    pub fn under<'a>(&'a self, recourse: &'a str) -> IndeterminateUnder<'a> {
+        IndeterminateUnder {
+            diag: self,
+            recourse,
+        }
+    }
+}
+
+impl fmt::Display for IndeterminateUnder<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let recourse = self.recourse;
+        write!(f, "{}", self.diag.payload())?;
+        match self.diag.margin.kind() {
+            MarginKind::Value => write!(f, " — a near-coincidence; {recourse}"),
             MarginKind::Enclosure => write!(
                 f,
-                " — subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE}"
+                " — subdivide the parameter box for a tighter enclosure, or {recourse}"
             ),
             // Poison explains WHY the sign is indeterminate, but the
             // user's levers at a coincidence site are unchanged — the
-            // Invalid arm carries the shared recourse like the others
-            // (S6 review, MINOR-1).
+            // Invalid arm carries the recourse like the others.
             MarginKind::Invalid => write!(
                 f,
-                " — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
+                " — check the operation's inputs upstream, then {recourse}"
             ),
         }
     }

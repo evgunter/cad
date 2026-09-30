@@ -682,6 +682,30 @@ impl<T: Real> NurbsSurface<T> {
         })
     }
 
+    /// The count rule [`Self::new`] holds a net to, without a net: a
+    /// row-major net over `knots_u × knots_v` has
+    /// `knots_u.control_count() · knots_v.control_count()` control
+    /// points and as many weights. For a reader that indexes a net by
+    /// counts taken from its knots and must refuse, not panic, on a
+    /// net that breaks them.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineError::ControlCountMismatch`] for `control`, then
+    /// [`SplineError::WeightCountMismatch`] for `weights`.
+    pub fn check_net_counts(
+        knots_u: &KnotVector,
+        knots_v: &KnotVector,
+        control: usize,
+        weights: usize,
+    ) -> Result<(), SplineError> {
+        net::check_counts(
+            knots_u.control_count() * knots_v.control_count(),
+            control,
+            weights,
+        )
+    }
+
     /// The "no description yet" placeholder payload for
     /// [`crate::surfaces::Surface::Nurbs`]: structurally valid (bilinear on
     /// `[0,1]²`, unit weights) with all-poison control points, so

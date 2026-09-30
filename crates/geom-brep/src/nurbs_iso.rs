@@ -62,24 +62,17 @@ impl<'a, T: Real> NetView<'a, T> {
         }
     }
 
-    /// `(nu, nv)`, once the control and weight slices both hold
-    /// `nu · nv` entries — the counts every index below is formed from.
+    /// `(nu, nv)`, once the slices pass the surface's own count rule
+    /// ([`NurbsSurface::check_net_counts`]) — the counts every index
+    /// below is formed from.
     fn counts(&self) -> Result<(usize, usize), SplineError> {
-        let (nu, nv) = (self.knots_u.control_count(), self.knots_v.control_count());
-        let expected = nu * nv;
-        if self.control.len() != expected {
-            return Err(SplineError::ControlCountMismatch {
-                control: self.control.len(),
-                expected,
-            });
-        }
-        if self.weights.len() != expected {
-            return Err(SplineError::WeightCountMismatch {
-                weights: self.weights.len(),
-                control: expected,
-            });
-        }
-        Ok((nu, nv))
+        NurbsSurface::<T>::check_net_counts(
+            self.knots_u,
+            self.knots_v,
+            self.control.len(),
+            self.weights.len(),
+        )?;
+        Ok((self.knots_u.control_count(), self.knots_v.control_count()))
     }
 }
 
@@ -318,19 +311,18 @@ impl<T: Real> core::fmt::Display for IsoRowError<T> {
                 "iso_boundary_row: u = {u:?} is interior to the chart's u domain {domain:?} — \
                  only a boundary row has a domain-end float to re-state the description at"
             ),
-            Self::Structure { source } => {
-                write!(
-                    f,
-                    "iso_boundary_row: the extracted row is not valid spline structure: {source}"
-                )
-            }
-            // `iso_boundary_row` takes no declaration, so the recourse
-            // is the two levers left rather than the payload's own tail.
+            Self::Structure { source } => write!(
+                f,
+                "a surface's control net, or the iso row read from it, is not valid spline \
+                 structure: {source}"
+            ),
+            // `iso_boundary_row` takes no declaration: the margin kind's
+            // own advice stays, the declaration leaves the recourse.
             Self::Escalated { source } => write!(
                 f,
                 "whether an edge lies on the boundary of its face's fitted surface is too \
-                 close to call: {} — {NO_DECLARATION_RECOURSE}",
-                source.payload()
+                 close to call: {}",
+                source.under(NO_DECLARATION_RECOURSE)
             ),
             Self::WeightsNotSeparable { control_counts } => write!(
                 f,
@@ -396,14 +388,6 @@ mod tests {
 
     use super::*;
 
-    /// [`iso_boundary_row`] selects the row the stored parameter names,
-    /// hands back the chart's OWN domain float for it, and refuses an
-    /// interior parameter rather than approximating one.
-    ///
-    /// The row is asserted against the surface, not against a constant:
-    /// it carries `knots_v` verbatim, which is the whole reason a
-    /// consumer extracts instead of elevating and refining its own
-    /// carrier into that space.
     /// The shared 3×2 (u×v) bilinear-ish fixture.
     fn surface() -> NurbsSurface<f64> {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
@@ -420,6 +404,14 @@ mod tests {
         NurbsSurface::<f64>::new(ku, kv, control, vec![1.0; 6]).unwrap()
     }
 
+    /// [`iso_boundary_row`] selects the row the stored parameter names,
+    /// hands back the chart's OWN domain float for it, and refuses an
+    /// interior parameter rather than approximating one.
+    ///
+    /// The row is asserted against the surface, not against a constant:
+    /// it carries `knots_v` verbatim, which is the whole reason a
+    /// consumer extracts instead of elevating and refining its own
+    /// carrier into that space.
     #[test]
     fn iso_boundary_row_selects_by_parameter_and_refuses_the_interior() {
         let s = surface();
@@ -627,28 +619,52 @@ mod tests {
         }
     }
 
-    /// The boundary-row coincidence escalating, raised for real: its
-    /// sentence says what was being decided and routes the two levers a
-    /// door without a declaration has, once.
+    /// The boundary-row coincidence escalating, raised for real at
+    /// each margin kind: its sentence says what was being decided,
+    /// keeps the kind's own advice, and routes the two levers a door
+    /// without a declaration has, once.
     #[test]
     fn an_escalated_row_states_its_decision_and_no_declaration() {
         let band = geom_core::Band::new(1e-6, 1e-3).unwrap();
-        let e = iso_boundary_row(&surface(), 1e-4, band).expect_err("1e-4 is in the band");
-        assert!(matches!(e, IsoRowError::Escalated { .. }), "{e}");
-        let text = e.to_string();
-        assert!(
-            test_utils::refusal::subjectless_escalations(&text).is_empty(),
-            "the escalation names its decision: {text}"
-        );
-        assert_eq!(
-            test_utils::refusal::recourse_markers(&text),
-            1,
-            "one recourse: {text}"
-        );
-        assert!(
-            text.ends_with(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
-            "no declaration is offered where none is taken: {text}"
-        );
+        let s = surface();
+        let value = iso_boundary_row(&s, 1e-4, band).map(|_| ());
+        let invalid = iso_boundary_row(&s, f64::NAN, band).map(|_| ());
+        let enclosure = iso_boundary_row(
+            &s.map_scalar(<geom_core::Interval as Real>::from_f64),
+            geom_core::Interval::from_bounds(-1e-4, 1e-4),
+            band,
+        )
+        .map(|_| ())
+        .map_err(|e| match e {
+            IsoRowError::Escalated { source } => IsoRowError::<f64>::Escalated { source },
+            other => panic!("the straddling enclosure escalates, got {other}"),
+        });
+        for (kind, got, advice) in [
+            ("value", value, "a near-coincidence"),
+            ("invalid", invalid, "check the operation's inputs upstream"),
+            ("enclosure", enclosure, "subdivide the parameter box"),
+        ] {
+            let e = got.expect_err("the margin is in the band");
+            assert!(matches!(e, IsoRowError::Escalated { .. }), "{kind}: {e}");
+            let text = e.to_string();
+            assert!(
+                test_utils::refusal::subjectless_escalations(&text).is_empty(),
+                "{kind}: the escalation names its decision: {text}"
+            );
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "{kind}: one recourse: {text}"
+            );
+            assert!(
+                text.contains(advice),
+                "{kind}: the margin kind keeps its own advice: {text}"
+            );
+            assert!(
+                text.ends_with(NO_DECLARATION_RECOURSE) && !text.contains("declare"),
+                "{kind}: no declaration is offered where none is taken: {text}"
+            );
+        }
     }
 
     /// A 3×2 (u×v) bilinear-ish surface: boundary extraction matches
