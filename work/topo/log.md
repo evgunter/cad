@@ -4489,3 +4489,17 @@ the brief.
 
 The orchestrator read the proof and accepted it. The rows close at
 `4a087db298`; merge after CI.
+
+Dispatched on the walk target:
+`set-face-surface-hands-the-caller-an-ordering-obligation-in-prose`
+(P3, E), branch `topo/set-face-surface-proves-edges`.
+- It is the last S93-class prose obligation. The precedent is PR
+  2527's `kev` ruling: re-check every edge naming the swapped surface,
+  and refuse typed before mutating where one would go stale. A
+  describing sibling door is added only if the measurement needs one.
+- It also finishes `null.rs`'s part of
+  `refusal-rows-that-count-instead-of-snapshot`, now that PR 3531 has
+  landed.
+
+`movefac-reads-a-mate-and-a-neighbour-it-never-proves` waits for the
+kill-proofs lane, whose both-ways edge-claim helper it should reuse.
