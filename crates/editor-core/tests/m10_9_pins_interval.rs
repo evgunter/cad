@@ -168,7 +168,16 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // so their pins here hold. Every rule-reached edge on the
             // five reads `JetDeterminate` with the gate and without,
             // so the document the replay builds is the same one.
-            registered: 128,
+            //
+            // 128 (numeric 1066) until PATHS 5a copied the reversed
+            // arc's carrier instead of re-lowering it. Main's
+            // reversed-chord centre.x hit `Poly::mul`'s 4096-pair cap
+            // (5088) and froze to an atom the rim registration reached;
+            // the copied centre stays live (3552), so the freeze lands
+            // on carrier(0).x and six Zero decisions go from registered
+            // to numeric (numeric 1072), verdicts unchanged
+            // (`work/sym/registrations-sealed-inside-frozen-compounds`).
+            registered: 122,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
