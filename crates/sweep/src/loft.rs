@@ -460,7 +460,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // (`topo::surgery`), and the tier-2 check below subsumes it.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    let seed = body.mvfs(qs[0])?;
+    let seed = body.mvfs(qs[0], true)?;
     let mut hes = Vec::with_capacity(n);
     let first = body.mev(
         MevSite::Lone {
@@ -500,7 +500,11 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
             he2: first.he_plus,
         },
         placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0], tol),
-        FaceSurface::New(bottom_plane),
+        // Newell over the loop the cap runs: outward, as extrude's.
+        FaceSurface::New {
+            surface: bottom_plane,
+            sense: true,
+        },
         tol,
     )?;
     hes.push(close.he_plus);
@@ -558,7 +562,12 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                 he2: first.he_plus,
             },
             placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0], tol),
-            FaceSurface::Shared(bottom_surface),
+            // The disc is transient: `kfmrh` kills it at once, and
+            // nothing reads its bit.
+            FaceSurface::Shared {
+                key: bottom_surface,
+                sense: false,
+            },
             tol,
         )?;
         hole_hes.push(close.he_plus);
@@ -604,7 +613,12 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     he2,
                 },
                 placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to, tol),
-                FaceSurface::New(Surface::Nurbs(Arc::clone(&walls_t[li][j]))),
+                // The skinned chart's normal points out of the
+                // material (module docs).
+                FaceSurface::New {
+                    surface: Surface::Nurbs(Arc::clone(&walls_t[li][j])),
+                    sense: true,
+                },
                 tol,
             )?;
             if j == 0 {
@@ -627,7 +641,13 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 5: the swept seed face survives as the top cap. ----
     let far_loop = cap_points(&tloops[0], &tq[0], tplace);
     let top_plane = newell_plane(&far_loop, band).map_err(LoftError::CapPlane)?;
-    body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+    body.set_face_surface(
+        top_face,
+        FaceSurface::New {
+            surface: top_plane,
+            sense: true,
+        },
+    )?;
 
     // Both cap planes exist now, so both rims are at REST in them and
     // stop leaning on the scaffolding door they had to be minted

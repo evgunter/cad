@@ -176,10 +176,13 @@ fn r2_the_new_keys_inherit_the_junction_escalation_template() {
     let escalated = tilted_close(3.0 * eps, 1.0).expect_err("in-band");
     let msg = escalated.to_string();
     println!("R2: escalated declared arrival -> {msg}");
-    assert!(msg.contains("path_seam_arrival_turn"), "{msg}");
+    assert!(
+        format!("{escalated:?}").contains("path_seam_arrival_turn"),
+        "{escalated:?}"
+    );
     // FIXED: the inherited junction template is gone and the recourse
     // is the authored-data one.
-    assert!(!msg.starts_with("path junction classification"), "{msg}");
+    assert!(!msg.contains("at this junction"), "{msg}");
     assert!(!msg.contains("declare the coincidence"), "{msg}");
     assert!(msg.contains("the declaration is the target"), "{msg}");
     // The DEFINITE arm, for contrast: it composes its own recourse.

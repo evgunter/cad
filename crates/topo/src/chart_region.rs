@@ -410,7 +410,11 @@ impl core::fmt::Display for ChartRegionError {
                  chart image encloses area — collapsed or collinear runs are the \
                  usual cause — or re-mint its pcurves"
             ),
-            Self::Escalated(diag) => write!(f, "chart-region: escalated: {diag}"),
+            Self::Escalated(diag) => write!(
+                f,
+                "chart-region: a decision about how the two faces' regions overlap is too \
+                 close to call: {diag}"
+            ),
             Self::RayExhausted => write!(
                 f,
                 "chart-region: every schedule ray grazed — ill-conditioned \
@@ -4135,7 +4139,7 @@ mod tests {
     ) -> FaceKey {
         let c = |x: f64, y: f64| Point3::new(x, y, 0.0);
         let (a, b, cc, d) = (c(x0, y0), c(x1, y0), c(x1, y1), c(x0, y1));
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let e_ab = body
             .mev_line(
                 MevSite::Lone {
@@ -4186,15 +4190,39 @@ mod tests {
         // One body, two coplanar rectangle faces on ONE SurfaceKey —
         // the at-rest site. The plane chart is derive-on-demand (C4).
         let mut body = Body::<f64>::new();
-        let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+        let f1 = sheet(
+            &mut body,
+            0.0,
+            0.0,
+            2.0,
+            2.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let key = body.get_face(f1).unwrap().surface;
-        let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::Shared(key));
+        let f2 = sheet(
+            &mut body,
+            1.0,
+            1.0,
+            3.0,
+            3.0,
+            FaceSurface::Shared { key, sense: true },
+        );
         assert_eq!(
             chart_region_overlap(&body, f1, &body, f2, band()).unwrap(),
             ChartOverlap::PositiveArea
         );
         // Disjoint regions answer EMPTY — stale at the consumer.
-        let f3 = sheet(&mut body, 5.0, 5.0, 6.0, 6.0, FaceSurface::Shared(key));
+        let f3 = sheet(
+            &mut body,
+            5.0,
+            5.0,
+            6.0,
+            6.0,
+            FaceSurface::Shared { key, sense: true },
+        );
         assert_eq!(
             chart_region_overlap(&body, f1, &body, f3, band()).unwrap(),
             ChartOverlap::Empty
@@ -4215,7 +4243,10 @@ mod tests {
             0.0,
             2.0,
             2.0,
-            FaceSurface::New(xy_plane()),
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
         );
         let ka = body_a.get_face(fa).unwrap().surface;
         let mut body_b = Body::<f64>::new();
@@ -4225,7 +4256,10 @@ mod tests {
             1.0,
             3.0,
             3.0,
-            FaceSurface::New(xy_plane()),
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
         );
         let kb = body_b.get_face(fb).unwrap().surface;
 
@@ -4466,8 +4500,28 @@ mod tests {
         #[test]
         fn r1_value_equal_but_distinct_keys_on_one_body_escalate() {
             let mut body = Body::<f64>::new();
-            let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
-            let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::New(xy_plane()));
+            let f1 = sheet(
+                &mut body,
+                0.0,
+                0.0,
+                2.0,
+                2.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
+            let f2 = sheet(
+                &mut body,
+                1.0,
+                1.0,
+                3.0,
+                3.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
             match chart_region_overlap(&body, f1, &body, f2, band()) {
                 Err(ChartRegionError::ChartDivergence { .. }) => {}
                 other => panic!("value-equal distinct keys must escalate, got {other:?}"),
@@ -4484,7 +4538,17 @@ mod tests {
             // exact-bracket comparator, so the forged pair now refuses
             // typed — the rung-2 premise is checked, never assumed.
             let mut a = Body::<f64>::new();
-            let fa = sheet(&mut a, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
+            let fa = sheet(
+                &mut a,
+                0.0,
+                0.0,
+                2.0,
+                2.0,
+                FaceSurface::New {
+                    surface: xy_plane(),
+                    sense: true,
+                },
+            );
             let ka = a.get_face(fa).unwrap().surface;
             let mut b = Body::<f64>::new();
             let fb = sheet(
@@ -4493,7 +4557,10 @@ mod tests {
                 1.0,
                 3.0,
                 3.0,
-                FaceSurface::New(xy_plane_rotated()),
+                FaceSurface::New {
+                    surface: xy_plane_rotated(),
+                    sense: true,
+                },
             );
             let kb = b.get_face(fb).unwrap().surface;
             a.set_surface_source(ka, GeomSource::minted(3, 0)).unwrap();
@@ -5038,9 +5105,29 @@ mod inf_arms {
         // its refusals name, so the cheapest well-formed sheet serves:
         // the CHART under test is `s`, passed alongside.
         let mut ba = Body::<f64>::new();
-        let fa = sheet(&mut ba, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
+        let fa = sheet(
+            &mut ba,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let mut bb = Body::<f64>::new();
-        let fb = sheet(&mut bb, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
+        let fb = sheet(
+            &mut bb,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            FaceSurface::New {
+                surface: xy_plane(),
+                sense: true,
+            },
+        );
         let s = sphere(2.0);
         // u spans π/2 (1.5708); v stays inside |v| ≤ 0.3.
         let uv_a = uv(rect(1.40, -0.30, 1.60, -0.10), vec![]);

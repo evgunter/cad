@@ -1077,6 +1077,12 @@ pub enum SizedPass {
     /// A definitely positive or definitely negative margin: the decision
     /// passes on either side and refuses only at zero.
     NonZero,
+    /// A definitely negative margin.
+    Negative,
+    /// Any definite margin, zero included: the decision refuses only a
+    /// margin it cannot call, and a smaller tolerance calls any nonzero
+    /// one.
+    AnySign,
 }
 
 impl SizedPass {
@@ -1084,8 +1090,8 @@ impl SizedPass {
     #[must_use]
     pub fn passes_zero(self) -> bool {
         match self {
-            Self::Positive | Self::NonZero => false,
-            Self::NonNegative => true,
+            Self::Positive | Self::NonZero | Self::Negative => false,
+            Self::NonNegative | Self::AnySign => true,
         }
     }
 
@@ -1095,7 +1101,8 @@ impl SizedPass {
     fn tightens(self, v: f64) -> bool {
         match self {
             Self::Positive | Self::NonNegative => v > 0.0,
-            Self::NonZero => v != 0.0,
+            Self::NonZero | Self::AnySign => v != 0.0,
+            Self::Negative => v < 0.0,
         }
     }
 
@@ -1372,6 +1379,17 @@ pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 /// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
 pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
+/// The subject a door states for an escalation whose decision it has no
+/// words for — a name its table does not carry, or no name at all. One
+/// phrase for every door, so the refusal-shape guard can read it as no
+/// subject: a row that renders it is red unless admitted by name.
+pub const UNNAMED_DECISION: &str = "an unnamed decision";
+
+/// The one ending of a refusal at a shape or configuration the kernel
+/// does not build or check yet: nothing the user changes gets through
+/// today, and nothing is wrong with what they asked for.
+pub const NOT_YET_ENDING: &str = "There is no way through yet";
+
 /// The qualifier a refusal at a kernel approximation limit puts on its
 /// one recourse, loosening the tolerance (D4 ¶1 (i)): a kernel
 /// approximation limit — an offset fit that stalls, a quadrature budget
@@ -1435,7 +1453,8 @@ macro_rules! kernel_or_file_defect_ending {
 
 /// The one answer a refusal gives when the table that routes its
 /// recourse by predicate name does not carry the name that escalated:
-/// it NAMES the hole. Never a category asserted over the unknown name,
+/// it states the hole. The name is routing, so it rides `Debug` (this
+/// value's field) rather than the sentence. Never a category asserted over the unknown name,
 /// never silence — both read as a statement about the escalation, and
 /// neither is one anybody made.
 ///
@@ -1452,25 +1471,26 @@ macro_rules! kernel_or_file_defect_ending {
 /// nothing further, not that the advice above is not advice; a door
 /// that has DECIDED a predicate needs nothing further says so itself
 /// rather than reaching this sentence.
-///
-/// The predicate is spelled the way [`IndeterminatePayload`] spells it
-/// in the same refusal — `'name'`, and a nameless decision named as
-/// one — so one refusal does not carry two spellings of one field.
 #[derive(Debug, Clone, Copy)]
 pub struct MissingRecourse<'a>(pub Option<&'a str>);
 
 impl fmt::Display for MissingRecourse<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Whether the escalation carried a name is the one fact about
+        // the field a person can use: an unnamed one is not a gap in a
+        // table but a decision nobody labelled.
         match self.0 {
-            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded"),
-            None => f.write_str("no recourse is recorded for this unnamed decision"),
+            Some(_) => f.write_str("no recourse is recorded for this decision"),
+            None => f.write_str("no recourse is recorded for an unnamed decision"),
         }
     }
 }
 
-/// Borrowed margin-payload view of an [`Indeterminate`]: the predicate
-/// name, the margin/enclosure data, and the band — WITHOUT the shared
-/// recourse tail. For per-site Display impls that compose the
+/// Borrowed margin-payload view of an [`Indeterminate`]: the
+/// margin/enclosure data and the band — WITHOUT the shared recourse
+/// tail, and without the predicate's name, which is routing a developer
+/// reads in `Debug` rather than anything the person holding the mouse
+/// can act on. For per-site Display impls that compose the
 /// two-tolerance message themselves (site context + this payload +
 /// [`COINCIDENCE_RECOURSE`]) and must not double the recourse; the
 /// bare [`Indeterminate`] Display is this payload plus the shared
@@ -1480,10 +1500,6 @@ pub struct IndeterminatePayload<'a>(&'a Indeterminate);
 
 impl fmt::Display for IndeterminatePayload<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.predicate {
-            Some(name) => write!(f, "predicate '{name}' indeterminate: ")?,
-            None => f.write_str("sign indeterminate: ")?,
-        }
         let (zero, escalate) = (self.0.band.zero, self.0.band.escalate);
         let margin = self.0.margin;
         match margin.0 {
@@ -1719,27 +1735,39 @@ mod tests {
     }
 
     /// Which margins a smaller tolerance decides passing, per pass set:
-    /// a one-sided set tightens positive margins only, the two-sided set
-    /// any nonzero one, and none tightens zero.
+    /// a one-sided set tightens the margins on its side only, the
+    /// two-sided set any nonzero one, and none tightens zero.
     #[test]
     fn each_pass_set_tightens_the_margins_it_accepts() {
-        use SizedPass::{NonNegative, NonZero, Positive};
+        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive};
         let rows = [
+            (AnySign, 5e-9, true),
+            (AnySign, -5e-9, true),
+            (AnySign, 0.0, false),
             (Positive, 5e-9, true),
             (Positive, -5e-9, false),
             (NonNegative, 5e-9, true),
             (NonNegative, -5e-9, false),
             (NonZero, 5e-9, true),
             (NonZero, -5e-9, true),
+            (Negative, -5e-9, true),
+            (Negative, 5e-9, false),
             (Positive, 0.0, false),
             (NonNegative, -0.0, false),
             (NonZero, 0.0, false),
             (NonZero, -0.0, false),
+            (Negative, -0.0, false),
         ];
         for (pass, v, want) in rows {
             assert_eq!(pass.tightens(v), want, "{pass:?} at {v:e}");
         }
-        assert!(!Positive.passes_zero() && !NonZero.passes_zero() && NonNegative.passes_zero());
+        assert!(
+            !Positive.passes_zero()
+                && !NonZero.passes_zero()
+                && !Negative.passes_zero()
+                && NonNegative.passes_zero()
+                && AnySign.passes_zero()
+        );
     }
 
     /// An enclosure is decided below its nearer end's `|m|/K` only when
@@ -1747,7 +1775,7 @@ mod tests {
     /// passing by no tolerance.
     #[test]
     fn an_enclosure_tightens_only_with_both_ends_on_one_side() {
-        use SizedPass::{NonZero, Positive};
+        use SizedPass::{Negative, NonZero, Positive};
         let k = 10.0;
         let rows = [
             (NonZero, 2e-9, 5e-9, Some(2e-10)),
@@ -1757,6 +1785,9 @@ mod tests {
             (Positive, 2e-9, 5e-9, Some(2e-10)),
             (Positive, -5e-9, -2e-9, None),
             (Positive, -2e-9, 3e-9, None),
+            (Negative, -5e-9, -2e-9, Some(2e-10)),
+            (Negative, 2e-9, 5e-9, None),
+            (Negative, -2e-9, 0.0, None),
         ];
         for (pass, lo, hi, want) in rows {
             assert_eq!(
@@ -2248,8 +2279,8 @@ mod tests {
         assert_eq!(
             bare.to_string(),
             format!(
-                "sign indeterminate: margin 5e-9 lies inside the ambiguity band \
-                 (1e-9, 1e-8) — a near-coincidence; {COINCIDENCE_RECOURSE}"
+                "margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
+                 near-coincidence; {COINCIDENCE_RECOURSE}"
             )
         );
 
@@ -2260,17 +2291,15 @@ mod tests {
         assert_eq!(
             named.to_string(),
             format!(
-                "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-                 the ambiguity band (1e-9, 1e-8) — a near-coincidence; \
-                 {COINCIDENCE_RECOURSE}"
+                "margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8) — a \
+                 near-coincidence; {COINCIDENCE_RECOURSE}"
             )
         );
         // The payload view is the same message minus the shared tail —
         // what a composing site embeds next to its own recourse.
         assert_eq!(
             named.payload().to_string(),
-            "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-             the ambiguity band (1e-9, 1e-8)"
+            "margin -5e-9 lies inside the ambiguity band (1e-9, 1e-8)"
         );
 
         let invalid = f64::NAN
@@ -2280,9 +2309,8 @@ mod tests {
         assert_eq!(
             invalid.to_string(),
             format!(
-                "predicate 'transversality' indeterminate: margin is invalid (NaN \
-                 or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8) — \
-                 check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
+                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
+                 band (1e-9, 1e-8) — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
             )
         );
 
@@ -2298,9 +2326,8 @@ mod tests {
         assert_eq!(
             enclosure.to_string(),
             format!(
-                "predicate 'side_of_plane' indeterminate: enclosure [-2e-9, 5e-9] \
-                 cannot be classified against the ambiguity band (1e-9, 1e-8) — \
-                 subdivide the parameter box for a tighter enclosure, or \
+                "enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity \
+                 band (1e-9, 1e-8) — subdivide the parameter box for a tighter enclosure, or \
                  {COINCIDENCE_RECOURSE}"
             )
         );

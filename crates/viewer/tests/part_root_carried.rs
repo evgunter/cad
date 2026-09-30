@@ -74,22 +74,31 @@ fn opened(path: std::path::PathBuf, instance: RecipeNodeId, tol: Tol) -> (TreeRo
 
 /// Every drawn line of a failed row, held to the refusal standard, and
 /// every level's label to it too.
+///
+/// Two checks are not this row's: a label is a document's name, not a
+/// refusal, so it states no recourse; and a carried line is the carried
+/// node's own refusal, whose recourse the refusal roster holds
+/// (`editor-core/tests/refusal_concision_chains.rs`, with its filed
+/// admissions), so it is not held to one here a second time.
 fn hold_to_the_standard(message: &str, carried: &[CarriedLine]) {
+    let not_a_recourse_check = |name: &str| {
+        let lost = format!("{name} states no recourse");
+        move |p: &String| !p.starts_with(&lost)
+    };
     let mut problems = test_utils::refusal::problems("level 0", message, &[], false);
     for (level, carried) in carried.iter().enumerate() {
         let name = format!("level {}", level + 1);
-        problems.extend(test_utils::refusal::problems(
-            &name,
-            &carried.line,
-            &[],
-            false,
-        ));
-        problems.extend(test_utils::refusal::problems(
-            &format!("{name}'s label"),
-            &carried.document,
-            &[],
-            false,
-        ));
+        problems.extend(
+            test_utils::refusal::problems(&name, &carried.line, &[], false)
+                .into_iter()
+                .filter(not_a_recourse_check(&name)),
+        );
+        let label = format!("{name}'s label");
+        problems.extend(
+            test_utils::refusal::problems(&label, &carried.document, &[], false)
+                .into_iter()
+                .filter(not_a_recourse_check(&label)),
+        );
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
@@ -200,6 +209,99 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
         assert!(
             !line.contains(refusal),
             "a carrying line never quotes the refusal it carries: {line}"
+        );
+    }
+    hold_to_the_standard(message, carried);
+
+    std::fs::remove_dir_all(&dir).expect("remove the fixture directory");
+}
+
+/// **A poisoned root draws the failure that poisoned it, at depth 2.**
+///
+/// `broken.pncad` is [`common::broken_document`]: its extrude refuses
+/// and its one root, a transform over the extrude, never runs.
+/// `bracket.pncad`'s one root is a transform over an instance of it, so
+/// that root never runs either. An assembly instantiating the bracket
+/// draws two levels under its row, each at the node that FAILED rather
+/// than the root it cost: the bracket's instance, labelled
+/// `bracket.pncad`, and the broken part's extrude, labelled
+/// `broken.pncad`. The traceback ends at the failing node, drawn byte
+/// for byte as its own document draws it.
+#[test]
+fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
+    let tol = Tol::witness();
+    let dir = common::tempdir("partroot-poisoned");
+    let mut store = Workspace::open(&dir).expect("the empty workspace opens");
+
+    let (broken, extrude, broken_root) = common::broken_document(tol);
+    store
+        .save_at(&broken, "broken.pncad", tol)
+        .expect("the broken part stores");
+
+    let mut bracket = Doc::empty_derived("partroot-poisoned-bracket", tol);
+    let inner = common::insert_into(
+        &mut bracket,
+        Node::instantiate_part(reference(&broken, tol)),
+        tol,
+    );
+    let bracket_root = common::insert_into(
+        &mut bracket,
+        Node::Transform {
+            input: inner,
+            translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
+            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+            rotation_angle: common::ang(0.0),
+        },
+        tol,
+    );
+    store
+        .save_at(&bracket, "bracket.pncad", tol)
+        .expect("the bracket stores");
+
+    let mut assembly = Doc::empty_derived("partroot-poisoned-assembly", tol);
+    let instance = common::insert_into(
+        &mut assembly,
+        Node::instantiate_part(reference(&bracket, tol)),
+        tol,
+    );
+    let path = store
+        .save_at(&assembly, "assembly.pncad", tol)
+        .expect("the assembly stores");
+
+    let (_, row) = opened(path, instance, tol);
+    let RowStatus::Failed { message, carried } = &row.status else {
+        panic!("the instance's own operation failed: {:?}", row.status);
+    };
+    eprintln!("DRAWN\n{message}");
+    for (level, carried) in carried.iter().enumerate() {
+        let indent = "  ".repeat(level + 1);
+        eprintln!("{indent}[{}]\n{indent}{}", carried.document, carried.line);
+    }
+
+    assert_eq!(
+        carried,
+        &vec![
+            CarriedLine {
+                document: "bracket.pncad".to_owned(),
+                line: own_line(&bracket, inner, &dir, tol),
+            },
+            CarriedLine {
+                document: "broken.pncad".to_owned(),
+                line: own_line(&broken, extrude, &dir, tol),
+            },
+        ],
+        "one level per document, each at the node that failed, labelled with its file and \
+         drawn as its part's own tree draws it"
+    );
+    for (line, root, failed) in [
+        (message, bracket_root, inner),
+        (&carried[0].line, broken_root, extrude),
+    ] {
+        assert!(
+            line.contains(&format!("its root, node {}", root.0))
+                && line.contains(&format!("repair node {}", failed.0)),
+            "each carrying line names the root it cost and points at the node that failed: \
+             {line}"
         );
     }
     hold_to_the_standard(message, carried);

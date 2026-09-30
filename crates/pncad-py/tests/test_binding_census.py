@@ -633,6 +633,10 @@ BOUND_AS = {
     # survivable, not why it did not happen.
     "DimensionError": "ParseError.kind",
     "NodeErrorKind": "EvaluationError.kind",
+    # `NodeErrorKind`'s class, which is exactly what that tag is: the
+    # map reads the word off the class, so the fieldless mirror asks
+    # the Python caller no new question.
+    "NodeErrorClass": "EvaluationError.kind",
     "NodeValue": "Value",
     # The gather's refusal class, flattened to the tag its carrier
     # already publishes — the `NodeErrorKind` row's shape exactly.
@@ -691,14 +695,15 @@ BOUND_AS = {
     # `PartFault`'s arms and the `ResolveFault` classification inside
     # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
     # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
-    # `part_root_failed`, `part_root_failure_unrecorded`,
-    # `part_product`, `part_reference_cycle`, `part_depth_exceeded` —
+    # `part_root_failed`, `part_root_poisoned`,
+    # `part_root_failure_unrecorded`, `part_product`,
+    # `part_reference_cycle`, `part_depth_exceeded` —
     # the same flattening `NodeErrorKind` gets above. They left the
     # `gap` roster at LIB-G18a, when the resolver parameter made them
     # reachable: the tags existed before it, and `part_no_resolver` was
     # the only one an evaluation could produce. The refusal a failed
-    # part root CARRIES crosses as the exception's `__cause__`, an
-    # `EvaluationError` of its own.
+    # part root, or a poisoned root's failed ancestor, CARRIES crosses
+    # as the exception's `__cause__`, an `EvaluationError` of its own.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
     # The read-back doors, which hang off the evaluation because a
@@ -791,6 +796,19 @@ BOUND_AS = {
     # slot as at a raise. Whether the slot deserves a class of its own
     # is `work/lib/the-unnamed-slot-crosses-as-a-hit-test-error.md`.
     "UnnamedEntity": "HitTestError",
+    # `NameLookupError` is those two doors' refusal of the WHOLE call —
+    # the pairing, or the node's standing — and it crosses as the same
+    # class at the same words (`crate::tags::name_lookup_error_tag`):
+    # Python has one exception for a name that could not be read off
+    # a pick, and the message is the lookup's own, which names no hit
+    # test.
+    "NameLookupError": "HitTestError",
+    # `NodeStanding` is the payload every door that needs a node's
+    # value refuses with. It crosses by the carrier rule at every
+    # door that carries it, as that door's tag word (`node_failed`,
+    # `target_poisoned`, ...) plus the `node` and `through` attributes
+    # beside it; the hit test's spelling is the one named here.
+    "NodeStanding": "HitTestError.variant",
     # `StepImportError::RecognitionAmbiguous`'s `kind` field — which
     # analytic kind's stage-1 estimator declined on a face that could
     # not import without promotion. It crosses by the carrier rule at
@@ -918,14 +936,19 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
-    # The profile step ids. A `StepId` is what `Doc.step_ids` answers
-    # and `DocEdit.set_program` takes, one int per authored step (a
-    # kept id, or `None` for a new step), which is the newtype spelled
-    # as Python data rather than a class of its own. `StepIdFault` is
-    # what `EditError::StepIdsRefused` carries, and its arms cross at
-    # the carrier's second word.
-    "StepId": "Doc.step_ids",
+    # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
+    # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # The authored-step doors. `StepHandleRefusal` crosses as its own
+    # class under the door's name, its arms at `variant`; `keep_grid`
+    # is the lowering `DocEdit.set_program` runs on its `keep` dicts;
+    # a profile piece's locator is `Piece` and its role `Role`, the
+    # `Piece` arm alone, because a kernel-built section's piece is
+    # never spelled from Python.
+    "StepHandleRefusal": "StepHandleError",
+    "keep_grid": "DocEdit.set_program",
+    "ProfileEdgeRef": "Piece",
+    "PieceRole": "Role",
     # `PiecesFault` is what `NodeErrorKind::ProfilePieces` carries, and
     # its arms cross at that carrier's second word.
     "PiecesFault": "EvaluationError.inner_kind",
@@ -2405,6 +2428,14 @@ NOT_BOUND = {
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
+    # A refusal's rendering machinery: Python reads a refusal through
+    # `str()`, and the stripped sentence is what a Rust carrier renders
+    # inside its own. The phrase is read in that text.
+    "Labelled": SHAPE,
+    "Labels": SHAPE,
+    "PASS_A_RESOLVER": SHAPE,
+    "Recourse": SHAPE,
+    "Staged": SHAPE,
     "Real": SHAPE,
     "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,
@@ -2697,8 +2728,11 @@ NOT_BOUND = {
     # to Python — which is what `behind-a-door` means.
     "ParamEnv": INTERIOR,
     "Profile": INTERIOR,
-    "ProfileEdgeRef": INTERIOR,
-    "PieceRole": INTERIOR,
+    # What an `AuthoredStep` is made of: the value-erased shape of a
+    # step. Python holds the handle whole and never takes it apart.
+    "ArcShape": INTERIOR,
+    "StepShape": INTERIOR,
+    "TargetShape": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
@@ -3381,9 +3415,7 @@ MEMBERS_BOUND_AS = {
     "EvalError::CountToScalarOutOfRange": "EvalError.variant",
     "EvalError::NonFiniteResult": "EvalError.variant",
     "FmtQuantityError::NonFinite": "FmtQuantityError.variant",
-    "HitTestError::NodeNotEvaluated": "HitTestError.variant",
-    "HitTestError::NodeFailed": "HitTestError.variant",
-    "HitTestError::NodePoisoned": "HitTestError.variant",
+    "HitTestError::Standing": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
     "HitTestError::Ambiguous": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
@@ -3478,11 +3510,9 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
-    "ProductError::UnknownNode": "ProductError.variant",
+    "ProductError::Root": "ProductError.variant",
     "ProductError::PlacedUnderTwoRoots": "ProductError.variant",
     "ProductError::Naming": "ProductError.variant",
-    "ProductError::RootFailed": "ProductError.variant",
-    "ProductError::RootPoisoned": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
@@ -3508,6 +3538,8 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::TiedDisagrees": "SelectRefusal.reason",
     "SelectRefusal::Unreadable": "SelectRefusal.reason",
     "SelectRefusal::NotADatum": "SelectRefusal.reason",
+    "SelectRefusal::DatumHasNoValue": "SelectRefusal.reason",
+    "SelectRefusal::NodeHasNoValue": "SelectRefusal.reason",
     "SelectRefusal::NotALength": "SelectRefusal.reason",
     "SelectRefusal::PairInBand": "SelectRefusal.reason",
     "SelectRefusal::BadValue": "SelectRefusal.reason",

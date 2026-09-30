@@ -684,11 +684,17 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
 
     let nonpositive = tube_refusal(hollow_node(u, 2.0, TubeWindow::Full, 0.5, 0.0), z)
         .expect("a zero wall is not a wall");
-    assert!(nonpositive.contains("tube_wall"), "{nonpositive}");
+    assert!(
+        nonpositive.contains("the hollow tube's wall is not definitely thicker"),
+        "{nonpositive}"
+    );
 
     let eats_the_bore = tube_refusal(hollow_node(u, 2.0, TubeWindow::Full, 0.5, 0.5), z)
         .expect("a wall equal to the outer radius leaves no bore");
-    assert!(eats_the_bore.contains("tube_wall_bore"), "{eats_the_bore}");
+    assert!(
+        eats_the_bore.contains("the hollow tube's wall leaves no bore"),
+        "{eats_the_bore}"
+    );
 
     // The realized-gap arm: an outer radius whose own ulp exceeds a
     // wall that is itself comfortably above ε.
@@ -709,7 +715,10 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
         z,
     )
     .expect("a wall under the outer radius's own ulp collapses the stored gap");
-    assert!(collapsed.contains("tube_wall_gap"), "{collapsed}");
+    assert!(
+        collapsed.contains("inner and outer radii would be stored as one value"),
+        "{collapsed}"
+    );
 
     // All three name the HOLLOW door outright — the solid door cannot
     // produce them, and the message says so.

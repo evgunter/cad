@@ -65,15 +65,18 @@ fn widened_r() -> Interval {
 fn capped(second_radius: Interval) -> (Body<Interval>, EdgeKey, EdgeKey) {
     let tol = Tol::witness();
     let mut body = Body::<Interval>::new();
-    let seed = body.mvfs(at(0.0)).unwrap();
+    let seed = body.mvfs(at(0.0), true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
-            radius: iv(1.0),
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: p3(0.0, 0.0, 0.0),
+                radius: iv(1.0),
+                axis: v3(0.0, 0.0, 1.0),
+                u_ref: v3(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
 
@@ -95,11 +98,14 @@ fn capped(second_radius: Interval) -> (Body<Interval>, EdgeKey, EdgeKey) {
         .mef(
             MefSite::Chords { he1, he2 },
             EdgeCurveSpec::arc_of_circle(rim_circle(second_radius), iv(PI), iv(TAU)).unwrap(),
-            FaceSurface::New(Surface::Plane {
-                origin: p3(0.0, 0.0, RIM_Z),
-                normal: v3(0.0, 0.0, 1.0),
-                u_ref: v3(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: p3(0.0, 0.0, RIM_Z),
+                    normal: v3(0.0, 0.0, 1.0),
+                    u_ref: v3(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
             tol,
         )
         .unwrap()

@@ -68,16 +68,16 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
 fn a_session_with_no_backing_file_resolves_nothing_and_refuses_typed() {
     let tol = Tol::witness();
     let bench = asm::bench("noresolver", tol);
-    // The same document VALUE, held in memory: no file, no resolver —
-    // the typed no-resolver refusal renders as the tree's badges.
+    // The same document VALUE, held in memory: no file, so no store —
+    // the viewer's no-file refusal renders as the tree's badges.
     let history = viewer::docio::open(&bench.asm_path, tol).expect("the file opens");
     let mut session = DocSession::inline(history.doc().clone(), tol);
     session.pump();
     for row in session.tree_rows() {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("no part resolver"),
-                "the refusal names the missing seam: {message}"
+                message.contains("this document has no file"),
+                "the refusal names the missing file: {message}"
             ),
             other => panic!("an unresolvable instantiate row must fail typed, got {other:?}"),
         }

@@ -1993,7 +1993,7 @@ mod tests {
         let mut body = topo::Body::<f64>::new();
         let mut mint = |x: f64| {
             let born = body
-                .mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a lone vertex");
             body.mev_line(
                 topo::MevSite::Lone {
@@ -2112,7 +2112,7 @@ mod tests {
             let union = RecipeNodeId(9);
             let mut member_body = topo::Body::<f64>::new();
             let born = member_body
-                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
                 .expect("mvfs births a lone vertex");
             let edge = member_body
                 .mev_line(
@@ -2132,7 +2132,7 @@ mod tests {
             member_table.insert((**of).clone(), edge_ref(edge)).unwrap();
             let mut body = topo::Body::<f64>::new();
             let mut lone = |x: f64| {
-                body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                body.mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                     .expect("mvfs births a lone vertex")
                     .vertex
             };

@@ -632,12 +632,13 @@ fn value_of<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<&super::NodeValue<T>, NodeErrorKind> {
-    match results.get(&input) {
-        Some(NodeResult::Ok(v)) => Ok(v),
-        // Failed/Poisoned inputs never reach run_op; an absent entry
-        // is a dangling reference.
-        _ => Err(NodeErrorKind::MissingInput { input }),
-    }
+    // Failed/Poisoned inputs never reach run_op (the node is poisoned
+    // first), so the one standing that arrives is an absent entry: a
+    // dangling reference.
+    super::usable_in(results, input, || super::NodeStanding::NotInDocument {
+        node: input,
+    })
+    .map_err(|_| NodeErrorKind::MissingInput { input })
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's
@@ -832,6 +833,17 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// constant, so the telemetry and an escalation report the same name.
 pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 
+/// What one of this layer's decisions decides, in words
+/// (`crate::decision::words` reads them). `None` for a predicate this
+/// layer does not own.
+pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        EVAL_DIRECTION_NORM => "whether a direction has any length",
+        "revolve_full_vs_partial" => "whether the revolve makes a full turn",
+        _ => return None,
+    })
+}
+
 /// Normalizes a direction-valued vector; a non-finite length refuses,
 /// an underflowed one refuses, a decided-zero length refuses, in-band
 /// indeterminacy escalates.
@@ -941,8 +953,11 @@ impl DirectionRefusal {
     /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
     /// spelling** from a carried or raised refusal to a
-    /// [`NodeErrorKind`]; `pub` because [`NodeErrorKind::FrameDirection`]'s
-    /// `Display` and tag spell through it too.
+    /// [`NodeErrorKind`]: [`NodeErrorKind::FrameDirection`]'s `Display`
+    /// and its class ([`NodeErrorKind::class`]) read through it, so the
+    /// carried refusal says and is what the frame's own raise says and
+    /// is. `pub` because the carried refusal is: a consumer holding one
+    /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
         refusal(self.error, self.role, DATUM_UNIT_NORM)
     }
@@ -5291,13 +5306,14 @@ mod place_tests {
         let tol = Tol::witness();
         let mut b = topo::test_support::brick::<f64>((0.0, 1.0), (dy, dy + 1.0), (0.0, 1.0), tol);
         let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
-        let cylinder = |r: f64| {
-            FaceSurface::New(geom::Surface::Cylinder {
+        let cylinder = |r: f64| FaceSurface::New {
+            surface: geom::Surface::Cylinder {
                 origin: Point3::new(0.5, dy + 0.5, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 radius: r,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
-            })
+            },
+            sense: true,
         };
         let stamped = b.set_face_surface(faces[0], cylinder(0.25)).unwrap();
         let pending = b.set_face_surface(faces[1], cylinder(0.3)).unwrap();

@@ -123,7 +123,8 @@ fn edit(s: &Slot, slot_id: SlotId, to: f64) -> ProfileDoc {
 }
 
 fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName> {
-    ev.value(cut)
+    let fragments = ev
+        .value(cut)
         .expect("the cut evaluates")
         .name_table
         .iter()
@@ -132,7 +133,8 @@ fn side_of_fragments(ev: &Evaluation<f64>, cut: RecipeNodeId) -> Vec<StableName>
                 matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::SideOf(_))));
             (discriminated && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
-        .collect()
+        .collect();
+    fixture::left_to_right(ev, cut, fragments)
 }
 
 fn vanished(res: &Resolution) -> Diagnosis {

@@ -54,7 +54,7 @@ struct Cube {
 /// (explicitly — not relying on the operators' debug postconditions).
 fn build_cube(body: &mut Body<f64>) -> Cube {
     // (a) Seed: lone vertex A in the face that will become the top.
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     assert_eq!(validate(body), Ok(()));
 
     // (b) The bottom chain A→B→C→D: one segment, then two struts, each

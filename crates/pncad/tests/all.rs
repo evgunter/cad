@@ -869,6 +869,7 @@ fn the_pick_index_refusal_is_matchable_through_the_select_list() {
 /// cannot spell them, which is exactly what the curated list decided.
 #[test]
 fn the_resolution_payloads_are_matchable_through_the_select_list() {
+    use pncad::document::NodeStanding;
     use pncad::select::{ResolutionFailure, ResolveError, ResolveIndeterminate};
 
     // The repair each failure asks for, which is why the three stay
@@ -893,15 +894,20 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
     // ...and which node to look at, on the state where the NAME is
     // fine and the run is not.
     fn upstream(cause: ResolveIndeterminate) -> (&'static str, RecipeNodeId) {
-        match cause {
-            ResolveIndeterminate::TargetFailed { node } => ("target_failed", node),
-            ResolveIndeterminate::TargetPoisoned { through } => ("target_poisoned", through),
-            ResolveIndeterminate::TargetNotEvaluated { node } => ("target_not_evaluated", node),
+        match cause.standing {
+            NodeStanding::Failed { node } => ("target_failed", node),
+            NodeStanding::Poisoned { through, .. } => ("target_poisoned", through),
+            NodeStanding::NotEvaluated { node } | NodeStanding::NotInDocument { node } => {
+                ("target_not_evaluated", node)
+            }
         }
     }
     assert_eq!(
-        upstream(ResolveIndeterminate::TargetPoisoned {
-            through: RecipeNodeId(4)
+        upstream(ResolveIndeterminate {
+            standing: NodeStanding::Poisoned {
+                node: RecipeNodeId(7),
+                through: RecipeNodeId(4)
+            }
         }),
         ("target_poisoned", RecipeNodeId(4))
     );
@@ -2395,7 +2401,7 @@ fn the_document_export_door_refuses_a_bodiless_document() {
 
 #[test]
 fn the_export_door_refuses_typed_not_vaguely() {
-    use pncad::document::{Node, RecipeNodeId};
+    use pncad::document::{Node, NodeStanding, RecipeNodeId};
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = box_doc("all");
     // A failing Boolean (undeclared coincidence) and its downstream.
@@ -2438,15 +2444,32 @@ fn the_export_door_refuses_typed_not_vaguely() {
     ));
     assert!(matches!(
         door(RecipeNodeId(u64::MAX)),
-        Err(ExportError::UnknownNode { .. })
+        Err(ExportError::Standing(NodeStanding::NotInDocument { .. }))
     ));
-    assert!(matches!(door(cut), Err(ExportError::NodeFailed { node }) if node == cut));
+    assert!(matches!(
+        door(cut),
+        Err(ExportError::Standing(NodeStanding::Failed { node })) if node == cut
+    ));
     assert!(matches!(
         door(downstream),
-        Err(ExportError::Poisoned { node, through }) if node == downstream && through == cut
+        Err(ExportError::Standing(NodeStanding::Poisoned { node, through }))
+            if node == downstream && through == cut
     ));
     // The typed root cause is one door away, F3's promise.
     assert!(ev.node_error(downstream).is_some());
+
+    // Each standing renders one way: the door's subject, then the
+    // standing's own sentence (`editor-core`'s `node_standing` rows
+    // hold the other doors to the same shape).
+    for node in [RecipeNodeId(u64::MAX), cut, downstream] {
+        let standing = ev.usable(node).expect_err("no value");
+        let refusal = door(node).expect_err("refuses");
+        assert_eq!(
+            refusal.to_string(),
+            format!("export: {standing}"),
+            "{standing:?}"
+        );
+    }
 }
 
 #[test]
@@ -2887,6 +2910,109 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
         }
         other => panic!("an unknown id must refuse UnknownId, got {other:?}"),
     }
+}
+
+/// **The `Workspace` door's resolution refusals, as the part's failure
+/// draws them**, each held to the refusal standard, and each recourse
+/// a store can be seen to honour followed word for word through the
+/// same door. The door holds the scan it was opened with, so a part
+/// put back after it needs the store opened again; a file removed after
+/// the scan is looked for at the scan's path, so putting it back there
+/// is enough. `Pin` fails only on a serializer defect, which no
+/// document reaches, so its row renders the door's refusal directly.
+#[test]
+fn workspace_resolve_door_refusals_meet_the_standard_and_their_recourses_get_through() {
+    use pncad::document::{PartFault, PersistError, Recourse};
+    use pncad::workspace::{Scan, Workspace, WorkspaceError};
+    use test_utils::refusal::{Admission, problems_admitting};
+    const HEX: &str = "work/edit/part-refusals-name-documents-by-hex-id.md";
+    let dir = WsDir::new("resolve-door");
+    let doc_ref = asm2a_part(&dir, "part.pncad", "ws-resolve-door-part");
+    let (asm, ids) = asm2a_assembly("ws-resolve-door-asm", doc_ref, 1);
+    let file = dir.0.join("part.pncad");
+    let kept = std::fs::read_to_string(&file).expect("the part reads");
+    let failure = |ws: &Workspace| {
+        asm2a_eval(&asm, ws)
+            .node_error(ids[0])
+            .map(ToString::to_string)
+    };
+    let states = |text: &str, action: &str| {
+        assert!(
+            text.contains(&Recourse(action).to_string()),
+            "the recourse followed below: {text}"
+        );
+    };
+    let mut rows: Vec<(&str, String)> = Vec::new();
+
+    // Removed after the scan, and put back at the scan's path.
+    let ws = Workspace::open(&dir.0).expect("the store scans");
+    std::fs::remove_file(&file).expect("the part is removed");
+    let gone = failure(&ws).expect("a part file removed after the scan refuses");
+    states(&gone, "put the part's file back at that path");
+    rows.push(("Resolve/Io(NotFound)", gone));
+    std::fs::write(&file, &kept).expect("the part is put back");
+    assert_eq!(
+        failure(&ws),
+        None,
+        "put back at that path, the same store resolves"
+    );
+
+    // Replaced by what cannot be read as a file.
+    std::fs::remove_file(&file).expect("the part is removed");
+    std::fs::create_dir(&file).expect("a directory takes its path");
+    let unreadable = failure(&ws).expect("an unreadable part file refuses");
+    states(&unreadable, "make the part's file readable by this process");
+    rows.push(("Resolve/Io(unreadable)", unreadable));
+    std::fs::remove_dir(&file).expect("the directory is removed");
+    std::fs::write(&file, &kept).expect("the part is put back, readable");
+    assert_eq!(failure(&ws), None, "made readable, the same store resolves");
+
+    // Not in the store when it was opened: put in its directory, then
+    // the store opened again.
+    std::fs::remove_file(&file).expect("the part is removed");
+    let ws = Workspace::open(&dir.0).expect("the store scans");
+    let unknown = failure(&ws).expect("a part the scan did not see refuses");
+    states(
+        &unknown,
+        "put the part's file in this store's directory, then open the store again",
+    );
+    rows.push(("Resolve/UnknownId", unknown));
+    std::fs::write(&file, &kept).expect("the part is put in the directory");
+    assert!(
+        failure(&ws).is_some(),
+        "the store holds the scan it was opened with, so the file alone is not enough"
+    );
+    let reopened = Workspace::open(&dir.0).expect("the store scans again");
+    assert_eq!(failure(&reopened), None, "opened again, the store resolves");
+
+    let pin = WorkspaceError::Pin {
+        path: file.clone(),
+        error: Box::new(PersistError::Serialize {
+            message: "the canonical form would not serialize".to_owned(),
+        }),
+    }
+    .resolve_failure(Scan::AtOpen);
+    rows.push((
+        "Resolve/Pin",
+        PartFault::Unresolved {
+            fault: pin.fault,
+            message: pin.message,
+        }
+        .to_string(),
+    ));
+
+    let id = doc_ref.id.to_string();
+    let admissions = [Admission {
+        row: "Resolve/UnknownId",
+        span: &id,
+        filed: HEX,
+    }];
+    let mut problems = Vec::new();
+    for (name, text) in &rows {
+        eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
+        problems.extend(problems_admitting(name, text, &[], false, &admissions));
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 /// The interactive-authoring id constructor mints DISTINCT ids from
@@ -4486,7 +4612,11 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 95] = [
+/// - **The step mint** (`StepMint`): the chain and log a document mints
+///   its profile step ids from, which `Doc::step_mint` answers. The
+///   doors read it and a consumer never writes it; what a consumer
+///   holds is the ids themselves (`StepId`), carried.
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4544,6 +4674,7 @@ const NOT_CARRIED: [&str; 95] = [
     "SeedScalar",
     "ShadowExecRefusal",
     "SideVerdict",
+    "StepMint",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
@@ -5012,25 +5143,20 @@ fn the_root_readers_read_statements_not_lines() {
 }
 
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family. One family, one entry —
-/// **and the list is empty**, which is a stronger statement than the
-/// one entry it used to hold.
+/// `profile` module does not carry, by family. One family, one entry.
 ///
-/// It held `RawLoop`, the minting tier: a root export the façade
-/// deliberately declined to carry, so that `ProfileLoop::polygon(…)`
-/// failed to resolve through the façade while `ProfileLoop` itself
-/// stayed nameable. The trait is now gated behind that crate's
-/// `test-support` feature, exactly as its six `FILLET_*_RECOURSE`
-/// sentences are, so no consumer's build compiles it and there is
-/// nothing for the façade to decline. [`code_without_cfg_gated`] is
-/// what makes the scan agree, and this list emptying is what that
-/// demotion looks like from here: the name did not move from carried
-/// to uncarried, it left the layer's shipped root surface.
+/// - `decision_subject`, the words a refusal or a flip report states
+///   for one of the layer's predicates. It is exported for the
+///   document layer's one lookup over every owner's words
+///   (`editor-core`'s `decision::words`), which renders them into its
+///   own sentences; a modeller reads those sentences, never the table.
 ///
-/// The list stays, and stays checked in both directions — a future
-/// interior root export is still a finding, and a stale entry still
-/// fails.
-const PROFILE_NOT_CARRIED: [&str; 0] = [];
+/// The list is checked in both directions — a future interior root
+/// export is a finding, and a stale entry fails. It once held
+/// `RawLoop`, the minting tier, which left the shipped root surface
+/// behind that crate's `test-support` feature instead
+/// ([`code_without_cfg_gated`] is what makes the scan agree).
+const PROFILE_NOT_CARRIED: [&str; 1] = ["decision_subject"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**

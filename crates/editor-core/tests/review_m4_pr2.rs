@@ -602,6 +602,14 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
     }
 }
 
+/// The class the revolve at `angle` refuses with, when it refuses.
+fn revolve_refusal(angle: f64) -> Option<editor_core::NodeErrorClass> {
+    let (doc, rev) = revolve_doc(angle);
+    run(&doc, None, false)
+        .node_error(rev)
+        .map(|e| e.kind.class())
+}
+
 /// R6: the τ-coincidence door, swept at ulp and band scale. The
 /// decision must be MARGINED (decided Zero band ⇒ Full; in-band ⇒
 /// typed escalation; definite ⇒ Partial), never a raw compare.
@@ -637,7 +645,11 @@ fn revolve_tau_door_is_margined_not_raw() {
     // silent guess either way. Geometric mean of the band edges.
     let in_band = (eps * kesc).sqrt();
     let e = revolve_volume(TAU - in_band).expect_err("in-band must escalate typed");
-    assert!(e.contains("Escalated"), "got {e}");
+    assert_eq!(
+        revolve_refusal(TAU - in_band),
+        Some(editor_core::NodeErrorClass::Escalated),
+        "got {e}"
+    );
     assert!(
         e.contains("revolve_full_vs_partial"),
         "predicate must be k_stats-named: {e}"

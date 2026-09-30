@@ -286,13 +286,15 @@ class TestTheResolutionRefusals(CorpusCase):
     """The seam's refusal family, each reached THROUGH `resolver=`.
 
     THREE arms are exercised here — `part_no_resolver` (the class
-    above), `part_pin_mismatch` and `part_unresolved` — and a fourth,
-    `part_root_failed`, by `TestAPartWhoseRootFails` below. The rest of
+    above), `part_pin_mismatch` and `part_unresolved` — and two more
+    below: `part_root_failed` by `TestAPartWhoseRootFails` and
+    `part_root_poisoned` by `TestAPartWhoseRootIsPoisoned`. The rest of
     the family is typed and tagged but UNREACHED from Python today, each
     for its own reason, and none of them is singled out:
     `part_epsilon_seam` needs a stored document recording a different
     ε; `part_product` needs a part whose own product is broken for a
-    reason other than a failed root; `part_root_failure_unrecorded` is
+    reason other than a failed or poisoned root;
+    `part_root_failure_unrecorded` is
     a kernel bug no document reaches; `part_reference_cycle` needs an instantiate node
     pointing back up its own chain — and an honest store cannot hold
     one at all, since a cycle with valid pins wants a content hash
@@ -340,6 +342,37 @@ class TestTheResolutionRefusals(CorpusCase):
         self.assertEqual(
             sorted(r.reason for r in refusals.values()), ["node_failed", "poisoned"]
         )
+
+    def test_a_missing_part_resolves_once_its_recourse_is_followed(self):
+        """The recourse the refusal states, followed word for word: the
+        part's file put in the store's directory, then the store opened
+        again. A `Workspace` holds the scan it was opened with, so the
+        file alone does not reach it."""
+        directory = self.scratch()
+        part = directory / f"{identities()['post']}.pncad"
+        kept = part.read_bytes()
+        part.unlink()
+        _, docs = opened()
+        store = Workspace(str(directory))
+
+        (refusal,) = [
+            r
+            for r in failures(evaluate(docs["layout"], resolver=store)).values()
+            if r.reason == "node_failed"
+        ]
+        self.assertIn(
+            "Recourse: put the part's file in this store's directory, "
+            "then open the store again",
+            str(refusal),
+        )
+
+        part.write_bytes(kept)
+        self.assertTrue(
+            failures(evaluate(docs["layout"], resolver=store)),
+            "the store opened before the file was put back does not see it",
+        )
+        store = Workspace(str(directory))
+        self.assertEqual(failures(evaluate(docs["layout"], resolver=store)), {})
 
 
 class TestAPartWhoseRootFails(unittest.TestCase):
@@ -425,6 +458,110 @@ class TestAPartWhoseRootFails(unittest.TestCase):
             "the poisoned node hands on the chain its root cause carries",
         )
         self.assertEqual(cause.__cause__.document, self.boss_ref)
+
+
+class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
+    """`part_root_poisoned`, reached: a part whose extrude refuses and
+    whose one root, a transform over it, never runs.
+
+    The instance names the part's root and points at the extrude, the
+    node the author repairs; the extrude's refusal crosses TYPED as the
+    exception's `__cause__`, raised the way the part's own evaluation
+    raises it.
+    """
+
+    def setUp(self):
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        self.store = Workspace(str(directory))
+        part = pncad.Doc("pncad-partpoison-part")
+        profile = part.insert(
+            Node.polygon(
+                [
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(0.02, m), Expr.length_in(0, m)),
+                    (Expr.length_in(0.02, m), Expr.length_in(0.02, m)),
+                    (Expr.length_in(0, m), Expr.length_in(0.02, m)),
+                ],
+                plane=part.sketch_frame(elevation=Expr.length_in(0, m)),
+            )
+        )
+        # No length to extrude, so the extrude refuses.
+        self.extrude = part.insert(Node.extrude(profile, Expr.length_in(0.0, m)))
+        self.root = part.insert(
+            Node.transform(
+                self.extrude,
+                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
+            )
+        )
+        self.store.create(part)
+        self.part = part
+        self.part_ref = DocRef(part.id, pncad.content_pin(part))
+        self.assembly = pncad.Doc("pncad-partpoison-assembly")
+        self.instance = self.assembly.insert(Node.instantiate_part(self.part_ref))
+
+    def test_the_instance_carries_the_failure_that_poisoned_the_root(self):
+        refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
+        self.assertEqual(refusal.kind, "part_root_poisoned")
+        text = str(refusal)
+        self.assertIn(f"its root, node {repr(self.root)[7:-1]}", text)
+        self.assertIn(f"repair node {repr(self.extrude)[7:-1]}", text)
+
+        cause = refusal.__cause__
+        self.assertIsInstance(cause, pncad.EvaluationError)
+        self.assertEqual(cause.kind, "extrude")
+        self.assertEqual(
+            (cause.node, cause.document),
+            (self.extrude, self.part_ref),
+            "the cause is the extrude, in the part's id space",
+        )
+        self.assertIsNone(cause.__cause__, "the chain ends at the refusing node")
+        self.assertNotIn(str(cause), text, "the instance never quotes it")
+
+    def test_the_parts_own_gather_names_the_root_and_its_failed_ancestor(self):
+        """`ProductError.node` and `.through` are the standing's."""
+        with self.assertRaises(pncad.ProductError) as caught:
+            pncad.product(self.part, evaluate(self.part))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "root_poisoned")
+        self.assertEqual(
+            (refusal.node, refusal.through),
+            (self.root, self.extrude),
+            "the poisoned root, and the failed ancestor that poisoned it",
+        )
+
+    def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
+        """A bracket whose root is a transform over an instance of the
+        part: the bracket's root is poisoned through that failed
+        instance, and the chain runs instance, instance, extrude."""
+        bracket = pncad.Doc("pncad-partpoison-bracket")
+        inner = bracket.insert(Node.instantiate_part(self.part_ref))
+        bracket.insert(
+            Node.transform(
+                inner,
+                (Expr.length_in(0.01, m), Expr.length_in(0, m), Expr.length_in(0, m)),
+                (Expr.literal(0.0), Expr.literal(0.0), Expr.literal(1.0)),
+                Expr.literal(0.0 * pncad.rad),
+            )
+        )
+        self.store.create(bracket)
+        bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
+        assembly = pncad.Doc("pncad-partpoison-deep-assembly")
+        instance = assembly.insert(Node.instantiate_part(bracket_ref))
+
+        refusal = failures(evaluate(assembly, resolver=self.store))[instance]
+        self.assertEqual(refusal.kind, "part_root_poisoned")
+        middle = refusal.__cause__
+        self.assertIsInstance(middle, pncad.EvaluationError)
+        self.assertEqual(middle.kind, "part_root_poisoned")
+        self.assertEqual((middle.node, middle.document), (inner, bracket_ref))
+        last = middle.__cause__
+        self.assertIsInstance(last, pncad.EvaluationError)
+        self.assertEqual(last.kind, "extrude")
+        self.assertEqual((last.node, last.document), (self.extrude, self.part_ref))
+        self.assertIsNone(last.__cause__, "the chain ends at the refusing node")
 
 
 class TestTheMemoIsObservable(CorpusCase):

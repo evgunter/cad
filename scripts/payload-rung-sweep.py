@@ -144,6 +144,14 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
+    # decision types. The row also holds the two types nested one rung
+    # further down (`SectorRung`, `CrossingDecision`), which this sweep
+    # does not reach.
+    "BooleanDecision": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
+    "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                      "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
                         "declaration under the alias `PlaneRelation` "
                         "(crates/topo/src/boolean/plane_eq.rs)"),
@@ -201,6 +209,13 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
                                        "spelled once; the general rule is at the "
                                        "payload-rule header of "
                                        "crates/pncad/src/document.rs"),
+    # A node's standing is the evaluation's own vocabulary — the refusal of
+    # `Evaluation::usable`, carried beside `Evaluation` on `document` — and the
+    # select-list refusals (hit test, pick, name lookup, name read, resolution,
+    # query) carry it as their payload. The same rule as the rows above.
+    "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
+                               "once, beside `Evaluation`; the general rule is at the "
+                               "payload-rule header of crates/pncad/src/document.rs"),
 }
 
 

@@ -399,7 +399,8 @@ pub enum ErrorClass {
     /// different stages of one story: this one means there is nothing
     /// to pick AGAINST, that one means the pick itself could not
     /// answer. The standing ladder is shared, and arrives here under
-    /// the hit-test door's own tags rather than a wrapper's.
+    /// the same tags the hit-test door answers with rather than a
+    /// wrapper's.
     NodePick,
     /// The advisory-check registry could not RUN: a root without a
     /// value, a tolerance that forms no band, roots that gather into
@@ -505,6 +506,12 @@ pub enum ErrorClass {
     /// so a caller who branches on `band_has_no_measure` reads the
     /// same word from either door.
     Mc,
+    /// An authored step handle that does not bind in the profile it was
+    /// read against: its address is off that loop's program, or the
+    /// role asked of it is one its verb never draws. The Python class
+    /// is `StepHandleError`, after the Rust type
+    /// [`StepHandleRefusal`](pncad::document::StepHandleRefusal).
+    StepHandle,
 }
 
 /// **Six doors, four classes.** The document layer's `DimensionError`
@@ -576,6 +583,7 @@ impl ErrorClass {
             Self::MeasureUnavailableAt => "MeasureUnavailableAt",
             Self::AnalysisPolicy => "AnalysisPolicyError",
             Self::Mc => "McRefusal",
+            Self::StepHandle => "StepHandleError",
         }
     }
 }
@@ -622,25 +630,14 @@ impl ErrorClass {
 /// arrangement for the same reason.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EvalReason {
-    /// The document holds no node under that id.
-    UnknownNode,
     /// The node evaluated to a value of a kind this door cannot read.
     WrongKind,
     /// A Boolean that succeeded and produced nothing to hand back.
     EmptyBoolean,
-    /// The run was canceled before it reached the node, so this
-    /// evaluation holds the completed prefix only. The same rung the
-    /// read-back and picking doors speak
-    /// ([`crate::tags::hit_test_error_tag`],
-    /// [`crate::tags::interrogate_error_tag`]), spelled identically on
-    /// purpose and pinned against both by
-    /// `tests::the_evaluation_door_speaks_the_standing_ladder`.
-    NodeNotEvaluated,
-    /// The node ITSELF failed; `kind` carries the refusal's own tag.
-    NodeFailed,
-    /// An ancestor failed, so the node never ran; `through` names the
-    /// nearest failed one.
-    Poisoned,
+    /// The node has no value, and its standing says why. A failed
+    /// node's `kind` carries its refusal's own tag; a poisoned one's
+    /// `through` names the nearest failed ancestor.
+    Standing(pncad::document::NodeStanding),
 }
 
 impl EvalReason {

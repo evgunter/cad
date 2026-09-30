@@ -737,24 +737,27 @@ pub enum SnapshotError {
     },
     /// A profile's step ids are not the ones its edit doors would have
     /// minted (`names/README.md`, "N1, the profile pieces"): not one
-    /// per authored step, at or beyond the step counter, or one id
-    /// standing for two steps anywhere in the document.
+    /// per authored step, not in the mint log, or one id standing for
+    /// two steps anywhere in the document.
     StepIds {
         /// The profile node.
         node: RecipeNodeId,
         /// What is wrong.
         fault: crate::program::StepIdFault,
     },
-    /// A name the document holds spells a profile step at or beyond
-    /// the step counter — one the document never minted, which a
-    /// later step would be minted as.
-    NameStepBeyondCounter {
+    /// The step mint's log is not strictly ascending: an id logged
+    /// twice, or out of order — a log no mint wrote.
+    MintLogOrder {
+        /// The first entry not greater than the one before it.
+        step: crate::node::StepId,
+    },
+    /// A name the document holds spells a profile step its mint log
+    /// does not hold — one the document never minted.
+    NameStepNotMinted {
         /// The name.
         name: Box<crate::names::StableName>,
         /// The step it spells.
         step: crate::node::StepId,
-        /// The counter.
-        next_step: u64,
     },
     /// A node's input ref does not name a live node.
     DanglingInput {
@@ -1012,14 +1015,16 @@ impl core::fmt::Display for SnapshotError {
             Self::StepIds { node, fault } => {
                 write!(f, "profile node {}'s step ids: {fault}", node.0)
             }
-            Self::NameStepBeyondCounter {
-                name,
-                step,
-                next_step,
-            } => write!(
+            Self::MintLogOrder { step } => write!(
                 f,
-                "the {name} spells the profile step id #{}, at or beyond the step counter {next_step} — \
-                 replay would mint that id for another step",
+                "the step mint's log is not strictly ascending at id {} — an id logged twice or \
+                 out of order, which no mint writes",
+                step.0
+            ),
+            Self::NameStepNotMinted { name, step } => write!(
+                f,
+                "the {name} spells the profile step id #{}, which the document's mint log does not \
+                 hold — the document never minted it",
                 step.0
             ),
             Self::DanglingInput { node, input } => write!(
@@ -1179,7 +1184,7 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
-                "metadata {key:?} on the {name} does not carry the D7 integer \
+                "metadata {key:?} on the {name} does not carry an integer \
                  \"v\" version field: {error}"
             ),
         }
@@ -1217,10 +1222,15 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             Ok(())
         }
     };
+    // The mint log first, since every check below asks it: strictly
+    // ascending, the only log a mint writes.
+    if let Some(step) = doc.step_mint.out_of_order() {
+        return Err(SnapshotError::MintLogOrder { step });
+    }
     // Every profile's step ids: one per authored step, each one the
-    // step counter has passed, and no id standing for two steps
-    // anywhere in the document — the three things the edit doors'
-    // minting makes true (N1).
+    // mint log holds, and no id standing for two steps anywhere in the
+    // document — the three things the edit doors' minting makes true
+    // (N1).
     let mut seen_steps = std::collections::BTreeSet::new();
     for (&id, node) in &doc.nodes {
         let Node::Profile(program) = node else {
@@ -1230,11 +1240,8 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         program.check_id_shape().map_err(fault)?;
         for ids in &program.ids {
             for &step in ids {
-                if step.0 >= doc.next_step {
-                    return Err(fault(crate::program::StepIdFault::BeyondCounter {
-                        step,
-                        next_step: doc.next_step,
-                    }));
+                if !doc.step_mint.has_minted(step) {
+                    return Err(fault(crate::program::StepIdFault::NotMinted { step }));
                 }
                 if !seen_steps.insert(step) {
                     return Err(fault(crate::program::StepIdFault::Repeated { step }));
@@ -1351,19 +1358,17 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         for n in derivation_nodes(carrier.name()) {
             check_id(n)?;
         }
-        // And every profile step it spells, against the step counter:
-        // a step a `SetProgram` dropped is below it and stays there,
-        // one past it would be minted for another step.
+        // And every profile step it spells, against the mint log: a
+        // step a `SetProgram` dropped stays in it.
         if let Some(&step) = carrier
             .name()
             .piece_steps()
             .iter()
-            .find(|s| s.0 >= doc.next_step)
+            .find(|s| !doc.step_mint.has_minted(**s))
         {
-            return Err(SnapshotError::NameStepBeyondCounter {
+            return Err(SnapshotError::NameStepNotMinted {
                 name: Box::new(carrier.name().clone()),
                 step,
-                next_step: doc.next_step,
             });
         }
     }
@@ -1591,7 +1596,8 @@ mod tests {
             OrderMismatch,
             IdBeyondCounter,
             StepIds,
-            NameStepBeyondCounter,
+            MintLogOrder,
+            NameStepNotMinted,
             DanglingInput,
             ForwardInput,
             DeclareInput,
@@ -1634,7 +1640,8 @@ mod tests {
             SnapshotError::OrderMismatch
             | SnapshotError::IdBeyondCounter { .. }
             | SnapshotError::StepIds { .. }
-            | SnapshotError::NameStepBeyondCounter { .. }
+            | SnapshotError::MintLogOrder { .. }
+            | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DanglingInput { .. }
             | SnapshotError::ForwardInput { .. }
             | SnapshotError::DeclareInput { .. }
@@ -1691,14 +1698,16 @@ mod tests {
                     step: crate::node::StepId(2),
                 },
             },
-            SnapshotError::NameStepBeyondCounter {
+            SnapshotError::MintLogOrder {
+                step: crate::node::StepId(3),
+            },
+            SnapshotError::NameStepNotMinted {
                 name: Box::new(crate::names::StableName {
                     kind: crate::names::EntityKind::Face,
                     node,
                     path: Vec::new(),
                 }),
                 step: crate::node::StepId(9),
-                next_step: 4,
             },
             SnapshotError::DanglingInput {
                 node,

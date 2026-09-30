@@ -1521,25 +1521,25 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // off the same pairs.
         let mut promoted: Vec<(FaceKey, LoopKey)> = Vec::new();
         for &(guest_ring, host_ring) in &pairs {
+            // The promoted face faces the HOST's way on the host's
+            // surface: a ring of the guest is wound opposite to the
+            // guest's outer loop, i.e. the way an outer loop of a
+            // host-facing face must be. The lift re-charted the
+            // counterpart onto a surface of its own, so the host's key
+            // is never the guest's chart, and `mfkrh` writes the
+            // host's bit as stated.
+            // Tier 3's check 6 reads `sense` against the stored loop
+            // windings on every planar face, and check 7 reads the
+            // volume the same windings integrate, so a flip either way
+            // reds at the verb's own closing `validate_geometric`.
             let made = out
-                .mfkrh(guest_ring, crate::euler::FaceSurface::Shared(host_surface))
-                .map_err(|error| ShellError::Rim {
-                    face: designated,
-                    error,
-                })?;
-            // The promoted face inherits the HOST's orientation, not
-            // the guest's: `mfkrh` with a `Shared` surface mints
-            // `sense: true`, and the guest faces the other way. The
-            // winding works out by construction — a ring of the guest
-            // is wound opposite to the guest's outer loop, i.e. the way
-            // an outer loop of a host-facing face must be — and it is
-            // not asserted here on that argument alone: tier 3's check
-            // 6 reads `sense` against the stored loop windings on every
-            // planar face, and check 7 reads the volume the same
-            // windings integrate, so a flip either way reds at the
-            // verb's own closing `validate_geometric` rather than
-            // shipping.
-            out.set_face_sense(made.face, host_sense)
+                .mfkrh(
+                    guest_ring,
+                    crate::euler::FaceSurface::Shared {
+                        key: host_surface,
+                        sense: host_sense,
+                    },
+                )
                 .map_err(|error| ShellError::Rim {
                     face: designated,
                     error,

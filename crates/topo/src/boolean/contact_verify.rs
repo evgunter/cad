@@ -71,6 +71,7 @@ use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL}
 use crate::entity::FaceKey;
 
 use super::carrier_eq::{CarrierEqError, CarrierRelation};
+use super::refusal_routes::Contradiction;
 
 /// **The class-dispatching contact door**: does this face pair hold
 /// the declared contact, and on whose evidence?
@@ -121,19 +122,10 @@ pub fn contact_pair_verdict<T: Decide>(
 ///
 /// An ANGULAR contradiction (axes not parallel, planes not parallel)
 /// gets no steer: no gap makes those two carriers one, so pointing at
-/// `Fit` there would be advice that cannot work.
-pub(super) fn fit_steer(diag: &Indeterminate) -> Option<&'static str> {
-    matches!(
-        diag.predicate,
-        Some(
-            "carrier_sphere_radius"
-                | "carrier_cyl_radius"
-                | "carrier_sphere_center"
-                | "carrier_cyl_axis_offset"
-                | "bool_plane_offset"
-        )
-    )
-    .then_some(FIT_DEFERRAL)
+/// `Fit` there would be advice that cannot work
+/// ([`Contradiction::fits_a_clearance`]).
+pub(super) fn fit_steer(fact: Contradiction) -> Option<&'static str> {
+    fact.fits_a_clearance().then_some(FIT_DEFERRAL)
 }
 
 /// The `Rest` table (C4): carrier non-contradiction through the
@@ -181,8 +173,8 @@ fn rest_pair_verdict<T: Decide>(
                 terminal_sliver: false,
             },
         }),
-        Err(CarrierEqError::Contradicted(diag)) => Err(ContactRefusal::Contradicted {
-            steer: fit_steer(&diag),
+        Err(CarrierEqError::Contradicted { fact, diag }) => Err(ContactRefusal::Contradicted {
+            steer: fit_steer(fact),
             diag,
         }),
         Err(CarrierEqError::Escalated(diag)) => Err(ContactRefusal::Escalated { diag }),
@@ -641,21 +633,15 @@ mod tests {
     /// does not, because no gap makes two non-parallel carriers one.
     #[test]
     fn fit_steer_fires_only_where_a_gap_could_help() {
-        let diag = |p| Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band: band(),
-            predicate: Some(p),
-            terminal_sliver: false,
-        };
         assert_eq!(
-            fit_steer(&diag("carrier_sphere_radius")),
+            fit_steer(Contradiction::SphereRadiiDiffer),
             Some(FIT_DEFERRAL)
         );
         assert_eq!(
-            fit_steer(&diag("carrier_cyl_axis_offset")),
+            fit_steer(Contradiction::CylinderAxesApart),
             Some(FIT_DEFERRAL)
         );
-        assert_eq!(fit_steer(&diag("carrier_cyl_axis_parallel")), None);
-        assert_eq!(fit_steer(&diag("bool_plane_parallel")), None);
+        assert_eq!(fit_steer(Contradiction::CylinderAxesNotParallel), None);
+        assert_eq!(fit_steer(Contradiction::PlanesNotParallel), None);
     }
 }

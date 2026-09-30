@@ -15,6 +15,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the product's two-roots check and the mate member walk) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
+| N1's profile step ids: the mint chain and mint log (`StepMint`) | `crates/editor-core/src/step_mint.rs`; `StepId` in `crates/editor-core/src/node.rs` |
 | N2 discriminators; tie propagation | `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `SideOf` partners, a junction's lines, a union seam's sides), and what ordering a union seam does to its ranks | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
@@ -63,7 +64,8 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   `InsertNode` or `SetProgram`, from the document's mint chain: a digest
   the document carries, which each minting edit extends by that edit's
   canonical bytes. The steps one edit mints take the extended chain's
-  digests, one per step in authored order. So an id is a function of the
+  digests, one per step in authored order; an id is the first 64 bits of
+  its digest. So an id is a function of the
   edit sequence that minted it:
   - the same sequence of edits from one value mints the same ids (D9);
   - two documents that branch from one value — an undo followed by a
@@ -76,11 +78,25 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   Like a `RecipeNodeId`, a step id is never positional and never reused,
   and it is unique across the whole document. The document keeps every
   id it has minted in its mint log, dropped steps' included, and a mint
-  whose digest is already in the log is refused. The load door checks all
-  three. A name may spell only a step the document has minted: the doors
+  whose id is already in the log is refused. The load door checks the
+  three things minting makes true: one id per authored step, every id in
+  the mint log, and no id standing for two steps. A name may spell only a step the document has minted: the doors
   that write a name (`InsertNode`, `Rebind`, `SetAppearance`,
   `SetAppearanceMeta`) refuse one the mint log does not hold, and so does
   the load door.
+  An author reaches a step's id through an authored address, not a name:
+  the step's index in its loop and its program's shape up to that step,
+  values erased, read against the loop the author states. The profile's
+  program maps the address to the id it minted for that placement, so
+  one authored loop placed twice resolves to two ids, a value edit
+  leaves the address valid, and a reshape that changes the prefix
+  refuses it. An address is valid for the program it was authored for;
+  across a `SetProgram` an author holds the `StepId`. The check is the
+  prefix alone, so a wrong loop of the same shape, or a stale address
+  whose prefix the program still has, binds without error; and equal
+  addresses are one key in a keep map. The roles a step may draw come
+  from one per-verb list, which the piece door (`ProfileProgram::piece`)
+  checks and the authoring surfaces' role accessors are generated from.
 - **The role.** A step draws its pieces from a fixed list of roles, one list
   per verb:
   - every verb that draws one segment has one role, `Leg`: `line`,

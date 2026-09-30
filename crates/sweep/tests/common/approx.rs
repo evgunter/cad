@@ -255,7 +255,13 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     )
     .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
     let surface = body
-        .set_face_surface(face, FaceSurface::New(approx))
+        .set_face_surface(
+            face,
+            FaceSurface::New {
+                surface: approx,
+                sense: true,
+            },
+        )
         .expect("the attach-layer door accepts a live face");
 
     let fit = match body.get_surface(surface) {
@@ -426,7 +432,13 @@ pub fn try_approx_walls(
             fit_interior_v = kv[FIT_DEGREE + 1..kv.len() - (FIT_DEGREE + 1)].to_vec();
         }
         let new = body
-            .set_face_surface(face, FaceSurface::New(approx))
+            .set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface: approx,
+                    sense: true,
+                },
+            )
             .expect("the attach-layer door accepts a live face");
         remap.insert(old, new);
         faces.push(face);

@@ -21,9 +21,9 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
     EditError, EvalOptions, Frame, FrameFault, Lever, LeverRefusal, LoggedEdit, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult, PartFault,
-    PartReach, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, ResolveFault, SplitError,
-    content_pin, mate_reach, product, split,
+    MateFrame, MatePrimitive, MateReach, MateRole, Node, NodeErrorKind, NodeResult,
+    PASS_A_RESOLVER, PartFault, PartReach, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId,
+    Recourse, ResolveFault, SplitError, content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -493,7 +493,7 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
 fn a4_a_face_whose_reach_cannot_be_bounded_refuses_typed() {
     let mut body = topo::Body::<f64>::new();
     let made = body
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("the seed vertex-face-shell");
     let refusal = editor_core::mate::body_reach(&body).expect_err("the placeholder has no bound");
     assert_eq!(
@@ -1813,6 +1813,19 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         DocumentId::derive("msolve6-p6-new-part-none"),
         Tol::witness(),
         None,
+    );
+    // The sentence states the split's own recourse — the resolver the
+    // call was not given — once.
+    let text = none
+        .as_ref()
+        .err()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    assert!(
+        text.contains("the split was given no resolver")
+            && text.contains(&Recourse(PASS_A_RESOLVER).to_string())
+            && text.matches("Recourse:").count() == 1,
+        "the split's recourse: {text}"
     );
     match none {
         Err(SplitError::RemainderEdit { error }) => assert!(
