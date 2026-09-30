@@ -3120,3 +3120,64 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod walk_tests {
+    //! [`walk_names`] visits every embedded name, depth first in path
+    //! order, from its own stack.
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+    use crate::names::{CapEnd, NameRef, SideVerdict};
+
+    fn leaf(node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    /// `inner` under a segment holding it and a partner beside it.
+    fn over(inner: StableName, node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![
+                RoleSeg::FromA(NameRef::new(inner)),
+                RoleSeg::Fragment(Qualifier::SideOf(vec![(
+                    leaf(node + 1000),
+                    SideVerdict::On,
+                )])),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_walk_visits_depth_first_in_path_order() {
+        let name = over(over(leaf(1), 2), 3);
+        let mut seen = Vec::new();
+        walk_names(&name, Partners::Include, &mut |n| seen.push(n.node.0));
+        assert_eq!(seen, [2, 1, 1002, 1003], "partners included");
+        seen.clear();
+        walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0));
+        assert_eq!(seen, [2, 1], "partners skipped");
+    }
+
+    #[test]
+    fn a_walk_over_a_name_nested_past_every_stack_runs_on_the_smallest_stack() {
+        const DEEP: u64 = 20_000;
+        let seen = std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(|| {
+                let name = (2..DEEP + 2).fold(leaf(1), over);
+                let mut seen = 0usize;
+                walk_names(&name, Partners::Include, &mut |_| seen += 1);
+                seen
+            })
+            .expect("the thread starts")
+            .join()
+            .expect("the walk returns");
+        assert_eq!(seen, 2 * DEEP as usize, "every level's operand and partner");
+    }
+}
