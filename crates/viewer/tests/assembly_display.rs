@@ -866,6 +866,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
         op: pncad::document::BooleanOp::Union,
         a: bench.post_b,
         b: bench.post_a,
+        declare: Vec::new(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [dropped] = &outcome.withdrawn.dropped_hides[..] else {

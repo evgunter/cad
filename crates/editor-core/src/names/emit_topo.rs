@@ -37,8 +37,22 @@ struct Side<'a, T: Decide> {
     half: SplitHalf,
 }
 
-/// The operand-face plane, **oriented outward** (result carriers are
-/// the N2 references).
+/// The operand-face plane, **oriented outward** ([`carrier_plane`]),
+/// for a caller whose face is planar by construction.
+pub(super) fn face_plane<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<(Point3<T>, Vec3<T>), NamingError> {
+    carrier_plane(body, f)?.ok_or(NamingError::Emission {
+        what: "face_plane: non-planar carrier in planar pipeline",
+    })
+}
+
+/// A point on a carrier plane and its outward normal ([`carrier_plane`]).
+pub(super) type OrientedPlane<T> = (Point3<T>, Vec3<T>);
+
+/// A face's carrier plane, **oriented outward** (result carriers are
+/// the N2 references): `None` for a carrier that is not a plane.
 ///
 /// S10 CATEGORY A: the returned normal is the face's outward normal —
 /// the chart normal with `Face::sense` folded in through
@@ -56,21 +70,6 @@ struct Side<'a, T: Decide> {
 /// negation), so no new numeric decision enters here, and every face
 /// this build mints has `sense: true` — the fold is the identity and
 /// no name moves.
-pub(super) fn face_plane<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-) -> Result<(Point3<T>, Vec3<T>), NamingError> {
-    carrier_plane(body, f)?.ok_or(NamingError::Emission {
-        what: "face_plane: non-planar carrier in planar pipeline",
-    })
-}
-
-/// A point on a carrier plane and its outward normal ([`face_plane`]).
-pub(super) type OrientedPlane<T> = (Point3<T>, Vec3<T>);
-
-/// [`face_plane`] for a caller that has a rule of its own for a face
-/// whose carrier is not a plane: `None` there, the same oriented plane
-/// otherwise.
 pub(super) fn carrier_plane<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -1239,7 +1238,14 @@ fn name_boolean_edges<T: Decide>(
         }
     }
     for ((fa, fb), (from_tie, edges)) in seam_groups {
-        let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
+        let base = name1(
+            EntityKind::Edge,
+            node,
+            RoleSeg::Seam {
+                a: fa.clone(),
+                b: fb.clone(),
+            },
+        );
         rec.record_by_name(
             &base,
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
@@ -1259,7 +1265,7 @@ fn name_boolean_edges<T: Decide>(
         // `edge_extent` projects onto it and `order_along` ranks by
         // that signed parameter, so negating `dir` reverses every
         // `OrderAlong` rank and renames the whole chain. Hence
-        // `face_plane` returns OUTWARD normals (S10 category A): the
+        // `seam_side_normal` returns OUTWARD normals (S10 category A): the
         // orientation of this line is a fact about the two faces'
         // material sides, and it must move only when they do.
         let faces = inc
@@ -1271,8 +1277,8 @@ fn name_boolean_edges<T: Decide>(
             OpSide::A(_) => (f0, f1),
             OpSide::B(_) => (f1, f0),
         };
-        let (_, na) = face_plane(body, fa_key)?;
-        let (_, nb) = face_plane(body, fb_key)?;
+        let na = seam_side_normal(body, fa_key, &base, fa.name())?;
+        let nb = seam_side_normal(body, fb_key, &base, fb.name())?;
         let dir = na.cross(nb);
         let extents = edges
             .iter()
@@ -1306,7 +1312,7 @@ fn name_boolean_edges<T: Decide>(
         // cut it. Any other parent is ordered along its own oriented
         // carrier (operand geometry).
         let dir = match seam_pair::seam_line_pair(&inner.name) {
-            Some(pair) => seam_line_dir(op.body, op.table, op.node, root_key, pair)?,
+            Some(pair) => seam_line_dir(op.body, op.table, op.node, root_key, &base, pair)?,
             None => edge_dir(op_body, root_key)?,
         };
         let extents = edges
@@ -1600,9 +1606,9 @@ fn name_boolean_vertices<T: Decide>(
         }
         // Same pair crossing more than once: order along the edge
         // parent's own carrier (prefer the A side).
-        let carrier = match resolve_edge_carrier(&pa, a)? {
+        let carrier = match resolve_edge_carrier(&pa, a, &base)? {
             Some(dir) => Some(dir),
-            None => resolve_edge_carrier(&pb, b)?,
+            None => resolve_edge_carrier(&pb, b, &base)?,
         };
         let Some(dir) = carrier else {
             let ents = verts
@@ -1658,6 +1664,7 @@ fn one_partner(vertex: VertexKey, named: Vec<Upstream>) -> Result<Option<Upstrea
 fn resolve_edge_carrier<T: Decide>(
     parent: &StableName,
     op: &OperandCtx<'_, T>,
+    group: &StableName,
 ) -> Result<Option<Vec3<T>>, NamingError> {
     if parent.kind != EntityKind::Edge {
         return Ok(None);
@@ -1667,7 +1674,7 @@ fn resolve_edge_carrier<T: Decide>(
             // An edge on a seam line is ranked along that line, the one
             // orientation every ranker along a seam line uses.
             (EntityKey::Edge(k), Some(pair)) => {
-                seam_line_dir(op.body, op.table, op.node, k, pair).map(Some)
+                seam_line_dir(op.body, op.table, op.node, k, group, pair).map(Some)
             }
             (EntityKey::Edge(k), None) => edge_dir(op.body, k).map(Some),
             _ => Ok(None),
@@ -1842,7 +1849,8 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
 /// records them (`super::seam_pair`). They are matched by NAME to the
 /// two faces of `edge` in `body`, whose names `table` holds, and the
 /// outward normals are read from those faces. `node` is the node whose
-/// body this is, carried by the refusal.
+/// body this is, and `group` the group being ranked; the refusals
+/// carry them.
 ///
 /// The rankers that know a seam only by its NAME read their direction
 /// here: the descent ranker and the vertex carrier, on an operand body.
@@ -1854,6 +1862,7 @@ fn seam_line_dir<T: Decide>(
     table: &NameTable,
     node: RecipeNodeId,
     edge: EdgeKey,
+    group: &StableName,
     (a, b): (&StableName, &StableName),
 ) -> Result<Vec3<T>, NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -1884,9 +1893,25 @@ fn seam_line_dir<T: Decide>(
         Some(false) => (f1, f0),
         None => return Err(NamingError::SeamLineSides { node, edge }),
     };
-    let (_, na) = face_plane(body, fa)?;
-    let (_, nb) = face_plane(body, fb)?;
+    let na = seam_side_normal(body, fa, group, a)?;
+    let nb = seam_side_normal(body, fb, group, b)?;
     Ok(na.cross(nb))
+}
+
+/// The outward normal of `face`, the side the seam's name records as
+/// `reference`, for ranking `group` along the seam. A curved carrier has no plane to
+/// rank the seam's pieces against, and refuses as the missing rule
+/// ([`NamingError::SplitReference`]).
+fn seam_side_normal<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    group: &StableName,
+    reference: &StableName,
+) -> Result<Vec3<T>, NamingError> {
+    match carrier_plane(body, face)? {
+        Some((_, n)) => Ok(n),
+        None => Err(NamingError::split_reference(group, reference, true)),
+    }
 }
 
 /// Inserts a same-name group ranked by order-along, or tied when

@@ -434,6 +434,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
             op: BooleanOp::Union,
             a: bench.post_a,
             b: bench.shelf_i,
+            declare: Vec::new(),
         },
     );
     session.pump();
@@ -529,6 +530,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
             op: BooleanOp::Union,
             a: bench.post_a,
             b: bench.shelf_i,
+            declare: Vec::new(),
         },
     );
     session.pump();
