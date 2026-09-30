@@ -78,8 +78,11 @@ impl<K: Ord + Clone> Obstacles<K> {
             }
             Err(bug("a boolean's vertex fusions form a cycle"))
         };
+        // A bordered stretch settles on a seam edge: the zip made the
+        // kept face's section edge one edge with the wall's.
+        let seam_edges: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
         let mut by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
-        for (k, e) in body.edges() {
+        for (k, e) in body.edges().filter(|(k, _)| seam_edges.contains(k)) {
             let s = body
                 .get_half_edge(e.he_plus)
                 .ok_or_else(|| bug("a result edge's half-edge is dangling"))?
@@ -126,7 +129,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             let mut seams = Vec::new();
             for &(u, w) in &row.bordered {
                 let (u, w) = (settle(u)?, settle(w)?);
-                // A stretch no live edge joins merged away with the
+                // A stretch no live seam edge joins merged away with the
                 // faces beside it: nothing of a piece lies along it.
                 if let Some(es) = by_ends.get(&(u.min(w), u.max(w))) {
                     seams.extend(es.iter().copied());
