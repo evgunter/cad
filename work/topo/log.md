@@ -4270,3 +4270,183 @@ review, frozen at `dba0ffb29a`, on the loop-anchor target. The review:
 
 PR 3559 merged (`685dc36544`) after CI run 36728287648 went green,
 closing `deep-snapshot-does-not-walk-the-body-side-tables`.
+
+## revert-starts delivered as PR 3562; row closed on the branch (2026-09-30)
+
+The implementer took 208,608 tokens, 117 tools and 2,607 s. Head
+`b80f9797d0` is green on CI run 36732202326.
+
+**The `prev` split, measured at base.** Of the `prev` tears that gain a
+validator kind:
+- 7,704 are renames: the `next`↔`prev` swap handing the same link to
+  another field.
+- 164 are written faults. A `prev` at the anchor naming another member
+  of the same loop passed PR 3546's `LoopMember` check, and the anchor
+  moved there.
+
+**The new proofs.**
+- `RevertLink::Start`: each half-edge's end is its mate's start.
+- `RevertLink::LoopPredecessor`: `prev(first).next == first`.
+
+Every written fault on eight bodies goes to 0. Every `Ok` from a
+`next` or `prev` tear equals the tear's image, and the renames are
+pinned per tear kind.
+
+The orchestrator read the diff and accepted it. The row closes at
+`9c47ba020f`; merge after CI.
+
+**Filed:** `tint/topo-tests-fail-clippy-with-debug-assertions-off`
+(P3, E). Two lanes in a row hit eight dead-code errors in
+`loop_reparenting_pcurve_rows.rs` with debug assertions off; CI does
+not lint that config.
+
+Dispatched on the walk target: `deep-snapshot-cannot-see-a-consumed-key-slot`,
+bundled with `refusal-rows-that-count-instead-of-snapshot` (branch
+`topo/snapshot-key-slots`).
+- The snapshot gains a per-arena next-key line (D1: "consumes no key
+  slots"), and the two count-only refusal rows move to the snapshot.
+- As with the side tables, the lane measures which rows newly red, and
+  defers any fix that lies in a live lane's files.
+- `null.rs`'s part waits for PR 3531.
+
+PR 3562 merged (`f0cce79cbb`) after CI run 36733898770 went green,
+closing `revert-writes-each-start-through-an-unproven-next`. `revert`
+now proves every map it writes.
+
+## PR 3531's fix pass delivered; item closed on the branch (2026-09-30)
+
+The fix pass took 422,292 tokens, 233 tools and 5,696 s. Head
+`b4164771a4` is green on CI run 36733865284.
+
+What the fix pass did:
+- **MAJOR.** `merge_group` moved to `ring_move_minting` and
+  `kef_minting`. The review's public-door probe is now a sweep row,
+  red on the old merge-door code for the absorbed-sector case, green
+  for both cases, and red under the keys-only mutant.
+- **The caller re-check** found one more of the same shape:
+  `boolean/rest.rs`'s band-run `kef`, now `kef_minting`. The rest cannot
+  owe, and each is stated.
+- **One predicate.** `pcurves::site_walks`. `site_rows` walks exactly
+  its list, and `site_rows_owed` is "the list is not empty".
+- **The twins are pinned** on the same-chart and spline rows through a
+  shared `both_doors`.
+- **The emptied-face account** was re-measured with the review's tool:
+  317 → 147 / 169 / 1 / 0 carried.
+- **Style.** `kfmrh` split into plan and execute, so all four pairs
+  share one postcondition shape and the two `ALLOWED` rows are gone.
+  `seqgen` drives both doors. Deviation 4 is reverted to main's
+  `StaleKey` order.
+- **Q7** not taken, as ruled.
+
+**Pins that moved, re-counts under their gates' own rules:**
+- `seqgen`'s fingerprint moved (both doors offered). The module's
+  stream-set counts were re-measured, and the method reproduces the old
+  numbers with the twins withheld.
+- `bit-identity-debug-only.sh`'s `euler_ring.rs` pin went 19 → 20.
+
+The orchestrator read the diff and accepted it. The item closes at
+`70211795ed`; merge after CI. Single tier, no DR row.
+
+After the merge, the kill-plan P3s can go, since their files are free:
+the far vertex, the empty loop or lone vertex, face/shell/solid
+removals, and the mate's own edge.
+
+## PR 3531 merged; the kill proofs dispatched (2026-09-30)
+
+PR 3531 merged at `70211795ed` (merge `b286e6e520`) after CI run
+36735728816 went green. That closes
+`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`,
+and I unsubscribed.
+
+**Dispatched on the rebase target:** the four kill-plan P3s as one
+unit, "every kill proves nothing else names what it removes", branch
+`topo/kill-proves-removals`. The rows are:
+- `kev-kills-a-far-vertex-whose-fan-it-reads-by-the-walk`;
+- `mekr-and-kvfs-remove-an-empty-loop-or-lone-vertex-another-record-names`;
+- `kef-kvfs-and-mekr-remove-a-face-shell-solid-or-edge-another-record-names`;
+- `kef-and-kev-take-a-mate-whose-own-edge-is-another`.
+
+**The brief.**
+- Its governing text is D1 (atomic) and the D2 addendum, with
+  provenance, and its precedents are PRs 3483, 3495, 3511, 3532 and
+  3531.
+- One proof helper per relation (vertex, loop, face/shell/solid,
+  edge), read by every operator and by both doors of each twin pair.
+- The probe loses its `FILED_CELLS` admission, so every cell must
+  reach 0.
+- Lanes use the GitHub MCP tools, never raw API calls.
+
+## The key-slot unit delivered as PR 3566; row closed on the branch (2026-09-30)
+
+The implementer took 168,774 tokens, 103 tools and 2,738 s. Head
+`a311ec4383` is green on CI run 36736280511.
+
+**What changed.** `deep_snapshot` gains a next-key line per arena,
+read through slotmap's `try_insert_with_key(Err)` on a clone: the next
+key comes back, and nothing is inserted.
+
+**What it exposed.**
+- **No refusal row reds**, so no D1 slot defect exists in today's rows.
+- Two make-then-kill round-trip rows in `review_m1_pr4` moved. A
+  successful make and kill consumes slots, and D1 allows that. They
+  now compare with `deep_rows` (the same walk without the next-key
+  lines), which is exactly what they claimed.
+- The two count-only refusal rows now read the snapshot.
+- The lineage rows are kept, since they pin the construction
+  interleaving and caller-visible key identity.
+
+The orchestrator read and accepted it. The key-slot row closes at
+`d3bb73c03b`. `refusal-rows-that-count-instead-of-snapshot` stays
+open for its `null.rs` part. Merge after CI.
+
+Dispatched on the walk target: the two `movefac` rows as one unit,
+branch `topo/movefac-proofs`:
+- `movefac-labels-components-by-an-unproven-cycle-walk` (P3);
+- `movefac-row-skips-three-component-shells` (P3).
+
+The labelling walks get PR 3511's `require_run_of` proof. `seqgen`
+offers shells of `c >= 2` components. The row's "a site is an address"
+property is the catalog's convention, not a ratified decision
+(`git log -S` finds only the S69 row's text), so the generator shape
+is the lane's to choose and state.
+
+PR 3566 merged (`b37d0526b0`) after CI run 36739836506 went green,
+closing `deep-snapshot-cannot-see-a-consumed-key-slot`. The deep
+snapshot now observes every table and every arena's next key.
+
+## PR 3513's fix-pass-2 review: a MAJOR again; third fix pass out (2026-09-30)
+
+The review at `dba0ffb29a` took 453,143 tokens, 201 tools and 6,785 s.
+The gate was green.
+
+**What held.** The root-cause change works at the sites earlier reviews
+named, and all 24 lane mutants red.
+
+**MAJOR (executed from a public door).** At the sphere lanes, the
+refusal offers "tighten the tolerance below X". Run at that tolerance,
+it refuses with a different story. `nested` passes on Positive only;
+`escape_parallel` only at Zero, which never names the tolerance. The
+umbrella `AnySign` pass set is false there. It is the N-3 class, half
+swept, and the PR body's sweep claim is false.
+
+**MINORs:**
+- a false `Settles` at the `recl` membership tie for planar flanks;
+- two hand-minted decided-zero refusals that bypass the escalation
+  log (a fresh defect this pass minted);
+- a poisoned normal routed to "declare";
+- the budget broken by enclosure payloads;
+- the circle lane's stated pass reason is false;
+- six of the reviewer's seven mutants survive.
+
+**Adjudication.** Three rounds, one class: a claim the deciding code
+does not honour, stated per site or per umbrella. The third fix pass
+fixes the root first:
+- the pass set moves onto each question, derived from its deciding
+  code;
+- `DeclarationRead` is constructed from the door's actual read, not
+  stated, with `Moot` only for primitives that take none.
+
+Then the findings. Every claim in the PR body must now cite a row, a
+mutant or an executed probe; an uncited claim is removed.
+
+Out on the loop-anchor target.
