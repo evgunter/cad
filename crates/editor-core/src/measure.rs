@@ -160,7 +160,7 @@ impl MeasurePrimitive {
 /// Private fields and fallible constructors, exactly as [`Expr`]: an
 /// ill-dimensioned tree is unrepresentable, so the cached
 /// [`Self::dim`] is trustworthy by construction.
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MeasureExpr {
     dim: Dimension,
     /// How many levels the tree nests, a value leaf counting as the
@@ -168,17 +168,6 @@ pub struct MeasureExpr {
     /// shares with [`Expr`].
     nesting: u8,
     kind: MeasureKind,
-}
-
-impl core::fmt::Debug for MeasureExpr {
-    /// The dimension and the tree, as [`Expr`]'s: the nesting is a
-    /// cache of the tree's shape.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("MeasureExpr")
-            .field("dim", &self.dim)
-            .field("kind", &self.kind)
-            .finish()
-    }
 }
 
 impl Drop for MeasureExpr {

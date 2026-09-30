@@ -274,7 +274,7 @@ impl core::error::Error for DimensionError {}
 /// the F1 dimension checker and the nesting bound; the fields are
 /// private so an ill-dimensioned or over-deep tree cannot be built.
 /// The cached [`Self::dim`] is therefore trustworthy by construction.
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Expr {
     dim: Dimension,
     /// How many levels the tree nests, this node included (a leaf is
@@ -305,17 +305,6 @@ const _: () = assert!(
     MAX_NESTING <= u8::MAX as usize,
     "an expression's nesting is stored in one byte"
 );
-
-impl core::fmt::Debug for Expr {
-    /// The dimension and the tree; the nesting is a cache of the tree's
-    /// shape and says nothing the tree does not.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Expr")
-            .field("dim", &self.dim)
-            .field("kind", &self.kind)
-            .finish()
-    }
-}
 
 /// The stored display-unit CODE — quantity's closed table as a one-
 /// byte identity (the spec's "U8a's unit type/code" read at its word:
