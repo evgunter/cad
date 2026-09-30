@@ -39,13 +39,14 @@
 //!
 //! **Third adoption note (the stored bulge retired).** Both walks
 //! re-lowered each segment from the bulge the loop kept beside it; with
-//! that bulge gone the door carries every stored field through `f` and
-//! derives nothing, so the one walk left to measure it against is that
-//! field-by-field embedding, written out by hand (`field_walk`).
+//! that bulge gone the door derives nothing and carries every stored
+//! field through `f`, so these rows hold it against the source table
+//! itself: the identity at `f64`, and each field's own `from_f64` at
+//! the interval scalar.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Arc2, Point2, Real, Tol};
+use geom_core::{Point2, Real, Tol};
 use profile::{
     Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Segment, Start, Step, Target, lift_checked,
     test_support::bulge_loop,
@@ -66,26 +67,6 @@ fn awkward() -> ProfileLoop<f64> {
     .reversed()
 }
 
-/// Every stored field of the table carried through `from_f64` one at a
-/// time — the vertices, each segment's kind and an arc's centre, radius
-/// and sweep — written out by hand beside the door.
-fn field_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    <ProfileLoop<T> as RawLoop<T>>::new(lp.vertices().iter().zip(lp.segments()).map(
-        |(vx, segment)| {
-            let segment = match *segment {
-                Segment::Line => Segment::Line,
-                Segment::Arc(arc) => Segment::Arc(Arc2 {
-                    centre: Point2::new(T::from_f64(arc.centre.x), T::from_f64(arc.centre.y)),
-                    radius: T::from_f64(arc.radius),
-                    sweep: T::from_f64(arc.sweep),
-                }),
-            };
-            (Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)), segment)
-        },
-    ))
-    .with_tangent_joints(lp.tangent_joints().to_vec())
-}
-
 /// The table as text: every scalar through its `Debug`, which for
 /// `f64` distinguishes the two zeros and for the interval scalar
 /// prints both bounds.
@@ -103,10 +84,10 @@ fn table<T: Real + std::fmt::Debug>(lp: &ProfileLoop<T>) -> String {
 // The materialization door
 // ------------------------------------------------------------------
 
-/// At `f64` the door is both former walks, bit for bit — including
-/// the signed zero, the duplicate declaration and the reversed order.
+/// At `f64` the door is the identity, bit for bit — including the
+/// signed zero, the duplicate declaration and the reversed order.
 #[test]
-fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
+fn r1_embed_is_the_identity_at_f64_bit_for_bit() {
     let src = awkward();
     assert_eq!(
         src.tangent_joints(),
@@ -114,14 +95,13 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
         "reversal remapped the joints"
     );
     let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
-    let walk = field_walk::<f64>(&src);
-    for (i, (d, w)) in door.vertices().iter().zip(walk.vertices()).enumerate() {
-        assert_eq!(d.x.to_bits(), w.x.to_bits(), "vertex {i} x vs the walk");
-        assert_eq!(d.y.to_bits(), w.y.to_bits(), "vertex {i} y vs the walk");
+    for (i, (d, w)) in door.vertices().iter().zip(src.vertices()).enumerate() {
+        assert_eq!(d.x.to_bits(), w.x.to_bits(), "vertex {i} x vs the source");
+        assert_eq!(d.y.to_bits(), w.y.to_bits(), "vertex {i} y vs the source");
         assert_eq!(
             format!("{:?}", door.segments()[i]),
-            format!("{:?}", walk.segments()[i]),
-            "segment {i} vs the walk"
+            format!("{:?}", src.segments()[i]),
+            "segment {i} vs the source"
         );
     }
     // `reversed` keeps vertex 0 in place, so the signed zero is at 0.
@@ -130,11 +110,11 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
         (-0.0f64).to_bits(),
         "the signed zero travels"
     );
-    assert_eq!(table(&door), table(&walk));
+    assert_eq!(table(&door), table(&src));
 }
 
 /// The door is total: a poisoned table crosses unexamined, bit for
-/// bit, exactly as the former walks carried it.
+/// bit.
 #[test]
 fn r1_embed_is_total_on_a_poisoned_table() {
     let src = bulge_loop(vec![
@@ -143,7 +123,7 @@ fn r1_embed_is_total_on_a_poisoned_table() {
     ])
     .with_tangent_joints(vec![usize::MAX]);
     let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
-    assert_eq!(table(&door), table(&field_walk::<f64>(&src)));
+    assert_eq!(table(&door), table(&src));
     assert!(
         matches!(door.segments()[0], Segment::Arc(arc) if arc.sweep.is_nan()),
         "a NaN bulge lowers to an arc of NaN sweep, and it crosses as one"
@@ -152,35 +132,37 @@ fn r1_embed_is_total_on_a_poisoned_table() {
 }
 
 /// At the interval scalar `from_f64` is an embedding, not the
-/// identity, so this is where a door that chose a different
-/// conversion than the sites it replaced would show.
+/// identity, so this is where a door that chose a different conversion
+/// than each field's own, or carried a field to another's place, would
+/// show: every vertex coordinate and every arc field is the point
+/// interval of its own stored bits, and the declarations cross as they
+/// are.
 #[test]
-fn r1_embed_is_both_former_walks_at_interval() {
+fn r1_embed_carries_each_field_at_interval() {
     use geom_core::Interval;
     let src = awkward();
     let door: ProfileLoop<Interval> = src.map_scalar(Interval::from_f64);
-    assert_eq!(
-        table(&door),
-        table(&field_walk::<Interval>(&src)),
-        "door vs the walk"
-    );
-    // And the coordinates are point intervals of the stored bits.
-    let table_scalar = |x: &dyn std::fmt::Debug| format!("{x:?}");
-    for (d, s) in door.vertices().iter().zip(src.vertices()) {
-        assert_eq!(table_scalar(&d.x), format!("{:?}", Interval::from_f64(s.x)));
+    let point = |x: f64| format!("{:?}", Interval::from_f64(x));
+    let got = |x: &Interval| format!("{x:?}");
+    for (i, (d, s)) in door.vertices().iter().zip(src.vertices()).enumerate() {
+        assert_eq!(
+            (got(&d.x), got(&d.y)),
+            (point(s.x), point(s.y)),
+            "vertex {i}"
+        );
     }
-    for (d, s) in door.segments().iter().zip(src.segments()) {
-        if let (Segment::Arc(d), Segment::Arc(s)) = (d, s) {
-            assert_eq!(
-                table_scalar(&d.sweep),
-                format!("{:?}", Interval::from_f64(s.sweep))
-            );
-            assert_eq!(
-                table_scalar(&d.radius),
-                format!("{:?}", Interval::from_f64(s.radius))
-            );
+    for (i, (d, s)) in door.segments().iter().zip(src.segments()).enumerate() {
+        match (d, s) {
+            (Segment::Line, Segment::Line) => {}
+            (Segment::Arc(d), Segment::Arc(s)) => assert_eq!(
+                [&d.centre.x, &d.centre.y, &d.radius, &d.sweep].map(got),
+                [s.centre.x, s.centre.y, s.radius, s.sweep].map(point),
+                "segment {i}'s arc"
+            ),
+            (d, s) => panic!("segment {i} crossed as another kind: {d:?} from {s:?}"),
         }
     }
+    assert_eq!(door.tangent_joints(), src.tangent_joints());
 }
 
 // ------------------------------------------------------------------
