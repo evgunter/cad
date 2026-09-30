@@ -582,7 +582,7 @@ impl<T: Decide> Body<T> {
     /// half-edge claims the loop ([`EulerOpError::LoopCycleBroken`]
     /// naming the loop), and no other face lists it
     /// ([`EulerOpError::KillLeavesDangling`]); no half-edge starts at the
-    /// vertex ([`EulerOpError::OrbitBroken`] naming it), and no other
+    /// vertex ([`EulerOpError::OrbitBroken`] naming the half-edge), and no other
     /// loop is `Empty` at it (`LoopCycleBroken` naming that loop); no
     /// other loop names the face, then no other shell lists it; no other
     /// face names the shell, then no other solid lists it; no other shell
