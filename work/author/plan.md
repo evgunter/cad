@@ -12,7 +12,7 @@ one sitting, which is what the cut was for.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `a-negative-extrude-distance-probes-as-valid` | E | The probe reports every negative extrude distance as valid, so a length field's only floor is the single point zero |
+| P0 | `a-negative-extrude-distance-probes-as-valid` | M, design | The probe reports every negative extrude distance as valid, so a length field's only floor is the single point zero |
 | P0 | `add-parameter-form-authors-canonical-only` | E | The add-parameter form authors only the canonical unit, though the kernel's written_length/written_angle doors are total |
 | P0 | `add-profile-mints-no-frame` | D | The add-profile form cannot mint the frame it needs, and names the ones it finds by node number |
 | P0 | `add-profile-placement-on-picked-face-frame` | H | Nothing in the viewer can mint a Datum::FaceFrame, so a profile still cannot be placed on a picked face |
@@ -60,11 +60,10 @@ different lanes because they are in different files.
 `add-parameter-form-authors-canonical-only` is
 `pane/properties.rs` and `props.rs` and rides **AUTH-2**, whose
 carrier says why: the notation design call is shared between the two
-parameter doors. `a-negative-extrude-distance-probes-as-valid` is
-`crates/viewer/src/bounds.rs` and `crates/viewer/tests/valid_range.rs`
-— not `forms.rs` or `props.rs`, which this paragraph said until
-2026-09-21 — so it waits for a lane in `bounds.rs` and is otherwise
-unclaimed.
+parameter doors. `a-negative-extrude-distance-probes-as-valid` turned out to be a
+design fork rather than a drive-by: the designer pair converged on an
+extrude depth plus a structural side, which is kernel/WIRE ground, and
+the question is with Ev (#3551).
 
 ## Review posture
 

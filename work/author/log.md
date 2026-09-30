@@ -1416,3 +1416,25 @@ Nine units closed. The flush boss-on-a-face union is now a refusal with a Declar
 Not taken yet, with reasons:
 - `face-pick-cannot-name-which-face` opens with a question for editor-core or the facade.
 - `no-row-holds-that-the-create-pane-offers-the-tools-it-has` is a harness-or-refactor choice across seven panels in a five-program file, and wants its own sitting.
+
+## 2026-09-30 — negative-extrude fork: the designers converged; `[ev]` PR opened
+
+Two designers, one problem statement, no candidate answers (byte 92 on `analysis/design-fork/author-negative-extrude-2026-09-30`).
+
+**First reports disagreed.** A: extrude distance becomes a positive depth, plus a structural `side`, refused in the kernel door. B: keep the signed distance and have the range probe ask "same build?" over the decision logs.
+
+**Round 1** gave each the other's report and asked each to settle the claim the other's case rested on. Both ran fixtures.
+- **A downstream reference to the end cap follows the flip silently: true.** A boss on the block's `Cap(End)` rebuilds below the plane at −10 mm, and nothing fails. The decision diff is `extrusion_normal_component` ×1 and `side_planes_cosurface` ×4.
+- **"Ordinary edits flip no decisions": false.**
+  - `plate_param`: 78 of 138 small literal edits (down to 1e-7 relative) flip a decision without failing, e.g. `bool_join_nearest` Zero→nonzero at the boss height and a `point_in_loop_arm` count.
+  - Corpus: 4 of 29 documents diff under their own recorded bump.
+  - A same-build oracle would therefore collapse ranges to a point on most documents with a boolean.
+
+B moved to A's answer and withdrew its oracle. A kept its answer and adopted B's idea of naming the refusal at a bracket's invalid end. A converged recommendation, not a crossover. The `[ev]` PR (#3551) carries both reports' `For Ev` sections verbatim as A and B; fork-log row 22.
+
+**Filed off the question**, not waiting on Ev:
+- CHROME: `the-range-panels-open-sentence-claims-values-it-never-sampled` (the Open sentence claims more than was sampled; a bracket's invalid end could name what refused).
+- Corrected the vacuity row's two stale citations of this row (it lives in `work/author/`, not `work/chrome/`).
+- Corrected `plan.md`'s `E` price for it (it is `M`, design).
+
+**Measured, not filed; seam note on EDIT (owner of `editor-core/src/range.rs`):** `plate_param`'s nominal sits exactly on `bool_join_nearest` Zero verdicts. That is probably authored coincident geometry, and would bear on the certified range's "certifies nothing on the corpus" table.
