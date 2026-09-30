@@ -77,15 +77,15 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
 /// a method on `ViewerBehavior`, which borrows the whole application,
 /// and all it does with the answer is push the ops it names.
 ///
-/// `shown` is the hide toggle's value, on instance rows only: a hidden
-/// instance stays IN this tree (that is the point — the tree is the
-/// document, the viewport is the display), and the checkbox is the
-/// display op's chrome.
+/// `hidden` is whether the display hides this row's node. Only an
+/// instance row draws the hide toggle: a hidden instance stays IN this
+/// tree (that is the point — the tree is the document, the viewport is
+/// the display), and the checkbox is the display op's chrome.
 pub(crate) fn feature_row_ui(
     ui: &mut egui::Ui,
     row: &TreeRow,
     selected: bool,
-    shown: Option<&mut bool>,
+    hidden: bool,
     theme: &Theme,
 ) -> RowClicks {
     let mut clicks = RowClicks::default();
@@ -94,8 +94,11 @@ pub(crate) fn feature_row_ui(
         if row_label(ui, row, selected).clicked() {
             clicks.select = Some(row.id);
         }
-        if let Some(shown) = shown {
-            clicks.toggled = ui.checkbox(shown, "shown").changed();
+        if row.kind == "InstantiatePart" {
+            let mut shown = !hidden;
+            if ui.checkbox(&mut shown, "shown").changed() {
+                clicks.hide = Some(!shown);
+            }
         }
         row_result(ui, row, theme);
     });
@@ -111,9 +114,9 @@ pub(crate) struct RowClicks {
     /// The node to select: the row's own, from its label, or the one a
     /// line under it points at.
     pub(crate) select: Option<RecipeNodeId>,
-    /// Whether the instance toggle changed; its new value is in the
-    /// `shown` the row was drawn with.
-    pub(crate) toggled: bool,
+    /// Whether the instance should now be hidden, when its toggle was
+    /// clicked.
+    pub(crate) hide: Option<bool>,
 }
 
 /// **The lines under a row that a failure writes, drawn** — and the
@@ -252,16 +255,15 @@ impl ViewerBehavior<'_> {
     /// One feature-tree row ([`feature_row_ui`]), and the ops its
     /// clicks name.
     pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
-        let mut shown =
-            (row.kind == "InstantiatePart").then(|| !self.display.hidden.contains(&row.id));
-        let clicks = feature_row_ui(ui, row, selected, shown.as_mut(), &self.theme);
+        let hidden = self.display.hidden.contains(&row.id);
+        let clicks = feature_row_ui(ui, row, selected, hidden, &self.theme);
         if let Some(to) = clicks.select {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
-        if let (true, Some(shown)) = (clicks.toggled, shown) {
+        if let Some(hidden) = clicks.hide {
             self.ops.push(SessionOp::SetInstanceHidden {
                 instance: row.id,
-                hidden: !shown,
+                hidden,
             });
         }
     }
@@ -696,10 +698,10 @@ mod tests {
         painted.iter().map(|landed| landed.text.as_str()).collect()
     }
 
-    /// `row`, drawn by the pane's own row function, unselected and
-    /// with no instance toggle.
+    /// `row`, drawn by the pane's own row function, unselected and not
+    /// hidden.
     fn feature_row_drawn(ui: &mut egui::Ui, row: &TreeRow) {
-        feature_row_ui(ui, row, false, None, &Theme::DEFAULT);
+        feature_row_ui(ui, row, false, false, &Theme::DEFAULT);
     }
 
     /// **A measure with a value paints it on its own row**, in the
@@ -825,5 +827,81 @@ mod tests {
         let line = find(&painted, note);
         assert_under(find(&painted, "Mate"), line);
         assert_eq!(line.ink, Some(voices.weak), "said quietly");
+    }
+
+    /// **What `feature_row_ui` answers once the text `target` has been
+    /// clicked**, on a row the display does or does not hide.
+    fn row_clicked(row: &TreeRow, target: &str, hidden: bool) -> super::RowClicks {
+        let select = core::cell::Cell::new(None);
+        let hide = core::cell::Cell::new(None);
+        painted_after_clicking(target, |ui| {
+            let clicks = feature_row_ui(ui, row, false, hidden, &Theme::DEFAULT);
+            select.set(select.get().or(clicks.select));
+            hide.set(hide.get().or(clicks.hide));
+        });
+        super::RowClicks {
+            select: select.get(),
+            hide: hide.get(),
+        }
+    }
+
+    /// An instance row, as `tree::rows` builds one.
+    fn instance_row() -> TreeRow {
+        TreeRow {
+            id: RecipeNodeId(4),
+            kind: "InstantiatePart",
+            pose: Some("post.pncad".to_owned()),
+            depth: 0,
+            root: false,
+            status: RowStatus::Ok,
+            note: None,
+            repair_at: None,
+            measured: None,
+        }
+    }
+
+    /// **A click on a row's label selects that row's node.**
+    ///
+    /// Red if the label click stops setting `select`.
+    #[test]
+    fn clicking_a_rows_label_selects_its_node() {
+        let row = instance_row();
+        let clicks = row_clicked(&row, "InstantiatePart — post.pncad", false);
+        assert_eq!(clicks.select, Some(row.id));
+        assert_eq!(clicks.hide, None, "a label click toggles nothing");
+    }
+
+    /// **An instance row's toggle asks for the opposite of what the
+    /// display shows**, both ways round, and selects nothing.
+    ///
+    /// Red if a toggle click sets no `hide`, or sets the state the row
+    /// already has.
+    #[test]
+    fn clicking_an_instance_rows_toggle_flips_whether_it_is_hidden() {
+        let row = instance_row();
+        for hidden in [false, true] {
+            let clicks = row_clicked(&row, "shown", hidden);
+            assert_eq!(clicks.hide, Some(!hidden), "drawn hidden: {hidden}");
+            assert_eq!(clicks.select, None, "the toggle selects nothing");
+        }
+    }
+
+    /// **Only an instance row has a toggle.**
+    ///
+    /// Red if the toggle is drawn on every row.
+    #[test]
+    fn a_row_that_is_no_instance_draws_no_toggle() {
+        let row = TreeRow {
+            kind: "Extrude",
+            pose: None,
+            ..instance_row()
+        };
+        let drawn = painted(|ui| feature_row_drawn(ui, &row));
+        assert_eq!(drawn, vec!["Extrude".to_owned()], "{drawn:?}");
+        let with = painted(|ui| feature_row_drawn(ui, &instance_row()));
+        assert!(
+            with.iter().any(|text| text == "shown"),
+            "the premise: an instance row draws one: {with:?}"
+        );
     }
 }
