@@ -46,12 +46,13 @@
 //! keys, and a setter call is part of the history.
 
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
-use geom_core::Decide;
+use geom_core::{Band, Decide};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, FaceKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey};
 use crate::euler::{EulerOpError, FaceSurface, ParentSide};
 use crate::geometry::{CurveKey, SurfaceKey};
+use crate::pcurves::{SiteHalf, SiteRows};
 use geom_core::Tol;
 
 impl<T: Decide> Body<T> {
@@ -194,6 +195,16 @@ impl<T: Decide> Body<T> {
     /// every swap that certifies — including the upgrades this door
     /// exists for, whose rows stay true within band.
     ///
+    /// **A null edge's first description mints its rows.**
+    /// [`Body::mev_null`] adds two halves with no carrier to derive a
+    /// row from, so a face whose rows were complete is left missing
+    /// exactly those two. The carrier arrives here, and a face complete
+    /// but for those halves is re-minted before the door mutates,
+    /// through the site mint the Euler operators run
+    /// ([`crate::pcurves`]' `site_rows`): it leaves complete, or rowless
+    /// where the closed-form lane cannot mint it. A face on a spline
+    /// chart is left as `mev_null` left it, missing the two rows.
+    ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] on
@@ -201,7 +212,9 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::DescriptionNotAdjacent`] on an
     /// `Intersection`/`Seam` description whose surfaces are not the
     /// edge's faces' surfaces; [`EulerOpError::Certification`] on a
-    /// failed gate. The body is untouched on `Err`.
+    /// failed gate; [`EulerOpError::PcurveMint`] where a null edge's
+    /// face is re-minted and a half-edge of the loop through it does not
+    /// resolve. The body is untouched on `Err`.
     pub fn set_edge_curve(
         &mut self,
         edge: EdgeKey,
@@ -292,7 +305,7 @@ impl<T: Decide> Body<T> {
         let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
         })?;
-        let he_plus = edge_data.he_plus;
+        let (he_plus, he_minus) = (edge_data.he_plus, edge_data.he_minus);
         let plus_data = self.resolve_half_edge(he_plus)?;
         let end_vertex = self.half_edge_end(he_plus).ok_or(EulerOpError::StaleKey {
             key: EntityId::HalfEdge(he_plus),
@@ -303,13 +316,118 @@ impl<T: Decide> Body<T> {
         self.check_description_adjacent(edge, &curve.description)?;
 
         let certified = certify(self, curve, p_start, p_end, tol)?;
+        let rows = self.null_description_rows(edge, &certified, tol)?;
 
         // ---- Mutation (infallible from here on). ----
         let new = self.replace_edge_curve(edge, certified);
+        crate::pcurves::apply_site_rows(self, rows, (he_plus, he_minus));
 
         #[cfg(debug_assertions)]
         self.assert_tier1_postcondition("set_edge_curve");
         Ok(new)
+    }
+
+    /// **The rows a null edge's first description completes**, decided
+    /// before [`Body::set_edge_curve_via`] mutates: one plan per face
+    /// the edge's halves are on, for [`crate::pcurves::apply_site_rows`].
+    ///
+    /// Empty unless `edge` is a null edge ([`crate::CurveGeom::NullScaffold`]):
+    /// a certified edge's description moves no key, so no row goes
+    /// missing (the door's docs). A null edge's halves are the two rows
+    /// [`Body::mev_null`] could not derive, so a face whose rows are
+    /// complete but for those two ([`crate::pcurves::site_rows_from`])
+    /// is re-minted here, exactly as an Euler operator re-mints the face
+    /// it adds halves to ([`crate::pcurves::site_rows`]): its loops
+    /// through the halves are walked with `curve` as their carrier, and
+    /// the face leaves complete, or rowless where the closed-form lane
+    /// cannot mint it. Every other face is left as found — and so is a
+    /// face on a SPLINE chart, where the operators refuse: the edge's
+    /// rows there derive only through the fitted lane, and refusing its
+    /// description would strand the null edge, which tier 2 refuses at
+    /// rest.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`] where
+    /// a half, loop, face or surface does not resolve;
+    /// [`EulerOpError::Certification`] where `tol` builds no band;
+    /// [`EulerOpError::PcurveMint`] naming the face a rewired half-edge of
+    /// which did not resolve.
+    fn null_description_rows(
+        &self,
+        edge: EdgeKey,
+        curve: &EdgeCurve<T>,
+        tol: Tol,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Edge(edge),
+        })?;
+        let is_null = self
+            .get_curve_geom(edge_data.curve)
+            .ok_or(EulerOpError::StaleGeometry {
+                key: GeomRef::Curve(edge_data.curve),
+            })?
+            .null_scaffold()
+            .is_some();
+        if !is_null {
+            return Ok(Vec::new());
+        }
+        let (he_plus, he_minus) = (edge_data.he_plus, edge_data.he_minus);
+        let pending = [he_plus, he_minus];
+        let mut plans = Vec::new();
+        let mut read: Vec<FaceKey> = Vec::new();
+        for he in pending {
+            let r#loop = self.resolve_half_edge(he)?.parent_loop;
+            let face = self
+                .get_loop(r#loop)
+                .ok_or(EulerOpError::StaleKey {
+                    key: EntityId::Loop(r#loop),
+                })?
+                .face;
+            if read.contains(&face) {
+                continue;
+            }
+            read.push(face);
+            let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
+                key: EntityId::Face(face),
+            })?;
+            let surface =
+                self.get_surface(face_data.surface)
+                    .ok_or(EulerOpError::StaleGeometry {
+                        key: GeomRef::Surface(face_data.surface),
+                    })?;
+            if surface.spline_chart().is_some() {
+                continue;
+            }
+            let Some(from) = crate::pcurves::site_rows_from(self, face_data, surface, &pending)
+            else {
+                continue;
+            };
+            let site_half = |h: HalfEdgeKey| match h {
+                h if h == he_plus => SiteHalf::NewPlus,
+                h if h == he_minus => SiteHalf::NewMinus,
+                h => SiteHalf::Existing(h),
+            };
+            let rewired: Vec<(LoopKey, Vec<SiteHalf>)> = from
+                .loops
+                .iter()
+                .filter_map(|(lk, cycle)| {
+                    let cycle = cycle.as_deref()?;
+                    cycle
+                        .iter()
+                        .any(|h| pending.contains(h))
+                        .then(|| (*lk, cycle.iter().copied().map(site_half).collect()))
+                })
+                .collect();
+            let site = self.site_face(face, &rewired, None)?;
+            let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
+                error: geom_brep::CertifyError::Band(e),
+            })?;
+            let plan = crate::pcurves::site_rows(self, &site, &from, curve, band)
+                .map_err(|refusal| EulerOpError::PcurveMint { face, refusal })?;
+            plans.push(plan);
+        }
+        Ok(plans)
     }
 
     /// The mutation half of every door that re-describes an existing

@@ -113,7 +113,10 @@
 //! chart refuses typed, and a face the closed-form lane cannot mint as
 //! the surgery leaves it stores nothing). A face that stores no row is
 //! the minting pass's and stays rowless, and a half-minted face is left
-//! as found. Other doors still produce a half-minted face
+//! as found. `mev_null` adds halves too, and cannot mint them: its edge
+//! has no carrier until its first description, where
+//! [`crate::Body::set_edge_curve`] mints the two rows through the same
+//! site mint. Other doors still produce a half-minted face
 //! ([`PcurveMintError::MissingCache`] lists them), so a producer's final
 //! pass is still what mints the faces the producer BUILT — which its
 //! operators leave unminted by design — and re-derives what its other
@@ -396,8 +399,13 @@ pub enum PcurveMintError {
     ///   one on the same chart, whose half-edges arrive without rows;
     /// - the chart-change drops: a door that moves a loop or run onto a
     ///   face on another chart drops its rows ([`crate::Body::drop_rows`]);
-    /// - `mev_null`, whose scaffolding edge has no carrier to derive a
-    ///   row from;
+    /// - [`crate::Body::mev_null`], whose scaffolding edge has no
+    ///   carrier to derive a row from: the face misses the edge's two
+    ///   rows until its first description, where
+    ///   [`crate::Body::set_edge_curve`] re-mints it — except on a
+    ///   spline chart — and until the producer's final pass where the
+    ///   edge is killed undescribed, as the boolean and splitting
+    ///   pipelines kill theirs;
     /// - `split_edge`'s `Fitted`/`General` frontier ([`split_cache`]);
     /// - a caller's own [`crate::Body::detach_pcurve`];
     ///
@@ -1574,7 +1582,18 @@ impl<T: Real> StoredRows<T> {
     /// row. A face storing no row is unminted, not complete; an `Empty`
     /// loop holds no half-edge and so misses no row.
     pub(crate) fn complete(&self) -> bool {
-        self.window.is_some() && self.gaps.is_empty()
+        self.complete_except(&[])
+    }
+
+    /// **Whether the row set is complete but for `halves`**: it stores
+    /// a row, every loop walks, and every half-edge missing a row is
+    /// one of `halves`. Over no halves this is [`StoredRows::complete`].
+    pub(crate) fn complete_except(&self, halves: &[HalfEdgeKey]) -> bool {
+        self.window.is_some()
+            && self
+                .gaps
+                .iter()
+                .all(|gap| matches!(gap, RowGap::Missing(he) if halves.contains(he)))
     }
 }
 
@@ -2200,11 +2219,16 @@ pub(crate) enum SiteRows<T: Real> {
     Clear(Vec<SiteHalf>),
 }
 
-/// The rows of `face` when an Euler operator's site mint re-mints it:
-/// its chart mints ([`chart_mints`]) and its row set is COMPLETE
-/// ([`StoredRows::complete`]). `None` for every other face, which the
-/// operator leaves as found — a face storing no row, a half-minted
-/// face, and a face with a loop that does not walk.
+/// The rows of `face` when a site mint re-mints it: its chart mints
+/// ([`chart_mints`]) and its row set is COMPLETE but for `pending`
+/// ([`StoredRows::complete_except`]). `None` for every other face,
+/// which the door leaves as found — a face storing no row, a
+/// half-minted face, and a face with a loop that does not walk.
+///
+/// `pending` is empty for the Euler operators, whose new halves have
+/// no key yet, and is a null edge's two halves for that edge's first
+/// description ([`crate::Body::set_edge_curve`]), which is when their
+/// rows can first be derived.
 ///
 /// The chart is read first and each loop's `first` half-edge next, so
 /// a face on a chart that mints nothing, or one storing no row, costs
@@ -2213,6 +2237,7 @@ pub(crate) fn site_rows_from<T: Decide>(
     body: &Body<T>,
     face: &crate::entity::Face,
     surface: &Surface<T>,
+    pending: &[HalfEdgeKey],
 ) -> Option<StoredRows<T>> {
     if !chart_mints(surface) {
         return None;
@@ -2223,17 +2248,20 @@ pub(crate) fn site_rows_from<T: Decide>(
             crate::entity::LoopBoundary::Cycle { first } => Some(first),
             crate::entity::LoopBoundary::Empty { .. } => None,
         })
-        .any(|first| body.pcurve(first).is_none());
+        .any(|first| !pending.contains(&first) && body.pcurve(first).is_none());
     if rowless_first {
         return None;
     }
     let stored = stored_rows(body, face);
-    stored.complete().then_some(stored)
+    stored.complete_except(pending).then_some(stored)
 }
 
 /// **The rows an Euler operator writes onto one face it adds
-/// half-edges to**, derived before the operator mutates. `from` is the
-/// face's rows as found — complete on a minting chart
+/// half-edges to**, derived before the operator mutates — and the rows
+/// a null edge's first description writes onto the face its halves are
+/// on ([`crate::Body::set_edge_curve`]), where the halves exist and
+/// their carrier arrives. `from` is the face's rows as found — complete
+/// on a minting chart but for the halves `face` names as new
 /// ([`site_rows_from`]); every other face is left as found, and never
 /// reaches here.
 ///
@@ -3249,9 +3277,13 @@ pub(crate) mod staleness_posture {
                 "mev_null",
                 Neither,
                 "Euler operator minting a NULL edge: scaffolding with no carrier, so no row \
-             to derive; a minted face it joins is half-minted until the scaffolding is \
-             replaced, which is transient by construction (tier 2 refuses a null edge at \
-             rest) and ends at the producer's final pass",
+             to derive. A face whose rows were complete is left missing exactly the edge's \
+             two rows, and `set_edge_curve` re-mints it at the edge's first description, \
+             except on a spline chart. The boolean and splitting pipelines never describe \
+             theirs: they kill them, and their joins' Euler operators leave the face as \
+             found meanwhile, so there the face is half-minted until the producer's final \
+             pass (`work/topo/a-null-edge-that-is-killed-leaves-its-face-half-minted`); \
+             tier 2 refuses a null edge at rest",
             ),
             ("kemr", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
@@ -3381,7 +3413,11 @@ pub(crate) mod staleness_posture {
              pass re-certifies nothing on it \
              (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`) — \
              the pass's property for every content staleness, which dropping rows here \
-             would trade for a re-mint on every swap that certifies",
+             would trade for a re-mint on every swap that certifies. A NULL edge's first \
+             description is where its halves' rows can first be derived, and a face \
+             complete but for those two is re-minted then, before the door mutates \
+             (`pcurves::site_rows`): it leaves complete, or rowless where the closed-form \
+             lane cannot mint it; on a spline chart it is left as found",
             ),
             (
                 "set_edge_curve_nurbs_lane",

@@ -725,3 +725,118 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
     assert!(!want.is_empty());
     assert_eq!(missing, want);
 }
+
+/// The findings `validate_pcurves` reports on `body`, each a missing
+/// row, as their half-edges sorted.
+fn missing_rows(body: &Body<f64>) -> Vec<HalfEdgeKey> {
+    let mut missing: Vec<HalfEdgeKey> = validate_pcurves(body, band())
+        .into_iter()
+        .map(|f| match f {
+            PcurveMintError::MissingCache { half_edge } => half_edge,
+            other => panic!("only missing rows are reported, got {other:?}"),
+        })
+        .collect();
+    missing.sort();
+    missing
+}
+
+/// A strut up the ruling from `m`, then a null strut at its tip: the
+/// wall missing exactly the null edge's two rows, the null edge, and
+/// the tip's point.
+fn null_strut_at_tip(
+    body: &mut Body<f64>,
+    face: FaceKey,
+    m: VertexKey,
+) -> (topo::MevCreated, Point3<f64>) {
+    let tip = strut(body, face, m).vertex;
+    let he = leaving(body, face, tip);
+    let null = body
+        .mev_null(
+            MevSite::Fan { he1: he, he2: he },
+            topo::NewVertexSide::Above,
+        )
+        .unwrap();
+    let mut want = vec![null.he_plus, null.he_minus];
+    want.sort();
+    assert_eq!(
+        missing_rows(body),
+        want,
+        "mev_null leaves the wall missing its two rows"
+    );
+    let p = *body.get_point(body.get_vertex(tip).unwrap().point).unwrap();
+    (null, p)
+}
+
+/// The cylinder's own circle at the tip's height, once round from the
+/// tip: a closed carrier ON the chart, whose image is the `u` line
+/// `v = 0.5`, so it describes an edge whose two ends are one point.
+fn circle_through_tip() -> geom_brep::EdgeCurveSpec<f64> {
+    let frame = CylFrame::canonical(1.0);
+    let carrier = geom::Curve3::Circle {
+        center: frame.origin + frame.axis * 0.5,
+        axis: frame.axis,
+        radius: frame.radius,
+        u_ref: frame.u_ref,
+    };
+    geom_brep::EdgeCurveSpec::arc_of_circle(carrier, UM, UM + core::f64::consts::TAU).unwrap()
+}
+
+/// **A null edge's first description completes the face `mev_null`
+/// left it on.** The null strut leaves the minted wall missing its two
+/// rows; `set_edge_curve` gives it a carrier on the chart, and the wall
+/// leaves complete, with the minting pass's rows. At this unit's merge
+/// base the two `MissingCache` findings survived the description.
+#[test]
+fn a_null_edges_first_description_completes_the_wall() {
+    let (mut body, face, m) = wall();
+    let (null, _) = null_strut_at_tip(&mut body, face, m);
+    body.set_edge_curve(null.edge, circle_through_tip(), tol())
+        .unwrap();
+    assert_eq!(
+        missing_rows(&body),
+        vec![],
+        "the description mints both rows"
+    );
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert_eq!(rows_of(&body, face), (9, 0));
+    let minted = rows_deep(&body);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(rows_deep(&body), minted, "the rows are the pass's");
+}
+
+/// **A carrier off the chart leaves the wall rowless, never
+/// half-minted.** Described by the scaffolding circle through the tip,
+/// which leaves the cylinder, the wall has no closed-form row set, and
+/// the description gives it the answer an Euler operator gives it: it
+/// stores nothing.
+#[test]
+fn a_null_edge_described_off_the_chart_leaves_the_wall_rowless() {
+    let (mut body, face, m) = wall();
+    let (null, p) = null_strut_at_tip(&mut body, face, m);
+    body.set_edge_curve(
+        null.edge,
+        geom_brep::EdgeCurveSpec::self_loop_circle_at(p),
+        tol(),
+    )
+    .unwrap();
+    assert_eq!(rows_of(&body, face), (0, 9));
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+}
+
+/// **Only the FIRST description mints.** Re-describing the edge once it
+/// is certified moves no key and leaves every row where it is, as for
+/// any certified edge: a wall one row short stays one row short.
+#[test]
+fn a_second_description_leaves_the_rows_as_found() {
+    let (mut body, face, m) = wall();
+    let (null, _) = null_strut_at_tip(&mut body, face, m);
+    body.set_edge_curve(null.edge, circle_through_tip(), tol())
+        .unwrap();
+    let dropped = halves_of(&body, face)[0];
+    body.detach_pcurve(dropped).unwrap();
+    let before = rows_deep(&body);
+    body.set_edge_curve(null.edge, circle_through_tip(), tol())
+        .unwrap();
+    assert_eq!(rows_deep(&body), before);
+    assert_eq!(missing_rows(&body), vec![dropped]);
+}

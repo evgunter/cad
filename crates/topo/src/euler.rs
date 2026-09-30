@@ -917,7 +917,10 @@ pub enum EulerOpError {
     /// on a spline chart, the fitted frontier, or a half-edge of a loop
     /// the op rewires does not resolve). Raised before any mutation, so
     /// the body is untouched — these three operators leave no complete
-    /// face half-minted.
+    /// face half-minted. Also raised by [`Body::set_edge_curve`] on a
+    /// null edge's first description, which re-mints the face the edge's
+    /// halves are on the same way, where a half-edge of a loop through
+    /// them does not resolve.
     PcurveMint {
         /// The face the new half-edge would join; for `mef`'s new face,
         /// the face it is carved from.
@@ -3143,7 +3146,7 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleGeometry {
                         key: GeomRef::Surface(face_data.surface),
                     })?;
-            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface) {
+            if let Some(rows) = crate::pcurves::site_rows_from(self, face_data, surface, &[]) {
                 minted.push((face, rows));
             }
         }

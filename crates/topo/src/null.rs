@@ -198,6 +198,11 @@ impl<T: geom_core::Decide> Body<T> {
     /// Tier 1 accepts the result; tier 2 refuses it at rest
     /// ([`crate::ValidationError::NullEdgeAtRest`]).
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): the null edge has no
+    /// carrier to derive its halves' rows from, so a face whose rows
+    /// were complete is left missing exactly those two until the edge's
+    /// first description, where [`Body::set_edge_curve`] mints them.
+    ///
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — identical to
     /// `mev` (a null edge is an edge).
     ///
@@ -537,5 +542,70 @@ mod tests {
                 named_loop: outer2,
             }])
         );
+    }
+
+    /// **A refusal inside the re-mint leaves the body untouched.** A
+    /// null strut on a minted cylinder wall, described by the wall's
+    /// own circle through its vertex: the description re-mints the
+    /// wall, and a half-edge of the loop it walks whose curve entry is
+    /// gone is tier 1's corruption, refused typed before the door
+    /// writes — the null edge keeps its scaffolding entry and every
+    /// row stays where it was.
+    #[test]
+    fn a_refused_null_description_leaves_the_body_untouched() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let frame = CylFrame::canonical(1.0);
+        let face = cyl_wall_sheet(&mut body, frame, None, (0.2, 1.4), (0.0, 1.0), tol);
+        let outer = body.get_face(face).unwrap().outer;
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the wall is bounded by a cycle")
+        };
+        let v = body.get_half_edge(first).unwrap().start;
+        let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let null = body
+            .mev_null(
+                crate::MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                NewVertexSide::Above,
+            )
+            .unwrap();
+        let t0 = p.y.atan2(p.x);
+        let circle = geom::Curve3::Circle {
+            center: frame.origin + frame.axis * p.z,
+            axis: frame.axis,
+            radius: frame.radius,
+            u_ref: frame.u_ref,
+        };
+        let spec = || {
+            geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t0 + core::f64::consts::TAU)
+                .unwrap()
+        };
+        // The control: on the intact body the description mints.
+        let mut control = body.clone();
+        control.set_edge_curve(null.edge, spec(), tol).unwrap();
+        assert!(control.pcurve(null.he_plus).is_some());
+        assert!(control.pcurve(null.he_minus).is_some());
+
+        let torn = body
+            .get_edge(body.get_half_edge(first).unwrap().edge)
+            .unwrap()
+            .curve;
+        body.curves.remove(torn).unwrap();
+        let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
+        let (before, rows_before) = (deep_snapshot(&body), rows(&body));
+        let err = body.set_edge_curve(null.edge, spec(), tol).unwrap_err();
+        assert_eq!(
+            err,
+            EulerOpError::PcurveMint {
+                face,
+                refusal: crate::pcurves::SiteRowRefusal::Corrupt,
+            }
+        );
+        assert_eq!(deep_snapshot(&body), before, "the body is untouched");
+        assert_eq!(rows(&body), rows_before, "every row is where it was");
     }
 }
