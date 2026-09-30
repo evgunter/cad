@@ -3,12 +3,13 @@
 //! (`sketch::held_loops`), lowered back, and committed through
 //! `SessionOp::EditProfile`.
 //!
-//! The rows claim three things the one-editor design rests on:
+//! The rows claim four things the one-editor design rests on:
 //! everything the create form can author loads into the editor and
 //! lowers back to the program it came from (the round trip); an
 //! untouched editor applied costs nothing — no edit, no history
-//! state (the no-op); and what the editor cannot hold or the door
-//! cannot write refuses typed, with the document left alone.
+//! state (the no-op); an applied editor is ONE `SetProgram`, one
+//! undo, whatever it changed; and what the editor cannot hold or the
+//! door cannot write refuses typed, with the document left alone.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -19,13 +20,13 @@ use crate::common;
 use common::{session_insert, shape};
 use pncad::document::{Dimension, Doc, DocParam, ParamName};
 use pncad::document::{
-    DocEdit, EditError, LoopProgram, Node, ParamEnv, ProfileProgram, RecipeNodeId, SlotId, StepArg,
-    apply,
+    DocEdit, EditError, Expr, LoopProgram, Node, ParamEnv, ProfileProgram, RecipeNodeId, SlotId,
+    StepArg, StepId, apply,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};
 use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
-use viewer::sketch::{self, HeldRefusal, Notation, Restructure};
+use viewer::sketch::{self, HeldRefusal, Notation};
 
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
@@ -173,6 +174,18 @@ fn program(session: &DocSession, node: RecipeNodeId) -> &ProfileProgram {
     }
 }
 
+/// The op the editor's Apply sends for `loops` over `node`'s committed
+/// program, every step kept where it is.
+fn edit_of(session: &DocSession, node: RecipeNodeId, loops: Vec<LoopProgram>) -> SessionOp {
+    let base = program(session, node).clone();
+    SessionOp::EditProfile {
+        node,
+        ids: sketch::kept_in_place(&base),
+        base,
+        loops,
+    }
+}
+
 /// **Everything the create form authors loads, and an untouched load
 /// applied is nothing.** For every shape the form offers, written in
 /// either notation: the committed profile loads into the editor, its
@@ -190,21 +203,16 @@ fn every_authored_profile_round_trips_and_an_untouched_apply_is_a_no_op() {
                 .unwrap_or_else(|refusal| panic!("{name}: the editor refused it: {refusal}"));
             assert_eq!(held.len(), loops.len(), "{name}: one held list per loop");
             for notation in [authored_in, other] {
-                let edits =
-                    sketch::program_edits(program(&session, profile), &lowered(&held, notation))
-                        .unwrap_or_else(|why| panic!("{name}: the round trip reshaped it: {why}"));
+                let committed = program(&session, profile);
+                let lowered = lowered(&held, notation);
                 assert!(
-                    edits.is_empty(),
-                    "{name}: an untouched load moved {edits:?}"
+                    sketch::is_committed(committed, &lowered, &sketch::kept_in_place(committed)),
+                    "{name}: an untouched load lowers to another program: {lowered:?}"
                 );
             }
             let before = session.committed_doc().clone();
             let state = session.history().current();
-            let out = session.perform(SessionOp::EditProfile {
-                node: profile,
-                base: program(&session, profile).clone(),
-                loops: lowered(&held, other),
-            });
+            let out = session.perform(edit_of(&session, profile, lowered(&held, other)));
             assert!(out.refusal.is_none(), "{name}: {:?}", out.refusal);
             assert!(out.committed.is_empty(), "{name}: {:?}", out.committed);
             assert_eq!(
@@ -250,50 +258,74 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         };
         let held = sketch::held_program(node, &program, &ParamEnv::default())
             .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
-        let edits = sketch::program_edits(&program, &lowered(&held, MM))
-            .unwrap_or_else(|why| panic!("{verb}: {why}"));
-        assert!(edits.is_empty(), "{verb}: {edits:?}");
+        let back = lowered(&held, MM);
+        assert!(
+            sketch::is_committed(&program, &back, &sketch::kept_in_place(&program)),
+            "{verb}: came back as {back:?}"
+        );
     }
 }
 
-/// **A moved number is one undoable edit of exactly that slot.** The
-/// square's second corner moves out; the door writes that one
-/// argument, as one history state, and undo and redo walk it.
+/// The committed expression at `slot` of `node`.
+fn committed_expr(session: &DocSession, node: RecipeNodeId, slot: SlotId) -> Expr {
+    session
+        .committed_doc()
+        .node(node)
+        .and_then(|held| held.expr(slot))
+        .cloned()
+        .unwrap_or_else(|| panic!("feature {} has no {}", node.0, slot.label()))
+}
+
+/// **A moved number is one undoable edit, written in the editor's
+/// notation, and what did not move keeps its own.** The square,
+/// authored in metres, has its second corner moved out by an editor
+/// writing millimetres: the door commits one `SetProgram` keeping
+/// every step, whose moved argument reads millimetres and whose
+/// unmoved ones still read as authored; undo and redo walk it.
 #[test]
 fn a_moved_number_is_one_edit_and_undoes() {
     let loops = [ProfileShape::Path {
         steps: square(0.0, 0.01),
     }];
-    let (mut session, profile) = with_profile(&loops, MM);
+    let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let original = session.committed_doc().clone();
+    let at = |step, arg| SlotId::Profile {
+        loop_: 0,
+        step,
+        arg,
+    };
+    let (moved, unmoved) = (at(1, StepArg::TargetX), at(2, StepArg::TargetX));
+    let authored_unit = committed_expr(&session, profile, unmoved).display_unit();
+    assert_ne!(
+        authored_unit.map(|unit| unit.symbol()),
+        Some("mm"),
+        "the premise: the program was not authored in the editor's notation"
+    );
     let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
-    let out = session.perform(SessionOp::EditProfile {
-        node: profile,
-        base: program(&session, profile).clone(),
-        loops: lowered(&held, MM),
-    });
+    let out = session.perform(edit_of(&session, profile, lowered(&held, MM)));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    let slot = SlotId::Profile {
-        loop_: 0,
-        step: 1,
-        arg: StepArg::TargetX,
-    };
+    let kept = sketch::kept_in_place(original_program(&original, profile));
     assert!(
         matches!(
             out.committed.as_slice(),
-            [DocEdit::SetParam { node, slot: written, expr }]
-                if *node == profile && *written == slot && expr.literal_value() == Some(0.015)
+            [DocEdit::SetProgram { node, ids, .. }] if *node == profile && *ids == kept
         ),
-        "exactly the moved argument is written: {:?}",
+        "one whole-program edit keeping every step: {:?}",
         out.committed
     );
-    // Written in the editor's notation, as the picker beside the
-    // fields says.
-    let Some(DocEdit::SetParam { expr, .. }) = out.committed.first() else {
-        unreachable!("matched above")
-    };
-    assert_eq!(expr.display_unit().map(|unit| unit.symbol()), Some("mm"));
+    let written = committed_expr(&session, profile, moved);
+    assert_eq!(written.literal_value(), Some(0.015));
+    assert_eq!(
+        written.display_unit().map(|unit| unit.symbol()),
+        Some("mm"),
+        "what moved is written as the editor wrote it"
+    );
+    assert_eq!(
+        committed_expr(&session, profile, unmoved).display_unit(),
+        authored_unit,
+        "what did not move keeps the notation it was authored in"
+    );
     let edited = session.committed_doc().clone();
     let reloaded = sketch::held_loops(&edited, profile).expect("held");
     assert!(
@@ -309,49 +341,166 @@ fn a_moved_number_is_one_edit_and_undoes() {
     assert!(session.committed_doc().bit_eq(&edited), "redo reapplies it");
 }
 
-/// **A reshaped program refuses, and nothing lands.** The edit
-/// vocabulary writes arguments; a step added, a verb changed or a
-/// loop dropped is a different program, which no edit door writes.
+/// `node`'s program in `doc`.
+fn original_program(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> &ProfileProgram {
+    match doc.node(node) {
+        Some(Node::Profile(program)) => program,
+        other => panic!("feature {} is not a profile: {other:?}", node.0),
+    }
+}
+
+/// **A reshaped program lands as one edit, one undo, and its names
+/// follow.** A step added, a verb changed and a hole added are each
+/// one `SetProgram`, stated the way the editor states it: every step
+/// it kept by its committed id, wherever it now stands, and every step
+/// it made as new. The door keeps each kept step's id — so every name
+/// that spells one still denotes that step — and mints a fresh id for
+/// each new one; one undo puts the committed program back.
 #[test]
-fn a_reshaped_program_refuses_restructure() {
+fn a_reshaped_program_lands_as_one_edit_and_its_names_follow() {
     let loops = [ProfileShape::Path {
         steps: square(0.0, 0.01),
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let before = session.committed_doc().clone();
+    let base = program(&session, profile).clone();
+    let kept = sketch::kept_in_place(&base);
     let held = sketch::held_loops(session.committed_doc(), profile).expect("held");
-    let mut longer = held.clone();
-    longer[0].insert(4, Step::LineTo(Target::Point(Point2::new(-0.005, 0.005))));
-    let mut reverbed = held.clone();
-    reverbed[0][1] = Step::ContinueTo(Target::Point(Point2::new(0.01, 0.0)));
-    let mut two = held.clone();
-    two.push(square(0.02, 0.005));
-    for (name, loops, expected) in [
-        ("a step added", longer, Restructure::Loop { loop_: 0 }),
-        ("a verb changed", reverbed, Restructure::Loop { loop_: 0 }),
-        (
-            "a loop added",
-            two,
-            Restructure::LoopCount { was: 1, now: 2 },
-        ),
+    let mut longer = (held.clone(), kept.clone());
+    longer.0[0].insert(4, Step::LineTo(Target::Point(Point2::new(-0.005, 0.005))));
+    longer.1[0].insert(4, None);
+    let mut reverbed = (held.clone(), kept.clone());
+    reverbed.0[0][1] = Step::ArcTo(ArcData::Bulge {
+        target: Target::Point(Point2::new(0.01, 0.0)),
+        b: 0.3,
+    });
+    reverbed.1[0][1] = None;
+    let mut two = (held.clone(), kept.clone());
+    two.0.push(vec![
+        Step::At(Point2::new(0.003, 0.003)),
+        Step::LineTo(Target::Point(Point2::new(0.006, 0.003))),
+        Step::LineTo(Target::Point(Point2::new(0.006, 0.006))),
+        Step::LineTo(Target::Point(Point2::new(0.003, 0.006))),
+        Step::LineTo(Target::Start),
+    ]);
+    two.1.push(vec![None; 5]);
+    for (name, (loops, ids)) in [
+        ("a step added", longer),
+        ("a verb changed", reverbed),
+        ("a hole added", two),
     ] {
+        let state = session.history().current();
         let out = session.perform(SessionOp::EditProfile {
             node: profile,
-            base: program(&session, profile).clone(),
+            base: base.clone(),
             loops: lowered(&loops, Notation::CANONICAL),
+            ids: ids.clone(),
         });
-        match out.refusal {
-            Some(Refusal::ProfileRestructure { node, why }) => {
-                assert_eq!(node, profile, "{name}");
-                assert_eq!(why, expected, "{name}");
+        assert!(out.refusal.is_none(), "{name}: {:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+            "{name}: one whole-program edit: {:?}",
+            out.committed
+        );
+        let now = program(&session, profile);
+        let minted: Vec<StepId> = now.ids.iter().flatten().copied().collect();
+        for (loop_, given) in ids.iter().enumerate() {
+            for (step, kept) in given.iter().enumerate() {
+                let id = now.ids[loop_][step];
+                match kept {
+                    Some(kept) => assert_eq!(id, *kept, "{name}: a kept step keeps its id"),
+                    None => assert!(
+                        !base.ids.iter().flatten().any(|old| *old == id),
+                        "{name}: a new step is minted afresh, not handed a committed id"
+                    ),
+                }
             }
-            other => panic!("{name}: {other:?}"),
         }
+        assert_eq!(
+            minted.len(),
+            ids.iter().map(Vec::len).sum::<usize>(),
+            "{name}: one id per step"
+        );
+        assert!(session.perform(SessionOp::Undo).refusal.is_none());
+        assert_eq!(session.history().current(), state, "{name}: one undo");
         assert!(
             session.committed_doc().bit_eq(&before),
-            "{name}: the document moved"
+            "{name}: the undo restores the committed program"
         );
     }
+}
+
+/// **A kept argument an expression drives is not written over.** The
+/// editor cannot hold such a program, but the op is the API's too: a
+/// program that moves the driven argument refuses with the slot
+/// field's affordance, naming the slot; one that leaves it as it was
+/// lands, and the expression is still what drives it.
+#[test]
+fn a_kept_driven_argument_is_not_written_over() {
+    let loops = [ProfileShape::Path {
+        steps: square(0.0, 0.01),
+    }];
+    let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
+    let out = session.perform(SessionOp::CreateParam {
+        name: ParamName::from_static("side"),
+        value: DocParam::continuous(Dimension::Length, 0.01),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let driven = SlotId::Profile {
+        loop_: 0,
+        step: 2,
+        arg: StepArg::TargetX,
+    };
+    let out = session.perform(SessionOp::SetSlotExpression {
+        node: profile,
+        slot: driven,
+        text: "side".to_owned(),
+    });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    let committed = program(&session, profile).loops.clone();
+    let mut moved = committed.clone();
+    let mut probe = Node::Profile(ProfileProgram {
+        plane: program(&session, profile).plane,
+        loops: moved,
+        ids: Vec::new(),
+    });
+    *probe.expr_mut(driven).expect("the slot") = common::len(0.012);
+    let Node::Profile(ProfileProgram { loops, .. }) = probe else {
+        unreachable!("built as a profile")
+    };
+    moved = loops;
+    let before = session.committed_doc().clone();
+    let out = session.perform(edit_of(&session, profile, moved));
+    match out.refusal {
+        Some(Refusal::DrivenByExpression { node, slot, .. }) => {
+            assert_eq!((node, slot), (profile, driven));
+        }
+        other => panic!("a driven argument was written over: {other:?}"),
+    }
+    assert!(session.committed_doc().bit_eq(&before));
+    // The same program with another argument moved and the driven one
+    // left alone lands, still driven.
+    let mut probe = Node::Profile(ProfileProgram {
+        plane: program(&session, profile).plane,
+        loops: committed,
+        ids: Vec::new(),
+    });
+    let other = SlotId::Profile {
+        loop_: 0,
+        step: 1,
+        arg: StepArg::TargetX,
+    };
+    *probe.expr_mut(other).expect("the slot") = common::len(0.015);
+    let Node::Profile(ProfileProgram { loops, .. }) = probe else {
+        unreachable!("built as a profile")
+    };
+    let out = session.perform(edit_of(&session, profile, loops));
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert_eq!(
+        committed_expr(&session, profile, driven).literal_value(),
+        None,
+        "the driven argument is still an expression"
+    );
 }
 
 /// **A program the editor cannot hold refuses to load, naming why.**
@@ -401,9 +550,8 @@ fn a_driven_argument_refuses_to_load() {
 }
 
 /// **A program that does not validate refuses as a whole, in the
-/// insert door's words.** A bow-tie is not a profile; the door says
-/// so about the program rather than about whichever one-slot write
-/// first noticed, and nothing lands.
+/// edit door's words.** A bow-tie is not a profile; the door says so
+/// about the program, and nothing lands.
 #[test]
 fn an_invalid_program_refuses_as_itself() {
     let loops = [ProfileShape::Path {
@@ -415,11 +563,11 @@ fn an_invalid_program_refuses_as_itself() {
     // Swap the two far corners: the loop crosses itself.
     held[0][2] = Step::LineTo(Target::Point(Point2::new(0.0, 0.01)));
     held[0][3] = Step::LineTo(Target::Point(Point2::new(0.01, 0.01)));
-    let out = session.perform(SessionOp::EditProfile {
-        node: profile,
-        base: program(&session, profile).clone(),
-        loops: lowered(&held, Notation::CANONICAL),
-    });
+    let out = session.perform(edit_of(
+        &session,
+        profile,
+        lowered(&held, Notation::CANONICAL),
+    ));
     match out.refusal {
         Some(Refusal::Edit(error)) => assert!(
             matches!(*error, EditError::ProfileProgramRefused { node, .. } if node == profile),
@@ -430,14 +578,12 @@ fn an_invalid_program_refuses_as_itself() {
     assert!(session.committed_doc().bit_eq(&before));
 }
 
-/// **Numbers that are valid together land even when one write alone
-/// is not.** Each one-slot write re-validates the whole program, so a
-/// square moved bodily to the right cannot take its first corner
-/// first: that corner alone crosses the square. The door holds the
-/// refused write back until the others have made it valid, and the
-/// whole move is still one action.
+/// **Numbers that are valid together land together, even where one
+/// argument alone would not.** A square moved bodily to the right
+/// crosses itself if only its first corner moves; the program as a
+/// whole is valid, and lands as the one edit it is, one undo.
 #[test]
-fn a_move_whose_first_write_alone_crosses_still_lands() {
+fn a_move_whose_first_argument_alone_crosses_still_lands() {
     let tol = Tol::witness();
     let loops = [ProfileShape::Path {
         steps: square(0.0, 0.01),
@@ -468,16 +614,15 @@ fn a_move_whose_first_write_alone_crosses_still_lands() {
     );
     let moved = square(0.02, 0.01);
     let state = session.history().current();
-    let out = session.perform(SessionOp::EditProfile {
-        node: profile,
-        base: program(&session, profile).clone(),
-        loops: lowered(std::slice::from_ref(&moved), Notation::CANONICAL),
-    });
+    let out = session.perform(edit_of(
+        &session,
+        profile,
+        lowered(std::slice::from_ref(&moved), Notation::CANONICAL),
+    ));
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    assert_eq!(
-        out.committed.len(),
-        4,
-        "the four moved x arguments: {:?}",
+    assert!(
+        matches!(out.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+        "one whole-program edit: {:?}",
         out.committed
     );
     let held = sketch::held_loops(session.committed_doc(), profile).expect("held");
@@ -503,99 +648,13 @@ fn editing_a_non_profile_refuses_wrong_kind() {
             ids: Vec::new(),
         },
         loops: Vec::new(),
+        ids: Vec::new(),
     });
     assert!(
         matches!(out.refusal, Some(Refusal::WrongNodeKind { node, .. }) if node == plane),
         "{:?}",
         out.refusal
     );
-}
-
-/// **Numbers valid together that no order of one-slot writes reaches
-/// refuse `ProfileEditOrder`**, and nothing lands. The pentagon pair
-/// was found by `profile_edit_order`'s search; the door searched every
-/// order of its writes before saying so.
-#[test]
-fn numbers_no_order_reaches_refuse_edit_order() {
-    let base = [
-        (0.721_070_807_093_289_2, 0.024_685_130_330_262_216),
-        (0.106_151_747_868_981_88, 0.953_850_357_115_103_9),
-        (-0.675_152_065_374_494_7, 0.226_295_352_329_219_46),
-        (-0.335_828_105_609_440_3, -0.486_568_152_102_961_9),
-        (0.235_145_486_038_303_8, -0.579_976_097_390_286_7),
-    ];
-    let target = [
-        base[0],
-        base[1],
-        (0.691_776_936_062_037_2, 0.226_295_352_329_219_46),
-        (0.893_949_020_659_274_2, -0.158_427_872_150_871_17),
-        base[4],
-    ];
-    let (mut session, profile) = with_profile(
-        &[ProfileShape::Path {
-            steps: common::polygon_steps(&base),
-        }],
-        Notation::CANONICAL,
-    );
-    let before = session.committed_doc().clone();
-    let state = session.history().current();
-    let out = session.perform(SessionOp::EditProfile {
-        node: profile,
-        base: program(&session, profile).clone(),
-        loops: lowered(&[common::polygon_steps(&target)], Notation::CANONICAL),
-    });
-    match out.refusal {
-        Some(refusal @ Refusal::ProfileEditOrder { .. }) => {
-            let said = refusal.to_string();
-            assert!(said.contains("every order"), "{said}");
-        }
-        other => panic!("{other:?}"),
-    }
-    assert!(session.committed_doc().bit_eq(&before));
-    assert_eq!(session.history().current(), state);
-}
-
-/// **Past the search cap, a refusal says the search was capped** —
-/// not that no order exists. A heptagon turned half a turn moves all
-/// fourteen of its coordinates, more than the cap, and its first
-/// corner written alone crosses the loop.
-#[test]
-fn a_move_past_the_search_cap_says_it_was_capped() {
-    use viewer::session::ORDER_SEARCH_CAP;
-    let corners = |turn: f64| {
-        (0..7)
-            .map(|i| {
-                let a = core::f64::consts::TAU * f64::from(i) / 7.0 + turn;
-                (0.01 * a.cos(), 0.01 * a.sin())
-            })
-            .collect::<Vec<_>>()
-    };
-    let (mut session, profile) = with_profile(
-        &[ProfileShape::Path {
-            steps: common::polygon_steps(&corners(0.0)),
-        }],
-        Notation::CANONICAL,
-    );
-    let before = session.committed_doc().clone();
-    let out = session.perform(SessionOp::EditProfile {
-        node: profile,
-        base: program(&session, profile).clone(),
-        loops: lowered(
-            &[common::polygon_steps(&corners(core::f64::consts::PI))],
-            Notation::CANONICAL,
-        ),
-    });
-    match out.refusal {
-        Some(refusal @ Refusal::ProfileEditOrderCapped { writes, cap, .. }) => {
-            assert_eq!((writes, cap), (14, ORDER_SEARCH_CAP));
-            assert!(writes > cap);
-            let said = refusal.to_string();
-            assert!(said.contains("capped"), "{said}");
-            assert!(!said.contains("every order"), "{said}");
-        }
-        other => panic!("{other:?}"),
-    }
-    assert!(session.committed_doc().bit_eq(&before));
 }
 
 /// **Numbers loaded from a program the document no longer holds are
@@ -628,6 +687,7 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
     held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
+        ids: sketch::kept_in_place(&loaded),
         base: loaded,
         loops: lowered(&held, Notation::CANONICAL),
     });

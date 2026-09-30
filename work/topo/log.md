@@ -2939,3 +2939,806 @@ that merge in a final commit, so the row stayed last. CI ran green on
 The design-fork, the implementation and the dual review of the
 fragment-sense question are all done. `topo-rebase-target` is free
 after PR 3493's reviewer.
+
+## PR 3493's review: NOT-MERGEABLE-AS-IS; a container restart; three lanes out (2026-09-29)
+
+**PR 3493.** The single full review of `5f8f70ed3c` took 335,038
+tokens, 112 tools and 21 min (harness); archived privately. The
+closed types route correctly on most arms, and `SizedPass::Negative`
+is right. Two MAJORs against D4:
+1. **(iv), the pair forks.** `split_edge`'s definite arm still offers
+   the declare menu, while its in-band arm now ends in the crossing
+   lever. The pairing test was rewritten to pin the fork under its old
+   name. PR 3352's body held PR 3351 for exactly this.
+2. **(i), a tolerance arm D4 forbids.** `Containment` is typed at
+   family level (`NonZero`) and offers a valued tolerance on a
+   residual rung (`bool_curved_contain_carrier`) and on a
+   Negative-refusing one. This was executed with a constructed raise.
+
+All the MINORs, NOTE-9/11/12/13 and the style findings are accepted:
+- `bool_contact_vertex`'s route;
+- the split door dropping `ConicRootFault`;
+- the hand-kept `DECISIONS` census and unpinned subjects (both
+  mutants survived);
+- `decision_words` disagreeing with the routing;
+- pass sets and size nouns;
+- two `CONTRADICTION_RECOURSE` constants;
+- `split_edge`'s decision living in the Boolean;
+- the `coincidence` one-word default, to be filed.
+
+NOTE-7/8/10 are not taken (already filed, no consumer, or unreachable).
+The fix pass runs on the reviewer's warm target.
+
+**The restart.** The container restarted at about 23:45 UTC and
+stopped PR 3495's reviewer (mid-run) and the `mev_null` implementer
+(before its first push; nothing lost). Both worktrees were
+force-removed. Both are re-dispatched fresh on the same briefs, and
+the stopped review counts for nothing.
+
+**The `mev_null` unit** (`mev-null-leaves-a-complete-curved-face-half-minted`,
+P2, M, `design: true`; tier SINGLE, full):
+- Ev's PR 2527 ruling ("mints its row at the mint site; the
+  closing-mint convention retires") decides between the item's two
+  shapes. Shape (b), re-minting at `set_edge_curve` when the carrier
+  arrives, keeps the ruling. Shape (a), clear and lean on the closing
+  mint, does not.
+- So it is not a fork for Ev. The lane builds (b), measures first,
+  and stops and reports if (b) proves unsound.
+
+Three lanes are live: PR 3495's review, PR 3493's fix pass, and the
+`mev_null` implementer.
+
+## The `mev_null` unit delivered as PR 3500; review queued for a free target (2026-09-30)
+
+PR 3500 is green at `223c63054e`. The implementer took 291,742
+tokens, 175 tools and 69 min (harness).
+- **What it built:** shape (b). `set_edge_curve_via` plans the null
+  edge's first description through `site_rows` before it mutates, and
+  writes the rows after the curve swap. `StoredRows::complete_except`
+  is the one predicate. A spline chart keeps today's answer.
+- **What it measured:** no production pipeline reaches (b).
+  - The boolean and splitting pipelines kill their null edges
+    undescribed. `mev_null` half-mints in 120 sweep tests (1,090
+    calls).
+  - The join's Euler operators then find the face half-minted and
+    leave their own halves rowless (828 reads).
+  - The closing `mint_pcurves` is still what closes the state in
+    production.
+  - Shape (a) would change nothing there either.
+- **Filed:**
+  - `a-null-edge-that-is-killed-leaves-its-face-half-minted`: the
+    production residue, with two shapes, both consistent with Ev's
+    retirement of the closing mint.
+  - `kev-describing-a-null-member-leaves-its-face-missing-its-rows`:
+    unreached today.
+
+The residue is the ruling's unfinished part, not a fork. It is queued
+as its own unit after its own measurement.
+
+Tier SINGLE, full. The brief names the PR 2527 ruling and asks the
+reviewer to re-run the measurement. It dispatches when PR 3495's
+reviewer or PR 3493's fix pass frees a target: 7.5 GB is free, too
+little for a fresh sweep build beside two live lanes.
+
+## PR 3493's fix pass delivered; three items close on the branch. PR 3500's review out (2026-09-30)
+
+The fix pass took 427,304 tokens, 216 tools and 78 min (harness).
+Head `10f158c3ae` passed `gate ok` on run 36651577359.
+
+The orchestrator read the diff:
+- **MAJOR-1:** `split_edge` decides through `decide_reported`, and
+  both arms end in one `split_param_ending`. The valued tolerance
+  appears on the Zero arm only (band-decided, Positive-pass), and the
+  pairing row runs on three real raises.
+- **MAJOR-2:** `Containment` takes the fallback, its lever alone. The
+  pass set depends on the caller (the carrier rung is a residual at
+  `wall_crossing` but passes every sign elsewhere), so the carriage
+  went to CONTACT's row. The residual rung is rowed on a real raise.
+- **Pass sets and helpers:**
+  - `SizedPass::AnySign` is sound: it passes zero and tightens any
+    nonzero margin.
+  - `ArcSpan` becomes a defect, since certification decides the same
+    margin at the same band.
+  - The split decision's words moved to `split.rs`, and `face_normal`
+    has its own `NormalDecision`.
+  - There is one `CONTRADICTION_RECOURSE`.
+  - The census is compiler-derived (`strum` was already a dependency),
+    and subjects are pinned as literals. Both of the reviewer's
+    surviving mutants are now dead.
+- **Filed:** the ~55 `coincidence` wrap sites, and a pierced-torus
+  (iv) fork found by the sibling sweep.
+
+The two CHROME items and `split-param-not-interior-offers-the-declare-menu`
+close on the branch. Merge once CI on `c649c29a9e` is green. Single
+tier, so no DR row.
+
+PR 3500's single full reviewer is dispatched on frozen `223c63054e`,
+on the freed warm target.
+
+## PR 3493 merged; the refusal rows get priorities (2026-09-30)
+
+PR 3493 merged (`7eaba79415`), closing
+`topo-escalations-offer-a-declaration-the-door-cannot-take`,
+`declaration-contradicted-renders-an-invalid-margin-and-the-declare-menu`
+and `split-param-not-interior-offers-the-declare-menu`. It was a
+single-tier review, so there is no DR row.
+
+The refusal rows it left get their priority and cost:
+
+| Row | Priority, cost | Note |
+| --- | --- | --- |
+| `pierced-torus-convention-arms-tell-two-stories` | P2, E | a D4 (iv) fork |
+| `merge-coplanar-escalation-offers-a-declaration-already-made` | P2, E | |
+| `boolean-coincidence-route-holds-decisions-no-face-pair-names` | P2, M | |
+| `boolean-coincidence-wrap-sites-name-no-decision` | P2, M | the ~55-site default |
+
+The last two overlap, and they could go out as one unit when their
+turn comes.
+
+## PR 3495's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of `984122b9d8` took 326,224 tokens, 158 tools
+and 1 h 59 m (harness); archived privately.
+
+**Every claim held, by execution:**
+- red-first at the real base (seven counterexamples, `Ok` with the
+  anchor off, or the dev panic);
+- 558k anchor-proof calls across five crates' suites, whose only
+  refusals came from the new rows;
+- 3,510 valid kills with a byte-identical `Debug` at base and head;
+- 6k two-fault plants, all in the documented order and deep-unchanged;
+- the probe columns reproduced exactly.
+
+The PR also closes a `ParentLoopForeign` class it never measured: at
+base that was 43k / 922 / 84k.
+
+**Findings, all accepted:**
+- **MINOR-1/2:** two mutants survive, M12 (a killed `first`) and M14
+  (the one-loop check restricted to Mirror). Each hides a case the
+  reviewer constructed: 751 `kev` `Ok`s, and a strut case through the
+  public `kev_describing` with chords.
+- **Brief correction:** the corrupting public door at base is
+  `kev_describing` with chord re-descriptions, and the rows do not
+  drive it.
+- **MINOR-3:** a class the unit left open, the `Empty`/`None` pairing.
+  An `Empty` vertex can already be another `Empty` loop's, and a
+  `None` write can orphan its vertex. The reviewer built S8, S9 and
+  S11; S11 belongs to the mate-edge row.
+- **NOTE-3:** the probe's zero-assertion sits in an `#[ignore]` row CI
+  never runs. A cheap non-ignored slice replaces it.
+- **Also:** stale docs, three PR-body claims, `kef`'s twice-matched
+  splice arm, `KevPlan`'s two fields for one decision, and the
+  segment rule carried by an empty slice.
+
+The fix pass runs on the warm target.
+
+## PR 3500's review: APPROVE-WITH-FIXES, one MAJOR; fix pass out (2026-09-30)
+
+The single full review of `223c63054e` took 335,557 tokens, 127 tools
+and 43 min (harness); archived privately.
+
+**Confirmed by execution:**
+- The re-mint gives the closing pass's rows byte for byte, and the
+  refusal leaves the body untouched on two faces.
+- The four mutants and four of the reviewer's own are killed.
+- The production residue is confirmed, with corrected counts: 532
+  truly-complete calls; `vtxfac`'s own `mev` plan also reads the
+  face; 100 closing tests, not 97.
+
+**MAJOR (accepted).** The re-mint misses any face with a second gap,
+and the docs claim otherwise. `complete_except` covers only this
+edge's halves:
+- P1: two null edges on one wall, both described, leave it
+  half-minted forever;
+- P2: a `mev_line` on the half-minted face before the description
+  does the same.
+
+The ruled fix: on a null edge's first description, when no null edge
+remains on the face and the face already holds rows, re-mint the
+whole face through `site_rows`, as the closing pass would. That is
+the "a half-minted face becomes a state no door can produce" reading
+of the PR 2527 ruling. The `is_null` gate stays for the carrier-swap
+posture.
+
+**Also accepted:**
+- `set_edge_curve` is still declared `Neither` although it now writes
+  rows;
+- two mutants survive: the gate removed (m8), and the halves swapped
+  at apply (m6b, invisible on a spur; P3's two-faced edge catches it);
+- the titles overclaim;
+- the receipt misses seven sites;
+- the site-mint vocabulary docs are stale;
+- `null_description_rows` re-spells `plan_site_rows`'s loop, and the
+  spline check is duplicated;
+- the two filed rows get priorities (P2 M, P3 E).
+
+The fix pass runs on the reviewer's warm target.
+
+## The torus + merge one-story unit out (2026-09-30)
+
+Dispatched **`pierced-torus-convention-arms-tell-two-stories`** and
+**`merge-coplanar-escalation-offers-a-declaration-already-made`**
+together (P2, E each; tier SINGLE, full). Both are D4 ¶1 (i)/(iv) work
+on topo refusal text, on PR 3493's machinery. The brief names PR 3352
+and asks for `git log -S` provenance first.
+- **The torus half has a real choice:** a spindle or horn torus is
+  either a shape the kernel never pierces, or coverage not built yet.
+  The lane decides from ratified text and the tree. If neither
+  settles it, it stops and reports both stories, and delivers the
+  merge half alone. It becomes a fork for Ev only if both stories are
+  consistent with ratified text.
+- **The merge half:** a closed `PlaneRung` and the orientation rung's
+  decided margin replace the whole-`Indeterminate` render. No
+  declaration is offered on a declared pair.
+
+It runs on a fresh target beside the two fix passes.
+
+## PR 3500's fix pass delivered; the item closes on the branch (2026-09-30)
+
+The fix pass took 254,077 tokens, 123 tools and 43 min (harness).
+Head `f0e2934c0c` passed `gate ok` on run 36659015155.
+
+The orchestrator read the diff:
+- **The predicate.** `StoredRows::remints_at_description` holds when
+  the face stores a row, every loop walks, and no other null edge is
+  on the face. It replaces `complete_except`. P1 and P2 are rowed and
+  end byte for byte the closing pass's.
+- **One face loop.** `plan_site_rows_as` serves both the operators
+  and the description. The spline decision is one site, with the
+  caller choosing through `SiteMint`. `SiteHalf::Described(he)` says
+  what it is.
+- **Mutants.** All ten adapted mutants red.
+- **The fourth posture.** `Posture::Completes` is accepted. The
+  lane flagged earlier resistance to a fourth posture: that was
+  TRIM's 2026-09-14 fix pass declining to call `revert` one (a
+  producer, not a mutation door), a lane's call rather than Ev's. The
+  posture set lives only in `pcurves`' docs, not in ratified text.
+  `set_edge_curve`'s null arm now writes rows, so `Neither` was
+  false; TRIM should see this in the merged diff.
+
+The item closes on the branch. Merge after CI on `382771bfce`. Single
+tier, so there is no DR row.
+
+## PR 3500 merged; the null-kill unit out (2026-09-30)
+
+PR 3500 merged (`9f38f0eb1f`), closing
+`mev-null-leaves-a-complete-curved-face-half-minted`. It was a
+single-tier review, so there is no DR row.
+
+Dispatched **`a-null-edge-that-is-killed-leaves-its-face-half-minted`**
+(P2, M; tier SINGLE, full): the production half of Ev's PR 2527
+ruling.
+- **Measure first:** which door kills each null edge, what the face
+  looks like after the last kill, and whether the closing mint then
+  mints it cleanly.
+- **Then build one of two shapes:**
+  - (a) the kill removing a face's last null edge re-mints under
+    `remints_at_description`'s rule;
+  - (b) the joins mint the loops clear of null edges.
+- The face must leave with the closing pass's rows before that pass
+  runs.
+- The closing mint is not removed in this unit. The lane re-measures
+  what it still does.
+
+It runs on the freed warm target, with the stale artifacts trimmed
+first.
+
+## The torus + merge unit delivered as PR 3506; review queued for a free target (2026-09-30)
+
+PR 3506 is green at `80f2c8cd80`, after one lint red on the
+payload-rung gate, which is now dispositioned.
+- **Torus.** Ratified text settles the story, so the lane built it
+  rather than stopping. D1's "spindle tori have no representation"
+  (`b846df1f10`, the M2 exit ratifications, #44) is in force, no
+  constructor mints one, and tier 3 already refuses one with a single
+  story.
+  - A closed `TorusConvention {Tube, Ring}` is shared by tier 3 and
+    the Boolean.
+  - The pierce door refuses with `DegenerateTorus` instead of
+    returning `Ok(None)` into "not supported yet".
+- **Plane ladder.** A closed `PlaneRung {Parallel, Orientation}`.
+  Orientation carries its decided margin and ends in
+  `PLANE_ORIENTATION` (`NonZero`), and every plane-identity site
+  routes by rung. The Boolean had also offered "declare" on declared
+  pairs.
+- **Merge.** A closed `MergeDecision`, including the loop-winding
+  raise the row missed.
+- **Filed:** rows on GERM, OFFSET and CONTACT, plus a topo row, with
+  evidence on CONTACT's and LIB's rows.
+
+Deviation to verify: a new `IndeterminatePayload` arm for a Zero
+verdict carried on `Escalated`.
+
+Tier SINGLE, full. The brief names D4 (i)/(iv) and PR 3352, and asks
+for D1's provenance. It dispatches when PR 3495's fix pass frees its
+target (6.1 GB free).
+
+## PR 3495's fix pass delivered; the item closes on the branch. PR 3506's review out (2026-09-30)
+
+**PR 3495.** The fix pass took 410,115 tokens, 183 tools and 1 h 57 m
+(harness). Head `9ba68703be` passed `gate ok` on run 36662523817.
+
+The orchestrator read the fix:
+- **The anchor proof.** `require_kill_anchors` now takes `KillAnchor`
+  writes (`Step`, `Merged`, `Lone`).
+  - The `Empty` clause requires a `Lone` write and uniqueness at its
+    vertex (S8).
+  - Every `Lone` write must be held by an `Empty` loop (S9, with
+    `kemr`'s minted ring listed).
+  - Both halves are built, so nothing needed filing. S11 now refuses
+    `OrbitBroken`.
+- **Q1.** `KefSplice` and `KevUnsplice::loop_writes` each decide their
+  arm once, and `shared_loop` is the one comparison.
+- **Rows.** The `kev` rows drive the corrupting public door
+  (`kev_describing` with chords) first, through a new
+  `fixtures::assert_kill_refuses`.
+- **The probe.**
+  - A non-ignored slice (0.7 s) guards the columns in CI. The
+    deterministic rows pin what two seeds cannot see.
+  - The probe gains two bodies and counts only unplanted faults.
+  - Every loop and vertex column is 0 across four tear kinds. The
+    `StartForeign` class (1,442 / 2,506 / 2,884 at the reviewed head)
+    is now closed too.
+  - `kef` refuses about 2,000 torn `StartForeign` bodies it used to
+    heal by accident. These are tier-1-invalid inputs; the
+    over-refusal sweep of valid bodies stays clean.
+- **Filed:** `kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names`,
+  and evidence on the `mef-and-mekr`, `kef-and-mekr` and mate-edge
+  rows.
+
+The item closes on the branch. Merge after CI on `127aba7e89`. Single
+tier, so there is no DR row.
+
+**PR 3506.** Its implementer took 414,034 tokens, 275 tools and 85 min
+(harness). The single full reviewer is dispatched on frozen
+`80f2c8cd80`, on the freed loop-anchor target.
+
+## PR 3495 merged (2026-09-30)
+
+PR 3495 merged (`85cf497f36`), closing
+`kill-ops-loop-anchor-on-an-unproven-next-step`. It was a single-tier
+review, so there is no DR row. With the loop-anchor plans settled,
+`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`
+(P2) is unblocked.
+
+## The walk-proofs unit out (2026-09-30)
+
+Priorities set on PR 3495's filed rows:
+- `kef-and-mekr-kill-a-loop-whose-members-they-read-by-the-walk` (P2, E);
+- `mef-and-mekr-move-a-walked-run-they-never-prove-is-the-loops` (P2, E);
+- `loop-cycle-broken-display-names-one-of-its-causes` (P3, E).
+
+Dispatched as one unit, with `kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names`
+(P3, E): every Euler plan proves the loops it walks, moves and
+removes. It does so through PR 3495's `require_kill_anchors` family,
+with `KillRun` lifted into one shared helper. `LoopCycleBroken`'s
+`Display` becomes true for every cause (D4 (i), a defect ending).
+Tier SINGLE, full. It runs on a fresh target.
+
+`loop-reparenting-doors…` waits for the null-kill unit, which works
+in the same site-mint code.
+
+## PR 3506's review: APPROVE-WITH-FIXES, one MAJOR; fix pass out (2026-09-30)
+
+The single full review of `80f2c8cd80` took 370,001 tokens, 187 tools
+and 28 min (harness); archived privately. The torus half is sound as
+executed.
+
+**MAJOR (accepted): one orientation table serves two doors that
+accept different outcomes.**
+- The Boolean's Rest verify passes both orientations, so `NonZero` is
+  right there.
+- The merge passes only `SameOriented`, so its pass set is Positive.
+- As built, the merge's in-band arm offers "…or clearly opposite ways"
+  and a valued tolerance, which lead only to its opposite-orientation
+  refusal. That refusal itself fails the shape guard four ways.
+- The new rows pinned the shared sentence. The fix minted a fresh
+  instance of the (iv) fork it closed.
+
+**Also accepted:**
+- The orientation lever names a move that cannot reach the refusal:
+  the margin is cos·arm, with a chord of 0 on a closed shared edge.
+  The chord reading is filed.
+- `gate_maximal_faces` offers "declare" on a same-operand pair.
+- The pierce story is not reached through the Boolean's front door.
+  Degenerate tori still stop at `CurvedPierceUnsupported`, with the
+  declare menu, or at `Containment`, which says "the solid itself is
+  fine". Either pin it or file it.
+- Revolve's `rc − radius` fork is filed on its owner's slate.
+- `LOOP_WINDING` should be `NonZero`.
+- "No production text moves" is false (`chart_region`).
+- `TorusConvention` moves to the crate that owns the torus convention,
+  so geom-brep can share it.
+- The offset `INVALID` encoding is filed.
+- The crossings get seam notes.
+- The `unreachable!` becomes typed.
+
+The fix pass runs on the loop-anchor target.
+
+## The null-kill unit delivered as PR 3508; its single review out (2026-09-30)
+
+PR 3508 is green at `b54fc1ee54` (468,498 tokens, 278 tools, 1 h 40 m,
+harness). One gate went red first (`bounds-allowlist` on a test hook);
+the hook was made `f64`-only.
+
+**The measurement ruled out shape (a).**
+- Pipeline kills (`cut_core`'s `kef`/`kemr`, `undo_struts`'s `kev`)
+  act only on rowless slivers.
+- 1,574 of 1,629 last-null-half losses happen at the join's chord
+  `mef`s.
+
+**Shape (b), built.**
+- `StoredRows::remints` is the one rule, shared with the description:
+  the face stores a row, every loop walks, and every gap sits on a
+  loop a null edge holds open.
+- The join's `mef` re-mints each piece it releases. `SiteMint` is
+  gone, and `plan_site_rows_as` becomes `plan_site_mint`.
+- `split_direct`'s closing mint now meets 0 half-minted faces
+  (78 before).
+- The boolean's merge re-mint still meets 657, all from the seam
+  zip's `kef` (ZIP's code, filed there) and none null-caused.
+- The closing passes are kept, since they do other work.
+
+**Filed:**
+- `a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`
+  (P3: kills take no `Tol`; one transient case);
+- `work/zip/the-seam-zips-kef-leaves-the-wall-it-closes-half-minted`
+  (P3).
+
+The lane reported that a request to delete stale files in its build
+target was denied. It left the target as found, and the orchestrator
+did not act on that deletion.
+
+Tier SINGLE, full. The reviewer is on the warm target, and the brief
+names the PR 2527 ruling.
+
+## PR 3506's fix pass delivered; both rows close on the branch (2026-09-30)
+
+The fix pass took 427,644 tokens, 210 tools and 67 min (harness).
+Head `6dfe2749f8` passed `gate ok` on run 36671503369.
+
+The orchestrator read the diff:
+- **MAJOR fixed.** The merge has its own `DECLARED_ORIENTATION`
+  (Positive), and `DeclaredOppositeOrientation` is its sign-certain arm
+  (lever only, no label or key). The Boolean keeps `PLANE_ORIENTATION`
+  (`NonZero`). Rows pin the merge's story across same-facing and
+  opposite planes, ± margins, and in-band and definite arms.
+- **Levers.** Both name the shared edge's chord.
+- **Routing by door.** `PlaneDoor` routes F7 to its own
+  `Neighbours` decision and lever ("merge the two faces into one
+  first…"). A declared door's unreadable norm is a defect at both the
+  merge and the Boolean.
+- **`TorusConvention`** moved to `geom_brep::torus_convention`, and
+  the filed rows point there.
+- **Filed:** six rows (topo ×3, CARVE, CONTACT, TINT), plus evidence
+  on CONTACT, CHART and LIB. Seam notes added on eight programs' logs.
+- **Deviation, accepted:** the Boolean's orientation lever and size
+  noun were also fixed, closing the MINOR-1 flaw there.
+
+Both rows close on the branch. Merge after CI on `dfa4340e83`. Single
+tier, so no DR row.
+
+## PR 3506 merged (2026-09-30)
+
+PR 3506 merged (`ef24e691de`), closing
+`pierced-torus-convention-arms-tell-two-stories` and
+`merge-coplanar-escalation-offers-a-declaration-already-made`. It was
+a single-tier review, so there is no DR row. The orchestration
+branch's `dispatched` status lines conflicted with main's closed
+items; main's versions were taken.
+
+## The coincidence-routing unit out (2026-09-30)
+
+Dispatched three rows as one unit (P2, M; tier SINGLE, full):
+- `boolean-coincidence-route-holds-decisions-no-face-pair-names`
+- `boolean-coincidence-wrap-sites-name-no-decision`
+- `f7-same-operand-coincidence-offers-a-declaration-no-door-takes`
+
+**What the unit does.** Every Boolean escalation site states its
+decision:
+- The one-word `BooleanError::coincidence` default goes.
+- Decisions no face-pair declaration can settle (the lever-arm gates,
+  the operand-radius guards, the wall and torus root lanes) get their
+  own variants, carried as typed rungs from their raisers.
+- The three definite "unsupported" arms get their doors' recourse.
+- F7's same-operand arm ends in `NEIGHBOUR_LEVER`.
+
+The brief names D4 (i)/(iv) and PR 3352. It runs on the loop-anchor
+target, which PR 3506 freed.
+
+**Process note.** The orchestration branch no longer sets
+`status: dispatched` on items whose PR branch will set `review`. The
+two edits conflict at every merge-forward.
+
+## PR 3508's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of `b54fc1ee54` took 363,610 tokens, 180 tools
+and 82 min (harness); archived privately.
+
+**Confirmed by an independent probe:**
+- 0 half-minted faces leave the boolean join, and 1 transient conic
+  face leaves the split join.
+- All 1,602 f64 released pieces are byte-equal to the pass.
+- The 657 faces left by the zip are met by the merge re-mint, and
+  none is null-caused.
+- The kill residue's premise holds: kills take no `Tol`.
+- Cost is measurable but not material (+5–8% on heavy rows).
+
+**Findings, all accepted:**
+- **M1 (a regression against PR 3500).** The new single predicate
+  requires every gap to be held open by a null edge. A description
+  on a face with a foreign gap on another loop now leaves the edge's
+  own halves rowless. At base it completed the face.
+- **N1.** The "every loop walks" clause is untested (its mutant
+  survives).
+- **Q1.**
+  - "Held open" is spelled three ways.
+  - `remints` re-reads what `stored_rows` has just computed.
+  - The boolean test hook restates production's sequence.
+- **Q7.** `is_null_half` discards an unresolved key silently.
+- **Docs and PR body.**
+  - Stale docs: the `StoredRows` doc, the `kev_describing` row, "pays
+    for no walk".
+  - The spline row is not red on base.
+  - The receipt misses kill sites.
+  - 59 kills touch a minted face.
+  - The slab check is vacuous.
+  - REST's `undo_struts` `kev` non-equality is to be re-checked and
+    filed.
+
+The fix pass runs on the warm target.
+
+## The walk-proofs unit delivered as PR 3511; its single review out (2026-09-30)
+
+PR 3511 is green at `1e1534bb16` (394,273 tokens, 243 tools, 1 h 54 m,
+harness). The run before it was red on two gates, both fixed: an
+ambient env read in the probe, and the spent-graft `kef` count.
+- **The shared helper.** `Body::require_run_of(members, from,
+  RunExtent, killed)` is `KillRun`'s check lifted out. It serves `kef`
+  and `kemr`, `mef_chords`, `mekr_cycles`, `mekr_empty_target` and
+  `kvfs`. The `Whole` extent also refuses a loop still claimed outside
+  its walk.
+- **The probe.** Every cell goes to 0, except one `kev` cell, which is
+  filed and admitted by name in `FILED_CELLS`.
+- **The message.** `LoopCycleBroken`'s `Display` is one message, true
+  for every cause, ending "(malformed body)" like its siblings. Moving
+  the whole corruption class to a defect ending is filed.
+- **Re-baseline.** `SPENT_GRAFT_EXPOSURE` for `kef` goes 40 → 16, and
+  the review is asked to confirm all 24 lost kills are torn.
+- **Filed:** six rows (topo ×5, REACH ×1).
+
+Tier SINGLE, full. The reviewer is on the lane's warm target, and its
+brief names D1's atomic contract and D4 (i).
+
+## PR 3516 merged; the coincidence-routing unit delivered as PR 3513, its single review out (2026-09-30)
+
+The state sync (PR 3516) merged.
+
+PR 3513 is green at `adcf403f45`. The implementer took 546,186 tokens,
+296 tools and 85 min (harness).
+- **The helper.** `BooleanError::coincidence` now takes a required
+  `Coincide` (14 variants).
+- **Sites.** 40 sites stay `Coincidence`; 18 of those are filed as
+  unsettleable (the declared doors, join matching, self-checks).
+  Eight re-route to new decisions: `LeverArm`, `Radius`, `WallRoots`,
+  `TorusRoots` and `PierceCurvature`. Each is a typed rung carried from
+  its raiser, with a pass set derived from the deciding code.
+- **F7.** F7's same-operand case becomes its own kind,
+  `CoplanarNeighbours`, ending in `NEIGHBOUR_LEVER`. As a result,
+  editor-core's `refusal_menu` no longer lifts F7 into a candidate
+  declaration; the review checks that change.
+- **`RestZipUnsupported`.** It loses its stage label and the declare
+  menu.
+- **`CurvedPierceUnsupported`.** It keeps "declare" on the claim that
+  the declared-cover rung takes a declaration; the review checks that
+  claim.
+- **Filed:** four rows. Seam notes went on 13 programs' logs.
+
+Tier SINGLE, full. The reviewer builds on the lane's warm target. Disk
+is at 4.8 GB free.
+
+## PR 3511's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of `1e1534bb16` took 318,894 tokens, 155 tools
+and 77 min (harness); archived privately.
+
+**Every executed claim held:**
+- All seven rows are red at the true base, in dev and in release.
+- 17 of 17 mutants red, 0 survivors.
+- 0 over-refusals: 81k probe calls, plus a hook over five suites
+  (6,245 tests) whose 398 refusals all come from torn inputs.
+- 40 → 16 is reproduced: all 24 lost kills are graft-laundered torn
+  input.
+- Both tables are reproduced exactly.
+- "(malformed body)" is consistent with D4 as ratified. The reviewer
+  traced (iv)'s rider to PR 3352, and `KERNEL_OR_FILE_DEFECT_ENDING`
+  is a house convention, not DESIGN text.
+
+**Findings, all accepted:**
+- **MINOR-1.** Face, shell, solid and edge removals trust their
+  boundary. Six measured `Ok`-with-dangling cases (`kef`, `kvfs`,
+  `mekr`). To be filed as a class.
+- **MINOR-2.** The `FILED_CELLS` admission is column-wide. Narrow it
+  to the vertex half.
+- **MINOR-3.** `OrbitBroken`'s `Display` misstates the `Lone` proof's
+  causes. Unswept sibling.
+- **Q1.** `kvfs`'s start check is a second spelling of the `Lone`
+  scan.
+- **NOTE-2.** `mekr_chord` departs from `mekr`'s order.
+- **Also:** the docs, and two test-hygiene items.
+
+The fix pass runs on the lane's warm target.
+
+## PR 3508's fix pass delivered; the item closes on the branch (2026-09-30)
+
+The fix pass took 372,302 tokens, 205 tools and 1 h 56 m (harness).
+Head `99136e5946` passed `gate ok` on run 36683752428.
+
+The orchestrator read the diff:
+- **One predicate.** `StoredRows::remints(open, released)` serves both
+  doors. A door that released the face's last null edge re-mints it
+  whole, whatever else it misses. That restores PR 3500's description
+  behaviour, and the join's `mef` uses the same rule.
+- **One helper.** `held_open` is shared by `open_loops`, the
+  rewired-loop check and the spline arm. It fails loud with
+  `SiteRowRefusal::Corrupt` on an unresolved key.
+- **The hook.** `ops::through_the_join` is production's sequence, and
+  the test hook calls it.
+- **Mutants.** All nine are red. The every-loop-walks clause now has
+  its row.
+
+**The bounds allowlist.** The lane raised `boolean/ops.rs`'s pin in
+`bounds-allowlist.sh` from 14 to 15, for `through_the_join<T: Decide
++ Bounds + AtRestPolicy>`, and asked whether that needs Ev. Ruled: no.
+- The gate pins each ratified file by count.
+- `ops.rs` is licensed by the 2026-07-29 driver amendment (M5 PR 8)
+  for the boolean-sweep seam.
+- `through_the_join` is that seam split out of `boolean_op_recut` with
+  the same bound. It is the existing ratification counted once more,
+  not a new construct.
+
+**Filed:** REST's `undo_struts` `kev` re-anchor. It leaves 23 of 48
+faces a period off the pass, and it is the branch, not the band.
+Filed P3 on topo, naming TANG and ZIP.
+
+The item closes on the branch. Merge after CI on `a7810682f0`. Single
+tier, no DR row.
+
+## PR 3513's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of PR 3513 at `adcf403f45` took 403,247 tokens,
+178 tools and 2,868 s. It found 1 MAJOR, 8 MINOR and 6 NOTE.
+
+**MAJOR.** Some in-band escalations fire before any declaration is
+read, yet still offer "declare". The reviewer executed two:
+- `reduce::curved_face_arm`'s line-clearance arm raises identically
+  with and without a declaration.
+- The curved `on_face` escalation runs ahead of the covered rungs, and
+  raises even on a declared pair whose door says `Definite`.
+
+That is D4 ¶1 (i) (PR 3352) unmet at those sites. By code order,
+`vtxfac`'s coplanar sector and `sectors::pair_search` share the shape.
+
+**Ruled for the fix pass:**
+- Each site marked "yes" reads its declaration first, or routes to its
+  own decision; the per-site table is corrected; any residue is filed
+  as one class row.
+- m-2: the filed curved-pierce row's premise is corrected. A
+  declaration does settle its `(Zero, ·)` arms.
+- m-3: the `WallRoots(AxisParallel)` lever becomes reachable.
+- m-4: the lever-arm raisers carry the decided margin, as PR 3506 did,
+  so a Zero arm stops rendering a kernel-bug story.
+- m-5 and m-7: `CoplanarNeighbours` carries its verdict in the type,
+  so `NEIGHBOUR_OFFSET` is live and the text is true in band.
+- m-6: `Coincide` gets an observable effect; the reviewer's M7 and M7b
+  mutants survive today.
+- m-8: `RestZipUnsupported` routes its lever per `what`.
+- The table's claims (m-9, n-10, n-11), the root lanes' link to F2 debt
+  #214 (n-12), the seam notes (n-13) and the style items.
+
+**Also ruled:** DESIGN.md ~:973 says a value-kind indeterminate
+"reaches the user through `COINCIDENCE_RECOURSE`". It comes from
+7c997576f9, merged in #1347 as the D9 addendum. D4 ¶1 (i) superseded
+the channel it names, not what the clause decides. The phrase is
+re-worded to name the decision's recourse. That is a description that
+moved, so it lands with the change and does not wait for Ev.
+
+The brief names D4 ¶1 (i)–(iv) and PR 3352, per the lesson logged
+earlier. The fix pass is out on the loop-anchor target.
+
+## PR 3508 merged; the loop-reparenting re-mint dispatched (2026-09-30)
+
+PR 3508 merged at `a7810682f0` (merge `2b020029df`) after CI run
+36685551821 went green; I unsubscribed. The null-kill item closed on
+its branch.
+
+The next P2 is dispatched on the rebase target:
+`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`,
+branch `topo/reparent-remint`.
+- **What it asks.** `kfmrh`, `mfkrh`, `ring_move`, `mef`'s moved run
+  and `kef`'s remnant drop a moved loop's rows. The `Decide` site walk
+  could re-mint the destination instead.
+- **The ruling.** Ev's PR 2527 ruling governs (provenance:
+  `git log --all -S'mints its row at the mint site'`). The brief names
+  it, per the logged lesson.
+- **What the brief asks.** Measure per door first, then build it as
+  PR 3508's one predicate and site-mint path, not a second spelling.
+  The lane keeps clear of the walk-proofs lane's plans in the same
+  files.
+
+## PR 3511's fix pass delivered; rows closed on the branch (2026-09-30)
+
+The fix pass took 313,723 tokens, 194 tools and 4,101 s. Head
+`c6568feacf` is green on CI run 36687417516.
+
+What the fix pass did:
+- **MINOR-1.** Filed
+  `kef-kvfs-and-mekr-remove-a-face-shell-solid-or-edge-another-record-names`,
+  with the reviewer's six cases re-measured.
+- **MINOR-2.** `KillAnchorFault::Dangling` split into `DeadLoop` and
+  `DeadStart`; `FILED_CELLS` admits only `kev`'s dead-start cell.
+- **MINOR-3.** `OrbitBroken`'s message is true at every raise site,
+  and its doc lists them.
+- **Q1.** One helper, `starts_at_besides`, serves `kvfs` and the
+  `Lone` proof. `kvfs`'s start refusal is now `OrbitBroken`, the same
+  decision under D4 ¶1 (i).
+- **NOTE-2.** One order: a crate-internal `NewCurve` is turned into a
+  spec inside each plan. That reaches `mef_chord` and `mev_line` too,
+  which had the same defect. Each is pinned by an order row adopted
+  from the review.
+- **Registers.** The three sugars leave `review_m1_pr5_internal::ALLOWED`,
+  and their two stale entries leave the loop-boundary register.
+
+The orchestrator read the fix-pass diff (`636097e605..c6568feacf`,
+9 files). Ruled:
+- The wider NOTE-2 reach is in scope: it is the same defect, closed at
+  its siblings.
+- The register edits only remove entries for discards that are gone.
+
+The four rows close on the branch (`f99ccd8041`). Merge after CI.
+Single tier, no DR row.
+
+## PR 3511 merged; D262 dispatched with the outline's refusal; triage (2026-09-30)
+
+PR 3511 merged at `f99ccd8041` (merge `f21577e2a0`) after CI run
+36688722920 went green. I unsubscribed and removed the lane's
+worktree. Main is merged into this branch.
+
+**D262 (P0) is dispatched.** Its plan line said it waited on
+`work/meta`'s `decide_flagged` register (P4). I re-read the row
+against today's code:
+- CONTACT-8 deleted `redundant_subdivision_vertex`.
+- `loop_winding` already announces a torn loop.
+- What is left: `planes_declared_equal`'s lookup arms,
+  `merged_outline_ring`'s "not a plane" or "unresolved" arm, and
+  `edge_chord_len(..).unwrap_or_else(T::one)`.
+
+That residue is fail-loud (the D9 addendum's taxonomy, 7c997576f9 /
+#1347), not a dimension question, so the wait no longer applies.
+Bundled with `merged-face-role-ambiguity-ends-in-no-recourse`; both
+are `merge_faces.rs`'s helpers, under D4 ¶1 (iv) (PR 3352).
+- Branch `topo/merge-helpers-announce`, on the walk target.
+- The lane measures reachability first, and answers row 0 for each
+  arm.
+
+`merge-orientation-rung-reads-a-closed-shared-edges-chord-as-its-arm`
+is held back from this unit. Its fix reaches F7 in `boolean/reduce.rs`,
+where PR 3513's fix pass is working. It goes after PR 3513 merges.
+
+**Triage** of rows filed without a priority:
+- P2, M: `plane-offset-rung-decided-zero-shares-invalid-with-a-poisoned-margin`
+  (a poisoned margin read as `DecidedCoincident` is a fail-loud gap)
+  and `merge-orientation-rung-…`.
+- P3:
+  - `euler-op-corruption-refusals-end-in-a-tag` (E);
+  - `kef-kvfs-and-mekr-remove-a-face-shell-solid-or-edge-another-record-names` (M);
+  - `kev-kills-a-far-vertex-…` (E);
+  - `mekr-and-kvfs-remove-an-empty-loop-…` (E);
+  - `movefac-labels-components-…` (M);
+  - `row-drop-walks-trust-the-loops-next-cycle` (M).
+
+  These are torn-input corruption through `Ok`, which is the same
+  class as the queue's other P3s.
+
+**Live lanes:** PR 3513's fix pass (the loop-anchor target), the
+reparent re-mint (the rebase target) and D262 (the walk target).

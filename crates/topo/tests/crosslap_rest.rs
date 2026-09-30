@@ -127,6 +127,40 @@ fn declared_crosslap_rest_union_builds() {
     );
 }
 
+/// The glue removes both beams' contact patches as interior: each
+/// operand's patch is recorded as discarded, and every stretch a patch
+/// face bordered a kept face along settles onto a seam edge, unless the
+/// declared merge glued the faces beside it into one (no live edge then
+/// joins its ends).
+#[test]
+fn declared_crosslap_records_both_contact_patches_as_discarded() {
+    let glued = glued();
+    let seams: std::collections::BTreeSet<topo::EdgeKey> =
+        glued.naming.seam_edges.iter().copied().collect();
+    let edges = crate::boolean_discards::bordered_edges(&glued);
+    for operand in [topo::Operand::A, topo::Operand::B] {
+        let settled = glued
+            .naming
+            .discards
+            .iter()
+            .zip(&edges)
+            .filter(|(d, _)| d.operand == operand)
+            .flat_map(|(_, s)| s.iter().flatten())
+            .count();
+        assert!(
+            settled > 0,
+            "{operand:?}'s contact patch is recorded and borders a kept face: {:?}",
+            glued.naming.discards
+        );
+    }
+    for (e, _) in edges.iter().flatten().flatten() {
+        assert!(
+            seams.contains(e),
+            "a patch's bordered stretch is a seam edge"
+        );
+    }
+}
+
 /// Watertight export rows: the glued union tessellates to a checked
 /// (watertight, outward-oriented) mesh whose signed volume converges
 /// on the exact one, writes as binary STL, and exports STEP.

@@ -765,6 +765,18 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "asks only `is_err()` and draws nothing; the node's row carries it",
         ),
         (
+            "tree.rs",
+            ".usable(",
+            "`measured_of` is asked only of a row `rows` has read `Ok`: it picks which payload \
+             to show, never whether the row stands",
+        ),
+        (
+            "features.rs",
+            ".usable(",
+            "a unit test's premise: reads the measure's payload to name the reason it expects, \
+             and draws nothing",
+        ),
+        (
             "pickindex.rs",
             "NodePick::build_all",
             "reaches the chrome only through `frame::index_badge`, which re-reads it",
@@ -1244,6 +1256,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         status,
         note: None,
         repair_at: None,
+        measured: None,
     };
     let rows = [
         row(1, RowStatus::Ok),

@@ -688,9 +688,6 @@ test_utils::f6_variants! {
         NoDocumentDirectory,
         Workspace,
         SelfInstance,
-        ProfileRestructure,
-        ProfileEditOrder,
-        ProfileEditOrderCapped,
         ProfileEditStale,
     ];
 }

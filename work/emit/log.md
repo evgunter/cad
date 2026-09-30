@@ -1089,3 +1089,53 @@ Ev ruled that the author states the loop, that there is one role list per verb w
 **Friction noted:**
 - Twice today, main went red where the PR gate had skipped the rows: the 1e-6 hex-id row (#3466) and the demo `chaintol` rows (#3479). Both were fixed by EMIT, with seam notes to EDIT and CHROME.
 - #3266's test job took about 14 minutes.
+
+## 2026-09-30: `Borders` replaces `SideOf` for split faces (PR 3241)
+
+**How the design settled.** Ev read the aligned-feature case and judged
+the plane half-space semantics fragile. A second designer pair agreed
+on `Borders`: a piece is named by the divider walls it touches. Ev
+took it on #3454.
+
+**Choosing the mechanism by measurement.** A prototype compared the
+options against rasterized planar truth, over 434 corpus runs plus
+constructed fixtures in every member order:
+- The face-path variant was wrong on through-slots, cups and arches.
+- A walk without geometry was wrong on every island.
+- The kernel's discard record, chained across fold steps, matched in
+  all 703 groups.
+
+The record needed the discarded edges' split chains, because `carve`
+drops that provenance.
+
+**What was built.**
+- topo exports `BooleanNaming::discards` (seam note to ZIP).
+- One `names::borders::Obstacles` function serves the pair boolean and
+  the union.
+- Union parents are keyed by entity.
+- The border-delta rung replaces the `SideOf` and shadow-exec rungs.
+
+**Effect on names.** 48 corpus names moved, all inside `Fragment(..)`.
+No tie changed, and there was no timing cost.
+
+**Review.** It found `border_delta` naming an untouched sibling. Fixed:
+a counterpart must share a wall.
+
+**Known tension, noted to Ev.** A kernel-bug state refuses with
+`Emission`/`JoinDesync` rather than panicking. That follows the editor's
+no-panic convention, where D9's letter says panic.
+
+**Still open:** the tied-face swap (rewritten with evidence under
+`Borders`) and the union's order-dependent refusals.
+
+## 2026-09-30 — a face cut and merged in one step (PR 3526)
+
+The pair boolean published a cut piece under the bare name its merge retires. It now names the piece `base#Borders(..)` through the same helper the union uses (`name_parent_faces`).
+
+The union's declaration door refuses `ConsumedByFold{Split}` on that shape. That costs totality in 6 member orders:
+- r2endsg's 4 had bound the correct face;
+- r4trig's 2 had bound the wrong face silently.
+
+No names-only rule recovers both. They are owned by the new design row `a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names`.
+
+N3 (a retired name never resolves to a face) now holds in every step table and every published table over 434 union runs.

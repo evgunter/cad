@@ -7,13 +7,14 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use eframe::egui;
-use pncad::document::Evaluation;
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::display::DisplayView;
+use crate::drafts::ProfileDoors;
 use crate::frame;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
@@ -50,20 +51,19 @@ fn push_segment(
 
 /// **One drawn loop, placed on its plane and appended to a lane.**
 ///
-/// A CLOSED loop's segment list wraps — the last point joins the
-/// first, which is the same thing `ProfileLoop` means by being closed
-/// by construction. An OPEN one's must not: the leg back to the start
-/// is the provisional close `sketch::preview` walked the chain under
-/// and nobody authored, so the wrap is dropped and what is drawn is the
-/// authored legs exactly. That is the whole of "a path draws while it
-/// is still being written".
+/// A loop that closes ([`sketch::LoopEnd::closes`]) wraps — the last
+/// point joins the first, which is the same thing `ProfileLoop` means
+/// by being closed by construction. One that does not must not: the
+/// leg back to the start is the provisional close `sketch::preview`
+/// walked the chain under and nobody authored, so the wrap is dropped
+/// and what is drawn is the authored legs exactly.
 fn push_loop(
     lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
     let points = &polyline.points;
-    let segments = if polyline.closed {
+    let segments = if polyline.end.closes() {
         points.len()
     } else {
         points.len().saturating_sub(1)
@@ -75,6 +75,115 @@ fn push_loop(
             points[index],
             points[(index + 1) % points.len()],
         );
+    }
+}
+
+/// **One drawn preview, placed on its plane and appended to a lane**:
+/// every loop's legs ([`push_loop`]) and the directed point at each of
+/// its steps, sized against `view` — or no marks at all without one.
+///
+/// **The directed point at each step.** A tip is a position and, once
+/// a verb has bound one, a direction — the pair the lattice calls a
+/// directed point, and the thing a person composing a chain is
+/// actually reasoning about. The polyline alone shows where the chain
+/// went and not where its steps ARE: an arc's flattening puts a dozen
+/// indistinguishable points along one leg, which is why
+/// [`PreviewLoop::vertices`] says which of them the loop owns. Each is
+/// a tick through the point, square to the path, with an arrowhead
+/// just ahead of it: "here, going that way". The heading is taken from
+/// the polyline itself rather than from bulge arithmetic: the next
+/// flattened point IS the tangent to within the chord tolerance, and a
+/// second derivation of a direction is a second thing to get wrong.
+///
+/// **A refused loop's tip is a cross instead** ([`sketch::LoopEnd::Refused`]),
+/// on the diagonals of the heading there, with no arrowhead: the chain
+/// goes nowhere from there, because the step that would have taken it
+/// on is the one refused. The tip is the last vertex drawn, or the
+/// start where the drawn steps close. An unfinished chain's tip keeps
+/// its arrowhead — it goes on from there as soon as the next step is
+/// written — so the two ends a reader must tell apart are drawn apart.
+fn push_preview(
+    lane: &mut marks::LegLane,
+    drawn: &sketch::ProfilePreview,
+    view: Option<datums::View>,
+) {
+    let plane = drawn.plane;
+    for polyline in &drawn.loops {
+        let points = &polyline.points;
+        push_loop(lane, &plane, polyline);
+        let refused_tip = match &polyline.end {
+            sketch::LoopEnd::Refused { closes: true, .. } => polyline.vertices.first().copied(),
+            sketch::LoopEnd::Refused { closes: false, .. } => polyline.vertices.last().copied(),
+            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished => None,
+        };
+        for &at in &polyline.vertices {
+            let here = points[at];
+            let Some([dx, dy]) = heading(points, at, polyline.end.closes()) else {
+                continue;
+            };
+            let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
+            let Some(tick) = view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX)) else {
+                continue;
+            };
+            let (nx, ny) = (-dy, dx);
+            let at_offset = |along: f64, across: f64| {
+                [
+                    here[0] + dx * along * tick + nx * across * tick,
+                    here[1] + dy * along * tick + ny * across * tick,
+                ]
+            };
+            let mut segment = |a: [f64; 2], b: [f64; 2]| push_segment(lane, &plane, a, b);
+            if refused_tip == Some(at) {
+                segment(at_offset(-0.5, -0.5), at_offset(0.5, 0.5));
+                segment(at_offset(-0.5, 0.5), at_offset(0.5, -0.5));
+                continue;
+            }
+            // Across the heading, never along it: a tick along the
+            // chain would lie on the leg already drawn there.
+            segment(at_offset(0.0, -0.5), at_offset(0.0, 0.5));
+            let tip = at_offset(1.0, 0.0);
+            segment(tip, at_offset(0.2, 0.45));
+            segment(tip, at_offset(0.2, -0.45));
+        }
+    }
+}
+
+/// **The committed profiles, placed and appended to a lane**: every
+/// loop [`sketch::committed`] draws, leaving out `edited` — the node
+/// the edit door is previewing in its place
+/// ([`crate::drafts::Drafts::edited_in_place`]). Answers how many
+/// profiles could not be drawn.
+pub(crate) fn push_committed(
+    lane: &mut marks::LegLane,
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    edited: Option<RecipeNodeId>,
+) -> usize {
+    let committed = sketch::committed(doc, evaluation, chord, edited);
+    for profile in &committed.drawn {
+        for polyline in &profile.loops {
+            push_loop(lane, &profile.plane, polyline);
+        }
+    }
+    committed.undrawn.len()
+}
+
+/// **Each door's preview that drew, appended to a lane**
+/// ([`push_preview`]). A door with no preview taken, or whose preview
+/// has nothing to draw, adds nothing; the form says why.
+pub(crate) fn push_previews(
+    lane: &mut marks::LegLane,
+    previews: &ProfileDoors<Option<Result<sketch::ProfilePreview, sketch::PreviewError>>>,
+    view: Option<datums::View>,
+) {
+    let drawn = previews
+        .as_ref()
+        .into_array()
+        .into_iter()
+        .filter_map(|preview| preview.as_ref()?.as_ref().ok());
+    for drawn in drawn {
+        push_preview(lane, drawn, view);
     }
 }
 
@@ -724,22 +833,21 @@ impl ViewerBehavior<'_> {
         // nothing else would draw it. Not behind the datum toggle: a
         // profile is authored content, not construction geometry.
         //
-        // `except`: the profile the edit door is previewing, if any
+        // Left out: the profile the edit door is previewing, if any
         // ([`ViewerBehavior::profile_edited`]) — drawn by its live
-        // preview below and not also as it was committed, which would
-        // show two shapes where there is one. The create door's
+        // preview below, or by nothing while that preview has nothing
+        // to draw, and never also as it was committed. The create door's
         // profile is not a node while it is composed, and comes to
         // rest when its add is accepted (`Drafts::accepted`), so it
         // has nothing to leave out.
         if let Some((doc, evaluation)) = self.session.landed_pair() {
-            let committed =
-                sketch::committed(doc, evaluation, self.delta.get(), self.profile_edited);
-            *self.profiles_undrawn = committed.undrawn.len();
-            for profile in &committed.drawn {
-                for polyline in &profile.loops {
-                    push_loop(&mut profiles, &profile.plane, polyline);
-                }
-            }
+            *self.profiles_undrawn = push_committed(
+                &mut profiles,
+                doc,
+                evaluation,
+                self.delta.get(),
+                self.profile_edited,
+            );
         }
         // **The profile being authored, drawn where it would land.**
         //
@@ -751,85 +859,19 @@ impl ViewerBehavior<'_> {
         // relative to what is already there.
         //
         // Drawn in the probe mark, never the selection mark, because
-        // it is not in the document (`EdgeOverlay::preview`). A
-        // preview that failed to replay draws nothing and says why in
-        // the form; one that replayed but does not VALIDATE draws
-        // anyway, which is the case where looking at it is the whole
-        // point.
+        // it is not in the document (`EdgeOverlay::preview`). A loop
+        // whose replay refused a step draws the prefix before it, and
+        // one that replayed but does not VALIDATE draws whole: both
+        // are cases where looking at it is the whole point. A preview
+        // with nothing to draw says why in the form.
         // Both doors of the one profile editor draw the same way: the
         // add-profile form's loops and an edit's, each where it lands.
-        let previews = self
-            .profile_previews
-            .as_ref()
-            .into_array()
-            .into_iter()
-            .filter_map(|preview| preview.as_ref()?.as_ref().ok());
-        for drawn in previews {
-            let plane = drawn.plane;
-            // The marks are sized in pixels, read at each vertex's own
-            // depth — the same door the datum glyphs go through. A
-            // window this camera has no view of draws the chain and no
-            // marks; the projection refusal below is what says why.
-            let view = datum_view(self.camera, viewport).ok();
-            for polyline in &drawn.loops {
-                let points = &polyline.points;
-                push_loop(&mut preview, &plane, polyline);
-                let mut segment = |a: [f64; 2], b: [f64; 2]| {
-                    push_segment(&mut preview, &plane, a, b);
-                };
-                // **The directed point at each step.** A tip is a
-                // position and, once a verb has bound one, a
-                // direction — the pair the lattice calls a directed
-                // point, and the thing a person composing a chain is
-                // actually reasoning about. The polyline alone shows
-                // where the chain went and not where its steps ARE:
-                // an arc's flattening puts a dozen indistinguishable
-                // points along one leg, which is why
-                // `PreviewLoop::vertices` says which of them the loop
-                // owns.
-                //
-                // Each is drawn as a small cross with a tick along the
-                // heading. The heading is taken from the polyline
-                // itself rather than from bulge arithmetic: the next
-                // flattened point IS the tangent to within the chord
-                // tolerance, and a second derivation of a direction is
-                // a second thing to get wrong.
-                for &at in &polyline.vertices {
-                    let here = points[at];
-                    let Some([dx, dy]) = heading(points, at, polyline.closed) else {
-                        continue;
-                    };
-                    let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
-                    let Some(tick) =
-                        view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX))
-                    else {
-                        continue;
-                    };
-                    // Both marks are drawn ACROSS the heading, never
-                    // along it. A tick that ran along the chain would
-                    // lie on the leg already drawn there and be
-                    // invisible on every vertex but an open chain's
-                    // last — which is the one place a reader needs it
-                    // least.
-                    let (nx, ny) = (-dy, dx);
-                    let at_offset = |along: f64, across: f64| {
-                        [
-                            here[0] + dx * along * tick + nx * across * tick,
-                            here[1] + dy * along * tick + ny * across * tick,
-                        ]
-                    };
-                    // The position: a tick through the point, square
-                    // to the path.
-                    segment(at_offset(0.0, -0.5), at_offset(0.0, 0.5));
-                    // The direction: an arrowhead just ahead of it,
-                    // opening backward, so the pair reads as "here,
-                    // going that way".
-                    let tip = at_offset(1.0, 0.0);
-                    segment(tip, at_offset(0.2, 0.45));
-                    segment(tip, at_offset(0.2, -0.45));
-                }
-            }
-        }
+        // The marks are sized in pixels, read at each vertex's own
+        // depth — the same door the datum glyphs go through. A window
+        // this camera has no view of draws the chain and no marks; the
+        // projection refusal below is what says why.
+        let view = datum_view(self.camera, viewport).ok();
+        push_previews(&mut preview, self.profile_previews, view);
 
         edges.datums = datums.into_segments();
         edges.profiles = profiles.into_segments();
@@ -983,8 +1025,9 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        RayQuestion, button_events, cursor_news, drawn_index, egui_buttons, land, push_loop,
-        push_segment, ray_asked_at, scroll_event, viewer_button, viewer_modifiers,
+        RayQuestion, button_events, cursor_news, drawn_index, egui_buttons, land, push_committed,
+        push_loop, push_preview, push_previews, push_segment, ray_asked_at, scroll_event,
+        viewer_button, viewer_modifiers,
     };
     use crate::camera::{self, Camera, CameraOp, fold_recorded};
     use crate::display::DisplayView;
@@ -997,7 +1040,7 @@ mod tests {
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
-    use crate::sketch::PreviewLoop;
+    use crate::sketch::{self, PreviewLoop, ProfilePreview, ProfileShape, TIP_MARK_PX};
     use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
     use pncad::prelude::StableName;
@@ -2154,7 +2197,7 @@ mod tests {
         let polyline = PreviewLoop {
             points: vec![[0.0, 0.0], [1.0, 0.0], [7.0e307, 0.0], [0.0, 1.0]],
             vertices: vec![0, 1, 2, 3],
-            closed: true,
+            end: sketch::LoopEnd::Closed,
         };
         let mut lane = marks::LegLane::default();
         push_loop(&mut lane, &plane, &polyline);
@@ -2163,6 +2206,322 @@ mod tests {
             lane.segments().len(),
             4,
             "the two legs between ordinary corners are drawn"
+        );
+    }
+
+    /// A view of the xy plane from a tenth of a metre, looking at the
+    /// centimetre square the preview rows below draw in.
+    fn a_view() -> crate::datums::View {
+        let camera = Camera::new(
+            pncad::geom_core::Point3::new(0.005, 0.005, 0.0),
+            0.1,
+            0.0,
+            1.0,
+            0.8,
+            0.05,
+        )
+        .expect("a camera");
+        crate::datums::datum_view(
+            &camera,
+            ViewportSize {
+                width_px: 800.0,
+                height_px: 600.0,
+            },
+        )
+        .expect("a view")
+    }
+
+    /// Every segment [`push_preview`] put in the lane for `drawn`, as
+    /// sketch-plane pairs (the plane is xy, so world x and y).
+    fn painted_preview(drawn: &ProfilePreview) -> Vec<[[f64; 2]; 2]> {
+        let mut lane = marks::LegLane::default();
+        push_preview(&mut lane, drawn, Some(a_view()));
+        lane.segments()
+            .chunks_exact(2)
+            .map(|pair| pair_2d([pair[0], pair[1]]))
+            .collect()
+    }
+
+    fn pair_2d(pair: [[f32; 3]; 2]) -> [[f64; 2]; 2] {
+        pair.map(|[x, y, _]| [f64::from(x), f64::from(y)])
+    }
+
+    /// Two plane points within what an `f32` vertex buffer keeps of
+    /// centimetre-scale coordinates.
+    fn near(a: [f64; 2], b: [f64; 2]) -> bool {
+        (a[0] - b[0]).hypot(a[1] - b[1]) < 1.0e-7
+    }
+
+    /// **What is marked at the tip `at`, arriving along `heading`**:
+    /// the strokes centred on it, each as its |cosine| to the heading
+    /// (a tick across the path is 0; a cross on its diagonals is
+    /// ~0.707), and how many segments end at the arrowhead point a
+    /// tick-length ahead of it.
+    fn tip_marks(painted: &[[[f64; 2]; 2]], at: [f64; 2], heading: [f64; 2]) -> (Vec<f64>, usize) {
+        let world = pncad::geom_core::Point3::new(at[0], at[1], 0.0);
+        let tick = a_view()
+            .screen_metres_at(world, TIP_MARK_PX)
+            .expect("a mark size at the tip");
+        let ahead = [at[0] + heading[0] * tick, at[1] + heading[1] * tick];
+        let centred = painted
+            .iter()
+            .filter(|[a, b]| near([(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0], at))
+            .map(|[a, b]| {
+                let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+                ((dx * heading[0] + dy * heading[1]) / dx.hypot(dy)).abs()
+            })
+            .collect();
+        let arrow = painted
+            .iter()
+            .filter(|[a, b]| near(*a, ahead) || near(*b, ahead))
+            .count();
+        (centred, arrow)
+    }
+
+    /// Whether a leg joins `a` and `b`, either way round.
+    fn joins(painted: &[[[f64; 2]; 2]], a: [f64; 2], b: [f64; 2]) -> bool {
+        painted
+            .iter()
+            .any(|[p, q]| near(*p, a) && near(*q, b) || near(*p, b) && near(*q, a))
+    }
+
+    /// `test_support::two_legs` from the origin, to [`TIP`] arriving
+    /// along `+y`, then `tail`.
+    fn chain(tail: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
+        let mut steps = crate::test_support::two_legs(0.0, 0.0);
+        steps.extend(tail);
+        sketch::preview(
+            pncad::profile::SketchPlane::xy(),
+            &[ProfileShape::Path { steps }],
+            Tol::witness(),
+            1.0e-4,
+        )
+        .expect("the chain draws")
+    }
+
+    const TIP: [f64; 2] = [0.01, 0.01];
+    const ARRIVING: [f64; 2] = [0.0, 1.0];
+
+    /// **A step the author picked that refuses still leaves the chain
+    /// before it on screen, with a cross where it stops.** The
+    /// `arc_fillet_arc` the form hands an author who picks that verb
+    /// at this tip is refused on arrival; what is painted is the two
+    /// legs before it, not the provisional close back to the start,
+    /// and at the tip a cross on the heading's diagonals with no
+    /// arrowhead.
+    ///
+    /// Red if the refused loop draws nothing (the `expect` panics), if
+    /// it draws its provisional close, or if its tip is marked like any
+    /// other vertex.
+    #[test]
+    fn a_refused_step_paints_the_chain_before_it_and_a_cross_at_its_tip() {
+        use pncad::profile::{Step, Target, TipState, Verb};
+        let picked = sketch::fresh_step_at(Verb::ArcFilletArc, Some(TipState::DirectedPoint));
+        let drawn = chain(vec![picked, Step::LineTo(Target::Start)]);
+        assert!(
+            drawn.loops[0].end.refusal().is_some(),
+            "a fixture whose picked step refuses: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(joins(&painted, [0.0, 0.0], [0.01, 0.0]), "{painted:?}");
+        assert!(joins(&painted, [0.01, 0.0], TIP), "{painted:?}");
+        assert!(
+            !joins(&painted, TIP, [0.0, 0.0]),
+            "the provisional close is not painted: {painted:?}"
+        );
+        let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+        assert_eq!(
+            centred.len(),
+            2,
+            "two strokes cross at the tip: {centred:?}"
+        );
+        assert!(
+            centred
+                .iter()
+                .all(|cos| (cos - core::f64::consts::FRAC_1_SQRT_2).abs() < 1.0e-3),
+            "both on the heading's diagonals: {centred:?}"
+        );
+        assert_eq!(arrow, 0, "no arrowhead: the chain goes nowhere from here");
+    }
+
+    /// **An unfinished chain's tip keeps its arrowhead and no cross** —
+    /// the same two legs as the row above with nothing after them, so
+    /// the only difference painted is the tip's.
+    ///
+    /// Red if the cross is drawn at every open tip rather than only a
+    /// refused one.
+    #[test]
+    fn an_unfinished_chains_tip_is_painted_going_on() {
+        let drawn = chain(Vec::new());
+        assert!(
+            drawn.loops[0].end.is_unfinished(),
+            "a fixture that is merely unfinished: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+        assert_eq!(centred.len(), 1, "one tick through the tip: {centred:?}");
+        assert!(centred[0] < 1.0e-3, "square to the path: {centred:?}");
+        assert_eq!(arrow, 2, "an arrowhead ahead of it");
+    }
+
+    /// **A chain that closed and then went on is painted closed, with
+    /// the cross at its start.** A square closed by `line_to Start`,
+    /// then one more `line_to`, which no closed loop takes: the four
+    /// authored legs are painted, the closing one included, and the
+    /// start — where the drawn steps end — carries the cross and no
+    /// arrowhead.
+    ///
+    /// Red if the drawn prefix is replayed only under the provisional
+    /// close (the closing leg goes unpainted and the cross lands on
+    /// `(0, 0.01)`).
+    #[test]
+    fn a_chain_that_closed_and_went_on_is_painted_closed() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let drawn = chain(vec![
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+            Step::LineTo(Target::Start),
+            Step::LineTo(Target::Point(Point2::new(0.005, 0.005))),
+        ]);
+        assert!(
+            drawn.loops[0].end.refusal().is_some(),
+            "a fixture whose last step refuses: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(
+            joins(&painted, [0.0, 0.01], [0.0, 0.0]),
+            "the authored close is painted: {painted:?}"
+        );
+        let (centred, arrow) = tip_marks(&painted, [0.0, 0.0], [1.0, 0.0]);
+        assert_eq!(centred.len(), 2, "the cross at the start: {centred:?}");
+        assert_eq!(arrow, 0, "no arrowhead at the start");
+    }
+
+    /// **An edit of a committed profile that a step refuses hides the
+    /// committed shape, whether or not anything before the refusal
+    /// draws** — Ev's ruling of 2026-09-30. A square on the xy frame,
+    /// held by the edit door; the drive is the frame's own, in order:
+    /// the edit door's preview, [`crate::drafts::Drafts::edited_in_place`]
+    /// on it, then the two lanes the viewport paints
+    /// ([`push_committed`], [`push_previews`]) and the form's sentence
+    /// ([`crate::pane::profile::preview_verdict`], headless).
+    ///
+    /// - Refused at step 1, nothing before it draws: no committed leg
+    ///   and no preview leg is painted, and the form says the refusal.
+    ///   Red if a preview with nothing to draw leaves the committed
+    ///   drawing up (the flip the ruling fixed).
+    /// - Refused at step 3, after two legs: no committed leg; the two
+    ///   legs are painted. Red if a refused preview stops standing in
+    ///   for the node.
+    #[test]
+    fn a_refused_edit_hides_the_committed_profile_with_or_without_a_prefix() {
+        use pncad::document::{CancelToken, Doc, EvalOptions, evaluate};
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, TipState, Verb};
+
+        use crate::drafts::{Drafts, ProfileDoors, RowEdit};
+        use crate::session::ProfilePlane;
+
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let side = 0.02;
+        let (doc, profile) = crate::test_support::framed_square(
+            &Doc::empty_derived("c5-refused-edit", tol),
+            side,
+            tol,
+        );
+        let evaluation = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let mut drafts = Drafts::default();
+        drafts
+            .profile_edit(&doc, profile)
+            .expect("the square is held");
+        let frame = match drafts.door_loops().edit.and_then(|held| held.plane) {
+            Some(ProfilePlane::Existing(frame)) => Some(frame),
+            _ => None,
+        }
+        .expect("the edit door draws on the square's own frame");
+        let placement = sketch::frame_placement(&doc, &evaluation, frame).expect("placed");
+        let segments = |lane: &marks::LegLane| -> Vec<[[f64; 2]; 2]> {
+            lane.segments()
+                .chunks_exact(2)
+                .map(|pair| pair_2d([pair[0], pair[1]]))
+                .collect()
+        };
+        // One frame with `loops` held by the edit door: its preview,
+        // the committed lane, the preview lane.
+        let mut frame_with = |loops: Vec<Step<f64>>| {
+            let edit = drafts.profile_edit.as_mut().expect("held");
+            edit.edit_row(0, RowEdit::Clear);
+            for (at, step) in loops.into_iter().enumerate() {
+                edit.edit_row(0, RowEdit::Insert { at, step });
+            }
+            let held = drafts.door_loops().edit.expect("held");
+            let preview = sketch::preview(placement, &held.loops, tol, chord);
+            let previews = ProfileDoors {
+                create: None,
+                edit: Some(preview.clone()),
+            };
+            let edited = drafts.edited_in_place(previews.edit.as_ref());
+            let mut committed = marks::LegLane::default();
+            let undrawn = push_committed(&mut committed, &doc, &evaluation, chord, edited);
+            assert_eq!(undrawn, 0, "the square draws when it is drawn at all");
+            let mut drawn = marks::LegLane::default();
+            push_previews(&mut drawn, &previews, None);
+            (preview, segments(&committed), segments(&drawn))
+        };
+
+        let mut control = marks::LegLane::default();
+        push_committed(&mut control, &doc, &evaluation, chord, None);
+        let control = segments(&control);
+        assert!(
+            joins(&control, [0.0, 0.0], [side, 0.0]),
+            "the control: the square is painted when nothing edits it: {control:?}"
+        );
+
+        let fused = |state| sketch::fresh_step_at(Verb::ArcFilletArc, state);
+        let (preview, committed, drawn) = frame_with(vec![
+            Step::At(Point2::origin()),
+            fused(Some(TipState::PlainPoint)),
+        ]);
+        let refusal = preview
+            .as_ref()
+            .expect_err("a fixture refused at step 1 with nothing to draw");
+        assert!(
+            committed.is_empty(),
+            "refused at step 1: the committed square is hidden: {committed:?}"
+        );
+        assert!(
+            drawn.is_empty(),
+            "refused at step 1: nothing is drawn: {drawn:?}"
+        );
+        let said = crate::pane::headless::painted_text(|ui| {
+            crate::pane::profile::preview_verdict(ui, crate::theme::Theme::DEFAULT, Some(&preview));
+        });
+        assert!(
+            said.contains(&refusal.to_string()),
+            "refused at step 1: the form says the refusal: {said:?}"
+        );
+
+        let mut steps = crate::test_support::two_legs(0.0, 0.0);
+        steps.push(fused(Some(TipState::DirectedPoint)));
+        let (preview, committed, drawn) = frame_with(steps);
+        assert!(
+            matches!(&preview, Ok(p) if p.loops[0].end.refusal().is_some()),
+            "a fixture refused at step 3 with two legs before it: {preview:?}"
+        );
+        assert!(
+            committed.is_empty(),
+            "refused at step 3: the committed square is hidden: {committed:?}"
+        );
+        assert!(
+            joins(&drawn, [0.0, 0.0], [0.01, 0.0]) && joins(&drawn, [0.01, 0.0], [0.01, 0.01]),
+            "refused at step 3: the legs before it are painted: {drawn:?}"
         );
     }
 }

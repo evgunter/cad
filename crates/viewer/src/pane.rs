@@ -64,19 +64,29 @@ pub(crate) mod headless {
     /// Panics when `target` was not painted at all — a click at a
     /// guessed position would otherwise read as a widget that did not
     /// open.
-    pub(crate) fn painted_after_clicking(
+    pub(crate) fn painted_after_clicking(target: &str, draw: impl FnMut(&mut egui::Ui)) -> String {
+        painted_after_clicking_nth(target, 0, draw)
+    }
+
+    /// [`painted_after_clicking`] on the `nth` (zero-based) painting of
+    /// `target` — for a control every row of a list carries.
+    ///
+    /// Panics when `target` was painted fewer than `nth + 1` times.
+    pub(crate) fn painted_after_clicking_nth(
         target: &str,
+        nth: usize,
         mut draw: impl FnMut(&mut egui::Ui),
     ) -> String {
         let ctx = egui::Context::default();
         let run = |input: egui::RawInput, draw: &mut dyn FnMut(&mut egui::Ui)| {
             let landed = frame(&ctx, input, draw);
-            let at = hit(&landed, target, 0);
+            let at = hit(&landed, target, nth);
             let text: Vec<String> = landed.into_iter().map(|landed| landed.text).collect();
             (text, at)
         };
         let (_, at) = run(egui::RawInput::default(), &mut draw);
-        let at = at.unwrap_or_else(|| panic!("`{target}` was never painted"));
+        let at =
+            at.unwrap_or_else(|| panic!("`{target}` was painted fewer than {} times", nth + 1));
         let click = egui::RawInput {
             events: vec![
                 egui::Event::PointerMoved(at),

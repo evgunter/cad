@@ -2,10 +2,13 @@
 id: a-null-edge-that-is-killed-leaves-its-face-half-minted
 kind: issue
 title: A null edge the boolean or splitting pipeline kills undescribed leaves its face half-minted, and the join's Euler operators leave their own halves rowless on it
-status: open
+status: closed
 opened: 2026-09-30
 priority: P2
 cost: M
+branch: topo/null-kill-remint
+pr: 3508
+closed: 2026-09-30
 ---
 
 
@@ -59,3 +62,43 @@ not mint re-mints it (the killed halves are what blocked the walk);
 or the join's operators, on a face complete but for null halves, mint
 the loops that no longer run through a null edge. Either needs its
 own measurement of which faces are complete once the cut is done.
+
+## Closed (2026-09-30, PR 3508)
+
+This closes the production half of Ev's PR 2527 ruling: a
+half-minted face is a state no door can produce.
+
+**Measurement, and the shape it picked.** The measurement ruled out
+the kill doors (shape a): the pipelines' kills act on rowless slivers,
+and 59 of 6,385 null-edge kills touch a minted face. The fix is at the
+join's `mef` (shape b), where 1,574 of 1,629 last-null-half losses
+happen.
+
+**One predicate for both doors.** `StoredRows::remints(open,
+released)` serves the operators and the description alike. A face is
+re-minted when:
+- it stores a row;
+- every loop walks;
+- every missing row is on a loop a null edge holds open, unless the
+  door released the face's last null edge, in which case it is
+  re-minted whole.
+
+The helper `held_open` is the one spelling, and it fails loud on an
+unresolved key.
+
+**Result.**
+- 0 half-minted faces leave the boolean join. `split_direct`'s
+  closing mint meets 0, where it met 78 before.
+- The boolean merge still re-mints 657 faces. All 657 come from the
+  seam zip's `kef`, and none is null-caused; that is ZIP's row.
+
+**Review and fix pass.** The single review found a regression against
+PR 3500 (a description on a face with a foreign gap), and the fix
+pass closed it with the release clause.
+
+**Filed:**
+- `a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`
+  (P3);
+- `a-kill-that-re-anchors-a-loops-first-leaves-its-rows-a-period-off-the-pass`
+  (P3);
+- `work/zip/the-seam-zips-kef-leaves-the-wall-it-closes-half-minted`.

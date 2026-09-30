@@ -230,7 +230,7 @@ fn serdes_missing_field_semantics_are_what_the_module_docs_assume() {
 
 /// The classification seam's edges, each pinned to the arm it lands
 /// on. A duplicate key is `Data` (valid JSON, refused by the types);
-/// nesting past serde_json's recursion limit and a bare `NaN` token
+/// nesting past the load door's nesting limit and a bare `NaN` token
 /// are not JSON at all.
 #[test]
 fn the_classification_seam_holds_at_its_edges() {
@@ -257,11 +257,11 @@ fn the_classification_seam_holds_at_its_edges() {
         other => panic!("a duplicate key must refuse unreadable, got {other:?}"),
     }
 
-    // Deep nesting: serde_json's recursion limit is a SYNTAX class.
+    // Deep nesting past the door's limit is the reader's class.
     let deep = format!("{}{}{}\n", header, "[".repeat(600), "]".repeat(600));
     match load(&deep, Tol::witness()) {
-        Err(PersistError::Parse { .. } | PersistError::Unreadable { .. }) => {}
-        other => panic!("deep nesting must refuse typed, got {other:?}"),
+        Err(PersistError::Parse { .. }) => {}
+        other => panic!("deep nesting must refuse as the reader's class, got {other:?}"),
     }
 
     // Non-finite tokens are not JSON: they refuse before the types.

@@ -611,11 +611,13 @@ pub fn field_text(row: &SlotRow) -> String {
 /// symbol, through [`shown_text`] — so bounded by
 /// [`crate::readout::MAX_CHARS`] and a symbol.
 ///
-/// One spelling for the two places a driven slot's value is said: its
-/// field ([`field_text`]) and the refusal's affordance
-/// (`crate::session::Refusal::affordance`), so a row never shows one
-/// number two ways. The symbol is carried because nothing else on the
-/// row names the unit: a computed slot's picker says `computed`.
+/// One spelling for every computed value the chrome says: a driven
+/// slot's field ([`field_text`]), the refusal's affordance
+/// (`crate::session::Refusal::affordance`), and a measure's tree row
+/// ([`crate::tree::Measured::Value`]) — so one quantity never reads
+/// two ways. The symbol is carried because nothing else says the unit:
+/// a computed slot's picker says `computed`, and a measure has no
+/// picker at all.
 pub fn computed_text(dimension: Dimension, canonical: f64) -> String {
     shown_text(rendering_unit(dimension, None), canonical)
 }

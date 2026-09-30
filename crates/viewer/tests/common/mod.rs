@@ -388,20 +388,6 @@ pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     box_in(session, plane, size).1
 }
 
-/// A closed polygon through `points`, in order, as the step chain a
-/// `ProfileShape::Path` carries: an `At` on the first point, a line to
-/// each of the rest, and a line back to the start.
-pub fn polygon_steps(points: &[(f64, f64)]) -> Vec<pncad::profile::Step<f64>> {
-    use pncad::geom_core::Point2;
-    use pncad::profile::{Step, Target};
-    let mut steps = vec![Step::At(Point2::new(points[0].0, points[0].1))];
-    for &(x, y) in &points[1..] {
-        steps.push(Step::LineTo(Target::Point(Point2::new(x, y))));
-    }
-    steps.push(Step::LineTo(Target::Start));
-    steps
-}
-
 /// One node's row status out of a tree render — the lookup five
 /// suites had written out by hand.
 ///

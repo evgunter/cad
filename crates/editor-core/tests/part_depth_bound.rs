@@ -36,25 +36,11 @@ use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, run, square};
 use geom_core::Tol;
 use std::sync::Arc;
+use test_utils::own_thread::on_the_smallest_stack;
 
 /// The deepest nesting that evaluates: `PartFault::DepthExceeded`'s
 /// sentence names it.
 const BOUND: usize = 1024;
-
-/// The wasm32 build's default stack, the smallest an evaluating door
-/// runs on (the viewer's workers, a Rust test thread and a Python
-/// thread all get more).
-const WASM_STACK: usize = 1 << 20;
-
-/// Runs `f` on a thread with the wasm32 build's stack.
-fn on_the_smallest_stack<R: Send + 'static>(f: impl FnOnce() -> R + Send + 'static) -> R {
-    std::thread::Builder::new()
-        .stack_size(WASM_STACK)
-        .spawn(f)
-        .expect("the thread starts")
-        .join()
-        .expect("the subject returns")
-}
 
 /// The leaf part: a block with a boss unioned onto it, so the leaf's
 /// own evaluation runs a boolean on top of whatever the chain costs.
