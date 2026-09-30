@@ -117,7 +117,7 @@ use crate::names::emit::{
 };
 use crate::names::emit_topo::{
     FaceDescent, OnSegment, OrientedPlane, Segment, carrier_plane, edge_extent,
-    insert_ranked_or_tied, name_split_group,
+    insert_ranked_or_tied, name_parent_faces,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -1564,24 +1564,16 @@ fn name_by_parents<T: geom_core::Decide>(
             faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect(),
             parent.tied,
         );
-        match faces.as_slice() {
-            [] => {}
-            [one] => put(
-                &mut out,
-                &mut tie,
-                parent.tied,
-                parent.name.clone(),
-                ent(0, EntityKey::Face(*one)),
-            )?,
-            _ => {
-                let split = fold
-                    .obstacles
-                    .split(body, &parent.entities, faces, &[], |g| {
-                        Ok(parents.face(g)?.name.clone())
-                    })?;
-                name_split_group(&mut out, &mut tie, parent.tied, &parent.name, split)?;
-            }
-        }
+        name_parent_faces(
+            &mut out,
+            &mut tie,
+            parent.tied,
+            parent.name.clone(),
+            faces,
+            &[],
+            (&fold.obstacles, body, &parent.entities),
+            |g| Ok(parents.face(g)?.name.clone()),
+        )?;
     }
 
     // ---- Every other row: its faces cited as parents. ----

@@ -14,9 +14,11 @@ Found by `mev-null-leaves-a-complete-curved-face-half-minted`
 describe a null edge's carrier.
 
 That unit makes a null edge's first description re-mint a minted
-face its halves are on, once no other null edge is on it
-(`StoredRows::remints_at_description`):
-`Body::set_edge_curve_via` (`crates/topo/src/attach.rs`) plans it
+face its halves are on through the site mint (`pcurves::site_rows`,
+selected by `StoredRows::remints`): every loop no other null edge
+holds open, and the whole face, whatever it misses, once no null edge
+is left on it. `Body::set_edge_curve_via`
+(`crates/topo/src/attach.rs`) plans it
 (`null_description_rows`, through `pcurves::site_rows`) before it
 mutates, which covers `set_edge_curve` and
 `set_edge_curve_nurbs_lane`. `describe_at_rest` refuses a null edge

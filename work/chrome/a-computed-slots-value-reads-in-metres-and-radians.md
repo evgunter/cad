@@ -7,7 +7,7 @@ opened: 2026-09-29
 priority: P3
 cost: M
 design: true
-refs: [a-driven-slots-field-draws-its-expression-source-at-any-width]
+refs: [a-driven-slots-field-draws-its-expression-source-at-any-width, the-gui-shows-no-measure-value-and-no-clearance]
 ---
 
 
@@ -30,3 +30,29 @@ by construction. A different notation for a COMPUTED value (the unit
 of the parameters the expression reads, the unit its literals were
 written in, or a document-level preference) is a design choice, not a
 bug fix, and would move that agreement.
+
+**A third reader since AUTH-7 (PR 3528), 2026-09-30: a measure's tree
+row.** `tree::Measured::Value` is spelled by the same
+`props::computed_text`, so a 12.5 mm box's height reads `0.0125 m` and
+a right angle reads `1.5707963268 rad`. The parent row's example
+promised `12.500 mm`.
+
+**The fix has to be crate-wide, not a measure special case.** AUTH-7's
+two reviewers agreed on this. `rendering_unit` would consult a preferred
+display unit per dimension, so driven slots, the affordance and measures
+move together, and the agreement with `unparse` is decided once, in one
+place. The per-measure alternatives do not survive:
+
+* A measure records no notation. `MeasureExpr` carries a `dim`, and its
+  primitives are never written by anyone.
+* The measured geometry's slots cannot be an honest source. AUTH-7's
+  correctness reviewer pointed out that there can be many of them and
+  they can disagree: a distance between a face placed by a `4 mm` slot
+  and one placed by a `0.2 in` slot has no single author's unit.
+* The creation forms' unit picker (`widgets.rs`, "The creation forms'
+  written-unit picker") is transient per-form state, not a preference.
+
+What is open is where the preference lives: a document field, which is
+persisted and diffable, or a viewer preference, which is per person
+and not in the recipe. How it interacts with `unparse` is part of the
+same question. That is a design fork.
