@@ -2084,6 +2084,94 @@ fn face_vertex_points<T: Decide>(
     Ok(out)
 }
 
+/// **The join's self-checks refuse as the kernel's own**, at their
+/// sites: a mutant routing either to a coincidence reds here.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod self_check_rows {
+    use super::super::{BooleanDecision, BooleanError, HalfGerm, SelfCheck};
+    use geom_core::{Band, KERNEL_DEFECT_ENDING, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn assert_defect(err: &BooleanError, check: SelfCheck, predicate: &str) {
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated { decision: BooleanDecision::SelfCheck(c), diag }
+                    if *c == check && diag.predicate == Some(predicate)
+            ),
+            "{check:?}: {err:?}"
+        );
+        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{check:?}: {err}");
+    }
+
+    /// A conic germ whose rotational sense about its section circle lies
+    /// in the band: a radial germ direction is malformed germ data, so
+    /// its in-band twin is the kernel's too.
+    #[test]
+    fn an_in_band_arc_facing_is_the_kernels_own_check() {
+        let b = band();
+        let w = (b.zero() + b.escalate()) / 2.0;
+        let germ = |dir| HalfGerm {
+            he: crate::entity::HalfEdgeKey::default(),
+            a_face: crate::entity::FaceKey::default(),
+            b_face: crate::entity::FaceKey::default(),
+            dir,
+        };
+        let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let err = super::germs_face_each_other(
+            Some((o, z)),
+            &germ(Vec3::new(1.0, w, 0.0)),
+            &germ(Vec3::new(0.0, 1.0, 0.0)),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(-1.0, 0.0, 0.0),
+            b,
+        )
+        .expect_err("an in-band sense escalates");
+        assert_defect(&err, SelfCheck::ArcFacing, "bool_join_arc_facing");
+    }
+
+    /// A ring run on a prism's top face whose enclosed mean width lies in
+    /// the band: the run `(0,0) → (1,h) → (2,0)`, closed by its chord, is
+    /// `2A/P ≈ h/2` wide. A zero width is a degenerate run, so its
+    /// in-band twin is the kernel's too. (The run is hand-picked on the
+    /// face; whether a join reaches one is not asked here.)
+    #[test]
+    fn an_in_band_ring_run_winding_is_the_kernels_own_check() {
+        let tol = Tol::witness();
+        let b = band();
+        let h = b.zero() + b.escalate();
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, h), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let body = &prism.body;
+        let start = |he| body.get_half_edge(he).unwrap().start;
+        let face = body.get_face(prism.top_face).unwrap();
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+        else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let cycle = body.loop_cycle(first).unwrap();
+        let h1 = *cycle
+            .iter()
+            .find(|&&he| {
+                start(he) == prism.top[0]
+                    && start(body.get_half_edge(he).unwrap().next) == prism.top[1]
+            })
+            .expect("the top loop runs (0,0) → (1,h)");
+        let h2 = body.get_half_edge(h1).unwrap().next;
+        let err = super::ring_run_ccw(body, prism.top_face, h1, h2, b)
+            .expect_err("an in-band winding escalates");
+        assert_defect(&err, SelfCheck::RingWinding, "bool_ring_run_winding");
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod frame_dispatch_tests {

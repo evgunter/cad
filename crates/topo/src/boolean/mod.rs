@@ -2607,6 +2607,16 @@ fn verify_rest_declaration<T: Decide>(
     }
 }
 
+/// The conformal screen's carrier ladder contradicting a pair it ran
+/// undeclared, which no verdict on an undeclared pair is: the kernel's
+/// own check ([`SelfCheck::CarrierLadder`]).
+fn screen_contradiction(diag: Indeterminate) -> BooleanError {
+    BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::CarrierLadder),
+        diag,
+    }
+}
+
 /// The `Tangent` half of [`verify_declared_contacts`] — admitted
 /// exactly where the DEV-1 closed-form witness lane reaches
 /// ([`rest::tangent_locus`]: plane×cylinder along a ruling, parallel
@@ -2681,10 +2691,7 @@ fn verify_tangent_declaration<T: Decide>(
             }
             // Unreachable with `declared: false`; refuse loudly anyway.
             Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::SelfCheck(SelfCheck::CarrierLadder),
-                    diag,
-                });
+                return Err(screen_contradiction(diag));
             }
         }
     }
@@ -2999,6 +3006,33 @@ fn validate_declarations<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **The conformal screen's ladder contradicting an undeclared pair
+    /// is the kernel's own check.** The arm is unreachable (the screen
+    /// runs the ladder with `declared: false`, which contradicts
+    /// nothing), so the row pins its routing: a mutant sending it to a
+    /// coincidence reds here.
+    #[test]
+    fn a_contradiction_at_the_undeclared_screen_is_the_kernels_own_check() {
+        let diag = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("bool_plane_offset"),
+            terminal_sliver: false,
+        };
+        let err = screen_contradiction(diag);
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::SelfCheck(SelfCheck::CarrierLadder),
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+        assert!(err.to_string().ends_with(KERNEL_DEFECT_ENDING), "{err}");
+    }
 
     /// **[`BooleanOp::ALL`] holds each operation once, and an
     /// operation added to the enum cannot reach a release without

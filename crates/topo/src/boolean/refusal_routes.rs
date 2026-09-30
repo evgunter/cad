@@ -414,6 +414,14 @@ pub enum Coincide {
     /// direction within a sector, two sectors' faces parallel, their
     /// bounds in line, the order of a strut's germs. Every verdict
     /// passes.
+    ///
+    /// One question over sites a declaration settles and sites it does
+    /// not: only `vtxfac`'s coplanar lump reads the pair ahead of it, with
+    /// the classes its door admits for the pierced face; every other site
+    /// (`within`, the strut order, `pair_search`, the directions' overlap,
+    /// the pierce germ line) passes `Moot` or a read minted with no class
+    /// admitted, which the lookup never mints `Settles` from. The read,
+    /// not the variant, carries the difference.
     Sectors,
     /// Whether an edge of one solid runs along an edge of the other
     /// (`bool_ee_collinear`, a norm): along it passes, and so does a
@@ -827,12 +835,13 @@ pub(crate) const EXTENT_LEVER: &str =
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum SelfCheck {
     /// Whether a crossing record's two faces cross along a line
-    /// (`bool_germ_line`, `insert::germ_dir` and
-    /// `vtxfac::pierce_germ_dir`): the pair was sent down the crossing
-    /// path because this margin read definitely positive upstream
-    /// (`sectors::pair_search`'s `bool_faces_parallel`, `vtxfac`'s
-    /// transition reading), and a zero one is a
-    /// `ClassificationInvariant`.
+    /// (`bool_germ_line` at `insert::germ_dir`): the pair was sent down
+    /// the crossing path because this same margin read definitely
+    /// positive upstream (`sectors::pair_search`'s
+    /// `bool_faces_parallel`), and a zero one is a
+    /// `ClassificationInvariant`. (`vtxfac::pierce_germ_dir` reads its
+    /// margin at another arm than the transition reading that sent it,
+    /// so its in-band arm is the corners' overlap undecided.)
     GermLine,
     /// Whether two faces' normals at a corner can be read
     /// (`bool_faces_parallel`, `plane_eq`'s parallelism rung): a norm
@@ -2351,6 +2360,41 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A read settles only the question the lookup minted it for** (the
+    /// coincfr3 review's MINOR-2 probe, which carried an `OnPlanes` read
+    /// to `FlankSense` and rendered "declare"): every settling read,
+    /// carried to every other question, renders that question unsettled.
+    ///
+    /// Mutant: `BooleanDecision::ending` settling on any `Settles` read.
+    #[test]
+    fn a_settling_read_carried_to_another_question_offers_no_declaration() {
+        use crate::boolean::{BooleanDeclarations, DeclaredPairs};
+        let face = crate::entity::FaceKey::default();
+        let pair = [(Operand::A, face, Operand::B, face)];
+        let none = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+        let diag = diag_of(MarginDiag::value((band().zero() + band().escalate()) / 2.0));
+        let mut carried_any = 0;
+        for minted in Coincide::iter() {
+            for &class in ContactClass::ALL {
+                let read = none.read(&pair, minted, &[class]);
+                if !matches!(read, DeclarationRead::Settles(_)) {
+                    continue;
+                }
+                for carried in Coincide::iter() {
+                    let decision = BooleanDecision::Coincidence(carried, read);
+                    let text = BooleanError::Escalated { decision, diag }.to_string();
+                    assert_eq!(
+                        text.contains("declare the coincidence"),
+                        carried == minted,
+                        "{minted:?}'s {class:?} read carried to {carried:?}: {text}"
+                    );
+                    carried_any += usize::from(carried != minted);
+                }
+            }
+        }
+        assert!(carried_any > 0, "the lookup mints a settling read to carry");
     }
 
     /// **A containment escalation on a residual rung names no

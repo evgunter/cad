@@ -81,3 +81,33 @@ the contact's witness and the REST seam walk's matching may each want a
 lever of their own. `Coincide::TangentSide` and `Coincide::Planes`
 have theirs.
 
+
+## Since (PR 3513's third and fourth fix passes)
+
+The sections above name types this head no longer has
+(`BooleanDecision::Proximity`, `Coincide::unsettled`,
+`BooleanDecision::DeclaredParallel`). What holds now:
+
+- Every door listed above states what it read, and a coincidence offers
+  the declaration only where the declared-pairs lookup minted
+  `DeclarationRead::Settles` for that same question (the fourth pass
+  binds the read to its question: `Settling::question`, pinned by
+  `refusal_routes::tests::a_settling_read_carried_to_another_question_offers_no_declaration`).
+  None of these doors mints one, so none offers "declare".
+- Each ends from its own question's pass set (`Coincide::ending`), and
+  every valued tolerance any of them offers is executed just below the
+  value offered (`boolean::refusal_routes::offer_rows`, whose census
+  fails when an arm offers a value no case runs). The covered circle's
+  endpoint is its own question now, `Coincide::VertexOnCoveredFace`,
+  which offers no tolerance: clear of the face passes only beside an
+  end the face records (executed: `arc_ends_clear_of_a_covered_wall`).
+  The declared-`Tangent` conformal screen (`Coincide::Planes`) offers
+  none either: every verdict there goes on to a refusal no tolerance
+  passes (executed: `tangent_screen_of_a_tilted_block`).
+
+What remains is the repair shape's second half: at a declared door the
+tangency's locus, the contact's witness and the REST seam walk's
+matching end on levers shared with their undeclared twins
+(`Coincide::TangentLocus`, `Coincide::Contact`, `Coincide::Join`), and
+the first two on the lever alone because their escalation carries no
+rung (`coincidence-tangent-locus-contact-section-escalate-without-their-rung`).

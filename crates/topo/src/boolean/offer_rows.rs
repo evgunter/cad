@@ -173,7 +173,11 @@ cases! {
         Withdrawn(Because::Refuses("CurvedPierceUnsupported")) =>
         arc_against_a_wall(1.0 + D, Some(ContactClass::Rest), true);
     thin_wedge_on_a_block: "Coincidence(Sectors)", true, Public, Valued =>
-        wedge_on_a_block(5.0, D);
+        wedge_on_a_block(super::super::BooleanOp::Union);
+    thin_wedge_cut_from_a_block: "Coincidence(Sectors)", true, Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Subtract);
+    thin_wedge_meeting_a_block: "Coincidence(Sectors)", true, Public, Valued =>
+        wedge_on_a_block(super::super::BooleanOp::Intersect);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
     tangent_screen_of_a_tilted_block: "Coincidence(Planes)", true, Public,
@@ -458,11 +462,11 @@ fn arc_against_a_wall(
     .map(|_: CurvedEvent<f64>| ())
 }
 
-/// A wedge-cornered block of opening `opening_deg` whose bottom face is
-/// tilted by `tilt` about one wedge edge, its corner on a block's top
-/// face: the union.
-fn wedge_on_a_block(opening_deg: f64, tilt: f64) -> Result<(), BooleanError> {
+/// A wedge-cornered block of opening 5° whose bottom face is tilted by
+/// `D` about one wedge edge, its corner on a block's top face: `op`.
+fn wedge_on_a_block(op: super::super::BooleanOp) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::{brick, mapped_cube};
+    let (opening_deg, tilt) = (5.0_f64, D);
     let tol = Tol::witness();
     let phi = opening_deg.to_radians();
     let (ea, eb) = (
@@ -473,7 +477,7 @@ fn wedge_on_a_block(opening_deg: f64, tilt: f64) -> Result<(), BooleanError> {
     let wedge = mapped_cube::<f64>(move |u, v, w| p + ea * u + eb * v + Vec3::new(0.0, 0.0, w), tol);
     let block = brick((-1.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol);
     super::super::boolean_op_with(
-        super::super::BooleanOp::Union,
+        op,
         &block,
         &wedge,
         &BooleanDeclarations::none(),

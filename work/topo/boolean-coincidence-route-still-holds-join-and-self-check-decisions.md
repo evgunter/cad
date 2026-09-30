@@ -85,3 +85,41 @@ a `Rest` declaration ahead of that lane only moves an in-band pose to
 the covered endpoint sides
 (`reduce::declaration_order_rows::the_circle_torus_lane_escalates_as_the_torus_roots_and_no_declaration_settles_it`).
 
+
+## Since (PR 3513's third and fourth fix passes)
+
+The "Since" sections above name types this head no longer has
+(`Coincide::unsettled`, `Coincide::SeamWedge`,
+`BooleanDecision::Proximity`); what holds now:
+
+- **The self-checks are defects.** The third pass gave the kernel's
+  own re-reads a closed decision, `BooleanDecision::SelfCheck(SelfCheck)`
+  (`GermLine`, `Normals`, `ArcFacing`, `RingWinding`, `CarrierLadder`,
+  `crates/topo/src/boolean/refusal_routes.rs`), which ends as a defect
+  and never names the tolerance. The fourth pass pinned each at its
+  site: `join::self_check_rows` (`ArcFacing`, `RingWinding`) and
+  `boolean::tests::a_contradiction_at_the_undeclared_screen_is_the_kernels_own_check`
+  (`CarrierLadder`, an arm the undeclared screen cannot reach). The
+  pierce germ line at `vtxfac::pierce_germ_dir` is no longer one: it
+  reads its margin at another arm than the transition reading that sent
+  it there, so its in-band arm is the corners' overlap undecided
+  (`Coincide::Sectors`, executed: `offer_rows`' `pierce_germ_line_in_band`).
+- **The seam** escalates as `BooleanDecision::SeamWedge` and its arm
+  gate as `LeverArm(Seam)`, each with its own lever and pass set
+  (executed: `offer_rows`' `seam_*`). **The recut axis** is
+  `BooleanDecision::Sphere(SphereQuestion::RecutAlign)` (executed at
+  its site: `sphere_barely_leaning`).
+- **The join's matching and the strut order** read no declaration
+  (`DeclarationRead::Moot`), so none offers one, and end from their own
+  pass sets (`Coincide::Join`, `Coincide::Sectors`); every tolerance
+  they offer is executed (`offer_rows`' `germs_nearly_*`,
+  `direction_just_outside_a_sector`).
+- **The circle × torus lane** is `BooleanDecision::ArcTorusRoots`, on
+  its lever alone until it carries its rung
+  (`circle-torus-lane-escalates-without-its-rung`).
+
+What remains of this row is its last bullet: `BooleanError::Join`
+(`chord_join::UnderBoolean`) and `PointInSolidError`'s escalated,
+ray-exhausted and loop arms (`solid_contain.rs`, its `Display`) still
+end in `COINCIDENCE_RECOURSE`, which offers the declaration and an
+unvalued tolerance.
