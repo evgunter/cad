@@ -4552,3 +4552,43 @@ nothing denied; the disk is at 9.3 GB free.
 rebase target. It checks each helper against valid bodies (self-loops,
 seams, genus 2, both twin doors), the late proof order in `kef` and
 `kev`, and the new variant's ending.
+
+## PR 3570's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of PR 3570 at `1c474a7f32` took 362,199 tokens,
+169 tools and 4,509 s, on a green gate.
+
+**Confirmed:**
+- All 12 witnesses are `Ok` with their fault at the true base, and
+  refused at head.
+- 205 valid bodies pass: 9,599 helper checks, including 625 self-loops
+  and 1,048 seam-shaped edges.
+- Twelve two-fault plants refuse the documented-first fault, with the
+  body deep-unchanged.
+- The `SPENT_GRAFT_EXPOSURE` move is exactly the 25 faulted kills.
+
+The reviewer's `git merge-tree` was denied by the permission
+classifier. It did not retry, and I did not run it on its behalf; the
+fix pass merges main normally.
+
+**MAJOR.** The receipt missed `null_faces`, which names loops (validate
+pass 13). From tier-1-valid bodies, through public doors, `kef`, `kvfs`
+and `mekr(Cycles)` return `Ok` with `StaleNullFaceLoop`. This is
+pre-existing, but it falsifies the unit's universal claim.
+- It is filed rather than fixed: whether a kill should refuse or
+  maintain the record is a null-face semantics question, and one
+  witness is a plausible pipeline state.
+- The root cause is the hand-kept census of naming relations, which
+  drifted from validate's. The fix pass adds a census row tying the
+  kill helpers to validate's list.
+
+**MINORs:**
+- The mate decision is made three ways, and a torn slot is reported
+  as a non-corruption variant. It becomes one O(1) check first, with
+  the arena scan last and the pre-empted rows re-baselined.
+- The PR body's over-refusal claim is false. The extra refusals (torn
+  mate `edge` fields) are right; the claim is corrected.
+- The open ending row's text is stale.
+- R03, R05 and R06 are pinned only by the seed search.
+
+The fix pass is out on the rebase target.
