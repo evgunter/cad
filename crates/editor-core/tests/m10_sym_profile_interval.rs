@@ -321,14 +321,20 @@ const PLATE_MAX_TERMS: usize = 288;
 /// residuals and the lowering's endpoint registrations, with the
 /// sweep's rim and span become rigidity's rim and landing. Frozen
 /// counts are unchanged, and the three ε rows capture one ledger.
+///
+/// Re-captured in the same unit when `arc_diameter_clearance` began
+/// reading the carrier (2r·(1 − sin(|Δθ|/4))) rather than the
+/// chord-scale apex: plain decision forms +48, plain assertion forms
+/// −47, early assertion forms −23, door decision forms −22. Calls,
+/// frozen counts and every decision count are unchanged.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 967 forms 15131 frozen 672 digest dcf491a8cf38e20321a95fcf65c1f6c4\n\
-     Plain/Assertion calls 470 forms 2564 frozen 372 digest deef154eedd1e4b0ae26af2fd2648a25\n\
+     Plain/Decision calls 967 forms 15179 frozen 672 digest 7fd2ffda38d415f38aaf5fdf14626333\n\
+     Plain/Assertion calls 470 forms 2517 frozen 372 digest 7c4d5dbd6b77a698179777772d261559\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 336 forms 8079 frozen 8 digest 65ffb0b4b49c111cd561760b5a2447c3\n\
-     Early/Assertion calls 470 forms 3377 frozen 104 digest 56ea4824998f2022a64bdf80a188008b\n\
+     Early/Assertion calls 470 forms 3354 frozen 104 digest 8912e426a1b9a067a43b57cd16b90816\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 362 forms 11972 frozen 104 digest 1a674ac0ea5e826f7b5f2fac2d591688\n\
+     Door/Decision calls 362 forms 11950 frozen 104 digest 32b56abe67f4c2ce820d23e850ccc0b6\n\
      Door/Assertion calls 214 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

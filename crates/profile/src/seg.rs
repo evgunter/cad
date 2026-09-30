@@ -238,8 +238,9 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
 ///     Zero here and refused, as no loop of two or more vertices can
 ///     hold one past `vertex_separation`.
 /// - **`arc_diameter_clearance`** (arcs only) — margin:
-///   2r − |a − apex| (meters): how far the arc's half-span chord sits
-///   below the carrier diameter, ≈ L²/(16r) for a near-full arc of
+///   2r − |a − apex| = 2r·(1 − sin(|Δθ|/4)) (meters, computed in the
+///   second form): how far the arc's half-span chord sits below the
+///   carrier diameter, ≈ L²/(16r) for a near-full arc of
 ///   endpoint chord L. Zero ⇒ the arc is within tolerance of a full
 ///   circle — rejected as [`SegIssue::NearFull`] (the angular gap g
 ///   satisfies r·g²/16 ≤ ε, so the complement is a sliver and
@@ -280,10 +281,19 @@ pub(crate) fn build_seg<T: Decide>(
         Segment::Arc(..) if straightness == Sign::Zero => SegKind::Line,
         Segment::Arc(arc) => {
             let turn = straightness;
-            check_carrier(arc, a, b, turn, band)?;
+            let span = match turn {
+                Sign::Negative => arc.reversed().sweep,
+                Sign::Positive | Sign::Zero => arc.sweep,
+            };
+            check_carrier(arc, a, b, span, band)?;
             let apex = frame.apex(bow);
             let span_chord = a.distance(apex);
-            let clearance = arc.radius + arc.radius - span_chord;
+            // 2r − |a − apex| with |a − apex| = 2r·sin(|Δθ|/4), spelled
+            // on the carrier: the chord-scale apex carries tan(|Δθ|/4),
+            // whose relative error grows as 1/(2π − |Δθ|) near a full
+            // turn, while 1 − sin(|Δθ|/4) is flat there.
+            let clearance =
+                (arc.radius + arc.radius) * (T::one() - (span * T::from_f64(0.25)).sin());
             match decide("arc_diameter_clearance", Margin::of(clearance), band)
                 .map_err(SegIssue::Escalated)?
             {
@@ -312,13 +322,13 @@ pub(crate) fn build_seg<T: Decide>(
 
 /// Validation's three consistency checks of a stored arc against its
 /// endpoints `a → b`, decided in order at the run's band ([`build_seg`]
-/// states each margin). `turn` is the arc's decided turn, which signs
-/// the sweep into |Δθ| without an `abs`.
+/// states each margin). `span` is the sweep signed by the arc's decided
+/// turn into |Δθ|, without an `abs`.
 fn check_carrier<T: Decide>(
     arc: Arc2<T>,
     a: Point2<T>,
     b: Point2<T>,
-    turn: Sign,
+    span: T,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
     let refuse = |check: ArcCheck, margin: T| Err(SegIssue::Inconsistent { check, margin });
@@ -334,10 +344,6 @@ fn check_carrier<T: Decide>(
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return refuse(ArcCheck::Landing, landing),
     }
-    let span = match turn {
-        Sign::Negative => arc.reversed().sweep,
-        Sign::Positive | Sign::Zero => arc.sweep,
-    };
     let tau = T::tau();
     let ratio = span * (tau - span) / tau;
     let range = ratio * arc.radius;
