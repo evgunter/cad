@@ -2,9 +2,7 @@
 id: placement-is-spelled-three-ways-node-registry-and-rule
 kind: issue
 title: Placement is spelled three ways — a DAG node, a document registry row, and a pattern rule — and the three disagree on whether a placement can be parametric
-status: review
-branch: edit/placement-type
-pr: 3497
+status: spec
 opened: 2026-09-21
 priority: P0
 cost: H
