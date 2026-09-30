@@ -2812,8 +2812,9 @@ impl<T: Decide> Body<T> {
 
     /// The first half-edge in arena order, other than `killed`, that
     /// starts at `v`: the incidence scan that proves a kill leaves `v`
-    /// lone ([`Body::require_kill_anchors`]'s `Lone` proof, and
-    /// [`Body::kvfs`]'s lone vertex). It reads the whole arena, since
+    /// lone ([`Body::require_kill_anchors`]'s `Lone` proof; a vertex a
+    /// kill removes is [`Body::require_vertex_unnamed`]'s). It reads the
+    /// whole arena, since
     /// no walk from a killed half reaches a stranger a torn start put
     /// at `v`; a plan refuses [`EulerOpError::OrbitBroken`] on a hit.
     pub(crate) fn starts_at_besides(

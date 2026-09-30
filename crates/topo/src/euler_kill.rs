@@ -964,9 +964,12 @@ impl<T: Decide> Body<T> {
     /// the fan-merge geometry). Pure.
     ///
     /// Beyond resolving every key the kill writes, it proves that every
-    /// half-edge of the merged fan starts at the dying vertex, and the
+    /// half-edge of the merged fan starts at the dying vertex, the
     /// survivor's new `emanating` and the loops' new anchors
-    /// ([`Body::require_kill_anchors`]). The first is
+    /// ([`Body::require_kill_anchors`]), and that nothing the kill keeps
+    /// names the edge or the vertex it removes
+    /// ([`Body::require_edge_pair`], [`Body::require_vertex_unnamed`]).
+    /// The first is
     /// what keeps the killed edge out of its own merged members: its
     /// halves are `he`, which starts at the survivor, and the mate, which
     /// heads the orbit walk and so is not in the fan. The walk steps
