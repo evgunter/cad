@@ -2,8 +2,11 @@
 id: pierced-torus-convention-arms-tell-two-stories
 kind: issue
 title: topo: a pierced torus's tube and ring decisions end 'reshape the torus' in band and 'not supported yet' when definite
-status: open
+status: dispatched
 opened: 2026-09-30
+priority: P2
+cost: E
+branch: topo/torus-and-merge-one-story
 ---
 
 
