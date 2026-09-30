@@ -267,7 +267,7 @@ fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     assert!(
         text.starts_with(&format!(
             "an edge of the {which} operand touches or crosses a curved face"
-        )) && text.ends_with(geom_core::COINCIDENCE_RECOURSE),
+        )) && text.ends_with("Recourse: declare the coincidence, or move the geometry"),
         "{text}"
     );
     let owner = match operand {

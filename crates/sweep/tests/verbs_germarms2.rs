@@ -59,9 +59,19 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
 
 /// A one-line discriminant of a refusal: the variant plus the keys it
 /// names. Two poses of the same configuration must produce the same
-/// string.
+/// string. The pierce curvature's decided margin is data read off each
+/// pose's own coordinates, so its door is the verdict's sign alone.
 fn door(e: &BooleanError) -> String {
-    format!("{e:?}")
+    match e {
+        BooleanError::CurvedSectorSideUnsupported { verdict } => format!(
+            "CurvedSectorSideUnsupported {{ {} }}",
+            match verdict {
+                geom_brep::recourse::Refused::Zero(_) => "Zero",
+                geom_brep::recourse::Refused::Negative { .. } => "Negative",
+            }
+        ),
+        _ => format!("{e:?}"),
+    }
 }
 
 /// The single cylinder surface of an operand built by [`cyl`].

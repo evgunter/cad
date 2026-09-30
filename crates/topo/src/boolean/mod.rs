@@ -1956,11 +1956,7 @@ impl core::fmt::Display for BooleanError {
                 } else {
                     write!(f, "{}", diag.payload())?;
                 }
-                write!(
-                    f,
-                    "), with no shared source to make them one face. {}",
-                    refusal_routes::coplanar_neighbours_ending(diag)
-                )
+                write!(f, "). {}", refusal_routes::coplanar_neighbours_ending(diag))
             }
             Self::UndeclaredCoincidence { diag, .. } => {
                 f.write_str(

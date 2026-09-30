@@ -1935,43 +1935,6 @@ mod tests {
         }
     }
 
-    /// **A lever arm gate escalates as its own decision, on a real
-    /// raise**: a pierce sector's bound read over a curved edge whose
-    /// extent lies in the band reaches `enters_material`'s arm rung
-    /// before any side is read. The refusal names the arm's question
-    /// and its lever, offers the tolerance the arm's length gives, and
-    /// no declaration: no face pair names an edge's length.
-    #[test]
-    fn a_lever_arm_gate_escalates_as_its_own_decision() {
-        use super::super::sectors::{NO_CURVATURE, Reach, side_code};
-        let b = band();
-        let mid = (b.zero() + b.escalate()) / 2.0;
-        let normal = geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let err = side_code(
-            Vec3::new(1.0, 0.0, 1.0),
-            Reach::Extent(mid),
-            normal,
-            1.0,
-            NO_CURVATURE(),
-            b,
-        )
-        .expect_err("an in-band extent escalates the arm gate");
-        let BooleanError::Escalated { decision, diag } = err else {
-            panic!("the arm gate escalates: {err:?}");
-        };
-        assert_eq!(decision, BooleanDecision::LeverArm(LeverArm::SectorSide));
-        assert_eq!(diag.predicate, Some("enters_material_arm"));
-        let text = BooleanError::Escalated { decision, diag }.to_string();
-        let problems = short_of_the_guard(&text, &[]);
-        assert!(problems.is_empty(), "{problems:?}: {text}");
-        assert!(
-            text.starts_with("whether an edge at a corner is long enough")
-                && !text.contains("declare"),
-            "{text}"
-        );
-        assert_eq!(offered_below(&text), Some(Some(mid / k())), "{text}");
-    }
-
     /// **A declared pair's parallelism, and the maximal-faces gate's
     /// rungs, each end where their own door can reach** (D4 ¶1 (i)).
     /// At a declared door the parallelism rung bridges an in-band

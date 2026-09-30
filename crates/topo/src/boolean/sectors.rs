@@ -988,6 +988,76 @@ mod tests {
         );
     }
 
+    /// **A lever arm gate escalates as its own decision, on a real
+    /// raise**: a bound read over a curved edge whose extent lies in the
+    /// band reaches `enters_material`'s arm rung before any side is
+    /// read. The refusal names the arm's question and its lever, offers
+    /// the tolerance the arm's length gives, and no declaration: no face
+    /// pair names an edge's length. A clear extent reads the side, and
+    /// the same routing sends that reading's escalation to the
+    /// coincidence it is.
+    #[test]
+    fn a_lever_arm_gate_escalates_as_its_own_decision() {
+        use super::super::{Coincide, LeverArm};
+        use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
+        let b = band();
+        let (z, e) = (b.zero(), b.escalate());
+        let mid = (z + e) / 2.0;
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let err = side_code(
+            Vec3::new(1.0, 0.0, 1.0),
+            Reach::Extent(mid),
+            n,
+            1.0,
+            NO_CURVATURE(),
+            b,
+        )
+        .expect_err("an in-band extent escalates the arm gate");
+        let BooleanError::Escalated { decision, diag } = err else {
+            panic!("the arm gate escalates: {err:?}");
+        };
+        assert_eq!(decision, BooleanDecision::LeverArm(LeverArm::SectorSide));
+        assert_eq!(diag.predicate, Some("enters_material_arm"));
+        let text = BooleanError::Escalated { decision, diag }.to_string();
+        assert_eq!(recourse_markers(&text), 1, "{text}");
+        assert!(
+            subjectless_escalations(&text).is_empty() && stage_prefixes(&text, &[]).is_empty(),
+            "{text}"
+        );
+        assert!(
+            text.starts_with(
+                "whether an edge at a corner is long enough to read which side of a face it \
+                 leaves on is undecided: "
+            ) && text.ends_with(&format!(
+                "Recourse: make the edges at that corner clearly longer than the tolerance, or, \
+                 if this edge length is intended, tighten the tolerance below {:e} m",
+                mid / (e / z)
+            )) && !text.contains("declare"),
+            "{text}"
+        );
+        // The reading's own escalation, over a clear extent: a direction
+        // in band off the face's plane is the coincidence it names.
+        let err = side_code(
+            Vec3::new(1.0, 0.0, mid),
+            Reach::Extent(1.0),
+            n,
+            1.0,
+            NO_CURVATURE(),
+            b,
+        )
+        .expect_err("an in-band elevation escalates the reading");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::Coincidence(Coincide::SectorSide),
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+    }
+
     /// A pair whose normals agree at the shorter arm is a
     /// near-coincidence, and goes to the carrier ladder as one, every
     /// code On: a face with a 1 mm edge on the other face's plane and a
