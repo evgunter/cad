@@ -1361,3 +1361,26 @@ Next P0 on the slate. Tiers 1 and 2 of the row: the value, or the kernel's typed
 `a-negative-extrude-distance-probes-as-valid` is re-priced from `E` to `M` with `design: true`. Its own text says the fix is a kernel/document decision (does a negative distance build, or does a thickness get a declared domain), so it is a design fork, not a drive-by.
 
 `addboolean-doc-names-a-vocabulary-that-does-not-exist` still waits on EDIT's `DocEdit` vocabulary, as `plan.md` says.
+
+## 2026-09-30 — AUTH-7 MERGED (`6e9523dd`): measures show their values
+
+Seven units closed on AUTHOR's slate. Both reviews came back
+mergeable, and correctness could not falsify any claim.
+
+**The trap fired a seventh time, and the review caught it again.** The
+row painter was extracted so the harness could drive "what the pane
+paints", but `feature_row` still owned the layout and the tests drove a
+copy of it. The fix put the layout in one free function. That also
+moved the click handling for every feature row: label-select and the
+instance toggle. I held the merge for two rows pinning those clicks,
+because the refactor made them testable for the first time and no test
+had ever held them. Four mutations, all red.
+
+**Units** are Ev's to rank: `work/chrome/a-computed-slots-value-reads-in-metres-and-radians`
+(P3, design). A 12.5 mm part's measure reads `0.0125 m` and a right
+angle `1.5707963268 rad`, consistent with driven slots.
+
+## 2026-09-30 — AUTH-8 dispatched: an assertion row shows its verdict
+
+The only dispatchable P0 left. Of the others, the negative-extrude fork waits on the designer lanes and Ev, and `AddBoolean` waits on EDIT. AUTH-8 builds on AUTH-7's `Measured` and `feature_row_ui`. The tone of a `Violated` row is left to the lane with both readings stated. If it is close, it goes to Ev.
+- 2026-09-30 — Seam note from TOPO: AUTH-7's `repair_of` (`viewer/src/tree.rs`) and a `pane/features.rs` test premise read a node's result outside `Evaluation::usable`; editor-core's `every_node_result_reader_goes_through_usable_or_is_listed` now lists them (the change filter never ran editor-core's tests on AUTH-7's viewer-only diffs, so main stayed green). (TOPO orchestrator)

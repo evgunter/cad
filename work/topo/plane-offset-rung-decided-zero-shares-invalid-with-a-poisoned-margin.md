@@ -4,6 +4,8 @@ kind: issue
 title: topo: plane_eq's offset rung carries its decided zero as MarginDiag::INVALID, the poisoned-margin encoding, and flush::pair_finding reads a poisoned offset as DecidedCoincident
 status: open
 opened: 2026-09-30
+priority: P2
+cost: M
 ---
 
 
