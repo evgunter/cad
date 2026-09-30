@@ -500,7 +500,10 @@ pub fn geometry_refused_closes() -> Vec<RefusedClose> {
 ///   half way back toward the start from [`two_legs`];
 /// - a close that would arrive continuing the entry's first side
 ///   (`line_to` the start declared tangent): [`two_legs`], then a leg
-///   to `(-0.01, 0)`.
+///   to `(-0.01, 0)`;
+/// - a close that would do both (`continue_to` the start declared
+///   tangent): round a rectangle back to `(-0.01, 0)` on the line of
+///   the first side, heading along it.
 #[cfg(test)]
 pub fn tangent_closes() -> Vec<(Vec<Step<f64>>, [f64; 2])> {
     let from_legs = |x, y| {
@@ -520,6 +523,17 @@ pub fn tangent_closes() -> Vec<(Vec<Step<f64>>, [f64; 2])> {
         ),
         from_legs(0.005, 0.005),
         from_legs(-0.01, 0.0),
+        (
+            vec![
+                Step::At(Point2::new(0.0, 0.0)),
+                line_to(0.01, 0.0),
+                line_to(0.01, 0.01),
+                line_to(-0.02, 0.01),
+                line_to(-0.02, 0.0),
+                line_to(-0.01, 0.0),
+            ],
+            [-0.01, 0.0],
+        ),
     ]
 }
 

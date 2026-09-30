@@ -34,9 +34,9 @@ An unfinished chain whose close is refused now walks back through `sketch::prefi
 
 Per member, measured on the branch (census `test_support::geometry_refused_closes`, re-pinned from `…draws_nothing` as `sketch::tests::a_close_refused_on_its_geometry_draws_the_legs_written`):
 - **A last leg onto the start point**, after an `at` entry (a triangle and a square) or a direction entry: drawn closed, saying the end-of-program refusal.
-- **A last leg the close continues straight on from** is not a refused close. The provisional close (`sketch::replay_provisionally_closed`) is re-spelled the lattice's way where `line_to Start` refuses it as tangent: `continue_to Start` for `JunctionTangent`, and `line_to` a start declared tangent for `SeamTangent`. The chain is simply open (`Unfinished(None)`), every leg drawn.
+- **A last leg the close continues straight on from** is not a refused close. The provisional close (`sketch::replay_provisionally_closed`) is re-spelled the lattice's way for each decided tangency, until it replays: `continue_to` for `JunctionTangent`, and a start declared tangent for `SeamTangent`. A close that is both takes both (`continue_to` the start declared tangent). The chain is simply open (`Unfinished(None)`), every leg drawn.
 - **A pending `fillet` or `arc_fillet`**: the two legs before it, saying `NoCornerOfPair` / `NoCornerForFillet`. `prefix_loop`'s guards are not what answers these: the close from every prefix ending on the pending step is itself refused. Disabling `drew_only_its_leg`'s piece check reds only AUTH-5's fillet row.
 
 Not drawn, and filed as `work/author/a-last-leg-no-close-can-follow-is-dropped`:
-- a last leg no close can follow: onto the start by a step that does not name it, reversed by every close (a cusp), or inside the ambiguity band (a `1e-9` offset escalates as "too close to call");
+- a last leg no close can follow: onto the start by a step that does not name it, reversed by every close (a cusp), or whose `line_to Start` escalates inside the ambiguity band ("too close to call", said and not re-spelled, even where `continue_to Start` would pass);
 - a chain that passes through its start and goes on, which is drawn as the loop its own steps closed and says the cusp that stops its tip closing.

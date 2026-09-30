@@ -65,7 +65,7 @@ Dispatched 2026-09-30 with its sibling as **AUTH-13** (`docs/AUTH-13-SPEC.md`, b
 
 Probes, measured on the branch:
 - **angle-first entry**, last leg `line_to (0,0)`, then a refused step: all four legs drawn, closed, the cross at the start.
-- **collinear last leg** `…, line_to (0.01,0.01), line_to (0.005,0.005), <refused>`: the leg is kept, no close drawn, the cross at `(0.005, 0.005)`. The same holds for a close that would arrive continuing the entry's first side (`…, line_to (-0.01, 0)`), whose close is `line_to` the start declared tangent.
+- **collinear last leg** `…, line_to (0.01,0.01), line_to (0.005,0.005), <refused>`: the leg is kept, no close drawn, the cross at `(0.005, 0.005)`. The same holds for a close that would arrive continuing the entry's first side (`…, line_to (-0.01, 0)`), whose close is `line_to` the start declared tangent, and for one that does both, `…, line_to (-0.02, 0), line_to (-0.01, 0)`, whose close is `continue_to` the start declared tangent.
 - **fused entry** (`arc_fillet` from `(0,0)`, then `at (0.01,0.003)` binding its arrival): a last leg to `(0.01,0.003)` is an ordinary leg, and one to `(0,0)` is the close.
 - **`at, toward, line, (turn π/2, line)×3, <refused>`**: still three legs, the cross at `(0, 0.01)`. A `line` names no end point, and `replay` exposes no tip of a chain that does not close. Every close from a tip on the start is refused as having no length, so no replay of the steps written holds that leg.
 - **a last target `5.5e-17` off the start**: still dropped. The step names a point that is not the start, and calling it the start is a banded decision the viewer does not make.

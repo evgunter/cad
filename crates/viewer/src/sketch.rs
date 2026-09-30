@@ -1231,34 +1231,55 @@ pub fn preview(
 /// drew which piece.
 ///
 /// The close is `line_to Start`, re-spelled the way the lattice spells
-/// the same leg where that refuses it as tangent: `continue_to Start`
-/// where it runs straight on from the last leg (`JunctionTangent`),
-/// and `line_to` a start declared tangent where it arrives continuing
-/// the entry's first side (`SeamTangent`). Any other refusal, or a
-/// re-spelling that refuses too, is said in `line_to Start`'s words.
+/// the same leg for each refusal that says it is tangent, one
+/// declaration per kind, until it replays: `continue_to` where it runs
+/// straight on from the last leg (`JunctionTangent`), and a start
+/// declared tangent where it arrives continuing the entry's first side
+/// (`SeamTangent`). A close that does both takes both. Only a decided
+/// tangency is re-spelled: an escalation is the kernel declining to
+/// say whether the close runs straight on, and another spelling that
+/// happens to replay is not an answer to that. Any other refusal is
+/// said in `line_to Start`'s words.
 fn replay_provisionally_closed(
     steps: &[Step<f64>],
     tol: Tol,
 ) -> Result<(ProfileLoop<f64>, ReplayStructure), ReplayError<f64>> {
-    let closed_by = |close: Step<f64>| {
+    let closed_by = |straight_on: bool, seam_declared: bool| {
+        let start = if seam_declared {
+            Target::StartArriving
+        } else {
+            Target::Start
+        };
         let mut closed = Vec::with_capacity(steps.len() + 1);
         closed.extend_from_slice(steps);
-        closed.push(close);
+        closed.push(if straight_on {
+            Step::ContinueTo(start)
+        } else {
+            Step::LineTo(start)
+        });
         replay_recording(&closed, tol)
     };
-    closed_by(Step::LineTo(Target::Start)).or_else(|refused| {
-        let respelled = match &refused.kind {
-            ReplayErrorKind::Path(source) => match source.kind() {
-                PathErrorKind::JunctionTangent => Some(Step::ContinueTo(Target::Start)),
-                PathErrorKind::SeamTangent => Some(Step::LineTo(Target::StartArriving)),
-                _ => None,
-            },
-            ReplayErrorKind::Transition { .. } => None,
-        };
-        respelled
-            .and_then(|close| closed_by(close).ok())
-            .ok_or(refused)
-    })
+    let first = match closed_by(false, false) {
+        Ok(replayed) => return Ok(replayed),
+        Err(refused) => refused,
+    };
+    let kind_of = |refused: &ReplayError<f64>| match &refused.kind {
+        ReplayErrorKind::Path(source) => Some(source.kind()),
+        ReplayErrorKind::Transition { .. } => None,
+    };
+    let (mut straight_on, mut seam_declared) = (false, false);
+    let mut kind = kind_of(&first);
+    loop {
+        match kind {
+            Some(PathErrorKind::JunctionTangent) if !straight_on => straight_on = true,
+            Some(PathErrorKind::SeamTangent) if !seam_declared => seam_declared = true,
+            _ => return Err(first),
+        }
+        match closed_by(straight_on, seam_declared) {
+            Ok(replayed) => return Ok(replayed),
+            Err(next) => kind = kind_of(&next),
+        }
+    }
 }
 
 /// **A prefix [`prefix_loop`] draws**: its replay, whether the
@@ -2418,13 +2439,14 @@ mod tests {
     /// close is drawn** ([`test_support::tangent_closes`]): straight on
     /// from the last leg, the close is `continue_to Start`; continuing
     /// the entry's first side, it is `line_to` the start declared
-    /// tangent. Unfinished, the chain is merely open, a vertex per leg;
+    /// tangent; doing both, `continue_to` it. Unfinished, the chain is
+    /// merely open, a vertex per leg;
     /// refused at an ill-typed step after it, the drawn tip is the last
     /// leg's end.
     ///
     /// Red if [`super::replay_provisionally_closed`] reads only
-    /// `line_to Start`: the last leg is then dropped, or the chain
-    /// draws nothing.
+    /// `line_to Start`, or does not compose its re-spellings: the last
+    /// leg is then dropped, or the chain draws nothing.
     #[test]
     fn a_last_leg_a_close_would_run_tangent_to_is_kept() {
         for (steps, tip) in test_support::tangent_closes() {
@@ -2480,8 +2502,12 @@ mod tests {
     ///   reverses it (a cusp) — including a chain that passed through
     ///   its start and went on, which is drawn as the loop its own
     ///   steps closed;
-    /// - one that turns inside the kernel's ambiguity band, whose close
-    ///   is too close to call either way.
+    /// - one that turns inside the kernel's ambiguity band, whose
+    ///   `line_to Start` escalates as too close to call. That is said,
+    ///   not re-spelled: where `continue_to Start` would replay (a long
+    ///   leg, a short close, `(0.0010000004, 0.001)`), it is another
+    ///   spelling happening to pass, not the kernel deciding the close
+    ///   runs straight on.
     ///
     /// No replay of the steps written holds that leg, so the chain is
     /// drawn short of it. Filed as
@@ -2516,8 +2542,10 @@ mod tests {
             line_to(0.02, 0.0),
             line_to(0.01, 1.0e-9),
         ];
+        let mut banded_short = two_legs(0.0, 0.0);
+        banded_short.push(line_to(0.001_000_000_4, 0.001));
         let square = test_support::square_vertices();
-        let two = vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]];
+        let two = || vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]];
         for (steps, vertices, closes) in [
             (turned, square.clone(), false),
             (off, square, false),
@@ -2526,8 +2554,9 @@ mod tests {
                 vec![[0.0, 0.0], [0.005, 0.01], [0.005, 0.0]],
                 false,
             ),
-            (through, two, true),
+            (through, two(), true),
             (banded, vec![[0.0, 0.0], [0.01, 0.01], [0.02, 0.0]], false),
+            (banded_short, two(), false),
         ] {
             let mut refused = steps.clone();
             refused.push(test_support::ill_typed());
