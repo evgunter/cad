@@ -3449,3 +3449,41 @@ target, which PR 3506 freed.
 **Process note.** The orchestration branch no longer sets
 `status: dispatched` on items whose PR branch will set `review`. The
 two edits conflict at every merge-forward.
+
+## PR 3508's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of `b54fc1ee54` took 363,610 tokens, 180 tools
+and 82 min (harness); archived privately.
+
+**Confirmed by an independent probe:**
+- 0 half-minted faces leave the boolean join, and 1 transient conic
+  face leaves the split join.
+- All 1,602 f64 released pieces are byte-equal to the pass.
+- The 657 faces left by the zip are met by the merge re-mint, and
+  none is null-caused.
+- The kill residue's premise holds: kills take no `Tol`.
+- Cost is measurable but not material (+5–8% on heavy rows).
+
+**Findings, all accepted:**
+- **M1 (a regression against PR 3500).** The new single predicate
+  requires every gap to be held open by a null edge. A description
+  on a face with a foreign gap on another loop now leaves the edge's
+  own halves rowless. At base it completed the face.
+- **N1.** The "every loop walks" clause is untested (its mutant
+  survives).
+- **Q1.**
+  - "Held open" is spelled three ways.
+  - `remints` re-reads what `stored_rows` has just computed.
+  - The boolean test hook restates production's sequence.
+- **Q7.** `is_null_half` discards an unresolved key silently.
+- **Docs and PR body.**
+  - Stale docs: the `StoredRows` doc, the `kev_describing` row, "pays
+    for no walk".
+  - The spline row is not red on base.
+  - The receipt misses kill sites.
+  - 59 kills touch a minted face.
+  - The slab check is vacuous.
+  - REST's `undo_struts` `kev` non-equality is to be re-checked and
+    filed.
+
+The fix pass runs on the warm target.
