@@ -2,7 +2,11 @@
 id: f7-same-operand-coincidence-offers-a-declaration-no-door-takes
 kind: issue
 title: topo: the F7 gate's same-operand UndeclaredCoincidence offers 'declare the coincidence', which no declaration can settle
-status: open
+status: review
+priority: P2
+cost: M
+pr: 3513
+branch: topo/every-escalation-names-its-decision
 opened: 2026-09-30
 ---
 

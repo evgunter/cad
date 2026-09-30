@@ -2,7 +2,11 @@
 id: boolean-coincidence-wrap-sites-name-no-decision
 kind: issue
 title: topo: BooleanError::coincidence is a one-word default, so a new escalation gets the declare menu without naming its decision
-status: open
+status: review
+priority: P2
+cost: M
+pr: 3513
+branch: topo/every-escalation-names-its-decision
 opened: 2026-09-30
 ---
 

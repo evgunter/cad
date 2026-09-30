@@ -38,3 +38,12 @@ Decide the offset through `decide_reported` and carry its decided
 margin on `Undeclared` (or a typed "decided" arm), so a poisoned margin
 and a decided zero stop sharing one bit; then `pair_finding` and the
 `UndeclaredCoincidence` text read the verdict, not `is_invalid()`.
+
+## A third reader (TOPO, PR 3513)
+
+PR 3513 moves the maximal-faces gate's `Undeclared` arm to its own
+variant, `BooleanError::CoplanarNeighbours`, whose `Display` and ending
+(`refusal_routes::coplanar_neighbours_ending`) read the same bit: an
+`INVALID` margin is "their planes' offset is exactly zero" with the
+gate's lever alone, and a poisoned offset would read the same way.
+Carrying the decided verdict fixes all three readers.
