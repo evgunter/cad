@@ -5,6 +5,8 @@ title: A split that de-ties two tied faces names each piece against the split's 
 status: open
 opened: 2026-09-26
 priority: P2
+cost: E
+needs_ev: true
 ---
 
 
@@ -52,3 +54,17 @@ apart. A split that de-ties them has to either keep its pieces tied, as
 N2's tie propagation would, or name them against something that follows
 the tie's candidate rather than the split's walls. Which one is a design
 call on N2's tie rule, so it may need Ev.
+
+## The fork (2026-09-30)
+
+A designer pair weighed this.
+
+- **First round:** they split.
+  - One proposed carrying each face's tie candidate as lineage and letting a reference pin it with `Chosen(k)`.
+  - The other called the behaviour ratified: names denote roles, and the bar is a covariant discriminator, as in N4's narrowing clause (fork-log row 6).
+- **Reconciliation:** both now recommend the second reading.
+  - `k` is arena storage order, and an upstream edit can permute it silently, so pinning it is a worse swap than following the bar.
+  - Both agree the "recorded user choice" N2 promised was never built.
+  - Both would replace it with: repair by a discriminator in the recipe.
+
+The `[ev]` PR carries the rewording. If Ev accepts it, this row closes as by-design, with a test that pins the cross-ceiling motion by centroid.
