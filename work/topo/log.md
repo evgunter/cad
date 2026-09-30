@@ -4450,3 +4450,42 @@ Then the findings. Every claim in the PR body must now cite a row, a
 mutant or an executed probe; an uncited claim is removed.
 
 Out on the loop-anchor target.
+
+## The movefac unit delivered as PR 3574; rows closed on the branch (2026-09-30)
+
+The implementer took 317,197 tokens, 174 tools and 4,143 s. Head
+`da621f9af9` is green on CI run 36745997179.
+
+**The proof.** Each labelling walk is proven to be its loop's whole
+cycle:
+- every member claims the loop (`require_run_of(.., Part, ..)`);
+- the walk's length equals the loop's claim count, from one arena
+  pass.
+
+That gives `Whole`'s invariant at O(half-edges), with
+`require_run_of` unchanged. `Part` alone would miss a short walk that
+splits a shell. A failing walk refuses `LoopCycleBroken` before any
+mutation.
+
+**The torn-body sweep.** Wrong partitions through `Ok` go to 0 under
+every tear (from 3,025 joined and 4,034 split at the worst). A
+constructed pin covers the short-walk split, which random tears never
+build.
+
+**The generator.** Shape (b): `ep_vector(&self, body)` derives `c`,
+and the filter is `>= 2`. 87 of 311 `Movefac` selections now reach
+`c >= 3`, where there were 0.
+- `FINGERPRINT` moved to 10,871,328,829,263,095,025.
+- The module's stream counts were re-measured, and the harness
+  reproduces the old numbers at base.
+
+**Filed:**
+- `movefac-reads-a-mate-and-a-neighbour-it-never-proves`;
+- `movefac-roundtrip-re-make-is-unbuilt`.
+
+**Deviation, accepted.** The lane edited `seqgen.rs` (probe's
+territory) and a new `tests/tears.rs` (tcost/tint), both assigned by
+the brief.
+
+The orchestrator read the proof and accepted it. The rows close at
+`4a087db298`; merge after CI.
