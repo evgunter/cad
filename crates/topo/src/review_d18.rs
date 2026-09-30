@@ -821,7 +821,7 @@ const KEMR_EMPTY_RING: &str = "kemr: empty ring side";
 /// is right.
 #[cfg(not(debug_assertions))]
 const SPENT_GRAFT_EXPOSURE: [(&str, usize); 9] = [
-    ("kef", 40),
+    ("kef", 16),
     ("kemr", 2),
     (KEMR_CYCLE_RING, 2),
     (KEMR_EMPTY_RING, 0),
@@ -1683,8 +1683,7 @@ fn kill_anchors_on_a_few_torn_bodies() {
 
 /// **Evidence, not a gate**: [`kill_anchor_rows`] on seeds `1..=2000`,
 /// run by hand, which prints the table and asserts every fault column
-/// is 0 but [`FILED_CELLS`]. `CAD_ANCHOR_SEEDS=n` runs seeds `1..=n`
-/// instead.
+/// is 0 but [`FILED_CELLS`].
 ///
 /// `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false cargo test --release -p
 /// topo --lib -- --ignored --nocapture
@@ -1693,11 +1692,7 @@ fn kill_anchors_on_a_few_torn_bodies() {
 #[ignore = "evidence: the anchor proofs' tear measurement, run by hand"]
 #[cfg(not(debug_assertions))]
 fn kill_anchors_on_torn_bodies() {
-    let last: u64 = std::env::var("CAD_ANCHOR_SEEDS")
-        .ok()
-        .and_then(|n| n.parse().ok())
-        .unwrap_or(2000);
-    let seeds: Vec<u64> = (1..=last).collect();
+    let seeds: Vec<u64> = (1..=2000).collect();
     // Two tear kinds at a time, one thread each.
     let mut table: AnchorTable = [[[0usize; 6]; ANCHOR_OPS.len()]; ANCHOR_TEARS.len()];
     for (pair, rows) in ANCHOR_TEARS.chunks(2).zip(table.chunks_mut(2)) {
@@ -1726,5 +1721,5 @@ fn kill_anchors_on_torn_bodies() {
             );
         }
     }
-    assert_no_anchor_written(&table, &format!("seeds 1..={last}"));
+    assert_no_anchor_written(&table, "seeds 1..=2000");
 }
