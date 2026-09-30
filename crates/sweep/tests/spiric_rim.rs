@@ -1199,7 +1199,8 @@ mod interval_rows {
                     );
                 }
                 assert!(
-                    sense.abs().lo() == 1.0 && sense.abs().hi() == 1.0,
+                    geom_core::Real::abs(sense).lo() == 1.0
+                        && geom_core::Real::abs(sense).hi() == 1.0,
                     "the wall's sense is exactly a unit sign at the certified scalar: {sense:?}"
                 );
                 let cert = cache.certificate();

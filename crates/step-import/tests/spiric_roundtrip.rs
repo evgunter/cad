@@ -175,6 +175,7 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
                     source: geom_brep::PropsError::Unimplemented,
                     ..
                 },
+                ..
             }])
         ),
         "the native cavity stops at a cap's loop area, got {native_tier3:?}"
@@ -193,6 +194,7 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
                     source: geom_brep::PropsError::QuadratureUnsupported { .. },
                     ..
                 },
+                ..
             }]
         ),
         "check 7 at the torus wall's quadrature lane, got {errors:?}"
