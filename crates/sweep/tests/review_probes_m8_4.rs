@@ -115,7 +115,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             .faces()
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
-        body.set_face_surface(
+        body.set_face_surface_stranding_for_tests(
             fk,
             FaceSurface::New {
                 surface: flipped,
@@ -143,7 +143,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         (c.carrier().clone(), a, b)
     };
     let plane = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
