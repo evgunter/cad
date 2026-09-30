@@ -54,6 +54,36 @@ let parsed = editor_core::parse_expr(&src, &BTreeMap::new());
 let v = editor_core::eval(&parsed.unwrap(), &editor_core::ParamEnv::<f64>::default());
 ```
 
+The thresholds above are release-only. The wheel CI builds and tests
+(`maturin build` with no `--release`, so the dev profile) dies far
+sooner. `Doc.parse_expr` on CPython 3.12's main thread (8 MiB), with
+the review's probe (`review-probes/depth-rev/expr_probe.py` on
+`review/depth-rev`, not merged), re-run on `edit/part-depth-bound`'s
+wheel:
+
+| input | outcome |
+|---|---|
+| `((…(1)…))`, 2000 deep | parses |
+| `((…(1)…))`, 2500 or 3000 deep | SIGSEGV in the parser, exit 139 |
+| `--…-1`, 10⁴ deep | parses |
+| `1+1+…+1`, 3·10⁴ terms | parses |
+| `1+1+…+1`, 10⁵ terms | parses, then SIGSEGV at teardown (the `Expr`'s drop), exit 139 |
+
+```python
+import sys
+from pncad import Doc
+n, kind = int(sys.argv[1]), sys.argv[2]
+d = Doc("expr-probe")
+if kind == "paren":
+    src = "(" * n + "1" + ")" * n
+elif kind == "neg":
+    src = "-" * n + "1"
+else:
+    src = "+".join(["1"] * n)
+d.parse_expr(src)
+print("parsed", kind, n)
+```
+
 ## What would close it
 
 A nesting bound checked where an expression is built (the parser and
