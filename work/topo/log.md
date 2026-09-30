@@ -4751,3 +4751,7 @@ under its band. The plain door's gap is filed.
 
 The fix pass is out on the walk target. It must keep the composers'
 output identical, re-running the review's dump.
+
+PR 3590 merged (`b3f6ec349f`) after CI run 36775011254 went green.
+Main's viewer ε-row test holds at every ε again. PR 3570 and PR 3513
+carry the same change.
