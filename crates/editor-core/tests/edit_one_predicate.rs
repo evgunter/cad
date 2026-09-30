@@ -96,10 +96,10 @@ fn assertion(measure: RecipeNodeId, bound: Expr) -> Node<ProfileProgram> {
 #[test]
 fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
     let (doc, measure) = with_measure();
-    // The sketch frame (node 0) is live and precedes any assertion, so
-    // the only thing wrong with the document is that it is not a
-    // measure.
-    let frame_node = RecipeNodeId(0);
+    // The sketch frame (the first node) is live and precedes any
+    // assertion, so the only thing wrong with the document is that it
+    // is not a measure.
+    let frame_node = doc.order()[0];
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -848,11 +848,11 @@ fn rekey_witness(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
 /// `WitnessOnNonSketch` and the load door `SnapshotError::WitnessSite`.
 #[test]
 fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
-    // `with_measure` lays down a frame (0), a profile (1), an extrude
-    // (2) and a measure (3): the profile is the only sketch-bearing
+    // `with_measure` lays down a frame, a profile, an extrude and a
+    // measure, in that order: the profile is the only sketch-bearing
     // node in it, and the extrude is a live node that is not one.
     let (doc, _) = with_measure();
-    let (sketch, non_sketch) = (RecipeNodeId(1), RecipeNodeId(2));
+    let (sketch, non_sketch) = (doc.order()[1], doc.order()[2]);
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -884,9 +884,9 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
 #[test]
 fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (doc, _) = with_measure();
-    let (sketch, gone) = (RecipeNodeId(1), RecipeNodeId(2));
-    // Deleted rather than invented, so the id stays BELOW the mint
-    // counter and the load door's id walk passes it — the refusal read
+    let (sketch, gone) = (doc.order()[1], doc.order()[2]);
+    // Deleted rather than invented, so the id stays one the document
+    // has minted and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `IdBeyondCounter`.
     let doc = apply(
         &doc,

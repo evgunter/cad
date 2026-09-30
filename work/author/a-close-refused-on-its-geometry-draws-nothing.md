@@ -2,11 +2,12 @@
 id: a-close-refused-on-its-geometry-draws-nothing
 kind: issue
 title: viewer: an unfinished chain whose provisional close is refused on its geometry draws nothing, not even its authored legs
-status: open
+status: dispatched
 opened: 2026-09-30
 priority: P2
 cost: M
 refs: [a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at, an-unfinished-chain-awaiting-a-binder-draws-nothing]
+branch: author/geometry-close
 ---
 
 
@@ -22,3 +23,5 @@ Found by AUTH-11's sweep and its two reviews (`author/binder-prefix`, PR 3563).
 **Measured, not a member.** The collinear back-track `at, line_to (0.01,0), line_to (0.02,0)` is refused at its own step 2 (`JunctionTangent`), so it is a refused written step, not a refused close.
 
 **Shape of a fix.** For a close refused on its geometry, walk back as a refused step does (`prefix_loop`). The walk-back already declines a prefix whose close completes a pending fillet (`drew_only_its_leg`), and it already reads a last leg onto the start as the close (`closed_on_start`). What is open is the sentence and the tip mark. The chain is unfinished rather than refused, and its end-of-program sentence says only that it does not close yet. What stops the close is its geometry (a zero-length close, a tangent junction, a fillet with no corner), which the close's own refusal names and the author's steps did not write.
+
+Dispatched 2026-09-30 with its sibling as **AUTH-13** (`docs/AUTH-13-SPEC.md`, branch `author/geometry-close`). Both rows say they want one answer to what a last leg onto the start means, so they are one unit.

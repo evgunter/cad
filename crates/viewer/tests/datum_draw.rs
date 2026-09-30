@@ -368,11 +368,10 @@ fn a_frames_arms_match_and_the_x_head_is_doubled() {
 fn only_datum_nodes_draw() {
     // The square's frame is a datum and DOES draw; the profile drawn
     // on it is the ordinary node this row is about.
-    let (doc, tol) = evaluated(vec![
-        common::xy_frame(),
-        square(pncad::document::RecipeNodeId(0), 0.02),
-        point([0.0, 0.0, 0.0]),
-    ]);
+    let (framed, tol) = evaluated(vec![common::xy_frame()]);
+    let frame = framed.order()[0];
+    let (doc, _) = inserted(&framed, square(frame, 0.02), tol);
+    let (doc, _) = inserted(&doc, point([0.0, 0.0, 0.0]), tol);
     let drawn = draws(&doc, tol, [0.0, -0.15, 0.1]);
     assert_eq!(drawn.len(), 2, "the frame and the point, not the profile");
     assert!(

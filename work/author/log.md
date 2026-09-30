@@ -1493,3 +1493,17 @@ No reconciliation round was needed. Both corrected the row's premises: role word
 - AUTHOR: `committed-nodes-do-not-light-the-faces-they-reference`.
 - Already on file: the flush refusal's `Debug` face keys (`work/issues/flush-in-band-refusal-advises-widening-the-tolerance`).
 - Folded into the design, not filed: `descent_leaf` and `SegOrigin` listing the carry-through wrappers twice, and `SelectRefusal`'s hand-spelled `named` helper.
+
+## 2026-09-30 — AUTH-12 MERGED (`0c9f05e1`): every tool is reachable, and a row says so
+
+Twelve units closed. **The trap fired a twelfth time, test-side only:** kind→section was written twice in one test module. The one style review (the tier chosen at dispatch) caught it, together with copied section headings. The fix pass also took the commit-button duplication the lane had filed as P3, which turned out to be the same one-function fix. It left one row: the mate and blend commit rows restate `tool_commit_row`'s shape.
+
+The premise the row was parked on ("no test can build `ViewerBehavior`") had been stale for five days, since the whole-app harness landed on 2026-09-25. I only caught it by reading the tree before specifying.
+
+## 2026-09-30 — AUTH-13 dispatched: a geometry-refused close still draws what was written
+
+Two P2 rows as one unit: `a-close-refused-on-its-geometry-draws-nothing` (filed by AUTH-11) and `a-last-leg-onto-the-start-is-dropped-unless-the-loop-opens-with-at` (filed by AUTH-5's review). They share one open question, what a last leg onto the start means, and one walk-back.
+
+Review tier: correctness + style. This is the third change to the preview's semantics, and the draw-no-more-than-was-written invariant is what a review must attack.
+
+The P0 (negative extrude, #3551) and the P1 face-naming row (#3571) are with Ev. The other P1s stay blocked on MSOLVE and CLEAR rows, both still open.
