@@ -729,7 +729,7 @@ mod tests {
         }
     }
 
-    /// What one placed arc of a lattice-lowered loop decides at
+    /// What the first arc of a lattice-lowered loop decides, placed, at
     /// `Sym<Interval>` over a box of bulges, under the shipped rules:
     /// the placed rim against the radius, the same residual inside a
     /// larger expression, the carrier's far end against the far vertex
@@ -739,7 +739,7 @@ mod tests {
     ) -> ([Option<Sign>; 5], geom_core::SymCounts) {
         use geom_core::sym::with_session_rules;
         use geom_core::{ParamSymbol, Sym, SymBudget, SymRules};
-        use profile::{Bulge, Open, Profile, SketchPlane, Start};
+        use profile::{Bulge, Open, Start};
         type S = Sym<Interval>;
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the witness band");
@@ -749,7 +749,10 @@ mod tests {
         };
         with_session_rules(budget, SymRules::shipped(), || {
             let lit = |x: f64| <S as Real>::from_f64(x);
-            let b = S::param(ParamSymbol::of("b"), Interval::from_bounds(0.45, 0.55));
+            // A clockwise arc bowing up off the top of a unit square,
+            // over a bulge box wide enough that the numeric channel
+            // cannot decide the rim.
+            let b = S::param(ParamSymbol::of("b"), Interval::from_bounds(-0.55, -0.45));
             let closed = Open
                 .at(Point2::new(lit(0.0), lit(0.0)))
                 .arc_to(
@@ -762,15 +765,27 @@ mod tests {
                 .expect("the arc authors")
                 .line_to(Point2::new(lit(1.0), lit(-1.0)), tol)
                 .expect("a leg down")
+                .line_to(Point2::new(lit(0.0), lit(-1.0)), tol)
+                .expect("a leg back")
                 .line_to(Start, tol)
                 .expect("the seam closes");
-            let vp = Profile::new(SketchPlane::xy(), vec![closed.loop_])
-                .validate(tol)
-                .expect("the loop validates at Sym<Interval>");
-            let seg = swept_segments(&vp.loops()[0], true)
-                .into_iter()
-                .find(|s| matches!(s.kind.get(), SegmentKind::Arc { .. }))
-                .expect("the loop has an arc");
+            // The lowered arc as a forward traversal, straight off the
+            // stored loop: the chain under test is the lowering's
+            // registrations and the sweep's, and validation is not in it.
+            let lp = closed.loop_;
+            let profile::Segment::Arc(arc) = lp.segments()[0] else {
+                panic!("the first segment is the authored arc");
+            };
+            let seg = SweptSeg {
+                a: lp.vertices()[0],
+                b: lp.vertices()[1],
+                kind: Traversed::forward(SegmentKind::Arc {
+                    arc,
+                    turn: Sign::Negative,
+                }),
+                canonical_vertex: 0,
+                canonical_segment: 0,
+            };
             let to3 = |p: Point2<S>| place.transform_point(Point3::new(p.x, p.y, lit(0.0)));
             let (q_from, q_to) = (to3(seg.a), to3(seg.b));
             let spec = placed_segment_spec(&seg, place, place.linear.c2, q_from, q_to, tol);

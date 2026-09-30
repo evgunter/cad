@@ -965,39 +965,20 @@ fn a_vertexs_second_coordinate_is_asked_the_question_too() {
     );
 }
 
-/// **The arc FRAME's own question is load-bearing, and only a
-/// one-segment arc shows it.**
+/// **A millimetre arc at `1.6e308` draws from its stored carrier, and
+/// validation beside the picture refuses it.**
 ///
-/// Every other undrawable arc here is caught twice over: the frame
-/// refuses it, and the points it would have minted are not numbers
-/// either, so deleting the frame's `drawable(centre)` leaves the
-/// refusal and its ordinal unchanged and no row moves. Measured — the
-/// whole file stayed green under that deletion.
-///
-/// The arm that separates them is `arc_points` answering **one**. A
-/// millimetre-scale arc far from the origin — two vertices a
-/// millimetre apart at `1.6e308`, bulge `0.5` — has radius
-/// `6.25e-4` and a sagitta of `2.5e-4`, so at a COARSE display
-/// tolerance it genuinely needs no subdivision and the interior-point
-/// loop never runs. Its `start` is `atan2` of a finite ordinate over
-/// `-inf`, which is `-π` and perfectly finite. The centre is
-/// `[inf, 5e-4]`, and nothing but the frame check asks. Without it the
-/// arc is drawn as a straight chord — a leg the author did not write,
-/// which is what this module refuses by name.
-///
-/// **The one-segment answer is bought with the CHORD and not with the
-/// geometry**, which is why this row passes its own tolerance rather
-/// than the file's. An earlier draft shrank the arc to a micron
-/// instead, and the eps = 1e-6 row of the matrix refused its junction
-/// at replay two steps before the flattener ever saw it: the turn
-/// margin was `3.75e-7 m`, which at that tolerance is tangency. A
-/// fixture whose scale is near an eps row's is a fixture about that
-/// row. `chord` is the caller's own δ — `pane::viewport` passes the
-/// display budget's — so asking for a coarse one is the ordinary
-/// thing, and it leaves the geometry three orders of magnitude clear
-/// of the coarsest eps the matrix runs.
+/// Two vertices a millimetre apart at `1.6e308`, bulge `0.5`: the
+/// lowering stores a carrier whose centre is finite (its chord
+/// midpoint is `a + (b − a)/2`, which does not overflow), so the
+/// flattener evaluates the arc from it and the loop draws. The
+/// coordinates there round at ~1e292 m against a `6.25e-4` m radius,
+/// so the stored centre cannot be read against the arc's own vertex:
+/// validation refuses the table `InconsistentArc`, carried beside the
+/// drawing as every validation verdict is. `COARSE_CHORD` keeps the
+/// arc at one subdivision, the regime the row was written for.
 #[test]
-fn a_one_segment_arc_about_a_centre_that_is_not_a_point_refuses() {
+fn a_far_millimetre_arc_draws_and_its_validation_refuses() {
     let tol = Tol::witness();
     let template = ProfileShape::Path {
         steps: vec![
@@ -1010,21 +991,25 @@ fn a_one_segment_arc_about_a_centre_that_is_not_a_point_refuses() {
             Step::LineTo(Target::Start),
         ],
     };
-    let refusal = preview(
+    // The stored carrier is the lowering's, whose chord midpoint is
+    // `a + (b − a)/2` and does not overflow: its centre IS a point,
+    // so the flattener draws the arc from it. What refuses is the
+    // validation beside the picture — at `1.6e308` the coordinates
+    // round at ~1e292 m, so the stored centre cannot be read against
+    // the arc's own vertex at any ε.
+    let drawn = preview(
         SketchPlane::xy(),
         core::slice::from_ref(&template),
         tol,
         COARSE_CHORD,
     )
-    .expect_err("an arc that draws no interior point still has a centre to be asked about");
+    .expect("the stored carrier is finite, so the arc draws");
     assert!(
         matches!(
-            refusal,
-            PreviewError::Unflattenable {
-                loop_: 0,
-                vertex: 0
-            }
+            drawn.invalid,
+            Some(pncad::profile::ProfileError::InconsistentArc { .. })
         ),
-        "{refusal}",
+        "{:?}",
+        drawn.invalid,
     );
 }

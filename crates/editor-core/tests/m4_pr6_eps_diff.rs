@@ -177,8 +177,23 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
+                predicate: "arc_landing".into(),
+                old_count: 2,
+                new_count: 0,
+            },
+            editor_core::SummaryDivergence {
                 predicate: "arc_span".into(),
                 old_count: 6,
+                new_count: 0,
+            },
+            editor_core::SummaryDivergence {
+                predicate: "arc_start_on_carrier".into(),
+                old_count: 2,
+                new_count: 0,
+            },
+            editor_core::SummaryDivergence {
+                predicate: "arc_sweep_range".into(),
+                old_count: 2,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {

@@ -256,8 +256,8 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is
     // an ordinary validation predicate going indeterminate on a box too
-    // wide to classify — `arc_diameter_clearance`, which is NOT a
-    // consumed structure decision and so does not (and should not)
+    // wide to classify — `arc_start_on_carrier`, the first of an arc's
+    // consistency checks, which is NOT a consumed structure decision and so does not (and should not)
     // arrive in the `Structure` vocabulary. That distinction is the
     // whole point of asserting the family here: a reader who sees
     // "aborts typed" should be able to tell which of the two kinds of
@@ -265,8 +265,8 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     match &err {
         profile::ProfileError::Escalated { source, .. } => assert_eq!(
             source.predicate,
-            Some("arc_diameter_clearance"),
-            "the wide box is expected to stall the clearance predicate"
+            Some("arc_start_on_carrier"),
+            "the wide box is expected to stall the arc's first consistency check"
         ),
         other => panic!(
             "expected an escalation from a validation predicate, got {other:?} — if this \

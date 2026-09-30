@@ -172,6 +172,7 @@ impl<T: Real> Arc2<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use crate::{Bounds, Interval};
@@ -263,9 +264,13 @@ mod tests {
             got[2..].iter().all(|&r| r == SymRegistration::Witnessed),
             "the landings never read the radius: {got:?}"
         );
+        // Swapped ends: the forward landing from (0, 1) is (−1, 0), off
+        // the claimed (1, 0) in x; the reversed landing from (1, 0) is
+        // (0, −1), off the claimed (0, 1) in y. The other component of
+        // each meets.
         let got = answers(arc, b, a);
         assert_eq!(
-            [got[2], got[4]],
+            [got[2], got[5]],
             [SymRegistration::Contradicted; 2],
             "a sweep that turns the wrong end onto the other: {got:?}"
         );

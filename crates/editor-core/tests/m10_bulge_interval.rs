@@ -64,7 +64,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
+    ("arc_landing", [4, 0, 2, 0]),
     ("arc_span", [4, 0, 0, 4]),
+    ("arc_start_on_carrier", [0, 0, 6, 0]),
+    ("arc_sweep_range", [0, 0, 0, 6]),
     ("assert_bound", [0, 0, 0, 1]),
     ("carrier_circles_identity", [3, 0, 0, 0]),
     ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
@@ -127,7 +130,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
         &[
             ("arc_apex_identity", [0, 0, 0, 1]),
             ("arc_diameter_clearance", [0, 0, 0, 6]),
+            ("arc_landing", [6, 0, 0, 0]),
             ("arc_span", [4, 0, 0, 2]),
+            ("arc_start_on_carrier", [0, 0, 6, 0]),
+            ("arc_sweep_range", [0, 0, 0, 6]),
             ("assert_bound", [0, 0, 0, 1]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),

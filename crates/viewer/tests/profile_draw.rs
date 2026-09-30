@@ -182,16 +182,13 @@ fn a_profile_whose_evaluation_refused_draws_nothing() {
     assert!(drawn.undrawn.is_empty(), "{:?}", drawn.undrawn);
 }
 
-/// **A profile the evaluator validated and the flattener cannot draw.**
-///
-/// An arc whose bulge is a finite number near the bottom of the
-/// exponent range is a legal program and, if the evaluator admits it,
-/// a validated profile — and its radius `half / sin(θ/2)` overflows,
-/// so no point along it is a number. The committed pass has to say so
-/// (`CommittedProfiles::undrawn`) rather than draw the loop with that
-/// leg missing or leave it out as if the document had no profile.
+/// **A bulge near the bottom of the exponent range draws as the line
+/// validation reads it.** The arc's radius overflows, but validation
+/// classifies a sub-tolerance arc a `Line` and keeps no carrier, and
+/// the committed pass draws the validated classification — so the
+/// loop draws, straight, and nothing is counted undrawn.
 #[test]
-fn a_validated_profile_with_an_undrawable_arc_is_counted_undrawn() {
+fn a_validated_sub_tolerance_arc_draws_as_its_line() {
     use pncad::profile::{ArcData, Step, Target};
     use viewer::session::{DocSession, ProfilePlane, ProfileShape, SessionOp};
 
@@ -225,14 +222,14 @@ fn a_validated_profile_with_an_undrawable_arc_is_counted_undrawn() {
         ),
         "the fixture: the evaluator validates this profile, so the flattener is what refuses",
     );
+    // Validation classifies the sub-tolerance arc a line, and the
+    // committed pass draws the validated classification — the loop
+    // sweeps consume — so the leg draws straight.
     let drawn = sketch::committed(doc, evaluation, CHORD, None);
-    assert!(
-        drawn.drawn.is_empty(),
-        "a loop with an undrawable leg was drawn"
-    );
     assert_eq!(
-        drawn.undrawn,
+        drawn.drawn.iter().map(|p| p.node).collect::<Vec<_>>(),
         vec![profile],
-        "and it is counted, not dropped"
+        "the validated loop draws"
     );
+    assert!(drawn.undrawn.is_empty(), "{:?}", drawn.undrawn);
 }
