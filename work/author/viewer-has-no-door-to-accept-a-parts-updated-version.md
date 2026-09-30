@@ -2,11 +2,12 @@
 id: viewer-has-no-door-to-accept-a-parts-updated-version
 kind: issue
 title: viewer: no door emits DocEdit::UpdateReference, so a repaired part's new version cannot be accepted from the GUI
-status: review
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: M
 branch: author/accept-part-version
+closed: 2026-09-30
 ---
 
 
@@ -77,3 +78,9 @@ Dispatched 2026-09-30 as **AUTH-15** (`docs/AUTH-15-SPEC.md`, branch `author/acc
   and `pane::features::tests::a_pin_mismatched_instance_row_draws_the_accept_and_its_button_is_the_offer`.
 - The OFFER row `a-refusal-offers-no-action-in-the-viewer` carries this
   instance's evidence and the sweep's residue (the tolerance lever).
+
+## Closed 2026-09-30 — PR 3591 merged (`f88b6438`)
+
+**A pin-mismatched instance offers "Accept updated version".** Accepting records `workspace::update_to_store`'s edits, one per site whose pin moves, as one action and one undo, computed against the committed document. The offer is read off the landed run and withheld while a run is outstanding. The kernel's own refusals (nothing newer, or the file gone) are said as-is, and nothing commits.
+
+**It is reachable only after the assembly is reopened.** Results are cached per reference, so a part repaired during a live session shows no mismatch until then. That is OFFER's `document-seam-no-in-session-change-detection`, which now carries the evidence.

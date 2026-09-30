@@ -1566,3 +1566,13 @@ Designer pair on `the-boolean-door-evaluates-its-boolean-twice` (byte on `analys
 
 Everything P0–P2 on this slate is with Ev (#3551, #3571, #3587), blocked on another program's row, or a design row. So the next unit is the P3 door `viewer-has-no-door-to-accept-a-parts-updated-version`: a refusal whose recourse the GUI cannot take, which is this program's charter exactly. The offer must live in the existing refuse-then-offer homes (the AUTH-9 lesson). Review tier: one FULL review.
 - 2026-09-30 — Seam note from TOPO: `viewer::sketch::tests::a_last_leg_no_close_can_follow_is_walked_back` (AUTH-13) was red at ε 1e-6 and 1e-12. Its `banded` and `banded_short` legs placed their in-band offsets at literal `1e-9` and `4e-10`, which sit inside the band only at the default ε, while `previewed` reads `Tol::witness()`. They now read `Tol::witness().eps()` (1ε and 0.4ε, the same points at the default ε). Main stayed green because viewer-only diffs never select the ε rows; TOPO's PR 3570 found it. (TOPO orchestrator)
+
+## 2026-09-30 — AUTH-15 MERGED (`f88b6438`): accept a part's updated version from the viewer
+
+Fifteen units closed. **The trap fired a fifteenth time:** the button's label was a hand copy of the kernel recourse's "accept updated version". The one FULL review caught it. The label is now one const, and a row asserts that the recourse sentence contains it.
+
+The review also caught:
+- a stale offer, drawn until the accept's run landed, where a second click read as hex ids;
+- a README promise that a live session cannot keep.
+
+**This is the third refuse-then-offer instance** (after `creation_offer` and AUTH-9's `declare_offer`). All three live in one home, but in three shapes. The general `Offer` type they want is named on OFFER's P1 row as evidence.
