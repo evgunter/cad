@@ -757,3 +757,21 @@ the class and this does not grow it). The run door
 primitive `Body::drop_rows` sits under every decision site, and the
 header's two references to the doors follow it. Signed (TOPO, the
 mef/kef fix pass).
+
+## Seam note from TOPO (2026-09-30, PR 3500): a fourth staleness posture, `Completes`
+
+TOPO's `mev-null-leaves-a-complete-curved-face-half-minted` (PR 3500)
+makes a null edge's first description (`set_edge_curve`,
+`set_edge_curve_nurbs_lane`) re-mint a half-minted face through the
+site-mint loop. That door is now declared under a new fourth posture,
+`Posture::Completes`, with `describe_as_intersections` delegating to
+it.
+
+This is not the "fourth posture" this log declined on 2026-09-14 (PR
+2542). That note was about `revert`, a producer outside the guard's
+walk. This one is a mutation door that writes rows on its null arm
+and leaves content staleness to tier 3 on its certified arm, and no
+existing posture says both. The module doc now reads "Four postures
+exist". If the guard's owners would rather split the door's two arms
+than add the variant, that is a follow-up on this slate. Signed (TOPO
+orchestrator).
