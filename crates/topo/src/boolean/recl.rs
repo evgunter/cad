@@ -1122,10 +1122,12 @@ mod tests {
         assert!(
             matches!(
                 resolve_bisector_graze(&[], &one_sided, &reference, band, Some(0), Some(0)),
-                Err(BooleanError::Escalated { diag, .. })
-                    if diag.predicate == Some("bool_sector_bisector_side")
+                Err(BooleanError::Escalated {
+                    decision: crate::boolean::BooleanDecision::BisectorSide,
+                    diag,
+                }) if diag.predicate == Some("bool_sector_bisector_side")
             ),
-            "the graze between two Out keys refuses"
+            "the graze between two Out keys refuses as the bisector's own decision"
         );
         let crossing = twins([1.0, 0.0, 0.5], [-1.0, 0.0, -0.5]);
         let records = [rec(0, 0, (On, Out), (Out, In))];

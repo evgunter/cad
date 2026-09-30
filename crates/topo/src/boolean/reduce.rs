@@ -1241,8 +1241,9 @@ fn curved_face_arm<T: Decide>(
     // incidence. `cover` is what the arm read of that declaration: a
     // declared pair spends it on every question below, and none of them
     // is one a declaration settles.
-    let cover = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnFace);
+    let cover = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnCoveredFace);
     let covered = matches!(cover, DeclarationRead::Spent(_));
+    let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
     // but the boolean's CROSSING layer for the kind — edge×NURBS-face
@@ -1412,7 +1413,8 @@ fn curved_face_arm<T: Decide>(
                     let mut ends = [None, None];
                     for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
                         match side(pw).map_err(|diag| {
-                            BooleanError::coincidence(Coincide::VertexOnCoveredFace, cover, diag)
+                            let which = Coincide::VertexOnCoveredFace;
+                            BooleanError::coincidence(which, read(which), diag)
                         })? {
                             Sign::Zero => {
                                 ends[i] = Some(vertex_on_curved_face(
@@ -1467,7 +1469,7 @@ fn curved_face_arm<T: Decide>(
                     } else {
                         Coincide::ArcClearsCurvedFace
                     };
-                    return Err(BooleanError::coincidence(which, cover, diag));
+                    return Err(BooleanError::coincidence(which, read(which), diag));
                 }
             }
         }
@@ -1483,7 +1485,10 @@ fn curved_face_arm<T: Decide>(
     // The declared-cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
-    let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, cover, diag);
+    let on_face = |diag| {
+        let which = Coincide::VertexOnFace;
+        BooleanError::coincidence(which, read(which), diag)
+    };
     let s1 = side(pu).map_err(on_face)?;
     let s2 = side(pv).map_err(on_face)?;
     match (s1, s2) {
@@ -1807,11 +1812,10 @@ fn curved_face_arm<T: Decide>(
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
                 }
-                Err(diag) => Err(BooleanError::coincidence(
-                    Coincide::EdgeOnCurvedFace,
-                    cover,
-                    diag,
-                )),
+                Err(diag) => {
+                    let which = Coincide::EdgeOnCurvedFace;
+                    Err(BooleanError::coincidence(which, read(which), diag))
+                }
             }
         }
     }

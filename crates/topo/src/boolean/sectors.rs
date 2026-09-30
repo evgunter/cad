@@ -645,6 +645,7 @@ pub(super) fn tangent_lump<T: Decide>(
 /// either carrier along it separates at no order this kernel
 /// measures) — the ON-direction machinery downstream adjudicates it,
 /// exactly as a first-order On flows to the recl edge engine.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn tangent_relative_side<T: Decide>(
     sector_surface: &geom::Surface<T>,
     other_surface: &geom::Surface<T>,

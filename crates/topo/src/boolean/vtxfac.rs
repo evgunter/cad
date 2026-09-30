@@ -822,10 +822,12 @@ mod tests {
         assert!(
             matches!(
                 resolve_on_entries(&mut one_sided, band),
-                Err(BooleanError::Escalated { diag, .. })
-                    if diag.predicate == Some("bool_sector_bisector_side")
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::BisectorSide,
+                    diag,
+                }) if diag.predicate == Some("bool_sector_bisector_side")
             ),
-            "the bisector's Zero refuses"
+            "the bisector's Zero refuses as its own decision"
         );
         let mut edge = [entry(true, Out), entry(true, On), entry(true, Out)];
         resolve_on_entries(&mut edge, band).unwrap();
