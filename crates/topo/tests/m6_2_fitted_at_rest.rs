@@ -131,7 +131,7 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 /// fixture's own image, carrier and operand pair, lifted exactly to
 /// `Dual64`, offered to the fitted-grade door
 /// (`PcurveCache::certify_general`) with what the dual's policy
-/// answers — no fitted door, and its name. A dual may not certify (D1,
+/// answers — no fitted door. A dual may not certify (D1,
 /// 2026-08-19 — it carries a bracket and still may not reach
 /// certification arithmetic, C9), so no cache comes back.
 ///
@@ -151,13 +151,18 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 /// A door refused before check 1 would answer all three with the first
 /// one's refusal.
 ///
-/// **Then the refusal's text, through `PcurveCache::recertify`** — the
-/// one door a fitted cache meets an absent door through. That half runs
-/// nothing at a dual (no dual can build the cache it would need): it
-/// hands the fixture's own `f64` cache what the dual's policy answers
-/// (`None`, and the dual's name), which passes checks 1–3 and refuses
-/// at check 4. The message must name the scalar and say it may not
-/// certify; it must not say it carries no bracket, which D1 made false.
+/// **Then the refusal's text.** The dual's check-4 refusal must name
+/// the dual and say the door is held only by scalars with
+/// certification rights; it must not say the scalar carries no
+/// bracket, which D1 made false; and its replay list names every
+/// scalar whose fitted door answers `Some` (the telemetry probe's arm
+/// is `probe`-gated, so its name is not read here).
+///
+/// **And the other reading of `None`, through `PcurveCache::recertify`**
+/// — the one door a fitted cache meets an absent door through: the
+/// fixture's own `f64` cache handed no door, as a caller at a
+/// certifying scalar may do. It passes checks 1–3, refuses at check 4
+/// naming `f64`, and its text must not claim `f64` may not certify.
 #[test]
 fn the_dual_refuses_at_check_four_and_says_so() {
     use geom_brep::{ChartWindow, PcurveCache, PcurveCertifyError, PcurveCheck};
@@ -202,20 +207,18 @@ fn the_dual_refuses_at_check_four_and_says_so() {
             window,
             band,
             <Dual64 as AtRestPolicy>::fitted_lane(),
-            <Dual64 as AtRestPolicy>::scalar_name(),
         )
         .map(|_| ())
     };
 
     let at_four = offer(&built.image, f0, f1);
-    assert!(
-        matches!(
-            at_four,
-            Err(PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" })
-        ),
-        "CHECK 4: the fixture passes checks 1–3 at the dual and refuses where the door is \
-         asked for: {at_four:?}"
-    );
+    let Err(refused @ PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" }) = at_four
+    else {
+        panic!(
+            "CHECK 4: the fixture passes checks 1–3 at the dual and refuses where the door is \
+             asked for: {at_four:?}"
+        );
+    };
     let at_two = offer(&built.image, f1, f0);
     assert!(
         matches!(at_two, Err(PcurveCertifyError::IntervalNotForward)),
@@ -252,25 +255,45 @@ fn the_dual_refuses_at_check_four_and_says_so() {
             built.window,
             Band::linear(Tol::witness()).unwrap(),
             None,
-            <Dual64 as AtRestPolicy>::scalar_name(),
         )
         .expect_err("RECERTIFY: a fitted cache with no door refuses");
     assert!(
         matches!(
             err,
-            PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" }
+            PcurveCertifyError::FittedLaneUnsupported { scalar: "f64" }
         ),
-        "RECERTIFY: the absent door's refusal is the fitted-lane one, naming the dual: {err:?}"
+        "RECERTIFY: a withheld door's refusal is the fitted-lane one, naming the scalar the \
+         check ran at: {err:?}"
     );
-    let msg = format!("{err}");
+    let withheld = format!("{err}");
     assert!(
-        msg.contains("dual") && msg.contains("may not certify"),
-        "TEXT: the refusal names the scalar and the true reason it has none: {msg}"
+        withheld.contains("f64 scalar") && !withheld.contains("may not certify"),
+        "TEXT: the refusal names f64 and does not deny it the right it has: {withheld}"
+    );
+
+    let msg = format!("{refused}");
+    assert!(
+        msg.contains("dual scalar") && msg.contains("certification rights"),
+        "TEXT: the refusal names the scalar and who holds the door: {msg}"
     );
     assert!(
         !msg.contains("no bracket") && !msg.contains("carries no bracket"),
         "TEXT: the refusal must not re-assert the premise D1 invalidated: {msg}"
     );
+    fn replay_list_names<T: AtRestPolicy>(msg: &str) {
+        let name = T::NAME;
+        assert!(
+            T::fitted_lane().is_some(),
+            "TEXT: {name} is checked against the replay list, so it must hold the door"
+        );
+        assert!(
+            msg.contains(name),
+            "TEXT: the refusal's replay list omits {name}, whose fitted door answers Some: {msg}"
+        );
+    }
+    replay_list_names::<f64>(&msg);
+    replay_list_names::<geom_core::interval::Interval>(&msg);
+    replay_list_names::<geom_core::Sym<f64>>(&msg);
 }
 
 /// ε is never a literal here; this row states what the file relies on.

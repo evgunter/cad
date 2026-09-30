@@ -43,7 +43,7 @@ mod table;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
-pub(crate) use discriminate::{FAMILY, SIDE_OF, aggregate_side, shadow_side_of};
+pub(crate) use discriminate::{FAMILY, SIDE_OF, aggregate_side, decision_words, shadow_side_of};
 pub(crate) use emit::name_in_part;
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
@@ -145,7 +145,8 @@ fn all_of_kind<T: geom_core::Decide>(
     node: crate::node::RecipeNodeId,
     kind: EntityKind,
 ) -> Vec<StableName> {
-    let Some(crate::eval::NodeResult::Ok(value)) = ev.nodes.get(&node) else {
+    // No value, no names: `select::select`'s doc.
+    let Some(value) = ev.value(node) else {
         return Vec::new();
     };
     let mut out: Vec<StableName> = value

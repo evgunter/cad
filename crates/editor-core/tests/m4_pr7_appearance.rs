@@ -7,6 +7,7 @@
 
 use crate::fixture;
 
+use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
@@ -318,7 +319,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     let (doc2, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
+            name: ParamName::from_static("pip_depth"),
             value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
         },
     );
@@ -361,12 +362,14 @@ fn transform_pass_through_carries_the_attribute_downstream() {
     );
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: ext,
-            translation: [len(4.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            ext,
+            editor_core::Step::Rigid {
+                translation: [len(4.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
@@ -452,7 +455,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetFailed { node: ext }
+        AppearanceLossCause::Indeterminate(NodeStanding::Failed { node: ext })
     );
     // Repair the parameter: the attribute resolves again, unchanged —
     // it was never dropped.
@@ -513,7 +516,10 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetPoisoned { through: a }
+        AppearanceLossCause::Indeterminate(NodeStanding::Poisoned {
+            node: uni,
+            through: a
+        })
     );
 }
 
@@ -668,12 +674,14 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     let (doc, sub) = tie_fixture();
     let (doc, _moved) = insert(
         doc,
-        Node::Transform {
-            input: sub,
-            translation: [len(10.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            sub,
+            editor_core::Step::Rigid {
+                translation: [len(10.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let ev = run(&doc);
     let tied = tied_name(&ev, sub);
@@ -750,6 +758,6 @@ fn canceled_run_reports_not_evaluated_not_vanished() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetNotEvaluated
+        AppearanceLossCause::Indeterminate(NodeStanding::NotEvaluated { node: ext })
     );
 }

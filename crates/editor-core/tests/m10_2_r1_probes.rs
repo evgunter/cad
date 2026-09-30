@@ -112,7 +112,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::from_static("depth"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
@@ -141,7 +141,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::param(ParamName::new("depth"), Dimension::Length),
+            distance: Expr::param(ParamName::from_static("depth"), Dimension::Length),
         },
     );
     (doc, slab)
@@ -885,12 +885,14 @@ fn r1_ops_refuse_measurement_operands_typed() {
     // Transform of the MEASURE's id.
     let (doc, moved_measure) = insert(
         &doc,
-        Node::Transform {
-            input: m,
-            translation: [len(0.1), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            m,
+            editor_core::Step::Rigid {
+                translation: [len(0.1), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let ev = eval(&doc);
     for id in [bool_over_verdict, moved_measure] {
@@ -923,12 +925,14 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.5);
     let (doc, moved) = insert(
         &doc,
-        Node::Transform {
-            input: pin,
-            translation: [len(0.25), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pin,
+            editor_core::Step::Rigid {
+                translation: [len(0.25), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let ev = eval(&doc);
     let bore_wall = wall(&ev, bore);
@@ -1081,7 +1085,10 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let [bottom, top] = caps(&ev, slab);
     let expr = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("ghost"), Dimension::Length)),
+        MeasureExpr::value(Expr::param(
+            ParamName::from_static("ghost"),
+            Dimension::Length,
+        )),
     )
     .expect("Length - Length");
     let err = apply(
@@ -1110,7 +1117,7 @@ fn r1_own_document_web_and_flip() {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::from_static("r"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
@@ -1125,7 +1132,7 @@ fn r1_own_document_web_and_flip() {
             plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -1148,7 +1155,7 @@ fn r1_own_document_web_and_flip() {
     );
     let _ = p2;
     let ev = eval(&d5);
-    let r = || MeasureExpr::value(Expr::param(ParamName::new("r"), Dimension::Length));
+    let r = || MeasureExpr::value(Expr::param(ParamName::from_static("r"), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -1175,7 +1182,7 @@ fn r1_own_document_web_and_flip() {
     let d8 = push(
         &d7,
         &DocEdit::SetDocParamValue {
-            name: ParamName::new("r"),
+            name: ParamName::from_static("r"),
             value: DocParamValue::Continuous(0.24),
         },
     );

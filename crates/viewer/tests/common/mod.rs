@@ -137,7 +137,7 @@ pub fn shape(template: &ProfileShape) -> LoopProgram {
 
 /// The name of the parametric fixture's driving parameter.
 pub fn thickness_param() -> ParamName {
-    ParamName::new("thickness")
+    ParamName::from_static("thickness")
 }
 
 /// A document whose extrude distance is DRIVEN by a document
@@ -190,12 +190,14 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::Transform {
-            input: extrude,
-            translation: [len(0.01), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            extrude,
+            pncad::document::Step::Rigid {
+                translation: [len(0.01), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
     (doc, extrude, moved)

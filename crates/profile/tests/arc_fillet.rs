@@ -25,8 +25,8 @@
 use crate::common;
 
 use common::{profile, tol};
-use geom_core::Point2;
 use geom_core::Tol;
+use geom_core::{Arc2, Point2};
 use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
 use profile::{
     ArcSweep, Center, FILLET_NO_CORNER_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason, Open,
@@ -219,6 +219,54 @@ fn line_arc_internal_validates_with_declared_tangency() {
         (t2.x.hypot(t2.y) - 2.0).abs()
     );
     validates_with_declared_joints(lp, &[2, 3]);
+}
+
+/// **A short run out on the arrival circle is the fillet's run out**:
+/// the line×arc internal corner with its entry moved `turn` radians
+/// past T2 along the radius-2 arrival circle, so the closing arc — the
+/// fused verb's run out — spans a chord of about `2·turn` meters. However
+/// short, that arc lies on the arrival circle, so it builds and is named
+/// the fillet step's `RunOut`; the fused `fillet_arc` has no `Leg` to
+/// name it instead. Below a turn of about ε/2 the corner refuses as a
+/// tangent seam, and inside the band it escalates on
+/// `path_junction_turn`, so each turn is floored at Kε.
+#[test]
+fn a_short_closing_run_out_on_the_arrival_circle_is_named_the_run_out() {
+    use profile::{Piece, PieceRole};
+    let t2 = line_arc_internal(0.5).expect("the fillet fits").vertices()[3];
+    let past_t2 = t2.y.atan2(t2.x);
+    let floor = tol().k() * tol().eps();
+    let mut turns = [1e-7_f64, 3e-8, 1e-8].map(|t| t.max(floor)).to_vec();
+    turns.dedup();
+    for turn in turns {
+        let entry = Point2::new(2.0 * (past_t2 + turn).cos(), 2.0 * (past_t2 + turn).sin());
+        let closed = Open
+            .at(entry)
+            .line_to(Point2::new(0.0, 0.0), Tol::witness())
+            .and_then(|o| o.toward(2.0, 0.0, Tol::witness()))
+            .and_then(|o| {
+                o.fillet_arc(
+                    0.5,
+                    Center {
+                        c: Point2::new(0.0, 0.0),
+                        winding: ArcSweep::Ccw,
+                        p: Start,
+                    },
+                    Tol::witness(),
+                )
+            })
+            .unwrap_or_else(|e| panic!("entry {turn:e} rad past T2: {e:?}"));
+        let pieces = &closed.structure.pieces;
+        assert_eq!(
+            pieces.last().copied(),
+            Some(Piece {
+                step: 3,
+                role: PieceRole::RunOut,
+            }),
+            "entry {turn:e} rad past T2: {pieces:?}"
+        );
+        common::pinned(closed);
+    }
 }
 
 #[test]
@@ -564,9 +612,15 @@ fn picked_fillet_circle(lp: ProfileLoop<f64>, r: f64) -> (Point2<f64>, f64) {
         .segments()
         .iter()
         .find_map(|s| match s.kind {
-            profile::SegmentKind::Arc { center, radius, .. } if (radius - r).abs() < 1e-12 => {
-                Some((center, radius))
-            }
+            profile::SegmentKind::Arc {
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        ..
+                    },
+                ..
+            } if (radius - r).abs() < 1e-12 => Some((center, radius)),
             _ => None,
         })
         .expect("the fillet arc classifies at its authored radius")

@@ -168,7 +168,7 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
         let ec = cyl_enclosure_good(*origin, *axis, *cr, b);
         assert!(
             es.is_certified() && ec.is_certified(),
-            "enclosure poisoned on box centre {c:?} — {}",
+            "enclosure refused on box centre {c:?} — {}",
             fuzz::replay()
         );
         // The 5×5×5 lattice is corners + face centres + interior of the

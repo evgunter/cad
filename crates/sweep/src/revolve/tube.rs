@@ -59,13 +59,13 @@
 use geom_core::k_stats::decide;
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real, Sign,
-    Tol, Vec2,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Mat3, OrthoFrame, Point2, Point3, Real,
+    Sign, Tol, Vec2,
 };
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
-use crate::swept::SweptKind;
+use profile::SegmentKind;
 
 /// The traversed window of the spine arc.
 #[derive(Clone, Copy, Debug)]
@@ -200,23 +200,40 @@ impl core::fmt::Display for TubeError {
             ),
             Self::NonpositiveWall { eps } => write!(
                 f,
-                "{door}'s wall is not definitely thicker than the run's threshold of {eps} m \
-                 (tube_wall). Recourse: supply a thicker wall, or drop the wall for a solid \
-                 tube"
+                "{door}'s wall is not definitely thicker than the run's threshold of {eps} \
+                 m. Recourse: supply a thicker wall, or drop the wall for a solid tube"
             ),
             Self::WallExceedsRadius { eps } => write!(
                 f,
                 "{door}'s wall leaves no bore: the minor radius minus the wall is not \
-                 definitely positive (tube_wall_bore; threshold {eps} m). Recourse: supply a \
+                 definitely positive (threshold {eps} m). Recourse: supply a \
                  thinner wall, or drop the wall for a solid tube"
             ),
             Self::WallGapCollapsed { eps } => write!(
                 f,
                 "{door}'s inner and outer radii would be stored as one value at this outer \
-                 radius (tube_wall_gap; threshold {eps} m). Recourse: supply a thicker wall, \
+                 radius (threshold {eps} m). Recourse: supply a thicker wall, \
                  or a smaller outer radius"
             ),
-            Self::Escalated { source } => write!(f, "{door} escalated: {source}"),
+            Self::Escalated { source } => {
+                let what = match source.predicate {
+                    Some("tube_wall") => "wall is thicker than the run's threshold",
+                    Some("tube_wall_bore") => "wall leaves a bore",
+                    Some("tube_wall_gap") => "inner and outer radii stay distinct",
+                    Some("tube_window_span") => "arc window ends after it starts",
+                    Some("tube_window_headroom") => "arc window stays short of a full turn",
+                    // Only the five names above are decided here; any
+                    // other is a decision this door has no words for.
+                    _ => {
+                        return write!(
+                            f,
+                            "{} is too close to call: {source}",
+                            geom_core::UNNAMED_DECISION
+                        );
+                    }
+                };
+                write!(f, "whether {door}'s {what} is too close to call: {source}")
+            }
             Self::Revolve(e) => write!(f, "{e}"),
         }
     }
@@ -471,8 +488,8 @@ fn build<T: Decide + topo::AtRestPolicy>(
 /// duplication nothing will find. S131.)
 ///
 /// The two arguments are the two bits `swept_segments` carries. `turn`
-/// is the TRAVERSAL's own sense (its bulge follows: `+1` for a
-/// positive half-turn, `-1` for a negative one). `reversed` says
+/// is the TRAVERSAL's own sense (its sweep follows: `+π` for a
+/// positive half-turn, `−π` for a negative one). `reversed` says
 /// whether this traversal is the reversal of its canonical chain,
 /// which is what permutes the canonical labels — the involution's
 /// `(n - j) % n` / `n - 1 - j` written out for `n = 2`. The three
@@ -492,17 +509,25 @@ fn circle_traversal<T: Real>(
         Point2::new(center.x - radius, T::zero()),
         Point2::new(center.x + radius, T::zero()),
     );
-    let bulge = match turn {
-        Sign::Positive => T::one(),
-        Sign::Negative | Sign::Zero => T::zero() - T::one(),
+    // The half-turn, spelled as the arc lowering spells a unit-bulge
+    // arc's sweep (`4·atan 1`), not as `T::pi()`: the certifier
+    // samples it at fractions `i/8`, and the symbolic tier folds the
+    // trig of `q·atan 1` in closed form (rule D) where a fraction of
+    // `π` other than a half-multiple stays an atom.
+    let half_turn = T::from_f64(4.0) * T::one().atan();
+    let sweep = match turn {
+        Sign::Positive | Sign::Zero => half_turn,
+        Sign::Negative => T::zero() - half_turn,
     };
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        bulge,
-        kind: SweptKind::Arc {
-            center,
-            radius,
+        kind: SegmentKind::Arc {
+            arc: Arc2 {
+                centre: center,
+                radius,
+                sweep,
+            },
             turn,
         },
         canonical_vertex,

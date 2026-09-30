@@ -225,33 +225,32 @@ pub enum MassPropsError {
 impl fmt::Display for MassPropsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { error } => write!(f, "mass properties: {error}"),
-            Self::Face { face, source } => {
-                write!(f, "mass properties: face {face:?}: {source}")
+            Self::Band { error } => {
+                write!(f, "the volume and surface area cannot be computed: {error}")
             }
-            Self::RingOnCurvedFace { face } => {
-                write!(
-                    f,
-                    "mass properties: curved face {face:?} carries interior rings — curved \
-                     patches are swept UV rectangles and no construction produces one, so \
-                     report this rather than repairing a body"
-                )
-            }
-            Self::Corrupt { what } => {
-                write!(
-                    f,
-                    "mass properties: corrupt body ({what}) — the structural validators own \
-                     this diagnosis: read the tier-1/tier-2 report and repair what it names"
-                )
-            }
-            Self::NullScaffoldEdge { edge } => {
-                write!(
-                    f,
-                    "mass properties: edge {edge:?} is null-edge scaffolding \
-                     (mid-surgery body; tier 2 refuses null entities at rest) — finish or \
-                     revert the surgery and ask again at rest"
-                )
-            }
+            Self::Face { source, .. } => write!(
+                f,
+                "a face's share of the volume and surface area cannot be computed: {source}"
+            ),
+            // Every construction keeps curved faces ring-free, and
+            // STEP import refuses a ring on one before a body exists,
+            // so reaching this is a defect.
+            Self::RingOnCurvedFace { .. } => write!(
+                f,
+                "the kernel cannot measure the volume of a curved face with a hole. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::Corrupt { what } => write!(
+                f,
+                "the body's structure is incomplete ({what}). {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::NullScaffoldEdge { .. } => write!(
+                f,
+                "an edge is a placeholder a construction leaves while it is under way, which a \
+                 body at rest never carries. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
         }
     }
 }
@@ -1437,7 +1436,7 @@ mod continuation_refusal_order_tests {
     fn refusal_at(threads: usize) -> MassPropsError {
         let mut body = Body::<f64>::new();
         let skeletal = body
-            .mvfs(Point3::new(0.0, 0.0, 0.0))
+            .mvfs(Point3::new(0.0, 0.0, 0.0), true)
             .expect("the skeletal body builds")
             .face;
         let early = FaceKey::null();
@@ -1486,7 +1485,7 @@ mod continuation_refusal_order_tests {
     fn the_later_slots_resumption_refuses_outright() {
         let mut body = Body::<f64>::new();
         let skeletal = body
-            .mvfs(Point3::new(0.0, 0.0, 0.0))
+            .mvfs(Point3::new(0.0, 0.0, 0.0), true)
             .expect("the skeletal body builds")
             .face;
         let band = Band::linear(Tol::witness()).expect("the witness band builds");
@@ -1978,7 +1977,11 @@ impl fmt::Display for ShellClassifyPayload<'_> {
         match self.0 {
             ShellClassifyError::Band { error } => write!(f, "{error}"),
             ShellClassifyError::Props { source, .. } => write!(f, "{source}"),
-            ShellClassifyError::Escalated { source, .. } => write!(f, "{}", source.payload()),
+            ShellClassifyError::Escalated { source, .. } => write!(
+                f,
+                "the sign of a shell's volume is too close to call: {}",
+                source.payload()
+            ),
             ShellClassifyError::ZeroVolume { .. } => f.write_str(
                 "a shell's signed volume, or an end of its certified bracket, is zero at this \
                  tolerance",
@@ -2022,15 +2025,11 @@ impl ShellClassifyError {
 impl fmt::Display for ShellClassifyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { .. } => write!(f, "shell classification: {}", self.payload()),
-            Self::Props { shell, .. }
-            | Self::Escalated { shell, .. }
-            | Self::ZeroVolume { shell, .. }
-            | Self::Straddles { shell } => write!(
-                f,
-                "shell classification: shell {shell:?}: {}",
-                self.payload()
-            ),
+            Self::Band { .. } => write!(f, "the shells cannot be classified: {}", self.payload()),
+            Self::Escalated { .. }
+            | Self::Props { .. }
+            | Self::ZeroVolume { .. }
+            | Self::Straddles { .. } => write!(f, "{}", self.payload()),
         }?;
         match self.ending() {
             Some(ending) => write!(f, ". {ending}"),
@@ -2424,14 +2423,8 @@ impl<T: Decide> ShellDoor<T> {
 /// [`QuadLane::certified`] and [`ShellDoor::certified`] hold, rather
 /// than what they answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// routine that agrees on the fixture in front of it; these rows
-/// compare the stored function pointer instead, so a re-point is a
-/// failure no matter what it computes. Function-pointer identity is
-/// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
-/// (identical bodies may be merged), which costs nothing here: a false
-/// PASS would need the re-pointed routine to be instruction-identical
-/// to the one it replaced.
+/// Why a wiring row compares pointers rather than outputs:
+/// `certified_enclosure_impl_census`'s module doc.
 ///
 /// Each door has one helper, instantiated once per certifying scalar.
 /// `certified_enclosure_impl_census` counts those instantiations
@@ -2593,11 +2586,11 @@ mod wiring_rows {
 /// pcurve derivations', and [`AtRestPolicy::shell_door`] is the
 /// hollowing verb's; each answers `None` for its own reason — a
 /// derivation written at one scalar, or certification rights (DL1) —
-/// and the doc on each method says which. Beside them sits the
-/// scalar's name ([`AtRestPolicy::scalar_name`]), which the refusals
-/// those `None`s produce carry. What a reader gets from the one trait
-/// is every per-scalar answer the at-rest machinery needs, in one
-/// place, rather than a lane trait apiece.
+/// and the doc on each method says which. What a reader gets from the
+/// one trait is every per-scalar answer the at-rest machinery needs,
+/// in one place, rather than a lane trait apiece; the scalar's name,
+/// which the refusals those `None`s produce carry, is not one of them
+/// but the scalar's own ([`geom_core::Real::NAME`]).
 ///
 /// [`geom_core::Bounds`] deliberately does not ride along: a name that
 /// hands out a bracket door is a bound the `Bounds` scope rule's gate
@@ -2619,7 +2612,7 @@ pub trait AtRestPolicy: Decide {
     /// certification rights (DL1).
     ///
     /// It is a per-scalar seam and not a lane trait of its own
-    /// (`work/scalar/H5.md` §RATIFIED ruling 3, which keeps this trait
+    /// (H5's ratified ruling 3, PR 2701, which keeps this trait
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
@@ -2643,17 +2636,10 @@ pub trait AtRestPolicy: Decide {
     /// enclosures are, and [`geom_brep::FittedLane`]'s one constructor
     /// is bounded on [`geom_core::CertifiedBounds`]. A consumer holding
     /// `None` refuses typed with
-    /// [`geom_brep::PcurveCertifyError::FittedLaneUnsupported`], naming
-    /// the scalar by [`AtRestPolicy::scalar_name`] — or, at the mint's
-    /// rim arms, keeps the refusal the arm already had, since no foot
-    /// is measured.
+    /// [`geom_brep::PcurveCertifyError::FittedLaneUnsupported`] — or,
+    /// at the mint's rim arms, keeps the refusal the arm already had,
+    /// since no foot is measured.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>>;
-
-    /// **This scalar's name**, as the refusals that name a scalar with
-    /// no door carry it
-    /// ([`geom_brep::PcurveCertifyError::FittedLaneUnsupported`],
-    /// [`crate::TransformError::ApproxLaneUnsupported`]).
-    fn scalar_name() -> &'static str;
 
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
@@ -2739,10 +2725,6 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::FittedLane::certified())
     }
 
-    fn scalar_name() -> &'static str {
-        "f64"
-    }
-
     /// The decide-with-escalation lane certifies, so it runs the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
@@ -2787,10 +2769,6 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::FittedLane::certified())
     }
 
-    fn scalar_name() -> &'static str {
-        "telemetry probe"
-    }
-
     /// The recording scalar is `f64` with a sink attached, so it
     /// carries exactly what `f64` carries — here, the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
@@ -2830,10 +2808,6 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// brackets are what the C2 certificate's hull bound is made of.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
         Some(geom_brep::FittedLane::certified())
-    }
-
-    fn scalar_name() -> &'static str {
-        "interval"
     }
 
     /// The certified interval scalar runs the door: its brackets are
@@ -2885,10 +2859,6 @@ where
     /// certifying scalar still mints and re-derives fitted caches.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
         Some(geom_brep::FittedLane::certified())
-    }
-
-    fn scalar_name() -> &'static str {
-        "symbolic"
     }
 
     /// For the reason [`QuadLane`] gives at the symbolic tier: the
@@ -2952,10 +2922,6 @@ where
         None
     }
 
-    fn scalar_name() -> &'static str {
-        "dual"
-    }
-
     /// **A dual does not certify** (the DL3 ruling, unmoved), and the
     /// shell door's last act is a certified validation of what it
     /// built, so no `Dual` can hold one: a document evaluated for
@@ -3014,7 +2980,7 @@ mod at_rest_policy_tests {
     /// scalar-generic refusing subject.
     fn refusing_body<T: Decide>() -> Body<T> {
         let mut b = Body::new();
-        b.mvfs(Point3::new(T::zero(), T::zero(), T::zero()))
+        b.mvfs(Point3::new(T::zero(), T::zero(), T::zero()), true)
             .expect("mvfs has no preconditions");
         b
     }
@@ -3226,8 +3192,10 @@ mod recourse_tests {
         for arm in &arms {
             let msg = arm.to_string();
             let lower = msg.to_lowercase();
+            // Where there is no way through, the sentence says so.
             assert!(
-                RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
+                RECOURSE_VERBS.iter().any(|v| lower.contains(v))
+                    || lower.contains("there is no way through"),
                 "no recourse in: {msg}"
             );
         }

@@ -12,13 +12,13 @@ cost: D
 
 RING-2 (PR #3032) made the C9 ring's refusal a decoration, so a
 refused bracket carries ordinary endpoints and every one-sided read
-has to ask `is_poison()` by name. The rewrite is correct and the
-census (`crates/geom-core/tests/ring_endpoint_census.rs`) holds it —
+has to ask `!is_certified()` by name. The rewrite is correct and the
+census (`crates/geom-core/tests/certified_endpoint_census.rs`) holds it —
 but it landed as **twelve hand-written copies of two three-line
 bodies**, one per site, and both reviewers found the same thing
 independently.
 
-**The mignitude — `is_poison → 0`, then `lo > 0 ? lo : hi < 0 ? −hi : 0`
+**The mignitude — `!is_certified() → 0`, then `lo > 0 ? lo : hi < 0 ? −hi : 0`
 — byte-identical at three sites and partial at a fourth:**
 
 | site | name |
@@ -32,7 +32,7 @@ The first two declare the duplication at both sites ("Kept separate
 rather than shared… the shared body is four comparisons"); the third
 and fourth declare neither.
 
-**The refuse-then-read reader — `is_poison → NaN`, else the endpoint —
+**The refuse-then-read reader — `!is_certified() → NaN`, else the endpoint —
 eight spellings, seven of them anonymous:**
 
 | site | name |
@@ -88,3 +88,12 @@ copies — `ssi/enclose.rs`'s `zero_free_lower_bound` (moved there from
 `ssi/exhaust.rs`'s zero-free predicate, which asks the same comparison
 pair. Both RING-5 reviews found the triplication again (R1 style S1);
 this row is where it is scheduled, so no second row was filed.
+
+## Note from SCALAR (2026-09-29)
+
+"Why it is a row and not a fix" argues from before RING-3: its home
+(`RingInterval`'s inherent readers, `ring_interval.rs`, RING-2's fence)
+and its second bullet (fold during RING-3) are moot. RING-3 (#3153)
+landed without the fold, and the home is now the `Certification` trait
+(the RING-5 section above). The twelve copies and the case for one
+fold stand; the tables' sites were re-read on this main.

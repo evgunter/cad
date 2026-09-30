@@ -26,8 +26,8 @@ use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, LoopProgram, Node,
-    NodeError, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
-    SlotId,
+    NodeError, NodeErrorKind, NodeResult, NodeStanding, PartSelect, PatternKind, ProfileProgram,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -288,7 +288,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
         format!(
             "the edit was refused: the node this edit writes would be invalid: \
              node {} is taken as an input twice — a node's inputs are pairwise \
-             distinct. Replace one of the two with a different node.",
+             distinct. Recourse: replace one of the two with a different node",
             a.0
         )
     );
@@ -727,11 +727,15 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
         eval.value(loose).is_some(),
         "the unfused pattern over the same rule still evaluates"
     );
-    let badge = tree::rows(session.committed_doc(), Some(eval))
-        .into_iter()
-        .find(|row| row.id == crowded)
-        .map(|row| row.status);
-    let Some(RowStatus::Failed { message }) = badge else {
+    let badge = tree::rows(
+        session.committed_doc(),
+        Some(eval),
+        &viewer::parts::PartFiles::default(),
+    )
+    .into_iter()
+    .find(|row| row.id == crowded)
+    .map(|row| row.status);
+    let Some(RowStatus::Failed { message, .. }) = badge else {
         panic!("the tree badge carries the node's own refusal: {badge:?}");
     };
     assert!(
@@ -1100,11 +1104,15 @@ fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
             eval.value(pattern).is_none(),
             "a pattern of {count} instances does not evaluate to a value"
         );
-        let badge = tree::rows(session.committed_doc(), Some(eval))
-            .into_iter()
-            .find(|row| row.id == pattern)
-            .map(|row| row.status);
-        let Some(RowStatus::Failed { message }) = badge else {
+        let badge = tree::rows(
+            session.committed_doc(),
+            Some(eval),
+            &viewer::parts::PartFiles::default(),
+        )
+        .into_iter()
+        .find(|row| row.id == pattern)
+        .map(|row| row.status);
+        let Some(RowStatus::Failed { message, .. }) = badge else {
             panic!("the tree badge carries the node's own refusal: {badge:?}");
         };
         assert!(
@@ -1260,10 +1268,8 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 /// this instead.
 ///
 /// The array is `ToolKind::ALL`-wide and its position per kind is the
-/// kind's position in `ALL`, stated by an exhaustive match rather than
-/// left to the reader's eye — so a tool added to the set widens the
-/// array, has to be answered for here, and the exclusivity row keeps
-/// covering every pair with no count and no order written out twice.
+/// kind's position in `ALL`, so the exclusivity row covers every pair
+/// with no count and no order written out twice.
 fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
     ToolKind::ALL.map(|kind| match kind {
         ToolKind::Mate => tools.mate().is_some(),
@@ -1940,23 +1946,27 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     doc = next;
     let (next, body_b) = common::inserted(
         &doc,
-        Node::Transform {
-            input: extruded_b,
-            translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
-            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            extruded_b,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
     doc = next;
     let (next, other) = common::inserted(
         &doc,
-        Node::Transform {
-            input: body,
-            translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
-            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            body,
+            pncad::document::Step::Rigid {
+                translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
     doc = next;
@@ -2055,12 +2065,14 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         ),
         (
             "transform",
-            Node::Transform {
-                input: body,
-                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                body,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
         ),
         (
             "split",
@@ -2139,12 +2151,14 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         let (with_candidate, candidate) = common::inserted(&doc, node, tol);
         let (with_probe, probe) = common::inserted(
             &with_candidate,
-            Node::Transform {
-                input: candidate,
-                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                candidate,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
             tol,
         );
         let mut session = DocSession::inline(with_probe, tol);
@@ -2731,12 +2745,14 @@ fn the_part_seats_track_the_evaluators_part_door() {
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        Node::Transform {
-            input: pattern,
-            translation: len3([0.0; 3]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pattern,
+            pncad::document::Step::Rigid {
+                translation: len3([0.0; 3]),
+                axis: scl3([0.0, 0.0, 1.0]),
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
 
@@ -3144,12 +3160,14 @@ fn duplicating_a_several_body_value_is_refused() {
     let mut doc = session.committed_doc().clone();
     let placed = common::insert_into(
         &mut doc,
-        Node::Transform {
-            input: pattern,
-            translation: len3([0.0, 0.05, 0.0]),
-            rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pattern,
+            pncad::document::Step::Rigid {
+                translation: len3([0.0, 0.05, 0.0]),
+                axis: scl3([0.0, 0.0, 1.0]),
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
@@ -3163,6 +3181,43 @@ fn duplicating_a_several_body_value_is_refused() {
         ),
         "{:?}",
         out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing committed");
+}
+
+/// **A failed body has nothing to copy, and the refusal says its
+/// standing**: which node, what state, where the repair is.
+#[test]
+fn duplicating_a_failed_body_says_its_standing() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    assert!(
+        session
+            .perform(SessionOp::SetSlot {
+                node: body,
+                slot: SlotId::Distance,
+                value: viewer::props::SlotValue::of(Dimension::Length, 0.0)
+                    .expect("a finite length is a value"),
+            })
+            .refusal
+            .is_none()
+    );
+    session.pump();
+    let before = session.committed_doc().clone();
+    let out = session.perform(SessionOp::Duplicate { input: body });
+    let standing = NodeStanding::Failed { node: body };
+    let Some(Refusal::Duplicate(fault)) = &out.refusal else {
+        panic!("a duplicate refusal, got {:?}", out.refusal);
+    };
+    assert!(
+        matches!(fault, DuplicateFault::NoValue(carried) if *carried == standing),
+        "{fault:?}"
+    );
+    assert_eq!(
+        fault.to_string(),
+        format!("there is no body to copy: {standing}")
     );
     assert!(session.committed_doc().bit_eq(&before), "nothing committed");
 }

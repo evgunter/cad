@@ -134,6 +134,9 @@ fn line(name: &str, body: &Body<f64>) -> String {
             m.volume_pad.to_bits(),
             m.area_pad.to_bits(),
         ),
+        // The refusal's sentence leaves the face's key out; the walk's
+        // choice of WHICH face refused is part of what is pinned.
+        Err(e @ topo::MassPropsError::Face { face, .. }) => format!("REFUSED at {face:?}: {e}"),
         Err(e) => format!("REFUSED {e}"),
     };
     format!("{name} {read} | {}", channels(&bracket.finish()))
@@ -254,7 +257,7 @@ fn digest() -> String {
 /// regression as the baseline — not to make a pinned number a
 /// contract. A branch re-cuts on itself exactly when its own change is
 /// what moved the table AND the new reading is the right answer, with
-/// the cause named at the cut: `work/scalar/H5.md` ruling 2 (a
+/// the cause named at the cut: H5's ratified ruling 2 (PR 2701) (a
 /// certified bound that gets tighter re-baselines like any other move)
 /// and `memories/output-stability-as-justification.md`. Anything else
 /// — a move the branch cannot explain, or one in the wrong direction —
@@ -291,6 +294,21 @@ fn digest() -> String {
 /// (`geom_core::sym`'s `form_in`: "a node absent from this leaf's table
 /// is frozen here by design") and now expands. Measured by switching
 /// the pass off on a probe branch, which restores the old column.
+///
+/// **Re-cut at all three ε when the sketch pushforward began reading
+/// its segment's stored centre and sweep** (`geom_brep::SketchSegment`,
+/// #3254) instead of rebuilding them inside `eval` from the chord and
+/// the bulge. Only the `frozen` column of the two `validate_geometric`
+/// rows moves, and down: `sym_arc_loft` 685 → 656 / 599 → 570 /
+/// 670 → 641 and `sym_thin_strip` 860 → 803 / 825 → 768 / 858 → 801 at
+/// ε = 1e-6 / 1e-9 / 1e-12. Decisions, discharges, shapes and verdicts
+/// are unchanged: the pushforward shares the carrier's centre node, so
+/// fewer operands reach the walk as nodes absent from its table.
+///
+/// **Re-cut at all three ε when `MassPropsError`'s sentence dropped its
+/// stage prefix and the face's key.** Only the text after `REFUSED`
+/// moves; the refusing face stays pinned, now by the line's own
+/// `at FaceKey(…)`, and no verdict, pad or count changes.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

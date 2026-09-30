@@ -63,8 +63,14 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
         let Ok(r) = n.reversed_v() else {
             continue;
         };
-        body.set_face_surface(fk, FaceSurface::New(Surface::Nurbs(Arc::new(r))))
-            .expect("the face key resolves");
+        body.set_face_surface(
+            fk,
+            FaceSurface::New {
+                surface: Surface::Nurbs(Arc::new(r)),
+                sense: true,
+            },
+        )
+        .expect("the face key resolves");
         reversed += 1;
     }
     assert_eq!(

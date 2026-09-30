@@ -31,8 +31,8 @@
 //! The shape is the injected plane × NURBS lane's ([`crate::NurbsLane`]),
 //! for the same reason and with the same discipline: a caller that can
 //! derive hands the door in, a caller that cannot hands `None` and gets
-//! the typed refusal its pass already had. Under `work/scalar/H5.md`
-//! §RATIFIED ruling 3 the door is the parameter a mixed pass takes;
+//! the typed refusal its pass already had. Under H5's ratified ruling 3
+//! (PR 2701) the door is the parameter a mixed pass takes;
 //! the scalar seam that produces it is the per-scalar policy that cut
 //! leaves standing, folded into `topo::AtRestPolicy` rather than
 //! carried on a trait of its own.
@@ -79,6 +79,35 @@ pub struct OffsetFitLane<T: Real> {
         geom::ApproxWindow,
         Tol,
     ) -> Result<geom::OffsetCertificate, OffsetFitError>,
+}
+
+/// The scalars that hold an [`OffsetFitLane`], by their
+/// [`Real::NAME`]s — the replay list the offset-fit refusals render.
+/// Membership is the policy's answer, which this crate cannot read, so
+/// topo pins it against `AtRestPolicy::offset_fit_lane` at every scalar
+/// (`lane0_r2_probes.rs`).
+pub const OFFSET_FIT_DOOR_HOLDERS: &[&str] = &[<f64 as Real>::NAME];
+
+/// A list of scalar names rendered as one noun phrase — `the f64
+/// scalar`, `the f64, interval or symbolic scalar` — for a refusal
+/// that says where a door is held.
+#[derive(Clone, Copy, Debug)]
+pub struct ScalarList(pub &'static [&'static str]);
+
+impl core::fmt::Display for ScalarList {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("the ")?;
+        let n = self.0.len();
+        for (i, name) in self.0.iter().enumerate() {
+            let sep = match (i, n - i) {
+                (0, _) => "",
+                (_, 1) => " or ",
+                _ => ", ",
+            };
+            write!(f, "{sep}{name}")?;
+        }
+        f.write_str(" scalar")
+    }
 }
 
 impl OffsetFitLane<f64> {
@@ -179,18 +208,8 @@ impl<T: Real> OffsetFitLane<T> {
 /// free function each limb of [`OffsetFitLane::fit`] is, rather than
 /// what that function answered.
 ///
-/// A row that compares outputs cannot see a door re-pointed at a
-/// routine that agrees on the fixture in front of it — the neighbouring
-/// `_at` instrument at the fixture's own tolerance agrees exactly on
-/// the certify limb, and a same-signature closure can agree by
-/// construction. The helper compares the stored function pointers
-/// instead, so a re-point is a failure no matter what it computes.
-///
-/// Function-pointer identity is what `std::ptr::fn_addr_eq` compares
-/// and is not a language guarantee (identical function bodies may be
-/// merged), which costs nothing here: the two bodies differ, and a
-/// false PASS from a merge would need the re-pointed routine to be
-/// instruction-identical to the one it replaced.
+/// Why a wiring row compares pointers rather than outputs:
+/// `crates/topo/tests/certified_enclosure_impl_census.rs`'s module doc.
 ///
 /// The door is formed at `f64` alone — its one constructor is concrete
 /// — so its helper is not generic and its roster is one row.

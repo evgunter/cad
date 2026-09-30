@@ -26,12 +26,14 @@ use geom_core::Tol;
 fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(dx), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(dx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     )
 }
 
@@ -168,7 +170,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
                 tr,
                 fname(
                     b0,
-                    editor_core::RoleSeg::Lateral(crate::fixture::no_piece()),
+                    editor_core::RoleSeg::Lateral(crate::fixture::no_piece_of(&doc)),
                 ),
             ),
         )]),

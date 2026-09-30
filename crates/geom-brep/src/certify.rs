@@ -476,7 +476,7 @@ impl core::fmt::Display for CertifyError {
             } => write!(
                 f,
                 "the stored parameter interval runs backwards — increasing parameter must \
-                 run start → end of he_plus (the ratified vertices-derive-bounds convention)"
+                 run from the edge's start vertex to its end vertex"
             ),
             Self::WindingExceeded => write!(
                 f,
@@ -2610,8 +2610,8 @@ mod tests {
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
     use geom_core::{
-        Affine3, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Point2,
-        Vec3,
+        Affine3, Arc2, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING,
+        Point2, Vec3,
     };
 
     use crate::mapped::{MappedCurve, SketchSegment};
@@ -3868,19 +3868,23 @@ mod tests {
         EdgeCurve::certify(spec.clone(), p, p, |_| None, band()).unwrap();
     }
 
-    /// A placed-arc mapped curve against a circle carrier: the quarter
-    /// arc of PR 2's bulge conventions, certified against its Circle3.
+    /// A placed-arc mapped curve against a circle carrier: the
+    /// counterclockwise quarter of the unit circle, certified against
+    /// its Circle3.
     #[test]
     fn placed_arc_certifies_against_circle_carrier() {
         use core::f64::consts::FRAC_PI_2;
-        let bulge = (core::f64::consts::PI / 8.0).tan();
         let place = Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),
-                    bulge,
+                    arc: Arc2 {
+                        centre: Point2::new(0.0, 0.0),
+                        radius: 1.0,
+                        sweep: FRAC_PI_2,
+                    },
                 },
                 place,
             }),
@@ -4365,8 +4369,8 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        let payload = "the start-endpoint residual at sample 0 escalated: predicate 'a_probe' \
-                       indeterminate: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8)";
+        let payload = "the start-endpoint residual at sample 0 escalated: margin 5e-9 lies \
+                       inside the ambiguity band (1e-9, 1e-8)";
         // `Display` is the payload; the door's reading supplies the end.
         assert_eq!(escalated.to_string(), payload);
         assert_eq!(

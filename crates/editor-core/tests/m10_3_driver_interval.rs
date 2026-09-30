@@ -73,11 +73,11 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::from_static(n)
 }
 
-fn param(n: &str) -> Expr {
+fn param(n: &'static str) -> Expr {
     Expr::param(name(n), Dimension::Length)
 }
 
@@ -216,16 +216,18 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
         profile: p,
         distance: len(1.0),
     });
-    r.insert(Node::Transform {
-        input: block,
-        translation: [len(0.0), len(0.0), len(0.0)],
-        rotation_axis: [
-            scl(0.0),
-            scl(0.0),
-            Expr::param(name("axis"), Dimension::Scalar),
-        ],
-        rotation_angle: ang(0.0),
-    });
+    r.insert(Node::transform(
+        block,
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), len(0.0)],
+            axis: [
+                scl(0.0),
+                scl(0.0),
+                Expr::param(name("axis"), Dimension::Scalar),
+            ],
+            angle: ang(0.0),
+        },
+    ));
     r.doc
 }
 
@@ -535,7 +537,9 @@ fn node_failures(doc: &editor_core::ProfileDoc, analyzed: &AnalyzedBox) -> Vec<S
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()

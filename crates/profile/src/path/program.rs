@@ -1862,6 +1862,7 @@ transition_table! {
                         radius,
                     }],
                 })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
             }
             arms {
                 Entry => Ok(Applied::Closed(circle(centre, radius, tol)?)),
@@ -1924,6 +1925,7 @@ transition_table! {
                         phase,
                     }],
                 })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
             }
             arms {
                 Entry => Ok(Applied::Closed(

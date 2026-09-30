@@ -429,7 +429,8 @@ fn cup_with(
 #[test]
 fn the_refusals_are_typed_and_their_texts_pinned() {
     // (a) a name the target never minted — Vanished through N5.
-    let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(fixture::no_piece()));
+    let piece = fixture::no_piece_of(&cup::document().doc);
+    let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
@@ -630,7 +631,10 @@ fn a_dual_evaluation_refuses_the_shell_typed() {
         match ev.nodes.get(&shell) {
             Some(NodeResult::Failed(e)) => {
                 assert!(
-                    matches!(e.kind, NodeErrorKind::ShellLaneUnsupported { lane: "Dual" }),
+                    matches!(
+                        e.kind,
+                        NodeErrorKind::ShellLaneUnsupported { scalar: "dual" }
+                    ),
                     "{}: expected the lane refusal, got {:?}",
                     d.name,
                     e.kind

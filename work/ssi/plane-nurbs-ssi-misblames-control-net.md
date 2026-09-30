@@ -21,22 +21,21 @@ Measured while writing the D286 fixture for the CERT-2 lane (SMELL scan Track Q,
 `plane_nurbs_ssi(&plane, &wall, …)` with a **finite, ordinary wall** and a plane whose `origin` carries `+∞` (or `NaN`) in one coordinate refuses with:
 
 ```
-ssi: the NURBS control-net enclosure poisoned over a cell — a weight so small that
-the rational's own denominator underflows to zero, or homogeneous arithmetic that
-does not stay finite over the net
+ssi: the NURBS control-net enclosure refused over a cell — a weight so small that
+the rational's own denominator underflows to zero
 ```
 
-The wall is the acceptance suite's own substrate net: order-1 control points, unit weights, a chart speed of ~25 m per parameter unit. Nothing about its control net poisoned anything. The plane did.
+The wall is the acceptance suite's own substrate net: order-1 control points, unit weights, a chart speed of ~25 m per parameter unit. Nothing about its control net caused the refusal. The plane did.
 
 ## Why
 
 `sweep_chart_plane`'s cell predicate is `φ = n·(S(u,v) − p₀)`, built as
 
 ```rust
-RingInterval::point(plane_normal.x) * (b.x - RingInterval::point(plane_origin.x)) + …
+Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x)) + …
 ```
 
-`RingInterval::point` is poison for a non-finite argument — deliberately, and its doc says why ("an infinite *point* would launder overflow into data"). So a non-finite `p₀` poisons `φ` on the first cell, and the chart sweep's poison arm answers. That arm's sentence describes the net, because the net is the only thing it was written about.
+`Interval::point` (`Certification::point`) is NaI, the permanent refusal, for a non-finite argument — deliberately, and its doc says why ("an infinite *point* would launder overflow into data"). So a non-finite `p₀` makes `φ` refused on the first cell, and the chart sweep's refusal arm answers. That arm's sentence describes the net, because the net is the only thing it was written about.
 
 ## Why it matters
 

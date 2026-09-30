@@ -66,7 +66,7 @@
 use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
-use crate::eval::{DatumValue, Evaluation, NodeResult, ValuePayload};
+use crate::eval::{DatumValue, Evaluation, NodeStanding, ValuePayload};
 use crate::expr::{Dimension, Expr, ParamEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
@@ -189,9 +189,11 @@ pub enum GeomPred {
 /// answers the ambient tolerance, which `select_where` asks about
 /// unconditionally before it reads a single candidate. The static
 /// faults of a malformed query — [`NotADatum`](Self::NotADatum),
+/// [`DatumHasNoValue`](Self::DatumHasNoValue),
 /// [`NotALength`](Self::NotALength), [`BadValue`](Self::BadValue) —
-/// and the detector's [`PairInBand`](Self::PairInBand) are about the
-/// query and the pair, not about the filter's exactness.
+/// and the detector's [`PairInBand`](Self::PairInBand) and
+/// [`NodeHasNoValue`](Self::NodeHasNoValue) are about the query and
+/// the pair, not about the filter's exactness.
 /// One door with one contract was preferred over splitting into an
 /// infallible and a fallible materializer.
 #[derive(Debug)]
@@ -231,14 +233,25 @@ pub enum SelectRefusal {
         /// Why.
         error: InterrogateError,
     },
-    /// The referenced datum node is not an evaluated datum.
+    /// The referenced datum node evaluated to something other than a
+    /// datum.
     NotADatum {
         /// The node referenced by [`GeomPred::DatumDistance`].
         datum: RecipeNodeId,
-        /// What that node produced instead (`ValuePayload::kind_name`),
-        /// or why it has no value at all.
+        /// What that node produced instead (`ValuePayload::kind_name`).
         found: &'static str,
     },
+    /// The referenced datum node has no value in this evaluation.
+    DatumHasNoValue(
+        /// The datum node's standing.
+        NodeStanding,
+    ),
+    /// One of the flush detector's two nodes has no value in this
+    /// evaluation, so there is no geometry to pair.
+    NodeHasNoValue(
+        /// That node's standing.
+        NodeStanding,
+    ),
     /// The stated value is not a length (`Dimension::Length`) — the
     /// comparand of a distance must be a distance.
     NotALength {
@@ -342,6 +355,15 @@ impl core::fmt::Display for SelectRefusal {
                  a datum — point a distance query at an evaluated datum",
                 datum.0
             ),
+            Self::DatumHasNoValue(standing) => {
+                write!(
+                    f,
+                    "select: the distance query's datum has no value: {standing}"
+                )
+            }
+            Self::NodeHasNoValue(standing) => {
+                write!(f, "select: the flush query's node has no value: {standing}")
+            }
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \
@@ -421,9 +443,10 @@ pub(crate) enum Prepared<'a, T: Decide> {
 ///
 /// # Errors
 ///
-/// [`SelectRefusal::NotADatum`], [`SelectRefusal::NotALength`],
-/// [`SelectRefusal::BadValue`] — all three are STATIC faults of the
-/// query itself, so they surface before a single margin is taken.
+/// [`SelectRefusal::NotADatum`], [`SelectRefusal::DatumHasNoValue`],
+/// [`SelectRefusal::NotALength`], [`SelectRefusal::BadValue`] — faults
+/// of the query's own references, so they surface before a single
+/// margin is taken.
 pub(crate) fn prepare<'a, T: Decide>(
     ev: &'a Evaluation<T>,
     geom: &[GeomPred],
@@ -438,26 +461,18 @@ pub(crate) fn prepare<'a, T: Decide>(
                 if value.dim() != Dimension::Length {
                     return Err(SelectRefusal::NotALength { dim: value.dim() });
                 }
-                let found = match ev.nodes.get(datum) {
-                    Some(NodeResult::Ok(v)) => match &v.payload {
-                        ValuePayload::Datum(d) => {
-                            return Ok(Prepared::Distance {
-                                datum: d,
-                                cmp: *cmp,
-                                value: crate::expr::eval(value, params)
-                                    .map_err(SelectRefusal::BadValue)?,
-                            });
-                        }
-                        other => other.kind_name(),
-                    },
-                    Some(NodeResult::Failed(_)) => "a failed node",
-                    Some(NodeResult::Poisoned { .. }) => "a poisoned node",
-                    None => "an unevaluated node",
-                };
-                Err(SelectRefusal::NotADatum {
-                    datum: *datum,
-                    found,
-                })
+                let v = ev.usable(*datum).map_err(SelectRefusal::DatumHasNoValue)?;
+                match &v.payload {
+                    ValuePayload::Datum(d) => Ok(Prepared::Distance {
+                        datum: d,
+                        cmp: *cmp,
+                        value: crate::expr::eval(value, params).map_err(SelectRefusal::BadValue)?,
+                    }),
+                    other => Err(SelectRefusal::NotADatum {
+                        datum: *datum,
+                        found: other.kind_name(),
+                    }),
+                }
             }
         })
         .collect()
@@ -557,6 +572,8 @@ mod census {
             TiedDisagrees,
             Unreadable,
             NotADatum,
+            DatumHasNoValue,
+            NodeHasNoValue,
             NotALength,
             PairInBand,
             BadValue,
@@ -602,6 +619,13 @@ mod census {
                 datum: RecipeNodeId(9),
                 found: "a body",
             },
+            SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
+                node: RecipeNodeId(9),
+                through: RecipeNodeId(4),
+            }),
+            SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
+                node: RecipeNodeId(9),
+            }),
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
             },

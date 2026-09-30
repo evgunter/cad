@@ -299,7 +299,9 @@ pub enum Standing {
     Face {
         /// The selection.
         face: FaceSelection,
-        /// What the shipped resolution machinery answered — `None`
+        /// What the shipped resolution machinery answered, the node an
+        /// indeterminate verdict waits on named as the feature tree
+        /// names it ([`crate::tree::resolution_as_drawn`]) — `None`
         /// when there is no evaluation to answer against yet, which is
         /// neither "live" nor "vanished" and is not reported as
         /// either.
@@ -308,6 +310,10 @@ pub enum Standing {
         /// carrying a diagnosis and a tombstone is an order of
         /// magnitude wider than the other arms here, and this value is
         /// returned by value on every frame.
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         resolution: Option<Box<Resolution>>,
     },
     /// An edge selection, and the resolution verdict its name got.
@@ -320,8 +326,9 @@ pub enum Standing {
     Edge {
         /// The selection.
         edge: EdgeSelection,
-        /// What the shipped resolution machinery answered — `None`
-        /// when there is no evaluation to answer against yet.
+        /// What the shipped resolution machinery answered, read as
+        /// [`Standing::Face`]'s is — `None` when there is no evaluation
+        /// to answer against yet.
         resolution: Option<Box<Resolution>>,
     },
 }
@@ -446,7 +453,7 @@ mod tests {
             present,
         };
         let param = |present| Standing::Param {
-            name: ParamName("thickness".to_owned()),
+            name: ParamName::from_static("thickness"),
             present,
         };
         assert_eq!(node(false).tone(), Tone::Actionable);

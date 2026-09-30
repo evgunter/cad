@@ -58,12 +58,14 @@ fn block(
 fn placed(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
-        Node::Transform {
+        Node::transform(
             input,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     )
 }
 
@@ -180,9 +182,14 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
         // Landing short of the cap's far edge, the bar's y = y0 wall
         // starts crossing the cap, and both its x walls leave the cap's
         // near rim edge.
+        // The cutters are read in name order.
         let (gone, new) = match name.kind {
             EntityKind::Face => (vec![], vec![wall(0)]),
-            _ => (vec![wall(1), wall(3)], vec![]),
+            _ => {
+                let mut gone = vec![wall(1), wall(3)];
+                gone.sort();
+                (gone, vec![])
+            }
         };
         assert_eq!(
             diagnosis((&doc2, &ev2), (&doc, &ev1), name),

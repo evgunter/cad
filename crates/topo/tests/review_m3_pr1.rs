@@ -179,7 +179,7 @@ fn plant_detached_box(
         .unwrap();
     body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
         .unwrap();
-    body.mfkrh_plug(planted.ring).unwrap().face
+    body.mfkrh_plug(planted.ring, true).unwrap().face
 }
 
 /// [`common::declined_cube`] at `f64`, reduced to the two things this
@@ -276,7 +276,7 @@ fn movefac_empty_outer_face_is_own_component() {
         .unwrap();
     let planted = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // Promote the EMPTY ring directly: an empty-outer face, detached.
-    let lone_face = body.mfkrh_plug(planted.ring).unwrap().face;
+    let lone_face = body.mfkrh_plug(planted.ring, true).unwrap().face;
     assert_eq!(validate(&body), Ok(()));
     let errs = validate_closed(&body).unwrap_err();
     let pass11 = errs
@@ -572,7 +572,7 @@ fn split_edge_interiority_band_edges() {
     ] {
         let err = cube.body.split_edge(edge, t, Tol::witness()).unwrap_err();
         assert!(
-            matches!(err, EulerOpError::SplitParamNotInterior { edge: e } if e == edge),
+            matches!(err, EulerOpError::SplitParamNotInterior { edge: e, .. } if e == edge),
             "t = {t}: expected SplitParamNotInterior, got {err:?}"
         );
         assert_eq!(dump(&cube.body), before, "refusal at t = {t} mutated");
@@ -761,7 +761,10 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
                 he2: e_rs.he_minus,
             },
             line(pp, ps),
-            FaceSurface::New(top_plane.clone()),
+            FaceSurface::New {
+                surface: top_plane.clone(),
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
@@ -803,7 +806,10 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
             .mef(
                 MefSite::Chords { he1, he2 },
                 spec,
-                FaceSurface::New(top_plane.clone()),
+                FaceSurface::New {
+                    surface: top_plane.clone(),
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap();
@@ -816,7 +822,13 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
         u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
     };
     cube.body
-        .set_face_surface(center, FaceSurface::New(numeric_plane))
+        .set_face_surface(
+            center,
+            FaceSurface::New {
+                surface: numeric_plane,
+                sense: true,
+            },
+        )
         .unwrap();
     // Tier 2 (chord-line descriptions are not intrinsic, so tier 3's
     // TransverseNotIntrinsic applies by design; the coplanar plateau
@@ -998,7 +1010,10 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
             .mef(
                 MefSite::Chords { he1, he2 },
                 line(pa, pc),
-                FaceSurface::New(variant),
+                FaceSurface::New {
+                    surface: variant,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap();
@@ -1135,12 +1150,21 @@ fn merge_coplanar_nan_payload_debug_collision() {
         .mef(
             MefSite::Chords { he1, he2 },
             line(pa, pc),
-            FaceSurface::New(nan_plane(0x7ff8_0000_0000_0001)),
+            FaceSurface::New {
+                surface: nan_plane(0x7ff8_0000_0000_0001),
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
     cube.body
-        .set_face_surface(top, FaceSurface::New(nan_plane(0x7ff8_0000_0000_0002)))
+        .set_face_surface(
+            top,
+            FaceSurface::New {
+                surface: nan_plane(0x7ff8_0000_0000_0002),
+                sense: true,
+            },
+        )
         .unwrap();
     let _ = split;
     // Tier 2 (structural) passes: the gate merge_coplanar_faces runs.
@@ -1175,7 +1199,13 @@ fn merge_coplanar_full_plateau_atomicity() {
         Tol::witness(),
     );
     cube.body
-        .set_face_surface(center, FaceSurface::New(top_plane))
+        .set_face_surface(
+            center,
+            FaceSurface::New {
+                surface: top_plane,
+                sense: true,
+            },
+        )
         .unwrap();
     // Re-stamp: the center's replacement surface joins the shared
     // source (the M4 PR 5 form of "declared-equal center").

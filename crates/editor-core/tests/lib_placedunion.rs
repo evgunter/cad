@@ -116,12 +116,14 @@ fn the_fin_group_equals_the_transform_union_chain() {
         let tr = apply(
             &chain,
             &DocEdit::InsertNode {
-                node: Node::Transform {
-                    input: fin,
-                    translation: [len(f64::from(i) * PITCH), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: ang(0.0),
-                },
+                node: Node::transform(
+                    fin,
+                    editor_core::Step::Rigid {
+                        translation: [len(f64::from(i) * PITCH), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                ),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -516,7 +518,7 @@ fn an_empty_placement_list_refuses_like_a_zero_count() {
     let (doc, fin) = fin_only();
     let empty: Node<editor_core::ProfileProgram> = Node::placed_union_at(fin, Vec::new());
     assert_eq!(
-        empty.placement_rule_fault(),
+        empty.placement_rule_fault(Tol::witness()),
         Some(PlacementRuleFault::NoPlacements),
         "the shared door names it — this is what eval backstops on"
     );
@@ -616,7 +618,7 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
 
     let nan = Frame::translation([f64::NAN, 0.0, 0.0]);
     assert_eq!(
-        with(nan).placement_rule_fault(),
+        with(nan).placement_rule_fault(Tol::witness()),
         Some(PlacementRuleFault::NonFiniteFrame { index: 0 }),
         "named for what it is, not as an uncertified separation"
     );
@@ -634,13 +636,42 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
     let mut mirror = Frame::IDENTITY;
     mirror.columns[0] = [-1.0, 0.0, 0.0];
     assert!(matches!(
-        with(mirror).placement_rule_fault(),
+        with(mirror).placement_rule_fault(Tol::witness()),
         Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
     ));
     assert!(matches!(
         apply(&doc, &DocEdit::InsertNode { node: with(mirror) }, Tol::witness(), &editor_core::RefusingReach),
         Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
     ));
+
+    // A proper frame that scales an axis: refused at the edit door by
+    // the predicate the evaluation moves a body by, naming the listed
+    // placement, rather than by the evaluation as `NotRigid` (or as an
+    // uncertified separation, when the scaled copy overlaps another).
+    let mut stretched = Frame::translation([10.0, 0.0, 0.0]);
+    stretched.columns[0] = [2.0, 0.0, 0.0];
+    assert!(matches!(
+        with(stretched).placement_rule_fault(Tol::witness()),
+        Some(PlacementRuleFault::NonRigidFrame { index: 0, .. })
+    ));
+    let two =
+        Node::<editor_core::ProfileProgram>::placed_union_at(fin, vec![Frame::IDENTITY, stretched]);
+    match apply(
+        &doc,
+        &DocEdit::InsertNode { node: two },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(error @ EditError::NonRigidPlacement { at, .. }) => {
+            assert_eq!(at, editor_core::FrameSite::Listed { index: 1 });
+            let text = error.to_string();
+            assert!(
+                text.contains("placement 1 of node") && text.contains("Recourse:"),
+                "names the listed placement and its recourse: {text}"
+            );
+        }
+        other => panic!("a scaled listed frame must refuse typed, got {other:?}"),
+    }
 
     // A proper frame at the same site still goes through — the gate
     // refuses the two states, not rotations in general.
@@ -651,7 +682,7 @@ fn placement_frames_are_held_to_the_cluster_frame_bar() {
         fixture::band(),
     )
     .expect("a literal axis has a definite direction");
-    assert_eq!(with(turned).placement_rule_fault(), None);
+    assert_eq!(with(turned).placement_rule_fault(Tol::witness()), None);
     assert!(
         apply(
             &doc,
@@ -726,12 +757,14 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
         let tr = apply(
             &cdoc,
             &DocEdit::InsertNode {
-                node: Node::Transform {
-                    input: csolid,
-                    translation: [len(t[0]), len(t[1]), len(t[2])],
-                    rotation_axis: [scl(ax[0]), scl(ax[1]), scl(ax[2])],
-                    rotation_angle: ang(an),
-                },
+                node: Node::transform(
+                    csolid,
+                    editor_core::Step::Rigid {
+                        translation: [len(t[0]), len(t[1]), len(t[2])],
+                        axis: [scl(ax[0]), scl(ax[1]), scl(ax[2])],
+                        angle: ang(an),
+                    },
+                ),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

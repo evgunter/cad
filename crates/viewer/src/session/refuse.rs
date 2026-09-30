@@ -657,17 +657,22 @@ impl Refusal {
     /// census of call sites that nothing re-derives, and the rule is
     /// what does the work. Two independently-built copies is how the
     /// wording drifts from the decision.
-    pub fn affordance(params: &[ParamName], current: Option<SlotValue>) -> String {
+    ///
+    /// The current value is spelled as the slot's field spells it
+    /// ([`props::computed_text`], in the notation of `slot`'s
+    /// dimension for a computed value and carrying its symbol), so the
+    /// two never show one number two ways.
+    pub fn affordance(params: &[ParamName], slot: SlotId, current: Option<SlotValue>) -> String {
         let over = if params.is_empty() {
             "an expression".to_owned()
         } else {
-            let names: Vec<&str> = params.iter().map(|p| p.0.as_str()).collect();
+            let names: Vec<&str> = params.iter().map(ParamName::as_str).collect();
             format!("an expression over {}", names.join(", "))
         };
         match current {
             Some(value) => format!(
                 "driven by {over} (currently {}) — edit the expression?",
-                value.as_f64()
+                props::computed_text(slot.dimension(), value.as_f64())
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
@@ -687,14 +692,14 @@ impl Refusal {
     pub fn exists_wording(name: &ParamName, dimension: Dimension) -> String {
         format!(
             "parameter {} already exists ({dimension}) — edit it instead?",
-            name.0
+            name.as_str()
         )
     }
 
     /// The create-offer sentence, and its one home — shown over the
     /// add-parameter form when an expression refused on this name.
     pub fn offer_wording(name: &ParamName) -> String {
-        format!("create parameter {}?", name.0)
+        format!("create parameter {}?", name.as_str())
     }
 }
 
@@ -712,8 +717,11 @@ impl core::fmt::Display for Refusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {
-                params, current, ..
-            } => write!(f, "{}", Self::affordance(params, *current)),
+                slot,
+                params,
+                current,
+                ..
+            } => write!(f, "{}", Self::affordance(params, *slot, *current)),
             Self::NoSuchSlot { node, slot } => {
                 write!(f, "node {} has no {} slot", node.0, slot.label())
             }
@@ -721,7 +729,7 @@ impl core::fmt::Display for Refusal {
                 write!(
                     f,
                     "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
-                    name.0
+                    name.as_str()
                 )
             }
             Self::ParamNotANumber { name } => {
@@ -729,7 +737,7 @@ impl core::fmt::Display for Refusal {
                     f,
                     "parameter {} holds a number, not an expression — write a number, with a \
                      unit if you want one (50 mm)",
-                    name.0
+                    name.as_str()
                 )
             }
             Self::ParamExists { name, dimension } => {
@@ -864,13 +872,19 @@ pub enum FaceFrameFault {
     /// [`crate::drafts::CommitFault`]'s reason.
     ///
     /// **A pick whose node an undo took away arrives here**, as
-    /// [`InterrogateError::NodeNotEvaluated`] — the door's own word
-    /// for a node id this evaluation has no result for. It is not
+    /// [`InterrogateError::Standing`] carrying
+    /// [`pncad::document::NodeStanding::NotInDocument`] — the standing of
+    /// a node id the evaluated document does not have. It is not
     /// [`Self::NotOneBody`]: "several bodies" is a claim about a value
     /// that exists, and telling an author to project the one they mean
     /// would be advice about a feature that is gone.
     Unresolved {
-        /// The interrogation door's refusal.
+        /// The interrogation door's refusal, read as the feature tree
+        /// reads it ([`crate::tree::interrogation_as_drawn`]).
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         error: InterrogateError,
     },
     /// The face's carrier is not a plane, and a sketch frame wants
@@ -991,7 +1005,9 @@ pub fn face_frame_seat(
     match face_carrier_kind(ev, at, &face.name) {
         Ok(SurfaceKind::Plane) => Ok((at, face.name.clone())),
         Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
-        Err(error) => Err(FaceFrameFault::Unresolved { error }),
+        Err(error) => Err(FaceFrameFault::Unresolved {
+            error: crate::tree::interrogation_as_drawn(error, ev),
+        }),
     }
 }
 

@@ -28,8 +28,8 @@ use crate::common;
 use std::sync::Arc;
 
 use pncad::document::{
-    Doc, DocumentId, Expr, MeasureExpr, Node, ProductError, ProfileDoc, ProfileProgram, SitedRef,
-    gathers_on_this_thread,
+    Doc, DocumentId, Expr, MeasureExpr, Node, NodeStanding, ProductError, ProfileDoc,
+    ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
@@ -271,12 +271,14 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
     let moved = |doc: &Doc<ProfileProgram>, dx: f64| {
         common::inserted(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [common::len(dx), common::len(0.0), common::len(0.0)],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(dx), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
             tol,
         )
     };
@@ -431,7 +433,7 @@ fn an_assembly_whose_gather_refuses_keeps_the_refused_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::RootFailed { .. })
+            Some(ProductError::Root(NodeStanding::Failed { .. }))
         ),
         "the premise: a failed root, which is a refusal and not an absence: {:?}",
         session.product_fault()

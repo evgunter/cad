@@ -197,8 +197,7 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
-        + crate::lane::Lane,
+        + super::SectionScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
@@ -288,7 +287,9 @@ where
             env.boolean_sweep,
             tol,
         ),
-        Node::Transform { input, .. } => wire_transform(id, *input, results, vals, tol),
+        Node::Transform { input, placement } => {
+            wire_transform(id, *input, placement, results, vals, tol)
+        }
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
         // No `id`: the projection mints no description and no name, so
         // nothing it produces is stamped or keyed by this node.
@@ -297,7 +298,7 @@ where
             id,
             *input,
             kind,
-            node.placement_rule_fault(),
+            node.placement_rule_fault(tol),
             results,
             vals,
             tol,
@@ -380,8 +381,7 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
-        + crate::lane::Lane,
+        + super::SectionScalar,
 {
     let part = env
         .parts
@@ -407,10 +407,11 @@ where
             });
         }
     }
-    // The identity fast-path is admitted only for a BIT-exact identity
-    // frame: any other value could round, and `transform_rigid` is what
-    // decides whether it stayed rigid.
-    let map = (!placement.is_identity_bits()).then(|| placement.affine::<T>());
+    // The identity fast-path is the composition rule's
+    // (`placement::Motion`): admitted only for a BIT-exact identity
+    // frame, since any other value could round, and `transform_rigid`
+    // is what decides whether it stayed rigid.
+    let map = placement.motion::<T>().non_identity();
     let placed = place(&part.body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN declared contacts survive
@@ -634,12 +635,13 @@ fn value_of<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
 ) -> Result<&super::NodeValue<T>, NodeErrorKind> {
-    match results.get(&input) {
-        Some(NodeResult::Ok(v)) => Ok(v),
-        // Failed/Poisoned inputs never reach run_op; an absent entry
-        // is a dangling reference.
-        _ => Err(NodeErrorKind::MissingInput { input }),
-    }
+    // Failed/Poisoned inputs never reach run_op (the node is poisoned
+    // first), so the one standing that arrives is an absent entry: a
+    // dangling reference.
+    super::usable_in(results, input, || super::NodeStanding::NotInDocument {
+        node: input,
+    })
+    .map_err(|_| NodeErrorKind::MissingInput { input })
 }
 
 // OPERAND-DOOR BEGIN — the region the `wire_operand_door` suite's
@@ -834,6 +836,17 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// constant, so the telemetry and an escalation report the same name.
 pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 
+/// What one of this layer's decisions decides, in words
+/// (`crate::decision::words` reads them). `None` for a predicate this
+/// layer does not own.
+pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        EVAL_DIRECTION_NORM => "whether a direction has any length",
+        "revolve_full_vs_partial" => "whether the revolve makes a full turn",
+        _ => return None,
+    })
+}
+
 /// Normalizes a direction-valued vector; a non-finite length refuses,
 /// an underflowed one refuses, a decided-zero length refuses, in-band
 /// indeterminacy escalates.
@@ -896,9 +909,10 @@ pub(crate) fn need_scalar<T: Decide>(
 /// with the mate solve for the same reason.
 pub(crate) fn need_vec3<T: Decide>(
     vals: &SlotValues<T>,
-    f: fn(Axis3) -> SlotId,
+    f: impl Fn(Axis3) -> SlotId,
 ) -> Result<Vec3<T>, NodeErrorKind> {
-    slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
+    let slot = f(Axis3::X);
+    slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot })
 }
 
 fn need_point3<T: Decide>(
@@ -943,8 +957,11 @@ impl DirectionRefusal {
     /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
     /// spelling** from a carried or raised refusal to a
-    /// [`NodeErrorKind`]; `pub` because [`NodeErrorKind::FrameDirection`]'s
-    /// `Display` and tag spell through it too.
+    /// [`NodeErrorKind`]: [`NodeErrorKind::FrameDirection`]'s `Display`
+    /// and its class ([`NodeErrorKind::class`]) read through it, so the
+    /// carried refusal says and is what the frame's own raise says and
+    /// is. `pub` because the carried refusal is: a consumer holding one
+    /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
         refusal(self.error, self.role, DATUM_UNIT_NORM)
     }
@@ -1554,7 +1571,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// provenance stamp on everything the sweep minted, and the per-edge
 /// parameter sources the verb's flow declares.
 #[allow(clippy::too_many_arguments)] // `verb` is the correspondence, as in `wire_blend`
-fn wire_swept<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy, A>(
+fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
     id: RecipeNodeId,
@@ -1599,7 +1616,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPo
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
-fn wire_extrude<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -1642,7 +1659,7 @@ fn written_against(
 /// rule, the full-vs-partial classification), and the generic lowering
 /// from there.
 #[allow(clippy::too_many_arguments)] // the doc and the env are read for the frame rule and the tokens' scope
-fn wire_revolve<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
@@ -1857,7 +1874,7 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 /// refusal shape breaks here. The boolean's undeclared-coincidence
 /// refusal is intercepted first by [`refusal_menu`], which needs the
 /// operands' naming context.
-fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
+fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
@@ -1902,7 +1919,7 @@ fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeError
 /// verbs; which node minted a strip tells a chamfer from a fillet
 /// (RECIPE-DOORS D3).
 #[allow(clippy::too_many_arguments)] // `verb` is the correspondence that makes this one function
-fn wire_blend<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -1971,7 +1988,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPo
 /// The record is written by the doors as they act, so it is not an
 /// `Option`; the emitter translates every row.
 #[allow(clippy::too_many_arguments)] // the blend lowering's arguments, as `wire_blend`
-fn wire_shell<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -1991,10 +2008,8 @@ fn wire_shell<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPo
     let flow = built.param_flow();
     // A scalar that may not certify has no shell door and refuses here
     // rather than at an unvalidated hollow.
-    let door =
-        <T as topo::AtRestPolicy>::shell_door().ok_or(NodeErrorKind::ShellLaneUnsupported {
-            lane: <T as crate::lane::Lane>::NAME,
-        })?;
+    let door = <T as topo::AtRestPolicy>::shell_door()
+        .ok_or(NodeErrorKind::ShellLaneUnsupported { scalar: T::NAME })?;
     let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
@@ -2415,7 +2430,7 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
                     ValuePayload::MeasureUnavailable {
                         reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
                             verb: prim.verb(),
-                            scalar: <T as crate::lane::Lane>::NAME,
+                            scalar: T::NAME,
                             door: "clearance::min_separation",
                         },
                         dim: expr.dim(),
@@ -2534,7 +2549,7 @@ fn wire_assertion<T: Decide>(
 /// any verb exists. Failure of the op itself is
 /// [`NodeErrorKind::Split`] through [`verb_refused`]. The D7 pinch lane
 /// lives inside the kernel door; nothing here re-derives the plane.
-fn wire_split<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -2671,7 +2686,7 @@ fn wire_part<T: Decide>(
 // carry and the typed empty success would otherwise become runtime
 // arity.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
-fn wire_boolean<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_boolean<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     op: BooleanOp,
@@ -2779,7 +2794,7 @@ fn wire_boolean<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRest
 /// every step including the last: it refuses
 /// [`UNION_STEP_EMPTY`] and names no member, since each one is fine.
 #[allow(clippy::too_many_arguments)] // one parameter per named input, as `wire_boolean`
-fn wire_union<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
+fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -3464,7 +3479,7 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// A name that will not collapse is the fold's own table being
 /// malformed, and is raised as an emission bug rather than as a contact
 /// refusal that would send a caller to edit their model.
-fn union_refusal<T: crate::lane::Lane>(
+fn union_refusal<T: geom_core::Bounds>(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
     a_table: &crate::names::NameTable,
@@ -3632,7 +3647,7 @@ const UNION_REFUSAL_FOREIGN: &str =
 ///
 /// The operands are given as name TABLES because the union folds the
 /// same verb over an ACCUMULATION that is no node's result.
-fn refusal_menu<T: crate::lane::Lane>(
+fn refusal_menu<T: geom_core::Bounds>(
     a: (RecipeNodeId, &crate::names::NameTable),
     b: (RecipeNodeId, &crate::names::NameTable),
     err: verbs::VerbError<T>,
@@ -4007,10 +4022,11 @@ pub(crate) const TUBE_REFERENCE_ROLE: &str =
 /// [`unit()`]).
 pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 
-/// **The rigid map a [`crate::node::Node::Transform`] applies** — the
-/// one home of that construction, read by the evaluation and by the
-/// mate solve's derived offset, so a transform under a mate and a
-/// transform under the gather move a body by the same arithmetic.
+/// **The rigid map of a placement's rigid step** — the one home of
+/// that construction, read only by [`crate::Placement::motion`], which
+/// the evaluation and the mate solve's derived offset both read, so a
+/// transform under a mate and a transform under the gather move a body
+/// by the same arithmetic.
 ///
 /// Rotate about the axis THROUGH THE WORLD ORIGIN by `angle`, then
 /// translate. [`Mat3::rotation_about`] re-normalizes the already-unit
@@ -4023,9 +4039,10 @@ pub(crate) fn transform_map<T: Decide>(
     Affine3::from_parts(Mat3::rotation_about(axis.get(), angle), translation)
 }
 
-/// **The transform node**: ONE rigid map, shape-preserving over its
-/// input's value ([`Placeable`]), so body `i` of a transform of
-/// instances is bit for bit what the same map does to that body alone.
+/// **The transform node**: ONE rigid map, its placement's motion
+/// ([`crate::Placement::motion`]), shape-preserving over its input's
+/// value ([`Placeable`]), so body `i` of a transform of instances is
+/// bit for bit what the same map does to that body alone.
 ///
 /// Identity-preserving pass-through (spec D2): the transform
 /// contributes NO `RolePath` segment. `transform_rigid` is key-stable,
@@ -4035,20 +4052,14 @@ pub(crate) fn transform_map<T: Decide>(
 fn wire_transform<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
+    placement: &crate::placement::Placement,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
     let value = value_of(results, input)?;
     let placeable = placeable_operand(value, input)?;
-    let translation = need_vec3(vals, SlotId::Translation)?;
-    let rot_axis = unit(
-        need_vec3(vals, SlotId::RotationAxis)?,
-        TRANSFORM_AXIS_ROLE,
-        band(tol)?,
-    )?;
-    let angle = need_scalar(vals, SlotId::RotationAngle)?;
-    let map = transform_map(translation, rot_axis, angle);
+    let map = placement.motion(vals, band(tol)?)?;
     let per = placeable.bodies().len();
     let payload =
         placeable.map(|body, i| place(body, Some(&map), Placing::of(id, 0, per, i)?, tol))?;
@@ -5295,13 +5306,14 @@ mod place_tests {
         let tol = Tol::witness();
         let mut b = topo::test_support::brick::<f64>((0.0, 1.0), (dy, dy + 1.0), (0.0, 1.0), tol);
         let faces: Vec<_> = b.faces().map(|(k, _)| k).take(2).collect();
-        let cylinder = |r: f64| {
-            FaceSurface::New(geom::Surface::Cylinder {
+        let cylinder = |r: f64| FaceSurface::New {
+            surface: geom::Surface::Cylinder {
                 origin: Point3::new(0.5, dy + 0.5, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 radius: r,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
-            })
+            },
+            sense: true,
         };
         let stamped = b.set_face_surface(faces[0], cylinder(0.25)).unwrap();
         let pending = b.set_face_surface(faces[1], cylinder(0.3)).unwrap();

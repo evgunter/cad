@@ -154,8 +154,14 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     )
     .unwrap();
 
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
-        .unwrap();
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(planted)),
+            sense: true,
+        },
+    )
+    .unwrap();
     // The map re-mint may itself refuse on the moved chart; the claim
     // under test is tier 3's, so run it whatever the mint said.
     let _ = topo::mint_pcurves(&mut body, Tol::witness());
@@ -537,8 +543,14 @@ fn a_degraded_fit_does_not_survive_the_map() {
         good.window(),
         *good.certificate(),
     );
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
-        .unwrap();
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(planted)),
+            sense: true,
+        },
+    )
+    .unwrap();
 
     let e = topo::transform_rigid(&body, &rigid(), Tol::witness())
         .expect_err("a degraded fit must not move");
@@ -618,8 +630,14 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
         narrowed,
         *good.certificate(),
     );
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
-        .unwrap();
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(planted)),
+            sense: true,
+        },
+    )
+    .unwrap();
 
     // The validator, through production code (the offset-fit door
     // check 1 reads off `AtRestPolicy`, which is what tier 3 calls per face).
@@ -687,8 +705,14 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
         good.window(),
         *good.certificate(),
     );
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
-        .unwrap();
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(planted)),
+            sense: true,
+        },
+    )
+    .unwrap();
     let e = topo::transform_rigid(&body, &rigid(), Tol::witness())
         .expect_err("an edit of ten times ε does not certify at ε");
     assert!(
@@ -731,8 +755,14 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
         good.window(),
         bogus,
     );
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
-        .unwrap();
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(planted)),
+            sense: true,
+        },
+    )
+    .unwrap();
     let moved = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("a good pair moves");
     let after = approx_face_surface(&moved, face);
     let c = after.certificate();
@@ -758,11 +788,11 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
     );
 }
 
-/// **Every other scalar refuses typed, naming its lane.** The offset fit
+/// **Every other scalar refuses typed, naming itself.** The offset fit
 /// is derived at `f64` only, so an `Approx` face at any other scalar has
 /// no certificate to re-derive — and the stored one is a claim about a
 /// different geometry. The refusal is `ApproxLaneUnsupported`, and it
-/// names the lane so a reader knows which capability is missing rather
+/// names the scalar so a reader knows which capability is missing rather
 /// than which kind is unwelcome.
 ///
 /// The surface is an `f64`-certified one read at `Interval`
@@ -820,8 +850,14 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         })
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
-    body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(lifted))))
-        .expect("the attach-layer door accepts a live face");
+    body.set_face_surface(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(lifted)),
+            sense: true,
+        },
+    )
+    .expect("the attach-layer door accepts a live face");
 
     let e = topo::transform_rigid(
         &body,
@@ -832,9 +868,9 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     assert!(
         matches!(
             e,
-            topo::TransformError::ApproxLaneUnsupported { lane: "interval" }
+            topo::TransformError::ApproxLaneUnsupported { scalar: "interval" }
         ),
-        "expected ApproxLaneUnsupported naming the interval lane, got {e}"
+        "expected ApproxLaneUnsupported naming the interval scalar, got {e}"
     );
 }
 

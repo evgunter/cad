@@ -202,10 +202,11 @@ fn a_strand_on_a_declaration_rides_beside_a_refusal() {
     // Nothing else says it: the delete lands and no row fails.
     session.pump();
     let (landed, eval) = session.landed_pair().expect("the delete lands");
-    let faults: Vec<String> = viewer::tree::rows(landed, Some(eval))
-        .iter()
-        .filter_map(|row| row.status.message().map(str::to_owned))
-        .collect();
+    let faults: Vec<String> =
+        viewer::tree::rows(landed, Some(eval), &viewer::parts::PartFiles::default())
+            .iter()
+            .filter_map(|row| row.status.message().map(str::to_owned))
+            .collect();
     assert_eq!(faults, Vec::<String>::new(), "every row evaluates cleanly");
 
     // So a refusal in the same frame leaves it on the line.
@@ -527,7 +528,7 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
 #[test]
 fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let tol = Tol::witness();
-    let hole_r = ParamName::new("hole_r");
+    let hole_r = ParamName::from_static("hole_r");
     let doc = common::declared(
         "maint-param-strand",
         &hole_r,

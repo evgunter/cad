@@ -5,9 +5,8 @@
 //! invariance per carrier, reversed authoring, a bore-groove torus
 //! band), plus the D1 guard: a TOUCHING union against a reversed-face
 //! body must refuse typed until boolean splitting inherits the parent
-//! face's sense (see `Body::set_face_sense` docs — the mef re-mint
-//! hazard). When curved unions start answering, D1 fails loudly and
-//! the inheritance fix becomes due.
+//! face's sense (the mef re-mint hazard). When curved unions start
+//! answering, D1 fails loudly and the inheritance fix becomes due.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -380,10 +379,10 @@ fn adv_bore_groove_torus_band() {
 /// **Re-aimed at M5 S12.** When S11 adopted this probe the `mef`
 /// re-mints DID stamp `sense: true`, so an answer here would have been
 /// a silently mis-oriented body and panicking was the right response.
-/// S12 landed the inheritance fix (`mint_face_surface_and_sense`
-/// hands `mef`'s re-mint the parent's bit whenever the fragment lands
-/// on the parent's surface; `mfkrh` takes the same decision from the
-/// same helper), so an answer is no longer prima facie wrong — the
+/// S12 landed the inheritance fix (`mef`'s re-mint takes the parent's
+/// bit whenever the fragment lands on the parent's chart,
+/// `Body::resolve_face_surface`), so an answer is no longer prima
+/// facie wrong — the
 /// row therefore AUDITS an answer instead of rejecting it, and keeps
 /// accepting the typed refusal this washer/box pair still takes (its
 /// door is the annulus-touching lane, not sense inheritance). The

@@ -19,8 +19,8 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
+    BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorClass, NodeErrorKind, NodeResult,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
 };
 use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, vname, wall};
 use geom_core::Tol;
@@ -441,8 +441,13 @@ fn declare_resolution_failures_are_typed_n5_errors() {
         Node::declare_rest(vec![(SitedRef::new(a, va), SitedRef::new(b, vb))]),
     );
     let (doc, u) = boolean_with(doc, decl);
-    let k = failed_kind(&run(&doc), u);
-    assert!(k.contains("DeclareUnsupportedPair"), "{k}");
+    let ev = run(&doc);
+    let k = failed_kind(&ev, u);
+    assert_eq!(
+        ev.node_error(u).map(|e| e.kind.class()),
+        Some(NodeErrorClass::DeclareUnsupportedPair),
+        "{k}"
+    );
 }
 
 /// Review F1, recipe door: flush caps DECLARED on an ordinary partial
@@ -583,7 +588,9 @@ fn declare_doors_node_gone_and_ambiguous() {
     let ev = run(&doc);
     let k = failed_kind(&ev, u);
     assert!(
-        k.contains("DeclareResolve") && k.contains("NodeGone") && k.contains("NodeDeleted"),
+        ev.node_error(u).map(|e| e.kind.class()) == Some(NodeErrorClass::DeclareResolve)
+            && k.contains("NodeGone")
+            && k.contains("NodeDeleted"),
         "{k}"
     );
 
@@ -904,7 +911,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let (doc, ghost) = block(doc, (0.0, 1.0), (0.0, 1.0), 20.0, 1.0);
     // A face name at a LIVE node that names no row there: rung 3.
-    let absent = fname(us, RoleSeg::Lateral(fixture::no_piece()));
+    let absent = fname(us, RoleSeg::Lateral(fixture::no_piece_of(&doc)));
     assert!(
         table.lookup(&absent).is_none(),
         "the vanished probe must name no row, or it pins nothing"

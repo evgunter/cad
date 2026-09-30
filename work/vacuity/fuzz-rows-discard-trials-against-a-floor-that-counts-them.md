@@ -196,3 +196,12 @@ instrument has to be "does it count ALL of them", which is a read and
 not a grep — and that is this row's blind spot, now stated.
 
 The row this rode on, `mesh-cert10-fold-fuzz-row-flakes-on-a-fresh-seed` (closed on S-MESH's slate), left the tracker with `work/mesh/` at DOC-LEDGER sweep 16; it is recoverable at `git show 9f043ec2712b:work/mesh/mesh-cert10-fold-fuzz-row-flakes-on-a-fresh-seed.md`.
+
+## Note from SCALAR (2026-09-29)
+
+`crates/geom-core/tests/ring_interval_differential.rs` is gone: RING-3
+(#3153) renamed it `interval_backend_differential.rs`, which has one
+lane (`DInterval`), and since RING-0 (#2993) its floor is
+`t.endpoint_comparisons() > 4 * n` beside a per-op verdict floor. The
+two table rows above describe the old file; its membership here needs
+re-reading against the new one.

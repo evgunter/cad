@@ -1199,14 +1199,15 @@ pub fn drive(
     // bit (the lift's own differential pin), so this changes the build
     // it produces in no way and makes the two passes the same code.
     let witness: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
-    if let Some(&node) = witness
+    if let Some(standing) = witness
         .order
         .iter()
-        .find(|id| !matches!(witness.nodes.get(id), Some(NodeResult::Ok(_))))
+        .find_map(|&id| witness.usable(id).err())
     {
+        let node = standing.node();
         let cause = witness
             .node_error(node)
-            .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
+            .map_or_else(|| standing.to_string(), |e| e.kind.to_string());
         return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
     }
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
@@ -1916,7 +1917,7 @@ pub(crate) fn render_box(b: &ParamBox) -> String {
         let _ = write!(
             s,
             "{}=[{:016x},{:016x}] ",
-            name.0,
+            name.as_str(),
             lo.to_bits(),
             hi.to_bits()
         );
@@ -1989,7 +1990,7 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("refused band:{}", param.0)
+            format!("refused band:{}", param.as_str())
         }
     }
 }

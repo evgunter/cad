@@ -135,11 +135,14 @@ fn main() {
     let plane = body
         .set_face_surface(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -SCALE, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -SCALE, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("flat wall restates as a plane");
     body.set_edge_curve_nurbs_lane(
@@ -167,7 +170,13 @@ fn main() {
     let widened = widened_u_chart(&old_chart);
     let bowed_face = body.faces().find(|(_, f)| f.surface == bowed).unwrap().0;
     let new_key = body
-        .set_face_surface(bowed_face, FaceSurface::New(widened))
+        .set_face_surface(
+            bowed_face,
+            FaceSurface::New {
+                surface: widened,
+                sense: true,
+            },
+        )
         .expect("rechart");
     let chart = match body.get_surface(new_key) {
         Some(Surface::Nurbs(n)) => n.as_ref().clone(),
@@ -249,7 +258,6 @@ fn main() {
                 window,
                 band,
                 <f64 as topo::AtRestPolicy>::fitted_lane(),
-                <f64 as topo::AtRestPolicy>::scalar_name(),
             );
             println!(
                 "Q2  certify_general(mate = what mint_face supplies) -> {:?}",
@@ -270,7 +278,6 @@ fn main() {
                 window,
                 band,
                 <f64 as topo::AtRestPolicy>::fitted_lane(),
-                <f64 as topo::AtRestPolicy>::scalar_name(),
             );
             println!(
                 "Q2  certify_general(mate = hand-picked plane)        -> {}",
@@ -374,7 +381,6 @@ fn main() {
                         window,
                         band,
                         <f64 as topo::AtRestPolicy>::fitted_lane(),
-                        <f64 as topo::AtRestPolicy>::scalar_name(),
                     )
                 }
                 other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
@@ -431,7 +437,6 @@ fn main() {
                         window,
                         band,
                         <f64 as topo::AtRestPolicy>::fitted_lane(),
-                        <f64 as topo::AtRestPolicy>::scalar_name(),
                     ),
                 ),
                 other => (

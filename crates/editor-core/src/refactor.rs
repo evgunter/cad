@@ -113,8 +113,10 @@ use crate::names::{
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
-use crate::program::{ProfileDoc, ProfileProgram};
+use crate::program::{ProfileDoc, ProfilePayload as _, ProfileProgram};
 use crate::resolve::derivation_nodes;
+use crate::sentence::{PASS_A_RESOLVER, Recourse};
+use crate::step_mint::StepMint;
 use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
@@ -235,25 +237,46 @@ fn step_map_check(
 }
 
 /// The step map a refactoring's inserts will mint, precomputed: every
-/// profile among `nodes`, in the order they are inserted, has each of
-/// its steps re-minted from `next_step` onward, in loop then step
-/// order — exactly the insert door's minting order, which
-/// [`step_map_check`] confirms once the inserts are done.
+/// profile among `nodes`, in the order they are inserted and under the
+/// id `node_map` gives it, has its steps minted from `mint` by the insert
+/// door's own minting ([`crate::ProfilePayload::mint_step_ids`]) — the
+/// same canonical bytes, so the same ids — which [`step_map_check`]
+/// confirms once the inserts are done. A profile whose plane or node
+/// `node_map` does not carry ends the map there: its insert refuses
+/// under its own name.
+///
+/// # Errors
+///
+/// The mint's refusal, as the insert would report it.
 fn step_map_of<'a>(
-    nodes: impl Iterator<Item = &'a Node<ProfileProgram>>,
-    next_step: u64,
-) -> StepMap {
-    let mut next = next_step;
+    nodes: impl Iterator<Item = (RecipeNodeId, &'a Node<ProfileProgram>)>,
+    node_map: &NodeMap,
+    mint: &StepMint,
+) -> Result<StepMap, EditError> {
+    let mut mint = mint.clone();
     let mut map = StepMap::new();
-    for node in nodes {
-        if let Node::Profile(p) = node {
-            for &old in p.ids.iter().flatten() {
-                map.insert(old, StepId(next));
-                next += 1;
-            }
-        }
+    for (old, node) in nodes {
+        let Node::Profile(p) = node else { continue };
+        let (Some(&id), Some(&plane)) = (node_map.get(&old), node_map.get(&p.plane)) else {
+            break;
+        };
+        let mut carried = ProfileProgram {
+            plane,
+            loops: p.loops.clone(),
+            ids: Vec::new(),
+        };
+        carried
+            .mint_step_ids(id, &mut mint)
+            .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
+        map.extend(
+            p.ids
+                .iter()
+                .flatten()
+                .copied()
+                .zip(carried.ids.iter().flatten().copied()),
+        );
     }
-    map
+    Ok(map)
 }
 
 /// Why [`split`] refused. Typed and specific (spec D-2): every arm
@@ -550,12 +573,18 @@ impl core::fmt::Display for SplitError {
                     "split: the new document's pin would not compute: {error}"
                 )
             }
-            Self::PartEdit { error } => {
-                write!(f, "split: a part-side edit refused: {error}")
-            }
-            Self::RemainderEdit { error } => {
-                write!(f, "split: a remainder-side edit refused: {error}")
-            }
+            Self::PartEdit { error } => write!(
+                f,
+                "split: a part-side edit refused: {}{}",
+                error.problem(),
+                ReplayTail(error, Replay::SplitPart)
+            ),
+            Self::RemainderEdit { error } => write!(
+                f,
+                "split: a remainder-side edit refused: {}{}",
+                error.problem(),
+                ReplayTail(error, Replay::SplitRemainder)
+            ),
             Self::StepMapDiverged(d) => write!(f, "split: {d}"),
         }
     }
@@ -736,13 +765,171 @@ impl core::fmt::Display for InlineError {
                  longer has — repair the stranded reference before inlining",
                 missing.0
             ),
-            Self::Edit { error } => write!(f, "inline: an edit refused: {error}"),
+            Self::Edit { error } => write!(
+                f,
+                "inline: an edit refused: {}{}",
+                error.problem(),
+                ReplayTail(error, Replay::Inline)
+            ),
             Self::StepMapDiverged(d) => write!(f, "inline: {d}"),
         }
     }
 }
 
 impl core::error::Error for InlineError {}
+
+/// Which of this module's edit replays refused. The user authored none
+/// of those edits, so the edit door's own recourse — written for the
+/// person who typed the edit — is not theirs to follow; the replay's
+/// door states its own ([`ReplayTail`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Replay {
+    /// The part document, rebuilt from empty in the cut's document
+    /// order.
+    SplitPart,
+    /// The remainder: the instance inserted, the crossing names rebound
+    /// onto it, the cut deleted.
+    SplitRemainder,
+    /// The part's nodes spliced into the host in the part's document
+    /// order, its records carried, the instance's names rebound.
+    Inline,
+}
+
+/// The ending a replaying door gives a forwarded [`EditError`]: a
+/// recourse where the replay cannot re-author a document state the
+/// user can change, the kernel-defect ending where the replay only
+/// re-writes what a document already holds, or nothing where the
+/// forwarded sentence is another layer's whole refusal.
+struct ReplayTail<'a>(&'a EditError, Replay);
+
+impl core::fmt::Display for ReplayTail<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let defect =
+            |f: &mut core::fmt::Formatter<'_>| write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING);
+        let Self(error, replay) = *self;
+        match error {
+            // A payload name on a node inserted AFTER the one carrying
+            // it — a Declare or a blend selection rebound forward. The
+            // replay inserts in document order, so no order satisfies
+            // it. The remainder inserts one instance, whose names the
+            // replay wrote itself.
+            EditError::DeclareNamesMissingNode { .. } => match replay {
+                Replay::SplitPart => write!(
+                    f,
+                    ". {}",
+                    Recourse(
+                        "rebind that reference to an entity of a node that comes before the \
+                         node carrying it, since the split rebuilds the part in document order"
+                    )
+                ),
+                Replay::Inline => write!(
+                    f,
+                    ". {}",
+                    Recourse(
+                        "in the part document, rebind that reference to an entity of a node \
+                         that comes before the node carrying it, since the inline splices the \
+                         part in its document order"
+                    )
+                ),
+                Replay::SplitRemainder => defect(f),
+            },
+            // Inline carries the part's appearance records onto the
+            // spliced names and THEN rebinds this document's
+            // instance-qualified names onto them, so a record on both
+            // sides collides. A split's rebind targets are names of an
+            // instance it has just minted, which carry nothing.
+            EditError::RebindAppearanceCollision { .. }
+            | EditError::RebindMetadataCollision { .. } => match replay {
+                Replay::Inline => write!(
+                    f,
+                    ". {}",
+                    Recourse(
+                        "clear what this document sets on the instance's name, since the part \
+                         carries its own"
+                    )
+                ),
+                Replay::SplitPart | Replay::SplitRemainder => defect(f),
+            },
+            // The forwarded mate refusal's whole sentence, which the
+            // mate solve owns. A part the solve could not lever through
+            // states its resolver's recourse inside it: the fault's own,
+            // or the split's resolver's (`WithPart`).
+            EditError::MaintenanceRefused { fault: Some(_), .. }
+            | EditError::MateRefused { .. } => Ok(()),
+            // Every other edit re-writes what the source document or
+            // the part already holds, each validated at its own door
+            // when it was written: a refusal here is this module's
+            // construction bug. Listed arm by arm, so a new arm is
+            // classified here or does not compile.
+            EditError::UnknownNode { .. }
+            | EditError::ProfileProgramRefused { .. }
+            | EditError::UnresolvedInput { .. }
+            | EditError::WouldCycle { .. }
+            | EditError::DuplicateInput { .. }
+            | EditError::RepeatedDesignation { .. }
+            | EditError::SelectionNotCanonical { .. }
+            | EditError::SetMembersOnNonList { .. }
+            | EditError::SetProgramOnNonProfile { .. }
+            | EditError::StepIdsRefused { .. }
+            | EditError::TooFewMembers { .. }
+            | EditError::DeleteWouldDangle { .. }
+            | EditError::UnknownSlot { .. }
+            | EditError::SlotDimensionMismatch { .. }
+            | EditError::MaintenanceRefused { fault: None, .. }
+            | EditError::MaintenanceUnrecorded { .. }
+            | EditError::StructuralSlotNeedsStructuralEdit { .. }
+            | EditError::NotStructuralSlot { .. }
+            | EditError::SlotUnknownDocParam { .. }
+            | EditError::SlotDocParamDimension { .. }
+            | EditError::PayloadUnknownDocParam { .. }
+            | EditError::PayloadDocParamDimension { .. }
+            | EditError::MeasureMalformed { .. }
+            | EditError::AssertionTarget { .. }
+            | EditError::DeclareInputNotDeclare { .. }
+            | EditError::AssertionDimension { .. }
+            | EditError::ContinuousParamCannotBeCount { .. }
+            | EditError::DocParamNotDeclared { .. }
+            | EditError::DocParamCountHasNoUnit { .. }
+            | EditError::DocParamCountHasNoDistribution { .. }
+            | EditError::DocParamUnitMismatch { .. }
+            | EditError::DocParamValueKindMismatch { .. }
+            | EditError::PathOffTree { .. }
+            | EditError::Dimension(_)
+            | EditError::NameStepNeverMinted { .. }
+            | EditError::ReadSiteMissingNode { .. }
+            | EditError::NonFiniteDocParam { .. }
+            | EditError::InvalidDistribution { .. }
+            | EditError::RebindTargetMissingNode { .. }
+            | EditError::RebindUnknownName { .. }
+            | EditError::RebindKindMismatch { .. }
+            | EditError::RebindIdentity { .. }
+            | EditError::RebindNoReferences { .. }
+            | EditError::WitnessOnNonSketch { .. }
+            | EditError::DuplicateWitnessEntry { .. }
+            | EditError::EmptyWitnessBulk
+            | EditError::NameUnresolvedInEvaluation { .. }
+            | EditError::EvaluationOfAnotherDocument { .. }
+            | EditError::AppearanceWrongKind { .. }
+            | EditError::AppearanceNamesMissingNode { .. }
+            | EditError::AppearanceNotSet { .. }
+            | EditError::InvalidTolerance { .. }
+            | EditError::MetaUnversioned { .. }
+            | EditError::MetaNonFinite { .. }
+            | EditError::MetaNotSet { .. }
+            | EditError::Roots(_)
+            | EditError::PlacementOnNonInstance { .. }
+            | EditError::PlacementRuleMismatch { .. }
+            | EditError::EmptyPlacementList { .. }
+            | EditError::ImproperPlacement { .. }
+            | EditError::NonFinitePlacement { .. }
+            | EditError::NonRigidPlacement { .. }
+            | EditError::PlacementAxis { .. }
+            | EditError::NonFiniteAlignment { .. }
+            | EditError::UpdateOnNonInstance { .. }
+            | EditError::PinUnchanged { .. } => defect(f),
+        }
+    }
+}
 
 /// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
@@ -1120,8 +1307,7 @@ fn remap_node(
         //
         // Its step ids do NOT cross: the other document's insert door
         // mints its own, and the names that spell them cross through
-        // the step map precomputed from that minting order
-        // (`step_map_of`).
+        // the step map precomputed from that minting (`step_map_of`).
         Node::Profile(p) => Node::Profile(ProfileProgram {
             plane: id(p.plane)?,
             loops: p.loops.clone(),
@@ -1231,16 +1417,9 @@ fn remap_node(
             members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
             declare: declare.map(id).transpose()?,
         },
-        Node::Transform {
-            input,
-            translation,
-            rotation_axis,
-            rotation_angle,
-        } => Node::Transform {
+        Node::Transform { input, placement } => Node::Transform {
             input: id(*input)?,
-            translation: translation.clone(),
-            rotation_axis: rotation_axis.clone(),
-            rotation_angle: rotation_angle.clone(),
+            placement: placement.clone(),
         },
         Node::Pattern { input, count, kind } => Node::Pattern {
             input: id(*input)?,
@@ -1619,14 +1798,18 @@ pub fn split(
         .map(|(i, &old)| (old, RecipeNodeId(i as u64)))
         .collect();
     // The same for the cut profiles' steps: the part's insert door
-    // mints them from its empty step counter, in insertion order.
+    // mints them from the empty document's mint, in insertion order.
     let step_map = step_map_of(
         doc.order()
             .iter()
             .filter(|id| cut.contains(id))
-            .filter_map(|id| doc.node(*id)),
-        0,
-    );
+            .filter_map(|id| doc.node(*id).map(|node| (*id, node))),
+        &node_map,
+        &StepMint::empty(),
+    )
+    .map_err(|error| SplitError::PartEdit {
+        error: Box::new(error),
+    })?;
 
     // ---- The part document, as recorded edits from empty ----
     // The part side's edits are inserts into a document being built —
@@ -2045,12 +2228,18 @@ pub fn inline(
         .enumerate()
         .map(|(i, &old)| (old, RecipeNodeId(doc.next_id + i as u64)))
         .collect();
-    // The part's profile steps land the same way on the host's step
-    // counter, which inserts of the part's nodes alone advance.
+    // The part's profile steps are minted from the host's mint, which
+    // inserts of the part's nodes alone extend.
     let step_map = step_map_of(
-        part.order().iter().filter_map(|id| part.node(*id)),
-        doc.next_step,
-    );
+        part.order()
+            .iter()
+            .filter_map(|id| part.node(*id).map(|node| (*id, node))),
+        &node_map,
+        doc.step_mint(),
+    )
+    .map_err(|error| InlineError::Edit {
+        error: Box::new(error),
+    })?;
 
     let mut current = Recording::start(doc.clone());
     let step =
@@ -2225,19 +2414,25 @@ struct WithPart {
 impl PartResolver for WithPart {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         if doc_ref.id == self.doc_ref.id {
+            // A kept instance may reference `part_id` (the split's
+            // freshness check reads only the cut), and the solve the
+            // remainder's maintenance makes asks this resolver for it.
             if doc_ref.pin != self.doc_ref.pin {
-                return Err(ResolveFailure::pin_mismatch(
-                    "the reference names another version of the part this split is minting",
-                ));
+                return Err(ResolveFailure::pin_mismatch(format!(
+                    "the reference shares its id with the part this split is minting, and names \
+                     another version of it. {}",
+                    Recourse("split under an id this document does not reference")
+                )));
             }
             return Ok(self.part.clone());
         }
         match &self.inner {
             Some(inner) => inner.resolve(doc_ref, tol),
-            None => Err(ResolveFailure::unresolved(
+            None => Err(ResolveFailure::unresolved(format!(
                 "the split was given no resolver, and the reference is not the part it is \
-                 minting",
-            )),
+                 minting. {}",
+                Recourse(PASS_A_RESOLVER)
+            ))),
         }
     }
 }

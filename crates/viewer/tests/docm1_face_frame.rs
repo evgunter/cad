@@ -25,6 +25,7 @@
 use crate::common;
 use common::{inserted, len, session_insert};
 
+use pncad::document::NodeStanding;
 use pncad::document::{Datum, Doc, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, SurfaceKind, attribute};
@@ -420,12 +421,14 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
     );
     let (doc, placed) = inserted(
         &doc,
-        Node::Transform {
-            input: pattern,
-            translation: common::len3([0.0, 0.0, 0.001]),
-            rotation_axis: common::scl3([0.0, 0.0, 1.0]),
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            pattern,
+            pncad::document::Step::Rigid {
+                translation: common::len3([0.0, 0.0, 0.001]),
+                axis: common::scl3([0.0, 0.0, 1.0]),
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
@@ -481,7 +484,7 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
     assert_eq!(
         face_frame_seat(session.landed_pair(), Some(&picked)),
         Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::NodeNotEvaluated { node: cube },
+            error: InterrogateError::Standing(NodeStanding::NotInDocument { node: cube }),
         }),
         "the face is gone, and that is what it is told"
     );
