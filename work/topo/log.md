@@ -4755,3 +4755,23 @@ output identical, re-running the review's dump.
 PR 3590 merged (`b3f6ec349f`) after CI run 36775011254 went green.
 Main's viewer ε-row test holds at every ε again. PR 3570 and PR 3513
 carry the same change.
+
+## PR 3570 merged; the half-edge, kfmrh and movefac proofs dispatched (2026-09-30)
+
+PR 3570 merged at `08e65af424` (merge `6288a7d210`) after CI run
+36775034261 went green, ε rows included, with PR 3590's port. That
+closes the four kill-proof rows.
+
+**Dispatched on the rebase target,** branch
+`topo/kill-proves-half-edges`:
+- `kills-remove-half-edges-another-record-names`;
+- `kfmrh-removes-a-face-or-shell-another-record-names`;
+- `movefac-reads-a-mate-and-a-neighbour-it-never-proves`.
+
+Precedent is PR 3570's helpers. The four half-edge relations move from
+Filed to Read in `euler::removal_census`. `movefac` reuses
+`require_halves`, and `kfmrh` joins the probe.
+
+`kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove`
+is `design: true`. Before any fork, I'll check whether one of its two
+shapes keeps the ratified decisions as they stand.
