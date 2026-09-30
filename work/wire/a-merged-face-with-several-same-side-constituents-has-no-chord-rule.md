@@ -4,6 +4,7 @@ kind: issue
 title: A seam chord bordering a merged face that holds several faces of one operand has no naming rule
 status: open
 opened: 2026-09-28
+priority: P0
 ---
 
 
@@ -66,3 +67,29 @@ split fixture) refused at an earlier step, a fold step's contact
 verdict (`work/emit/a-legal-union-refuses-a-fold-minted-contact-verdict-in-some-member-orders`).
 The rows name this row as the owner, and a fix flips their entries to
 `Fused`.
+
+## A pair boolean reaches it with no declaration (EMIT, 2026-09-30)
+
+A slot subtracted across a cylinder boss sunk into a plate reaches
+this refusal on an everyday recipe, which is why this row is now P0:
+- plate `[0,3]² × [0,1]`; boss of radius 0.3 about (1.5, 1.5), z 0.5
+  to 1.5, drawn as `circle_split(.., 2, ..)`, so its wall is two
+  semicircular pieces; the two joined by a pair union or a `Union` in
+  either member order;
+- slab x 1.4 to 1.6, y −1 to 4, z 0.8 to 2.0, subtracted.
+
+The slab cuts each wall piece in two, and the subtract merges the two
+cosurface pieces on each side of the slot. Each merged face holds
+BOTH boss pieces, so the chord where a slab wall meets it has two
+A-side constituents. It refused `Duplicate` at the face pass until
+`a-slot-across-a-sunk-cylinder-boss-refuses-duplicate-merged-face-name`
+closed; it now reaches `chord_descent`.
+`emit_union_borders::a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`
+pins it, and the chord rule flips its expectation.
+
+What it adds to the rule: the two constituents lie on ONE curved
+surface, so the pick cannot read carriers. It has to ask which
+constituent's operand face holds the chord as a region, on a cylinder.
+`topo::point_in_face` answers for planar faces only
+(`KindUnsupported` otherwise), so the pick needs a curved in-face test
+or a combinatorial record of which pre-merge face the chord bordered.

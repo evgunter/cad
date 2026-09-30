@@ -764,8 +764,11 @@ pub(crate) fn name_boolean<T: Decide>(
     // descend from it too, so they are members of its group
     // (`names::groups`).
     let mut merged_into: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
-    // Merged face → its name, the parent a `Borders` wall cites.
+    // Merged face → its parent's name, the one a `Borders` wall cites.
     let mut merged_names: BTreeMap<FaceKey, StableName> = BTreeMap::new();
+    // A merged parent, its `Merged` name → the faces it is held as,
+    // the operand faces it lists, and whether any is tied.
+    let mut merged_parents: BTreeMap<StableName, MergedParent> = BTreeMap::new();
     for (kept, absorbed) in &naming.merge_groups {
         if body.get_face(*kept).is_none() {
             return Err(bug("merge kept face not live"));
@@ -806,29 +809,19 @@ pub(crate) fn name_boolean<T: Decide>(
         }
         let parents: BTreeSet<OpSide<FaceKey>> = descents.iter().copied().collect();
         merged_descents.insert(*kept, descents);
-        // The constituent SET is the name (review R8), so the
-        // canonical form sorts and deduplicates it: two merge groups
-        // with one set collide LOUDLY at insert (`DuplicateName` →
-        // typed `NamingError`; pinned by
-        // `merged_same_constituent_groups_collide_loudly`). With the
-        // set flat, two groups collide whenever they list the same
-        // faces — a merge over a merged face and a merge over that
-        // face's constituents are ONE set, where nesting once kept
-        // them apart — and a per-group discriminator is what would
-        // upgrade the refusal to a success if that class ever matters.
-        for d in parents {
+        for &d in &parents {
             merged_into.entry(d).or_default().push(*kept);
         }
+        // The constituent SET is the parent (N3), so two merge groups
+        // listing one set are two faces of one parent, qualified below
+        // by the walls each borders (N2).
         let merged =
             canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
         merged_names.insert(*kept, merged.clone());
-        put(
-            &mut t,
-            &mut tie,
-            from_tie,
-            merged,
-            ent(0, EntityKey::Face(*kept)),
-        )?;
+        let held = merged_parents.entry(merged).or_default();
+        held.faces.push(*kept);
+        held.parents.extend(parents);
+        held.from_tie |= from_tie;
         handled.insert(*kept);
     }
     let mut groups: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
@@ -859,6 +852,48 @@ pub(crate) fn name_boolean<T: Decide>(
         }
         Ok((*operand_face_name(descend_face(g)?)?.name).clone())
     };
+    for (name, held) in merged_parents {
+        if let [one] = held.faces[..] {
+            put(
+                &mut t,
+                &mut tie,
+                held.from_tie,
+                name,
+                ent(0, EntityKey::Face(one)),
+            )?;
+            continue;
+        }
+        // The parent's other faces: its operand faces' unmerged pieces
+        // and the merges that list them beside other faces.
+        let others: Vec<FaceKey> = held
+            .parents
+            .iter()
+            .flat_map(|d| groups.get(d).into_iter().chain(merged_into.get(d)))
+            .flatten()
+            .filter(|f| !held.faces.contains(f))
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        rec.record(
+            &name,
+            held.faces
+                .iter()
+                .map(|&f| ent(0, EntityKey::Face(f)))
+                .collect(),
+            Parent::Elsewhere,
+        );
+        name_parent_faces(
+            &mut t,
+            &mut tie,
+            held.from_tie,
+            name,
+            &held.faces,
+            &others,
+            (&obstacles, body, &held.parents),
+            &wall,
+        )?;
+    }
     for (d, members) in groups {
         let root_name = operand_face_name(d)?;
         let from_tie = root_name.tied;
@@ -922,6 +957,15 @@ pub(crate) fn name_boolean<T: Decide>(
 
     super::emit::check_total(&t, body, 0)?;
     Ok(Emitted::new(t, rec))
+}
+
+/// A merged parent in a pair boolean: its faces, the operand faces its
+/// merges list, and whether any of those is tied.
+#[derive(Default)]
+struct MergedParent {
+    faces: Vec<FaceKey>,
+    parents: BTreeSet<OpSide<FaceKey>>,
+    from_tie: bool,
 }
 
 /// Names the faces one parent is held as (N2/N3): a lone face whose
@@ -2517,12 +2561,14 @@ mod tests {
         );
     }
 
-    /// Review R8 (resolved M4 PR 5): two merge groups with the SAME
-    /// constituent set — kept faces that are fragments of one operand
-    /// face, each absorbing a fragment of one partner — refuse
-    /// LOUDLY (typed `NamingError`), never a silent alias.
+    /// Two merge groups with the SAME constituent set — kept faces
+    /// that are fragments of one operand face, each absorbing a
+    /// fragment of one partner — are two faces of one merged parent,
+    /// told apart by the divider walls each borders (N2), never a
+    /// silent alias. This synthetic body records no discard between
+    /// them, so nothing tells them apart and the Borders rule refuses.
     #[test]
-    fn merged_same_constituent_groups_collide_loudly() {
+    fn merged_same_constituent_groups_are_one_parent_held_twice() {
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(
@@ -2577,14 +2623,15 @@ mod tests {
             &b,
             Tol::witness(),
         )
-        .expect_err("same-constituent merge groups must refuse loudly");
+        .expect_err("two faces of one merged parent with no divider between them refuse");
         assert!(
             matches!(
-                &err,
-                NamingError::Duplicate { name }
-                    if matches!(name.path.as_slice(), [RoleSeg::Merged(_)])
+                err,
+                NamingError::Emission {
+                    what: "a piece of a face held as several borders no recorded discard between them"
+                }
             ),
-            "{err:?}"
+            "the Borders rule reads the two merges as one parent: {err:?}"
         );
     }
 

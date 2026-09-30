@@ -1913,10 +1913,10 @@ fn orient<'s>(
             // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
             //
             // The canonical form makes the constituent SET the name, the
-            // form the pair emitter's mint gives it too (review R8): two
-            // merge groups collapsing to ONE constituent set collide
-            // LOUDLY at insert (`DuplicateName` → typed `NamingError`),
-            // never silently aliasing two faces onto one name.
+            // form the pair emitter's mint gives it too: two rows
+            // collapsing to ONE constituent set collide LOUDLY at insert
+            // (`DuplicateName` → typed `NamingError`), never silently
+            // aliasing two faces onto one name.
             RoleSeg::Merged(constituents) => {
                 let mut set = Vec::with_capacity(constituents.len());
                 for c in constituents {
