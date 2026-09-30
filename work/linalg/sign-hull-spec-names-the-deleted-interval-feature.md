@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P4
 cost: E
-refs: [interval-orthonormal-basis-sign-hull, ring-4-interval-feature-dropped]
+refs: [interval-orthonormal-basis-sign-hull]
 ---
 
 ## What
