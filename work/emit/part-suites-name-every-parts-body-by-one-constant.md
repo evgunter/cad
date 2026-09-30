@@ -9,6 +9,7 @@ cost: M
 parent: sibling-branches-mint-one-node-id-for-different-nodes
 closed: 2026-09-30
 branch: emit/part-body-from-the-part
+pr: 3581
 ---
 
 
