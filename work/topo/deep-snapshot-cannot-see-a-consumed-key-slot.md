@@ -2,9 +2,11 @@
 id: deep-snapshot-cannot-see-a-consumed-key-slot
 kind: issue
 title: fixtures::deep_snapshot compares rows, so a refusal that minted and removed an arena entry, consuming a key slot against D1, passes every assert_err_deep_unchanged row
-status: open
+status: review
 opened: 2026-09-30
 priority: P3
+pr: 3566
+branch: topo/snapshot-key-slots
 ---
 
 ## What
