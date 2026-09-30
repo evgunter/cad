@@ -1478,6 +1478,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPairUnsupported => "curved_pair_unsupported",
         BooleanErrorKind::NurbsExtentUnsupported => "nurbs_extent_unsupported",
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
+        BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
         BooleanErrorKind::GermFrameCylinderPinch => "germ_frame_cylinder_pinch",
         BooleanErrorKind::Euler => "euler",

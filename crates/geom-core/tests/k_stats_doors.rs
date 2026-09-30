@@ -41,7 +41,7 @@
 use geom_core::Tol;
 use geom_core::k_stats::{
     Bracket, Escalation, NonzeroSign, Verdict, decide, decide_flagged, decide_invariant,
-    decide_nonzero, decide_positive, decide_reported, gate_measured,
+    decide_nonzero, decide_nonzero_reported, decide_positive, decide_reported, gate_measured,
 };
 use geom_core::{Band, Decided, Margin, MarginDiag, Sign};
 
@@ -205,6 +205,44 @@ fn a_rejected_gate_records_both_channels_under_its_own_name() {
             Escalation { source: zeroed },
         ]
     );
+}
+
+/// **A band-decided zero keeps its margin through the nonzero gate**:
+/// `decide_nonzero_reported` passes either definite side, and its
+/// decided zero escalates with the margin the funnel decided (not
+/// `Invalid`), on the frame's escalation log beside the `Zero` verdict,
+/// as `decide_nonzero`'s rejection is.
+#[test]
+fn a_reported_nonzero_gate_escalates_its_decided_zero_with_its_margin() {
+    let b = band();
+    let small = 0.5 * b.zero();
+    let bracket = Bracket::open();
+    assert_eq!(
+        decide_nonzero_reported("gate_e", Margin::of(-1.0f64), b),
+        Ok(NonzeroSign::Negative)
+    );
+    let zeroed = decide_nonzero_reported("gate_f", Margin::of(small), b).unwrap_err();
+    let recorded = bracket.finish();
+    assert_eq!(
+        zeroed.margin,
+        MarginDiag::value(small),
+        "the decided margin"
+    );
+    assert_eq!(zeroed.predicate, Some("gate_f"));
+    assert_eq!(
+        recorded.verdicts,
+        [
+            Verdict {
+                predicate: "gate_e",
+                sign: Sign::Negative,
+            },
+            Verdict {
+                predicate: "gate_f",
+                sign: Sign::Zero,
+            },
+        ]
+    );
+    assert_eq!(recorded.escalations, [Escalation { source: zeroed }]);
 }
 
 /// An IN-BAND margin escalates through `classify` itself, and the gate

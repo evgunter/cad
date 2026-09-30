@@ -43,13 +43,14 @@
 //! a single bound is NOT overlap.
 
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::{
-    BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
+    BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SelfCheck,
+    SideCode,
 };
 use crate::body::Body;
-use crate::contact::ContactClass;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
 use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
@@ -336,9 +337,11 @@ pub(super) fn sector_face<T: Decide>(
     Ok((resolved.face, resolved.normal))
 }
 
+/// The refusal of a norm read definitely negative: poisoned input, the
+/// kernel's ([`SelfCheck::Normals`]).
 fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     BooleanError::Escalated {
-        decision: BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Moot),
+        decision: BooleanDecision::SelfCheck(SelfCheck::Normals),
         diag: geom_core::Indeterminate {
             margin: geom_core::MarginDiag::INVALID,
             band,
@@ -480,8 +483,7 @@ pub(super) fn side_code<T: Decide>(
                 Err(escalation) => {
                     return Err(BooleanError::of_lever(
                         LeverArm::SectorSide,
-                        Coincide::SectorSide,
-                        DeclarationRead::Moot,
+                        BooleanDecision::Coincidence(Coincide::SectorSide, DeclarationRead::Moot),
                         escalation,
                     ));
                 }
@@ -569,6 +571,7 @@ pub(super) fn tangent_lump<T: Decide>(
     on_side: Operand,
     sector_face: FaceKey,
     arm: T,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
@@ -577,7 +580,7 @@ pub(super) fn tangent_lump<T: Decide>(
         Err(TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
-                DeclarationRead::Spent(ContactClass::Tangent),
+                read,
                 diag,
             ));
         }
@@ -611,6 +614,7 @@ pub(super) fn tangent_lump<T: Decide>(
         p,
         d_hat,
         arm,
+        read,
         band,
     )? {
         SideCode::In => Ok(SideCode::In),
@@ -648,6 +652,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
     p: geom_core::Point3<T>,
     d: Vec3<T>,
     arm: T,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let n_ref = other_outward.vec();
@@ -669,8 +674,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
         Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
         Err(escalation) => Err(BooleanError::of_lever(
             LeverArm::SectorCurving,
-            Coincide::TangentSide,
-            DeclarationRead::Spent(ContactClass::Tangent),
+            BooleanDecision::Coincidence(Coincide::TangentSide, read),
             escalation,
         )),
     }
@@ -693,7 +697,9 @@ pub(super) struct PairRecord {
 }
 
 /// Whether `dir` lies within the convex sector (Zero grazes count —
-/// module docs). `strict` demands definite interior.
+/// module docs). `strict` demands definite interior. `read` is what the
+/// calling door read of the pair's declaration: the primitive takes
+/// none of its own, and no declaration settles a direction's membership.
 ///
 /// Sense-invariant given the sector: `start`/`end` are traversal-
 /// derived and `normal` already carries the sense, and `revert` flips
@@ -703,11 +709,12 @@ pub(super) fn within<T: Decide>(
     s: &BoolSector<T>,
     dir: Vec3<T>,
     strict: bool,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<bool, BooleanError> {
     let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
     let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, read, diag);
     let t1 = decide("bool_sector_within", c1, band).map_err(escalate)?;
     let t2 = decide("bool_sector_within", c2, band).map_err(escalate)?;
     Ok(if strict {
@@ -750,22 +757,17 @@ pub(super) fn direction_sense<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let refuse = |diag| BooleanError::Escalated {
-        decision: BooleanDecision::DirectionSense,
-        diag,
-    };
-    let decided =
-        crate::validate::decide_reported("bool_dir_same", Margin::levered(u.dot(v), arm), band)
-            .map_err(refuse)?;
-    match decided.sign {
-        Sign::Positive => Ok(true),
-        Sign::Negative => Ok(false),
-        Sign::Zero => Err(refuse(geom_core::Indeterminate {
-            margin: decided.margin,
-            band,
-            predicate: Some("bool_dir_same"),
-            terminal_sliver: false,
-        })),
+    match crate::validate::decide_nonzero_reported(
+        "bool_dir_same",
+        Margin::levered(u.dot(v), arm),
+        band,
+    ) {
+        Ok(NonzeroSign::Positive) => Ok(true),
+        Ok(NonzeroSign::Negative) => Ok(false),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::DirectionSense,
+            diag,
+        }),
     }
 }
 
@@ -776,7 +778,7 @@ fn sector_overlap<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     for (s, dir) in [(a, b.start), (a, b.end), (b, a.start), (b, a.end)] {
-        if within(s, dir, true, band)? {
+        if within(s, dir, true, DeclarationRead::Moot, band)? {
             return Ok(true);
         }
     }
@@ -858,8 +860,9 @@ pub(super) fn pair_search<T: Decide>(
                 sector_overlap(sa, sb, band)?
             } else {
                 let d = int.normalize();
-                (within(sa, d, false, band)? && within(sb, d, false, band)?)
-                    || (within(sa, -d, false, band)? && within(sb, -d, false, band)?)
+                let moot = DeclarationRead::Moot;
+                (within(sa, d, false, moot, band)? && within(sb, d, false, moot, band)?)
+                    || (within(sa, -d, false, moot, band)? && within(sb, -d, false, moot, band)?)
             };
             if !hit {
                 continue;
@@ -886,6 +889,7 @@ pub(super) fn pair_search<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::contact::ContactClass;
     use geom_core::Tol;
 
     fn band() -> Band {
@@ -919,8 +923,14 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,
         };
-        let err = within(&s, Vec3::new(1.0, -mid, 0.0), false, b)
-            .expect_err("an in-band direction escalates");
+        let err = within(
+            &s,
+            Vec3::new(1.0, -mid, 0.0),
+            false,
+            DeclarationRead::Moot,
+            b,
+        )
+        .expect_err("an in-band direction escalates");
         let BooleanError::Escalated { decision, diag } = &err else {
             panic!("an escalation: {err:?}");
         };
@@ -1051,10 +1061,28 @@ mod tests {
         let s = sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
         let b = band();
         let mid = Vec3::new(1.0, 1.0, 0.0).normalize();
-        assert!(within(&s, mid, true, b).unwrap());
-        assert!(!within(&s, Vec3::new(-1.0, -0.5, 0.0), false, b).unwrap());
-        assert!(within(&s, Vec3::new(1.0, 0.0, 0.0), false, b).unwrap());
-        assert!(!within(&s, Vec3::new(1.0, 0.0, 0.0), true, b).unwrap());
+        assert!(within(&s, mid, true, DeclarationRead::Moot, b).unwrap());
+        assert!(
+            !within(
+                &s,
+                Vec3::new(-1.0, -0.5, 0.0),
+                false,
+                DeclarationRead::Moot,
+                b
+            )
+            .unwrap()
+        );
+        assert!(
+            within(
+                &s,
+                Vec3::new(1.0, 0.0, 0.0),
+                false,
+                DeclarationRead::Moot,
+                b
+            )
+            .unwrap()
+        );
+        assert!(!within(&s, Vec3::new(1.0, 0.0, 0.0), true, DeclarationRead::Moot, b).unwrap());
     }
 
     /// `sectoroverlap`: strict overlap yes; identical sectors yes;
@@ -1161,8 +1189,17 @@ mod tests {
                 / geom_brep::implicit_gradient(s, p).dot(n.vec())
         };
         let arm = (2.0 * mid / (accel(&ball) - accel(&floor)).abs()).sqrt();
-        let err = tangent_relative_side(&ball, &floor, n, p, d, arm, b)
-            .expect_err("an in-band sagitta escalates the reading");
+        let err = tangent_relative_side(
+            &ball,
+            &floor,
+            n,
+            p,
+            d,
+            arm,
+            DeclarationRead::Spent(ContactClass::Tangent),
+            b,
+        )
+        .expect_err("an in-band sagitta escalates the reading");
         let BooleanError::Escalated { decision, diag } = err else {
             panic!("the reading escalates: {err:?}");
         };
@@ -1392,6 +1429,7 @@ mod tests {
             Operand::B,
             FaceKey::default(),
             0.5,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         )
         .unwrap();
@@ -1408,6 +1446,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         )
         .unwrap();
@@ -1434,6 +1473,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.25,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         )
         .unwrap();
@@ -1461,6 +1501,7 @@ mod tests {
                 Operand::A,
                 FaceKey::default(),
                 arm,
+                DeclarationRead::Spent(ContactClass::Tangent),
                 b,
             )
         };
@@ -1497,6 +1538,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         ) {
             Err(BooleanError::ClassificationInvariant { .. }) => {}
@@ -1517,6 +1559,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             0.5,
+            DeclarationRead::Spent(ContactClass::Tangent),
             b,
         ) {
             Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}

@@ -13,12 +13,11 @@
 //!   escalated on, set at the site that wraps the escalation.
 //!   [`BooleanDecision::render`] composes the whole sentence from the
 //!   decision and its verdict: a coincidence between the two solids its
-//!   subject ([`Coincide::subject`]) and, where a declaration read
-//!   ahead of it would settle it, `COINCIDENCE_RECOURSE`, or elsewhere
-//!   the coincidence's own lever and the tolerance the gap gives; a
-//!   decision on a size the user may intend its subject, its own lever
-//!   and, on an in-band
-//!   margin, the tolerance that decides it
+//!   subject ([`Coincide::subject`]) and its own ending from its own
+//!   pass set, led by the declaration where one read ahead of it would
+//!   settle it; a decision on a size the user may intend its subject,
+//!   its own lever and, on an in-band margin on a side it passes on, the
+//!   tolerance that decides it
 //!   (`geom_brep::recourse::SizedDecision`); a decision whose margin is
 //!   no size the user chose, or a family the escalation does not tell
 //!   apart, its subject and its lever alone; a residual or a kernel
@@ -31,20 +30,20 @@
 //!   and the maximal-faces gate's (`BooleanError::CoplanarNeighbours`)
 //!   [`NEIGHBOUR_OFFSET`], as their escalations do.
 //!
-//! A coincidence is a decision each wrap site states, naming which one
-//! it asks about ([`Coincide`]) and what the door read of the pair's
-//! declaration ahead of it ([`DeclarationRead`]): the refusal offers a
+//! A coincidence is a decision each wrap site states, naming which
+//! question it asks ([`Coincide`]) and carrying what the door read of
+//! the pair's declaration ahead of it ([`DeclarationRead`]), which only
+//! the declared-pairs lookup mints as settling: the refusal offers a
 //! declaration only where one read ahead would settle the question.
 
 use geom_brep::LeverRung;
 use geom_brep::recourse::{
     Classified, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized,
 };
-use geom_core::{COINCIDENCE_RECOURSE, Indeterminate, UNREADABLE_MARGIN_NOTE};
+use geom_core::{Indeterminate, UNREADABLE_MARGIN_NOTE};
 
 use crate::contact::ContactClass;
 
-use super::plane_eq::PLANE_ORIENTATION;
 pub use super::plane_eq::PlaneRung;
 pub use super::solid_contain::WallRung;
 use crate::face_normal::NormalDecision;
@@ -131,6 +130,22 @@ impl Contradiction {
     }
 }
 
+/// The proximity lever as a literal, for `concat!`: the move a
+/// coincidence every verdict of which passes names.
+macro_rules! proximity_lever {
+    () => {
+        "move the parts so they clearly meet or clearly stand apart there"
+    };
+}
+
+/// The corner edge-length lever as a literal, for `concat!`
+/// ([`CORNER_EDGES`]).
+macro_rules! corner_edges {
+    () => {
+        "make the edges at the corner where the two faces meet clearly longer than the tolerance"
+    };
+}
+
 /// Which decision a Boolean escalation came from, set at the site that
 /// wraps the escalation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,21 +155,18 @@ impl Contradiction {
     strum_discriminants(name(BooleanDecisionKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum BooleanDecision {
-    /// Whether parts of the two solids coincide, which parts the site
-    /// asks about, and what its door read of the pair's declaration
-    /// ahead of the question: the refusal offers a declaration only
-    /// where that read says one would settle it
-    /// ([`DeclarationRead::Settles`]), and otherwise names the
-    /// coincidence's own lever and the tolerance the gap gives.
+    /// Whether parts of the two solids coincide, which question the site
+    /// asks ([`Coincide`], whose pass set is its own), and what its door
+    /// read of the pair's declaration ahead of the question: the refusal
+    /// offers a declaration only where that read says one would settle
+    /// it ([`DeclarationRead::Settles`]), and otherwise names the
+    /// question's own lever and, where it passes on a nonzero sign, the
+    /// tolerance the margin gives.
     Coincidence(Coincide, DeclarationRead),
     /// Whether two planes face the same way or opposite ways, at a
     /// cross-operand door, which both definite signs answer and no
     /// declaration changes ([`PlaneRung::Orientation`]).
     PlaneOrientation,
-    /// Whether a declared pair's planes are parallel. The declared rung
-    /// bridges an in-band margin, so what escalates is a norm it could
-    /// not read ([`PlaneRung::Parallel`]).
-    DeclaredParallel,
     /// Whether two neighbouring faces of one operand lie on one plane,
     /// as the maximal-faces gate asks it of a rung of the plane ladder
     /// (F7). Declarations name pairs across the operands, so none
@@ -198,6 +210,11 @@ pub enum BooleanDecision {
     /// How many times a straight edge crosses a torus: the certified
     /// count of the line × torus quartic's real roots.
     TorusRoots,
+    /// How many times an arc crosses a torus: the circle × torus lane's
+    /// certified roots (`circle_torus`), whose rungs are a plane-height
+    /// depth, contour residuals and sides, a coaxial tilt and offset, and
+    /// the quartic's own rows.
+    ArcTorusRoots,
     /// Whether an edge leaves a curved face steeply enough, against the
     /// face's own bend, to read which side of it the edge goes.
     PierceCurvature,
@@ -213,90 +230,201 @@ pub enum BooleanDecision {
     /// reading in the zero band, reachable only where the band's ratio
     /// is 2 or less, refuses rather than read the wrong side.
     BisectorSide,
+    /// Whether the two faces at a seam edge of the result cross there or
+    /// touch tangentially (`dihedral_wedge`, as the result's seam
+    /// re-description reads it): every definite verdict passes (a crease
+    /// on a positive margin, a smooth join on zero). Asked of the result,
+    /// after every declaration was spent, so none is read.
+    SeamWedge,
+    /// A question the curved-extent scan asks of a sphere face, which
+    /// takes no declarations.
+    Sphere(SphereQuestion),
+    /// A check of the kernel's own construction: a margin an earlier
+    /// decision fixed, re-read, or a quantity that cannot honestly be
+    /// negative. Its definite refusals are the kernel's, and so is its
+    /// escalation.
+    SelfCheck(SelfCheck),
 }
 
 /// **What a coincidence's door read of the face pair's declaration
 /// ahead of the question**, and so whether a declaration would change
-/// the verdict (D4 ¶1 (i)). A door holding the pair's class states it
-/// through [`DeclarationRead::of`], so the refusal follows what was
-/// read; only [`DeclarationRead::Settles`] offers a declaration.
+/// the verdict (D4 ¶1 (i)). Only [`DeclaredPairs::read`] mints
+/// [`DeclarationRead::Settles`]: it looks the pair up, and settles only
+/// a question a declaration of a class the door admits there would
+/// change ([`Coincide::settled_by`]). Only it offers a declaration.
+///
+/// [`DeclaredPairs::read`]: super::DeclaredPairs::read
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeclarationRead {
-    /// The door reads the pair's declaration ahead of the question and
-    /// finds none, and a verified one would settle the question.
-    Settles,
-    /// The door read the pair's declaration, of this class, ahead of the
-    /// question, which refused all the same: the declaration is spent
-    /// there, and no second one is offered.
+    /// The door looked the pair up and found no declaration, and a
+    /// declaration of the class [`Settling`] names, which the door
+    /// admits for this pair, would settle the question.
+    Settles(Settling),
+    /// The door looked the pair up and found it declared under this
+    /// class, and the question refused all the same: the declaration is
+    /// spent there, and no second one is offered.
     Spent(ContactClass),
-    /// No declaration read ahead of the question settles it: the door
-    /// reads none, or the one it reads only moves the refusal to another
-    /// question, which then refuses the declared pair.
+    /// No declaration read ahead of the question settles it: the site
+    /// takes no declarations, or the door found none and admits no class
+    /// that would change the verdict.
     Moot,
 }
 
-impl DeclarationRead {
-    /// What a door read of a pair whose declared class is `class`.
+/// The class whose declaration would settle a coincidence its door
+/// found undeclared: the proof that [`DeclarationRead::Settles`] came
+/// from the declared-pairs lookup. Its field is private to this module,
+/// so no other site can state it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Settling {
+    class: ContactClass,
+}
+
+impl Settling {
+    /// The class a declaration of which would settle the question.
     #[must_use]
-    pub const fn of(class: Option<ContactClass>) -> Self {
-        match class {
-            None => Self::Settles,
-            Some(class) => Self::Spent(class),
+    pub const fn class(self) -> ContactClass {
+        self.class
+    }
+}
+
+impl super::DeclaredPairs {
+    /// **What a door read of the declaration ahead of `question`**,
+    /// looked up for the face pairs it asks about, in order: the first
+    /// declared pair's class is [`DeclarationRead::Spent`] (the question
+    /// refused a declared pair); where none is declared, the question is
+    /// settled by the first class in `admitted` (the classes the door
+    /// admits for this pair's geometry) whose declaration would change
+    /// its verdict ([`Coincide::settled_by`]), and otherwise
+    /// [`DeclarationRead::Moot`].
+    pub(crate) fn read(
+        &self,
+        pairs: &[(
+            super::Operand,
+            crate::entity::FaceKey,
+            super::Operand,
+            crate::entity::FaceKey,
+        )],
+        question: Coincide,
+        admitted: &[ContactClass],
+    ) -> DeclarationRead {
+        if let Some(class) = pairs
+            .iter()
+            .find_map(|&(o1, f1, o2, f2)| self.class_of(o1, f1, o2, f2))
+        {
+            return DeclarationRead::Spent(class);
         }
+        admitted
+            .iter()
+            .copied()
+            .find(|&class| question.settled_by(class))
+            .map_or(DeclarationRead::Moot, |class| {
+                DeclarationRead::Settles(Settling { class })
+            })
+    }
+
+    /// The plane door of two corners of the two solids read on one
+    /// another (`vtxfac`'s coplanar lump, `recl`'s carrier identity),
+    /// with what it read of the pair's declaration: a `Rest` declaration,
+    /// which the door admits for two planar faces, bridges an in-band
+    /// parallelism ([`Coincide::OnPlanes`]).
+    pub(crate) fn on_pair_door(
+        &self,
+        pair: (
+            super::Operand,
+            crate::entity::FaceKey,
+            super::Operand,
+            crate::entity::FaceKey,
+        ),
+    ) -> PlaneDoor {
+        PlaneDoor::OnPair(self.read(&[pair], Coincide::OnPlanes, &[ContactClass::Rest]))
     }
 }
 
 /// **Which coincidence between the two solids a wrap site asks about**:
 /// the argument a site states when its escalation is a coincidence, the
-/// subject its refusal opens on ([`Coincide::subject`]), and the lever
-/// it names where no declaration would settle it
-/// ([`Coincide::unsettled`]).
+/// subject its refusal opens on ([`Coincide::subject`]), and its own
+/// pass set, which decides its ending.
+///
+/// Each question's pass set is what its deciding code does with each
+/// verdict, predicate by predicate: a sign passes where the code goes on
+/// to an answer on it, and does not where it refuses at once, or where it
+/// fixes the next question's verdict to a refusal. Sites whose code
+/// passes on different sets ask different questions. A norm that reads
+/// definitely negative is poison, not a verdict, and is the kernel's
+/// ([`SelfCheck`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(test, derive(strum::EnumIter))]
 pub enum Coincide {
-    /// Whether two planes of the two solids are parallel, at a door
-    /// whose ladder does not bridge an in-band margin: the pair is not
-    /// declared `Rest` ([`PlaneRung::Parallel`]).
+    /// Whether two planes of the two solids are parallel, at the
+    /// declared-`Tangent` pair's conformal screen, where a definitely
+    /// distinct pair passes and a parallel one reads its offset next:
+    /// passes on a nonnegative margin.
     Planes,
-    /// Whether two faces' carriers are one carrier, where the carrier
-    /// ladder refuses past its declared rung.
-    Carriers,
-    /// Whether a vertex of one solid lies on a face of the other.
+    /// Whether the planes of two corners of the two solids read on one
+    /// another are parallel (`vtxfac`, `recl`, and a declared `Rest`
+    /// pair's ladder): only zero passes (a definitely positive one there
+    /// contradicts the reading that brought the pair, a kernel
+    /// invariant), and a `Rest` declaration bridges the residue.
+    OnPlanes,
+    /// Whether a vertex of one solid lies on a face of the other, where
+    /// every side passes.
     VertexOnFace,
+    /// Whether a vertex of one solid lies on a curved face of the other
+    /// that it is declared to touch: on it or clear of it passes, and a
+    /// vertex definitely inside it is a crossing the declared-cover arm
+    /// refuses.
+    VertexOnCoveredFace,
     /// Whether a curved edge of one solid lies in, grazes or misses the
-    /// plane of a face of the other.
+    /// plane of a face of the other: every verdict passes.
     EdgeOnPlane,
-    /// Whether an edge of one solid clears a curved face of the other,
-    /// or lies on it.
+    /// Whether a straight edge of one solid clears a curved face of the
+    /// other or lies on it: every verdict passes (a clear one at once,
+    /// the rest to the exact roots).
     EdgeOnCurvedFace,
+    /// Whether an arc of one solid clears a curved face of the other
+    /// that no declaration covers: only a clear arc passes.
+    ArcClearsCurvedFace,
+    /// Whether an arc of one solid lies on a curved face of the other
+    /// that it is declared to touch: on it or clear of it passes.
+    ArcOnCoveredFace,
     /// Which side of a face of the other solid a corner's edge leaves
-    /// on.
+    /// on: every side passes.
     SectorSide,
     /// Which way a face of one solid curves away from a face of the
     /// other that it touches tangentially, along a corner's edge: the
-    /// second-order side of a declared-`Tangent` pair.
+    /// second-order side of a declared-`Tangent` pair, every side of
+    /// which passes.
     TangentSide,
     /// How two corners of the two solids overlap where they meet: a
     /// direction within a sector, two sectors' faces parallel, their
-    /// bounds in line, the order of a strut's germs, the germ line.
+    /// bounds in line, the order of a strut's germs. Every verdict
+    /// passes.
     Sectors,
-    /// Whether an edge of one solid runs along an edge of the other.
+    /// Whether an edge of one solid runs along an edge of the other:
+    /// every verdict passes.
     EdgeOnEdge,
-    /// Where two faces of the two solids touch tangentially.
+    /// Whether faces of the two solids along an edge they share overlap
+    /// or only touch (`bool_dir_same`, the membership tie): the cosine
+    /// of two unit directions levered at the corner's arm, so either
+    /// definite sign passes and a decided zero refuses as the in-band
+    /// arm does ([`CORNER_SENSE`]).
+    FlankSense,
+    /// Where two faces of the two solids that are declared to touch
+    /// tangentially touch: its rungs pass on different sets, and the
+    /// escalation does not say which refused.
     TangentLocus,
-    /// Whether the two faces at a seam edge cross there or touch
-    /// tangentially.
-    SeamWedge,
-    /// Whether a sphere face of one solid meets the other solid.
-    Sphere,
-    /// Where the surfaces of a face of each solid meet (a section's
-    /// pose).
-    Section,
-    /// How the sections' ends pair up where the two solids meet.
-    Join,
-    /// Whether a declared contact holds along its witness or its shared
-    /// rim.
+    /// Whether a face of each solid ends on one circle: every verdict
+    /// passes (the rims are one, or differ).
+    Rim,
+    /// Whether a declared contact holds along its witness: the contact
+    /// table's rows pass on different sets.
     Contact,
+    /// Where the surfaces of a face of each solid meet (a section's
+    /// pose): the pose rows pass on different sets.
+    Section,
+    /// How the sections' ends pair up where the two solids meet: every
+    /// verdict of the chord, facing and nearest-end rows passes.
+    Join,
 }
 
 impl Coincide {
@@ -305,15 +433,22 @@ impl Coincide {
     #[must_use]
     pub const fn subject(self) -> &'static str {
         match self {
-            Self::Planes => "whether a face of each solid lies on one plane",
-            Self::Carriers => "whether a face of each solid lies on one surface",
-            Self::VertexOnFace => "whether a vertex of one solid lies on a face of the other",
+            Self::Planes | Self::OnPlanes => "whether a face of each solid lies on one plane",
+            Self::VertexOnFace | Self::VertexOnCoveredFace => {
+                "whether a vertex of one solid lies on a face of the other"
+            }
             Self::EdgeOnPlane => {
                 "whether a curved edge of one solid lies in, grazes or misses the plane of a face \
                  of the other"
             }
             Self::EdgeOnCurvedFace => {
                 "whether an edge of one solid clears a curved face of the other or lies on it"
+            }
+            Self::ArcClearsCurvedFace => {
+                "whether an arc of one solid clears a curved face of the other"
+            }
+            Self::ArcOnCoveredFace => {
+                "whether an arc of one solid lies on a curved face of the other or clears it"
             }
             Self::SectorSide => "which side of a face of the other solid a corner's edge leaves on",
             Self::TangentSide => {
@@ -322,65 +457,193 @@ impl Coincide {
             }
             Self::Sectors => "how two corners of the two solids overlap where they meet",
             Self::EdgeOnEdge => "whether an edge of one solid runs along an edge of the other",
-            Self::TangentLocus => "where two faces of the two solids touch tangentially",
-            Self::SeamWedge => {
-                "whether the two faces at a seam edge cross there or touch tangentially"
+            Self::FlankSense => {
+                "whether faces of the two solids along an edge they share overlap or only touch"
             }
-            Self::Sphere => "whether a sphere face of one solid meets the other solid",
+            Self::TangentLocus => "where two faces of the two solids touch tangentially",
+            Self::Rim => "whether a face of each solid ends on one circle",
+            Self::Contact => "whether a declared contact holds along its witness",
             Self::Section => "where the surfaces of a face of each solid meet",
             Self::Join => "how the sections' ends pair up where the two solids meet",
-            Self::Contact => "whether a declared contact holds along its witness or its shared rim",
         }
     }
-}
 
-impl Coincide {
-    /// The coincidence's ending where no declaration read ahead of it
-    /// settles it: its lever, and the tolerance an in-band margin gives
-    /// on a side it passes on. Every definite verdict of each passes at
-    /// the sites that raise it; a site whose code refuses a verdict
-    /// raises a decision of its own ([`BooleanDecision::DirectionSense`],
-    /// [`BooleanDecision::BisectorSide`]).
+    /// Whether a declaration of `class`, where the door admits it, would
+    /// change this question's verdict: the one statement
+    /// [`DeclaredPairs::read`](super::DeclaredPairs::read) settles by.
+    ///
+    /// - [`Coincide::OnPlanes`]: a `Rest` pair's ladder bridges an
+    ///   in-band parallelism (`plane_eq`'s declared rung).
+    /// - [`Coincide::Sectors`], at `vtxfac`'s coplanar sector: a `Rest`
+    ///   pair's lump takes the residue through the carrier ladder's
+    ///   declared rung, and a `Tangent` pair's descends to the second
+    ///   order (`sectors::tangent_lump`).
+    /// - [`Coincide::FlankSense`]: a `Tangent` flanking pair
+    ///   short-circuits the membership (`recl::resolve_edge_edge`).
+    ///
+    /// Every other question refuses a declared pair as it refuses an
+    /// undeclared one.
     #[must_use]
-    pub const fn unsettled(self) -> SizedDecision {
+    pub const fn settled_by(self, class: ContactClass) -> bool {
+        match (self, class) {
+            (Self::OnPlanes, ContactClass::Rest)
+            | (Self::Sectors, ContactClass::Rest | ContactClass::Tangent)
+            | (Self::FlankSense, ContactClass::Tangent) => true,
+            (Self::OnPlanes, ContactClass::Tangent)
+            | (Self::FlankSense, ContactClass::Rest)
+            | (
+                Self::Planes
+                | Self::VertexOnFace
+                | Self::VertexOnCoveredFace
+                | Self::EdgeOnPlane
+                | Self::EdgeOnCurvedFace
+                | Self::ArcClearsCurvedFace
+                | Self::ArcOnCoveredFace
+                | Self::SectorSide
+                | Self::TangentSide
+                | Self::EdgeOnEdge
+                | Self::TangentLocus
+                | Self::Rim
+                | Self::Contact
+                | Self::Section
+                | Self::Join,
+                ContactClass::Rest | ContactClass::Tangent,
+            ) => false,
+        }
+    }
+
+    /// The question's ending where no declaration settles it: its lever,
+    /// and, on a side its pass set holds a nonzero sign of, the tolerance
+    /// an in-band margin gives.
+    const fn ending(self) -> Ending {
         match self {
-            Self::Planes => PLANES,
-            Self::TangentSide => TANGENT_SIDE,
-            Self::SeamWedge => SEAM_WEDGE,
-            Self::Carriers
-            | Self::VertexOnFace
+            Self::Planes => Ending::Sized(PLANES),
+            Self::OnPlanes => {
+                Ending::Lever(geom_core::coincidence_move_arm!(), LeverPass::ZeroOnly)
+            }
+            Self::VertexOnFace
             | Self::EdgeOnPlane
             | Self::EdgeOnCurvedFace
             | Self::SectorSide
             | Self::Sectors
             | Self::EdgeOnEdge
+            | Self::Rim
+            | Self::Join => Ending::Sized(proximity(SizedPass::AnySign)),
+            Self::VertexOnCoveredFace => Ending::Sized(COVERED_VERTEX),
+            Self::ArcClearsCurvedFace => Ending::Sized(ARC_CLEARANCE),
+            Self::ArcOnCoveredFace => Ending::Sized(COVERED_ARC),
+            Self::TangentSide => Ending::Sized(TANGENT_SIDE),
+            Self::FlankSense => Ending::Sized(CORNER_SENSE),
+            Self::TangentLocus => Ending::Lever(
+                "move the parts so the declared faces clearly touch along one line",
+                LeverPass::ByRung,
+            ),
+            Self::Contact | Self::Section => Ending::Lever(proximity_lever!(), LeverPass::ByRung),
+        }
+    }
+
+    /// The question's ending where a declaration read ahead of it would
+    /// settle it: the declaration, then the question's own ending.
+    const fn settled(self) -> Ending {
+        match self {
+            Self::OnPlanes => Ending::Lever(
+                geom_core::DEFINITE_COINCIDENCE_RECOURSE,
+                LeverPass::ZeroOnly,
+            ),
+            Self::Sectors => Ending::Sized(SizedDecision {
+                lever: concat!(
+                    geom_core::coincidence_declare_arm!(),
+                    ", or ",
+                    proximity_lever!()
+                ),
+                ..proximity(SizedPass::AnySign)
+            }),
+            Self::FlankSense => Ending::Sized(SizedDecision {
+                lever: concat!(
+                    geom_core::coincidence_declare_arm!(),
+                    ", or ",
+                    corner_edges!()
+                ),
+                ..CORNER_SENSE
+            }),
+            // No declaration settles these (`settled_by`), so no read
+            // settles them either: their own ending.
+            Self::Planes
+            | Self::VertexOnFace
+            | Self::VertexOnCoveredFace
+            | Self::EdgeOnPlane
+            | Self::EdgeOnCurvedFace
+            | Self::ArcClearsCurvedFace
+            | Self::ArcOnCoveredFace
+            | Self::SectorSide
+            | Self::TangentSide
+            | Self::EdgeOnEdge
             | Self::TangentLocus
-            | Self::Sphere
+            | Self::Rim
+            | Self::Contact
             | Self::Section
-            | Self::Join
-            | Self::Contact => PROXIMITY,
+            | Self::Join => self.ending(),
         }
     }
 }
 
-/// A coincidence no declaration settles: every definite verdict passes
-/// (the parts meet, or lie apart on a side), so the geometry is the
-/// lever and an in-band gap is a size a smaller tolerance decides.
-const PROXIMITY: SizedDecision = SizedDecision {
-    lever: "move the parts so they clearly meet or clearly stand apart there",
-    size: "gap",
-    passes: SizedPass::AnySign,
+/// A coincidence whose geometry lever is to make the parts clearly meet
+/// or clearly stand apart, passing on `passes`: an in-band gap on a side
+/// it passes on is a size a smaller tolerance decides.
+const fn proximity(passes: SizedPass) -> SizedDecision {
+    SizedDecision {
+        lever: proximity_lever!(),
+        size: "gap",
+        passes,
+        stored: StoredDefinite::Lever,
+        at_zero: None,
+    }
+}
+
+/// Whether two planes of the two solids are parallel at the
+/// declared-`Tangent` pair's conformal screen ([`Coincide::Planes`]): the
+/// sine of their angle over the door's arm, which passes on a clear
+/// angle (the planes are distinct) and on zero (the ladder reads their
+/// offset next).
+const PLANES: SizedDecision = SizedDecision {
+    lever: "tilt one face so the two are clearly parallel or clearly not",
+    size: "tilt between the two faces' planes",
+    passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
 
-/// Whether two planes of the two solids are parallel
-/// ([`Coincide::Planes`]): the sine of their angle over the door's arm,
-/// which passes on a clear angle (the planes are distinct) and on zero
-/// (the ladder reads their offset next).
-const PLANES: SizedDecision = SizedDecision {
-    lever: "tilt one face so the two are clearly parallel or clearly not",
-    size: "tilt between the two faces' planes",
+/// A vertex against a curved face it is declared to touch
+/// ([`Coincide::VertexOnCoveredFace`]): the face's implicit residual at
+/// the vertex, which passes on zero (on the face) and positive (clear of
+/// it).
+const COVERED_VERTEX: SizedDecision = SizedDecision {
+    lever: "move the parts so the vertex lies clearly on that face or clearly clear of it",
+    size: "gap",
+    passes: SizedPass::NonNegative,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// An uncovered arc against a curved face
+/// ([`Coincide::ArcClearsCurvedFace`]): the larger of the arc's two
+/// enclosures' one-sidedness margins, which passes only definitely
+/// positive (the arc is clear); zero or negative is the curved pierce
+/// frontier.
+const ARC_CLEARANCE: SizedDecision = SizedDecision {
+    lever: "move the parts so the arc clearly clears that face",
+    size: "clearance",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// A covered arc against the curved face it is declared to touch
+/// ([`Coincide::ArcOnCoveredFace`]): passes on zero (the declared-cover
+/// arm reads its ends) and positive (clear).
+const COVERED_ARC: SizedDecision = SizedDecision {
+    lever: "move the parts so the arc lies clearly on that face or clearly clear of it",
+    size: "clearance",
     passes: SizedPass::NonNegative,
     stored: StoredDefinite::Lever,
     at_zero: None,
@@ -400,22 +663,27 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
 };
 
 /// Whether the faces at a seam edge cross or touch tangentially
-/// ([`Coincide::SeamWedge`]): the sine of their angle over the folded
-/// lever arm, a crease on a positive margin and a smooth join on zero.
+/// ([`BooleanDecision::SeamWedge`]): the sine of their angle over the
+/// folded lever arm, a crease on a positive margin, a smooth join on
+/// zero, and a crease again on a negative one (the reading takes it as
+/// definitely not coincident).
 const SEAM_WEDGE: SizedDecision = SizedDecision {
     lever: "move the geometry so the faces at that seam meet either clearly creased or clearly \
             smooth",
     size: "fold across the seam",
-    passes: SizedPass::NonNegative,
+    passes: SizedPass::AnySign,
     stored: StoredDefinite::Lever,
     at_zero: None,
 };
 
-/// Whether two directions at a corner, read parallel, point the same
-/// way or opposite ways ([`BooleanDecision::DirectionSense`]): the
-/// cosine at the corner's arm, whose size is the arm, and which either
-/// definite sign passes.
-const DIRECTION_SENSE: SizedDecision = SizedDecision {
+/// **The sense of two directions read parallel at a corner**: a
+/// cosine of unit directions levered at the corner's arm, `≈ ±arm`, so
+/// what it measures is the arm, and either definite sign passes. One
+/// decision wherever it is read: two planes' orientation at the
+/// cross-operand doors ([`BooleanDecision::PlaneOrientation`]), two
+/// bound directions at a corner ([`BooleanDecision::DirectionSense`]),
+/// and two flanks along a shared edge ([`Coincide::FlankSense`]).
+pub(crate) const CORNER_SENSE: SizedDecision = SizedDecision {
     lever: CORNER_EDGES,
     size: "length of the corner's shorter edge",
     passes: SizedPass::NonZero,
@@ -426,10 +694,152 @@ const DIRECTION_SENSE: SizedDecision = SizedDecision {
 /// The one move that lengthens the arm a corner's reading is metered
 /// over: shared by every decision whose margin, once its direction has
 /// read, measures that arm ([`LeverArm`]'s corner gates,
-/// [`BooleanDecision::DirectionSense`], [`BooleanDecision::BisectorSide`],
-/// [`PLANE_ORIENTATION`]).
-pub(crate) const CORNER_EDGES: &str =
-    "make the edges at the corner where the two faces meet clearly longer than the tolerance";
+/// [`CORNER_SENSE`], [`BooleanDecision::BisectorSide`]).
+pub(crate) const CORNER_EDGES: &str = corner_edges!();
+
+/// **Which question the curved-extent scan asks of a sphere face**
+/// ([`BooleanDecision::Sphere`]). The scan takes no declarations; each
+/// question's pass set is its own, and each decided refusal ends as its
+/// escalation does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(strum::EnumIter))]
+pub enum SphereQuestion {
+    /// Whether the sphere crosses a plane face's carrier or clears it
+    /// (`bool_sphere_extent_gap`, `r − |s|`): either definite side
+    /// passes, and a decided zero, a tangency, refuses with its decided
+    /// margin.
+    AgainstPlane,
+    /// Whether two spheres stand apart (`bool_sphere_sphere_gap`): a
+    /// positive gap passes. A gap at or below zero goes on to
+    /// [`SphereQuestion::Nested`], whose margin is then about minus the
+    /// smaller sphere's diameter, so a gap within the band of zero
+    /// refuses there.
+    Apart,
+    /// Whether the smaller of two overlapping spheres lies strictly
+    /// inside the larger (`bool_sphere_sphere_nested`): only a positive
+    /// clearance passes (`BooleanError::SpheresMeet` is its decided
+    /// refusal).
+    Nested,
+    /// Whether the plane faces one sphere pokes through are parallel
+    /// (`bool_sphere_escape_parallel`): only a zero passes (a single
+    /// re-chart serves parallel planes), so no smaller tolerance
+    /// decides a margin passing.
+    EscapeParallel,
+    /// Whether the sphere's stored polar axis leans away from the escape
+    /// normal it is re-charted onto (`bool_sphere_recut_align`): either
+    /// definite lean passes, and a decided zero refuses with its decided
+    /// margin.
+    RecutAlign,
+}
+
+impl SphereQuestion {
+    /// What the scan decides, as a clause with no colon or dash of its
+    /// own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::AgainstPlane => {
+                "whether a sphere of one solid crosses the plane of a face of the other"
+            }
+            Self::Apart => "whether a sphere of each solid stands clear of the other",
+            Self::Nested => "whether the smaller of two spheres lies strictly inside the larger",
+            Self::EscapeParallel => "whether the plane faces a sphere pokes through are parallel",
+            Self::RecutAlign => {
+                "whether a sphere's polar axis leans away from the face it pokes through"
+            }
+        }
+    }
+
+    /// The question's ending on every arm, its decided refusal's too.
+    const fn ending(self) -> Ending {
+        match self {
+            Self::AgainstPlane => Ending::Sized(SPHERE_AGAINST_PLANE),
+            Self::Apart | Self::Nested => Ending::Sized(SPHERES),
+            Self::EscapeParallel => Ending::Lever(EXTENT_LEVER, LeverPass::ZeroOnly),
+            Self::RecutAlign => Ending::Sized(SizedDecision {
+                size: "lean of the sphere's polar axis",
+                ..SPHERE_AGAINST_PLANE
+            }),
+        }
+    }
+}
+
+/// A sphere against a plane face's carrier
+/// ([`SphereQuestion::AgainstPlane`]): either definite side passes.
+const SPHERE_AGAINST_PLANE: SizedDecision = SizedDecision {
+    lever: "move the parts so the sphere clearly crosses that face's plane or clearly clears it",
+    size: "gap",
+    passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// Two spheres of the two solids ([`SphereQuestion::Apart`],
+/// [`SphereQuestion::Nested`]): only a pair clearly apart or clearly
+/// nested passes, the scan having no join for two curved faces that
+/// meet.
+pub(crate) const SPHERES: SizedDecision = SizedDecision {
+    lever: "move the spheres so they clearly stand apart, or so one lies clearly inside the other",
+    size: "clearance",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The curved-extent scan's lever where its enclosures cannot certify
+/// the operands (`BooleanError::FallbackExtentUnsupported`, and the
+/// escape-parallel question that leads to one of its arms).
+pub(crate) const EXTENT_LEVER: &str =
+    "move them so their boundaries cross, or so their curved faces stand further apart";
+
+/// **Which of the kernel's own checks escalated**
+/// ([`BooleanDecision::SelfCheck`]): each re-reads a margin an earlier
+/// decision fixed, or reads a quantity that cannot honestly be negative,
+/// so its definite refusal is a broken invariant and its escalation the
+/// same story.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(strum::EnumIter))]
+pub enum SelfCheck {
+    /// Whether a crossing record's two faces cross along a line
+    /// (`bool_germ_line`, `insert::germ_dir` and
+    /// `vtxfac::pierce_germ_dir`): the pair was sent down the crossing
+    /// path because this margin read definitely positive upstream
+    /// (`sectors::pair_search`'s `bool_faces_parallel`, `vtxfac`'s
+    /// transition reading), and a zero one is a
+    /// `ClassificationInvariant`.
+    GermLine,
+    /// Whether two faces' normals at a corner can be read
+    /// (`bool_faces_parallel`, `plane_eq`'s parallelism rung): a norm
+    /// read definitely negative is poisoned input, and no declaration
+    /// or move of the parts reads it.
+    Normals,
+    /// Which way a germ turns about the conic section it lies on
+    /// (`bool_join_arc_facing`): a zero sense is a radial germ,
+    /// malformed germ data (`JoinDesync`).
+    ArcFacing,
+    /// Which way a ring run of the section winds
+    /// (`bool_ring_run_winding`): a zero area is a degenerate run
+    /// (`JoinDesync`).
+    RingWinding,
+    /// The carrier ladder's contradiction arm, which its detector
+    /// posture (nothing declared) cannot reach.
+    CarrierLadder,
+}
+
+impl SelfCheck {
+    /// What the check decides, as a clause with no colon or dash of its
+    /// own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::GermLine => "whether two faces meeting at a corner cross along a line",
+            Self::Normals => "whether the normals of two faces can be read",
+            Self::ArcFacing => "which way a germ turns about the section it lies on",
+            Self::RingWinding => "which way a ring run of the section winds",
+            Self::CarrierLadder => "whether a face of each solid lies on one surface",
+        }
+    }
+}
 
 /// **Which gate meters a reading over a lever arm** whose arm rung
 /// escalated ([`BooleanDecision::LeverArm`]): the arm is a length the
@@ -672,11 +1082,8 @@ impl RestZipFrontier {
 }
 
 /// How one decision's escalation ends.
+#[derive(Clone, Copy)]
 enum Ending {
-    /// A coincidence between the two solids: the declaration, the
-    /// geometry and the tolerance (`COINCIDENCE_RECOURSE`), in the
-    /// coincidence's own sentence.
-    Coincidence,
     /// A decision on a size the user may intend.
     Sized(SizedDecision),
     /// The lever alone: no margin of the decision gives a tolerance to
@@ -684,6 +1091,19 @@ enum Ending {
     Lever(&'static str, LeverPass),
     /// A decision with no size the user chose.
     Unsized(Unsized),
+}
+
+impl Ending {
+    /// The ending's sentence on the escalation `diag`, at the Boolean
+    /// that built the geometry.
+    fn recourse(self, diag: &Indeterminate) -> String {
+        let arm = RefusedArm::Undecided(diag);
+        match self {
+            Self::Sized(decision) => decision.recourse(arm, Reading::Build),
+            Self::Lever(lever, passes) => passes.recourse(lever, diag),
+            Self::Unsized(decision) => decision.recourse(arm, Reading::Build),
+        }
+    }
 }
 
 /// What a lever-alone decision passes on, as its deciding code has it,
@@ -703,6 +1123,9 @@ enum LeverPass {
     /// Its rungs pass on different sets, and the escalation does not
     /// say which rung refused.
     ByRung,
+    /// It passes only on a definite zero, which no smaller tolerance
+    /// decides a nonzero margin onto.
+    ZeroOnly,
     /// No sign of its margin passes where it is asked.
     Never,
 }
@@ -725,19 +1148,17 @@ impl LeverPass {
 /// there, and which move reaches a pass.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PlaneDoor {
-    /// A face of each operand, with what the door read of the pair's
-    /// declaration before it ran the ladder.
-    Pair(DeclarationRead),
+    /// A sector pair of the two solids read on one another (`vtxfac`,
+    /// `recl`), or a declared `Rest` pair's verification, with what the
+    /// door read of the pair's declaration before it ran the ladder
+    /// ([`Coincide::OnPlanes`]).
+    OnPair(DeclarationRead),
+    /// A declared-`Tangent` pair's conformal screen, where a definitely
+    /// distinct pair passes ([`Coincide::Planes`]), with the declaration
+    /// the door holds.
+    Screen(DeclarationRead),
     /// Two neighbouring faces of one operand (F7).
     Neighbours,
-}
-
-impl PlaneDoor {
-    /// The cross-operand door a pair whose declared class is `class`
-    /// meets.
-    pub(crate) const fn of(class: Option<ContactClass>) -> Self {
-        Self::Pair(DeclarationRead::of(class))
-    }
 }
 
 /// The maximal-faces gate's lever: the one move that takes two
@@ -773,49 +1194,47 @@ impl BooleanDecision {
     }
 
     /// The decision a plane-identity rung escalated on at `door`:
-    /// across the operands, in-band parallelism is the planes'
-    /// coincidence with what the door read (a declared `Rest` pair's
-    /// ladder bridges an in-band margin, so only an unreadable norm
-    /// escalates there), and orientation a decision of its own; between
-    /// neighbours of one operand, both rungs ask the maximal-faces
-    /// question.
+    /// across the operands, in-band parallelism is the question the door
+    /// asks of the pair, with what it read (a declared `Rest` pair's
+    /// ladder bridges an in-band margin), and orientation a decision of
+    /// its own; between neighbours of one operand, both rungs ask the
+    /// maximal-faces question. A norm read definitely negative is
+    /// poisoned input at every door, which no declaration and no move
+    /// of the parts reads.
     pub(crate) const fn of_plane_rung(rung: PlaneRung, door: PlaneDoor) -> Self {
         match (door, rung) {
-            (PlaneDoor::Pair(DeclarationRead::Spent(ContactClass::Rest)), PlaneRung::Parallel) => {
-                Self::DeclaredParallel
+            (_, PlaneRung::Norm) => Self::SelfCheck(SelfCheck::Normals),
+            (PlaneDoor::OnPair(read), PlaneRung::Parallel) => {
+                Self::Coincidence(Coincide::OnPlanes, read)
             }
-            (PlaneDoor::Pair(read), PlaneRung::Parallel) => {
+            (PlaneDoor::Screen(read), PlaneRung::Parallel) => {
                 Self::Coincidence(Coincide::Planes, read)
             }
-            (PlaneDoor::Pair(_), PlaneRung::Orientation) => Self::PlaneOrientation,
+            (PlaneDoor::OnPair(_) | PlaneDoor::Screen(_), PlaneRung::Orientation) => {
+                Self::PlaneOrientation
+            }
             (PlaneDoor::Neighbours, rung) => Self::Neighbours(rung),
         }
     }
 
     /// The decision a conic root lane's escalation came from: a
     /// crossing decision as the fault routes it, and otherwise a
-    /// coincidence between the plane and the conic, which the sweep asks
-    /// ahead of any declaration.
-    pub(crate) fn of_conic_root(fault: ConicRootFault) -> Self {
+    /// coincidence between the plane and the conic, with what the door
+    /// read of the declaration ahead of it.
+    pub(crate) fn of_conic_root(fault: ConicRootFault, read: DeclarationRead) -> Self {
         fault.decision().map_or(
-            Self::Coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot),
+            Self::Coincidence(Coincide::EdgeOnPlane, read),
             Self::Crossing,
         )
     }
 
     /// The decision a lever-armed reading escalated on at `gate`: its arm
-    /// rung is the gate's own length, and its reading is the coincidence
-    /// `reading` names, with what the gate's door read of the pair's
-    /// declaration ahead of it.
-    pub(crate) const fn of_lever(
-        gate: LeverArm,
-        reading: Coincide,
-        read: DeclarationRead,
-        rung: LeverRung,
-    ) -> Self {
+    /// rung is the gate's own length, and its reading is the decision
+    /// `reading` the gate meters.
+    pub(crate) const fn of_lever(gate: LeverArm, reading: Self, rung: LeverRung) -> Self {
         match rung {
             LeverRung::Arm => Self::LeverArm(gate),
-            LeverRung::Reading => Self::Coincidence(reading, read),
+            LeverRung::Reading => reading,
         }
     }
 
@@ -826,7 +1245,6 @@ impl BooleanDecision {
         match self {
             Self::Coincidence(which, _) => which.subject(),
             Self::PlaneOrientation => PlaneRung::Orientation.subject(),
-            Self::DeclaredParallel => PlaneRung::Parallel.subject(),
             Self::Neighbours(_) => "whether two neighbouring faces of one operand lie on one plane",
             Self::Corner(rung) => rung.subject(),
             Self::PierceOnFace => {
@@ -850,6 +1268,7 @@ impl BooleanDecision {
                 "whether an edge crosses a cylinder wall, grazes it or misses it"
             }
             Self::TorusRoots => "how many times an edge crosses a torus",
+            Self::ArcTorusRoots => "how many times an arc crosses a torus",
             Self::PierceCurvature => {
                 "whether an edge leaves a curved face steeply enough, for how sharply the face \
                  bends, to read which side it goes"
@@ -858,20 +1277,26 @@ impl BooleanDecision {
                 "whether two parallel directions at a corner point the same way or opposite ways"
             }
             Self::BisectorSide => "which side of a face a corner's bisector leaves on",
+            Self::SeamWedge => {
+                "whether the two faces at a seam edge cross there or touch tangentially"
+            }
+            Self::Sphere(question) => question.subject(),
+            Self::SelfCheck(check) => check.subject(),
         }
     }
 
-    /// How the decision's escalation ends: from what it passes on.
-    fn ending(self) -> Ending {
+    /// How the decision's escalation ends: from what it passes on. A
+    /// coincidence a declaration read ahead would settle ends in the
+    /// declaration first ([`Coincide::settled`]), on a margin it could
+    /// read; a poisoned one no declaration reads, so it ends as the
+    /// question does unsettled.
+    fn ending(self, diag: &Indeterminate) -> Ending {
         match self {
-            Self::Coincidence(_, DeclarationRead::Settles) => Ending::Coincidence,
-            Self::Coincidence(which, DeclarationRead::Spent(_) | DeclarationRead::Moot) => {
-                Ending::Sized(which.unsettled())
+            Self::Coincidence(which, DeclarationRead::Settles(_)) if !diag.margin.is_invalid() => {
+                which.settled()
             }
-            Self::PlaneOrientation => Ending::Sized(PLANE_ORIENTATION),
-            // A poisoned description, which the merge's declared rung
-            // ends the same way (`MergeDecision::DeclaredPlanes`).
-            Self::DeclaredParallel => Ending::Unsized(Unsized::Defect),
+            Self::Coincidence(which, _) => which.ending(),
+            Self::PlaneOrientation => Ending::Sized(CORNER_SENSE),
             // The margin is the normals' sine over the shared edge's
             // chord, and a definitely positive one (a clear angle)
             // passes.
@@ -887,6 +1312,9 @@ impl BooleanDecision {
             Self::Neighbours(PlaneRung::Orientation) => {
                 Ending::Lever(NEIGHBOUR_LEVER, LeverPass::Never)
             }
+            // A poisoned norm, which `of_plane_rung` routes to the
+            // kernel's own check at every door.
+            Self::Neighbours(PlaneRung::Norm) => Ending::Unsized(Unsized::Defect),
             // The arm passes on a positive length.
             Self::Corner(SectorRung::Arm) => {
                 sized(CORNER_LEVER, "edge length", SizedPass::Positive)
@@ -966,8 +1394,18 @@ impl BooleanDecision {
                 "move the parts so the edge clearly crosses the torus or clearly misses it",
                 LeverPass::NonZeroNotALength,
             ),
+            // The lane's rungs pass on different sets (the plane-height
+            // depth passes positive, a contour side either sign, the
+            // quartic's rows a definite sign each) and in different units
+            // (some are lengths, the quartic's rows are not), and the
+            // escalation names its predicate only, so no one margin gives
+            // a tolerance to tighten below.
+            Self::ArcTorusRoots => Ending::Lever(
+                "move the parts so the arc clearly crosses the torus or clearly misses it",
+                LeverPass::ByRung,
+            ),
             Self::PierceCurvature => Ending::Sized(PIERCE_CURVATURE),
-            Self::DirectionSense => Ending::Sized(DIRECTION_SENSE),
+            Self::DirectionSense => Ending::Sized(CORNER_SENSE),
             // Its margin is an enclosure of the zero band, which no
             // smaller tolerance decides onto one side; a longer arm
             // lengthens every reading of the corner.
@@ -976,6 +1414,10 @@ impl BooleanDecision {
                 "reading of the corner's bisector",
                 SizedPass::NonZero,
             ),
+            Self::SeamWedge => Ending::Sized(SEAM_WEDGE),
+            Self::Sphere(question) => question.ending(),
+            // A broken invariant, as the check's definite refusal says.
+            Self::SelfCheck(_) => Ending::Unsized(Unsized::Defect),
         }
     }
 
@@ -984,19 +1426,8 @@ impl BooleanDecision {
     /// one ending the verdict gives.
     #[must_use]
     pub(crate) fn render(self, diag: &Indeterminate) -> String {
-        let arm = RefusedArm::Undecided(diag);
         let (subject, payload) = (self.subject(), diag.payload());
-        let ending = match self.ending() {
-            Ending::Coincidence => {
-                return format!(
-                    "{subject} is undecided: {payload}, and the Boolean never snaps parts of \
-                     the two solids together. Recourse: {COINCIDENCE_RECOURSE}"
-                );
-            }
-            Ending::Sized(decision) => decision.recourse(arm, Reading::Build),
-            Ending::Lever(lever, passes) => passes.recourse(lever, diag),
-            Ending::Unsized(decision) => decision.recourse(arm, Reading::Build),
-        };
+        let ending = self.ending(diag).recourse(diag);
         format!("{subject} is undecided: {payload}. {ending}")
     }
 }
@@ -1169,11 +1600,10 @@ mod tests {
             .flat_map(|kind| match kind {
                 BooleanDecisionKind::Coincidence => Coincide::iter()
                     .flat_map(|which| {
-                        every_read().map(move |read| BooleanDecision::Coincidence(which, read))
+                        every_read(which).map(move |read| BooleanDecision::Coincidence(which, read))
                     })
                     .collect(),
                 BooleanDecisionKind::PlaneOrientation => vec![BooleanDecision::PlaneOrientation],
-                BooleanDecisionKind::DeclaredParallel => vec![BooleanDecision::DeclaredParallel],
                 BooleanDecisionKind::Neighbours => {
                     PlaneRung::iter().map(BooleanDecision::Neighbours).collect()
                 }
@@ -1210,36 +1640,50 @@ mod tests {
                     WallRung::iter().map(BooleanDecision::WallRoots).collect()
                 }
                 BooleanDecisionKind::TorusRoots => vec![BooleanDecision::TorusRoots],
+                BooleanDecisionKind::ArcTorusRoots => vec![BooleanDecision::ArcTorusRoots],
                 BooleanDecisionKind::PierceCurvature => vec![BooleanDecision::PierceCurvature],
                 BooleanDecisionKind::DirectionSense => vec![BooleanDecision::DirectionSense],
                 BooleanDecisionKind::BisectorSide => vec![BooleanDecision::BisectorSide],
+                BooleanDecisionKind::SeamWedge => vec![BooleanDecision::SeamWedge],
+                BooleanDecisionKind::Sphere => SphereQuestion::iter()
+                    .map(BooleanDecision::Sphere)
+                    .collect(),
+                BooleanDecisionKind::SelfCheck => {
+                    SelfCheck::iter().map(BooleanDecision::SelfCheck).collect()
+                }
             })
             .collect()
     }
 
-    /// Every read a door can state: each class a spent declaration can
-    /// carry comes from [`ContactClass::ALL`], and the match names every
-    /// variant, so a new read is a compile error here.
-    fn every_read() -> impl Iterator<Item = DeclarationRead> + Clone {
-        let witness = |read: DeclarationRead| match read {
-            DeclarationRead::Settles | DeclarationRead::Spent(_) | DeclarationRead::Moot => read,
+    /// Every read a door can hand `which`, each minted by the one
+    /// constructor ([`crate::boolean::DeclaredPairs::read`]): the pair
+    /// declared under each class ([`ContactClass::ALL`]), and undeclared
+    /// with each class admitted, and with none.
+    fn every_read(which: Coincide) -> impl Iterator<Item = DeclarationRead> + Clone {
+        use crate::boolean::{BooleanDeclarations, DeclaredPairs, FacePairDeclaration};
+        let face = crate::entity::FaceKey::default();
+        let pair = [(Operand::A, face, Operand::B, face)];
+        let declared = |class: Option<ContactClass>| {
+            let decls = BooleanDeclarations {
+                coincident_faces: class
+                    .map(|class| vec![FacePairDeclaration::new(face, face, class)])
+                    .unwrap_or_default(),
+                ..BooleanDeclarations::none()
+            };
+            DeclaredPairs::build(&decls, Default::default())
         };
-        [DeclarationRead::Settles, DeclarationRead::Moot]
-            .into_iter()
-            .chain(
-                ContactClass::ALL
-                    .iter()
-                    .copied()
-                    .map(DeclarationRead::Spent),
-            )
-            .map(witness)
+        let mut reads = vec![declared(None).read(&pair, which, &[])];
+        for &class in ContactClass::ALL {
+            reads.push(declared(Some(class)).read(&pair, which, ContactClass::ALL));
+            reads.push(declared(None).read(&pair, which, &[class]));
+        }
+        reads.dedup();
+        reads.into_iter()
     }
 
     /// How a decision's escalation must end, written independently of
     /// the table.
     enum Ending {
-        /// The coincidence's own sentence.
-        Coincidence,
         /// The lever, and the pass set the table must state, from which
         /// the margins a smaller tolerance decides passing follow.
         Sized(&'static str, SizedPass),
@@ -1253,15 +1697,24 @@ mod tests {
     /// Each coincidence's subject, as a literal.
     fn coincide_subject(which: Coincide) -> &'static str {
         match which {
-            Coincide::Planes => "whether a face of each solid lies on one plane",
-            Coincide::Carriers => "whether a face of each solid lies on one surface",
-            Coincide::VertexOnFace => "whether a vertex of one solid lies on a face of the other",
+            Coincide::Planes | Coincide::OnPlanes => {
+                "whether a face of each solid lies on one plane"
+            }
+            Coincide::VertexOnFace | Coincide::VertexOnCoveredFace => {
+                "whether a vertex of one solid lies on a face of the other"
+            }
             Coincide::EdgeOnPlane => {
                 "whether a curved edge of one solid lies in, grazes or misses the plane of a face \
                  of the other"
             }
             Coincide::EdgeOnCurvedFace => {
                 "whether an edge of one solid clears a curved face of the other or lies on it"
+            }
+            Coincide::ArcClearsCurvedFace => {
+                "whether an arc of one solid clears a curved face of the other"
+            }
+            Coincide::ArcOnCoveredFace => {
+                "whether an arc of one solid lies on a curved face of the other or clears it"
             }
             Coincide::SectorSide => {
                 "which side of a face of the other solid a corner's edge leaves on"
@@ -1272,58 +1725,127 @@ mod tests {
             }
             Coincide::Sectors => "how two corners of the two solids overlap where they meet",
             Coincide::EdgeOnEdge => "whether an edge of one solid runs along an edge of the other",
-            Coincide::TangentLocus => "where two faces of the two solids touch tangentially",
-            Coincide::SeamWedge => {
-                "whether the two faces at a seam edge cross there or touch tangentially"
+            Coincide::FlankSense => {
+                "whether faces of the two solids along an edge they share overlap or only touch"
             }
-            Coincide::Sphere => "whether a sphere face of one solid meets the other solid",
+            Coincide::TangentLocus => "where two faces of the two solids touch tangentially",
+            Coincide::Rim => "whether a face of each solid ends on one circle",
+            Coincide::Contact => "whether a declared contact holds along its witness",
             Coincide::Section => "where the surfaces of a face of each solid meet",
             Coincide::Join => "how the sections' ends pair up where the two solids meet",
-            Coincide::Contact => {
-                "whether a declared contact holds along its witness or its shared rim"
-            }
         }
     }
 
+    /// Each coincidence's own ending where no declaration settles it,
+    /// as literals: every question stated on its own, its pass set the
+    /// one its deciding code has.
+    fn coincide_ending(which: Coincide) -> Ending {
+        const MEET: &str =
+            "Recourse: move the parts so they clearly meet or clearly stand apart there";
+        match which {
+            Coincide::Planes => Ending::Sized(
+                "Recourse: tilt one face so the two are clearly parallel or clearly not",
+                SizedPass::NonNegative,
+            ),
+            Coincide::OnPlanes => Ending::Lever("Recourse: move the geometry", LeverPass::ZeroOnly),
+            Coincide::VertexOnFace => Ending::Sized(MEET, SizedPass::AnySign),
+            Coincide::VertexOnCoveredFace => Ending::Sized(
+                "Recourse: move the parts so the vertex lies clearly on that face or clearly \
+                 clear of it",
+                SizedPass::NonNegative,
+            ),
+            Coincide::EdgeOnPlane => Ending::Sized(MEET, SizedPass::AnySign),
+            Coincide::EdgeOnCurvedFace => Ending::Sized(MEET, SizedPass::AnySign),
+            Coincide::ArcClearsCurvedFace => Ending::Sized(
+                "Recourse: move the parts so the arc clearly clears that face",
+                SizedPass::Positive,
+            ),
+            Coincide::ArcOnCoveredFace => Ending::Sized(
+                "Recourse: move the parts so the arc lies clearly on that face or clearly clear \
+                 of it",
+                SizedPass::NonNegative,
+            ),
+            Coincide::SectorSide => Ending::Sized(MEET, SizedPass::AnySign),
+            Coincide::TangentSide => Ending::Sized(
+                "Recourse: make one face clearly curve away from the other where they touch, or \
+                 make both curve alike there",
+                SizedPass::AnySign,
+            ),
+            Coincide::Sectors => Ending::Sized(MEET, SizedPass::AnySign),
+            Coincide::EdgeOnEdge => Ending::Sized(MEET, SizedPass::AnySign),
+            Coincide::FlankSense => Ending::Sized(LONGER, SizedPass::NonZero),
+            Coincide::TangentLocus => Ending::Lever(
+                "Recourse: move the parts so the declared faces clearly touch along one line",
+                LeverPass::ByRung,
+            ),
+            Coincide::Rim => Ending::Sized(MEET, SizedPass::AnySign),
+            Coincide::Contact => Ending::Lever(MEET, LeverPass::ByRung),
+            Coincide::Section => Ending::Lever(MEET, LeverPass::ByRung),
+            Coincide::Join => Ending::Sized(MEET, SizedPass::AnySign),
+        }
+    }
+
+    /// Each settleable coincidence's ending where a declaration read
+    /// ahead of it would settle it: the declaration, then its own lever,
+    /// and the tolerance only where its own pass set holds a nonzero
+    /// sign. `None` for a question no declaration settles.
+    fn coincide_settled(which: Coincide) -> Option<Ending> {
+        match which {
+            Coincide::OnPlanes => Some(Ending::Lever(
+                "Recourse: declare the coincidence, or move the geometry",
+                LeverPass::ZeroOnly,
+            )),
+            Coincide::Sectors => Some(Ending::Sized(
+                "Recourse: declare the coincidence, or move the parts so they clearly meet or \
+                 clearly stand apart there",
+                SizedPass::AnySign,
+            )),
+            Coincide::FlankSense => Some(Ending::Sized(
+                "Recourse: declare the coincidence, or make the edges at the corner where the \
+                 two faces meet clearly longer than the tolerance",
+                SizedPass::NonZero,
+            )),
+            Coincide::Planes
+            | Coincide::VertexOnFace
+            | Coincide::VertexOnCoveredFace
+            | Coincide::EdgeOnPlane
+            | Coincide::EdgeOnCurvedFace
+            | Coincide::ArcClearsCurvedFace
+            | Coincide::ArcOnCoveredFace
+            | Coincide::SectorSide
+            | Coincide::TangentSide
+            | Coincide::EdgeOnEdge
+            | Coincide::TangentLocus
+            | Coincide::Rim
+            | Coincide::Contact
+            | Coincide::Section
+            | Coincide::Join => None,
+        }
+    }
+
+    const LONGER: &str = "Recourse: make the edges at the corner where the two faces meet \
+                          clearly longer than the tolerance";
+
     /// Each decision's subject and ending, as literals: an independent
-    /// statement of the words `subject` and `ending` must produce.
-    fn want(decision: BooleanDecision) -> (&'static str, Ending) {
+    /// statement of the words `subject` and `ending` must produce, on a
+    /// margin it can read (`readable`) or a poisoned one.
+    fn want(decision: BooleanDecision, readable: bool) -> (&'static str, Ending) {
         const CORNER: &str = "Recourse: reshape that corner so its edges are clearly longer than \
                               the tolerance and clearly not in line";
         const STRAIGHT: &str = "whether a corner is straight or folds back on itself";
-        const LONGER: &str = "Recourse: make the edges at the corner where the two faces meet \
-                              clearly longer than the tolerance";
+        const SPHERES: &str = "Recourse: move the spheres so they clearly stand apart, or so one \
+                               lies clearly inside the other";
+        const AGAINST: &str = "Recourse: move the parts so the sphere clearly crosses that face's \
+                               plane or clearly clears it";
         match decision {
-            BooleanDecision::Coincidence(which, DeclarationRead::Settles) => {
-                (coincide_subject(which), Ending::Coincidence)
-            }
+            BooleanDecision::Coincidence(which, DeclarationRead::Settles(_)) if readable => (
+                coincide_subject(which),
+                coincide_settled(which).expect("only a settleable question is minted settled"),
+            ),
             BooleanDecision::Coincidence(
                 which,
-                DeclarationRead::Spent(_) | DeclarationRead::Moot,
-            ) => (
-                coincide_subject(which),
-                match which {
-                    Coincide::Planes => Ending::Sized(
-                        "Recourse: tilt one face so the two are clearly parallel or clearly not",
-                        SizedPass::NonNegative,
-                    ),
-                    Coincide::TangentSide => Ending::Sized(
-                        "Recourse: make one face clearly curve away from the other where they \
-                         touch, or make both curve alike there",
-                        SizedPass::AnySign,
-                    ),
-                    Coincide::SeamWedge => Ending::Sized(
-                        "Recourse: move the geometry so the faces at that seam meet either \
-                         clearly creased or clearly smooth",
-                        SizedPass::NonNegative,
-                    ),
-                    _ => Ending::Sized(
-                        "Recourse: move the parts so they clearly meet or clearly stand apart \
-                         there",
-                        SizedPass::AnySign,
-                    ),
-                },
-            ),
+                DeclarationRead::Settles(_) | DeclarationRead::Spent(_) | DeclarationRead::Moot,
+            ) => (coincide_subject(which), coincide_ending(which)),
             BooleanDecision::DirectionSense => (
                 "whether two parallel directions at a corner point the same way or opposite ways",
                 Ending::Sized(LONGER, SizedPass::NonZero),
@@ -1384,6 +1906,65 @@ mod tests {
                     LeverPass::NonZeroNotALength,
                 ),
             ),
+            BooleanDecision::ArcTorusRoots => (
+                "how many times an arc crosses a torus",
+                Ending::Lever(
+                    "Recourse: move the parts so the arc clearly crosses the torus or clearly \
+                     misses it",
+                    LeverPass::ByRung,
+                ),
+            ),
+            BooleanDecision::SeamWedge => (
+                "whether the two faces at a seam edge cross there or touch tangentially",
+                Ending::Sized(
+                    "Recourse: move the geometry so the faces at that seam meet either clearly \
+                     creased or clearly smooth",
+                    SizedPass::AnySign,
+                ),
+            ),
+            BooleanDecision::Sphere(SphereQuestion::AgainstPlane) => (
+                "whether a sphere of one solid crosses the plane of a face of the other",
+                Ending::Sized(AGAINST, SizedPass::NonZero),
+            ),
+            BooleanDecision::Sphere(SphereQuestion::Apart) => (
+                "whether a sphere of each solid stands clear of the other",
+                Ending::Sized(SPHERES, SizedPass::Positive),
+            ),
+            BooleanDecision::Sphere(SphereQuestion::Nested) => (
+                "whether the smaller of two spheres lies strictly inside the larger",
+                Ending::Sized(SPHERES, SizedPass::Positive),
+            ),
+            BooleanDecision::Sphere(SphereQuestion::EscapeParallel) => (
+                "whether the plane faces a sphere pokes through are parallel",
+                Ending::Lever(
+                    "Recourse: move them so their boundaries cross, or so their curved faces \
+                     stand further apart",
+                    LeverPass::ZeroOnly,
+                ),
+            ),
+            BooleanDecision::Sphere(SphereQuestion::RecutAlign) => (
+                "whether a sphere's polar axis leans away from the face it pokes through",
+                Ending::Sized(AGAINST, SizedPass::NonZero),
+            ),
+            BooleanDecision::SelfCheck(SelfCheck::GermLine) => (
+                "whether two faces meeting at a corner cross along a line",
+                Ending::Defect,
+            ),
+            BooleanDecision::SelfCheck(SelfCheck::Normals) => (
+                "whether the normals of two faces can be read",
+                Ending::Defect,
+            ),
+            BooleanDecision::SelfCheck(SelfCheck::ArcFacing) => (
+                "which way a germ turns about the section it lies on",
+                Ending::Defect,
+            ),
+            BooleanDecision::SelfCheck(SelfCheck::RingWinding) => {
+                ("which way a ring run of the section winds", Ending::Defect)
+            }
+            BooleanDecision::SelfCheck(SelfCheck::CarrierLadder) => (
+                "whether a face of each solid lies on one surface",
+                Ending::Defect,
+            ),
             BooleanDecision::PierceCurvature => (
                 "whether an edge leaves a curved face steeply enough, for how sharply the face \
                  bends, to read which side it goes",
@@ -1407,9 +1988,6 @@ mod tests {
                 "whether the two planes face the same way or opposite ways",
                 Ending::Sized(LONGER, SizedPass::NonZero),
             ),
-            BooleanDecision::DeclaredParallel => {
-                ("whether the two planes are parallel", Ending::Defect)
-            }
             BooleanDecision::Neighbours(PlaneRung::Parallel) => (
                 NEIGHBOURS,
                 Ending::Sized(NEIGHBOUR_ENDING, SizedPass::Positive),
@@ -1418,6 +1996,7 @@ mod tests {
                 NEIGHBOURS,
                 Ending::Lever(NEIGHBOUR_ENDING, LeverPass::Never),
             ),
+            BooleanDecision::Neighbours(PlaneRung::Norm) => (NEIGHBOURS, Ending::Defect),
             BooleanDecision::Torus(TorusConvention::Tube) => (
                 "whether a torus's tube radius is positive",
                 Ending::Sized(TUBE_LEVER, SizedPass::Positive),
@@ -1497,14 +2076,14 @@ mod tests {
     ///
     /// - every sentence opens on its decision's own subject, written
     ///   here as a literal, and passes the refusal-shape guard;
-    /// - a coincidence composes the coincidence sentence, and only it
-    ///   offers a declaration;
+    /// - only a coincidence whose read settles it offers a declaration,
+    ///   and only on a margin it can read;
     /// - a decision on a size names its lever and, on an in-band margin
     ///   on a side it passes on, the tolerance below which that margin is
     ///   decided passing; elsewhere no tolerance, and an `INVALID` margin
     ///   adds the unreadable-margin note;
-    /// - a family the escalation does not tell apart names its lever
-    ///   alone;
+    /// - a family the escalation does not tell apart, and a question
+    ///   that passes only at zero, name their lever alone;
     /// - a residual or a kernel self-check ends as a defect and never
     ///   names the tolerance.
     #[test]
@@ -1532,32 +2111,24 @@ mod tests {
                     !text.contains("routing_probe"),
                     "{label}: the routing name stays out: {text}"
                 );
+                let readable = !margin.is_invalid();
                 assert_eq!(
                     text.contains("declare the coincidence"),
-                    matches!(
-                        decision,
-                        BooleanDecision::Coincidence(_, DeclarationRead::Settles)
-                    ),
+                    readable
+                        && matches!(
+                            decision,
+                            BooleanDecision::Coincidence(_, DeclarationRead::Settles(_))
+                        ),
                     "{label}: only a coincidence a declaration read ahead would settle offers \
-                     one: {text}"
+                     one, and never on a margin no declaration reads: {text}"
                 );
-                let (subject, ending) = want(decision);
+                let (subject, ending) = want(decision, readable);
                 let head = format!("{subject} is undecided: {}. ", diag.payload());
                 let tail = text.strip_prefix(&head);
                 match ending {
-                    Ending::Coincidence => assert_eq!(
-                        text,
-                        format!(
-                            "{subject} is undecided: {}, and the Boolean never snaps parts of \
-                             the two solids together. Recourse: declare the coincidence, move \
-                             the geometry, or lower the tolerance",
-                            diag.payload()
-                        ),
-                        "{label}"
-                    ),
                     Ending::Sized(lever, passes) => {
                         assert!(
-                            matches!(decision.ending(), super::Ending::Sized(d) if d.passes == passes),
+                            matches!(decision.ending(&diag), super::Ending::Sized(d) if d.passes == passes),
                             "{label}: the pass set the table states"
                         );
                         assert!(
@@ -1577,7 +2148,7 @@ mod tests {
                     }
                     Ending::Lever(lever, passes) => {
                         assert!(
-                            matches!(decision.ending(), super::Ending::Lever(_, p) if p == passes),
+                            matches!(decision.ending(&diag), super::Ending::Lever(_, p) if p == passes),
                             "{label}: the pass set the table states"
                         );
                         let want = if margin.is_invalid() {
@@ -1593,6 +2164,68 @@ mod tests {
                         "{label}: its subject, then the defect ending: {text}"
                     ),
                 }
+            }
+        }
+    }
+
+    /// **A declaration is offered only where the lookup mints it**: the
+    /// one constructor ([`crate::boolean::DeclaredPairs::read`]) settles
+    /// a question only for a class the door admits and the question
+    /// states it is settled by, spends a declared pair's class, and says
+    /// `Moot` otherwise, over every question and class. Each settleable
+    /// question's settling classes, stated here on their own.
+    #[test]
+    fn a_declaration_read_is_minted_by_the_lookup_alone() {
+        use crate::boolean::{BooleanDeclarations, DeclaredPairs, FacePairDeclaration};
+        let face = crate::entity::FaceKey::default();
+        let pair = [(Operand::A, face, Operand::B, face)];
+        let none = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+        let settled = |which: Coincide| -> &'static [ContactClass] {
+            match which {
+                Coincide::OnPlanes => &[ContactClass::Rest],
+                Coincide::Sectors => &[ContactClass::Rest, ContactClass::Tangent],
+                Coincide::FlankSense => &[ContactClass::Tangent],
+                Coincide::Planes
+                | Coincide::VertexOnFace
+                | Coincide::VertexOnCoveredFace
+                | Coincide::EdgeOnPlane
+                | Coincide::EdgeOnCurvedFace
+                | Coincide::ArcClearsCurvedFace
+                | Coincide::ArcOnCoveredFace
+                | Coincide::SectorSide
+                | Coincide::TangentSide
+                | Coincide::EdgeOnEdge
+                | Coincide::TangentLocus
+                | Coincide::Rim
+                | Coincide::Contact
+                | Coincide::Section
+                | Coincide::Join => &[],
+            }
+        };
+        for which in Coincide::iter() {
+            for &class in ContactClass::ALL {
+                let got = none.read(&pair, which, &[class]);
+                let want = if settled(which).contains(&class) {
+                    DeclarationRead::Settles(Settling { class })
+                } else {
+                    DeclarationRead::Moot
+                };
+                assert_eq!(got, want, "{which:?} undeclared, {class:?} admitted");
+                assert_eq!(
+                    none.read(&pair, which, &[]),
+                    DeclarationRead::Moot,
+                    "{which:?}: a door that admits no class settles nothing"
+                );
+                let decls = BooleanDeclarations {
+                    coincident_faces: vec![FacePairDeclaration::new(face, face, class)],
+                    ..BooleanDeclarations::none()
+                };
+                let declared = DeclaredPairs::build(&decls, Default::default());
+                assert_eq!(
+                    declared.read(&pair, which, ContactClass::ALL),
+                    DeclarationRead::Spent(class),
+                    "{which:?} declared {class:?}: the declaration is spent"
+                );
             }
         }
     }
@@ -1677,7 +2310,7 @@ mod tests {
             }
             .to_string();
             let boolean = BooleanError::Escalated {
-                decision: BooleanDecision::of_conic_root(fault),
+                decision: BooleanDecision::of_conic_root(fault, DeclarationRead::Moot),
                 diag,
             }
             .to_string();
@@ -2070,7 +2703,11 @@ mod tests {
                     );
                     let text = BooleanError::plane_identity(
                         PlaneRung::Orientation,
-                        PlaneDoor::of(id.declared.then_some(ContactClass::Rest)),
+                        PlaneDoor::OnPair(if id.declared {
+                            DeclarationRead::Spent(ContactClass::Rest)
+                        } else {
+                            DeclarationRead::Moot
+                        }),
                         diag,
                     )
                     .to_string();
@@ -2466,34 +3103,44 @@ mod tests {
     /// its margin gives and the latter with none, since either
     /// orientation leaves the faces coplanar.
     #[test]
-    fn declared_parallelism_and_the_neighbour_gate_end_where_their_door_reaches() {
+    fn an_unreadable_norm_and_the_neighbour_gate_end_where_their_door_reaches() {
         use crate::boolean::plane_eq::unreadable_norm;
         use crate::boolean::{PlaneDesc, PlaneDoor, PlaneEqError, PlaneRung, oriented_plane_eq};
         let b = band();
         let (z, e) = (b.zero(), b.escalate());
         let PlaneEqError::Escalated {
-            rung: PlaneRung::Parallel,
+            rung: PlaneRung::Norm,
             diag,
         } = unreadable_norm(b)
         else {
-            panic!("the unreadable norm is the parallelism rung's");
+            panic!("the unreadable norm is its own rung");
         };
-        let boolean = BooleanError::plane_identity(
-            PlaneRung::Parallel,
-            PlaneDoor::of(Some(ContactClass::Rest)),
-            diag,
-        )
-        .to_string();
+        // Every door a plane rung reaches, the undeclared ones included:
+        // no declaration reads poison, so none is offered, and the
+        // refusal is the kernel's.
+        let undeclared = crate::boolean::DeclaredPairs::build(
+            &crate::boolean::BooleanDeclarations::none(),
+            Default::default(),
+        );
+        let face = crate::entity::FaceKey::default();
+        let doors = [
+            undeclared.on_pair_door((Operand::A, face, Operand::B, face)),
+            PlaneDoor::OnPair(DeclarationRead::Spent(ContactClass::Rest)),
+            PlaneDoor::Screen(DeclarationRead::Spent(ContactClass::Tangent)),
+            PlaneDoor::Neighbours,
+        ];
         let merge = MergeCoplanarError::of_declared_refusal(unreadable_norm(b)).to_string();
-        for text in [&boolean, &merge] {
+        let texts =
+            doors.map(|door| BooleanError::plane_identity(PlaneRung::Norm, door, diag).to_string());
+        for text in texts.iter().chain([&merge]) {
             let problems = short_of_the_guard(text, &[]);
             assert!(problems.is_empty(), "{problems:?}: {text}");
             assert_eq!(
-                text.strip_prefix("whether the two planes are parallel is undecided: ")
+                text.strip_prefix("whether the normals of two faces can be read is undecided: ")
                     .and_then(|t| t.split_once(". "))
                     .map(|(_, ending)| ending),
                 Some(KERNEL_DEFECT_ENDING),
-                "a declared door's unreadable norm is a defect, at both: {text}"
+                "an unreadable norm is a defect at every door: {text}"
             );
         }
         const GATE: &str = "Recourse: merge the two faces into one first (merge_coplanar_faces), \

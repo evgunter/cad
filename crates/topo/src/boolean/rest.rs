@@ -1052,7 +1052,7 @@ fn verify_declared_pairs<T: Decide>(
             Err(PlaneEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
-                    super::PlaneDoor::of(Some(ContactClass::Rest)),
+                    super::PlaneDoor::OnPair(super::DeclarationRead::Spent(ContactClass::Rest)),
                     diag,
                 ));
             }

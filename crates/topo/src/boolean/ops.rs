@@ -101,6 +101,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::BooleanDecision;
+use super::SphereQuestion;
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
@@ -116,12 +117,13 @@ use super::{
     ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact, SideCode,
     SweepStrategy, VfContact, VvContact,
 };
-use super::{Coincide, DeclarationRead};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{decide, validate, validate_closed};
+use geom_brep::recourse::Refused;
+use geom_core::k_stats::NonzeroSign;
 
 /// How a boolean result body came to be (module docs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1198,9 +1200,13 @@ fn ball_against_plane<T: Decide>(
     origin: Point3<T>,
     normal: Vec3<T>,
     band: Band,
-) -> Result<(Sign, T), geom_core::Indeterminate> {
+) -> Result<(NonzeroSign, T), geom_core::Indeterminate> {
     let s = (center - origin).dot(normal);
-    let sign = decide("bool_sphere_extent_gap", Margin::of(radius - s.abs()), band)?;
+    let sign = crate::validate::decide_nonzero_reported(
+        "bool_sphere_extent_gap",
+        Margin::of(radius - s.abs()),
+        band,
+    )?;
     Ok((sign, s))
 }
 
@@ -1782,8 +1788,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
             Err(escalation) => {
                 return Err(BooleanError::of_lever(
                     super::LeverArm::Seam,
-                    super::Coincide::SeamWedge,
-                    DeclarationRead::Moot,
+                    BooleanDecision::SeamWedge,
                     escalation,
                 ));
             }
@@ -2144,7 +2149,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     b: &Body<T>,
     band: Band,
 ) -> Result<Vec<SphereRecut<T>>, BooleanError> {
-    let esc = |diag| BooleanError::coincidence(Coincide::Sphere, DeclarationRead::Moot, diag);
+    let esc = |question| {
+        move |diag| BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(question),
+            diag,
+        }
+    };
     // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
     // NURBS face refuses before a vertex is probed — the extent test
     // is unwritable for the kind (variant docs).
@@ -2207,24 +2217,16 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         normal,
                         u_ref,
                     }) => {
+                        // A tangency (a decided zero) is a touching
+                        // configuration the crossing layer cannot
+                        // represent: it refuses with its decided margin,
+                        // as its in-band twin does.
                         let (side, s) = ball_against_plane(center, radius, origin, normal, band)
-                            .map_err(esc)?;
+                            .map_err(esc(SphereQuestion::AgainstPlane))?;
                         match side {
                             // Clear of the whole carrier plane.
-                            Sign::Negative => {}
-                            // Tangency: a touching configuration the
-                            // crossing layer cannot represent — typed
-                            // (its in-band twin escalates above).
-                            Sign::Zero => {
-                                return Err(BooleanError::FallbackExtentUnsupported {
-                                    operand: x_is,
-                                    face,
-                                    what: "the sphere is exactly tangent to a plane face's \
-                                           carrier — a touching configuration, the typed \
-                                           frontier of the supported envelope",
-                                });
-                            }
-                            Sign::Positive => {
+                            NonzeroSign::Negative => {}
+                            NonzeroSign::Positive => {
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
                                 // circle against the FACE. Certified
@@ -2383,7 +2385,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                             Margin::of(d - (radius + r2)),
                             band,
                         )
-                        .map_err(esc)?
+                        .map_err(esc(SphereQuestion::Apart))?
                         {
                             // Definitely separated.
                             Sign::Positive => {}
@@ -2394,29 +2396,27 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                 // seam frontier.
                                 let big = radius.max(r2);
                                 let small = radius.min(r2);
-                                match decide(
+                                // Neither separated nor strictly nested:
+                                // the two boundaries meet. The
+                                // sphere×sphere section is the exact
+                                // closed-form Circle and the germ frame
+                                // names it, but the JOIN has no arm for a
+                                // curved×curved germ pair (its arc-side
+                                // rule needs a chart the pair does not
+                                // have), and a crossing found here would
+                                // pierce a curved face first.
+                                let nested = crate::validate::decide_reported(
                                     "bool_sphere_sphere_nested",
                                     Margin::of(big - (d + small)),
                                     band,
                                 )
-                                .map_err(esc)?
-                                {
-                                    Sign::Positive => {}
-                                    Sign::Zero | Sign::Negative => {
-                                        return Err(BooleanError::FallbackExtentUnsupported {
-                                            operand: x_is,
-                                            face,
-                                            what: "two sphere boundaries meet (neither \
-                                                   separated nor strictly nested) — the \
-                                                   sphere×sphere section is the exact \
-                                                   closed-form Circle and the germ frame \
-                                                   names it, but the JOIN has no arm for a \
-                                                   curved×curved germ pair: its arc-side \
-                                                   rule needs a chart the pair does not \
-                                                   have, and a crossing found here would \
-                                                   pierce a curved face first",
-                                        });
-                                    }
+                                .map_err(esc(SphereQuestion::Nested))?;
+                                if let Some(verdict) = Refused::of(nested, band) {
+                                    return Err(BooleanError::SpheresMeet {
+                                        operand: x_is,
+                                        face,
+                                        verdict,
+                                    });
                                 }
                             }
                         }
@@ -2488,7 +2488,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         Margin::levered(align.cross(n).norm(), radius),
                         band,
                     )
-                    .map_err(esc)?
+                    .map_err(esc(SphereQuestion::EscapeParallel))?
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
@@ -2557,27 +2557,20 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // Rotation source → target: definite by construction — an
             // ALIGNED yet crossing-free escape is a graze the crossing
             // layer must have seen, so it refuses loudly instead.
+            // An aligned axis (a decided zero) with a crossing-free
+            // escape is a graze the crossing layer must have seen: it
+            // refuses with its decided margin, as its in-band twin does.
             let cross = r.axis.cross(r.align);
             let sin = cross.norm();
-            match decide(
+            crate::validate::decide_nonzero_reported(
                 "bool_sphere_recut_align",
                 Margin::levered(sin, r.radius),
                 band,
             )
-            .map_err(|diag| {
-                BooleanError::coincidence(Coincide::Sphere, DeclarationRead::Moot, diag)
-            })? {
-                Sign::Positive | Sign::Negative => {}
-                Sign::Zero => {
-                    return Err(BooleanError::FallbackExtentUnsupported {
-                        operand,
-                        face: r.representative,
-                        what: "the sphere chart's polar axis is already aligned with the \
-                               escape normal yet the crossing layer saw no event — a \
-                               grazing/contact configuration",
-                    });
-                }
-            }
+            .map_err(|diag| BooleanError::Escalated {
+                decision: BooleanDecision::Sphere(SphereQuestion::RecutAlign),
+                diag,
+            })?;
             // The alignment rotation, built ALGEBRAICALLY (Rodrigues
             // with the angle eliminated: R = I + K + K²/(1+c) for
             // K = [â×n̂]ₓ, c = â·n̂ — division guarded by the

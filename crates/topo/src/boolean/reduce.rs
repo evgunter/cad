@@ -704,6 +704,32 @@ fn face_tree<T: Decide + Bounds>(
     Ok(bvh::Bvh::build(&face_boxes))
 }
 
+/// What the sweep's door read of the declaration ahead of `question`,
+/// asked of `edge` of `x` against `face` of the other operand: each of
+/// the edge's parent faces paired with `face`, looked up in turn
+/// ([`super::DeclaredPairs::read`]). No question the sweep asks of an
+/// edge is one a declaration settles (the declared cover spends the
+/// declaration, and an undeclared pair's refusal is the same pose's),
+/// whatever class the door admits.
+fn edge_face_read<T: geom_core::Real>(
+    x: &Body<T>,
+    x_is: Operand,
+    edge: &crate::entity::Edge,
+    face: FaceKey,
+    declared: &super::DeclaredPairs,
+    question: Coincide,
+) -> DeclarationRead {
+    let pairs: Vec<_> = [
+        x.face_of_half_edge(edge.he_plus),
+        x.face_of_half_edge(edge.he_minus),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|f| (x_is, f, x_is.other(), face))
+    .collect();
+    declared.read(&pairs, question, crate::contact::ContactClass::ALL)
+}
+
 #[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, declarations, sinks, band, strategy, plant, trace)
 pub(super) fn sweep_direction<T: Decide + Bounds>(
     x: &mut Body<T>,
@@ -868,7 +894,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                             Err(diag) => {
                                 return Err(BooleanError::coincidence(
                                     Coincide::EdgeOnPlane,
-                                    DeclarationRead::Moot,
+                                    edge_face_read(
+                                        x,
+                                        x_is,
+                                        &edge,
+                                        face,
+                                        declared,
+                                        Coincide::EdgeOnPlane,
+                                    ),
                                     diag,
                                 ));
                             }
@@ -886,7 +919,17 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     }
                     Ok(ConicPlaneMeet::Roots(Err(fault))) => {
                         return Err(BooleanError::Escalated {
-                            decision: BooleanDecision::of_conic_root(fault),
+                            decision: BooleanDecision::of_conic_root(
+                                fault,
+                                edge_face_read(
+                                    x,
+                                    x_is,
+                                    &edge,
+                                    face,
+                                    declared,
+                                    Coincide::EdgeOnPlane,
+                                ),
+                            ),
                             diag: fault.diag(),
                         });
                     }
@@ -933,13 +976,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 band,
                             )
                         };
-                        let on_face = |diag| {
-                            BooleanError::coincidence(
-                                Coincide::VertexOnFace,
-                                DeclarationRead::Moot,
-                                diag,
-                            )
-                        };
+                        let read =
+                            edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
+                        let on_face =
+                            |diag| BooleanError::coincidence(Coincide::VertexOnFace, read, diag);
                         let s1 = side(pu).map_err(on_face)?;
                         let s2 = side(pv).map_err(on_face)?;
                         let mut hit = false;
@@ -965,9 +1005,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                     band,
                 )
             };
-            let on_face = |diag| {
-                BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag)
-            };
+            let read = edge_face_read(x, x_is, &edge, face, declared, Coincide::VertexOnFace);
+            let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, read, diag);
             let s1 = side(pu).map_err(on_face)?;
             let s2 = side(pv).map_err(on_face)?;
             match (s1, s2) {
@@ -1199,15 +1238,11 @@ fn curved_face_arm<T: Decide>(
     // The declared cover (docs above): one of the edge's parent faces
     // is declared against `face` under a class the door VERIFIED —
     // the on-carrier claim the numeric rows then certify per
-    // incidence. `cover` is that class, the declaration the arm reads.
-    let cover = [
-        x.face_of_half_edge(edge.he_plus),
-        x.face_of_half_edge(edge.he_minus),
-    ]
-    .into_iter()
-    .flatten()
-    .find_map(|f| declared.class_of(x_is, f, x_is.other(), face));
-    let covered = cover.is_some();
+    // incidence. `cover` is what the arm read of that declaration: a
+    // declared pair spends it on every question below, and none of them
+    // is one a declaration settles.
+    let cover = edge_face_read(x, x_is, edge, face, declared, Coincide::VertexOnFace);
+    let covered = matches!(cover, DeclarationRead::Spent(_));
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
     // but the boolean's CROSSING layer for the kind — edge×NURBS-face
@@ -1377,11 +1412,7 @@ fn curved_face_arm<T: Decide>(
                     let mut ends = [None, None];
                     for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
                         match side(pw).map_err(|diag| {
-                            BooleanError::coincidence(
-                                Coincide::VertexOnFace,
-                                DeclarationRead::of(cover),
-                                diag,
-                            )
+                            BooleanError::coincidence(Coincide::VertexOnCoveredFace, cover, diag)
                         })? {
                             Sign::Zero => {
                                 ends[i] = Some(vertex_on_curved_face(
@@ -1428,17 +1459,15 @@ fn curved_face_arm<T: Decide>(
                 // carrier, is on it by the carrier-identity rung above,
                 // and takes the covered arm, whose endpoint sides then
                 // refuse the same in-band pose: no declaration settles
-                // it.
+                // it. Covered, zero passes (the covered arm); uncovered,
+                // only a clear arc does.
                 Err(diag) => {
-                    let read = match cover {
-                        Some(class) => DeclarationRead::Spent(class),
-                        None => DeclarationRead::Moot,
+                    let which = if covered {
+                        Coincide::ArcOnCoveredFace
+                    } else {
+                        Coincide::ArcClearsCurvedFace
                     };
-                    return Err(BooleanError::coincidence(
-                        Coincide::EdgeOnCurvedFace,
-                        read,
-                        diag,
-                    ));
+                    return Err(BooleanError::coincidence(which, cover, diag));
                 }
             }
         }
@@ -1454,8 +1483,7 @@ fn curved_face_arm<T: Decide>(
     // The declared-cover arms rest on a LINE's separation story; only an
     // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
-    let on_face =
-        |diag| BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Moot, diag);
+    let on_face = |diag| BooleanError::coincidence(Coincide::VertexOnFace, cover, diag);
     let s1 = side(pu).map_err(on_face)?;
     let s2 = side(pv).map_err(on_face)?;
     match (s1, s2) {
@@ -1781,7 +1809,7 @@ fn curved_face_arm<T: Decide>(
                 }
                 Err(diag) => Err(BooleanError::coincidence(
                     Coincide::EdgeOnCurvedFace,
-                    DeclarationRead::Moot,
+                    cover,
                     diag,
                 )),
             }
@@ -1948,7 +1976,7 @@ fn wall_crossing<T: Decide>(
             center, axis, radius, u_ref, t0, t1, surface, band,
         )
         .map_err(|diag| BooleanError::Escalated {
-            decision: BooleanDecision::TorusRoots,
+            decision: BooleanDecision::ArcTorusRoots,
             diag,
         })? {
             super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
@@ -2749,8 +2777,10 @@ mod declaration_order_rows {
         .map(|_: CurvedEvent<f64>| ())
     }
 
-    /// The one refusal every declaration posture gives, which must be the
-    /// coincidence `which` asked with no declaration read ahead of it.
+    /// The one refusal every declaration posture gives: the coincidence
+    /// `which`, with what the lookup read of the pair (nothing, or the
+    /// declared class spent), and the same sentence, which offers no
+    /// declaration.
     fn same_refusal_without_declare(
         runs: &[(Option<ContactClass>, Result<(), BooleanError>)],
         which: Coincide,
@@ -2765,21 +2795,24 @@ mod declaration_order_rows {
             };
             assert_eq!(
                 *decision,
-                BooleanDecision::Coincidence(which, DeclarationRead::Moot),
+                BooleanDecision::Coincidence(
+                    which,
+                    class.map_or(DeclarationRead::Moot, DeclarationRead::Spent)
+                ),
                 "{class:?}"
             );
             let text = err.to_string();
             assert!(
                 text.starts_with(&format!("{subject} is undecided: ")) && !text.contains("declare"),
-                "{class:?}: no declaration is read ahead of the question, so none is offered: \
-                 {text}"
+                "{class:?}: no declaration settles the question, so none is offered: {text}"
             );
             assert_eq!(
-                format!("{err:?}"),
-                format!(
-                    "{:?}",
-                    runs[0].1.as_ref().expect_err("the undeclared run refuses")
-                ),
+                text,
+                runs[0]
+                    .1
+                    .as_ref()
+                    .expect_err("the undeclared run refuses")
+                    .to_string(),
                 "{class:?}: a declaration changes nothing here"
             );
         }
@@ -2947,28 +2980,34 @@ mod declaration_order_rows {
     fn an_uncovered_circle_clearance_offers_no_declaration() {
         let b = Band::linear(Tol::witness()).expect("the witness band");
         let frame = CylFrame::canonical(1.0 + (b.zero() + b.escalate()) / 2.0);
-        let edge_on_face = Coincide::EdgeOnCurvedFace;
+        let covered = Coincide::ArcOnCoveredFace;
         let postures = [
-            (None, false, None, edge_on_face, DeclarationRead::Moot),
+            (
+                None,
+                false,
+                None,
+                Coincide::ArcClearsCurvedFace,
+                DeclarationRead::Moot,
+            ),
             (
                 Some(ContactClass::Rest),
                 true,
                 Some(true),
-                Coincide::VertexOnFace,
+                Coincide::VertexOnCoveredFace,
                 DeclarationRead::Spent(ContactClass::Rest),
             ),
             (
                 Some(ContactClass::Rest),
                 false,
                 Some(true),
-                edge_on_face,
+                covered,
                 DeclarationRead::Spent(ContactClass::Rest),
             ),
             (
                 Some(ContactClass::Tangent),
                 false,
                 Some(false),
-                edge_on_face,
+                covered,
                 DeclarationRead::Spent(ContactClass::Tangent),
             ),
         ];
@@ -3037,136 +3076,123 @@ mod declaration_order_rows {
         }
     }
 
-    /// **The circle × torus lane escalates as the torus roots, and no
-    /// declaration settles an in-band pose.** A level circle whose plane
-    /// lies an in-band depth under the top of the tube: the root lane
-    /// asked of it escalates (`wall_crossing`, called on the pair), and
-    /// ends as the line × torus lane does, on its lever alone. A
-    /// parallel of a torus whose tube is `mid` thicker, through
-    /// `curved_face_arm` against the thinner torus: undeclared, its own
-    /// endpoints refuse; a `Rest` declaration the door verifies, calling
-    /// the two one carrier, moves the refusal to the covered endpoint
-    /// sides, which refuse the same in-band pose.
+    /// **The circle × torus lane escalates as its own decision, and no
+    /// declaration settles it, on the geometry of its raise.** An arc
+    /// of a level circle an in-band depth under the top of a torus's
+    /// tube (a parallel of a torus sheet whose centre stands 0.3 off the
+    /// other's axis), with both ends
+    /// definitely outside the tube and its middle over the tube's top:
+    /// through `curved_face_arm` the clearance does not decide, the ends
+    /// do, and the root lane asked of the arc escalates on its plane
+    /// height. The lane's rungs pass on different sets and units, and the
+    /// escalation names its predicate only, so it ends on its lever alone.
+    /// The door takes neither class for that face pair: `Rest` meets two
+    /// tori whose centres are apart, and `Tangent` has no witness for a
+    /// torus and no shared rim.
     #[test]
-    fn the_circle_torus_lane_escalates_as_the_torus_roots_and_no_declaration_settles_it() {
+    fn the_circle_torus_lane_escalates_as_its_own_decision_and_no_declaration_settles_it() {
         use crate::boolean::boxes::tests::torus_wall;
         let tol = Tol::witness();
         let b = Band::linear(tol).expect("the witness band");
         let mid = (b.zero() + b.escalate()) / 2.0;
-        let (c, axis, u_ref) = (
-            Point3::new(0.0, 0.0, 0.0),
+        let (axis, u_ref) = (
             geom_core::Vec3::new(0.0, 0.0, 1.0),
             geom_core::Vec3::new(1.0, 0.0, 0.0),
         );
-        let (y, yw) = torus_wall(c, axis, u_ref, 2.0, 0.5, (0.0, 3.0), (0.0, 1.0));
-        let surface = y
-            .get_face(yw)
-            .and_then(|f| y.get_surface(f.surface))
-            .cloned()
-            .expect("the torus");
-        let grazing = geom::Curve3::Circle {
-            center: Point3::new(0.3, 0.0, 0.5 - mid),
+        // The parallel at tube angle `asin(1 − 2·mid)` stands `mid`
+        // under the top of a tube of radius ½, just inside the tube's
+        // crown, where the sheet still certifies.
+        let (x, xw) = torus_wall(
+            Point3::new(0.3, 0.0, 0.0),
             axis,
-            radius: 2.0,
             u_ref,
+            2.0,
+            0.5,
+            (1.2, 2.1),
+            (0.0, (1.0 - 2.0 * mid).asin()),
+        );
+        let (mut y, yw) = torus_wall(
+            Point3::new(0.0, 0.0, 0.0),
+            axis,
+            u_ref,
+            2.0,
+            0.5,
+            (0.0, 3.0),
+            (0.0, 1.0),
+        );
+        for class in ContactClass::ALL {
+            let door = match class {
+                ContactClass::Rest => {
+                    crate::boolean::contact_pair_verdict(&x, xw, &y, yw, *class, None, b).is_ok()
+                }
+                ContactClass::Tangent => {
+                    crate::boolean::verify_tangent_declaration(&x, xw, &y, yw, b).is_ok()
+                }
+            };
+            assert!(
+                !door,
+                "{class:?}: the door takes no declaration of this pair"
+            );
+        }
+        let (edge_key, edge) = x
+            .edges()
+            .find(|(_, e)| {
+                matches!(
+                    x.get_curve_geom(e.curve),
+                    Some(super::CurveGeom::Certified(g))
+                        if matches!(
+                            g.carrier(),
+                            geom::Curve3::Circle { axis: a, center, .. }
+                                if a.z.abs() > 0.9 && center.z > 0.1
+                        )
+                )
+            })
+            .map(|(k, e)| (k, e.clone()))
+            .expect("the sheet's top parallel");
+        let start = |he| x.get_half_edge(he).expect("a live half-edge").start;
+        let (a, c) = (start(edge.he_plus), start(edge.he_minus));
+        let pt = |k: VertexKey| {
+            *x.get_point(x.get_vertex(k).expect("a live vertex").point)
+                .expect("a live point")
         };
-        let got = super::wall_crossing(&y, yw, &surface, &grazing, 0.5, 1.0, b)
-            .map(|_| ())
-            .expect_err("the circle grazing the tube's top escalates");
+        let declared = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default());
+        let mut acc = ContactAcc::default();
+        let got = curved_face_arm(
+            &x,
+            &mut y,
+            Operand::A,
+            edge_key,
+            &edge,
+            a,
+            c,
+            yw,
+            pt(a),
+            pt(c),
+            &declared,
+            &mut acc,
+            b,
+            tol,
+        )
+        .map(|_: CurvedEvent<f64>| ())
+        .expect_err("the arc over the tube's top escalates");
+        let BooleanError::Escalated { decision, diag } = &got else {
+            panic!("an escalation: {got:?}");
+        };
+        assert_eq!(
+            *decision,
+            BooleanDecision::ArcTorusRoots,
+            "the lane's own decision"
+        );
+        assert_eq!(diag.predicate, Some("bool_circle_torus_plane_height"));
         let text = got.to_string();
         assert!(
-            matches!(
-                got,
-                BooleanError::Escalated {
-                    decision: BooleanDecision::TorusRoots,
-                    ..
-                }
-            ),
-            "the root lane: {got:?}"
-        );
-        assert!(
-            text.starts_with("how many times an edge crosses a torus is undecided: ")
+            text.starts_with("how many times an arc crosses a torus is undecided: ")
                 && text.ends_with(
-                    "Recourse: move the parts so the edge clearly crosses the torus or clearly \
+                    "Recourse: move the parts so the arc clearly crosses the torus or clearly \
                      misses it"
                 ),
             "{text}"
         );
-
-        for (class, one, door, read) in [
-            (None, false, None, DeclarationRead::Moot),
-            (
-                Some(ContactClass::Rest),
-                true,
-                Some(true),
-                DeclarationRead::Spent(ContactClass::Rest),
-            ),
-        ] {
-            let (mut x, xw) = torus_wall(c, axis, u_ref, 2.0, 0.5 + mid, (0.5, 1.0), (0.2, 0.6));
-            let sense = x.get_face(xw).expect("the sheet's face").sense;
-            x.set_face_sense(xw, !sense).expect("a live face");
-            let (mut y, yw) = torus_wall(c, axis, u_ref, 2.0, 0.5, (0.0, 3.0), (0.0, 1.0));
-            let decls = BooleanDeclarations {
-                coincident_faces: class
-                    .map(|class| vec![FacePairDeclaration::new(xw, yw, class)])
-                    .unwrap_or_default(),
-                carried_a: Default::default(),
-                carried_b: Default::default(),
-            };
-            let one_set = if one {
-                [(xw, yw)].into_iter().collect()
-            } else {
-                Default::default()
-            };
-            let declared = DeclaredPairs::build(&decls, one_set);
-            assert_eq!(
-                class.map(|class| {
-                    crate::boolean::contact_pair_verdict(&x, xw, &y, yw, class, None, b).is_ok()
-                }),
-                door,
-                "{class:?}: what the door answers"
-            );
-            let (edge_key, edge) = x
-                .edges()
-                .find(|(_, e)| {
-                    matches!(
-                        x.get_curve_geom(e.curve),
-                        Some(super::CurveGeom::Certified(g))
-                            if matches!(g.carrier(), geom::Curve3::Circle { axis: a, .. } if a.z.abs() > 0.9)
-                    )
-                })
-                .map(|(k, e)| (k, e.clone()))
-                .expect("a parallel");
-            let start = |he| x.get_half_edge(he).expect("a live half-edge").start;
-            let (a, cv) = (start(edge.he_plus), start(edge.he_minus));
-            let pt = |k: VertexKey| {
-                *x.get_point(x.get_vertex(k).expect("a live vertex").point)
-                    .expect("a live point")
-            };
-            let mut acc = ContactAcc::default();
-            let got = curved_face_arm(
-                &x,
-                &mut y,
-                Operand::A,
-                edge_key,
-                &edge,
-                a,
-                cv,
-                yw,
-                pt(a),
-                pt(cv),
-                &declared,
-                &mut acc,
-                b,
-                tol,
-            )
-            .map(|_: CurvedEvent<f64>| ());
-            assert_eq!(
-                decision_of(&format!("{class:?}"), &got),
-                BooleanDecision::Coincidence(Coincide::VertexOnFace, read),
-                "{class:?}"
-            );
-        }
     }
 
     /// The unique planar face of `body` whose outward normal is within a
@@ -3309,15 +3335,21 @@ mod declaration_order_rows {
             hits[0]
         });
         let undeclared = union_declared(&block, &wedge, pair, None);
-        assert_eq!(
-            decision_of("undeclared", &undeclared),
-            BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles)
+        assert!(
+            matches!(
+                decision_of("undeclared", &undeclared),
+                BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
+                    if s.class() == ContactClass::Rest
+            ),
+            "the lookup mints the class the door admits on a planar pierced face: {undeclared:?}"
         );
         let text = undeclared.expect_err("it refuses").to_string();
         assert!(
             text.starts_with("how two corners of the two solids overlap where they meet is ")
-                && text.ends_with(
-                    "Recourse: declare the coincidence, move the geometry, or lower the tolerance"
+                && text.contains(
+                    "Recourse: declare the coincidence, or move the parts so they clearly meet or \
+                     clearly stand apart there, or, if this gap is intended, tighten the \
+                     tolerance below "
                 ),
             "{text}"
         );

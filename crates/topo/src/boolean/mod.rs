@@ -94,8 +94,8 @@ pub(crate) mod refusal_routes;
 pub(crate) use refusal_routes::PlaneDoor;
 pub use refusal_routes::{
     BooleanDecision, Coincide, Contradiction, CrossingDecision, DeclarationRead, LeverArm,
-    NeighbourOffset, PlaneRung, RestZipFrontier, SectionRadius, SectorRung, TorusConvention,
-    WallRung,
+    NeighbourOffset, PlaneRung, RestZipFrontier, SectionRadius, SectorRung, SelfCheck, Settling,
+    SphereQuestion, TorusConvention, WallRung,
 };
 mod rest;
 mod rim_wedge;
@@ -1290,6 +1290,23 @@ pub enum BooleanError {
         /// The precise uncertifiable sub-configuration.
         what: &'static str,
     },
+    /// **Two spheres of the two solids meet** — neither clearly apart
+    /// nor one strictly inside the other — at the curved-extent scan.
+    /// The sphere × sphere section is the exact closed-form circle, but
+    /// the join has no arm for a curved × curved germ pair, and a
+    /// crossing found here would pierce a curved face first. It is the
+    /// decided refusal of [`SphereQuestion::Nested`], and ends as that
+    /// question's escalation does ([`refusal_routes::SPHERES`]).
+    SpheresMeet {
+        /// The operand whose sphere face the scan stopped at.
+        operand: Operand,
+        /// The sphere face.
+        face: FaceKey,
+        /// The nesting clearance's decided verdict: zero (band-decided,
+        /// a smaller tolerance may decide it positive) or negative (the
+        /// boundaries cross).
+        verdict: geom_brep::recourse::Refused,
+    },
     /// **A germ pair whose section frame has no arm.** The join's
     /// matcher asks each germ pair for the LOCUS its germ line rides,
     /// and the answer drives which facing test runs: a straight locus
@@ -1540,6 +1557,8 @@ pub enum BooleanErrorKind {
     NurbsExtentUnsupported,
     /// [`BooleanError::FallbackExtentUnsupported`].
     FallbackExtentUnsupported,
+    /// [`BooleanError::SpheresMeet`].
+    SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
     GermFrameUnsupported,
     /// [`BooleanError::GermFrameCylinderPinch`].
@@ -1597,16 +1616,14 @@ impl BooleanError {
     /// An escalation of a reading metered over a lever arm at `gate`,
     /// routed by the rung that raised it
     /// ([`BooleanDecision::of_lever`]): the arm is the gate's own
-    /// length, and the reading is the coincidence `reading`, read as
-    /// `read` at the gate's door.
+    /// length, and the reading is the decision `reading`.
     pub(crate) const fn of_lever(
         gate: refusal_routes::LeverArm,
-        reading: Coincide,
-        read: DeclarationRead,
+        reading: BooleanDecision,
         escalation: geom_brep::LeverEscalation,
     ) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::of_lever(gate, reading, read, escalation.rung),
+            decision: BooleanDecision::of_lever(gate, reading, escalation.rung),
             diag: escalation.diag,
         }
     }
@@ -1695,6 +1712,7 @@ impl BooleanError {
             Self::CurvedPairUnsupported { .. } => BooleanErrorKind::CurvedPairUnsupported,
             Self::NurbsExtentUnsupported { .. } => BooleanErrorKind::NurbsExtentUnsupported,
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
+            Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
             Self::GermFrameCylinderPinch { .. } => BooleanErrorKind::GermFrameCylinderPinch,
             Self::Euler(_) => BooleanErrorKind::Euler,
@@ -1919,8 +1937,22 @@ impl core::fmt::Display for BooleanError {
             Self::FallbackExtentUnsupported { what, .. } => write!(
                 f,
                 "the solids' boundaries do not cross, and the Boolean cannot be sure \
-                 whether one lies inside the other ({what}). Recourse: move them so \
-                 their boundaries cross, or so their curved faces stand further apart"
+                 whether one lies inside the other ({what}). Recourse: {}",
+                refusal_routes::EXTENT_LEVER,
+            ),
+            // No operand is named, as the scan's other refusals name none.
+            Self::SpheresMeet { verdict, .. } => write!(
+                f,
+                "a sphere of each solid {}, and the Boolean cannot yet join two curved faces \
+                 that meet. {}",
+                match verdict {
+                    geom_brep::recourse::Refused::Zero(_) => {
+                        "touch within the tolerance, the smaller inside the larger"
+                    }
+                    geom_brep::recourse::Refused::Negative { .. } => "cross",
+                },
+                refusal_routes::SPHERES
+                    .recourse(verdict.arm(), geom_brep::recourse::Reading::Build)
             ),
             Self::GermFrameUnsupported { a_kind, b_kind, .. } => write!(
                 f,
@@ -2556,9 +2588,13 @@ fn verify_rest_declaration<T: Decide>(
                 margin: diag,
             })
         }
-        Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => Err(
-            BooleanError::plane_identity(rung, PlaneDoor::of(Some(ContactClass::Rest)), diag),
-        ),
+        Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => {
+            Err(BooleanError::plane_identity(
+                rung,
+                PlaneDoor::OnPair(DeclarationRead::Spent(ContactClass::Rest)),
+                diag,
+            ))
+        }
         // Unreachable with `declared: true`; refuse loudly anyway.
         Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
@@ -2638,17 +2674,14 @@ fn verify_tangent_declaration<T: Decide>(
             Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => {
                 return Err(BooleanError::plane_identity(
                     rung,
-                    PlaneDoor::of(Some(ContactClass::Tangent)),
+                    PlaneDoor::Screen(DeclarationRead::Spent(declaration.class)),
                     diag,
                 ));
             }
             // Unreachable with `declared: false`; refuse loudly anyway.
             Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Coincidence(
-                        Coincide::Carriers,
-                        DeclarationRead::Spent(ContactClass::Tangent),
-                    ),
+                    decision: BooleanDecision::SelfCheck(SelfCheck::CarrierLadder),
                     diag,
                 });
             }
@@ -2683,7 +2716,7 @@ fn verify_tangent_declaration<T: Decide>(
         Err(rest::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
-                DeclarationRead::Spent(ContactClass::Tangent),
+                DeclarationRead::Spent(declaration.class),
                 diag,
             ));
         }
@@ -2716,8 +2749,8 @@ fn verify_tangent_declaration<T: Decide>(
             // cleared.
             let rim = rim_wedge::shared_rim(a, fa, b, fb, band).map_err(|diag| {
                 BooleanError::coincidence(
-                    Coincide::Contact,
-                    DeclarationRead::Spent(ContactClass::Tangent),
+                    Coincide::Rim,
+                    DeclarationRead::Spent(declaration.class),
                     diag,
                 )
             })?;
@@ -2826,7 +2859,7 @@ fn verify_tangent_declaration<T: Decide>(
         | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
             Err(BooleanError::coincidence(
                 Coincide::Contact,
-                DeclarationRead::Spent(ContactClass::Tangent),
+                DeclarationRead::Spent(declaration.class),
                 diag,
             ))
         }
@@ -3013,7 +3046,8 @@ mod tests {
     /// S6 (two-tolerance, D4 ¶1 addendum): the boolean coincidence
     /// pair — `UndeclaredCoincidence` (exactly-on OR in-band, per the
     /// plane-identity rung 4) and `Escalated` (in-band elsewhere) —
-    /// carries the shared recourse fragment, exactly once per message.
+    /// offers the declaration exactly once per message; the escalated
+    /// arm only on a margin a declaration reads.
     #[test]
     fn coincidence_pair_carries_the_shared_recourse_once() {
         let diag = |margin| Indeterminate {
@@ -3022,15 +3056,23 @@ mod tests {
             predicate: Some("bool_plane_offset"),
             terminal_sliver: false,
         };
-        // The escalated arm: recourse rides the Indeterminate carrier —
-        // for every margin shape, including Invalid (the reachable
-        // bool_plane_orient Zero path synthesizes one; S6 review,
-        // MINOR-1).
-        for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
+        // The escalated arm, as the lookup mints it for an undeclared
+        // pair of planar corners.
+        let door = DeclaredPairs::build(&BooleanDeclarations::none(), Default::default())
+            .on_pair_door((
+                Operand::A,
+                FaceKey::default(),
+                Operand::B,
+                FaceKey::default(),
+            ));
+        for (margin, offers) in [(MarginDiag::value(5e-9), 1), (MarginDiag::INVALID, 0)] {
             let msg =
-                BooleanError::coincidence(Coincide::Planes, DeclarationRead::Settles, diag(margin))
-                    .to_string();
-            assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
+                BooleanError::plane_identity(PlaneRung::Parallel, door, diag(margin)).to_string();
+            assert_eq!(
+                msg.matches("declare the coincidence").count(),
+                offers,
+                "{msg}"
+            );
         }
         // The undeclared arm, in BOTH sub-shapes rung 4 produces: the
         // exactly-on refusal (Invalid margin, as synthesized) and the
@@ -3255,7 +3297,12 @@ mod tests {
                 faces: [face, face],
                 offset: NeighbourOffset::Undecided(diag),
             },
-            BooleanError::coincidence(Coincide::VertexOnFace, DeclarationRead::Settles, diag),
+            BooleanError::plane_identity(
+                PlaneRung::Parallel,
+                DeclaredPairs::build(&BooleanDeclarations::none(), Default::default())
+                    .on_pair_door((Operand::A, face, Operand::B, face)),
+                diag,
+            ),
             BooleanError::UndeclaredCoincidence {
                 diag,
                 pair: [(Operand::A, face), (Operand::B, face)],
@@ -3315,6 +3362,13 @@ mod tests {
                 operand: Operand::A,
                 face,
                 what: "an uncertifiable pose",
+            },
+            BooleanError::SpheresMeet {
+                operand: Operand::A,
+                face,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-0.5),
+                },
             },
             BooleanError::GermFrameUnsupported {
                 a_face: face,
@@ -3414,6 +3468,7 @@ mod tests {
                 BooleanErrorKind::CurvedPairUnsupported => "CurvedPairUnsupported",
                 BooleanErrorKind::NurbsExtentUnsupported => "NurbsExtentUnsupported",
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
+                BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
                 BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
                 BooleanErrorKind::Euler => "Euler",

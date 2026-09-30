@@ -37,7 +37,7 @@ use super::sectors::{BoolSector, PairRecord, within};
 use super::{
     BoolNullEdgeRecord, BooleanError, NullEdgePairRecord, Operand, PairSite, SideCode, VvContact,
 };
-use super::{Coincide, DeclarationRead};
+use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
@@ -285,10 +285,15 @@ fn record_germ_dir<T: Decide>(
     declared: &super::DeclaredPairs,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    if declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
-        != Some(crate::contact::ContactClass::Tangent)
-    {
-        return germ_dir(sa, sb, band);
+    // What the door read of the pair, which the questions below refuse
+    // alike declared or not.
+    let read = declared.read(
+        &[(super::Operand::A, sa.face, super::Operand::B, sb.face)],
+        Coincide::TangentLocus,
+        crate::contact::ContactClass::ALL,
+    );
+    if read != DeclarationRead::Spent(crate::contact::ContactClass::Tangent) {
+        return germ_dir(sa, sb, read, band);
     }
     let surface_of = |body: &Body<T>, face| {
         body.get_face(face)
@@ -305,7 +310,7 @@ fn record_germ_dir<T: Decide>(
         Err(super::rest::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,
-                DeclarationRead::Spent(crate::contact::ContactClass::Tangent),
+                read,
                 diag,
             ));
         }
@@ -322,8 +327,8 @@ fn record_germ_dir<T: Decide>(
             });
         }
     };
-    let plus = within(sa, d, false, band)? && within(sb, d, false, band)?;
-    let minus = within(sa, -d, false, band)? && within(sb, -d, false, band)?;
+    let plus = within(sa, d, false, read, band)? && within(sb, d, false, read, band)?;
+    let minus = within(sa, -d, false, read, band)? && within(sb, -d, false, read, band)?;
     match (plus, minus) {
         (true, false) => Ok(d),
         (false, true) => Ok(-d),
@@ -346,6 +351,7 @@ fn record_germ_dir<T: Decide>(
 fn germ_dir<T: Decide>(
     sa: &BoolSector<T>,
     sb: &BoolSector<T>,
+    read: DeclarationRead,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let int = sa.normal.vec().cross(sb.normal.vec());
@@ -360,17 +366,18 @@ fn germ_dir<T: Decide>(
                 what: "surviving crossing record on coplanar sector faces",
             });
         }
+        // The same margin, re-read: its escalation is the kernel's, as its
+        // zero is.
         Err(diag) => {
-            return Err(BooleanError::coincidence(
-                Coincide::Sectors,
-                DeclarationRead::Moot,
+            return Err(BooleanError::Escalated {
+                decision: BooleanDecision::SelfCheck(SelfCheck::GermLine),
                 diag,
-            ));
+            });
         }
     }
     let d = int.normalize();
-    let plus = within(sa, d, false, band)? && within(sb, d, false, band)?;
-    let minus = within(sa, -d, false, band)? && within(sb, -d, false, band)?;
+    let plus = within(sa, d, false, read, band)? && within(sb, d, false, read, band)?;
+    let minus = within(sa, -d, false, read, band)? && within(sb, -d, false, read, band)?;
     match (plus, minus) {
         (true, false) => Ok(d),
         (false, true) => Ok(-d),

@@ -428,6 +428,18 @@ pub(crate) fn decide_reported<T: Decide>(
     geom_core::k_stats::decide_reported(name, margin, band)
 }
 
+/// The gate for a side read off a sign that has no side at zero, whose
+/// decided zero escalates with its decided margin
+/// ([`geom_core::k_stats::decide_nonzero_reported`]): the refusal is on
+/// the frame's escalation log beside the verdict.
+pub(crate) fn decide_nonzero_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
+    geom_core::k_stats::decide_nonzero_reported(name, margin, band)
+}
+
 /// **What a census refusal is ABOUT** — the whole of the subject the
 /// refusing arm was examining.
 ///

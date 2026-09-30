@@ -699,6 +699,35 @@ pub fn decide_nonzero<T: Decide>(
     })
 }
 
+/// [`decide_nonzero`] for a gate whose `Zero` is band-decided: the
+/// margin is a size the user may intend (a direction's cosine levered
+/// at a corner's arm, `≈ ±arm`), so a decided `Zero` escalates carrying
+/// the margin the classifier decided, and the ending can offer the
+/// tolerance it gives, as [`decide_positive_reported`] does for a
+/// positive gate. Recorded as [`decide_nonzero`] records it.
+///
+/// # Errors
+///
+/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin; for
+/// a decided `Zero`, an [`Indeterminate`] carrying the decided margin
+/// under `name`.
+pub fn decide_nonzero_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<NonzeroSign, Indeterminate> {
+    classify_gated(
+        name,
+        margin.value(),
+        band,
+        |Decided { sign, margin }| match sign {
+            Sign::Positive => Ok(NonzeroSign::Positive),
+            Sign::Negative => Ok(NonzeroSign::Negative),
+            Sign::Zero => Err(margin),
+        },
+    )
+}
+
 /// **The measurement gate** — the funnel's door for a value an op is
 /// about to REPORT rather than classify, when a poisoned aggregate
 /// would otherwise ride out as a number no caller can tell from a

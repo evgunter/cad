@@ -59,7 +59,7 @@ use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
     PierceRingRecord, SideCode, VfContact,
 };
-use super::{Coincide, DeclarationRead};
+use super::{BooleanDecision, Coincide, DeclarationRead, SelfCheck};
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
 use crate::euler::MevSite;
@@ -207,16 +207,23 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         }
         // The declaration is read before an in-band parallelism refuses:
         // a declared pair's lump takes that residue (the carrier ladder's
-        // declared rung bridges it; the `Tangent` lump descends to the
-        // second order), so only an undeclared pair refuses here, and a
-        // declaration would change its verdict.
+        // declared rung bridges it on a planar pierced face; the
+        // `Tangent` lump descends to the second order), so only an
+        // undeclared pair refuses here, and the class the door admits
+        // for this pierced face would change its verdict.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         if let (Some(diag), None) = (in_band, class) {
-            return Err(BooleanError::coincidence(
+            let admitted: &[crate::contact::ContactClass] = if plane.is_some() {
+                &[crate::contact::ContactClass::Rest]
+            } else {
+                &[crate::contact::ContactClass::Tangent]
+            };
+            let read = declared.read(
+                &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::Sectors,
-                DeclarationRead::of(class),
-                diag,
-            ));
+                admitted,
+            );
+            return Err(BooleanError::coincidence(Coincide::Sectors, read, diag));
         }
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
@@ -233,8 +240,13 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             };
             let s_sector = surface_of(piercing_body, s.face)?;
             let s_pierced = surface_of(pierced_body, contact.face)?;
+            let read = declared.read(
+                &[(piercing, s.face, pierced_op, contact.face)],
+                Coincide::TangentSide,
+                crate::contact::ContactClass::ALL,
+            );
             let lump = super::sectors::tangent_lump(
-                &s_sector, &s_pierced, n_pierced, p, op, piercing, s.face, s.arm, band,
+                &s_sector, &s_pierced, n_pierced, p, op, piercing, s.face, s.arm, read, band,
             )?;
             entries[k].class = lump;
             entries[(k + 1) % n].class = lump;
@@ -328,10 +340,15 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                     });
                 }
                 Ok(rel) => rel,
+                // In band, unreachable here: `bool_sector_coplanar` read
+                // this same margin (the two normals' cross, at `s.arm`)
+                // zero above for an undeclared pair, and a declared `Rest`
+                // pair's rung bridges it. The door is `recl`'s, which
+                // reaches it at another arm.
                 Err(PlaneEqError::Escalated { rung, diag }) => {
                     return Err(BooleanError::plane_identity(
                         rung,
-                        super::PlaneDoor::of(class),
+                        declared.on_pair_door((piercing, s.face, pierced_op, contact.face)),
                         diag,
                     ));
                 }
@@ -699,17 +716,19 @@ fn pierce_germ_dir<T: Decide>(
                 what: "pierce transition on a coplanar sector",
             });
         }
+        // Read Positive above whenever K > 3 (the argument above): its
+        // escalation is the kernel's, as its zero is.
         Err(diag) => {
-            return Err(BooleanError::coincidence(
-                Coincide::Sectors,
-                DeclarationRead::Moot,
+            return Err(BooleanError::Escalated {
+                decision: BooleanDecision::SelfCheck(SelfCheck::GermLine),
                 diag,
-            ));
+            });
         }
     }
     let d = int.normalize();
-    let plus = super::sectors::within(s, d, false, band)?;
-    let minus = super::sectors::within(s, -d, false, band)?;
+    let moot = DeclarationRead::Moot;
+    let plus = super::sectors::within(s, d, false, moot, band)?;
+    let minus = super::sectors::within(s, -d, false, moot, band)?;
     match (plus, minus) {
         (true, false) => Ok(d),
         (false, true) => Ok(-d),

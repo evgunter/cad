@@ -43,7 +43,7 @@
 //! `cfg(debug_assertions)` helpers, inside `debug_assert!` — the
 //! "records agree with bits" assertion N6 promises.
 
-use geom_brep::recourse::{Classified, SizedDecision, SizedPass, StoredDefinite};
+use geom_brep::recourse::Classified;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::refusal_routes::Contradiction;
@@ -73,8 +73,7 @@ pub use super::carrier_eq::CarrierEqError as PlaneEqError;
 pub enum PlaneRung {
     /// Whether the two planes are parallel (`bool_plane_parallel`). On
     /// an undeclared pair an in-band margin is a coincidence a
-    /// declaration would bridge; on a declared pair the rung bridges it,
-    /// and only an unreadable norm escalates.
+    /// declaration would bridge; on a declared pair the rung bridges it.
     Parallel,
     /// Whether the two planes face the same way or opposite ways
     /// (`bool_plane_orient`). Its margin is the normals' cosine levered
@@ -82,9 +81,14 @@ pub enum PlaneRung {
     /// the zero band at that arm, so `|cos| ≈ 1` and the rung refuses
     /// only where the arm itself is within the band. Each door ends it
     /// from what it passes on and what its arm is: the Boolean's
-    /// cross-operand doors from [`PLANE_ORIENTATION`], the merge and the
+    /// cross-operand doors from the corner's sense (`refusal_routes::CORNER_SENSE`), the merge and the
     /// maximal-faces gate from their own decisions.
     Orientation,
+    /// Whether the two planes' normals can be read at all: the
+    /// parallelism rung's norm read definitely negative, poisoned input
+    /// (`unreadable_norm`). No declaration and no move of the parts
+    /// reads it.
+    Norm,
 }
 
 impl PlaneRung {
@@ -95,24 +99,10 @@ impl PlaneRung {
         match self {
             Self::Parallel => "whether the two planes are parallel",
             Self::Orientation => "whether the two planes face the same way or opposite ways",
+            Self::Norm => "whether the normals of two faces can be read",
         }
     }
 }
-
-/// The orientation rung's decision at the Boolean's cross-operand
-/// doors, which take either definite sign ([`PlaneRung::Orientation`]).
-/// Its margin is `cos · arm` with `|cos| ≈ 1`, so what it measures is
-/// the arm: at the sector doors (`vtxfac`, `recl`) the corner's shorter
-/// edge, which the corner's own arm rung has already read positive; at
-/// the rest-contact verifications the fixed 1 m arm, which a readable
-/// cosine always decides, so only an unreadable margin refuses there.
-pub const PLANE_ORIENTATION: SizedDecision = SizedDecision {
-    lever: super::refusal_routes::CORNER_EDGES,
-    size: "length of the corner's shorter edge",
-    passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
 
 /// The orientation rung's refusal of a zero verdict, its decided
 /// margin riding the diagnostics.
@@ -419,7 +409,7 @@ fn plane_ladder<T: Decide>(
 /// negative: poisoned input, with no margin to report.
 pub(crate) fn unreadable_norm(band: Band) -> PlaneEqError {
     PlaneEqError::Escalated {
-        rung: PlaneRung::Parallel,
+        rung: PlaneRung::Norm,
         diag: Indeterminate {
             margin: MarginDiag::INVALID,
             band,

@@ -110,6 +110,7 @@ use slotmap::SecondaryMap;
 
 use super::{
     BooleanDecision, BooleanError, BooleanReduction, Coincide, DeclarationRead, HalfGerm, Operand,
+    SelfCheck,
 };
 use crate::body::Body;
 use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
@@ -1206,8 +1207,14 @@ fn germs_face_each_other<T: Decide>(
         Some((center, axis)) => {
             let s1 = axis.dot((p1 - center).cross(g1.dir));
             let s2 = axis.dot((p2 - center).cross(g2.dir));
-            let d1 = decide("bool_join_arc_facing", Margin::of(s1), band).map_err(escalate)?;
-            let d2 = decide("bool_join_arc_facing", Margin::of(s2), band).map_err(escalate)?;
+            // A zero sense is malformed germ data, so its in-band twin is
+            // the kernel's too.
+            let malformed = |diag| BooleanError::Escalated {
+                decision: BooleanDecision::SelfCheck(SelfCheck::ArcFacing),
+                diag,
+            };
+            let d1 = decide("bool_join_arc_facing", Margin::of(s1), band).map_err(malformed)?;
+            let d2 = decide("bool_join_arc_facing", Margin::of(s2), band).map_err(malformed)?;
             match (d1, d2) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => Ok(true),
                 (Sign::Positive, Sign::Positive) | (Sign::Negative, Sign::Negative) => Ok(false),
@@ -1537,7 +1544,12 @@ fn ring_run_ccw<T: Decide>(
     // The chord that closes the region (fn docs): the run is open, the
     // area it decides is not.
     perimeter = perimeter + (end - p0).norm();
-    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
+    // A zero area is a degenerate run (below), so its in-band twin is
+    // the kernel's too.
+    let escalate = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::SelfCheck(SelfCheck::RingWinding),
+        diag,
+    };
     // `normal` carries the sense, `newell` carries the traversal: one
     // factor each, never both (fn docs — the double-count hazard).
     // `/ perimeter` is the F4 metering: 2A/P, the run's mean width.
