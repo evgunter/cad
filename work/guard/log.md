@@ -139,3 +139,4 @@ Ev's ruling on PR 3156 makes `query.rs`'s `to_bits()` compare of
 `bounds-allowlist.sh` can see that spelling. The row carries the
 shape. It lands red until TQUERY's repair of the site, so it rides
 with or after that.
+- 2026-09-30 — Seam note from TOPO: PR 3532 (`topo/merge-helpers-announce`) edits one entry of `scripts/gates/loop-boundary-discards.sh`'s register. The winding's let-else moved with its walk from `planar_loop_winding` into `planar_loop_winding_decided` (key renamed, count 1). The fix pass then made that arm return `LoopWinding::Empty`, a named answer the merge's role pass reads as not positive, and marked the entry `audited` on that ground. No other entry and no matcher code changed; the gate passes at 79 sites and 76 entries. (TOPO fix pass)
