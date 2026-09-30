@@ -318,8 +318,7 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
         let mut wanted = vec![want(1), want(2)];
         wanted.sort();
         assert_eq!(
-            bands,
-            wanted,
+            bands, wanted,
             "the flange seam's {role}s: one per band that ends on it, each carrying its \
              own rim"
         );
