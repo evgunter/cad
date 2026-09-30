@@ -5604,7 +5604,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
 /// Feeds one role segment: its word from [`seg_content_tag`], then the
 /// payload its variant carries.
 fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
-    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg};
     let cap = |c: CapEnd| match c {
         CapEnd::End => 1u8,
         CapEnd::Start => 2,
@@ -5665,20 +5665,14 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
     };
     let qual = |h: &mut KeyHasher, q: &Qualifier| {
         h.write_tag(match q {
-            Qualifier::SideOf(..) => 1,
             Qualifier::OrderAlong { .. } => 2,
+            Qualifier::Borders(..) => 3,
         });
         match q {
-            Qualifier::SideOf(vec) => {
-                h.write_u64(vec.len() as u64);
-                for (name, v) in vec {
+            Qualifier::Borders(walls) => {
+                h.write_u64(walls.len() as u64);
+                for name in walls {
                     feed_stable_name(h, name);
-                    h.write_tag(match v {
-                        SideVerdict::Positive => 1,
-                        SideVerdict::Negative => 2,
-                        SideVerdict::Mixed => 3,
-                        SideVerdict::On => 4,
-                    });
                 }
             }
             Qualifier::OrderAlong { rank, of } => {
@@ -5688,8 +5682,8 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         }
     };
     // The segment's word first, from `seg_content_tag`; the match
-    // below feeds payloads only. The closures above (qualifier,
-    // verdict, cap end, meridian end, split half, rim support) are
+    // below feeds payloads only. The closures above (qualifier, cap
+    // end, meridian end, split half, rim support) are
     // vocabularies of their own, each read under a segment word.
     h.write_tag(seg_content_tag(SegTag::of(seg)));
     match seg {
@@ -6183,7 +6177,7 @@ mod tag_vocabulary_tests {
     /// sharing a tag make two different names hash alike, and a content
     /// key that collides serves one node's cached geometry for
     /// another's. The nested vocabularies a segment carries (qualifier,
-    /// verdict, cap end, meridian end, split half, rim support) are
+    /// cap end, meridian end, split half, rim support) are
     /// each read under a segment word this row holds unique.
     #[test]
     fn seg_content_tags_are_injective() {

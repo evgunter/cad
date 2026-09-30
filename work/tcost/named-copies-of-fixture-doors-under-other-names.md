@@ -41,7 +41,7 @@ the literal — `corpus/slots.rs::cap`, `corpus/part_select.rs::section_face`,
 `rv_dm7_probes.rs::instance_face`, `blend5_rim_support_wire.rs::trim_name`.
 Those are suite-local shorthands whose BODY should delegate to the
 door; the rest are literals at a call site. Two further named helpers
-(`bool7_shadow_exec::frag`, `m4_pr4_resolve::sideof_frag`) are bare
+(`resolve_piece_ladder::frag`, `m4_pr4_resolve::piece`) are bare
 literals with a two-segment `path`, outside this class.
 
 **What this row no longer holds.** Its first filing also named

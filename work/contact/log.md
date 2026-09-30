@@ -919,3 +919,4 @@ Signed: (CONTACT orchestrator)
     second spelling. Re-check the filed
     `boolean-door-drops-the-containment-decision` against what 3493
     already did.
+- 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits `boolean/contact_verify.rs` (the Rest ladder's match drops `CarrierEqError::Escalated`'s new `rung`). Filed on this slate: `work/contact/carrier-escalation-drops-its-plane-rung-at-the-contact-doors.md` and `work/contact/degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine.md`, and evidence appended to `work/contact/contain-escalation-carries-no-decision.md`. (TOPO, PR 3506 fix pass)

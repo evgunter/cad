@@ -125,10 +125,10 @@ const PINNED: &[(&str, u64)] = &[
     ("die", 0x134d_6ccf_1829_e20f),
     ("corner_table", 0xc4b7_2465_f60b_030a),
     ("heat_sink", 0x0b8a_ff8e_b9aa_b96c),
-    ("crossing_slots", 0xf5f1_8b77_d56c_b3d3),
-    ("nested_islands_105", 0xd437_62ba_cfe2_dfae),
-    ("nested_islands_106_depth1", 0x42e0_8413_d7c4_ae98),
-    ("nested_islands_106_depth2", 0x3b9a_d2e7_99fd_e0bc),
+    ("crossing_slots", 0x0122_f131_74ef_d371),
+    ("nested_islands_105", 0xb519_4e98_978a_0ff0),
+    ("nested_islands_106_depth1", 0x5931_1f11_3836_8421),
+    ("nested_islands_106_depth2", 0x2678_ebbf_0f9d_7520),
     ("declared_tangency", 0x72e5_2fe4_003b_8699),
     // Moved by the in-plane revolve axis, and the ONLY row that did.
     // `kitchen_sink` shared one `Datum::Axis` between a circular

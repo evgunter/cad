@@ -190,15 +190,22 @@ fn trailing_garbage_after_a_valid_body_is_parse() {
     expect_parse("trailing", &trailing);
 }
 
-/// Deep nesting never reaches serde_json's recursion limit (a `Syntax`
-/// class): the typed visitor meets the first wrong-typed token and
-/// refuses `Data` at depth three. So a nesting bomb is Unreadable, with
-/// the recourse, not Parse.
+/// A nesting bomb within the load door's nesting limit meets a typed
+/// visitor that refuses the first wrong-typed token, `Data` at depth
+/// three, so it is Unreadable with the recourse. One past the limit
+/// never reaches a type: the door's scan refuses it as the reader's
+/// class, Parse, before anything descends into it.
 #[test]
-fn deep_nesting_is_unreadable_because_the_type_fails_first() {
+fn deep_nesting_is_unreadable_within_the_limit_and_unparsable_past_it() {
     let (header, _) = split(&small());
-    let deep = format!("{header}{{\"snapshot\": {}}}\n", "[".repeat(300));
-    expect_unreadable_naming("deep nesting", &deep, "invalid type: sequence");
+    let within = format!("{header}{{\"snapshot\": {}}}\n", "[".repeat(200));
+    expect_unreadable_naming("deep nesting", &within, "invalid type: sequence");
+    let past = format!("{header}{{\"snapshot\": {}}}\n", "[".repeat(100_000));
+    let msg = expect_parse("a nesting bomb", &past);
+    assert!(
+        msg.contains("the body nests deeper than"),
+        "the refusal names the nesting limit: {msg}"
+    );
 }
 
 /// serde's derived struct visitor accepts a SEQUENCE as a struct (fields

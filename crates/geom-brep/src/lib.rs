@@ -76,6 +76,7 @@ pub mod props;
 pub mod recourse;
 pub mod ssi;
 pub mod tangent;
+pub mod torus_convention;
 
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, NurbsLane,
@@ -145,3 +146,4 @@ pub use ssi::{
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };
+pub use torus_convention::TorusConvention;
