@@ -1186,7 +1186,9 @@ pub fn face_frame_seat(
 /// held mark lights — so the button and the mark cannot disagree about
 /// a face while there is a picture to ask. With no index for the
 /// picture on screen (`on_screen` is `None`) there is nothing to ask,
-/// and the evaluation's answer stands, as it does for the selection.
+/// and the evaluation's answer stands: the button is let through
+/// rather than withheld while the picture has no index — the same
+/// window in which the selection's own marks light nothing.
 ///
 /// # Errors
 ///

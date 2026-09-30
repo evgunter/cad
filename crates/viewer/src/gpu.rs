@@ -1690,10 +1690,17 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
 struct EdgeOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) @interpolate(flat) mark: u32,
-    // -1 on one long side of the quad, +1 on the other: how far from
-    // the segment's centre line a fragment is, as a fraction of the
-    // half width.
-    @location(1) across: f32,
+    // Which side of the segment's centre line a fragment is, and how
+    // far, as a fraction of the half width: `x / y` is -1 on one long
+    // side of the quad and +1 on the other. Carried pre-multiplied by
+    // the vertex's clip w, so the rasteriser's perspective-correct
+    // interpolation divides the w back out and the ratio interpolates
+    // linearly in SCREEN space — which is where the quad's width is
+    // laid out. A bare -1/+1 would be interpolated in clip space and
+    // drift off centre along a receding segment, whose two ends have
+    // different w. (`noperspective` would say this directly, and GLSL
+    // ES has no such qualifier.)
+    @location(1) across: vec2<f32>,
 };
 
 // The screen-space expansion: both of the segment's endpoints arrive
@@ -1749,7 +1756,7 @@ fn vs_edge(
     var out: EdgeOut;
     out.clip_position = vec4<f32>(clip.xy + offset * clip.w, clip.z, clip.w);
     out.mark = mark;
-    out.across = side;
+    out.across = vec2<f32>(side * clip.w, clip.w);
     return out;
 }
 
@@ -1768,7 +1775,7 @@ fn fs_edge(in: EdgeOut) -> @location(0) vec4<f32> {
     }
     let lane = in.mark & {{EDGE_LANE_MASK}}u;
     // A hollow lane leaves its middle undrawn.
-    if (abs(in.across) < uniforms.edge_lanes[lane].z) {
+    if (abs(in.across.x / in.across.y) < uniforms.edge_lanes[lane].z) {
         discard;
     }
     // One arm per lane, generated from `EdgeLane` (the Rust

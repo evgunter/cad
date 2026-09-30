@@ -60,7 +60,8 @@ the blend tool's set. Node seats: seven seated tools over
 
 **The mark.** A held pick wears the selection's colour (`Theme::held`)
 told apart by shape: a held face in diagonal stripes, a held edge as a
-hollow line (`EdgeLane::Held`). Its meaning and its precedence
+hollow line (`EdgeLane::Held`), whose gap is centred in screen space
+(the edge varying carries `side · w` and `w`, divided in the fragment). Its meaning and its precedence
 (selected over hovered over held) are stated on `marks::Held`. The
 shader translates to GLSL ES 3.00 at every entry point, which
 `gpu::tests::every_entry_point_translates_to_glsl_es_300` holds.
@@ -73,7 +74,9 @@ picture is `marks::drawn_patch`'s answer — its own (node, body), on a
 root the display does not hide — and both the mark and the add-datum
 button's gate (`session::face_frame_seat_drawn`, refusing
 `FaceFrameFault::NotDrawn`) read it, so the button never commits
-against a face nothing marks. Switching the form's kind releases the
+against a face nothing marks while there is a picture to ask; with no
+index on screen the gate lets the button through, as the selection's
+marks have always gone dark in that window. Switching the form's kind releases the
 pick; a document replacement drops it (`Drafts::document_replaced`).
 
 **Not here:** a held face stays marked while the Add-feature section is
