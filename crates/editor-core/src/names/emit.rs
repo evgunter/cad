@@ -322,9 +322,12 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
-    /// A union's seam pieces, ranked along their two sides' `n_a × n_b`,
-    /// where a side has no one oriented plane: its carrier is curved,
-    /// or a tie leaves it as several faces on different carriers.
+    /// A seam's pieces, ranked along their two sides' `n_a × n_b`, where
+    /// a side has no one oriented plane: its carrier is curved, or (in a
+    /// union) a tie leaves it as several faces on different carriers.
+    /// Every ranker along a seam line reads that direction — the pair
+    /// boolean's seam chain, the rankers that know a seam by its name,
+    /// and the union's seam pieces.
     ///
     /// The recipe is legal and the body sound; the naming has no rule
     /// for a curved reference or for choosing among tied ones, so this
@@ -332,7 +335,7 @@ pub enum NamingError {
     SplitReference {
         /// The seam the pieces share.
         group: Box<StableName>,
-        /// The side without a plane, by the name the union publishes it
+        /// The side without a plane, by the name the seam records it
         /// under.
         reference: Box<StableName>,
         /// Whether the reference's carrier is curved; otherwise a tie

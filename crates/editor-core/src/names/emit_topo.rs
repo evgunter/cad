@@ -1239,7 +1239,14 @@ fn name_boolean_edges<T: Decide>(
         }
     }
     for ((fa, fb), (from_tie, edges)) in seam_groups {
-        let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
+        let base = name1(
+            EntityKind::Edge,
+            node,
+            RoleSeg::Seam {
+                a: fa.clone(),
+                b: fb.clone(),
+            },
+        );
         rec.record_by_name(
             &base,
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
@@ -1271,8 +1278,8 @@ fn name_boolean_edges<T: Decide>(
             OpSide::A(_) => (f0, f1),
             OpSide::B(_) => (f1, f0),
         };
-        let (_, na) = face_plane(body, fa_key)?;
-        let (_, nb) = face_plane(body, fb_key)?;
+        let na = seam_side_normal(body, fa_key, &base, fa.name())?;
+        let nb = seam_side_normal(body, fb_key, &base, fb.name())?;
         let dir = na.cross(nb);
         let extents = edges
             .iter()
@@ -1306,7 +1313,7 @@ fn name_boolean_edges<T: Decide>(
         // cut it. Any other parent is ordered along its own oriented
         // carrier (operand geometry).
         let dir = match seam_pair::seam_line_pair(&inner.name) {
-            Some(pair) => seam_line_dir(op.body, op.table, op.node, root_key, pair)?,
+            Some(pair) => seam_line_dir(op.body, op.table, op.node, root_key, &inner.name, pair)?,
             None => edge_dir(op_body, root_key)?,
         };
         let extents = edges
@@ -1667,7 +1674,7 @@ fn resolve_edge_carrier<T: Decide>(
             // An edge on a seam line is ranked along that line, the one
             // orientation every ranker along a seam line uses.
             (EntityKey::Edge(k), Some(pair)) => {
-                seam_line_dir(op.body, op.table, op.node, k, pair).map(Some)
+                seam_line_dir(op.body, op.table, op.node, k, parent, pair).map(Some)
             }
             (EntityKey::Edge(k), None) => edge_dir(op.body, k).map(Some),
             _ => Ok(None),
@@ -1842,7 +1849,8 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
 /// records them (`super::seam_pair`). They are matched by NAME to the
 /// two faces of `edge` in `body`, whose names `table` holds, and the
 /// outward normals are read from those faces. `node` is the node whose
-/// body this is, carried by the refusal.
+/// body this is, and `seam` the name the pair was read off; the
+/// refusals carry them.
 ///
 /// The rankers that know a seam only by its NAME read their direction
 /// here: the descent ranker and the vertex carrier, on an operand body.
@@ -1854,6 +1862,7 @@ fn seam_line_dir<T: Decide>(
     table: &NameTable,
     node: RecipeNodeId,
     edge: EdgeKey,
+    seam: &StableName,
     (a, b): (&StableName, &StableName),
 ) -> Result<Vec3<T>, NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -1884,9 +1893,29 @@ fn seam_line_dir<T: Decide>(
         Some(false) => (f1, f0),
         None => return Err(NamingError::SeamLineSides { node, edge }),
     };
-    let (_, na) = face_plane(body, fa)?;
-    let (_, nb) = face_plane(body, fb)?;
+    let na = seam_side_normal(body, fa, seam, a)?;
+    let nb = seam_side_normal(body, fb, seam, b)?;
     Ok(na.cross(nb))
+}
+
+/// The outward normal of `face`, the side of the seam `group` that the
+/// seam's name records as `reference`. A curved carrier has no plane to
+/// rank the seam's pieces against, and refuses as the missing rule
+/// ([`NamingError::SplitReference`]).
+fn seam_side_normal<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    group: &StableName,
+    reference: &StableName,
+) -> Result<Vec3<T>, NamingError> {
+    match carrier_plane(body, face)? {
+        Some((_, n)) => Ok(n),
+        None => Err(NamingError::SplitReference {
+            group: Box::new(group.clone()),
+            reference: Box::new(reference.clone()),
+            curved: true,
+        }),
+    }
 }
 
 /// Inserts a same-name group ranked by order-along, or tied when

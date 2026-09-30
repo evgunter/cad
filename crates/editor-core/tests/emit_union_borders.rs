@@ -27,8 +27,9 @@ use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, scl, step, table};
 
 use editor_core::{
-    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, Node,
-    ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId, StableName,
+    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NamingError,
+    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -1149,9 +1150,12 @@ fn cylinder(
 /// **A curved divider answers in the union as it does in the pair
 /// boolean.** A cylinder lying along y across the plate's top divides
 /// it in two with curved walls. `Borders` reads no plane, so the pieces
-/// need none; whatever the lone pair boolean does with this recipe —
-/// publish, or refuse where its other rules have no answer for a curved
-/// side — each member order of the union does the same.
+/// need none; whatever the lone pair boolean does with this recipe,
+/// each member order of the union does the same.
+///
+/// What both do is refuse as a missing rule: the seam pieces along the
+/// cylinder's wall are ranked along `n_a × n_b`, and the wall has no
+/// plane (`NamingError::SplitReference`, curved, citing the wall).
 #[test]
 fn a_curved_divider_answers_as_the_pair_boolean_does() {
     let doc = ProfileDoc::empty_derived("union-dividing-across", Tol::witness());
@@ -1166,10 +1170,36 @@ fn a_curved_divider_answers_as_the_pair_boolean_does() {
             declare: None,
         },
     );
-    let alone = failure(&run(&pair_doc), pair).map(|e| format!("{e:?}"));
+    // The curved side a refusal names, read through the union's
+    // `FromMember` to the member's own name, so the pair boolean's and
+    // the union's spellings compare.
+    let curved_side = |e: Option<&NodeErrorKind>| match e {
+        Some(NodeErrorKind::Naming(NamingError::SplitReference {
+            reference,
+            curved: true,
+            ..
+        })) => Some(match reference.path.as_slice() {
+            [RoleSeg::FromMember { of, .. }] => of.name().clone(),
+            _ => (**reference).clone(),
+        }),
+        _ => None,
+    };
+    let pair_ev = run(&pair_doc);
+    let alone = curved_side(failure(&pair_ev, pair));
+    assert!(
+        alone.as_ref().is_some_and(|r| r.node == cyl),
+        "the pair boolean refuses the seam chain along the cylinder's wall as a missing \
+         rule: {:?}",
+        failure(&pair_ev, pair)
+    );
     for order in permutations(&[0, 1]) {
         let (docx, u) = union_of(doc.clone(), &[plate, cyl], &order);
-        let refused = failure(&run(&docx), u).map(|e| format!("{e:?}"));
-        assert_eq!(refused, alone, "{order:?}");
+        let ev = run(&docx);
+        assert_eq!(
+            curved_side(failure(&ev, u)),
+            alone,
+            "{order:?}: {:?}",
+            failure(&ev, u)
+        );
     }
 }
