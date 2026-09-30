@@ -1590,11 +1590,14 @@ pub(crate) use name_free_seg;
 /// Every method defaults to the identity, because "not this rewrite's
 /// concern" IS the identity: the union's citing moves member edges and
 /// nothing else, the step collection reads locators and moves nothing.
-/// A rewrite that descends into a carried name does so from its own
-/// [`SegRewrite::name`], through [`StableName::rewrite_path`] — the
-/// walk itself never recurses, so a rewriter that must not (the
+/// A rewrite that descends into a carried name says so from its own
+/// [`SegRewrite::name`] ([`Carry::Descend`]); the walk then rewrites
+/// that name's path through the same rewriter and hands the result to
+/// [`SegRewrite::descended`]. A rewriter that must not descend (the
 /// union's: a member's own name is final in the member) simply does
-/// not.
+/// not say so. The walk keeps the names it is descending on its own
+/// stack ([`StableName::rewrite_path`]), since a name nests as deep as
+/// its derivation.
 pub(crate) trait SegRewrite {
     /// What stops the rewrite; [`core::convert::Infallible`] where
     /// nothing can.
@@ -1618,15 +1621,30 @@ pub(crate) trait SegRewrite {
         Ok(v)
     }
 
-    /// A name the segment carries: `None` leaves it as it is (and
-    /// costs no clone), `Some` replaces it.
+    /// What becomes of a name the segment carries ([`Carry`]).
     ///
     /// # Errors
     ///
     /// The rewriter's own.
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
+    fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
         let _ = n;
-        Ok(None)
+        Ok(Carry::Keep)
+    }
+
+    /// A carried name this rewriter descends into, once its path has
+    /// been rewritten through it (`walked`): `None` leaves `n` as it
+    /// is, `Some` replaces it.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn descended(
+        &mut self,
+        n: &StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
+        let _ = n;
+        Ok(Some(walked))
     }
 
     /// The member edge of a [`RoleSeg::FromMember`] — a bare node id,
@@ -1641,21 +1659,85 @@ pub(crate) trait SegRewrite {
     }
 }
 
+/// What a rewrite does with a name a segment carries.
+pub(crate) enum Carry {
+    /// Leave it as it is (and cost no clone).
+    Keep,
+    /// Put this name in its place.
+    Replace(StableName),
+    /// Rewrite its path through the same rewriter, and put what
+    /// [`SegRewrite::descended`] answers in its place.
+    Descend,
+}
+
+/// Why one level of a rewrite stopped: the rewriter refused, or a
+/// carried name it descends into has not been descended yet.
+enum Stopped<'s, E> {
+    Refused(E),
+    Needs(&'s StableName),
+}
+
+/// A rewriter, with the answers for the carried names already
+/// descended (by address).
+struct Deep<'d, W: SegRewrite> {
+    w: &'d mut W,
+    done: &'d std::collections::BTreeMap<usize, Option<StableName>>,
+}
+
+fn address(name: &StableName) -> usize {
+    core::ptr::from_ref(name) as usize
+}
+
+impl<W: SegRewrite> Deep<'_, W> {
+    /// `n` through the rewriter: `None` where it is kept.
+    fn carried<'s>(
+        &mut self,
+        n: &'s StableName,
+    ) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+        match self.w.name(n).map_err(Stopped::Refused)? {
+            Carry::Keep => Ok(None),
+            Carry::Replace(next) => Ok(Some(next)),
+            Carry::Descend => self.done.get(&address(n)).cloned().ok_or(Stopped::Needs(n)),
+        }
+    }
+
+    fn edge<'s>(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Stopped<'s, W::Error>> {
+        self.w.edge(e).map_err(Stopped::Refused)
+    }
+
+    fn vertex<'s>(
+        &mut self,
+        v: ProfileVertexRef,
+    ) -> Result<ProfileVertexRef, Stopped<'s, W::Error>> {
+        self.w.vertex(v).map_err(Stopped::Refused)
+    }
+
+    fn member<'s>(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Stopped<'s, W::Error>> {
+        self.w.member(m).map_err(Stopped::Refused)
+    }
+}
+
 /// One carried name through the rewriter, kept as it is where the
 /// rewriter leaves it.
-fn rewrite_ref<W: SegRewrite>(n: NameRef, w: &mut W) -> Result<NameRef, W::Error> {
-    Ok(match w.name(n.name())? {
+fn rewrite_ref<'s, W: SegRewrite>(
+    n: &'s NameRef,
+    w: &mut Deep<'_, W>,
+) -> Result<NameRef, Stopped<'s, W::Error>> {
+    Ok(match w.carried(n.name())? {
         Some(next) => NameRef::new(next),
-        None => n,
+        None => n.clone(),
     })
 }
 
 /// A SET of names through the rewriter, each kept as it is where the
 /// rewriter leaves it. The set's order is the path's canonical form's
 /// to restore, not this walk's.
-fn rewrite_set<W: SegRewrite>(v: Vec<StableName>, w: &mut W) -> Result<Vec<StableName>, W::Error> {
-    v.into_iter()
-        .map(|n| Ok(w.name(&n)?.unwrap_or(n)))
+fn rewrite_set<'s, W: SegRewrite>(
+    v: &'s [StableName],
+    w: &mut Deep<'_, W>,
+) -> Result<Vec<StableName>, Stopped<'s, W::Error>> {
+    v.iter()
+        .map(|n| Ok(w.carried(n)?.unwrap_or_else(|| n.clone())))
         .collect()
 }
 
@@ -1688,41 +1770,40 @@ impl RoleSeg {
     ///
     /// Whatever `w` refuses, at the first thing it refuses.
     #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
-    fn rewrite<W: SegRewrite>(self, w: &mut W) -> Result<RoleSeg, W::Error> {
+    fn rewrite<'s, W: SegRewrite>(
+        &'s self,
+        w: &mut Deep<'_, W>,
+    ) -> Result<RoleSeg, Stopped<'s, W::Error>> {
         use RoleSeg as R;
         Ok(match self {
             // Neither a locator nor a name: verbatim.
-            inert_seg!() => self,
+            inert_seg!() => self.clone(),
             // The locators.
-            R::Lateral(e) => R::Lateral(w.edge(e)?),
-            R::RimEdge(c, e) => R::RimEdge(c, w.edge(e)?),
-            R::LateralEdge(v) => R::LateralEdge(w.vertex(v)?),
-            R::CapVertex(c, v) => R::CapVertex(c, w.vertex(v)?),
-            R::LoftWall(es) => R::LoftWall(
-                es.into_iter()
-                    .map(|e| w.edge(e))
-                    .collect::<Result<_, _>>()?,
-            ),
-            R::LoftSeam(vs) => R::LoftSeam(
-                vs.into_iter()
-                    .map(|v| w.vertex(v))
-                    .collect::<Result<_, _>>()?,
-            ),
-            R::Band(e) => R::Band(w.edge(e)?),
-            R::BandRim(v) => R::BandRim(w.vertex(v)?),
-            R::BandRimPi(v) => R::BandRimPi(w.vertex(v)?),
-            R::BandPi(e) => R::BandPi(w.edge(e)?),
-            R::Meridian(m, e) => R::Meridian(m, w.edge(e)?),
-            R::MeridianVertex(m, v) => R::MeridianVertex(m, w.vertex(v)?),
-            R::Pole(v) => R::Pole(w.vertex(v)?),
-            R::AxisEdge(e) => R::AxisEdge(w.edge(e)?),
+            R::Lateral(e) => R::Lateral(w.edge(*e)?),
+            R::RimEdge(c, e) => R::RimEdge(*c, w.edge(*e)?),
+            R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
+            R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
+            R::LoftWall(es) => {
+                R::LoftWall(es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
+            }
+            R::LoftSeam(vs) => {
+                R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
+            }
+            R::Band(e) => R::Band(w.edge(*e)?),
+            R::BandRim(v) => R::BandRim(w.vertex(*v)?),
+            R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
+            R::BandPi(e) => R::BandPi(w.edge(*e)?),
+            R::Meridian(m, e) => R::Meridian(*m, w.edge(*e)?),
+            R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
+            R::Pole(v) => R::Pole(w.vertex(*v)?),
+            R::AxisEdge(e) => R::AxisEdge(w.edge(*e)?),
             // The carried names.
             R::FromA(n) => R::FromA(rewrite_ref(n, w)?),
             R::FromB(n) => R::FromB(rewrite_ref(n, w)?),
             // BOTH halves: the member edge is a local node id like the
             // minting one, and a rewrite of the id space moves it too.
             R::FromMember { member, of } => R::FromMember {
-                member: w.member(member)?,
+                member: w.member(*member)?,
                 of: rewrite_ref(of, w)?,
             },
             R::Seam { a, b } => R::Seam {
@@ -1733,26 +1814,26 @@ impl RoleSeg {
             R::Fragment(q) => R::Fragment(match q {
                 Qualifier::SideOf(entries) => Qualifier::SideOf(
                     entries
-                        .into_iter()
-                        .map(|(n, s)| Ok((w.name(&n)?.unwrap_or(n), s)))
+                        .iter()
+                        .map(|(n, s)| Ok((w.carried(n)?.unwrap_or_else(|| n.clone()), *s)))
                         .collect::<Result<_, _>>()?,
                 ),
-                Qualifier::OrderAlong { .. } => q,
+                Qualifier::OrderAlong { .. } => q.clone(),
             }),
             R::SectionEdge { side, face } => R::SectionEdge {
-                side,
+                side: *side,
                 face: rewrite_ref(face, w)?,
             },
             R::SplitFragment { side, parent } => R::SplitFragment {
-                side,
+                side: *side,
                 parent: rewrite_ref(parent, w)?,
             },
             R::CrossingVertex { side, edge } => R::CrossingVertex {
-                side,
+                side: *side,
                 edge: rewrite_ref(edge, w)?,
             },
             R::OnToolVertex { side, of } => R::OnToolVertex {
-                side,
+                side: *side,
                 of: rewrite_ref(of, w)?,
             },
             R::FromTarget(n) => R::FromTarget(rewrite_ref(n, w)?),
@@ -1773,7 +1854,7 @@ impl RoleSeg {
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
                 edge: rewrite_ref(edge, w)?,
-                support,
+                support: *support,
             },
             R::BandFoot(n) => R::BandFoot(rewrite_ref(n, w)?),
             R::BandCross { edge, band } => R::BandCross {
@@ -1789,12 +1870,12 @@ impl RoleSeg {
             R::Rim(n) => R::Rim(rewrite_ref(n, w)?),
             R::HoleRim { of, hole } => R::HoleRim {
                 of: rewrite_ref(of, w)?,
-                hole,
+                hole: *hole,
             },
             // The document seam.
-            R::InPart { .. } => self,
+            R::InPart { .. } => self.clone(),
             R::Instance { i, of } => R::Instance {
-                i,
+                i: *i,
                 of: rewrite_ref(of, w)?,
             },
         })
@@ -1816,14 +1897,47 @@ impl StableName {
     /// was and as it is, with the images `w` gives the seam's sides
     /// (`names::canonical::rewritten`).
     ///
+    /// A carried name `w` descends into ([`Carry::Descend`]) is
+    /// rewritten the same way, and a name nests as deep as its
+    /// derivation, so the walk keeps the names it is descending on its
+    /// own stack: a level that meets a carried name not yet descended
+    /// stops, the name is descended, and the level is walked again,
+    /// every name already descended answered from what was kept. A
+    /// rewriter is asked the same questions again on a level walked
+    /// again, so what it answers must be a function of the question.
+    ///
     /// # Errors
     ///
-    /// Whatever `w` refuses.
+    /// Whatever `w` refuses, at the first thing it refuses.
     pub(crate) fn rewrite_path<W: SegRewrite>(self, w: &mut W) -> Result<StableName, W::Error> {
+        let mut done = std::collections::BTreeMap::new();
+        let mut descending: Vec<&StableName> = vec![&self];
+        while let Some(&top) = descending.last() {
+            match top.walk(&mut Deep { w, done: &done }) {
+                Ok(walked) if descending.len() == 1 => return Ok(walked),
+                Ok(walked) => {
+                    descending.pop();
+                    let answer = w.descended(top, walked)?;
+                    done.insert(address(top), answer);
+                }
+                Err(Stopped::Refused(e)) => return Err(e),
+                Err(Stopped::Needs(held)) => descending.push(held),
+            }
+        }
+        // The loop returns from its last level; an empty stack is not
+        // reachable, and the name as it was is the rewrite of nothing.
+        Ok(self.clone())
+    }
+
+    /// One level of [`StableName::rewrite_path`]: this name's path
+    /// rebuilt through `w`, in canonical form.
+    fn walk<'s, W: SegRewrite>(
+        &'s self,
+        w: &mut Deep<'_, W>,
+    ) -> Result<StableName, Stopped<'s, W::Error>> {
         let path = self
             .path
             .iter()
-            .cloned()
             .map(|seg| seg.rewrite(w))
             .collect::<Result<_, _>>()?;
         let now = StableName {
@@ -1831,8 +1945,8 @@ impl StableName {
             node: self.node,
             path,
         };
-        canonical::rewritten(&self, now, &mut |n| {
-            Ok(w.name(n)?.unwrap_or_else(|| n.clone()))
+        canonical::rewritten(self, now, &mut |n| {
+            Ok(w.carried(n)?.unwrap_or_else(|| n.clone()))
         })
     }
 
@@ -1869,8 +1983,15 @@ impl SegRewrite for PieceSteps {
         Ok(v)
     }
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
-        let Ok(_) = n.clone().rewrite_path(self);
+    fn name(&mut self, _: &StableName) -> Result<Carry, Self::Error> {
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        _: &StableName,
+        _: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
         Ok(None)
     }
 }

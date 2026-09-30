@@ -146,7 +146,7 @@ pub(crate) enum Stop<E> {
 }
 
 /// The image a rewrite gives an embedded name ([`canonical`]).
-pub(crate) type Image<'a, E> = &'a mut dyn FnMut(&StableName) -> Result<StableName, E>;
+pub(crate) type Image<'a, 'n, E> = &'a mut dyn FnMut(&'n StableName) -> Result<StableName, E>;
 
 impl RankRule {
     /// The rule for `now`'s ranks, `now` being `was` rewritten — every
@@ -161,11 +161,11 @@ impl RankRule {
     /// lies along its edge parent's line ([`seam_vertex_parents`]):
     /// the one edge parent, or, where both are edges, the A side's in
     /// a pair boolean's name and none in a union's.
-    fn derive<E>(
-        was: &StableName,
+    fn derive<'n, E>(
+        was: &'n StableName,
         now: &StableName,
         seams: Seams,
-        image: Image<'_, E>,
+        image: Image<'_, 'n, E>,
     ) -> Result<Self, E> {
         let is_edge = |n: &StableName| n.kind == EntityKind::Edge;
         match (was.kind, seam_vertex_parents(was), seam_vertex_parents(now)) {
@@ -189,7 +189,11 @@ impl RankRule {
     /// The rule for a rank along EDGE `was`'s line, the edge rewritten
     /// to `now`: `Reverse` exactly where `now`'s pair is the images of
     /// `was`'s pair in the other order.
-    fn along<E>(was: &StableName, now: &StableName, image: Image<'_, E>) -> Result<Self, E> {
+    fn along<'n, E>(
+        was: &'n StableName,
+        now: &StableName,
+        image: Image<'_, 'n, E>,
+    ) -> Result<Self, E> {
         let (Some((a, b)), Some((a2, b2))) = (seam_line_pair(was), seam_line_pair(now)) else {
             return Ok(Self::Keep);
         };
@@ -230,11 +234,11 @@ impl RankRule {
 ///
 /// [`Stop::Image`] where `image` refuses; [`Stop::Unrankable`] where a
 /// rank cannot be re-read.
-pub(crate) fn canonical<E>(
-    was: &StableName,
+pub(crate) fn canonical<'n, E>(
+    was: &'n StableName,
     now: StableName,
     seams: Seams,
-    image: Image<'_, E>,
+    image: Image<'_, 'n, E>,
 ) -> Result<StableName, Stop<E>> {
     let mut now = order(now, seams);
     if !has_rank(&now) {
@@ -268,10 +272,10 @@ pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
 /// **A fold-table name collapsed into a union's space**, in canonical
 /// form: [`canonical`] with the union's seams [`Seams::ByName`]. A rank
 /// it cannot re-read is refused: the collapse is an emission door.
-pub(crate) fn collapsed<E>(
-    was: &StableName,
+pub(crate) fn collapsed<'n, E>(
+    was: &'n StableName,
     now: StableName,
-    image: Image<'_, E>,
+    image: Image<'_, 'n, E>,
 ) -> Result<StableName, Stop<E>> {
     canonical(was, now, Seams::ByName, image)
 }
@@ -292,10 +296,10 @@ pub(crate) fn collapsed<E>(
 /// # Errors
 ///
 /// Whatever `image` refuses.
-pub(crate) fn rewritten<E>(
-    was: &StableName,
+pub(crate) fn rewritten<'n, E>(
+    was: &'n StableName,
     now: StableName,
-    image: Image<'_, E>,
+    image: Image<'_, 'n, E>,
 ) -> Result<StableName, E> {
     let seams = Seams::of_published(was);
     if !has_rank(&now) {

@@ -116,7 +116,8 @@ use crate::names::emit::{
 };
 use crate::names::emit_topo::{OnSegment, Segment, insert_ranked_or_tied};
 use crate::names::role::{
-    EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, StableName, never_in_a_boolean_table,
+    Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, StableName,
+    never_in_a_boolean_table,
 };
 use crate::names::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -1055,9 +1056,9 @@ struct WholeMemberEdges<'f, 'a, T: geom_core::Decide> {
 impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
     type Error = NamingError;
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, NamingError> {
+    fn name(&mut self, n: &StableName) -> Result<Carry, NamingError> {
         if n.node != self.union {
-            return Ok(None);
+            return Ok(Carry::Keep);
         }
         if let Some((member, edge, _)) = member_edge_piece(n) {
             let (member, edge) = match self.at {
@@ -1065,9 +1066,20 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
                 None => (member, edge),
             };
             let whole = entity_name(self.union, &(member, edge));
-            return Ok((whole != *n).then_some(whole));
+            return Ok(if whole == *n {
+                Carry::Keep
+            } else {
+                Carry::Replace(whole)
+            });
         }
-        let walked = n.clone().rewrite_path(self)?;
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        n: &StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
     }
 }
@@ -1327,7 +1339,18 @@ struct RetireIntoMerges<'c, 't> {
 impl SegRewrite for RetireIntoMerges<'_, '_> {
     type Error = NamingError;
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, NamingError> {
+    fn name(&mut self, n: &StableName) -> Result<Carry, NamingError> {
+        Ok(self.retired(n)?.map_or(Carry::Keep, Carry::Replace))
+    }
+}
+
+impl RetireIntoMerges<'_, '_> {
+    /// What `n` is published as beside this row: `None` where it is
+    /// kept. A seam side is published by its own row's rewrite
+    /// (`published`), which descends one entity dimension down — an
+    /// edge's sides are faces, a vertex's edges — so this recursion is
+    /// bounded by the dimension, not by any nesting.
+    fn retired(&mut self, n: &StableName) -> Result<Option<StableName>, NamingError> {
         if n.node != self.cx.union || self.own.contains(n) {
             return Ok(None);
         }

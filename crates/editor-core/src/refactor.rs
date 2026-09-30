@@ -107,7 +107,7 @@ use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
 use crate::names::{
-    EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
+    Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
     StableName,
 };
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId};
@@ -1157,8 +1157,21 @@ impl SegRewrite for Remapping<'_> {
         })
     }
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
-        remap_name(n, self.0, self.1).map(Some)
+    // [`remap_name`], one level at a time: the minting node is mapped
+    // (and an unmapped one refused) before the path is walked, and the
+    // walked path is then put under it.
+    fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
+        self.member(n.node)?;
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        n: &StableName,
+        mut walked: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
+        walked.node = self.member(n.node)?;
+        Ok(Some(walked))
     }
 
     fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Self::Error> {
