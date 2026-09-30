@@ -51,7 +51,6 @@
 
 use geom_core::{Band, Decide, Margin, Sign};
 
-use super::{Coincide, DeclarationRead};
 use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
@@ -60,6 +59,7 @@ use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
     PierceRingRecord, SideCode, VfContact,
 };
+use super::{Coincide, DeclarationRead};
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
 use crate::euler::MevSite;

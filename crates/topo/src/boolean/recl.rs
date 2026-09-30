@@ -1187,7 +1187,10 @@ mod tests {
             )
         };
         let mid = (band.zero() + band.escalate()) / 2.0;
-        for (arm, label) in [(mid, "an in-band arm"), (0.5 * band.zero(), "a zero-band arm")] {
+        for (arm, label) in [
+            (mid, "an in-band arm"),
+            (0.5 * band.zero(), "a zero-band arm"),
+        ] {
             let err = run(arm, None).expect_err("the tie refuses");
             let BooleanError::Escalated { decision, diag } = &err else {
                 panic!("{label}: an escalation: {err:?}");
@@ -1204,8 +1207,9 @@ mod tests {
                 "{label}: the margin the funnel read rides the payload"
             );
             assert!(
-                err.to_string()
-                    .ends_with("Recourse: declare the coincidence, move the geometry, or lower the tolerance"),
+                err.to_string().ends_with(
+                    "Recourse: declare the coincidence, move the geometry, or lower the tolerance"
+                ),
                 "{label}: {err}"
             );
             assert_eq!(

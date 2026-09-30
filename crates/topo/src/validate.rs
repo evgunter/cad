@@ -2114,8 +2114,12 @@ impl fmt::Display for StaleDeclaration {
 /// paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WedgeCheck {
-    /// The first-order wedge between the faces' tangent planes, with the
-    /// folded lever arm it is metered at: a crease or a smooth join.
+    /// The folded lever arm the first-order wedge is metered at: whether
+    /// the edge is long enough, for how its faces curve, to read an
+    /// angle over ([`geom_brep::DIHEDRAL_ARM`]).
+    Arm,
+    /// The first-order wedge between the faces' tangent planes, metered
+    /// at a definitely positive arm: a crease or a smooth join.
     Dihedral,
     /// On a definitely-smooth edge, whether the faces separate at second
     /// order (the surfaces determine the locus) or not.
@@ -2131,6 +2135,10 @@ impl WedgeCheck {
     /// What could not be decided, in the words of a person at the viewer.
     fn lead(self) -> &'static str {
         match self {
+            Self::Arm => {
+                "whether an edge is long enough, for how its faces curve, to measure the angle \
+                 between them is too close to call at this tolerance"
+            }
             Self::Dihedral => {
                 "the angle between two faces at an edge is too close to call at this \
                  tolerance (a sliver)"
@@ -2150,6 +2158,9 @@ impl WedgeCheck {
     fn ending(self, cause: &Indeterminate) -> Cow<'static, str> {
         let arm = RefusedArm::Undecided(cause);
         match self {
+            Self::Arm => geom_brep::DIHEDRAL_ARM
+                .recourse(arm, Reading::AtRest)
+                .into(),
             Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
             Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
             // A split along the edge, or a side read after the decisions
@@ -2483,6 +2494,10 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         }
         CertCheck::Transversality => {
             "its faces meet too nearly tangentially to decide at this tolerance"
+        }
+        CertCheck::TransversalityArm => {
+            "it is too short, for how its faces curve, to measure the angle between them at this \
+             tolerance"
         }
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
@@ -5583,10 +5598,13 @@ pub(crate) fn tier3_local_checks_marked<
                 match classify_dihedral(s_plus, s_minus, p, extent, band) {
                     Ok(DihedralClass::Transverse) => all_smooth = false,
                     Ok(DihedralClass::Smooth) => all_transverse = false,
-                    Err(geom_brep::LeverEscalation { diag: cause, .. }) => {
+                    Err(geom_brep::LeverEscalation { rung, diag: cause }) => {
                         errors.push(ValidationError::SliverDihedral {
                             edge: edge_key,
-                            check: WedgeCheck::Dihedral,
+                            check: match rung {
+                                geom_brep::LeverRung::Arm => WedgeCheck::Arm,
+                                geom_brep::LeverRung::Reading => WedgeCheck::Dihedral,
+                            },
                             cause,
                         });
                         escalated = true;
@@ -9552,6 +9570,24 @@ mod tests {
                  (a sliver). Recourse: move the geometry so the faces meet either clearly \
                  creased or clearly smooth, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"
+                    .to_owned(),
+            ),
+            (
+                "wedge arm, in band",
+                sliver(WedgeCheck::Arm, in_band),
+                "whether an edge is long enough, for how its faces curve, to measure the angle \
+                 between them is too close to call at this tolerance. Recourse: move the \
+                 geometry so that edge is clearly longer, and its faces curve less tightly \
+                 there, or, if this edge length or radius of curvature is intended, tighten the \
+                 tolerance below 5e-10 m"
+                    .to_owned(),
+            ),
+            (
+                "wedge arm, zero band",
+                sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
+                "Recourse: move the geometry so that edge is clearly longer, and its faces curve \
+                 less tightly there, or, if this edge length or radius of curvature is intended, \
+                 tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
             (

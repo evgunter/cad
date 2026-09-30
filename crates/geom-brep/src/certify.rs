@@ -125,6 +125,11 @@ pub enum CertCheck {
     /// (the dihedral displacement margin — must be definitely
     /// transverse).
     Transversality,
+    /// Intersection: the folded lever arm the transversality margin is
+    /// metered over at an interior sample, which must be definitely
+    /// positive before any angle is read there
+    /// ([`crate::DIHEDRAL_ARM`]).
+    TransversalityArm,
     /// TangentIntersection: the normal-parallelism defect at an
     /// interior sample — `sin θ` metered at the lever arm `1/κ_rel`
     /// (D2's derived angular threshold ε·κ_rel; C7 jet schedule), or,
@@ -232,6 +237,7 @@ impl core::fmt::Display for CertCheck {
             Self::WitnessSurface2 => "the witness point's residual against surface 2",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
+            Self::TransversalityArm => "the transversality margin's lever arm",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentSecondOrder => "the second-order margin",
             Self::TangentHull => "the between-samples sag bound",
@@ -652,6 +658,7 @@ impl CertCheck {
                 stored: StoredDefinite::Contradiction,
                 at_zero: None,
             }),
+            Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentSecondOrder => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the faces curve apart more clearly where they touch",
                 size: "curvature difference",
@@ -2126,9 +2133,12 @@ fn run_checks<T: Decide>(
                             let verdict = Refused::Zero(Classified { margin, band });
                             return Err(CertifyError::NotTransverse { sample: i, verdict });
                         }
-                        Err(crate::LeverEscalation { diag: cause, .. }) => {
+                        Err(crate::LeverEscalation { rung, diag: cause }) => {
                             return Err(CertifyError::Escalated {
-                                check: CertCheck::Transversality,
+                                check: match rung {
+                                    crate::LeverRung::Arm => CertCheck::TransversalityArm,
+                                    crate::LeverRung::Reading => CertCheck::Transversality,
+                                },
                                 sample: i,
                                 cause,
                             });
@@ -2630,7 +2640,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    const ALL_CHECKS: [CertCheck; 22] = [
+    const ALL_CHECKS: [CertCheck; 23] = [
         CertCheck::ParamSpan,
         CertCheck::ParamWinding,
         CertCheck::EndpointStart,
@@ -2641,6 +2651,7 @@ mod tests {
         CertCheck::WitnessSurface2,
         CertCheck::WitnessMidpoint,
         CertCheck::Transversality,
+        CertCheck::TransversalityArm,
         CertCheck::TangentParallel,
         CertCheck::TangentSecondOrder,
         CertCheck::TangentHull,
@@ -2670,28 +2681,29 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 22,
-            CertCheck::ParamWinding => 22,
-            CertCheck::EndpointStart => 22,
-            CertCheck::EndpointEnd => 22,
-            CertCheck::Surface1Residual => 22,
-            CertCheck::Surface2Residual => 22,
-            CertCheck::WitnessSurface1 => 22,
-            CertCheck::WitnessSurface2 => 22,
-            CertCheck::WitnessMidpoint => 22,
-            CertCheck::Transversality => 22,
-            CertCheck::TangentParallel => 22,
-            CertCheck::TangentSecondOrder => 22,
-            CertCheck::TangentHull => 22,
-            CertCheck::TangentTube => 22,
-            CertCheck::MappedSource => 22,
-            CertCheck::SeamHalfplane => 22,
-            CertCheck::SeamSide => 22,
-            CertCheck::ChartImage => 22,
-            CertCheck::ChartResidual => 22,
-            CertCheck::PlaneNurbsOnLocus => 22,
-            CertCheck::PlaneNurbsHull => 22,
-            CertCheck::PlaneNurbsCertificate => 22,
+            CertCheck::ParamSpan => 23,
+            CertCheck::ParamWinding => 23,
+            CertCheck::EndpointStart => 23,
+            CertCheck::EndpointEnd => 23,
+            CertCheck::Surface1Residual => 23,
+            CertCheck::Surface2Residual => 23,
+            CertCheck::WitnessSurface1 => 23,
+            CertCheck::WitnessSurface2 => 23,
+            CertCheck::WitnessMidpoint => 23,
+            CertCheck::Transversality => 23,
+            CertCheck::TransversalityArm => 23,
+            CertCheck::TangentParallel => 23,
+            CertCheck::TangentSecondOrder => 23,
+            CertCheck::TangentHull => 23,
+            CertCheck::TangentTube => 23,
+            CertCheck::MappedSource => 23,
+            CertCheck::SeamHalfplane => 23,
+            CertCheck::SeamSide => 23,
+            CertCheck::ChartImage => 23,
+            CertCheck::ChartResidual => 23,
+            CertCheck::PlaneNurbsOnLocus => 23,
+            CertCheck::PlaneNurbsHull => 23,
+            CertCheck::PlaneNurbsCertificate => 23,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -2713,7 +2725,7 @@ mod tests {
     ///
     /// The `Display` arms are an exhaustive match, so the words cannot
     /// fall BEHIND the taxonomy — a check without a word does not
-    /// compile. What twenty-one hand-written phrases CAN do is collide,
+    /// compile. What hand-written phrases CAN do is collide,
     /// and several of these are one token apart by design (surface 1
     /// against surface 2, the carrier's residual against the witness
     /// point's), so a literal copied onto a neighbouring row is the
@@ -4444,6 +4456,48 @@ mod tests {
         );
     }
 
+    /// **The transversality margin's lever arm ends as a length, not an
+    /// angle**: an escalation of the arm the wedge is metered over names
+    /// that edge's length and its faces' bend, and offers the tolerance
+    /// the arm gives, in band and in the zero band alike; the wedge's own
+    /// escalation keeps the angle. (The review of PR 3513's fix pass
+    /// rendered the arm under `Transversality`: "if this angle is
+    /// intended, tighten the tolerance below 5e-11 m".)
+    #[test]
+    fn the_transversality_arm_ends_as_a_length_not_an_angle() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (margin, below) in [(5e-9, "5e-10"), (5e-10, "5e-11")] {
+            let cause = Indeterminate {
+                margin: MarginDiag::value(margin),
+                band,
+                predicate: Some("dihedral_arm"),
+                terminal_sliver: false,
+            };
+            let render = |check| {
+                CertifyError::Escalated {
+                    check,
+                    sample: 1,
+                    cause,
+                }
+                .render(Reading::Build)
+            };
+            let arm = render(CertCheck::TransversalityArm);
+            assert!(
+                arm.contains("the transversality margin's lever arm")
+                    && arm.ends_with(&format!(
+                        "Recourse: move the geometry so that edge is clearly longer, and its \
+                         faces curve less tightly there, or, if this edge length or radius of \
+                         curvature is intended, tighten the tolerance below {below} m"
+                    )),
+                "{arm}"
+            );
+            assert!(
+                render(CertCheck::Transversality).contains("if this angle is intended"),
+                "the wedge keeps its angle"
+            );
+        }
+    }
+
     /// Every decision's class, pinned against a table written out by
     /// hand (D4 ¶1 (i)): a decision that passes on a nonzero sign is
     /// sized, with its pass set; an exact construction ends as a defect;
@@ -4470,6 +4524,7 @@ mod tests {
             (CertCheck::WitnessSurface2, Defect),
             (CertCheck::WitnessMidpoint, Defect),
             (CertCheck::Transversality, Sized(Positive)),
+            (CertCheck::TransversalityArm, Sized(Positive)),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
             (CertCheck::TangentParallel, Defect),
             (CertCheck::TangentHull, LastResort),

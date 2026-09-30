@@ -606,7 +606,9 @@ fn find_match<T: Decide>(
                     let p_e = point_of(e_he)?;
                     let chord = p_e - p_c;
                     let dist = chord.norm();
-                    let escalate = |diag| BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag);
+                    let escalate = |diag| {
+                        BooleanError::coincidence(Coincide::Join, DeclarationRead::Moot, diag)
+                    };
                     match decide("bool_join_chord", Margin::of(dist), band).map_err(escalate)? {
                         Sign::Positive => {}
                         _ => continue, // coincident sites: no polygon edge

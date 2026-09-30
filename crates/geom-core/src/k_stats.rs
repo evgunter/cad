@@ -409,10 +409,13 @@ fn record_escalation(source: Indeterminate) -> Indeterminate {
 
 /// The gated body: classify through the funnel, then apply the sign
 /// requirement the calling predicate's question depends on. A definite
-/// sign the requirement rejects is an [`Indeterminate`] carrying
-/// [`MarginKind::Invalid`](crate::MarginKind::Invalid) — "the question was never validly posed
-/// here" — recorded on the same frame and in the same decision order as
-/// the escalation `classify` itself would have produced.
+/// verdict the requirement rejects is an [`Indeterminate`] carrying the
+/// margin `admits` reports for it — the decided margin where the
+/// rejected verdict is band-decided, or
+/// [`MarginKind::Invalid`](crate::MarginKind::Invalid) where "the
+/// question was never validly posed here" — recorded on the same frame
+/// and in the same decision order as the escalation `classify` itself
+/// would have produced.
 ///
 /// Both outcomes of one gated decision reach the frame: the funnel's
 /// definite verdict, because the classifier really did decide, and the
@@ -423,22 +426,21 @@ fn classify_gated<T: Decide, R>(
     name: &'static str,
     margin: T,
     band: Band,
-    admits: fn(Sign) -> Option<R>,
+    admits: fn(Decided) -> Result<R, MarginDiag>,
 ) -> Result<R, Indeterminate> {
-    // `admits` both TESTS the sign and carries it into the caller's own
-    // vocabulary, in one function: a gate that answered `bool` here
+    // `admits` both TESTS the verdict and carries it into the caller's
+    // own vocabulary, in one function: a gate that answered `bool` here
     // would leave every caller converting an already-tested sign a
     // second time, with an arm for the answer this door escalated — the
     // shape these doors exist to remove, reproduced one level up.
-    if let Some(admitted) = admits(classify(name, margin, band)?.sign) {
-        return Ok(admitted);
-    }
-    Err(record_escalation(Indeterminate {
-        margin: MarginDiag::INVALID,
-        band,
-        predicate: Some(name),
-        terminal_sliver: false,
-    }))
+    admits(classify(name, margin, band)?).map_err(|margin| {
+        record_escalation(Indeterminate {
+            margin,
+            band,
+            predicate: Some(name),
+            terminal_sliver: false,
+        })
+    })
 }
 
 /// **An EVALUATOR check, named for the recorder and NOT logged as a
@@ -625,8 +627,9 @@ pub fn decide_positive<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    classify_gated(name, margin.value(), band, |sign| {
-        (sign == Sign::Positive).then_some(())
+    classify_gated(name, margin.value(), band, |decided| match decided.sign {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(MarginDiag::INVALID),
     })
 }
 
@@ -649,18 +652,16 @@ pub fn decide_positive_reported<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), Indeterminate> {
-    let Decided { sign, margin } = classify(name, margin.value(), band)?;
-    let margin = match sign {
-        Sign::Positive => return Ok(()),
-        Sign::Zero => margin,
-        Sign::Negative => MarginDiag::INVALID,
-    };
-    Err(record_escalation(Indeterminate {
-        margin,
+    classify_gated(
+        name,
+        margin.value(),
         band,
-        predicate: Some(name),
-        terminal_sliver: false,
-    }))
+        |Decided { sign, margin }| match sign {
+            Sign::Positive => Ok(()),
+            Sign::Zero => Err(margin),
+            Sign::Negative => Err(MarginDiag::INVALID),
+        },
+    )
 }
 
 /// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
@@ -691,10 +692,10 @@ pub fn decide_nonzero<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<NonzeroSign, Indeterminate> {
-    classify_gated(name, margin.value(), band, |sign| match sign {
-        Sign::Positive => Some(NonzeroSign::Positive),
-        Sign::Negative => Some(NonzeroSign::Negative),
-        Sign::Zero => None,
+    classify_gated(name, margin.value(), band, |decided| match decided.sign {
+        Sign::Positive => Ok(NonzeroSign::Positive),
+        Sign::Negative => Ok(NonzeroSign::Negative),
+        Sign::Zero => Err(MarginDiag::INVALID),
     })
 }
 

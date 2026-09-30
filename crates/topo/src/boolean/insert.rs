@@ -33,11 +33,11 @@
 
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::{Coincide, DeclarationRead};
 use super::sectors::{BoolSector, PairRecord, within};
 use super::{
     BoolNullEdgeRecord, BooleanError, NullEdgePairRecord, Operand, PairSite, SideCode, VvContact,
 };
+use super::{Coincide, DeclarationRead};
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::MevSite;
@@ -221,12 +221,12 @@ fn mint_directed<T: Decide>(
             Ok(Sign::Positive) => true,
             Ok(_) => false,
             Err(diag) => {
-            return Err(BooleanError::coincidence(
-                Coincide::Sectors,
-                DeclarationRead::Moot,
-                diag,
-            ));
-        }
+                return Err(BooleanError::coincidence(
+                    Coincide::Sectors,
+                    DeclarationRead::Moot,
+                    diag,
+                ));
+            }
         }
     } else {
         false

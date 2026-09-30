@@ -45,7 +45,9 @@
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode};
+use super::{
+    BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
+};
 use crate::body::Body;
 use crate::contact::ContactClass;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -705,8 +707,7 @@ pub(super) fn within<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let c1 = Margin::levered(s.start.cross(dir).dot(s.normal.vec()), s.arm);
     let c2 = Margin::levered(dir.cross(s.end).dot(s.normal.vec()), s.arm);
-    let escalate =
-        |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let t1 = decide("bool_sector_within", c1, band).map_err(escalate)?;
     let t2 = decide("bool_sector_within", c2, band).map_err(escalate)?;
     Ok(if strict {
@@ -906,8 +907,14 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: Reach::Chord { base: o, far: o + x },
-            end_reach: Reach::Chord { base: o, far: o + y },
+            start_reach: Reach::Chord {
+                base: o,
+                far: o + x,
+            },
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + y,
+            },
             face: FaceKey::default(),
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,

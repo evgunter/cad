@@ -140,6 +140,12 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         predicate: Some("side_of_plane"),
         terminal_sliver: false,
     };
+    // An in-band margin with every digit a real one carries: the
+    // longest payload an escalation quotes.
+    let in_band = Indeterminate {
+        margin: MarginDiag::value(5.500000010982831e-9),
+        ..diag
+    };
     let face = FaceKey::default();
     let edge = EdgeKey::default();
     let declaration = DeclaredContact {
@@ -303,8 +309,38 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
         (
             "Escalated",
             BooleanError::Escalated {
-                decision: topo::BooleanDecision::Coincidence(topo::Coincide::VertexOnFace),
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::VertexOnFace,
+                    topo::DeclarationRead::Settles,
+                ),
                 diag,
+            },
+        ),
+        // The longest escalations in band (the review of PR 3513's fix
+        // pass counted `PierceCurvature` at 78 words with the viewer's
+        // wrapper).
+        (
+            "Escalated (PierceCurvature, in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::PierceCurvature,
+                diag: in_band,
+            },
+        ),
+        (
+            "Escalated (LeverArm(Seam), in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::LeverArm(topo::LeverArm::Seam),
+                diag: in_band,
+            },
+        ),
+        (
+            "Escalated (EdgeOnPlane, no declaration read, in band)",
+            BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::EdgeOnPlane,
+                    topo::DeclarationRead::Moot,
+                ),
+                diag: in_band,
             },
         ),
         (

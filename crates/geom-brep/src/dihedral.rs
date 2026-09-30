@@ -79,12 +79,12 @@
 //! *definite* `Smooth` at what may be a true 90° corner — a definite
 //! wrong answer, worse than no answer. The classifier therefore decides
 //! the arm first (predicate `"dihedral_arm"`): definitely positive
-//! proceeds; coincident-with-zero **escalates** with
-//! [`geom_core::MarginKind::Invalid`] (with no displacement scale the
-//! wedge question is not validly posed at this site — the same honest
-//! refusal as the poison gradient exactly *at* the apex); in-band or
-//! poisoned arms escalate through the ordinary decide door. "Arm too
-//! small to say" is always an escalation, never a classification.
+//! proceeds; coincident-with-zero **escalates** with the margin the
+//! funnel decided (with no displacement scale the wedge question is not
+//! validly posed at this site); in-band or poisoned arms escalate
+//! through the ordinary decide door. "Arm too small to say" is always
+//! an escalation, never a classification, and every door ends it as
+//! [`DIHEDRAL_ARM`], the arm's own decision, not the wedge's.
 
 use crate::enters::LeverEscalation;
 use geom::Surface;
@@ -92,6 +92,23 @@ use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
+use crate::recourse::{SizedDecision, SizedPass, StoredDefinite};
+
+/// Whether the folded lever arm at a point of an edge is positive: the
+/// length the wedge between the edge's faces is metered over, the
+/// shorter of the edge's extent and its faces' radii of curvature. It
+/// passes only on a definitely positive arm; a zero-band one is a size
+/// a smaller tolerance decides. Every door that reads the dihedral's
+/// [`crate::LeverRung::Arm`] ends it here, since the arm is a length and
+/// the wedge an angle.
+pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
+    lever: "move the geometry so that edge is clearly longer, and its faces curve less tightly \
+            there",
+    size: "edge length or radius of curvature",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Contradiction,
+    at_zero: None,
+};
 
 /// A definite dihedral classification (the indeterminate outcome is the
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).

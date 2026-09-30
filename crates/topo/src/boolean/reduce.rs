@@ -1950,8 +1950,7 @@ fn wall_crossing<T: Decide>(
         .map_err(|diag| BooleanError::Escalated {
             decision: BooleanDecision::TorusRoots,
             diag,
-        })?
-        {
+        })? {
             super::circle_torus::CircleTorusRoots::Certified { count, thetas } => {
                 roots = thetas;
                 (Ok(count), radius)
@@ -2788,15 +2787,22 @@ mod declaration_order_rows {
 
     /// **The `(Positive, Positive)` line-clearance arm**: a line clear of
     /// the wall by an in-band distance, both ends definitely outside, so
-    /// the clearance bound escalates before any declaration is read, and
-    /// identically under `Tangent` and `Rest`. Before the review's fix it
-    /// offered "declare the coincidence".
+    /// the clearance bound escalates before any declaration is read.
+    /// The declaration door takes none at this pose (a plane an in-band
+    /// gap off the wall escalates `Tangent`, and `Rest` names two kinds
+    /// of surface), so the declared run is built past the door and shows
+    /// only that the arm reads none. Before the review's fix it offered
+    /// "declare the coincidence".
     #[test]
     fn an_in_band_line_clearance_offers_no_declaration() {
         let b = Band::linear(Tol::witness()).expect("the witness band");
         let x0 = 1.0 + (b.zero() + b.escalate()) / 2.0;
         let profile = [(x0, -0.01), (x0 + 1.0, -0.01), (x0 + 1.0, 0.01), (x0, 0.01)];
-        let runs: Vec<_> = [None, Some(ContactClass::Tangent), Some(ContactClass::Rest)]
+        assert!(
+            !door_verifies(ContactClass::Tangent, profile, 0.25),
+            "no door takes the in-band plane's Tangent"
+        );
+        let runs: Vec<_> = [None, Some(ContactClass::Tangent)]
             .into_iter()
             .map(|class| (class, run(class, profile, 0.25)))
             .collect();
@@ -3020,7 +3026,11 @@ mod declaration_order_rows {
             (Some(ContactClass::Tangent), false),
         ] {
             let (door, runs) = circle_run(crossing, (1.5, 2.5), class, one);
-            assert_ne!(door, Some(true), "{class:?}: the door takes no declaration here");
+            assert_ne!(
+                door,
+                Some(true),
+                "{class:?}: the door takes no declaration here"
+            );
             for got in &runs {
                 frontier(&format!("crossing arm, {class:?}"), got);
             }
@@ -3207,7 +3217,12 @@ mod declaration_order_rows {
         let cube = |map: fn(f64, f64, f64, f64) -> Point3<f64>| {
             mapped_cube::<f64>(move |u, v, w| map(u, v, w, d), tol)
         };
-        let poses: [(&str, crate::body::Body<f64>, crate::body::Body<f64>, [f64; 3]); 3] = [
+        let poses: [(
+            &str,
+            crate::body::Body<f64>,
+            crate::body::Body<f64>,
+            [f64; 3],
+        ); 3] = [
             (
                 "G2, a tilted block on a block",
                 brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol),
@@ -3228,10 +3243,7 @@ mod declaration_order_rows {
             ),
         ];
         for (label, a, b, n) in poses {
-            let pair = (
-                face_facing(&a, n),
-                face_facing(&b, [-n[0], -n[1], -n[2]]),
-            );
+            let pair = (face_facing(&a, n), face_facing(&b, [-n[0], -n[1], -n[2]]));
             let got = union_declared(&a, &b, pair, Some(ContactClass::Tangent));
             assert_eq!(
                 decision_of(label, &got),
@@ -3309,7 +3321,10 @@ mod declaration_order_rows {
             "{text}"
         );
         let declared = union_declared(&block, &wedge, pair, Some(ContactClass::Rest));
-        assert!(declared.is_ok(), "declared Rest, the union builds: {declared:?}");
+        assert!(
+            declared.is_ok(),
+            "declared Rest, the union builds: {declared:?}"
+        );
     }
 }
 

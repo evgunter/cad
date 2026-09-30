@@ -176,7 +176,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
-        // The coincidences whose every raise asks one `Coincide`.
+        // The coincidences these names decide.
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
@@ -2645,7 +2645,10 @@ fn verify_tangent_declaration<T: Decide>(
             // Unreachable with `declared: false`; refuse loudly anyway.
             Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Coincidence(Coincide::Carriers, DeclarationRead::Spent(ContactClass::Tangent)),
+                    decision: BooleanDecision::Coincidence(
+                        Coincide::Carriers,
+                        DeclarationRead::Spent(ContactClass::Tangent),
+                    ),
                     diag,
                 });
             }
@@ -2678,7 +2681,11 @@ fn verify_tangent_declaration<T: Decide>(
     let (origin, dir) = match rest::tangent_locus(&sa, &sb, band) {
         Ok(rest::TangentLocus::Line { origin, dir }) => (origin, dir),
         Err(rest::TangentLocusError::Escalated(diag)) => {
-            return Err(BooleanError::coincidence(Coincide::TangentLocus, DeclarationRead::Spent(ContactClass::Tangent), diag));
+            return Err(BooleanError::coincidence(
+                Coincide::TangentLocus,
+                DeclarationRead::Spent(ContactClass::Tangent),
+                diag,
+            ));
         }
         Err(rest::TangentLocusError::NotTangent { .. }) => {
             return Err(BooleanError::ContactContradicted {
@@ -2707,8 +2714,13 @@ fn verify_tangent_declaration<T: Decide>(
             // reading as "no rim here": the two are different findings
             // and only one of them means the geometry was examined and
             // cleared.
-            let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
-                .map_err(|diag| BooleanError::coincidence(Coincide::Contact, DeclarationRead::Spent(ContactClass::Tangent), diag))?;
+            let rim = rim_wedge::shared_rim(a, fa, b, fb, band).map_err(|diag| {
+                BooleanError::coincidence(
+                    Coincide::Contact,
+                    DeclarationRead::Spent(ContactClass::Tangent),
+                    diag,
+                )
+            })?;
             if let Some(rim) = rim {
                 // The rim's own diameter is the extent every angular
                 // margin here is metered at — the screen's, the
@@ -2812,7 +2824,11 @@ fn verify_tangent_declaration<T: Decide>(
         }
         Err(crate::contact::ContactRefusal::Escalated { diag })
         | Err(crate::contact::ContactRefusal::Undeclared { diag }) => {
-            Err(BooleanError::coincidence(Coincide::Contact, DeclarationRead::Spent(ContactClass::Tangent), diag))
+            Err(BooleanError::coincidence(
+                Coincide::Contact,
+                DeclarationRead::Spent(ContactClass::Tangent),
+                diag,
+            ))
         }
         Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
             Err(BooleanError::UnsupportedDeclarationClass {
@@ -3011,7 +3027,9 @@ mod tests {
         // bool_plane_orient Zero path synthesizes one; S6 review,
         // MINOR-1).
         for margin in [MarginDiag::value(5e-9), MarginDiag::INVALID] {
-            let msg = BooleanError::coincidence(Coincide::Planes, DeclarationRead::Settles, diag(margin)).to_string();
+            let msg =
+                BooleanError::coincidence(Coincide::Planes, DeclarationRead::Settles, diag(margin))
+                    .to_string();
             assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 1, "{msg}");
         }
         // The undeclared arm, in BOTH sub-shapes rung 4 produces: the

@@ -485,12 +485,8 @@ impl LeverArm {
             Self::SectorSide | Self::SectorCurving => {
                 sized(CORNER_EDGES, "edge length", SizedPass::Positive)
             }
-            Self::Seam => sized(
-                "make that edge clearly longer, and its faces' radii of curvature clearly \
-                 larger, than the tolerance",
-                "edge length or radius of curvature",
-                SizedPass::Positive,
-            ),
+            // The dihedral's own arm, as every door that reads it ends it.
+            Self::Seam => Ending::Sized(geom_brep::DIHEDRAL_ARM),
         }
     }
 }
@@ -1230,7 +1226,12 @@ mod tests {
         };
         [DeclarationRead::Settles, DeclarationRead::Moot]
             .into_iter()
-            .chain(ContactClass::ALL.iter().copied().map(DeclarationRead::Spent))
+            .chain(
+                ContactClass::ALL
+                    .iter()
+                    .copied()
+                    .map(DeclarationRead::Spent),
+            )
             .map(witness)
     }
 
@@ -1344,8 +1345,8 @@ mod tests {
                 "whether a seam edge is long enough, for how its faces curve, to measure the \
                  angle between them",
                 Ending::Sized(
-                    "Recourse: make that edge clearly longer, and its faces' radii of curvature \
-                     clearly larger, than the tolerance",
+                    "Recourse: move the geometry so that edge is clearly longer, and its faces \
+                     curve less tightly there",
                     SizedPass::Positive,
                 ),
             ),
@@ -1404,17 +1405,15 @@ mod tests {
             ),
             BooleanDecision::PlaneOrientation => (
                 "whether the two planes face the same way or opposite ways",
-                Ending::Sized(
-                    LONGER,
-                    SizedPass::NonZero,
-                ),
+                Ending::Sized(LONGER, SizedPass::NonZero),
             ),
             BooleanDecision::DeclaredParallel => {
                 ("whether the two planes are parallel", Ending::Defect)
             }
-            BooleanDecision::Neighbours(PlaneRung::Parallel) => {
-                (NEIGHBOURS, Ending::Sized(NEIGHBOUR_ENDING, SizedPass::Positive))
-            }
+            BooleanDecision::Neighbours(PlaneRung::Parallel) => (
+                NEIGHBOURS,
+                Ending::Sized(NEIGHBOUR_ENDING, SizedPass::Positive),
+            ),
             BooleanDecision::Neighbours(PlaneRung::Orientation) => (
                 NEIGHBOURS,
                 Ending::Lever(NEIGHBOUR_ENDING, LeverPass::Never),
@@ -2479,8 +2478,12 @@ mod tests {
         else {
             panic!("the unreadable norm is the parallelism rung's");
         };
-        let boolean = BooleanError::plane_identity(PlaneRung::Parallel, PlaneDoor::of(Some(ContactClass::Rest)), diag)
-            .to_string();
+        let boolean = BooleanError::plane_identity(
+            PlaneRung::Parallel,
+            PlaneDoor::of(Some(ContactClass::Rest)),
+            diag,
+        )
+        .to_string();
         let merge = MergeCoplanarError::of_declared_refusal(unreadable_norm(b)).to_string();
         for text in [&boolean, &merge] {
             let problems = short_of_the_guard(text, &[]);

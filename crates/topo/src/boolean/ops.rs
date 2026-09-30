@@ -101,7 +101,6 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::BooleanDecision;
-use super::{Coincide, DeclarationRead};
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
@@ -117,6 +116,7 @@ use super::{
     ContactRecords, CurveContact, FacePairDeclaration, Operand, PatchContact, SideCode,
     SweepStrategy, VfContact, VvContact,
 };
+use super::{Coincide, DeclarationRead};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::SurfaceKey;
@@ -2564,8 +2564,9 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Margin::levered(sin, r.radius),
                 band,
             )
-            .map_err(|diag| BooleanError::coincidence(Coincide::Sphere, DeclarationRead::Moot, diag))?
-            {
+            .map_err(|diag| {
+                BooleanError::coincidence(Coincide::Sphere, DeclarationRead::Moot, diag)
+            })? {
                 Sign::Positive | Sign::Negative => {}
                 Sign::Zero => {
                     return Err(BooleanError::FallbackExtentUnsupported {
