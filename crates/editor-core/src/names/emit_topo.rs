@@ -201,7 +201,13 @@ fn chase_split_edge_to_table<T: Decide>(
         if table.name_of(&ent(0, EntityKey::Edge(root))).is_some() {
             return Ok(root);
         }
-        match sides.iter().find_map(|s| s.body.edge_provenance_of(root)) {
+        let mut held = sides.iter().filter_map(|s| s.body.edge_provenance_of(root));
+        let record = held.next();
+        debug_assert!(
+            held.all(|other| Some(other) == record),
+            "split halves disagree on edge {root:?}'s birth record"
+        );
+        match record {
             Some(Provenance::SplitEdge { edge }) => root = *edge,
             _ => return Ok(root),
         }
@@ -3129,56 +3135,24 @@ mod split_carries_candidates {
 
 #[cfg(test)]
 mod split_edge_lineage {
-    //! **A split's edge chase crosses halves.** The plane through
-    //! `(0, 0.2, 0)` with normal `(0, 1, -1)` crosses a cylinder's start
-    //! rim arc twice: the arc's middle piece lies Above and its outer
-    //! two Below, and one Below piece's `SplitEdge` record names the
-    //! middle piece's key, which only the Above half holds.
+    //! **A split's edge chase crosses halves.** The clipped cylinder
+    //! (`test_support::clipped_cylinder`) crosses its start rim arc
+    //! twice: the arc's middle piece lies Above and its outer two
+    //! Below, and one Below piece's `SplitEdge` record names the middle
+    //! piece's key, which only the Above half holds.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{Side, chase_edge_to_table, chase_split_edge_to_table};
-    use crate::edit::DocEdit;
-    use crate::eval::{CancelToken, EvalOptions, ValuePayload, evaluate};
-    use crate::ident::DocumentId;
+    use crate::eval::{CancelToken, DatumValue, EvalOptions, ValuePayload, evaluate};
     use crate::names::role::SplitHalf;
     use crate::names::table::{EntityKey, EntityRef};
-    use crate::node::{Node, RecipeNodeId};
-    use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::{frame, len};
-    use crate::{ProfileDoc, RefusingReach};
-    use geom_core::{Point3, Tol, Vec3};
+    use crate::test_support::clipped_cylinder;
+    use geom_core::Tol;
     use topo::{Provenance, SplitPlane};
-
-    fn ins(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-        let a = crate::apply(
-            &doc,
-            &DocEdit::InsertNode { node },
-            Tol::witness(),
-            &RefusingReach,
-        )
-        .expect("inserts");
-        (a.doc, a.record.minted.expect("a node"))
-    }
 
     #[test]
     fn a_twice_crossed_rim_arcs_pieces_chase_to_the_rim_across_halves() {
-        let doc = ProfileDoc::empty(DocumentId::derive("split-edge-lineage"), Tol::witness());
-        let (doc, plane) = ins(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-        let (doc, profile) = ins(
-            doc,
-            Node::Profile(ProfileProgram {
-                plane,
-                loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
-                ids: Vec::new(),
-            }),
-        );
-        let (doc, ext) = ins(
-            doc,
-            Node::Extrude {
-                profile,
-                distance: len(1.0),
-            },
-        );
+        let (doc, [ext, tool, _]) = clipped_cylinder(Tol::witness());
         let ev = evaluate::<f64>(
             &doc,
             None,
@@ -3190,13 +3164,18 @@ mod split_edge_lineage {
         let ValuePayload::Body(body) = &value.payload else {
             panic!("the extrude is one body");
         };
+        // The plane the split verb reads off the same datum.
+        let Some(ValuePayload::Datum(DatumValue::Plane { origin, normal })) =
+            ev.value(tool).map(|v| &v.payload)
+        else {
+            panic!("the tool is a plane datum");
+        };
         let table = &value.name_table;
-        let h = std::f64::consts::FRAC_1_SQRT_2;
         let out = topo::split(
             body,
             &SplitPlane {
-                origin: Point3::new(0.0, 0.2, 0.0),
-                normal: Vec3::new(0.0, h, -h),
+                origin: *origin,
+                normal: normal.get(),
             },
             Tol::witness(),
         )
