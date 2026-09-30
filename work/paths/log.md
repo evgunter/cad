@@ -464,3 +464,25 @@ MAJOR. Two small fixes went in (the reversal names every kind; `Arc2`
 states D1's range). The review's S1–S4 go to 5a. Next is 5a
 (`retire-the-stored-bulge`), with a dual review whose builds are
 staggered.
+
+## 2026-09-30 — 5a stops on three findings; rulings
+
+The 5a work in progress is on the branch at 5a6f2ebf; no PR is open.
+
+1. **The span identity does not fully chain** without the sweep's span
+   registration: d_tab `carrier_endpoint_end` goes 12/0 → 8/4. The
+   suspected cause is stacked reversals (`0 − (0 − sweep)`).
+   - Ruling: attribute the loss first. Then carry the traversal's
+     orientation relative to the lowered arc, so reversals never stack.
+   - Pass condition: 12/0 with no sweep span registration.
+2. **sym11's far stadium goes built → refused** at d = 1e6. It is
+   fixture-built, and fixtures cannot register.
+   - Ruling (per #3453: a table-built arc claims nothing): re-author the
+     row through the path algebra; do not thread `Tol` through
+     `bulge_loop`.
+3. **The door-off dial now moves verdicts.** The new consistency checks
+   need registrations to decide at `Sym<Interval>`.
+   - The implementer is investigating the provenance of "the door moves
+     only numeric" and which leaves refuse.
+   - This is a DECIDE/SYM seam, and goes to Ev if the rule is ratified.
+   - The PR waits on this.
