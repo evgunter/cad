@@ -2,10 +2,10 @@
 id: blend-swallows-the-edge-name-fault-the-index-calls-loud
 kind: issue
 title: The blend tool swallows every EdgeNameFault, including the arm the index calls loud
-status: dispatched
+status: review
 opened: 2026-09-22
 priority: P2
-cost: D
+cost: M
 branch: author/edge-name-fault
 ---
 
@@ -66,3 +66,24 @@ unchanged — `index.edge_name_of(id).is_ok_and(...)` — so the row's
 first bullet now lands on VGEOM's `marks.rs` as well as this slate.
 
 Dispatched 2026-09-30 as **AUTH-14** (`docs/AUTH-14-SPEC.md`, branch `author/edge-name-fault`).
+
+## Built (AUTH-14, 2026-09-30)
+
+Branch `author/edge-name-fault`. `PickIndex::edge_names_in` walks a
+drawn body's edges and keeps the refusal as a value
+(`EdgeNamesRefused`: the first `EdgeNameFault`, rendered through its
+own `Display`, and how many of how many refused). Both readers use it:
+
+- `BlendTool::load_all_edges` refuses the whole load with
+  `BlendEvent::EdgesUnnamed` when any drawn edge of the target refuses,
+  partly or wholly, and leaves the held set untouched. It no longer
+  answers `NoEdgesOnTarget` for a body whose edges it could not name.
+- `marks::HeldEdges::mark` draws the named held edges and carries the
+  refusal on `EdgeOverlay::held_refused`. The viewport writes that
+  every frame into the same zeroed-per-frame channel as the profile
+  count, and the toolbar draws `frame::held_edges_badge`.
+
+A body the index does not draw (`NotDrawn`'s case) stays quiet on both
+paths. The face-side twin stays on VGEOM's row with a note, and the
+selection-mark sibling is filed as
+`work/vgeom/a-selected-edge-whose-drawn-edge-lost-its-name-marks-as-vanished`.
