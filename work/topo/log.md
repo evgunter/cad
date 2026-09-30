@@ -3354,3 +3354,40 @@ accept different outcomes.**
 - The `unreachable!` becomes typed.
 
 The fix pass runs on the loop-anchor target.
+
+## The null-kill unit delivered as PR 3508; its single review out (2026-09-30)
+
+PR 3508 is green at `b54fc1ee54` (468,498 tokens, 278 tools, 1 h 40 m,
+harness). One gate went red first (`bounds-allowlist` on a test hook);
+the hook was made `f64`-only.
+
+**The measurement ruled out shape (a).**
+- Pipeline kills (`cut_core`'s `kef`/`kemr`, `undo_struts`'s `kev`)
+  act only on rowless slivers.
+- 1,574 of 1,629 last-null-half losses happen at the join's chord
+  `mef`s.
+
+**Shape (b), built.**
+- `StoredRows::remints` is the one rule, shared with the description:
+  the face stores a row, every loop walks, and every gap sits on a
+  loop a null edge holds open.
+- The join's `mef` re-mints each piece it releases. `SiteMint` is
+  gone, and `plan_site_rows_as` becomes `plan_site_mint`.
+- `split_direct`'s closing mint now meets 0 half-minted faces
+  (78 before).
+- The boolean's merge re-mint still meets 657, all from the seam
+  zip's `kef` (ZIP's code, filed there) and none null-caused.
+- The closing passes are kept, since they do other work.
+
+**Filed:**
+- `a-kill-that-releases-a-loop-from-its-last-null-edge-leaves-its-gaps`
+  (P3: kills take no `Tol`; one transient case);
+- `work/zip/the-seam-zips-kef-leaves-the-wall-it-closes-half-minted`
+  (P3).
+
+The lane reported that a request to delete stale files in its build
+target was denied. It left the target as found, and the orchestrator
+did not act on that deletion.
+
+Tier SINGLE, full. The reviewer is on the warm target, and the brief
+names the PR 2527 ruling.
