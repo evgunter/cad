@@ -90,7 +90,10 @@ mod r2_probes;
 pub(crate) mod recl;
 pub(crate) mod reduce;
 pub(crate) mod refusal_routes;
-pub use refusal_routes::{BooleanDecision, Contradiction, CrossingDecision, SectorRung};
+pub(crate) use refusal_routes::PlaneDoor;
+pub use refusal_routes::{
+    BooleanDecision, Contradiction, CrossingDecision, PlaneRung, SectorRung, TorusConvention,
+};
 mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
@@ -169,14 +172,15 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
-        "bool_plane_parallel" => "whether the two planes are parallel",
+        "bool_plane_parallel" => PlaneRung::Parallel.subject(),
+        "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
         crate::query::DATUM_UNIT_NORM => "whether a direction has any length",
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
-        "torus_tube_positive" => BooleanDecision::TorusTube.subject(),
-        "ring_torus_convention" => BooleanDecision::TorusRing.subject(),
+        "torus_tube_positive" => TorusConvention::Tube.subject(),
+        "ring_torus_convention" => TorusConvention::Ring.subject(),
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
@@ -812,6 +816,21 @@ pub enum BooleanError {
         /// Its surface kind — the C5 table row the refusal cites.
         kind: geom_brep::SurfaceKind,
     },
+    /// A pierced face's torus is definitely outside the ring convention
+    /// (D3: a horn or spindle torus, or one with no tube), a shape the
+    /// kernel has no representation for. The decided arm of the
+    /// convention half whose in-band arm is
+    /// [`BooleanDecision::Torus`], and it ends in the same lever.
+    DegenerateTorus {
+        /// The pierced face's operand.
+        operand: Operand,
+        /// The pierced face.
+        face: FaceKey,
+        /// The half of the convention that refused.
+        convention: TorusConvention,
+        /// Its decided verdict.
+        verdict: geom_brep::recourse::Refused,
+    },
     /// A pierce sector's FIRST-ORDER material verdict could not be
     /// certified against the pierced face's curvature: the sagitta
     /// bound at the sector's own lever arm is not definitely below the
@@ -1440,6 +1459,8 @@ pub enum BooleanErrorKind {
     Band,
     /// [`BooleanError::CurvedBooleanUnsupported`].
     CurvedBooleanUnsupported,
+    /// [`BooleanError::DegenerateTorus`].
+    DegenerateTorus,
     /// [`BooleanError::CurvedSectorSideUnsupported`].
     CurvedSectorSideUnsupported,
     /// [`BooleanError::CurvedPierceUnsupported`].
@@ -1536,6 +1557,47 @@ impl BooleanError {
         }
     }
 
+    /// An escalation of a plane-identity `rung` at `door`, routed to the
+    /// decision the rung asks there ([`BooleanDecision::of_plane_rung`]).
+    pub(crate) const fn plane_identity(
+        rung: PlaneRung,
+        door: refusal_routes::PlaneDoor,
+        diag: Indeterminate,
+    ) -> Self {
+        Self::Escalated {
+            decision: BooleanDecision::of_plane_rung(rung, door),
+            diag,
+        }
+    }
+
+    /// The refusal of a pierced face's outward normal at a pierce point
+    /// (`face_normal::face_outward_normal_at`), in the Boolean's words.
+    pub(crate) fn of_pierced_normal(
+        refusal: crate::face_normal::NormalAtError,
+        operand: Operand,
+        face: FaceKey,
+    ) -> Self {
+        use crate::face_normal::NormalAtError;
+        match refusal {
+            NormalAtError::Escalated { decision, diag } => Self::Escalated {
+                decision: BooleanDecision::of_normal(decision),
+                diag,
+            },
+            NormalAtError::DegenerateTorus {
+                convention,
+                verdict,
+            } => Self::DegenerateTorus {
+                operand,
+                face,
+                convention,
+                verdict,
+            },
+            NormalAtError::OffSurface => Self::ClassificationInvariant {
+                what: "pierce point definitely off the pierced face's surface",
+            },
+        }
+    }
+
     /// Which arm refused, without the payload.
     ///
     /// Exhaustive over [`BooleanError`]: adding an arm there is a
@@ -1545,6 +1607,7 @@ impl BooleanError {
         match self {
             Self::Band(_) => BooleanErrorKind::Band,
             Self::CurvedBooleanUnsupported { .. } => BooleanErrorKind::CurvedBooleanUnsupported,
+            Self::DegenerateTorus { .. } => BooleanErrorKind::DegenerateTorus,
             Self::CurvedSectorSideUnsupported { .. } => {
                 BooleanErrorKind::CurvedSectorSideUnsupported
             }
@@ -1671,6 +1734,18 @@ impl core::fmt::Display for BooleanError {
                  supported yet. {}",
                 kind_word(*kind),
                 meeting_recourse(kind_word(*kind)),
+            ),
+            Self::DegenerateTorus {
+                convention,
+                verdict,
+                ..
+            } => write!(
+                f,
+                "{}. {}",
+                convention.refused("a torus face's", *verdict),
+                convention
+                    .sized()
+                    .recourse(verdict.arm(), geom_brep::recourse::Reading::Build)
             ),
             Self::CurvedPierceUnsupported { operand, .. } => write!(
                 f,
@@ -2374,7 +2449,9 @@ fn verify_rest_declaration<T: Decide>(
                 margin: diag,
             })
         }
-        Err(carrier_eq::CarrierEqError::Escalated(diag)) => Err(BooleanError::coincidence(diag)),
+        Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => Err(
+            BooleanError::plane_identity(rung, PlaneDoor::Declared, diag),
+        ),
         // Unreachable with `declared: true`; refuse loudly anyway.
         Err(carrier_eq::CarrierEqError::Undeclared { diag, relation }) => {
             Err(BooleanError::UndeclaredCoincidence {
@@ -2451,8 +2528,12 @@ fn verify_tangent_declaration<T: Decide>(
                     margin: diag,
                 });
             }
-            Err(carrier_eq::CarrierEqError::Escalated(diag)) => {
-                return Err(BooleanError::coincidence(diag));
+            Err(carrier_eq::CarrierEqError::Escalated { rung, diag }) => {
+                return Err(BooleanError::plane_identity(
+                    rung,
+                    PlaneDoor::Undeclared,
+                    diag,
+                ));
             }
             // Unreachable with `declared: false`; refuse loudly anyway.
             Err(carrier_eq::CarrierEqError::Contradicted { diag, .. }) => {
@@ -3144,6 +3225,7 @@ mod tests {
             match kind {
                 BooleanErrorKind::Band => "Band",
                 BooleanErrorKind::CurvedBooleanUnsupported => "CurvedBooleanUnsupported",
+                BooleanErrorKind::DegenerateTorus => "DegenerateTorus",
                 BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",

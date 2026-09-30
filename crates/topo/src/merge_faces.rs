@@ -42,11 +42,14 @@ use std::collections::BTreeMap;
 
 use geom::{NetState, Surface};
 use geom_brep::SurfaceKind;
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
 use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
+use crate::boolean::{
+    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
+};
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
@@ -468,10 +471,13 @@ pub enum MergeCoplanarError {
         /// The merged survivor face.
         face: FaceKey,
     },
-    /// A plane-identity margin escalated while verifying a declared
-    /// pair (in-band sliver) — typed, never guessed.
+    /// A decision of the merge could not be taken at this tolerance —
+    /// typed, never guessed.
     Escalated {
-        /// The predicate's diagnostics.
+        /// The decision, which the refusal's ending follows from.
+        decision: MergeDecision,
+        /// Its diagnostics: the margin in band, or the one a rung
+        /// decided at zero where zero does not pass.
         diag: Indeterminate,
     },
     /// The run's tolerance cannot form a valid band (needed only when
@@ -492,6 +498,122 @@ pub enum MergeCoplanarError {
         source: crate::pcurves::PcurveMintError,
     },
 }
+
+impl MergeCoplanarError {
+    /// The refusal of the plane identity verifying a declared pair.
+    pub(crate) fn of_declared_refusal(refusal: PlaneEqError) -> Self {
+        match refusal {
+            PlaneEqError::Contradicted { fact, .. } => Self::DeclarationContradicted { fact },
+            PlaneEqError::Escalated { rung, diag } => Self::Escalated {
+                decision: MergeDecision::DeclaredPlanes(rung),
+                diag,
+            },
+            // Unreachable with `declared: true`; refuse loudly anyway.
+            PlaneEqError::Undeclared { diag, .. } => Self::Escalated {
+                decision: MergeDecision::DeclaredOffset,
+                diag,
+            },
+        }
+    }
+}
+
+/// What the merge does with the declared plane rung's `verdict` on the
+/// pair `(f1, f2)` meeting at a shared edge: it glues a pair that faces
+/// the same way and refuses every other verdict.
+pub(crate) fn declared_pair_verdict(
+    verdict: Result<PlaneRelation, PlaneEqError>,
+    f1: FaceKey,
+    f2: FaceKey,
+) -> Result<bool, MergeCoplanarError> {
+    match verdict {
+        Ok(PlaneRelation::SameOriented) => Ok(true),
+        Ok(PlaneRelation::SameOpposite) => {
+            Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
+        }
+        // Unreachable through the declared rung; kept typed.
+        Ok(PlaneRelation::Distinct) => Ok(false),
+        Err(refusal) => Err(MergeCoplanarError::of_declared_refusal(refusal)),
+    }
+}
+
+/// Which decision [`MergeCoplanarError::Escalated`] could not take.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MergeDecision {
+    /// A rung of the plane identity verifying a pair the caller
+    /// declared (`plane_eq`'s declared rung). The declaration is
+    /// already there, so no ending offers one.
+    DeclaredPlanes(PlaneRung),
+    /// Whether a declared pair's parallel planes lie apart. The declared
+    /// rung contradicts a definite offset and bridges an in-band one, so
+    /// it never escalates this; kept typed for the refusal that would
+    /// be a kernel defect.
+    DeclaredOffset,
+    /// Which way a loop of the merged face winds about its normal,
+    /// which decides the outline among its loops.
+    LoopWinding,
+}
+
+impl MergeDecision {
+    /// What the decision decides, as a clause with no colon or dash of
+    /// its own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::DeclaredPlanes(PlaneRung::Orientation) => {
+                "whether the two declared faces face the same way across the edge they share"
+            }
+            Self::DeclaredPlanes(PlaneRung::Parallel) => PlaneRung::Parallel.subject(),
+            Self::DeclaredOffset => "whether the two declared planes lie apart",
+            Self::LoopWinding => "which way a loop of the merged face winds about its normal",
+        }
+    }
+
+    /// The one ending an escalation of this decision carries, at the
+    /// merge that built the geometry.
+    fn ending(self, diag: &Indeterminate) -> String {
+        let arm = RefusedArm::Undecided(diag);
+        match self {
+            Self::DeclaredPlanes(PlaneRung::Orientation) => {
+                DECLARED_ORIENTATION.recourse(arm, Reading::Build)
+            }
+            // The declared rung bridges in-band parallelism, so what
+            // escalates here is a norm the rung could not read, as at the
+            // Boolean's declared door (`BooleanDecision::DeclaredParallel`).
+            Self::DeclaredPlanes(PlaneRung::Parallel) | Self::DeclaredOffset => {
+                Unsized::Defect.recourse(arm, Reading::Build)
+            }
+            Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
+        }
+    }
+}
+
+/// The merge's orientation decision on a declared pair meeting at a
+/// shared edge. Only a pair that faces the same way glues, so it passes
+/// on a positive margin, and [`MergeCoplanarError::DeclaredOppositeOrientation`]
+/// is its sign-certain arm. The margin is the outward normals' cosine
+/// levered at the shared edge's chord, asked once parallelism has read
+/// within the zero band there, so `|cos| ≈ 1` and what an undecided
+/// margin measures is the chord: the lever names both moves a refusal
+/// may need.
+const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
+    lever: "turn one of the two faces so both clearly face the same way, across a shared edge \
+            whose ends lie clearly apart",
+    size: "distance between the ends of the edge the faces share",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The winding decision: its margin is the loop's signed area over its
+/// length. A positive loop is an outline, a negative one a hole, and a
+/// zero one neither, so it passes on either nonzero sign.
+const LOOP_WINDING: SizedDecision = SizedDecision {
+    lever: "reshape the merged faces so each loop of the result clearly encloses an area",
+    size: "area a loop encloses over its length",
+    passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 impl core::fmt::Display for MergeCoplanarError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -568,10 +690,10 @@ impl core::fmt::Display for MergeCoplanarError {
                 fact.fact(),
                 crate::contact::CONTRADICTION_RECOURSE
             ),
-            Self::DeclaredOppositeOrientation { f1, f2 } => write!(
+            Self::DeclaredOppositeOrientation { .. } => write!(
                 f,
-                "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
-                 orientations — unmergeable in a closed solid"
+                "the two declared faces face opposite ways across the edge they share. {}",
+                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain, Reading::Build)
             ),
             Self::DeclaredCarrierUnsupported { pair, kind } => write!(
                 f,
@@ -585,10 +707,12 @@ impl core::fmt::Display for MergeCoplanarError {
                 "merge_coplanar_faces: merged face {face:?} has no unique positively-wound \
                  outline among its loops — outer/ring roles cannot be assigned; refused"
             ),
-            Self::Escalated { diag } => write!(
+            Self::Escalated { decision, diag } => write!(
                 f,
-                "merge_coplanar_faces: plane-identity margin escalated verifying a declared \
-                 pair ({diag})"
+                "{} is undecided: {}. {}",
+                decision.subject(),
+                diag.payload(),
+                decision.ending(diag)
             ),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
@@ -862,7 +986,7 @@ impl EstablishedFact {
 /// | `loop_winding`, through `merged_outline_ring` | `StaleKey` |
 /// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
 /// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `OrbitBroken`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
-/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
+/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `LoopCycleBroken`, `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `StaleKey`, `StaleGeometry`, `LoopNotCycle`, `LoopNotEmpty`, `LoopCycleBroken`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
 /// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `OrbitBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
 ///
@@ -1864,20 +1988,7 @@ impl<T: Decide> Body<T> {
                 origin: o2,
                 normal: plane_outward_normal(face2, n2).vec(),
             };
-            return match oriented_plane_eq(&p1, &p2, id, arm, band) {
-                Ok(PlaneRelation::SameOriented) => Ok(true),
-                Ok(PlaneRelation::SameOpposite) => {
-                    Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
-                }
-                // Unreachable through the declared rung; kept typed.
-                Ok(PlaneRelation::Distinct) => Ok(false),
-                Err(PlaneEqError::Contradicted { fact, .. }) => {
-                    Err(MergeCoplanarError::DeclarationContradicted { fact })
-                }
-                Err(PlaneEqError::Escalated(diag) | PlaneEqError::Undeclared { diag, .. }) => {
-                    Err(MergeCoplanarError::Escalated { diag })
-                }
-            };
+            return declared_pair_verdict(oriented_plane_eq(&p1, &p2, id, arm, band), f1, f2);
         }
         Ok(false)
     }
@@ -2210,7 +2321,10 @@ impl<T: Decide> Body<T> {
         match winding {
             None => Ok(None),
             Some(Ok(sign)) => Ok(Some(sign)),
-            Some(Err(diag)) => Err(MergeCoplanarError::Escalated { diag }),
+            Some(Err(diag)) => Err(MergeCoplanarError::Escalated {
+                decision: MergeDecision::LoopWinding,
+                diag,
+            }),
         }
     }
 
@@ -3943,9 +4057,30 @@ mod winding_arm_tests {
     /// the DENOMINATOR can both be pinned, and the denominator — the
     /// re-metered arc-length perimeter — is otherwise invisible to any
     /// sign assertion, because scaling a lever cannot change a sign.
+    ///
+    /// Each escalation is also the winding decision's real raise for the
+    /// refusal-shape guard: one recourse, its subject, no stage prefix
+    /// and no declaration.
     fn escalated_margin(r: Result<Option<Sign>, MergeCoplanarError>) -> f64 {
         match r {
-            Err(MergeCoplanarError::Escalated { diag }) => {
+            Err(
+                ref err @ MergeCoplanarError::Escalated {
+                    decision: MergeDecision::LoopWinding,
+                    diag,
+                },
+            ) => {
+                let text = err.to_string();
+                assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+                assert!(
+                    test_utils::refusal::subjectless_escalations(&text).is_empty()
+                        && test_utils::refusal::stage_prefixes(&text, &[]).is_empty()
+                        && text.starts_with(
+                            "which way a loop of the merged face winds about its normal is \
+                             undecided: "
+                        )
+                        && !text.contains("declare"),
+                    "{text}"
+                );
                 match diag.margin.diagnostic_f64_for_error_text() {
                     geom_core::ErrorTextReading::Value(v) => v,
                     other => panic!("expected a classified f64 margin, got {other:?}"),
