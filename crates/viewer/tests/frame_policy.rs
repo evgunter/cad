@@ -1182,9 +1182,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + bare_badge
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 10, "the badge family");
+    assert_eq!(badge_doors, 11, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
+        readme.contains("`frame` function returning `Option<Badge>`** — eleven"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1250,6 +1250,44 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         None,
         "every committed profile drew, or there are none — the same zero"
     );
+    assert_eq!(
+        frame::held_edges_badge(None),
+        None,
+        "nothing held, or a held body the index names whole"
+    );
+}
+
+/// A refusal of one of `target`'s drawn edges' names, as
+/// `PickIndex::edge_names_in` answers it.
+fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused {
+    pickindex::EdgeNamesRefused {
+        node: target.node,
+        body: target.body,
+        first: common::unnamed_edge(target.node, target.body),
+        named: 11,
+        refused: 1,
+    }
+}
+
+/// **One fault, one subject.** A drawn edge the index cannot name is
+/// badged on the held mark and said on the line by the refused load,
+/// and both wear the document's subject: the names are the document's
+/// evaluation's, so what can change the answer is an edit the document
+/// accepts, not another index build over the same table.
+#[test]
+fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::tools::ToolNotice;
+
+    let target = BlendTarget {
+        node: RecipeNodeId(3),
+        body: 0,
+    };
+    let refused = unnamed_on(target);
+    let badge = frame::held_edges_badge(Some(&refused)).expect("a refusal badges");
+    let line = frame::tool_notice(&ToolNotice::Blend(BlendEvent::EdgesUnnamed { refused }));
+    assert_eq!(badge.subject(), frame::Subject::Document);
+    assert_eq!(line.subject(), badge.subject());
 }
 
 /// **The profiles badge counts, in agreeing words, and says it is the
@@ -3409,7 +3447,7 @@ fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
 /// **Every arm of every tool's event vocabulary answers for itself.**
 /// `a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not`
 /// drives two of them through the ranking; this one
-/// reads the answer off each of the six, so an arm that flips sides
+/// reads the answer off each of them, so an arm that flips sides
 /// goes red by name rather than waiting for a frame that happens to
 /// carry it beside a refusal.
 #[test]
@@ -3488,6 +3526,13 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: the all-edges door found none",
             ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { target }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: the all-edges door's target draws edges the index cannot name",
+            ToolNotice::Blend(BlendEvent::EdgesUnnamed {
+                refused: unnamed_on(target),
+            }),
             frame::Retold::Again,
         ),
         (

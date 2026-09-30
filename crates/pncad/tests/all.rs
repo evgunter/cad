@@ -2762,11 +2762,20 @@ impl Drop for WsDir {
 }
 
 /// A one-block document under the given derived-id label, saved.
-/// The extrude in a [`ws_doc`] part: its sketch frame, the profile
-/// drawn on it, then the body. A part-local name is minted by node 2.
-const WS_PART_BODY: pncad::document::RecipeNodeId = pncad::document::RecipeNodeId(2);
-
 fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
+    let (doc, text, _) = ws_doc_and_body(label);
+    (doc, text)
+}
+
+/// [`ws_doc`], and the extrude that is its body — the node a
+/// part-local name of its faces is minted by.
+fn ws_doc_and_body(
+    label: &str,
+) -> (
+    pncad::document::ProfileDoc,
+    String,
+    pncad::document::RecipeNodeId,
+) {
     use pncad::document::Node;
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
@@ -2774,7 +2783,7 @@ fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
     );
     let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(doc, square(plane, 2.0));
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile,
@@ -2782,7 +2791,7 @@ fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
         },
     );
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
-    (doc, text)
+    (doc, text, body)
 }
 
 /// Open + resolve happy path: the scan maps ids to paths from the
@@ -3299,12 +3308,24 @@ fn workspace_save_as_new_document_mints_a_fresh_identity() {
 
 /// A part document on disk, plus the true reference to it.
 fn asm2a_part(dir: &WsDir, file: &str, label: &str) -> pncad::document::DocRef {
-    let (doc, text) = ws_doc(label);
+    asm2a_part_and_body(dir, file, label).0
+}
+
+/// [`asm2a_part`], and the part's body.
+fn asm2a_part_and_body(
+    dir: &WsDir,
+    file: &str,
+    label: &str,
+) -> (pncad::document::DocRef, pncad::document::RecipeNodeId) {
+    let (doc, text, body) = ws_doc_and_body(label);
     dir.write(file, &text);
-    pncad::document::DocRef {
-        id: doc.id(),
-        pin: pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes"),
-    }
+    (
+        pncad::document::DocRef {
+            id: doc.id(),
+            pin: pncad::document::content_pin(&doc, Tol::witness()).expect("the pin computes"),
+        },
+        body,
+    )
 }
 
 /// An assembly document holding `n` instances of one reference, the
@@ -3525,10 +3546,11 @@ fn asm2a_spawn_probe(tag: &str) -> String {
 ///
 /// The instance names are the A12 shape — an `InPart`-headed name whose
 /// HEAD is the instantiate node, which is exactly what the reading edge
-/// is recomputed from.
+/// is recomputed from; `body` is the part's body.
 fn asm_r2a_mated_assembly(
     label: &str,
     doc_ref: pncad::document::DocRef,
+    body: pncad::document::RecipeNodeId,
 ) -> (
     pncad::document::ProfileDoc,
     Vec<pncad::document::RecipeNodeId>,
@@ -3552,7 +3574,7 @@ fn asm_r2a_mated_assembly(
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: WS_PART_BODY,
+                node: body,
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             }
             .into(),
@@ -3611,9 +3633,9 @@ fn asm_r2a_child_mated_probe() {
         return; // not the child — nothing to do
     };
     let dir = WsDir::new("asm-r2a-probe");
-    let doc_ref = asm2a_part(&dir, "part.pncad", "asm-r2a-probe-part");
+    let (doc_ref, body) = asm2a_part_and_body(&dir, "part.pncad", "asm-r2a-probe-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = asm_r2a_mated_assembly("asm-r2a-probe-asm", doc_ref);
+    let (doc, ids) = asm_r2a_mated_assembly("asm-r2a-probe-asm", doc_ref, body);
     // The mate SOLVED the second instance's placement: it is recipe
     // data, not a recorded frame, so the registry stays empty.
     assert!(
@@ -3686,28 +3708,38 @@ fn asm_r2b_child_crossing_probe() {
     use pncad::prelude::FaceName;
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
-    let face = |cap| {
-        FaceName::new(StableName {
-            kind: EntityKind::Face,
-            node: WS_PART_BODY,
-            path: vec![RoleSeg::Cap(cap)],
-        })
-        .expect("a crossing's references are face names")
-    };
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
         return; // not the child — nothing to do
     };
     let dir = WsDir::new("asm-r2b-probe");
-    let doc_ref = asm2a_part(&dir, "part.pncad", "asm-r2b-probe-part");
+    let (doc_ref, body) = asm2a_part_and_body(&dir, "part.pncad", "asm-r2b-probe-part");
+    let face = |cap| {
+        FaceName::new(StableName {
+            kind: EntityKind::Face,
+            node: body,
+            path: vec![RoleSeg::Cap(cap)],
+        })
+        .expect("a crossing's references are face names")
+    };
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
     // A mated pair (the minting subject), then a THIRD instance
     // carrying an authored crossing record (the wire subject).
-    let (doc, ids) = asm_r2a_mated_assembly("asm-r2b-probe-asm", doc_ref);
+    let (doc, ids) = asm_r2a_mated_assembly("asm-r2b-probe-asm", doc_ref, body);
+    // The `outer` is this document's name for a face: the first
+    // instance's end cap, worn under the instance that placed it.
+    let outer = FaceName::new(StableName {
+        kind: EntityKind::Face,
+        node: ids[0],
+        path: vec![RoleSeg::InPart {
+            of: (*face(CapEnd::End)).clone().into(),
+        }],
+    })
+    .expect("a crossing's references are face names");
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(CapEnd::End),
+            outer,
             inner: face(CapEnd::Start),
         }],
     };

@@ -1530,3 +1530,38 @@ Review tier: correctness + style, then two correctness re-verifications.
 Not taken yet:
 - `the-boolean-door-evaluates-its-boolean-twice` (P2, a performance row, AUTH-9's cost).
 - `a-seated-tools-held-node-is-drawn-nowhere` and `a-union-that-becomes-flush-later-…` (both design; the second is the DM6 question for Ev).
+
+## 2026-09-30 — AUTH-14 MERGED (`cd6cc9a0`): a blend target whose edges cannot be named says so
+
+Fourteen units closed. The container restarted mid-unit. The lane, target and pushed commit survived, and resuming the same implementer from its transcript lost nothing.
+
+**One FULL review** (the tier chosen at dispatch) found no MAJOR, but it did show a badge that latches passing every row. **My own read before merging found the unit re-minting the defect it was removing:** `named_in` read a window with `.get(range).unwrap_or_default()` and `zip`, so a broken index would again read as "no edges". Before merging, the lane made it an `unreachable!` stating the invariant, and fixed `in_target`'s identical collapse on the way.
+
+**Lesson:** the class a unit fixes is the class to grep its own diff for. `unwrap_or_default` and a truncating `zip` are the Option-collapse shapes.
+
+The lane filed CHROME's badge-channel row at P1. That looks high for a three-field consolidation, but it is CHROME's to triage, so I left it.
+
+## 2026-09-30 — boolean-judge fork: converged after one round; `[ev]` #3587
+
+Designer pair on `the-boolean-door-evaluates-its-boolean-twice` (byte on `analysis/design-fork/author-boolean-judge-2026-09-30`).
+
+**First reports agreed on the spine:** stop judging at the door; commit every boolean; the seam evaluates it once; the offer goes on the row.
+**They split on the recourse:**
+- A: replace a consumer-less boolean, leaving DM6 untouched.
+- B: attach a declaration to a live boolean, narrowing DM6.
+
+**Round 1.** Both measured `find_flush_candidates`. It is a strict superset (two blocks apart on one ground plane report 4 pairs, and the union builds undeclared), so neither kept it as a pre-commit prompt.
+- A moved to attach. A declaration is name-inert and operand-bound, so DM6's splice reasons don't reach it. Replace dead-ends mid-chain and strands appearance keys. The kernel's own recourse already prescribes attach.
+- B kept attach as the final state and added replace as an interim.
+
+**Converged on the final state;** not a crossover, because B never left attach. The shape (A1: a DM6 exception; A2: declared pairs as payload, a DM4 shape change) is Ev's, with both leaning A2 and unsure. The later-flush row travels on the same PR. Fork-log row 24.
+
+**Sequencing, my call:** no interim replace. The current door gives correct answers at a frame cost; it doesn't give wrong ones. The viewer unit waits on the shape.
+
+**Filed off the question:**
+- ZIP: `a-boolean-reports-one-undeclared-contact-per-refusal`.
+- VSEAM `ui-thread-work-after-the-index-seam`: evidence for `session::probe` as a fourth frame-thread evaluation.
+
+## 2026-09-30 — AUTH-15 dispatched: accept a part's updated version from the viewer
+
+Everything P0–P2 on this slate is with Ev (#3551, #3571, #3587), blocked on another program's row, or a design row. So the next unit is the P3 door `viewer-has-no-door-to-accept-a-parts-updated-version`: a refusal whose recourse the GUI cannot take, which is this program's charter exactly. The offer must live in the existing refuse-then-offer homes (the AUTH-9 lesson). Review tier: one FULL review.
