@@ -19,8 +19,8 @@ Ev's ruling on PR 2527 (recorded in
 "a typed refusal at the fitted frontier". `mev`, `mef` and `mekr` hold
 that: on a complete SPLINE face they refuse `PcurveMint { SplineChart }`
 before mutating (`pcurves::site_rows`). The doors that move a loop or
-run onto a face (`kfmrh`, `ring_move`, `mfkrh`, `kef`, and `mef`'s new
-face across a chart change) do not: on a complete spline destination
+run onto a face (`kfmrh`, `ring_move`, `mfkrh`, `kef`, their
+`_minting` twins, and `mef`'s new face across a chart change) do not: on a complete spline destination
 whose moved rows do not stand, they drop the moved rows and leave the
 destination half-minted (`SiteFace::moved`, `site_rows`' spline arm),
 because the item's shape said "a spline destination keeps the drop".

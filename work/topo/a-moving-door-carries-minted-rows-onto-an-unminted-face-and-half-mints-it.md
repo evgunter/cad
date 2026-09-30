@@ -12,10 +12,11 @@ design: true
 Found by `loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`
 (branch `topo/reparent-remint`, PR 3531), whose measurement it is.
 
-That unit made the doors that move a loop or run onto a face re-mint
-the destination through the site mint when the moved rows do not stand
-there and the destination was complete (`Body::plan_moved_rows`,
-`crates/topo/src/euler_ring.rs`). The site mint reads the destination
+That unit made the doors that move a loop or run onto a face owe the
+destination a re-mint when the moved rows do not stand there and the
+destination was complete (`Body::plan_moved_rows`,
+`crates/topo/src/euler_ring.rs`): the `_minting` twins run it through
+the site mint, and the keys-only doors refuse `KeysOnly`. The site mint reads the destination
 as found (`StoredRows::remints`), so a destination that stored NO row
 is left as found: the minting pass owns it. But where the moved rows
 DO stand — one chart, every moved half carrying a row — the door

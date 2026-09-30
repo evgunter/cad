@@ -124,10 +124,13 @@ carries its row, so the pass reads `[]` there.
 
 **The moving doors now re-mint a complete destination**
 (`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`,
-PR 3531). `kfmrh`, `ring_move`, `mfkrh`, `kef` and `mef`'s new face
-run the site mint over the face they move a loop or run onto, where
-the moved rows do not stand there and that face was complete
-(`Body::plan_moved_rows`). The rows in the tables above whose
+PR 3531). The band twins `kfmrh_minting`, `ring_move_minting`,
+`mfkrh_minting` and `kef_minting`, and `mef`'s new face, run the site
+mint over the face they move a loop or run onto, where the moved rows
+do not stand there and that face was complete
+(`Body::plan_moved_rows`); the keys-only `kfmrh`, `ring_move`, `mfkrh`
+and `kef` refuse there (`SiteRowRefusal::KeysOnly`) rather than leave
+it half-minted. The rows in the tables above whose
 destination stored no row of its own are unchanged: such a face is
 left as found, and still reads as never minted. What moved:
 

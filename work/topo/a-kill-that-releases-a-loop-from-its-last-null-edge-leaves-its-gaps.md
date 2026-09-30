@@ -54,9 +54,12 @@ cut in `chord_join` re-mints after its kill, which is a second
 spelling. Settle with `topo/kill-loop-anchor-proof`'s changes to the
 kill plans in view.
 
-**`kef` has a `Tol` now** (2026-09-30, PR 3531,
+**`kef` has a band twin now** (2026-09-30, PR 3531,
 `loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`):
-it runs the site mint over the surviving face when its remnant's rows
-do not stand there. It does not run it where they do, so a `kef` of a
-null edge whose remnant carries its rows still leaves a released
-loop's gaps; `kemr` and `kev` still take no `Tol`.
+`kef` stays keys-only, per PR 2527's `kev` ruling, and
+`kef_minting(he, tol)` runs the site mint over the surviving face when
+its remnant's rows do not stand there — the "grow a `Tol`" shape above,
+as a second door rather than a signature change. Neither runs it where
+the remnant's rows stand, so a kill of a null edge whose remnant
+carries its rows still leaves a released loop's gaps; `kemr` and `kev`
+have no band door for it.
