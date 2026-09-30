@@ -3697,3 +3697,48 @@ The orchestrator read the fix-pass diff (`636097e605..c6568feacf`,
 
 The four rows close on the branch (`f99ccd8041`). Merge after CI.
 Single tier, no DR row.
+
+## PR 3511 merged; D262 dispatched with the outline's refusal; triage (2026-09-30)
+
+PR 3511 merged at `f99ccd8041` (merge `f21577e2a0`) after CI run
+36688722920 went green. I unsubscribed and removed the lane's
+worktree. Main is merged into this branch.
+
+**D262 (P0) is dispatched.** Its plan line said it waited on
+`work/meta`'s `decide_flagged` register (P4). I re-read the row
+against today's code:
+- CONTACT-8 deleted `redundant_subdivision_vertex`.
+- `loop_winding` already announces a torn loop.
+- What is left: `planes_declared_equal`'s lookup arms,
+  `merged_outline_ring`'s "not a plane" or "unresolved" arm, and
+  `edge_chord_len(..).unwrap_or_else(T::one)`.
+
+That residue is fail-loud (the D9 addendum's taxonomy, 7c997576f9 /
+#1347), not a dimension question, so the wait no longer applies.
+Bundled with `merged-face-role-ambiguity-ends-in-no-recourse`; both
+are `merge_faces.rs`'s helpers, under D4 ¶1 (iv) (PR 3352).
+- Branch `topo/merge-helpers-announce`, on the walk target.
+- The lane measures reachability first, and answers row 0 for each
+  arm.
+
+`merge-orientation-rung-reads-a-closed-shared-edges-chord-as-its-arm`
+is held back from this unit. Its fix reaches F7 in `boolean/reduce.rs`,
+where PR 3513's fix pass is working. It goes after PR 3513 merges.
+
+**Triage** of rows filed without a priority:
+- P2, M: `plane-offset-rung-decided-zero-shares-invalid-with-a-poisoned-margin`
+  (a poisoned margin read as `DecidedCoincident` is a fail-loud gap)
+  and `merge-orientation-rung-…`.
+- P3:
+  - `euler-op-corruption-refusals-end-in-a-tag` (E);
+  - `kef-kvfs-and-mekr-remove-a-face-shell-solid-or-edge-another-record-names` (M);
+  - `kev-kills-a-far-vertex-…` (E);
+  - `mekr-and-kvfs-remove-an-empty-loop-…` (E);
+  - `movefac-labels-components-…` (M);
+  - `row-drop-walks-trust-the-loops-next-cycle` (M).
+
+  These are torn-input corruption through `Ok`, which is the same
+  class as the queue's other P3s.
+
+**Live lanes:** PR 3513's fix pass (the loop-anchor target), the
+reparent re-mint (the rebase target) and D262 (the walk target).
