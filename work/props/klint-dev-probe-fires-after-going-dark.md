@@ -2,7 +2,7 @@
 id: klint-dev-probe-fires-after-going-dark
 kind: issue
 title: k-lint (dev-probe) fires 35 flags on its first nightly run after moving off the per-PR gate
-status: open
+status: review
 opened: 2026-09-29
 priority: P0
 cost: M
@@ -94,3 +94,142 @@ row fixes.
 
 Nightly run 36561506133. CI cut `49d5b2aee`. Baseline constants at
 `c3012ed35`. Runbook: `docs/K-REPORT.md`.
+
+---
+
+## Measured (PROPS k-lint baseline unit, 2026-09-30)
+
+### 1. The darkness is 19 hours, and two of this item's three premises
+are artefacts of where the row lived
+
+**Last green execution: run 36449836735, job `k-lint (gate, dev-probe)`
+(job id 109022798206), 2026-09-28T16:16:28Z**, on the merge ref of
+`vnews/one-seat-line` head `b34a34cbd` against main at `cc2a4b7ed`.
+It read 3,789,703 samples and flagged nothing. The next execution of
+the row anywhere is the failing nightly, 2026-09-29T11:24:07Z — a gap
+of **19 h 08 m**, which is one nightly cycle.
+
+Two premises above are true but do not carry the weight put on them:
+
+- *"the nightlies of 2026-09-22..28 contain zero `k-lint` jobs"* —
+  they do, and so does every nightly before them: `k-lint` lived in
+  `ci.yml` until `49d5b2aee` and was never a nightly job at all. Run
+  36417520955 (09-28) is the last nightly without it; 36561506133
+  (09-29) is the first with it.
+- *"no main commit between 09-25 and 09-28 carries a `dev-probe` check
+  run"* — no main commit has ever carried one. `ci.yml` gates every
+  k-lint job on `github.event_name != 'push'` (the 2026-08-20 push-run
+  trim), so the row only ever ran on pull-request runs; scanning those
+  is what dates it.
+
+So the instrument did not go dark by accident. It ran on every PR up
+to 16:16Z on 09-28, the latency cut put it on the nightly ten minutes
+later (`b746b6141`, 16:26Z), and it fired on its first nightly. **No
+CI row is filed**: the gap is the designed cost of `work/ciw/latency-cut.md`,
+which Ev approved on #3340.
+
+### 2. Population, not distribution
+
+| reading | samples 1e-6 / 1e-9 / 1e-12 | total | rule 1 | rule 2 | rule 3 |
+| --- | --- | --: | --: | --: | --: |
+| last green (36449836735) | 1,263,225 / 1,263,233 / 1,263,245 | 3,789,703 | 0 | 0 | 0 |
+| failing nightly (36561506133) | 1,260,729 / 1,260,737 / 1,260,749 | 3,782,215 | 27 | 8 | 0 |
+| delta | −2,496 per row | −7,488 | +27 | +8 | 0 |
+
+The population SHRANK by 2,496 samples per row across ~85 merges. It
+did not grow, which is the first thing that does not fit the PR 3418
+hypothesis.
+
+Rule 1 fires on **every** row whose outcome is `invalid`, with no
+threshold in the way (`tools/k-lint/src/lib.rs`, `lint_sample`'s
+`"invalid" => reasons.push(Reason::Invalid)`). The last-green sweep
+flagged rule 1 zero times over 3,789,703 samples, so **that sweep
+contained no `invalid` row anywhere**. The nine are therefore rows the
+old sweep did not record — not margins that existed in both.
+
+### 3. The nine and the eight, by predicate and site
+
+Rule 1, 9 per eps row, identical at 1e-6 / 1e-9 / 1e-12 (eps-independent
+because a poisoned margin has no threshold to be near):
+
+| site | predicate | rows/eps | margin |
+| --- | --- | --: | --- |
+| `corpus/boss_union` | `chart_bound_outer_span` | 3 | `NaN` |
+| `demo/bossplate` | `chart_bound_outer_span` | 3 | `NaN` |
+| `demo/lily_walls` | `chart_bound_outer_span` | 3 | `NaN` |
+
+Rule 2, 8 at 1e-12 only, all `demo/lily_walls`:`bool_circle_torus_root_slack`,
+zero-classified with `|m| > band_zero / 10^2`:
+
+| \|m\| (m) | count |
+| --- | --: |
+| 3.14912307142162e-13 | 2 |
+| 8.272757261396428e-14 | 2 |
+| 6.680730726416532e-14 | 2 |
+| 1.9291935961799184e-14 | 2 |
+
+Four distinct margins, each twice; they are eps-INDEPENDENT lengths
+that only enter rule 2's window once `band_zero` reaches 1e-12.
+
+### 4. The PR 3418 hypothesis is wrong
+
+It predicted newly-VISIBLE margins, i.e. more recorded samples with no
+geometry moving. Against it:
+
+- the sample count FELL by 2,496 per row;
+- `Probe`'s `Decide::sign_within` records an `Invalid` sample on
+  exactly the condition it recorded before — `Err(e) if
+  e.margin.is_invalid()` — and the margin it records is still the raw
+  `f64` handed to the classifier; PR 3418 changed the Ok arm's type
+  (`Sign` to `Decided`) and the spelling `MarginDiag::Invalid` to
+  `MarginDiag::INVALID`, and added no recording site;
+- PR 3418 does not touch `crates/topo/src/chart_bound.rs` at all, and
+  its only two edits to `crates/topo/src/pcurves.rs` are inside
+  `mod recourse_tests` (`MarginDiag::value(5e-9)` and a
+  `terminal_sliver: false` field);
+- `chart_bound_outer_span` has existed since 2026-09-04 (`21184358a`),
+  and the M11 reading at `c39a904e` (2026-09-08) found no `invalid`
+  row in the whole census.
+
+`bool_circle_torus_root_slack`, by contrast, is a predicate that did
+not exist at the comparison point: minted at `987e97789`
+(2026-09-28T17:02:22Z), merged as PR #3375 at `38588fede`
+(2026-09-29T02:07:58Z), in the same PR that rewrote
+`demos/tour/src/lily.rs`.
+
+### 5. Recourse: NEITHER — stop and report
+
+- **The nine are rule 1, and rule 1 has no recourse.** It carries no
+  threshold to re-derive (recourse 1 re-derives
+  `BASELINE_FLOOR_MARGIN`, the percentile and
+  `EPS_COUPLED_FLOOR_RATIO`, none of which rule 1 reads), and the lint
+  records that nothing offers its demotion because demoting it would
+  demote the ERROR-DESIGN E6 re-open trigger. A poisoned margin is
+  "a defect wherever it appears" in the lint's own words. Filed:
+  `work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`.
+- **The eight are a new family's lower tail.** Rule 2's zero-side arm
+  compares `|m|` against `band_zero / PROXIMITY_FACTOR` and reads no
+  baseline constant, so recourse 1 does not reach it either; the only
+  thresholds that could move are `PROXIMITY_FACTOR` (ratified) and
+  `EPS_COUPLED_PREDICATES`, whose membership the M7 addendum says is
+  explicit and never inferred — and rule 4 does not fit a family whose
+  margins are fixed lengths rather than an eps-scaled headroom. Filed:
+  `work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`.
+
+Re-deriving the baseline here would have been the second-worst move
+the spec names: it would have papered over a poisoned margin.
+
+### 6. The stale recourse text
+
+The failure message already names `nightly.yml`. The stale pair is one
+line of `tools/k-lint/src/main.rs`'s module docs, which said `ci.yml`'s
+step carries `--gate-rule-1-only`'s recorded justification; it now says
+`nightly.yml`. `docs/K-REPORT.md` names `ci.yml` for this row at five
+further places, in instr's territory:
+`work/instr/k-report-still-names-ci-yml-for-the-k-lint-row.md`.
+
+### 7. What this leaves red
+
+`k-lint (dev-probe)` stays red on the nightly until the chart row is
+fixed or the germ row is ruled on. That is the gate working: it is red
+because the kernel is, and this unit is not entitled to green it.
