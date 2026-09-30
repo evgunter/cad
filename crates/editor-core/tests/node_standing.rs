@@ -539,7 +539,7 @@ fn reads(code: &str) -> usize {
 /// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 11] = [
+const READERS: [(&str, usize, &str); 12] = [
     (
         "crates/editor-core/src/eval/mod.rs",
         23,
@@ -579,8 +579,14 @@ const READERS: [(&str, usize, &str); 11] = [
     ),
     (
         "crates/viewer/src/tree.rs",
-        8,
-        "the tree row renders a failed node's own error, and a poisoned row its source's",
+        9,
+        "the tree row renders a failed node's own error, and a poisoned row its source's; \
+         a measure row reads its value's payload",
+    ),
+    (
+        "crates/viewer/src/pane/features.rs",
+        1,
+        "a pane test reads a measure's unavailable payload, the premise its row paints",
     ),
     (
         "demos/tour/src/chaintol.rs",
