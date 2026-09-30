@@ -2419,7 +2419,7 @@ mod tests {
         use pncad::geom_core::Point2;
         use pncad::profile::{Step, TipState, Verb};
 
-        use crate::drafts::{Drafts, ProfileDoors};
+        use crate::drafts::{Drafts, ProfileDoors, RowEdit};
         use crate::session::ProfilePlane;
 
         let tol = Tol::witness();
@@ -2456,7 +2456,11 @@ mod tests {
         // One frame with `loops` held by the edit door: its preview,
         // the committed lane, the preview lane.
         let mut frame_with = |loops: Vec<Step<f64>>| {
-            drafts.profile_edit.as_mut().expect("held").loops = vec![loops];
+            let edit = drafts.profile_edit.as_mut().expect("held");
+            edit.edit_row(0, RowEdit::Clear);
+            for (at, step) in loops.into_iter().enumerate() {
+                edit.edit_row(0, RowEdit::Insert { at, step });
+            }
             let held = drafts.door_loops().edit.expect("held");
             let preview = sketch::preview(placement, &held.loops, tol, chord);
             let previews = ProfileDoors {

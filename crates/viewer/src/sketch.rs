@@ -50,7 +50,7 @@
 
 use pncad::document::{
     DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram, Node,
-    ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepId,
     ValuePayload, resolve_loops, unparse,
 };
 use pncad::geom_core::{Point2, Tol};
@@ -462,6 +462,36 @@ pub fn held_program(
         .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
 }
 
+/// **Every step of `program` kept where it is** — the `ids` of a
+/// `DocEdit::SetProgram` (and a `SessionOp::EditProfile`) that moves
+/// numbers and nothing else.
+#[must_use]
+pub fn kept_in_place(program: &ProfileProgram) -> Vec<Vec<Option<StepId>>> {
+    program
+        .ids
+        .iter()
+        .map(|ids| ids.iter().copied().map(Some).collect())
+        .collect()
+}
+
+/// **Whether `loops` under `ids` is `base` itself** — every step kept
+/// in place and the program bit-equal to `base`, blind to notation: a
+/// `DocEdit::SetProgram` of them would write nothing.
+#[must_use]
+pub fn is_committed(
+    base: &ProfileProgram,
+    loops: &[LoopProgram],
+    ids: &[Vec<Option<StepId>>],
+) -> bool {
+    ids == kept_in_place(base).as_slice()
+        && *base
+            == ProfileProgram {
+                plane: base.plane,
+                loops: loops.to_vec(),
+                ids: base.ids.clone(),
+            }
+}
+
 /// Why a committed node cannot be held by the path editor.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HeldRefusal {
@@ -521,123 +551,6 @@ impl core::fmt::Display for HeldRefusal {
 }
 
 impl core::error::Error for HeldRefusal {}
-
-/// **The slot writes that take a committed program to the editor's**
-/// — one `(slot, expression)` per argument whose number moved, and
-/// nothing for the rest.
-///
-/// Compared by VALUE, at the bits ([`Expr::bit_eq`]): an argument the
-/// editor re-minted in the form's notation but still holding the
-/// number it was loaded with is not a change, so an editor opened on
-/// a node and applied untouched writes nothing — the no-op the edit
-/// door owes (no edit, no history entry). An argument that moved is
-/// written as the editor minted it, in the notation the picker beside
-/// the fields says it writes in.
-///
-/// # Errors
-///
-/// [`Restructure`] when `loops` does not have `current`'s STRUCTURE —
-/// a different loop count, or a loop whose verbs, arc modes, target
-/// forms, structural tags or step count differ. The document's edit
-/// vocabulary writes slots and has no door that rewrites a program's
-/// shape, which is why the editor locks its structural controls on a
-/// committed node; this is the door's own check behind those
-/// controls, held by writing every argument of `loops` into a copy of
-/// `current` and asking whether the copy then IS `loops`.
-pub fn program_edits(
-    current: &ProfileProgram,
-    loops: &[LoopProgram],
-) -> Result<Vec<(SlotId, Expr)>, Restructure> {
-    if current.loops.len() != loops.len() {
-        return Err(Restructure::LoopCount {
-            was: current.loops.len(),
-            now: loops.len(),
-        });
-    }
-    let held = Node::Profile(ProfileProgram {
-        plane: current.plane,
-        loops: loops.to_vec(),
-        ids: Vec::new(),
-    });
-    let mut probe = Node::Profile(current.clone());
-    let mut edits = Vec::new();
-    for slot in held.slots() {
-        let Some(new) = held.expr(slot) else {
-            unreachable!(
-                "`Node::slots` is the domain of `Node::expr`, and {} was listed by it",
-                slot.label()
-            )
-        };
-        let SlotId::Profile { loop_, .. } = slot else {
-            unreachable!(
-                "a profile node lists only profile slots, and {} is not one",
-                slot.label()
-            )
-        };
-        let Some(old) = probe.expr_mut(slot) else {
-            return Err(Restructure::Loop {
-                loop_: loop_ as usize,
-            });
-        };
-        if !old.bit_eq(new) {
-            edits.push((slot, new.clone()));
-        }
-        *old = new.clone();
-    }
-    // Every argument of `loops` is now written into the copy, so the
-    // copy and `loops` differ exactly where the STRUCTURE does: a step
-    // the copy has and `loops` lacks, a tag, a target form, a mode.
-    // The comparison is the program vocabulary's own equality, which
-    // reads expressions by value and is blind to notation.
-    let Node::Profile(probe) = probe else {
-        unreachable!("the probe was built as a profile node")
-    };
-    for (loop_, (was, now)) in probe.loops.iter().zip(loops).enumerate() {
-        if was != now {
-            return Err(Restructure::Loop { loop_ });
-        }
-    }
-    Ok(edits)
-}
-
-/// Why the editor's program cannot be written over a committed one.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Restructure {
-    /// The two programs have different loop counts.
-    LoopCount {
-        /// The committed loop count.
-        was: usize,
-        /// The editor's.
-        now: usize,
-    },
-    /// One loop's shape — its verbs, arc modes, target forms,
-    /// structural tags or step count — differs.
-    Loop {
-        /// The loop, in authoring order.
-        loop_: usize,
-    },
-}
-
-impl core::fmt::Display for Restructure {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::LoopCount { was, now } => write!(
-                f,
-                "the committed profile has {was} loop(s) and the editor holds {now}; the \
-                 document's edit vocabulary writes a program's numbers and has no door that \
-                 changes its shape"
-            ),
-            Self::Loop { loop_ } => write!(
-                f,
-                "loop {loop_}'s verbs, arc forms, targets or step count differ from the \
-                 committed program's; the document's edit vocabulary writes a program's \
-                 numbers and has no door that changes its shape"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for Restructure {}
 
 // ------------------------------------------------------------------
 // The preview: what the loops being authored would actually draw

@@ -492,10 +492,10 @@ fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
     assert_quiet(&landed, op);
 }
 
-/// **The path editor's door moves no name either.** `EditProfile`
-/// lands its program as one-slot writes through an order search, a
-/// different road to the history from the single-edit door, and every
-/// write keeps every step.
+/// **The path editor's door moves no name either** when it keeps
+/// every step: `EditProfile` lands its program as one `SetProgram`,
+/// and a program whose steps are all kept strands nothing, whichever
+/// way its numbers turn it.
 #[test]
 fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let (doc, profile, _) = framed_triangle("maint-profile-flip");
@@ -511,11 +511,16 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::EditProfile {
         node: profile,
+        ids: viewer::sketch::kept_in_place(&base),
         base,
         loops,
     };
     let outcome = session.perform(op.clone());
-    assert_eq!(outcome.committed.len(), 1, "one write moved");
+    assert!(
+        matches!(outcome.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+        "one whole-program edit: {:?}",
+        outcome.committed
+    );
     assert_quiet(&outcome, op);
 }
 

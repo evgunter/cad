@@ -17,9 +17,9 @@ use pncad::profile::{Step, TipState, Verb};
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
-use crate::forms::{SHAPE_LOCKED, ShapeEdits};
+use crate::drafts::{ProfileEdit, RowEdit};
 use crate::frame;
-use crate::session::SessionOp;
+use crate::session::{DocSession, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::Theme;
 use crate::widgets::{angle_picker, length_picker, new_row_step, path_step_fields};
@@ -31,13 +31,10 @@ impl ViewerBehavior<'_> {
     /// ([`path_steps_ui`], [`notation_row`], [`preview_verdict`]),
     /// held in the same currency ([`crate::drafts::ProfileEdit`]), so
     /// the two doors are one editor by construction rather than two
-    /// that agree.
-    ///
-    /// What differs is what the editor is opened ON and what it
-    /// commits as: the node's program, loaded by
-    /// [`crate::sketch::held_loops`], committed as slot writes by
-    /// [`SessionOp::EditProfile`] — which is why the shape controls
-    /// are locked ([`ShapeEdits::Locked`]).
+    /// that agree. What differs is what the editor is opened ON and
+    /// what it commits as: the node's program, loaded by
+    /// [`crate::sketch::held_loops`], committed whole by
+    /// [`SessionOp::EditProfile`] ([`edit_door_ui`]).
     ///
     /// Returns `false`, having said why in the unresolved colour, when
     /// the editor cannot hold this profile (an argument an expression
@@ -65,56 +62,114 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.length_unit,
             &mut self.drafts.angle_unit,
         );
-        let units = (self.drafts.length_unit.def(), self.drafts.angle_unit.def());
-        let notation = self.drafts.notation();
+        let written = (
+            (self.drafts.length_unit.def(), self.drafts.angle_unit.def()),
+            self.drafts.notation(),
+        );
         let Some(edit) = self.drafts.profile_edit.as_mut() else {
             unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
         };
-        ui.label(format!("profile on frame {}", edit.plane().0));
-        crate::widgets::message_toned(ui, SHAPE_LOCKED, &self.theme, frame::Tone::Advisory);
-        let loops = edit.loops.len();
-        for (index, steps) in edit.loops.iter_mut().enumerate() {
-            // A loop label only where there is more than one: "loop 0"
-            // over the only loop is a number with nothing to tell
-            // apart.
-            if loops > 1 {
-                ui.label(format!("loop {index}"));
-            }
-            path_steps_ui(
-                ui,
-                &format!("edit_{}_{index}", node.0),
-                session.tol(),
-                units,
-                ShapeEdits::Locked,
-                steps,
-            );
+        match edit_door_ui(
+            ui,
+            session,
+            self.theme,
+            written,
+            edit,
+            self.profile_previews.edit.as_ref(),
+        ) {
+            Ok(Some(op)) => self.ops.push(op),
+            Ok(None) => {}
+            Err(notice) => self.notices.push(notice),
         }
-        let refused = preview_verdict(ui, self.theme, self.profile_previews.edit.as_ref());
-        let moved = edit.moved();
-        ui.horizontal(|ui| {
-            let (apply, revert) = apply_and_revert(ui, moved, refused);
-            if apply {
-                match edit.programs(notation) {
-                    Ok(loops) => self.ops.push(SessionOp::EditProfile {
-                        node,
-                        base: edit.base().clone(),
-                        loops,
-                    }),
-                    Err(error) => self.notices.push(frame::tool_news(
-                        format!("edit profile: {error}"),
-                        frame::Retold::Again,
-                    )),
-                }
-            }
-            if revert && let Err(error) = edit.revert(doc) {
-                self.notices.push(frame::tool_news(
-                    format!("revert profile: {error}"),
-                    frame::Retold::Again,
-                ));
-            }
-        });
         true
     }
+}
+
+/// **The edit door's body, once its draft is held**: one step list
+/// per loop, the preview's verdict, and Apply and Revert — a free
+/// function over the `Ui`, so a row can drive the door a person uses
+/// rather than a copy of it.
+///
+/// Every control of the create door is live here: a committed
+/// profile's steps are inserted, removed, reordered and re-verbed, and
+/// its arcs, targets and split counts changed, exactly as a new one's
+/// are, and Apply commits the whole program as ONE
+/// [`SessionOp::EditProfile`] saying which committed step each held
+/// step is ([`ProfileEdit::ids`]). A name on a step the program drops
+/// is stranded; Apply says how many before it is clicked
+/// ([`apply_and_revert`], from [`DocSession::edit_profile_report`]),
+/// and the op's outcome reports each after.
+///
+/// Answers the op Apply formed, or the notice for what could not form
+/// one (a field that does not lower, a revert that could not reload).
+pub(crate) fn edit_door_ui(
+    ui: &mut egui::Ui,
+    session: &DocSession,
+    theme: Theme,
+    (units, notation): ((UnitDef, UnitDef), sketch::Notation),
+    edit: &mut ProfileEdit,
+    preview: Option<&Result<ProfilePreview, PreviewError>>,
+) -> Result<Option<SessionOp>, frame::Message> {
+    let node = edit.node;
+    ui.label(format!("profile on frame {}", edit.plane().0));
+    let loops = edit.loops().len();
+    let mut rows = Vec::new();
+    for index in 0..loops {
+        // A loop label only where there is more than one: "loop 0"
+        // over the only loop is a number with nothing to tell apart.
+        if loops > 1 {
+            ui.label(format!("loop {index}"));
+        }
+        let salt = format!("edit_{}_{index}", node.0);
+        if let Some(row) = path_steps_ui(ui, &salt, session.tol(), units, edit.steps_mut(index)) {
+            rows.push((index, row));
+        }
+    }
+    for (index, row) in rows {
+        edit.edit_row(index, row);
+    }
+    let refused = preview_verdict(ui, theme, preview);
+    let moved = edit.moved();
+    let stranded = if moved {
+        let base = edit.base().clone();
+        edit.report(session.history().current(), |loops, ids| {
+            // A program the door refuses strands nothing yet; its
+            // refusal is the preview's to show, or Apply's to get.
+            session
+                .edit_profile_report(node, &base, loops, ids)
+                .unwrap_or_default()
+        })
+        .iter()
+        .filter_map(frame::maintenance_notice)
+        .map(|notice| notice.text().to_owned())
+        .collect()
+    } else {
+        Vec::new()
+    };
+    let (apply, revert) = ui
+        .horizontal(|ui| apply_and_revert(ui, moved, refused, &stranded))
+        .inner;
+    if apply {
+        return match edit.programs(notation) {
+            Ok(loops) => Ok(Some(SessionOp::EditProfile {
+                node,
+                base: edit.base().clone(),
+                loops,
+                ids: edit.ids(),
+            })),
+            Err(error) => Err(frame::tool_news(
+                format!("edit profile: {error}"),
+                frame::Retold::Again,
+            )),
+        };
+    }
+    if revert && let Err(error) = edit.revert(session.committed_doc()) {
+        return Err(frame::tool_news(
+            format!("revert profile: {error}"),
+            frame::Retold::Again,
+        ));
+    }
+    Ok(None)
 }
 
 /// **What the editor's preview says about its loops**, said under the
@@ -180,10 +235,15 @@ pub(crate) fn notation_row(
 
 /// **The path editor's step list**: one row per verb, plus the
 /// control that appends another — the ONE list both doors of the
-/// profile editor draw: the add-profile form over its own draft
-/// ([`ShapeEdits::Free`]), and the same form opened on a committed
-/// profile, one list per loop ([`ShapeEdits::Locked`], whose controls
-/// that would change the program's shape are drawn and not taken).
+/// profile editor draw: the add-profile form over its own draft, and
+/// the same form opened on a committed profile, one list per loop.
+///
+/// **The list's shape is the caller's to change.** Fields write their
+/// numbers in place; a row inserted, removed, moved or re-verbed, or
+/// the list cleared, is answered as a [`RowEdit`] for the caller to
+/// apply — the edit door carries which committed step each row is
+/// through it ([`ProfileEdit::edit_row`]). One per frame: two buttons
+/// clicked in one frame do not compound into a move nobody asked for.
 ///
 /// **Drawing it never writes a value.** A field writes back only on
 /// its own edit, and a bounded field does not pull a document value it
@@ -213,26 +273,24 @@ pub(crate) fn notation_row(
 /// the declarations the replay runs, so the form keeps no copy of
 /// the lattice. A verb picked lands in the first arc form its row
 /// takes ([`sketch::fresh_step_at`]).
+#[must_use = "a row edit the caller drops is a click that did nothing"]
 pub(crate) fn path_steps_ui(
     ui: &mut egui::Ui,
     salt: &str,
     tol: Tol,
     (length_unit, angle_unit): (UnitDef, UnitDef),
-    shape: ShapeEdits,
-    steps: &mut Vec<Step<f64>>,
-) {
-    // The row edits are COLLECTED and applied after the loop: a
-    // list cannot be reordered or shortened while it is being
-    // iterated, and one edit per frame is what keeps two buttons
-    // clicked in one frame from compounding into a move nobody
-    // asked for.
+    steps: &mut [Step<f64>],
+) -> Option<RowEdit> {
+    // The row edits are COLLECTED during the loop and answered after
+    // it: a list cannot be reordered or shortened while it is being
+    // iterated.
     let mut remove: Option<usize> = None;
     let mut swap: Option<(usize, usize)> = None;
     // A verb chosen in a row's combo, applied after the loop for
     // the same reason the moves are: the probe that decides which
     // verbs a combo may offer reads the WHOLE list, and it cannot
     // borrow it while a row holds a mutable slice of it.
-    let mut rebind: Option<(usize, Verb, Option<TipState>)> = None;
+    let mut reverb: Option<(usize, Verb, Option<TipState>)> = None;
     let mut insert: Option<usize> = None;
     // The tip each row's step lands on, read off the replay of the
     // rows before it. Every frame rather than only while a combo is
@@ -247,123 +305,103 @@ pub(crate) fn path_steps_ui(
         ui.horizontal(|ui| {
             // Zero-based, because "loop 0 step 2" is.
             ui.weak(format!("{index}"));
-            let free = shape.free();
-            // Why each control is stopped, if it is — the lock first:
-            // a locked list offers no move at all, whichever row it
-            // is.
-            let lock_reason = (!free).then_some(SHAPE_LOCKED);
-            if step_control(ui, GLYPH_REMOVE, "remove this step", lock_reason) {
+            if step_control(ui, GLYPH_REMOVE, "remove this step", None) {
                 remove = Some(index);
             }
-            let earlier_reason = lock_reason.or((index == 0).then_some(STEP_IS_FIRST));
+            let earlier_reason = (index == 0).then_some(STEP_IS_FIRST);
             if step_control(ui, GLYPH_UP, "move this step earlier", earlier_reason) {
                 swap = Some((index, index - 1));
             }
-            let later_reason = lock_reason.or((index == last).then_some(STEP_IS_LAST));
+            let later_reason = (index == last).then_some(STEP_IS_LAST);
             if step_control(ui, GLYPH_DOWN, "move this step later", later_reason) {
                 swap = Some((index, index + 1));
             }
             // **Insert after this row.** A chain is written in the
-            // middle as often as at the end — a leg forgotten
-            // between two that exist used to mean appending it and
-            // walking it up with the arrows — so every row carries
-            // the control, and the last row's is the append.
-            //
-            // In the row's own control cluster rather than at the
-            // far end of it, which is where this first went: a
-            // row's width is its verb's, so at the end the `+`
-            // sits at a different place on every row and, on the
-            // widest, past the edge of a pane that does not scroll
-            // sideways. A control that moves under the cursor is
-            // worse than one that is not where a reader first
-            // looks for it.
-            if step_control(ui, "+", "insert a step after this one", lock_reason) {
+            // middle as often as at the end, so every row carries
+            // the control, and the last row's is the append. It sits
+            // in the row's own control cluster: a row's width is its
+            // verb's, so at the far end the `+` would move from row
+            // to row and, on the widest, sit past the edge of a pane
+            // that does not scroll sideways.
+            if step_control(ui, "+", "insert a step after this one", None) {
                 insert = Some(index + 1);
             }
             let verb = steps[index].verb();
-            ui.add_enabled_ui(free, |ui| {
-                egui::ComboBox::from_id_salt((salt, "verb", index))
-                    .selected_text(verb.to_string())
-                    .width(120.0)
-                    .show_ui(ui, |ui| {
-                        for &option in Verb::ALL {
-                            let refusal = sketch::admits_at(state, option).err();
-                            // `add_enabled` on the widget itself, not
-                            // an `add_enabled_ui` around it: the
-                            // reason a choice is greyed out is told
-                            // through `on_disabled_hover_text`, and
-                            // that is a `Response`'s door — a region's
-                            // response shows nothing.
-                            let row = ui.add_enabled(
-                                refusal.is_none(),
-                                egui::Button::selectable(option == verb, option.to_string()),
-                            );
-                            match refusal {
-                                Some(state) => {
-                                    // The verb's `Display`, which is
-                                    // the word the combo shows, not
-                                    // its `Debug`: the sentence is
-                                    // about the row a reader is
-                                    // looking at.
-                                    row.on_disabled_hover_text(format!(
-                                        "{option} is not well-typed here — the tip is {}",
-                                        sketch::tip_state_words(state),
-                                    ));
-                                }
-                                None if row.clicked() && option != verb => {
-                                    rebind = Some((index, option, state));
-                                }
-                                None => {}
+            egui::ComboBox::from_id_salt((salt, "verb", index))
+                .selected_text(verb.to_string())
+                .width(120.0)
+                .show_ui(ui, |ui| {
+                    for &option in Verb::ALL {
+                        let refusal = sketch::admits_at(state, option).err();
+                        // `add_enabled` on the widget itself, not
+                        // an `add_enabled_ui` around it: the
+                        // reason a choice is greyed out is told
+                        // through `on_disabled_hover_text`, and
+                        // that is a `Response`'s door — a region's
+                        // response shows nothing.
+                        let row = ui.add_enabled(
+                            refusal.is_none(),
+                            egui::Button::selectable(option == verb, option.to_string()),
+                        );
+                        match refusal {
+                            Some(state) => {
+                                // The verb's `Display`, which is
+                                // the word the combo shows, not
+                                // its `Debug`: the sentence is
+                                // about the row a reader is
+                                // looking at.
+                                row.on_disabled_hover_text(format!(
+                                    "{option} is not well-typed here — the tip is {}",
+                                    sketch::tip_state_words(state),
+                                ));
                             }
+                            None if row.clicked() && option != verb => {
+                                reverb = Some((index, option, state));
+                            }
+                            None => {}
                         }
-                    });
-            });
+                    }
+                });
             let step = &mut steps[index];
-            path_step_fields(ui, &row_salt, length_unit, angle_unit, state, shape, step);
+            path_step_fields(ui, &row_salt, length_unit, angle_unit, state, step);
         });
     }
-    if let Some((index, verb, state)) = rebind {
-        steps[index] = sketch::fresh_step_at(verb, state);
-    }
-    if let Some(index) = remove {
-        steps.remove(index);
-    }
-    if let Some(at) = insert {
-        steps.insert(at, new_row_step(at));
-    }
-    if let Some((from, to)) = swap {
-        steps.swap(from, to);
-    }
-    // A locked list has no whole-list controls to offer: both
-    // change what the program IS.
-    if !shape.free() {
-        return;
-    }
-    ui.horizontal(|ui| {
-        // **"Add step" only when there is no row to insert after.**
-        // Once the list has rows, every one of them carries a `+`
-        // that inserts after it — including the last, which is the
-        // append — so a second control at the bottom would be the
-        // same move spelled twice.
-        //
-        // There is no verb picker beside it either. It duplicated
-        // the row combo one row down: whatever the new step is,
-        // the way to change it is the same control either way, and
-        // a second one only asked the question a frame earlier.
-        if steps.is_empty() {
-            if ui.button("Add step").clicked() {
-                steps.push(new_row_step(0));
+    let whole = ui
+        .horizontal(|ui| {
+            // **"Add step" only when there is no row to insert after.**
+            // Once the list has rows, every one of them carries a `+`
+            // that inserts after it — including the last, which is the
+            // append — so a second control at the bottom would be the
+            // same move spelled twice.
+            if steps.is_empty() {
+                ui.button("Add step").clicked().then(|| RowEdit::Insert {
+                    at: 0,
+                    step: new_row_step(0),
+                })
+            } else {
+                ui.button("Clear").clicked().then_some(RowEdit::Clear)
             }
-        } else if ui.button("Clear").clicked() {
-            steps.clear();
-        }
+        })
+        .inner;
+    let replace = reverb.map(|(index, verb, state)| RowEdit::Replace {
+        index,
+        step: sketch::fresh_step_at(verb, state),
     });
+    let insert = insert.map(|at| RowEdit::Insert {
+        at,
+        step: new_row_step(at),
+    });
+    replace
+        .or(remove.map(RowEdit::Remove))
+        .or(insert)
+        .or(swap.map(|(from, to)| RowEdit::Swap(from, to)))
+        .or(whole)
 }
 
-/// Why a row's move-earlier control is not live in a free list.
+/// Why a row's move-earlier control is not live.
 const STEP_IS_FIRST: &str = "it is already the first step";
 
-/// Why a row's move-later control is not live in a free list.
+/// Why a row's move-later control is not live.
 const STEP_IS_LAST: &str = "it is already the last step";
 
 /// **One of a step row's glyph controls**, live unless `blocked`
@@ -371,8 +409,8 @@ const STEP_IS_LAST: &str = "it is already the last step";
 ///
 /// The glyph is the control's only label, so `action` — what a click
 /// does — is its hover in both states, and a blocked control adds the
-/// reason on the line under it. Every reason is a draft gate's (a
-/// locked list, or a row with nothing past it to move over): no
+/// reason on the line under it. Every reason is a draft gate's (a row
+/// with nothing past it to move over): no
 /// operation is formed to be refused, so the words are the caller's.
 /// Each state's words ride the hook egui shows in that state.
 ///
@@ -389,10 +427,10 @@ fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&s
 
 /// Why the edit door's Apply and Revert are not live on an untouched
 /// draft.
-const UNTOUCHED: &str = "the numbers are the committed profile's";
+const UNTOUCHED: &str = "the steps and numbers are the committed profile's";
 
 /// **The edit door's Apply and Revert**, both live only once the held
-/// numbers have `moved` off the committed profile's; Apply also waits
+/// program has `moved` off the committed profile's; Apply also waits
 /// on the preview not having `refused`.
 ///
 /// **Apply only what moved.** Untouched, there is nothing to write,
@@ -403,18 +441,37 @@ const UNTOUCHED: &str = "the numbers are the committed profile's";
 /// hover. A refused preview has its sentence already, drawn under the
 /// step list by [`preview_verdict`], so Apply adds none for it.
 ///
+/// **Apply says what it strands before it is clicked** — a fillet on a
+/// dropped step's edge is the fillet the person is about to lose — so
+/// the count is on the button, as a delete's cascade is, and each
+/// `stranded` row's own sentence ([`frame::maintenance_notice`]) is on
+/// its hover.
+///
 /// Answers whether each was clicked — Apply, then Revert — which a
 /// disabled button never is.
-fn apply_and_revert(ui: &mut egui::Ui, moved: bool, refused: bool) -> (bool, bool) {
-    let apply = ui.add_enabled(moved && !refused, egui::Button::new("Apply"));
-    let apply = if moved {
+fn apply_and_revert(
+    ui: &mut egui::Ui,
+    moved: bool,
+    refused: bool,
+    stranded: &[String],
+) -> (bool, bool) {
+    let label = match stranded.len() {
+        0 => "Apply".to_owned(),
+        1 => "Apply, stranding 1 name".to_owned(),
+        n => format!("Apply, stranding {n} names"),
+    };
+    let apply = ui.add_enabled(moved && !refused, egui::Button::new(label));
+    let apply = if !moved {
+        apply.on_disabled_hover_text(format!("nothing to apply: {UNTOUCHED}"))
+    } else if stranded.is_empty() {
         apply
     } else {
-        apply.on_disabled_hover_text(format!("nothing to apply: {UNTOUCHED}"))
+        let said = stranded.join("\n");
+        apply.on_hover_text(&said).on_disabled_hover_text(said)
     };
     let revert = ui.add_enabled(moved, egui::Button::new("Revert"));
     let revert = if moved {
-        revert.on_hover_text("put the numbers back to the committed profile's")
+        revert.on_hover_text("put the steps and numbers back to the committed profile's")
     } else {
         revert.on_disabled_hover_text(format!("nothing to revert: {UNTOUCHED}"))
     };
@@ -445,11 +502,11 @@ mod tests {
     /// **Drawing the editor never rewrites a document value.** A
     /// committed `circle_split` above the form's count cap (the
     /// document admits any count) is loaded into the edit door and
-    /// DRAWN once, locked and untouched: its count is the committed
-    /// one, and nothing reads as moved.
+    /// DRAWN once, untouched: its count is the committed one, and
+    /// nothing reads as moved.
     #[test]
-    fn drawing_a_locked_split_circle_above_the_cap_leaves_it_alone() {
-        use crate::forms::{MAX_CIRCLE_SPLIT, ShapeEdits};
+    fn drawing_a_split_circle_above_the_cap_leaves_it_alone() {
+        use crate::forms::MAX_CIRCLE_SPLIT;
         let (doc, plane) = inserted(
             &Doc::empty_derived("probe", Tol::witness()),
             xy_frame(),
@@ -571,79 +628,49 @@ mod tests {
         assert!(!edit.moved(), "fresh load");
         let ctx = egui::Context::default();
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            super::path_steps_ui(
+            let row = super::path_steps_ui(
                 ui,
                 "probe",
                 Tol::witness(),
                 (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                ShapeEdits::Locked,
-                &mut edit.loops[0],
+                edit.steps_mut(0),
             );
+            assert!(row.is_none(), "nothing was clicked");
         });
         output.textures_delta.clear();
-        let held_n = match edit.loops[0][0] {
+        let held_n = match edit.loops()[0][0] {
             Step::CircleSplit { n, .. } => n,
             _ => panic!("a split circle"),
         };
-        assert_eq!(held_n, n, "drawing the locked editor rewrote the count");
+        assert_eq!(held_n, n, "drawing the editor rewrote the count");
         assert!(!edit.moved(), "drawing alone made Apply live");
     }
 
     /// What a pointer resting on the `nth` painting of `glyph` reads,
-    /// over a list of `rows` fresh steps drawn under `shape`.
-    fn hovering_step_control(
-        shape: crate::forms::ShapeEdits,
-        rows: usize,
-        glyph: &str,
-        nth: usize,
-    ) -> String {
+    /// over a list of `rows` fresh steps.
+    fn hovering_step_control(rows: usize, glyph: &str, nth: usize) -> String {
         let mut steps: Vec<Step<f64>> = (0..rows).map(crate::widgets::new_row_step).collect();
         painted_while_hovering(glyph, nth, |ui| {
-            super::path_steps_ui(
+            let _hovered_only = super::path_steps_ui(
                 ui,
                 "probe",
                 Tol::witness(),
                 (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                shape,
                 &mut steps,
             );
         })
     }
 
-    /// **A locked list's step controls say why while disabled**: each
-    /// names what it would do, and under that the lock notice's own
-    /// value — the one reason, on the control the pointer is on. The
-    /// lock is read first, so a lone row's arrows, which the index
-    /// would also stop, still say the list is locked.
-    #[test]
-    fn a_locked_lists_step_controls_each_say_the_list_is_locked() {
-        use crate::forms::{SHAPE_LOCKED, ShapeEdits};
-        for (glyph, action) in [
-            (GLYPH_REMOVE, "remove this step"),
-            (GLYPH_UP, "move this step earlier"),
-            (GLYPH_DOWN, "move this step later"),
-            ("+", "insert a step after this one"),
-        ] {
-            let hovered = hovering_step_control(ShapeEdits::Locked, 1, glyph, 0);
-            assert!(
-                hovered.contains(&format!("{action}\n{SHAPE_LOCKED}")),
-                "{glyph}: {hovered}"
-            );
-            assert!(!hovered.contains("already"), "{glyph}: {hovered}");
-        }
-    }
-
-    /// **A free list's end rows say which end they are at** — a lone
+    /// **A list's end rows say which end they are at** — a lone
     /// row is both, and neither arrow has a row to move past.
     #[test]
-    fn a_lone_free_rows_arrows_say_it_is_first_and_last() {
-        use crate::forms::ShapeEdits;
-        let up = hovering_step_control(ShapeEdits::Free, 1, GLYPH_UP, 0);
+    fn a_lone_rows_arrows_say_it_is_first_and_last() {
+        let up = hovering_step_control(1, GLYPH_UP, 0);
         assert!(
             up.contains("move this step earlier\nit is already the first step"),
             "{up}"
         );
-        let down = hovering_step_control(ShapeEdits::Free, 1, GLYPH_DOWN, 0);
+        let down = hovering_step_control(1, GLYPH_DOWN, 0);
         assert!(
             down.contains("move this step later\nit is already the last step"),
             "{down}"
@@ -654,15 +681,14 @@ mod tests {
     /// else** — on a two-row list, where row 0's down arrow and row
     /// 1's up arrow both move.
     #[test]
-    fn a_free_lists_live_step_controls_say_what_a_click_does() {
-        use crate::forms::ShapeEdits;
+    fn a_lists_live_step_controls_say_what_a_click_does() {
         for (glyph, nth, action) in [
             (GLYPH_REMOVE, 0, "remove this step"),
             (GLYPH_UP, 1, "move this step earlier"),
             (GLYPH_DOWN, 0, "move this step later"),
             ("+", 0, "insert a step after this one"),
         ] {
-            let hovered = hovering_step_control(ShapeEdits::Free, 2, glyph, nth);
+            let hovered = hovering_step_control(2, glyph, nth);
             assert!(hovered.contains(action), "{glyph}: {hovered}");
             assert!(
                 !hovered.contains(&format!("{action}\n")),
@@ -676,14 +702,13 @@ mod tests {
     /// saying which end it is at. A lone row is both ends, so it
     /// cannot tell an end-of-list gate from a one-row gate.
     #[test]
-    fn a_two_row_free_lists_end_arrows_say_which_end() {
-        use crate::forms::ShapeEdits;
-        let up = hovering_step_control(ShapeEdits::Free, 2, GLYPH_UP, 0);
+    fn a_two_row_lists_end_arrows_say_which_end() {
+        let up = hovering_step_control(2, GLYPH_UP, 0);
         assert!(
             up.contains("move this step earlier\nit is already the first step"),
             "{up}"
         );
-        let down = hovering_step_control(ShapeEdits::Free, 2, GLYPH_DOWN, 1);
+        let down = hovering_step_control(2, GLYPH_DOWN, 1);
         assert!(
             down.contains("move this step later\nit is already the last step"),
             "{down}"
@@ -696,14 +721,15 @@ mod tests {
     #[test]
     fn apply_says_there_is_nothing_to_apply_until_a_number_moves() {
         let untouched = painted_while_hovering("Apply", 0, |ui| {
-            super::apply_and_revert(ui, false, false);
+            super::apply_and_revert(ui, false, false, &[]);
         });
         assert!(
-            untouched.contains("nothing to apply: the numbers are the committed profile's"),
+            untouched
+                .contains("nothing to apply: the steps and numbers are the committed profile's"),
             "{untouched}"
         );
         let refused = painted_while_hovering("Apply", 0, |ui| {
-            super::apply_and_revert(ui, true, true);
+            super::apply_and_revert(ui, true, true, &[]);
         });
         assert!(!refused.contains("nothing to apply"), "{refused}");
     }
@@ -713,18 +739,22 @@ mod tests {
     #[test]
     fn revert_says_there_is_nothing_to_revert_until_a_number_moves() {
         let untouched = painted_while_hovering("Revert", 0, |ui| {
-            super::apply_and_revert(ui, false, false);
+            super::apply_and_revert(ui, false, false, &[]);
         });
         assert!(
-            untouched.contains("nothing to revert: the numbers are the committed profile's"),
+            untouched
+                .contains("nothing to revert: the steps and numbers are the committed profile's"),
             "{untouched}"
         );
-        assert!(!untouched.contains("put the numbers back"), "{untouched}");
+        assert!(
+            !untouched.contains("put the steps and numbers back"),
+            "{untouched}"
+        );
         let moved = painted_while_hovering("Revert", 0, |ui| {
-            super::apply_and_revert(ui, true, false);
+            super::apply_and_revert(ui, true, false, &[]);
         });
         assert!(
-            moved.contains("put the numbers back to the committed profile's"),
+            moved.contains("put the steps and numbers back to the committed profile's"),
             "{moved}"
         );
         assert!(!moved.contains("nothing to revert"), "{moved}");
@@ -933,5 +963,270 @@ mod tests {
             painted.iter().map(|l| &l.text).collect::<Vec<_>>()
         );
         assert!(held, "an open chain holds the commit");
+    }
+
+    // -------------------------------------------------------------- //
+    // The edit door, driven through the panel
+    // -------------------------------------------------------------- //
+
+    /// A session over a 10 mm square profile authored as the form's
+    /// default chain, a unit extrude of it, and a derived frame on the
+    /// wall step `named` draws — a payload carrier of one profile
+    /// piece's name. Answers the session, the profile, the carrier and
+    /// the name.
+    fn named_square(
+        named: usize,
+    ) -> (
+        crate::session::DocSession,
+        pncad::document::RecipeNodeId,
+        pncad::document::RecipeNodeId,
+        pncad::prelude::StableName,
+    ) {
+        use pncad::document::Datum;
+        use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
+        use pncad::select::PieceRole;
+
+        let tol = Tol::witness();
+        let (doc, plane) = inserted(&Doc::empty_derived("edit-door", tol), xy_frame(), tol);
+        let loops = vec![
+            sketch::loop_program(
+                &crate::session::ProfileShape::Path {
+                    steps: Drafts::default().profile_path,
+                },
+                sketch::Notation::CANONICAL,
+            )
+            .expect("the form's default chain lowers"),
+        ];
+        let (doc, profile) = inserted(
+            &doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops,
+                ids: Vec::new(),
+            }),
+            tol,
+        );
+        let (doc, extrude) = inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: crate::test_support::len(0.01),
+            },
+            tol,
+        );
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            panic!("a profile")
+        };
+        let wall = StableName {
+            kind: EntityKind::Face,
+            node: extrude,
+            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+                step: program.ids[0][named],
+                role: PieceRole::Leg,
+            })],
+        };
+        let (doc, carrier) = inserted(
+            &doc,
+            Node::Datum(Datum::FaceFrame {
+                at: extrude,
+                face: wall.clone(),
+                spin: crate::test_support::ang(0.0),
+            }),
+            tol,
+        );
+        (
+            crate::session::DocSession::inline(doc, tol),
+            profile,
+            carrier,
+            wall,
+        )
+    }
+
+    /// **The edit door, clicked** — the `nth` painting of `target`,
+    /// over the draft `drafts` holds of `profile`, through
+    /// [`super::edit_door_ui`]. Answers what the door painted once
+    /// clicked and the op its Apply formed, if it formed one.
+    fn click_door(
+        session: &crate::session::DocSession,
+        drafts: &mut Drafts,
+        profile: pncad::document::RecipeNodeId,
+        target: &str,
+        nth: usize,
+    ) -> (String, Option<crate::session::SessionOp>) {
+        let mut formed = None;
+        let painted = crate::pane::headless::painted_after_clicking_nth(target, nth, |ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("the editor holds the profile");
+            let written = (
+                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                sketch::Notation::CANONICAL,
+            );
+            match super::edit_door_ui(ui, session, Theme::DEFAULT, written, edit, None) {
+                Ok(Some(op)) => formed = Some(op),
+                Ok(None) => {}
+                Err(notice) => panic!("the door could not form its op: {notice:?}"),
+            }
+        });
+        (painted, formed)
+    }
+
+    /// **A committed profile reshaped in the panel lands as one edit,
+    /// one undo, and its names follow.** The door's `+` on the first
+    /// row inserts a leg; the new corner is typed into it; Apply —
+    /// which strands nothing, and says nothing about stranding — forms
+    /// one op, which lands as one `SetProgram` and one history state.
+    /// The frame on the right wall still spells that wall's step, the
+    /// reshaped program still draws the step's leg, nothing is
+    /// reported, and one undo restores the square.
+    #[test]
+    fn a_reshaped_profile_lands_as_one_edit_and_its_names_follow() {
+        use pncad::document::{Datum, DocEdit};
+        use pncad::prelude::{ProfileEdgeRef, RoleSeg};
+        use pncad::select::PieceRole;
+
+        let (mut session, profile, carrier, wall) = named_square(2);
+        let before = session.committed_doc().clone();
+        let mut drafts = Drafts::default();
+        let (_, formed) = click_door(&session, &mut drafts, profile, "+", 0);
+        assert!(formed.is_none(), "an insert forms no op");
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        assert_eq!(edit.loops()[0].len(), 6, "the + inserted a row");
+        edit.steps_mut(0)[1] = Step::LineTo(Target::Point(Point2::new(0.005, -0.005)));
+        let (painted, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        assert!(!painted.contains("stranding"), "{painted}");
+        let op = formed.expect("Apply formed the op");
+        let state = session.history().current();
+        let out = session.perform(op);
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+            "one whole-program edit: {:?}",
+            out.committed
+        );
+        assert!(out.maintenance.is_empty(), "{:?}", out.maintenance);
+        let Some(Node::Profile(program)) = session.committed_doc().node(profile) else {
+            panic!("a profile")
+        };
+        assert_eq!(program.ids[0].len(), 6);
+        let RoleSeg::Lateral(piece) = wall.path[0].clone() else {
+            unreachable!("built as a lateral wall")
+        };
+        let ProfileEdgeRef::Piece { step, role } = piece else {
+            unreachable!("built as a piece")
+        };
+        assert_eq!(role, PieceRole::Leg);
+        assert_eq!(
+            program.ids[0][3], step,
+            "the named step moved down a row, id and all"
+        );
+        let drawn = program
+            .pieces(&session.committed_doc().param_env::<f64>(), Tol::witness())
+            .expect("the reshaped program replays");
+        assert!(
+            drawn.edges.iter().flatten().any(|edge| *edge == piece),
+            "the reshaped program still draws the named leg: {:?}",
+            drawn.edges
+        );
+        assert!(
+            matches!(
+                session.committed_doc().node(carrier),
+                Some(Node::Datum(Datum::FaceFrame { face, .. })) if *face == wall
+            ),
+            "the carrier's name is untouched"
+        );
+        assert!(
+            session
+                .perform(crate::session::SessionOp::Undo)
+                .refusal
+                .is_none()
+        );
+        assert_eq!(session.history().current(), state, "one undo");
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "the square is back"
+        );
+    }
+
+    /// **A step removed in the panel strands the names on it, and the
+    /// author is told before and after.** The door's `×` on the right
+    /// wall's row drops that step; Apply then counts the name it will
+    /// strand on its own label and names the carrier on its hover;
+    /// clicked, the op's outcome reports the strand, and the status
+    /// line words it.
+    #[test]
+    fn a_removed_step_strands_its_names_and_says_so_before_and_after() {
+        use pncad::document::Maintenance;
+
+        let (mut session, profile, carrier, wall) = named_square(2);
+        let mut drafts = Drafts::default();
+        let (_, formed) = click_door(&session, &mut drafts, profile, GLYPH_REMOVE, 2);
+        assert!(formed.is_none(), "a removal forms no op");
+        let label = "Apply, stranding 1 name";
+        let hovered = painted_while_hovering(label, 0, |ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held");
+            let written = (
+                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                sketch::Notation::CANONICAL,
+            );
+            let _hovered_only =
+                super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
+        });
+        assert!(
+            hovered.contains(&format!("node {} carries a {wall}", carrier.0)),
+            "the hover names the carrier and the name: {hovered}"
+        );
+        // Another step dropped instead strands nothing — what Apply
+        // says is asked again of every held state, not kept from the
+        // last one ...
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);
+        assert!(formed.is_none());
+        let (painted, _) = click_door(&session, &mut drafts, profile, GLYPH_REMOVE, 3);
+        assert!(!painted.contains("stranding"), "{painted}");
+        // ... and the named step re-verbed, from there, strands its
+        // name again: a step drawn by another verb is another step.
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held")
+            .steps_mut(0)[2] = Step::ArcTo(pncad::profile::ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.01)),
+            b: 0.3,
+        });
+        let painted = crate::pane::headless::painted_text(|ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held");
+            let written = (
+                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                sketch::Notation::CANONICAL,
+            );
+            let _read_only = super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
+        });
+        assert!(painted.contains(label), "{painted}");
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);
+        assert!(formed.is_none());
+        let (painted, _) = click_door(&session, &mut drafts, profile, GLYPH_REMOVE, 2);
+        assert!(painted.contains(label), "{painted}");
+        let (_, formed) = click_door(&session, &mut drafts, profile, label, 0);
+        let op = formed.expect("Apply formed the op");
+        let out = session.perform(op.clone());
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let expected = vec![Maintenance::Strand {
+            node: carrier,
+            name: wall,
+        }];
+        assert_eq!(out.maintenance, expected, "the door reports the strand");
+        let line: Vec<String> = crate::frame::outcome_notices(&out)
+            .map(|notice| notice.text().to_owned())
+            .collect();
+        assert_eq!(
+            line,
+            vec![expected[0].to_string()],
+            "the status line carries it in its own words"
+        );
     }
 }
