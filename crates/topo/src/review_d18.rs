@@ -95,6 +95,8 @@ test_utils::gated_to![
 use geom_core::Point3;
 
 use crate::body::Body;
+#[cfg(not(debug_assertions))]
+use crate::entity::VertexKey;
 use crate::entity::{EntityId, HalfEdgeKey, LoopBoundary, SolidKey};
 use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
@@ -104,6 +106,8 @@ use crate::fixtures::{
 };
 use crate::test_support_fixtures::declined_cube;
 use geom_core::Tol;
+#[cfg(not(debug_assertions))]
+use std::collections::BTreeSet;
 #[cfg(not(debug_assertions))]
 use test_utils::vacuity::Exposure;
 
@@ -1719,7 +1723,8 @@ fn kill_anchors_on_torn_bodies() {
     assert_no_anchor_written(&table, "seeds 1..=2000");
 }
 
-/// The valid bodies [`revert_anchor_rows`] tears and
+/// The valid bodies [`revert_anchor_rows`] and [`revert_rename_rows`]
+/// tear and
 /// [`valid_fixtures_never_refuse_a_revert_anchor`] reverts: those
 /// [`kill_anchor_rows`] tears, among them the holed box and the genus-2
 /// body, whose faces carry rings, and the bodies with a lone vertex or
@@ -1735,12 +1740,14 @@ const REVERT_BODIES: [(&str, BuildFixture); 8] = [
     RING_ABOUT_AN_EMPTY_OUTER,
 ];
 
-/// No over-refusal of `revert`'s anchor proofs: every valid body
-/// [`REVERT_BODIES`] builds, the geometric cube, a planar block with two
-/// through-holes, the pillows, a raw prism and the lone `mvfs` seed
-/// reverts, and so does its reversal. An enumeration, not a sample.
-/// Every body but the seed asks both proofs something: it has a vertex
-/// anchor and a cycle loop.
+/// No over-refusal of `revert`'s start and anchor proofs: every valid
+/// body [`REVERT_BODIES`] builds, the geometric cube, a planar block
+/// with two through-holes, the pillows, a raw prism and the lone `mvfs`
+/// seed reverts, and so does its reversal. An enumeration, not a
+/// sample. Every body but the seed asks every proof something: it has
+/// a half-edge, a vertex anchor and a cycle loop; the strut cube and
+/// the segment hold half-edges whose mate is their own `next` or
+/// `prev`.
 #[test]
 fn valid_fixtures_never_refuse_a_revert_anchor() {
     use crate::fixtures::{mvfs_state, ngon_pillow, pillow, raw_prism};
@@ -1780,47 +1787,88 @@ fn valid_fixtures_never_refuse_a_revert_anchor() {
     }
 }
 
-/// A link [`crate::Body::revert`] reads a new anchor through: every
-/// half-edge's `next` (a vertex's new `emanating` starts at the end
-/// it derives) and `prev` (a loop's new `first`).
+/// A link [`crate::Body::revert`] reads: every half-edge's `next` (its
+/// new start is the end it derives), `prev` (a loop's new `first`) and
+/// `start` (its predecessor's end, and its mate's end).
 #[cfg(not(debug_assertions))]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RevertTear {
     Next,
     Prev,
+    Start,
 }
 
-/// Every single `tear` of `body`: each half-edge's link set to each
-/// half-edge in turn, then `revert` on it. Returns calls, `Err`, and
-/// the `Ok` results carrying a [`kill_anchor_faults`] fault the tear
-/// did not plant, which is one `revert` wrote. Release-only, as the
-/// module docs say: a debug build's postcondition answers every torn
-/// `Ok` first.
 #[cfg(not(debug_assertions))]
-fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear) -> [usize; 3] {
+const REVERT_TEARS: [RevertTear; 3] = [RevertTear::Next, RevertTear::Prev, RevertTear::Start];
+
+/// Every single `tear` of `body`: each half-edge's link set to each
+/// half-edge (`next`, `prev`) or vertex (`start`) in turn, handed to
+/// `visit` with the tear's image under the reversal: the intact body
+/// reversed, with the torn link written into the field the map swaps
+/// it to (`next` ↔ `prev`), which is the same fault under the other
+/// name. A torn `start` has no image: the map reads it only as other
+/// half-edges' ends.
+#[cfg(not(debug_assertions))]
+fn each_revert_tear(
+    body: &Body<f64>,
+    tear: RevertTear,
+    mut visit: impl FnMut(Body<f64>, Option<Body<f64>>),
+) {
+    let reverted = body.revert().expect("the intact body reverts");
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
-    let mut cells = [0usize; 3];
+    let vertices: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
+    let targets = match tear {
+        RevertTear::Next | RevertTear::Prev => halves.len(),
+        RevertTear::Start => vertices.len(),
+    };
     for &at in &halves {
-        for &to in &halves {
+        for target in 0..targets {
             let mut torn = body.clone();
             let he = torn.get_half_edge_mut(at).unwrap();
-            match tear {
-                RevertTear::Next => he.next = to,
-                RevertTear::Prev => he.prev = to,
-            }
-            let planted = kill_anchor_faults(&torn);
-            cells[0] += 1;
-            match torn.revert() {
-                Err(_) => cells[1] += 1,
-                Ok(reverted) => {
-                    let wrote = kill_anchor_faults(&reverted)
-                        .into_iter()
-                        .any(|fault| !planted.contains(&fault));
-                    cells[2] += usize::from(wrote);
+            let mut image = reverted.clone();
+            let renamed = image.get_half_edge_mut(at).unwrap();
+            let image = match tear {
+                RevertTear::Next => {
+                    he.next = halves[target];
+                    renamed.prev = halves[target];
+                    Some(image)
                 }
-            }
+                RevertTear::Prev => {
+                    he.prev = halves[target];
+                    renamed.next = halves[target];
+                    Some(image)
+                }
+                RevertTear::Start => {
+                    he.start = vertices[target];
+                    None
+                }
+            };
+            visit(torn, image);
         }
     }
+}
+
+/// Every single `tear` of `body`, then `revert` on it. Returns calls,
+/// `Err`, and the `Ok` results carrying a [`kill_anchor_faults`] fault
+/// the tear did not plant, which is one `revert` wrote. Release-only,
+/// as the module docs say: a debug build's postcondition answers every
+/// torn `Ok` first.
+#[cfg(not(debug_assertions))]
+fn revert_anchor_rows(body: &Body<f64>, tear: RevertTear) -> [usize; 3] {
+    let mut cells = [0usize; 3];
+    each_revert_tear(body, tear, |torn, _| {
+        let planted = kill_anchor_faults(&torn);
+        cells[0] += 1;
+        match torn.revert() {
+            Err(_) => cells[1] += 1,
+            Ok(reverted) => {
+                let wrote = kill_anchor_faults(&reverted)
+                    .into_iter()
+                    .any(|fault| !planted.contains(&fault));
+                cells[2] += usize::from(wrote);
+            }
+        }
+    });
     cells
 }
 
@@ -1868,5 +1916,165 @@ fn revert_writes_no_anchor_off_a_torn_next_or_prev() {
     assert!(
         refused_per_tear.iter().all(|&n| n > 0),
         "refusals per tear kind {tears:?}: {refused_per_tear:?}"
+    );
+}
+
+/// The topology links `revert` reads and writes, per entity in arena
+/// order: what a torn result is compared with its tear's image on.
+#[cfg(not(debug_assertions))]
+fn revert_links(body: &Body<f64>) -> Vec<String> {
+    let halves = body.half_edges().map(|(k, h)| format!("{k:?} {h:?}"));
+    let edges = body
+        .edges()
+        .map(|(k, e)| format!("{k:?} {:?} {:?}", e.he_plus, e.he_minus));
+    let vertices = body
+        .vertices()
+        .map(|(k, v)| format!("{k:?} {:?}", v.emanating));
+    let loops = body.loops().map(|(k, l)| format!("{k:?} {:?}", l.boundary));
+    halves.chain(edges).chain(vertices).chain(loops).collect()
+}
+
+/// The kinds of `validate`'s errors on `body`, by name.
+#[cfg(not(debug_assertions))]
+fn validator_kinds(body: &Body<f64>) -> BTreeSet<String> {
+    crate::validate::validate(body)
+        .err()
+        .unwrap_or_default()
+        .iter()
+        .map(|e| format!("{:?}", crate::validate::ValidationErrorKind::from(e)))
+        .collect()
+}
+
+/// The validator kinds a reversed torn body carries beyond its torn
+/// source's, per tear kind, each on a result that is the tear's image
+/// ([`each_revert_tear`]): the same link under the name the map swaps
+/// it to. The validator walks a cycle by `next` and reads a vertex
+/// orbit through `prev`, so a torn `prev` moved into `next` is reported
+/// by other kinds than the same link in `prev`. A `next` or `start` tear
+/// that `revert` does not refuse carries no new kind.
+#[cfg(not(debug_assertions))]
+const RENAMED_KINDS: [(RevertTear, &[&str]); 3] = [
+    (RevertTear::Next, &[]),
+    (
+        RevertTear::Prev,
+        &[
+            "EdgeNotAntiparallel",
+            "LoopCycleOverrun",
+            "SplitVertexOrbit",
+            "UnreachableHalfEdge",
+            "VertexOrbitOverrun",
+        ],
+    ),
+    (RevertTear::Start, &[]),
+];
+
+/// One [`revert_rename_rows`] tally.
+#[cfg(not(debug_assertions))]
+#[derive(Default)]
+struct RenameCells {
+    calls: usize,
+    refused: usize,
+    /// `Ok` results that are the tear's image and carry a kind the
+    /// torn source does not.
+    renamed: usize,
+    /// Those kinds.
+    renamed_kinds: BTreeSet<String>,
+    /// `Ok` results that are not the tear's image, or, for a tear with
+    /// no image, carry a kind the torn source does not: a fault
+    /// `revert` wrote.
+    written: usize,
+}
+
+/// Every single `tear` of `body`, then `revert` on it, tallied into
+/// [`RenameCells`]. Release-only, as [`revert_anchor_rows`].
+#[cfg(not(debug_assertions))]
+fn revert_rename_rows(body: &Body<f64>, tear: RevertTear) -> RenameCells {
+    let mut cells = RenameCells::default();
+    each_revert_tear(body, tear, |torn, image| {
+        cells.calls += 1;
+        let Ok(reverted) = torn.revert() else {
+            cells.refused += 1;
+            return;
+        };
+        let source = validator_kinds(&torn);
+        let new: BTreeSet<String> = validator_kinds(&reverted)
+            .into_iter()
+            .filter(|kind| !source.contains(kind))
+            .collect();
+        match image {
+            Some(image) if revert_links(&image) != revert_links(&reverted) => cells.written += 1,
+            None if !new.is_empty() => cells.written += 1,
+            _ if !new.is_empty() => {
+                cells.renamed += 1;
+                cells.renamed_kinds.extend(new);
+            }
+            _ => {}
+        }
+    });
+    cells
+}
+
+/// **`revert` writes no fault off a torn `next`, `prev` or `start`**:
+/// every single tear of each [`REVERT_BODIES`] body, and every `Ok` of
+/// a `next` or `prev` tear is the tear's image, and no `Ok` of a `start`
+/// tear carries a validator kind its torn source does not. The kinds
+/// the images carry beyond their sources are [`RENAMED_KINDS`], pinned
+/// per tear kind. An enumeration, not a sample; each tear kind is
+/// refused somewhere, so the tears reach the proofs.
+#[test]
+#[cfg(not(debug_assertions))]
+fn revert_writes_no_fault_off_a_torn_next_prev_or_start() {
+    let tol = Tol::witness();
+    let rows: Vec<(&str, [RenameCells; 3])> = REVERT_BODIES
+        .iter()
+        .map(|&(name, build)| {
+            let body = build(tol);
+            (
+                name,
+                REVERT_TEARS.map(|tear| revert_rename_rows(&body, tear)),
+            )
+        })
+        .collect();
+    println!("| body | tear | calls | `Err` | `Ok`, renamed | `Ok`, written | renamed kinds |");
+    println!("| --- | --- | --- | --- | --- | --- | --- |");
+    for (name, cells) in &rows {
+        for (tear, c) in REVERT_TEARS.iter().zip(cells) {
+            println!(
+                "| {name} | `{tear:?}` | {} | {} | {} | {} | {:?} |",
+                c.calls, c.refused, c.renamed, c.written, c.renamed_kinds
+            );
+        }
+    }
+    let mut renamed_kinds: [BTreeSet<String>; 3] = Default::default();
+    let mut refused_per_tear = [0usize; 3];
+    for (name, cells) in &rows {
+        for (((tear, c), kinds), refused) in REVERT_TEARS
+            .iter()
+            .zip(cells)
+            .zip(&mut renamed_kinds)
+            .zip(&mut refused_per_tear)
+        {
+            assert_eq!(
+                c.written, 0,
+                "`revert` wrote a fault through `Ok` on {} of {} `{tear:?}` tears of {name}",
+                c.written, c.calls
+            );
+            kinds.extend(c.renamed_kinds.iter().cloned());
+            *refused += c.refused;
+        }
+    }
+    for ((tear, kinds), (pinned_tear, pinned)) in
+        REVERT_TEARS.iter().zip(&renamed_kinds).zip(RENAMED_KINDS)
+    {
+        assert_eq!(*tear, pinned_tear);
+        let pinned: BTreeSet<String> = pinned.iter().map(|k| (*k).to_string()).collect();
+        assert_eq!(
+            *kinds, pinned,
+            "the kinds `{tear:?}` tears' images carry beyond their sources"
+        );
+    }
+    assert!(
+        refused_per_tear.iter().all(|&n| n > 0),
+        "refusals per tear kind {REVERT_TEARS:?}: {refused_per_tear:?}"
     );
 }
