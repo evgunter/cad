@@ -7,6 +7,7 @@ opened: 2026-09-21
 priority: P1
 cost: D
 refs: [add-profile-mints-no-frame, 2955]
+needs_ev: true
 ---
 
 ## What
@@ -110,3 +111,27 @@ Rest contact` twice, once for the cylinder's `Cap(Start)` and once for
 its `Cap(End)`, and the author cannot tell which line is which. Answer 2 above reaches this site too: each side is a `SitedRef`
 at an operand the landed run has drawn, so the pose read is the same
 question asked of the offer's pair instead of the add-datum pick.
+
+## Which face, in words (2026-09-30)
+
+Two designers weighed this independently and reached the same final state in their first reports. Evidence: `work/author/log.md`, 2026-09-30, "face-naming fork".
+
+**Two premises above are wrong.**
+- **Words for a face already exist.** `editor_core::resolve::role_words` (private, with `piece_words` and `descent_leaf`, PR #3205) renders every `RoleSeg` exhaustively ("the end cap", "the side wall over the leg of the profile step …"). `Cutter`'s `Display` already puts one in a sentence a person reads.
+- **"Prose never renders the role path" is not a ruling.** It is a code comment on `Display for StableName` written by a smell-fixing lane (commit `4067a3ef7`, PR #1454), whose point was keeping `Debug` dumps out of sentences. #3205 already contradicts it, and `display_contract.rs` asserts both the ban and its breach.
+
+**The answer both recommend.** A face is told apart by its **leaf role in words**: the entity the author made, reached by looking through the carry-over wrappers (`FromA`, `FromB`, `FromMember`, `FromTarget`). It is not told apart by its pose. The words and the picture divide the work: the words say *which* face, and the picture (AUTH-10's held mark, plus a hover mark on each line of the declare offer) says *where* it is.
+- **In the names layer.** One public renderer for a name's leaf role, promoted from `role_words` and re-exported on the facade, exhaustive over `RoleSeg`. `Display for StableName` becomes kind, minting node and leaf role, the shape `Cutter` already prints. Every refusal that forwards a name then tells faces apart. The comment becomes: "the path as a structure is the machine channel; a person reads its leaf in words". `idpass`'s `Debug` path stays, as the one operator diagnostic.
+- **In the viewer.** One composer for a face in a sentence, beside `tree::node_number`. The add-datum pick, the declare offer, the mate panel line and its drop notice, the property header and a face-frame datum's tree row all route through it. `BlendTarget::of_face` goes.
+- **"Face of feature N" means different features today.** At the property header it is the minting feature; at the mate tool and the add-datum form it is the node whose body the click hit. The composer settles this: the minting feature, plus "on feature M" where the drawn body differs.
+- **Worked example.** The flush block and cylinder read "feature 2's end cap against feature 5's end cap — Rest contact" and "… start cap against … start cap …".
+
+**Rejected by both: the pose.** It needs a landed run, so unevaluated and failed rows would fall back to a second spelling. It is the carrier's frame, so two coplanar faces share it, and that is the flush case itself. It means nothing for a curved face. And it drifts with every edit, while the face stays the same face.
+
+**What stays imperfect.**
+- A cylinder's wall is two pieces.
+- Pieces of a cut face read long.
+- A tie (two faces sharing one name) cannot be told apart in words, because the kernel refuses it as `Ambiguous` too.
+- "Start/end" is the sweep's vocabulary, and a person may not hold that in their head. The mark closes that gap.
+
+**Open question: does the name's own `Display` carry the role?** Both designers say yes. The alternative is an adapter that each composer opts into. That keeps refusal sentences short, but the five gaps above show that opt-in recurs.
