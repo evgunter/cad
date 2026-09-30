@@ -603,8 +603,7 @@ mod tests {
             .unwrap()
             .curve;
         body.curves.remove(torn).unwrap();
-        let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
-        let (before, rows_before) = (deep_snapshot(&body), rows(&body));
+        let before = deep_snapshot(&body);
         let err = body.set_edge_curve(null.edge, spec(), tol).unwrap_err();
         assert_eq!(
             err,
@@ -613,8 +612,11 @@ mod tests {
                 refusal: crate::pcurves::SiteRowRefusal::Corrupt,
             }
         );
-        assert_eq!(deep_snapshot(&body), before, "the body is untouched");
-        assert_eq!(rows(&body), rows_before, "every row is where it was");
+        assert_eq!(
+            deep_snapshot(&body),
+            before,
+            "the body is untouched, every pcurve row included"
+        );
     }
 
     /// A null edge between the two faces of the minted wall sheet — the
@@ -777,8 +779,7 @@ mod tests {
         );
         let torn = body.get_edge(spur.edge).unwrap().curve;
         body.curves.remove(torn).unwrap();
-        let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
-        let (before, rows_before) = (deep_snapshot(&body), rows(&body));
+        let before = deep_snapshot(&body);
         let err = body
             .set_edge_curve(null.edge, spec, Tol::witness())
             .unwrap_err();
@@ -789,8 +790,11 @@ mod tests {
                 refusal: crate::pcurves::SiteRowRefusal::Corrupt,
             }
         );
-        assert_eq!(deep_snapshot(&body), before, "the body is untouched");
-        assert_eq!(rows(&body), rows_before, "every row is where it was");
+        assert_eq!(
+            deep_snapshot(&body),
+            before,
+            "the body is untouched, every pcurve row included"
+        );
     }
 
     /// The vertex `split_edge` puts on the wall's rim at height `z`,
@@ -1034,8 +1038,7 @@ mod tests {
                 .unwrap()
                 .curve;
             body.curves.remove(torn).unwrap();
-            let rows = |b: &Body<f64>| format!("{:?}", b.pcurves().collect::<Vec<_>>());
-            let (before, rows_before) = (deep_snapshot(&body), rows(&body));
+            let before = deep_snapshot(&body);
             let err = body
                 .mef(site, chord, crate::FaceSurface::Inherit, Tol::witness())
                 .unwrap_err();
@@ -1050,12 +1053,7 @@ mod tests {
             assert_eq!(
                 deep_snapshot(&body),
                 before,
-                "{side}: the body is untouched"
-            );
-            assert_eq!(
-                rows(&body),
-                rows_before,
-                "{side}: every row is where it was"
+                "{side}: the body is untouched, every pcurve row included"
             );
         }
     }

@@ -97,9 +97,9 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use slotmap::SecondaryMap;
 
+use crate::attach::Rechart;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, SolidKey, VertexKey};
-use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
 use crate::replace_face::ReplaceFaceError;
 
@@ -349,7 +349,23 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     // adopted on is the door's own whole-body check.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    let mut minted: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
+    // The points move first, so the re-chart below certifies every
+    // spec at the endpoints the door leaves it.
+    for (vertex, point) in &moved {
+        let old_point = work
+            .get_vertex(*vertex)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .point;
+        let new_point = work.add_point(*point);
+        work.get_vertex_mut(*vertex)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .point = new_point;
+        work.remove_point_if_orphaned(old_point);
+    }
+    // Every chart moves in ONE re-chart, with every spec: an edge
+    // between two moving charts certifies on neither pair of mixed
+    // charts. A spec's old key stands for its chart's new surface.
+    let mut charts: Vec<Rechart<T>> = Vec::new();
     for m in moves {
         let Some(&first) = m.faces.first() else {
             return Err(ReplaceFaceError::EmptyGroup);
@@ -364,57 +380,25 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
         };
         // An offset moves the chart along its own normal, so every face
         // keeps the side its material lies on.
-        let sense = work.get_face(first).ok_or(ReplaceFaceError::Corrupt)?.sense;
-        let new_key = work
-            .set_face_surface(
-                first,
-                FaceSurface::New {
-                    surface: Surface::Plane {
-                        origin: origin + p.delta,
-                        normal: p.normal,
-                        u_ref,
-                    },
-                    sense,
-                },
-            )
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        for &member in &m.faces[1..] {
+        let mut faces = Vec::with_capacity(m.faces.len());
+        for &member in &m.faces {
             let sense = work
                 .get_face(member)
                 .ok_or(ReplaceFaceError::Corrupt)?
                 .sense;
-            work.set_face_surface(
-                member,
-                FaceSurface::Shared {
-                    key: new_key,
-                    sense,
-                },
-            )
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+            faces.push((member, sense));
         }
-        minted.push((p.old_key, new_key));
+        charts.push(Rechart {
+            surface: Surface::Plane {
+                origin: origin + p.delta,
+                normal: p.normal,
+                u_ref,
+            },
+            faces,
+        });
     }
-    for (vertex, point) in &moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
-    }
-    for (edge, mut spec) in specs {
-        for (old, new) in &minted {
-            spec.description = crate::replace_face::remap_description(spec.description, *old, *new);
-        }
-        work.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ReplaceFaceError::Op {
-                edge: Some(edge),
-                error,
-            })?;
-    }
+    work.set_face_surfaces_describing(charts, specs, tol)
+        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
     // Every edge OF THE SCOPE was just re-described, so its stored
     // pcurve rows are stale — re-minted here for the same reason
     // `replace_faces_offset` re-mints, and before the tier-2 gate that

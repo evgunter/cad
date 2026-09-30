@@ -145,10 +145,11 @@ use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
 
+use crate::attach::Rechart;
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, SolidKey, VertexKey};
-use crate::euler::{EulerOpError, FaceSurface};
+use crate::euler::EulerOpError;
 use crate::geometry::SurfaceKey;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::validate::{ValidationError, validate_closed};
@@ -526,7 +527,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// An attach-layer door refused the planned mutation.
     Op {
-        /// The edge the attach door refused (absent for the surface).
+        /// The edge the attach door refused; absent for the re-chart,
+        /// whose refusal names the edges itself.
         edge: Option<EdgeKey>,
         /// The attach layer's typed refusal.
         error: EulerOpError,
@@ -1361,39 +1363,8 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     // whole-body check is the tier-2 gate the clone is adopted on.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    // `FaceSurface::New` mints a fresh arena key, so every planned
-    // description that names the replaced surface is re-pointed at it
-    // before it is attached — the same re-description step the stale-key
-    // rule forces on any surface replacement.
-    // The offset is a statement about the surface (module docs), so
-    // every face keeps the side its material lies on.
-    let sense = work.get_face(face).ok_or(ReplaceFaceError::Corrupt)?.sense;
-    let new_key = work
-        .set_face_surface(
-            face,
-            FaceSurface::New {
-                surface: new_surface,
-                sense,
-            },
-        )
-        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-    // The rest of the chart's faces adopt the SAME key: the group wore
-    // one surface before and wears one after, which is what keeps their
-    // shared seams describable.
-    for &member in &faces[1..] {
-        let sense = work
-            .get_face(member)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .sense;
-        work.set_face_surface(
-            member,
-            FaceSurface::Shared {
-                key: new_key,
-                sense,
-            },
-        )
-        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-    }
+    // The points move first, so the re-chart below certifies every
+    // planned description at the endpoints the door leaves it.
     for (vertex, point) in &moved {
         let old_point = work
             .get_vertex(*vertex)
@@ -1405,14 +1376,32 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
             .point = new_point;
         work.remove_point_if_orphaned(old_point);
     }
-    for mut plan in plans {
-        plan.spec.description = remap_description(plan.spec.description, old_key, new_key);
-        work.set_edge_curve(plan.edge, plan.spec, tol)
-            .map_err(|error| ReplaceFaceError::Op {
-                edge: Some(plan.edge),
-                error,
-            })?;
+    // The whole group moves onto one new chart, with every planned
+    // description: the group wore one surface before and wears one
+    // after, which is what keeps their shared seams describable, and a
+    // plan's `old_key` stands for that chart. The offset is a statement
+    // about the surface (module docs), so every face keeps the side its
+    // material lies on.
+    let mut wearers = Vec::with_capacity(faces.len());
+    for &member in faces {
+        let sense = work
+            .get_face(member)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .sense;
+        wearers.push((member, sense));
     }
+    work.set_face_surfaces_describing(
+        vec![Rechart {
+            surface: new_surface,
+            faces: wearers,
+        }],
+        plans
+            .into_iter()
+            .map(|plan| (plan.edge, plan.spec))
+            .collect(),
+        tol,
+    )
+    .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
     for (edge, spec) in anchored {
         work.set_edge_curve(edge, spec, tol)
             .map_err(|error| ReplaceFaceError::Op {

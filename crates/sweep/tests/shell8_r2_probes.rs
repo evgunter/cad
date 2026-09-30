@@ -889,7 +889,7 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
         })
         .collect();
     assert_eq!(rims.len(), 4, "the bottom's four edges");
-    body.set_face_surface(bottom, topo::FaceSurface::Shared { key, sense })
+    body.set_face_surface_stranding_for_tests(bottom, topo::FaceSurface::Shared { key, sense })
         .expect("the attach door shares a live key");
     for (edge, wall, p, q) in rims {
         let len = p.distance(q);

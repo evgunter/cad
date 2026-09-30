@@ -134,7 +134,7 @@ fn volume_check_is_gated_on_otherwise_clean_reports() {
     else {
         panic!("cube face must be planar");
     };
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         fk,
         FaceSurface::New {
             surface: Surface::Plane {

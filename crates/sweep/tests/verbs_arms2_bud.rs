@@ -347,7 +347,7 @@ fn a_curved_pair_that_misses_the_shared_axis_refuses_spine_unsupported() {
         .expect("the bud carries one cone wall");
     let tilt = 0.05f64;
     source
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             cone_face,
             FaceSurface::New {
                 surface: Surface::Cone {

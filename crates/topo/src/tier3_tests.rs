@@ -206,7 +206,7 @@ fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
 fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
     let (mut body, split) = coplanar_pillow(tol);
     assert_eq!(validate_geometric(&body, tol), Ok(()));
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         split.face,
         FaceSurface::New {
             surface,
@@ -829,7 +829,7 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
     ];
     for (name, surface) in cases {
         let (mut body, split) = coplanar_pillow(tol);
-        body.set_face_surface(
+        body.set_face_surface_stranding_for_tests(
             split.face,
             FaceSurface::New {
                 surface,
@@ -1495,7 +1495,7 @@ fn description_references_keep_a_surface_alive() {
     body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Repoint the split face to a NEW surface: the old one is now
     // referenced only by the description — and must survive.
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         split.face,
         FaceSurface::New {
             surface: Surface::Plane {

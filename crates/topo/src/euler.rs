@@ -675,13 +675,15 @@ pub enum EulerOpError {
         /// The listed edge.
         edge: EdgeKey,
     },
-    /// [`Body::kev_describing`] was handed two re-descriptions for one
-    /// merged member. Named at the second entry.
+    /// [`Body::kev_describing`] or [`Body::set_face_surfaces_describing`]
+    /// was handed two re-descriptions for one edge. Named at the second
+    /// entry.
     DuplicateRedescription {
         /// The edge listed twice.
         edge: EdgeKey,
     },
-    /// [`Body::set_edge_curve`]: an intrinsic (`Intersection`) or
+    /// A door writing a description ([`Body::set_edge_curve`] and the
+    /// describing doors' listed specs): an intrinsic (`Intersection`) or
     /// `Seam` description's surface keys do not match the edge's two
     /// adjacent faces' surfaces — the description does not describe
     /// *this* edge's locus (D2: an intersection edge's surfaces are its
@@ -689,6 +691,47 @@ pub enum EulerOpError {
     DescriptionNotAdjacent {
         /// The edge whose description is incoherent with its faces.
         edge: EdgeKey,
+    },
+    /// A re-chart ([`Body::set_face_surface`],
+    /// [`Body::set_face_surfaces_describing`]) would leave these edges
+    /// described against a surface their faces no longer wear: each
+    /// description is adjacency-coherent now and would not be once the
+    /// faces move, which tier 3 reports at rest as
+    /// `DescriptionNotAdjacent`. Every one is named, in edge-arena
+    /// order, because the caller re-describes the whole list. Raised in
+    /// the plan phase, so the body is untouched.
+    ///
+    /// The keys-only [`Body::set_face_surface`] raises it for every such
+    /// edge. [`Body::set_face_surfaces_describing`] takes their
+    /// re-descriptions and carries the rest onto the moved charts under
+    /// a band, so it raises it only for an edge the move leaves no
+    /// chart to be carried onto.
+    RechartStrandsDescriptions {
+        /// The stranded edges, in edge-arena order.
+        edges: Vec<EdgeKey>,
+    },
+    /// [`Body::set_face_surfaces_describing`]: an edge it re-describes
+    /// does not certify against the charts the move gives it — a
+    /// listed spec, or an unlisted edge's stored description carried
+    /// onto the chart its surface moves to. Raised in the plan phase,
+    /// so the body is untouched.
+    RechartFalsifies {
+        /// The edge that does not certify.
+        edge: EdgeKey,
+        /// The typed certification failure.
+        error: CertifyError,
+    },
+    /// [`Body::set_face_surfaces_describing`] was handed one face
+    /// twice. Named at the second entry.
+    FaceMovedTwice {
+        /// The face listed twice.
+        face: FaceKey,
+    },
+    /// [`Body::set_face_surfaces_describing`] was handed a chart with no
+    /// face to wear it, which would mint a surface nothing references.
+    EmptyRechart {
+        /// The chart's position in the call's list.
+        index: usize,
     },
     /// An argument key, or a key the operator must follow to do its
     /// work (a `prev` link, a spine parent, a start vertex), does not
@@ -915,8 +958,11 @@ pub enum EulerOpError {
     /// An operation requiring a certified carrier met M3 null-edge
     /// scaffolding ([`crate::null`]): the referenced curve entry is
     /// [`crate::CurveGeom::NullScaffold`], which has no carrier by
-    /// type. Fired by [`Body::split_edge`] (nothing to split) and by
-    /// the sweep upgrade paths (nothing to upgrade).
+    /// type. Fired by [`Body::split_edge`] (nothing to split), by
+    /// the sweep upgrade paths (nothing to upgrade), and by
+    /// [`Body::set_face_surfaces_describing`] on a listed null edge (a
+    /// null edge's first description mints its rows, which is
+    /// [`Body::set_edge_curve`]'s).
     NullScaffoldCurve {
         /// The scaffolding curve entry.
         curve: CurveKey,
@@ -1070,6 +1116,21 @@ impl EulerOpError {
                 "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
                  its adjacent faces' surfaces (D2 adjacency coherence)"
             ),
+            Self::RechartStrandsDescriptions { edges } => format!(
+                "the re-chart would leave edges {edges:?} described against a surface their \
+                 faces no longer wear (set_face_surfaces_describing takes their \
+                 re-descriptions, and carries the rest under a band)"
+            ),
+            Self::RechartFalsifies { edge, error } => format!(
+                "re-chart: edge {edge:?} does not certify on the charts the move gives it: {}",
+                error.render(reading)
+            ),
+            Self::FaceMovedTwice { face } => {
+                format!("set_face_surfaces_describing: face {face:?} is moved twice")
+            }
+            Self::EmptyRechart { index } => {
+                format!("set_face_surfaces_describing: chart {index} has no face to wear it")
+            }
             Self::StaleKey { key } => {
                 format!("euler op requires {key}, which does not resolve")
             }
@@ -1276,6 +1337,13 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::NotMergedMember { edge: ek },
         EulerOpError::DuplicateRedescription { edge: ek },
         EulerOpError::DescriptionNotAdjacent { edge: ek },
+        EulerOpError::RechartStrandsDescriptions { edges: vec![ek] },
+        EulerOpError::RechartFalsifies {
+            edge: ek,
+            error: CertifyError::Unimplemented,
+        },
+        EulerOpError::FaceMovedTwice { face: fc },
+        EulerOpError::EmptyRechart { index: 0 },
         EulerOpError::StaleKey {
             key: EntityId::HalfEdge(he),
         },
@@ -1426,6 +1494,10 @@ impl EulerOpError {
             | Self::NotMergedMember { .. }
             | Self::DuplicateRedescription { .. }
             | Self::DescriptionNotAdjacent { .. }
+            | Self::RechartStrandsDescriptions { .. }
+            | Self::RechartFalsifies { .. }
+            | Self::FaceMovedTwice { .. }
+            | Self::EmptyRechart { .. }
             | Self::FanStartMismatch { .. }
             | Self::NotSameLoop { .. }
             | Self::LoopNotEmpty { .. }

@@ -420,7 +420,7 @@ fn ring_move_onto_a_minted_curved_face_mints_the_ring_in_its_chart() {
         let mut s = sheet();
         if !rowless {
             s.body
-                .set_face_surface(
+                .set_face_surface_stranding_for_tests(
                     s.up,
                     FaceSurface::New {
                         surface: rotated_cylinder(),
@@ -540,7 +540,7 @@ fn a_remnant_held_open_by_a_null_edge_is_owed_nothing_by_either_kef() {
         let up = s.up;
         if recharted {
             s.body
-                .set_face_surface(
+                .set_face_surface_stranding_for_tests(
                     up,
                     FaceSurface::New {
                         surface: rotated_cylinder(),
@@ -950,7 +950,7 @@ fn two_keys_holding_one_surface_read_as_two_charts_whatever_recipe_they_carry() 
         let cyl = s.body.get_face(s.low).unwrap().surface;
         let second = s
             .body
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 s.up,
                 FaceSurface::New {
                     surface: cylinder(),
@@ -1446,7 +1446,7 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
     let mut s = sheet();
     let forged = forge(&mut s);
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.low,
             FaceSurface::Shared {
                 key: forged,
@@ -1644,7 +1644,7 @@ fn rotated_cylinder() -> Surface<f64> {
 fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
     let mut s = sheet();
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.up,
             FaceSurface::New {
                 surface: rotated_cylinder(),
@@ -1697,7 +1697,7 @@ fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
 fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
     let mut s = sheet();
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.low,
             FaceSurface::New {
                 surface: flat(),
@@ -1735,7 +1735,7 @@ fn a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows() {
 fn a_swap_onto_another_minting_chart_drops_the_rows_and_the_refusals_with_them() {
     let mut s = sheet();
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.low,
             FaceSurface::New {
                 surface: other_cylinder(),
@@ -1773,7 +1773,7 @@ fn a_swap_drops_the_rows_of_every_loop_of_the_face() {
     assert_eq!(s.body.get_face(s.low).unwrap().rings.len(), 1);
 
     s.body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.low,
             FaceSurface::New {
                 surface: flat(),
@@ -1851,7 +1851,7 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
         }
 
         s.body
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 s.low,
                 FaceSurface::Shared {
                     key: second,
@@ -2034,7 +2034,7 @@ fn arc_sheet(tied: bool) -> ArcSheet {
         };
         keys.push(
             s.body
-                .set_face_surface(
+                .set_face_surface_stranding_for_tests(
                     face,
                     FaceSurface::New {
                         surface: Surface::Nurbs(payload),
@@ -2617,7 +2617,7 @@ fn caps_on_flipped_planes(mut body: Body<f64>) -> Body<f64> {
         else {
             panic!("a planar cap");
         };
-        body.set_face_surface(
+        body.set_face_surface_stranding_for_tests(
             cap,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -2771,7 +2771,7 @@ fn mfkrh_derives_on_a_second_key_holding_the_parents_payload() {
     );
     let plane_key = body.get_face(top).unwrap().surface;
     let own = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             top,
             FaceSurface::New {
                 surface: Surface::Nurbs(cap_patch.clone()),
@@ -3073,7 +3073,7 @@ fn the_stamp_door_reads_every_holder_not_the_first() {
     let cyl = s.body.get_face(s.low).unwrap().surface;
     let third = s
         .body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             s.up,
             FaceSurface::New {
                 surface: cylinder(),

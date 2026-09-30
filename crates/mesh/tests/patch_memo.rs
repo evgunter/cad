@@ -278,7 +278,7 @@ fn arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane() {
             let face = after.get_face(fk).unwrap();
             let (surface, sense) = (after.get_surface(face.surface).unwrap().clone(), face.sense);
             after
-                .set_face_surface(fk, FaceSurface::New { surface, sense })
+                .set_face_surface_stranding_for_tests(fk, FaceSurface::New { surface, sense })
                 .expect("the same surface under a new key attaches");
         }
         // The setter drops a face's pcurve rows when it cannot see the
@@ -346,7 +346,7 @@ fn a_rekey_keeps_a_spline_faces_rows_and_drops_an_analytic_faces() {
             let spline = matches!(surface, Surface::Nurbs(_) | Surface::Approx(_));
             let mut after = body.clone();
             after
-                .set_face_surface(fk, FaceSurface::New { surface, sense })
+                .set_face_surface_stranding_for_tests(fk, FaceSurface::New { surface, sense })
                 .expect("the same surface under a new key attaches");
             if spline {
                 assert_eq!(
@@ -427,7 +427,7 @@ fn the_planar_lane_reads_neither_the_stored_plane_nor_the_sense() {
         panic!("a plane")
     };
     rotated
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             fk,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -476,7 +476,7 @@ fn the_curved_lane_misses_when_its_chart_or_sense_changes_and_nothing_else_does(
         panic!("a cylinder")
     };
     rotated
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             fk,
             FaceSurface::New {
                 surface: Surface::Cylinder {
@@ -604,7 +604,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
         panic!("a plane")
     };
     rotated
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             cap,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -663,7 +663,7 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
         .collect();
     assert!(!saved.is_empty(), "the wall's loop carries stored pcurves");
     after
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             fk,
             FaceSurface::New {
                 surface: Surface::Nurbs(std::sync::Arc::new(moved)),

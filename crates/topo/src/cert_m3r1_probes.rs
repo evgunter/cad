@@ -89,7 +89,7 @@ fn m7_8_cube() -> (
         );
     }
     let wall = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             front,
             FaceSurface::New {
                 surface: nurbs_wall(0.0),

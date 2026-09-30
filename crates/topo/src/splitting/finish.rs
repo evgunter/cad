@@ -63,6 +63,7 @@ use slotmap::SecondaryMap;
 
 use super::join::{CompletedSection, loop_points_of};
 use super::{PlaneSide, SplitReduction};
+use crate::attach::Rechart;
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
@@ -383,12 +384,18 @@ pub(super) fn split_finish<T: Decide>(
                 sense: ring_sense,
             },
         )?;
-        body.set_face_surface(
-            section.face,
-            FaceSurface::New {
+        // The face the null pair leaves on its old chart moves last, and
+        // the edges still described against that chart move with it,
+        // restated in the section plane every section boundary edge lies
+        // in; the boundary pass below gives each its honest class.
+        let restated = section_plane_restatements(&body, section.face)?;
+        body.set_face_surfaces_describing(
+            vec![Rechart {
                 surface: plane_for(other_side),
-                sense: outer_sense,
-            },
+                faces: vec![(section.face, outer_sense)],
+            }],
+            restated,
+            tol,
         )?;
         body.clear_null_face_pair(section.face);
         section_side.insert(promoted.face, ring_side);
@@ -491,6 +498,73 @@ fn section_sense<T: Decide>(
             diag: Some(diag),
         }),
     }
+}
+
+/// The re-descriptions a section face's re-chart takes: every edge of
+/// `face` whose description names the chart the face wears now, where
+/// the edge's other face does not wear it, stated as an image in that
+/// chart — which the re-chart reads as the section plane the face moves
+/// onto ([`Body::set_face_surfaces_describing`]). Carrier, interval and
+/// a declared authority travel verbatim; a null edge has no description
+/// to restate.
+fn section_plane_restatements<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)>, SplitFinishError> {
+    let corrupt = || SplitFinishError::Corrupt;
+    let face_data = body.get_face(face).ok_or_else(corrupt)?;
+    let chart = face_data.surface;
+    let loops: Vec<_> = core::iter::once(face_data.outer)
+        .chain(face_data.rings.iter().copied())
+        .collect();
+    let mut out: Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> = Vec::new();
+    for lk in loops {
+        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+            if out.iter().any(|(e, _)| *e == edge) {
+                continue;
+            }
+            let edge_data = body.get_edge(edge).ok_or_else(corrupt)?;
+            let mate = if edge_data.he_plus == he {
+                edge_data.he_minus
+            } else {
+                edge_data.he_plus
+            };
+            let other = body.face_of_half_edge(mate).ok_or_else(corrupt)?;
+            if body.get_face(other).ok_or_else(corrupt)?.surface == chart {
+                continue;
+            }
+            let Some(curve) = body
+                .get_curve_geom(edge_data.curve)
+                .ok_or_else(corrupt)?
+                .certified()
+            else {
+                continue;
+            };
+            let names_chart = match curve.description() {
+                geom_brep::EdgeDescription::Intersection { s1, s2, .. }
+                | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
+                    *s1 == chart || *s2 == chart
+                }
+                geom_brep::EdgeDescription::Chart(c) => c.surface == chart,
+                geom_brep::EdgeDescription::Scaffold(_) => false,
+            };
+            if !names_chart {
+                continue;
+            }
+            let image = geom_brep::EdgeDescriptionSpec::chart(chart);
+            let mut spec = curve.restated_spec();
+            spec.description = match curve.authority() {
+                geom_brep::EdgeAuthority::Declared(mc) => image.declared_by(mc),
+                geom_brep::EdgeAuthority::Derived => image,
+            };
+            out.push((edge, spec));
+        }
+    }
+    Ok(out)
 }
 
 /// D6 (M3 PR 6a): describes every boundary edge of one just-promoted

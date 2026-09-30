@@ -112,7 +112,7 @@ fn the_f64_seam_answers_every_public_door() {
     // the LANE absence cannot hide behind it.
     let (mut fresh, cap) = box_with_approx_cap(d, 1e-9);
     fresh
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             cap,
             FaceSurface::New {
                 surface: Surface::Nurbs(Arc::new(planar_patch(1.0))),
@@ -127,7 +127,7 @@ fn the_f64_seam_answers_every_public_door() {
     }
     let (mut single, scap) = box_with_approx_cap(d, 1e-9);
     single
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             scap,
             FaceSurface::New {
                 surface: Surface::Nurbs(Arc::new(planar_patch(1.0))),
@@ -186,7 +186,7 @@ fn the_interval_seam_refuses_at_every_public_door() {
         })
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Approx(Arc::new(lifted)),
@@ -269,7 +269,7 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
         .map(|(k, _)| k)
         .expect("the extruded box has a top cap");
     let nurbs = planar_patch(1.0).map_scalar(Interval::from_f64);
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Nurbs(Arc::new(nurbs)),

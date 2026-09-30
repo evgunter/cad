@@ -255,7 +255,7 @@ pub fn box_with_approx_cap(d: f64, target: f64) -> (Body<f64>, FaceKey) {
     )
     .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
     let surface = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             face,
             FaceSurface::New {
                 surface: approx,
@@ -432,7 +432,7 @@ pub fn try_approx_walls(
             fit_interior_v = kv[FIT_DEGREE + 1..kv.len() - (FIT_DEGREE + 1)].to_vec();
         }
         let new = body
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 face,
                 FaceSurface::New {
                     surface: approx,

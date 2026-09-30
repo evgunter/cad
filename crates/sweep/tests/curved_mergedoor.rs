@@ -244,7 +244,7 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
             .unwrap()
             .clone();
         keys.push(
-            body.set_face_surface(
+            body.set_face_surface_stranding_for_tests(
                 f,
                 FaceSurface::New {
                     surface: described,
@@ -396,7 +396,7 @@ fn distinct_keys(
     }
     let described = body.get_surface(kb).unwrap().clone();
     let fresh = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             b,
             FaceSurface::New {
                 surface: described,
@@ -454,7 +454,7 @@ fn record_beside_a_committing_curved_run_names_only_live_faces() {
     let k = body.get_face(walls[0]).unwrap().surface;
     let described = body.get_surface(k).unwrap().clone();
     let k2 = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             walls[2],
             FaceSurface::New {
                 surface: described,
@@ -506,7 +506,7 @@ fn pair_with_no_live_faces_mints_no_record() {
     for &f in &walls {
         let described = body.get_surface(pk).unwrap().clone();
         fresh.push(
-            body.set_face_surface(
+            body.set_face_surface_stranding_for_tests(
                 f,
                 FaceSurface::New {
                     surface: described,
@@ -962,7 +962,7 @@ fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
         let described = body.get_surface(k).unwrap().clone();
         // Walls 0 and 1 are the run; wall 2 goes onto a key of its own.
         let sense = body.get_face(walls[2]).unwrap().sense;
-        body.set_face_surface(
+        body.set_face_surface_stranding_for_tests(
             walls[2],
             FaceSurface::New {
                 surface: described.clone(),
@@ -972,7 +972,7 @@ fn a_curved_run_with_one_rowless_sector_merges_whichever_sector_it_is() {
         .unwrap();
         topo::mint_pcurves(&mut body, tol).unwrap();
         let sense = body.get_face(walls[i]).unwrap().sense;
-        body.set_face_surface(
+        body.set_face_surface_stranding_for_tests(
             walls[i],
             FaceSurface::New {
                 surface: described,
