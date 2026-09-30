@@ -2,13 +2,45 @@
 id: a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires
 kind: issue
 title: A face cut and merged in one boolean step publishes its unmerged piece under the bare name its merge lists as a retired constituent
-status: open
+status: closed
 priority: P1
 cost: D
 opened: 2026-09-25
 refs: [declared-flush-union-edge-and-vertex-names-follow-member-order]
+branch: emit/cut-and-merged-pair
+closed: 2026-09-30
 ---
 
+
+## Closed — fixed by this row's PR
+
+Still live after #3241 in the pair boolean's own table, and so in every
+fold step's table. #3241's union end pass renames the published union
+(`emit_union_flush_names::a_face_cut_and_merged_in_one_step_publishes_no_constituent`),
+but a standalone pair boolean published the bare constituent.
+
+`name_boolean` now gives a group's bare base name to its one face only
+when no merge holds the rest of the parent. A group with merged faces
+goes through `Obstacles::split` with those faces as `merged`, so the
+unmerged piece is `base` + `Borders` over the walls it shares a divider
+with. `split` refuses if a piece borders none, counting merged faces
+among the parent's faces. The row
+`emit_pair_cut_and_merged::a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent`
+pins it. It is red on `12807d8b19`.
+
+The merged row's constituent still names the whole parent. N3 defines
+the set as the merged faces' operand names. The union now names by
+parent in the finished body, so the order-free question that half served
+closed with `declared-flush-union-edge-and-vertex-names-follow-member-order`.
+
+The fold's declaration door (`look_through_fold`) had relied on the bare
+piece. It now reads a name held both in a merge and as a fragment of its
+own as a split (`ConsumedByFold { by: Split }`). Before, it looked through
+to the merged face, which is a different face from the one the author
+declared. So 4 orders of `r2endsg` and 2 of `r4trig` that published now
+refuse like their sibling orders, and 2 more of `r4trig` refuse there
+before reaching `RayExhausted`. `union-refuses-in-some-member-orders-and-publishes-in-others`
+carries the new counts.
 
 ## The finding
 

@@ -167,10 +167,10 @@ impl<K: Ord + Clone> Obstacles<K> {
     /// checked. Every face of a union's parent is a piece, and it passes
     /// none.
     ///
-    /// Refuses when a piece of several borders no divider: the face is
-    /// connected, so what lies between its pieces is discarded region,
-    /// and a piece that borders none of it is a region the kernel
-    /// discarded without recording it.
+    /// Refuses when a piece of a face held as several faces, merged ones
+    /// included, borders no divider: the face is connected, so what lies
+    /// between its pieces is discarded region, and a piece that borders
+    /// none of it is a region the kernel discarded without recording it.
     pub(crate) fn split<T: geom_core::Real, W: Ord + Clone>(
         &self,
         body: &Body<T>,
@@ -252,7 +252,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                 walls[p].insert(wall(across)?);
             }
         }
-        if pieces.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
+        if pieces.len() + merged.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
             return Err(bug(
                 "a piece of a face held as several borders no recorded discard between them",
             ));

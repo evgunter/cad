@@ -874,9 +874,12 @@ pub(crate) fn name_boolean<T: Decide>(
                 .collect(),
             d.map(EntityKey::Face).parent(),
         );
-        match members.as_slice() {
-            [] => {}
-            [one] => put(
+        // The base name is the whole parent's: one face takes it only
+        // when no merge holds the rest, since a merge lists the parent
+        // as a constituent and that name has retired (N3).
+        match (members.as_slice(), in_merged.as_slice()) {
+            ([], _) => {}
+            ([one], []) => put(
                 &mut t,
                 &mut tie,
                 from_tie,
@@ -2165,7 +2168,8 @@ mod tests {
     /// **The result-body stand-in every row here descends from**: a
     /// unit-cube extrusion, whose table names a top, a bottom and four
     /// laterals. Written once — the rows below differ in the synthetic
-    /// `BooleanNaming` they hand the emitter, never in the body.
+    /// `BooleanNaming` they hand the emitter, and a row that merges
+    /// faces hands it the body [`absorbed_into`] leaves.
     fn unit_cube() -> sweep::Extruded<f64> {
         let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
             geom_core::Point3::new(0.0, 0.0, 0.0),
@@ -2184,6 +2188,19 @@ mod tests {
             Tol::witness(),
         )
         .unwrap()
+    }
+
+    /// `body` with `absorbed` merged into `kept` across the edge they
+    /// share: the result a merge of the two leaves, `absorbed` dead.
+    fn absorbed_into(body: &Body<f64>, kept: FaceKey, absorbed: FaceKey) -> Body<f64> {
+        let mut out = body.clone();
+        let he = face_half_edges(body, absorbed)
+            .unwrap()
+            .into_iter()
+            .find(|&he| body.mate(he).and_then(|m| body.face_of_half_edge(m)) == Some(kept))
+            .unwrap();
+        assert_eq!(out.kef(he).unwrap().killed_face, absorbed);
+        out
     }
 
     #[test]
@@ -2219,6 +2236,7 @@ mod tests {
             merge_groups: vec![(built.top, vec![lateral, lateral])],
             ..topo::BooleanNaming::default()
         };
+        let result = absorbed_into(&built.body, built.top, lateral);
         let empty = NameTable::new();
         let bool_node = RecipeNodeId(9);
         let a = OperandCtx {
@@ -2231,7 +2249,7 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness())
+        let t = name_boolean(bool_node, &result, &naming, &a, &b, Tol::witness())
             .unwrap()
             .table;
 
@@ -2252,11 +2270,10 @@ mod tests {
             Entry::Unique(r) => assert_eq!(r.key, EntityKey::Face(built.top)),
             other => panic!("merged entry not unique: {other:?}"),
         }
-        // The (synthetically still-live) absorbed lateral keeps its
-        // own FromA row; the table stays total over the body.
+        // Both constituents retired into the merge (N3).
         assert!(
-            t.name_of(&ent(0, EntityKey::Face(lateral))).is_some(),
-            "absorbed-but-live lateral must still be covered"
+            cs.iter().all(|c| t.lookup(c).is_none()),
+            "a constituent is published: {cs:?}"
         );
     }
 
@@ -2524,6 +2541,7 @@ mod tests {
             merge_groups: vec![(built.top, vec![absorbed])],
             ..topo::BooleanNaming::default()
         };
+        let result = absorbed_into(&built.body, built.top, absorbed);
         let empty = NameTable::new();
         let bool_node = RecipeNodeId(9);
         let a = OperandCtx {
@@ -2536,7 +2554,7 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness())
+        let t = name_boolean(bool_node, &result, &naming, &a, &b, Tol::witness())
             .unwrap()
             .table;
         let wrap = |inner: &StableName| {

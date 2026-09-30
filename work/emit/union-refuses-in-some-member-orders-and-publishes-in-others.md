@@ -125,3 +125,16 @@ arm of this row is built by `union-contact-is-judged-pairwise-before-the-fold`.
 The row stays open for the arms other programs own:
 - `DeclareResolve` belongs to GATHER's look-through row;
 - `RayExhausted` belongs to REACH's row.
+
+## Measured (EMIT, 2026-09-30, on `emit/cut-and-merged-pair`)
+
+A pair step no longer publishes a face under a constituent its merge
+retires (`a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`).
+The declaration door had routed a flush pair to that bare piece. It now
+refuses `DeclareResolve` (`ConsumedByFold { by: Split }`) there, as
+the orders that cut before they merge already did.
+
+| case | orders refusing before | after |
+|---|---|---|
+| `r2endsg` | 8 | 12, all `DeclareResolve` |
+| `r4trig` | 12 | 14: `[1,3,0,2]` and `[3,1,0,2]` now refuse; `[2,3,0,1]` and `[3,2,0,1]` refuse `DeclareResolve` before reaching `RayExhausted` |

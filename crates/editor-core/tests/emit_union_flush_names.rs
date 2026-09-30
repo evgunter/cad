@@ -266,9 +266,9 @@ const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[
     ("near", "U", 2, "DeclareResolve"),
     ("r1flush", "U", 18, "DeclareResolve"),
     ("r1three", "U", 24, "UndeclaredContact"),
-    ("r2endsg", "U", 8, "DeclareResolve"),
+    ("r2endsg", "U", 12, "DeclareResolve"),
     ("r4tri", "U", 2, "Boolean"),
-    ("r4trig", "U", 12, "Boolean/DeclareResolve"),
+    ("r4trig", "U", 14, "Boolean/DeclareResolve"),
     ("row", "U", 24, "UndeclaredContact"),
     ("rowids", "U", 24, "UndeclaredContact"),
 ];

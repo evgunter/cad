@@ -395,9 +395,9 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
     ("fam212", "U", 2, "DeclareResolve"),
     ("fam222", "U", 2, "DeclareResolve"),
     ("r1flush", "U", 18, "DeclareResolve"),
-    ("r2endsg", "U", 8, "DeclareResolve"),
+    ("r2endsg", "U", 12, "DeclareResolve"),
     ("r4tri", "U", 2, "Boolean"),
-    ("r4trig", "U", 12, "Boolean/DeclareResolve"),
+    ("r4trig", "U", 14, "Boolean/DeclareResolve"),
 ];
 
 /// **No name rebinds across member orders, and no order refuses what
