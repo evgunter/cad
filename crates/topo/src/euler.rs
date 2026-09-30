@@ -692,46 +692,67 @@ pub enum EulerOpError {
         /// The edge whose description is incoherent with its faces.
         edge: EdgeKey,
     },
-    /// A re-chart ([`Body::set_face_surface`],
-    /// [`Body::set_face_surfaces_describing`]) would leave these edges
+    /// The keys-only [`Body::set_face_surface`] would leave these edges
     /// described against a surface their faces no longer wear: each
     /// description is adjacency-coherent now and would not be once the
-    /// faces move, which tier 3 reports at rest as
+    /// face moves, which tier 3 reports at rest as
     /// `DescriptionNotAdjacent`. Every one is named, in edge-arena
-    /// order, because the caller re-describes the whole list. Raised in
-    /// the plan phase, so the body is untouched.
-    ///
-    /// The keys-only [`Body::set_face_surface`] raises it for every such
-    /// edge. [`Body::set_face_surfaces_describing`] takes their
-    /// re-descriptions and carries the rest onto the moved charts under
-    /// a band, so it raises it only for an edge the move leaves no
-    /// chart to be carried onto.
+    /// order, because the caller re-describes the whole list — through
+    /// [`Body::set_face_surfaces_describing`], which takes a band and
+    /// the re-descriptions. Raised in the plan phase, so the body is
+    /// untouched.
     RechartStrandsDescriptions {
         /// The stranded edges, in edge-arena order.
         edges: Vec<EdgeKey>,
     },
-    /// [`Body::set_face_surfaces_describing`]: an edge it re-describes
-    /// does not certify against the charts the move gives it — a
-    /// listed spec, or an unlisted edge's stored description carried
-    /// onto the chart its surface moves to. Raised in the plan phase,
-    /// so the body is untouched.
+    /// [`Body::set_face_surfaces_describing`] was handed no
+    /// re-description for these edges, and the move would strand them
+    /// as [`EulerOpError::RechartStrandsDescriptions`] names: the door
+    /// re-describes nothing by default. Every one is named, in
+    /// edge-arena order. Raised in the plan phase, so the body is
+    /// untouched.
+    RechartUndescribed {
+        /// The stranded edges no re-description was listed for, in
+        /// edge-arena order.
+        edges: Vec<EdgeKey>,
+    },
+    /// [`Body::set_face_surfaces_describing`]: a listed re-description
+    /// does not certify against the charts the move gives its edge.
+    /// Raised in the plan phase, so the body is untouched.
     RechartFalsifies {
         /// The edge that does not certify.
         edge: EdgeKey,
         /// The typed certification failure.
         error: CertifyError,
     },
+    /// [`Body::set_face_surfaces_describing`]: a face moved onto a plane
+    /// has a vertex, or an interior certification sample of an edge,
+    /// definitely off that plane — tier 3's `PlanarFaceResidual` /
+    /// `PlanarBoundaryResidual`, asked before the move. Raised in the
+    /// plan phase, so the body is untouched.
+    RechartOffBoundary {
+        /// The moved face.
+        face: FaceKey,
+        /// The vertex, or the edge whose sample, lies off the plane.
+        on: EntityId,
+    },
+    /// [`Body::set_face_surfaces_describing`]: a moved face's residual
+    /// against its new plane escalated (in the sliver band, or
+    /// poisoned) — the escalation counterpart of
+    /// [`EulerOpError::RechartOffBoundary`].
+    RechartBoundaryEscalated {
+        /// The moved face.
+        face: FaceKey,
+        /// The vertex, or the edge whose sample, escalated.
+        on: EntityId,
+        /// The in-band/poisoned margin diagnostics.
+        diag: geom_core::Indeterminate,
+    },
     /// [`Body::set_face_surfaces_describing`] was handed one face
     /// twice. Named at the second entry.
     FaceMovedTwice {
         /// The face listed twice.
         face: FaceKey,
-    },
-    /// [`Body::set_face_surfaces_describing`] was handed a chart with no
-    /// face to wear it, which would mint a surface nothing references.
-    EmptyRechart {
-        /// The chart's position in the call's list.
-        index: usize,
     },
     /// An argument key, or a key the operator must follow to do its
     /// work (a `prev` link, a spine parent, a start vertex), does not
@@ -1110,26 +1131,40 @@ impl EulerOpError {
                  merge gives it nothing to re-describe"
             ),
             Self::DuplicateRedescription { edge } => {
-                format!("kev_describing: edge {edge:?} is re-described twice")
+                format!("edge {edge:?} is re-described twice")
             }
             Self::DescriptionNotAdjacent { edge } => format!(
                 "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
                  its adjacent faces' surfaces (D2 adjacency coherence)"
             ),
             Self::RechartStrandsDescriptions { edges } => format!(
-                "the re-chart would leave edges {edges:?} described against a surface their \
-                 faces no longer wear (set_face_surfaces_describing takes their \
-                 re-descriptions, and carries the rest under a band)"
+                "set_face_surface: the swap would leave edges {edges:?} described against a \
+                 surface their faces no longer wear, and the keys-only door takes no band to \
+                 re-describe them (set_face_surfaces_describing takes one, and their \
+                 re-descriptions)"
+            ),
+            Self::RechartUndescribed { edges } => format!(
+                "set_face_surfaces_describing: the move would leave edges {edges:?} described \
+                 against a surface their faces no longer wear, and no re-description is listed \
+                 for them (carried_redescriptions states their stored descriptions on the \
+                 moved charts)"
             ),
             Self::RechartFalsifies { edge, error } => format!(
-                "re-chart: edge {edge:?} does not certify on the charts the move gives it: {}",
+                "set_face_surfaces_describing: edge {edge:?}'s re-description does not certify \
+                 on the charts the move gives it: {}",
                 error.render(reading)
+            ),
+            Self::RechartOffBoundary { face, on } => format!(
+                "set_face_surfaces_describing: face {face:?}'s boundary does not lie on the \
+                 plane it moves onto ({on} is off it)"
+            ),
+            Self::RechartBoundaryEscalated { face, on, diag } => format!(
+                "set_face_surfaces_describing: whether face {face:?}'s boundary lies on the \
+                 plane it moves onto is undecided at {on}: {}",
+                diag.payload()
             ),
             Self::FaceMovedTwice { face } => {
                 format!("set_face_surfaces_describing: face {face:?} is moved twice")
-            }
-            Self::EmptyRechart { index } => {
-                format!("set_face_surfaces_describing: chart {index} has no face to wear it")
             }
             Self::StaleKey { key } => {
                 format!("euler op requires {key}, which does not resolve")
@@ -1342,8 +1377,22 @@ pub(crate) fn every_euler_op_error_once()
             edge: ek,
             error: CertifyError::Unimplemented,
         },
+        EulerOpError::RechartUndescribed { edges: vec![ek] },
+        EulerOpError::RechartOffBoundary {
+            face: fc,
+            on: EntityId::Edge(ek),
+        },
+        EulerOpError::RechartBoundaryEscalated {
+            face: fc,
+            on: EntityId::Edge(ek),
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("rechart_boundary_residual"),
+                terminal_sliver: false,
+            },
+        },
         EulerOpError::FaceMovedTwice { face: fc },
-        EulerOpError::EmptyRechart { index: 0 },
         EulerOpError::StaleKey {
             key: EntityId::HalfEdge(he),
         },
@@ -1495,9 +1544,11 @@ impl EulerOpError {
             | Self::DuplicateRedescription { .. }
             | Self::DescriptionNotAdjacent { .. }
             | Self::RechartStrandsDescriptions { .. }
+            | Self::RechartUndescribed { .. }
             | Self::RechartFalsifies { .. }
+            | Self::RechartOffBoundary { .. }
+            | Self::RechartBoundaryEscalated { .. }
             | Self::FaceMovedTwice { .. }
-            | Self::EmptyRechart { .. }
             | Self::FanStartMismatch { .. }
             | Self::NotSameLoop { .. }
             | Self::LoopNotEmpty { .. }

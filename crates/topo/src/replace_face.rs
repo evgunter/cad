@@ -1363,45 +1363,15 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     // whole-body check is the tier-2 gate the clone is adopted on.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    // The points move first, so the re-chart below certifies every
-    // planned description at the endpoints the door leaves it.
-    for (vertex, point) in &moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
-    }
-    // The whole group moves onto one new chart, with every planned
-    // description: the group wore one surface before and wears one
-    // after, which is what keeps their shared seams describable, and a
-    // plan's `old_key` stands for that chart. The offset is a statement
-    // about the surface (module docs), so every face keeps the side its
-    // material lies on.
-    let mut wearers = Vec::with_capacity(faces.len());
-    for &member in faces {
-        let sense = work
-            .get_face(member)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .sense;
-        wearers.push((member, sense));
-    }
-    work.set_face_surfaces_describing(
-        vec![Rechart {
-            surface: new_surface,
-            faces: wearers,
-        }],
-        plans
-            .into_iter()
-            .map(|plan| (plan.edge, plan.spec))
-            .collect(),
-        tol,
-    )
-    .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+    // The whole group moves onto one new chart: it wore one surface
+    // before and wears one after, which is what keeps its shared seams
+    // describable, and a plan's `old_key` stands for that chart.
+    let chart = offset_rechart(&work, new_surface, faces)?;
+    let specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = plans
+        .into_iter()
+        .map(|plan| (plan.edge, plan.spec))
+        .collect();
+    move_points_then_rechart(&mut work, &moved, vec![chart], &specs, tol)?;
     for (edge, spec) in anchored {
         work.set_edge_curve(edge, spec, tol)
             .map_err(|error| ReplaceFaceError::Op {
@@ -2133,6 +2103,57 @@ pub(crate) fn translate_mapped<T: Real>(
         }
         _ => return None,
     })
+}
+
+/// `faces` onto one fresh chart, `surface`, each keeping the material
+/// side it has now: an offset moves a chart along its own normal, so
+/// the side the material lies on does not change.
+pub(crate) fn offset_rechart<T: Real>(
+    body: &Body<T>,
+    surface: Surface<T>,
+    faces: &[FaceKey],
+) -> Result<Rechart<T>, ReplaceFaceError<T>> {
+    let sense = |face: FaceKey| {
+        body.get_face(face)
+            .map(|f| f.sense)
+            .ok_or(ReplaceFaceError::Corrupt)
+    };
+    let (&first, rest) = faces.split_first().ok_or(ReplaceFaceError::EmptyGroup)?;
+    let mut chart = Rechart::new(surface, first, sense(first)?);
+    for &face in rest {
+        chart = chart.with(face, sense(face)?);
+    }
+    Ok(chart)
+}
+
+/// **The points move first, then one re-chart**: every vertex in
+/// `moved` takes its new point, and then every chart moves in ONE
+/// [`Body::set_face_surfaces_describing`] with every spec, which so
+/// certifies each at the endpoints the offset leaves it. One call,
+/// because an edge between two moving charts certifies on neither pair
+/// of mixed charts; a spec names a chart by the key its face wears now.
+/// The offset doors' shared mutation step, run on their staged clone.
+pub(crate) fn move_points_then_rechart<T: Decide>(
+    work: &mut Body<T>,
+    moved: &[(VertexKey, Point3<T>)],
+    charts: Vec<Rechart<T>>,
+    specs: &[(EdgeKey, EdgeCurveSpec<T>)],
+    tol: Tol,
+) -> Result<(), ReplaceFaceError<T>> {
+    for (vertex, point) in moved {
+        let old_point = work
+            .get_vertex(*vertex)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .point;
+        let new_point = work.add_point(*point);
+        work.get_vertex_mut(*vertex)
+            .ok_or(ReplaceFaceError::Corrupt)?
+            .point = new_point;
+        work.remove_point_if_orphaned(old_point);
+    }
+    work.set_face_surfaces_describing(charts, specs, tol)
+        .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
+    Ok(())
 }
 
 /// `description` with every occurrence of `old` re-pointed at `new` —

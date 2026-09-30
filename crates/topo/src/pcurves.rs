@@ -3760,8 +3760,8 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "`set_face_surface`'s swap per face, on its terms: a face's rows are kept \
              across a move onto the same chart and dropped on any other. The edges it \
-             re-describes are certified ones, whose rows stand as `set_edge_curve` leaves a \
-             certified edge's",
+             re-describes are the listed certified ones, whose rows stand as \
+             `set_edge_curve` leaves a certified edge's",
             ),
             (
                 "set_edge_curve",

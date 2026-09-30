@@ -17,8 +17,9 @@ Found by the receipt sweep of
 `Intersection`'s operands, a `Chart`'s chart). `Body::set_face_surface`
 now refuses a swap that would leave an edge described against a surface
 neither of its faces wears (`EulerOpError::RechartStrandsDescriptions`),
-and `Body::set_face_surfaces_describing` carries such edges onto the
-moved chart under a band. The Euler operators that put an EXISTING
+and `Body::set_face_surfaces_describing` takes their re-descriptions
+under a band (`Body::carried_redescriptions` states each stored
+description on the moved chart, for a caller that chooses it). The Euler operators that put an EXISTING
 half-edge on a face wearing another key make the same move and ask
 nothing.
 
@@ -51,8 +52,8 @@ and its siblings; this row is the edge-description half.
 
 The re-chart doors' answer applies per operator: a keys-only door
 refuses typed, before mutating, naming every edge it would strand; a
-describing or minting twin takes a band and re-describes, or carries
-each onto the chart its face moves to (`attach.rs`'s `Sides::repoint`
-reading). `crates/topo/src/shell.rs`'s rim re-point
+describing or minting twin takes a band and the re-descriptions,
+reading a key the edge's face wore as the chart it moves to
+(`attach.rs`'s `Sides::repoint`), and re-describes nothing by default. `crates/topo/src/shell.rs`'s rim re-point
 (`remap_description` over a loop after a merge, then
 `set_edge_curve`) is a caller doing this by hand today.

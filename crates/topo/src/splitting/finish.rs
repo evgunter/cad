@@ -390,11 +390,12 @@ pub(super) fn split_finish<T: Decide>(
         // in; the boundary pass below gives each its honest class.
         let restated = section_plane_restatements(&body, section.face)?;
         body.set_face_surfaces_describing(
-            vec![Rechart {
-                surface: plane_for(other_side),
-                faces: vec![(section.face, outer_sense)],
-            }],
-            restated,
+            vec![Rechart::new(
+                plane_for(other_side),
+                section.face,
+                outer_sense,
+            )],
+            &restated,
             tol,
         )?;
         body.clear_null_face_pair(section.face);
@@ -537,22 +538,11 @@ fn section_plane_restatements<T: Decide>(
             if body.get_face(other).ok_or_else(corrupt)?.surface == chart {
                 continue;
             }
-            let Some(curve) = body
-                .get_curve_geom(edge_data.curve)
-                .ok_or_else(corrupt)?
-                .certified()
-            else {
+            let geom = body.get_curve_geom(edge_data.curve).ok_or_else(corrupt)?;
+            let Some(curve) = geom.certified() else {
                 continue;
             };
-            let names_chart = match curve.description() {
-                geom_brep::EdgeDescription::Intersection { s1, s2, .. }
-                | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
-                    *s1 == chart || *s2 == chart
-                }
-                geom_brep::EdgeDescription::Chart(c) => c.surface == chart,
-                geom_brep::EdgeDescription::Scaffold(_) => false,
-            };
-            if !names_chart {
+            if !Body::description_surfaces(geom).contains(&chart) {
                 continue;
             }
             let image = geom_brep::EdgeDescriptionSpec::chart(chart);

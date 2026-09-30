@@ -8,17 +8,19 @@
 //! other. The face's pcurve rows are stated IN the chart, so
 //! `Body::set_face_surface` drops them when the new surface is not the
 //! chart they were stated in, and the face arrives rowless for the
-//! caller to re-mint. An edge description's interval is stated against
-//! the edge's carrier, not the face, so the setter does not touch it and
-//! it goes stale — the setter's own docs put that consequence on tier 3
-//! (attach surfaces BEFORE upgrading edge descriptions).
+//! caller to re-mint. An edge description names the old chart by key,
+//! so the swap would strand it: the keys-only setter refuses that
+//! (`EulerOpError::RechartStrandsDescriptions`), and
+//! `Body::set_face_surfaces_describing` takes the re-description and
+//! certifies it on the reversed chart.
 //!
-//! This row is that hazard, pinned: structural validation stays green
-//! over the surgery, no pcurve survives to be stranded, and the
-//! geometric-structural tier reports the stale interval on every
-//! reversed wall. It exists so that a caller who reads `reversed_v`'s
-//! "What this does not do" paragraph can see what the door does not do,
-//! rather than take its word for it.
+//! This row is the hazard those refusals stand in front of, built on
+//! purpose through the test-only stranding door: structural validation
+//! stays green over the surgery, no pcurve survives to be stranded, and
+//! the geometric-structural tier reports the stranded description on
+//! every reversed wall. It exists so that a caller who reads
+//! `reversed_v`'s "What this does not do" paragraph can see what the
+//! door does not do, rather than take its word for it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;

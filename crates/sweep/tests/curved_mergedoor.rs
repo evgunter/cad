@@ -28,7 +28,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass, FacePairDeclaration,
-    FaceSurface, MergeCoplanarError, SkippedMerge, validate_closed, validate_geometric,
+    FaceSurface, MergeCoplanarError, Rechart, SkippedMerge, validate_closed, validate_geometric,
     validate_pseudomanifold,
 };
 
@@ -232,6 +232,25 @@ fn proud_peg_declared_walls_union_records_the_cylinder_skip() {
     assert_cylinder_records("C", &bb);
 }
 
+/// `face` alone onto a fresh key holding `surface`, outward-facing,
+/// through the describing door with the stored description of every
+/// edge the move strands restated on it. Returns the new key.
+fn on_a_key_of_its_own(
+    body: &mut Body<f64>,
+    face: topo::FaceKey,
+    surface: geom::Surface<f64>,
+) -> topo::SurfaceKey {
+    let charts = vec![Rechart::new(surface, face, true)];
+    let specs = body.carried_redescriptions(&charts).unwrap();
+    let [key] = body
+        .set_face_surfaces_describing(charts, &specs, Tol::witness())
+        .unwrap()[..]
+    else {
+        panic!("one chart, one key")
+    };
+    key
+}
+
 /// A peg whose three wall sectors each sit on their OWN surface key
 /// (same description): no hard rung fires anywhere, so the door has
 /// nothing to merge and only the declaration to answer.
@@ -243,16 +262,7 @@ fn peg_with_split_wall_keys() -> (Body<f64>, Vec<topo::SurfaceKey>) {
             .get_surface(body.get_face(f).unwrap().surface)
             .unwrap()
             .clone();
-        keys.push(
-            body.set_face_surface_stranding_for_tests(
-                f,
-                FaceSurface::New {
-                    surface: described,
-                    sense: true,
-                },
-            )
-            .unwrap(),
-        );
+        keys.push(on_a_key_of_its_own(&mut body, f, described));
     }
     assert_eq!(keys.len(), 3);
     assert_eq!(validate_closed(&body), Ok(()));
@@ -453,15 +463,7 @@ fn record_beside_a_committing_curved_run_names_only_live_faces() {
     let walls = walls_at(&body, BORE_R);
     let k = body.get_face(walls[0]).unwrap().surface;
     let described = body.get_surface(k).unwrap().clone();
-    let k2 = body
-        .set_face_surface_stranding_for_tests(
-            walls[2],
-            FaceSurface::New {
-                surface: described,
-                sense: true,
-            },
-        )
-        .unwrap();
+    let k2 = on_a_key_of_its_own(&mut body, walls[2], described);
     let faces_before = body.faces().count();
     let outcome = body
         .merge_coplanar_faces_declared(&[(k, k2)], Tol::witness())

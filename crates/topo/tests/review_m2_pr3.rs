@@ -427,12 +427,15 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(rim.len(), 4, "the cap's four rim edges name its plane");
-    let before = format!("{body:?}");
+    // The refusal names the four. That it writes nothing is pinned deep
+    // (every arena row and every next key) by
+    // `attach::tests::a_swap_that_strands_an_edge_refuses_naming_every_one_and_writes_nothing`:
+    // the deep snapshot is crate-private, and a derived `Debug` of the
+    // body does not see the key slots a refusal could consume.
     assert_eq!(
         body.set_face_surface(t.seed.face, swap()),
         Err(EulerOpError::RechartStrandsDescriptions { edges: rim }),
     );
-    assert_eq!(format!("{body:?}"), before, "the refusal writes nothing");
 
     body.set_face_surface_stranding_for_tests(t.seed.face, swap())
         .unwrap();
