@@ -1077,3 +1077,40 @@ track budgets, spec notes under `docs/doc-ledger/`.
   - `part-unresolved-refusal-draws-the-workspaces-stage-prefix`;
   - the two LIB tag rows (`mate-frame-tag-says-degenerate-for-every-frame-fault`, `part-unresolved-names-two-facts`);
   - `binding-drops-a-standings-through-at-three-refusals`.
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `editor-core/src/assembly.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+
+## 2026-09-29 — seventeenth sitting: placement ruled, the refusal recourse halves, part/product merged
+
+**`[ev]` #3441 ruled and merged.** Ev's ruling, which A11 (2)–(5) and A9 now state:
+- **Gauges.** A placement lives on a gauge node holding a parametric `Placement`.
+- **Membership (a).** Each instance names its gauge, and "copy gauge, then mate" is one edit.
+- **Nothing recorded.** No edit records a frame, so maintenance goes.
+- **Deletes.** Deletes are never refused.
+- **Own space.** A group nothing places lives in its own space: nothing outside it is compared with it, and STEP export refuses unplaced parts. "Sounds perfect! STEP can complain about unplaced parts."
+- **Fork log.** Three designer pairs, rows 17–19. They were renumbered at merge because EMIT and TOPO had taken 15 and 16.
+- **The slate** (`docs/EDIT-PLACEMENT-SPEC.md`, #3494): P1, the `Placement` type (implementing, dual review); P2, gauges (dual); P3, the viewer's owner's.
+
+**Merged.** Each unit had a single Opus FULL review and a fix pass.
+- **Part/product refusals (#3482).**
+  - `ProductError::Root(NodeStanding)`, with every tag word frozen.
+  - A poisoned root carries the failure that poisoned it, as `PartRootPoisoned`. The fix pass kept two arms: one `PartRoot` would admit a "not evaluated" standing next to a carried refusal.
+  - One sentence for a root with no value, and no doubled stage word.
+- **The recourse unit's status-line half (#3490).** The review found two MAJORs:
+  - a false "no way through" on the count arms: redeclaring as continuous works;
+  - split and inline forwarding the insert door's recourse.
+
+  The fix pass added:
+  - `EditError::problem()` plus an exhaustive `ReplayTail`;
+  - one lookup for decision words;
+  - a census over a real subtract's logged predicates, a deliberate tripwire when main changes which predicates it logs.
+
+  The row stays open.
+- **The feature-tree half, claimed (#3491).** The unit is #3492, in its fix pass. Its review found:
+  - the `Workspace` door's unknown-id recourse loops, because the store scans only at open;
+  - a chain of about 400 parts segfaults before `DepthExceeded`, filed as a P1 crash.
+
+**Filed today:**
+- `flip-reports-name-no-decision-for-most-predicates`
+- `persist-edit-replay-forwards-the-edit-doors-recourse`
+- `part-refusal-over-a-store-that-will-not-scan-or-load-states-no-recourse`
+- CHROME's `viewer-own-refusals-are-held-to-no-shape-guard`

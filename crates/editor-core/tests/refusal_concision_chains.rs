@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::NodeStanding;
+use editor_core::Staged;
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 use test_utils::refusal::Admission;
 
@@ -425,13 +426,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Mate/TableLacks",
     "Mate/Under",
     "Mate/Unleverable",
-    // work/edit/edit-refusals-short-of-the-shape-guard.md
-    "Part/DepthExceeded",
-    "Part/NoResolver",
-    "Part/ReferenceCycle",
-    "Part/Unresolved(EpsilonSeam)",
-    "Part/Unresolved(PinMismatch)",
-    "Part/Unresolved(Unresolved)",
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     "Check/ChartCoherence(meridian closure)",
     "Check/ChartCoherence(rim)",
@@ -3042,7 +3036,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
         BifurcationKind, BranchMarginEvidence, ContactClass, DirectionRefusal, EntityKind,
         FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
-        MeasureNodeFault, PartFault, ResolveFault, SitedRef, WitnessAge, WitnessBifurcation,
+        MeasureNodeFault, PartFault, SitedRef, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
@@ -3220,30 +3214,13 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     // A part's root failure carries the part's own node refusal, typed,
     // and its sentence never renders it: the carried refusal is its own
     // line ([`every_carried_refusal_draws_within_the_budget_at_every_line`]).
+    //
+    // `PartFault::Unresolved` renders its resolver's own sentence, so its
+    // rows are the shipped store's real refusals, raised through the
+    // viewer's resolver (`viewer/tests/instance_authoring.rs`,
+    // `every_unresolved_part_badge_meets_the_refusal_standard`).
     let parts = [
         ("NoResolver", PartFault::NoResolver),
-        (
-            "Unresolved(PinMismatch)",
-            PartFault::Unresolved {
-                fault: ResolveFault::PinMismatch,
-                message: "the document on disk has changed since the reference was pinned"
-                    .to_owned(),
-            },
-        ),
-        (
-            "Unresolved(EpsilonSeam)",
-            PartFault::Unresolved {
-                fault: ResolveFault::EpsilonSeam,
-                message: "the part records ε = 1e-6 and this process runs at ε = 1e-7".to_owned(),
-            },
-        ),
-        (
-            "Unresolved(Unresolved)",
-            PartFault::Unresolved {
-                fault: ResolveFault::Unresolved,
-                message: "no document with this id is registered".to_owned(),
-            },
-        ),
         (
             "PartRootFailed",
             PartFault::PartRootFailed {

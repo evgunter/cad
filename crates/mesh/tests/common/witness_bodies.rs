@@ -64,15 +64,18 @@ pub fn keyway() -> (Body<f64>, FaceKey) {
         on(0.0, 1.0),
     );
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(v0).unwrap();
+    let seed = body.mvfs(v0, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e01 = body
@@ -148,15 +151,18 @@ pub fn oblique_lens() -> (Body<f64>, FaceKey) {
     let n_a = Vec3::new(a.sin(), 0.0, a.cos());
     let n_b = Vec3::new(-a.sin(), 0.0, a.cos());
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p).unwrap();
+    let seed = body.mvfs(p, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let ea = body
@@ -209,15 +215,18 @@ pub fn slit() -> (Body<f64>, FaceKey) {
         on(0.75, 0.5),
     );
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(v0).unwrap();
+    let seed = body.mvfs(v0, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e01 = body
@@ -300,15 +309,18 @@ pub fn pole_crossing_half_cap() -> (Body<f64>, FaceKey, FaceKey) {
         "the over-the-pole arc spans 120 degrees, got {t_end}"
     );
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_rim = body
@@ -362,15 +374,18 @@ pub fn apex_crossing_bowtie() -> (Body<f64>, FaceKey, FaceKey) {
     };
     let line = EdgeCurveSpec::line_between;
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cone {
+                apex: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                half_angle: core::f64::consts::FRAC_PI_4,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_ab = body
@@ -428,9 +443,15 @@ pub fn one_circle_cut(
     use core::f64::consts::{FRAC_PI_2, PI, TAU};
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(circle.eval(0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(seed))
-        .unwrap();
+    let start = body.mvfs(circle.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: seed,
+            sense: true,
+        },
+    )
+    .unwrap();
     let first = body
         .mev(
             MevSite::Lone {
@@ -449,7 +470,10 @@ pub fn one_circle_cut(
                 he2: first.he_plus,
             },
             arc(circle.clone(), PI, TAU),
-            made.map_or(FaceSurface::Inherit, FaceSurface::New),
+            made.map_or(FaceSurface::Inherit, |surface| FaceSurface::New {
+                surface,
+                sense: true,
+            }),
             tol,
         )
         .unwrap();

@@ -419,7 +419,9 @@ mod tests {
     #[test]
     fn an_unbounded_face_has_no_lever_arm() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0)).unwrap();
+        let seed = body
+            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
+            .unwrap();
         assert!(matches!(
             body.get_loop(seed.r#loop).unwrap().boundary,
             crate::entity::LoopBoundary::Empty { .. }

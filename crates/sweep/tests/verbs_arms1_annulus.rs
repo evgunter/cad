@@ -357,14 +357,17 @@ fn a_planted_horn_torus_is_reported_by_tier_3() {
     out.body
         .set_face_surface(
             band_face,
-            FaceSurface::New(Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                // A spindle: the tube swallows the axis.
-                minor_radius: major_radius * 2.0,
-                u_ref,
-            }),
+            FaceSurface::New {
+                surface: Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    // A spindle: the tube swallows the axis.
+                    minor_radius: major_radius * 2.0,
+                    u_ref,
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let errors = validate_geometric(&out.body, tol())

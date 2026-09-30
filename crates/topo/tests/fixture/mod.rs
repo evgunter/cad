@@ -298,13 +298,25 @@ where
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
 
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let cyl_key = body
-        .set_face_surface(seed.face, topo::FaceSurface::New(cylinder::<T>()))
+        .set_face_surface(
+            seed.face,
+            topo::FaceSurface::New {
+                surface: cylinder::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let sph_key = body
-        .set_face_surface(anchor.face, topo::FaceSurface::New(sphere::<T>()))
+        .set_face_surface(
+            anchor.face,
+            topo::FaceSurface::New {
+                surface: sphere::<T>(),
+                sense: true,
+            },
+        )
         .unwrap();
     let mid = T::from_f64(0.5 * (f0 + f1));
     let made = body
