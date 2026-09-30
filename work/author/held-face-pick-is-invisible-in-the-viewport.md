@@ -2,13 +2,14 @@
 id: held-face-pick-is-invisible-in-the-viewport
 kind: issue
 title: The add-datum form's held face pick is drawn nowhere, so an author can commit against a face the viewport is not showing
-status: review
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
 refs: [face-pick-cannot-name-which-face, 2955]
 branch: author/held-face-mark
 pr: 3556
+closed: 2026-09-30
 ---
 
 ## What
@@ -81,3 +82,19 @@ pick; a document replacement drops it (`Drafts::document_replaced`).
 
 **Not here:** a held face stays marked while the Add-feature section is
 collapsed (`a-held-face-stays-marked-while-its-form-is-collapsed`).
+
+## Closed 2026-09-30 — PR 3556 merged (`ff728d14`)
+
+**A held face pick is drawn, and the Add button commits only against a face that is drawn.**
+- The add-datum form's latched face and the mate tool's picks carry a held mark: the selected colour, told apart by stripes.
+- The blend tool's held edges are drawn as a hollow line.
+- One gather (`frame_marks`) mints the only value the renderer takes, so skipping it does not compile.
+- One "is this pick drawn" answer (`marks::drawn_patch`) is read by both the mark and the button's gate.
+
+**The correctness review stopped two things before merge**, both found by running:
+- The first shader failed to translate to WebGL's GLSL ES and would have panicked the viewer on every GL backend. A row now runs naga's ES 3.00 writer over every entry point.
+- The button still committed against a pick on a transformed or hidden body that nothing marked.
+
+A re-verification then caught a claim of exactness that was false: the hollow line's gap drifted on receding edges. It is now screen-linear.
+
+Filed from the unit: `a-seated-tools-held-node-is-drawn-nowhere` and `a-held-face-stays-marked-while-its-form-is-collapsed`.
