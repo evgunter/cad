@@ -1328,13 +1328,7 @@ impl<T: Real> Body<T> {
     pub fn mate(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
         let half_edge = self.half_edges.get(he)?;
         let edge = self.edges.get(half_edge.edge)?;
-        if edge.he_plus == he {
-            Some(edge.he_minus)
-        } else if edge.he_minus == he {
-            Some(edge.he_plus)
-        } else {
-            None
-        }
+        edge.claim(he).map(|claim| claim.mate)
     }
 
     /// The end vertex of `he`, derived as `start(next(he))` — end
