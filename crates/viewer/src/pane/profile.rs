@@ -487,7 +487,7 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::{ProfileError, SketchPlane, Step, Target, Verb};
+    use pncad::profile::{ProfileError, SketchPlane, Step, Target, TipState, Verb};
 
     use super::preview_verdict;
     use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP};
@@ -495,8 +495,10 @@ mod tests {
     use crate::pane::headless::{
         Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
     };
-    use crate::sketch::{self, LoopEnd, PreviewError, PreviewLoop, ProfilePreview, ProfileShape};
-    use crate::test_support::{inserted, try_inserted, two_legs, xy_frame};
+    use crate::sketch::{
+        self, Cut, LoopEnd, PreviewError, PreviewHold, PreviewLoop, ProfilePreview, ProfileShape,
+    };
+    use crate::test_support::{self, inserted, try_inserted, two_legs, xy_frame};
     use crate::theme::Theme;
 
     /// **Drawing the editor never rewrites a document value.** A
@@ -895,6 +897,72 @@ mod tests {
         assert!(held, "a refused step holds the commit");
     }
 
+    /// **A chain with an unclosable tip draws the legs before it, and
+    /// the form says that tip's own sentence, quietly** — at every
+    /// state no `line_to` leaves, as the lattice table lists them. What
+    /// is painted under the step list is the end-of-program refusal
+    /// naming the tip, in the weak voice, holding the commit; never the
+    /// open chain's sentence, which asks for a close the tip cannot
+    /// take.
+    ///
+    /// Red if the preview draws nothing for such a tip, if it drops the
+    /// tip's refusal or says the open chain's sentence, or if that
+    /// refusal is said loud.
+    #[test]
+    fn an_unclosable_tip_draws_its_legs_and_says_its_own_sentence_quietly() {
+        let census = test_support::unclosable_tips();
+        assert!(
+            census.contains(&TipState::RadiusArrival),
+            "the census reads the table: {census:?}"
+        );
+        let legs = two_legs(0.0, 0.0);
+        let Ok(open) = path(legs.clone()) else {
+            panic!("the legs alone draw")
+        };
+        let open_chain = PreviewHold::OpenChain.to_string();
+        for state in census {
+            let Some(way_in) = ::profile::test_support::way_in(state) else {
+                assert_eq!(state, TipState::Entry, "only the entry has no way in");
+                continue;
+            };
+            let steps = [legs.clone(), way_in].concat();
+            let unclosable = PreviewError::Transition {
+                loop_: 0,
+                step: steps.len(),
+                state,
+                verb: None,
+            };
+            let preview = path(steps);
+            let Ok(prefix) = &preview else {
+                panic!("{state:?}: the legs before the tip draw: {preview:?}")
+            };
+            assert_eq!(
+                prefix.loops[0].points, open.loops[0].points,
+                "{state:?}: the legs, and only those"
+            );
+            assert_eq!(
+                prefix.loops[0].end,
+                LoopEnd::Unfinished(Some(Cut {
+                    refusal: unclosable.clone(),
+                    closes: false,
+                })),
+                "{state:?}"
+            );
+            let (painted, voices, held) = drawn(&preview);
+            assert_eq!(
+                find(&painted, &unclosable.to_string()).ink,
+                Some(voices.weak),
+                "{state:?}"
+            );
+            assert!(
+                !painted.iter().any(|landed| landed.text == open_chain),
+                "{state:?}: {:?}",
+                painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+            );
+            assert!(held, "{state:?}: an unfinished chain holds the commit");
+        }
+    }
+
     /// **A drawn preview that does not validate is loud**, and a valid
     /// one is a quiet count that holds nothing.
     #[test]
@@ -946,7 +1014,7 @@ mod tests {
             loops: vec![PreviewLoop {
                 points: vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]],
                 vertices: vec![0, 1, 2],
-                end: LoopEnd::Unfinished,
+                end: LoopEnd::Unfinished(None),
             }],
             invalid: Some(ProfileError::EmptyProfile),
         });
