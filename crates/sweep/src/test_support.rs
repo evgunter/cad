@@ -805,21 +805,10 @@ pub const ELBOW_V_DEGREE: usize = 3;
 /// If `bulge` is exactly zero, which lowers to a line.
 pub fn bulge_arc(a: Point2<f64>, b: Point2<f64>, bulge: f64) -> SketchSegment<f64> {
     let lp = bulge_loop(vec![(a, bulge), (b, 0.0)]);
-    let profile::Segment::Arc {
-        centre,
-        radius,
-        sweep,
-    } = lp.segments()[0]
-    else {
+    let profile::Segment::Arc(arc) = lp.segments()[0] else {
         panic!("a zero bulge lowers to a line, not an arc");
     };
-    SketchSegment::Arc {
-        a,
-        b,
-        centre,
-        radius,
-        sweep,
-    }
+    SketchSegment::Arc { a, b, arc }
 }
 
 /// **The elbow's path**: a quarter circle of radius [`ELBOW_R`] in the

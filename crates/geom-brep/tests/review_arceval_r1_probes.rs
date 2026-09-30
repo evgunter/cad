@@ -31,7 +31,7 @@
 use crate::shared::arc::lowered_arc;
 use crate::shared::interval::iv;
 use geom_brep::SketchSegment;
-use geom_core::{Bounds, Interval, Point2, Real, Vec2};
+use geom_core::{Arc2, Bounds, Interval, Point2, Real, Vec2};
 
 fn wide(x: f64, w: f64) -> Interval {
     Interval::from_bounds(x - w, x + w)
@@ -56,8 +56,11 @@ fn point_width(p: Point2<Interval>) -> f64 {
 fn eval_center_anchored(seg: &SketchSegment<Interval>, s: Interval) -> Point2<Interval> {
     let SketchSegment::Arc {
         a,
-        centre: center,
-        sweep: theta,
+        arc: Arc2 {
+            centre: center,
+            sweep: theta,
+            ..
+        },
         ..
     } = *seg
     else {

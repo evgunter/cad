@@ -177,26 +177,11 @@ pub fn narration(tol: Tol) {
         .and_then(|t| t.line_to(Start, tol))
         .expect("the arc-and-chord loop authors")
         .into();
-    let Segment::Arc {
-        centre,
-        radius,
-        sweep,
-    } = lp.segments()[0]
-    else {
+    let Segment::Arc(arc) = lp.segments()[0] else {
         unreachable!("a bulge of 0.4 lowers to an arc");
     };
-    let path = segment_curve(
-        0,
-        SketchSegment::Arc {
-            a,
-            b,
-            centre,
-            radius,
-            sweep,
-        },
-        Affine3::identity(),
-    )
-    .expect("the path converts");
+    let path = segment_curve(0, SketchSegment::Arc { a, b, arc }, Affine3::identity())
+        .expect("the path converts");
     // The starting placement comes from the kernel: `path_start_frame`
     // is the door, and it wants the path's start point and start
     // tangent. `sweep_geometry` carries that frame along the path from

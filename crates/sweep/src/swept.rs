@@ -48,8 +48,9 @@ use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
 use geom_core::sym::SymRegistration;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
+    Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
 };
+use profile::SegmentKind;
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
 /// The classification funnel of this shared lowering, and of `extrude`
@@ -93,34 +94,6 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
-/// A segment's carrier class in swept traversal order (the canonical
-/// classification carried through any reversal — never re-decided from
-/// scalar data here).
-///
-/// Field-for-field the shape of `profile::SegmentKind`, and
-/// deliberately a separate type: `turn` here is the **swept** turn,
-/// flipped by a reversal, where the profile crate's is the canonical
-/// one — the same data under different orientation.
-///
-/// The correspondence is not kept by hand. [`swept_segments`] is the
-/// only place one is built from the other, and its `match` is
-/// exhaustive over `profile::SegmentKind`, so an arm added there stops
-/// this crate compiling until it is answered here.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum SweptKind<T: Real> {
-    Line,
-    Arc {
-        center: Point2<T>,
-        radius: T,
-        /// The signed sweep Δθ in swept traversal (negated by reversal).
-        sweep: T,
-        /// Turn sense in swept traversal: `Positive` = counterclockwise
-        /// in sketch coordinates. Never `Zero` (upstream classification;
-        /// kept total — a `Zero` would take the `Positive` arm).
-        turn: Sign,
-    },
-}
-
 /// Whether an arc's carrier centre lies on the material side of its
 /// chord, from the segment's CANONICAL turn: `true` unless the turn is
 /// `Negative`.
@@ -156,8 +129,10 @@ pub(crate) trait SweptChord<T: Real> {
     fn a(&self) -> Point2<T>;
     /// End point, sketch coordinates.
     fn b(&self) -> Point2<T>;
-    /// The carrier class in swept traversal order.
-    fn kind(&self) -> SweptKind<T>;
+    /// The carrier class in swept traversal order: the validated kind,
+    /// whose sweep and turn are the traversal's — negated and flipped
+    /// when the traversal runs the canonical segment backwards.
+    fn kind(&self) -> SegmentKind<T>;
 }
 
 /// One segment of a swept loop in swept traversal order, with the
@@ -176,7 +151,7 @@ pub(crate) struct SweptSeg<T: Real> {
     /// End point.
     pub(crate) b: Point2<T>,
     /// The carrier class in swept traversal order.
-    pub(crate) kind: SweptKind<T>,
+    pub(crate) kind: SegmentKind<T>,
     /// Canonical index of the start vertex. Error reporting only.
     pub(crate) canonical_vertex: usize,
     /// Canonical index of the segment: the index in the loop's
@@ -197,7 +172,22 @@ impl<T: Real> SweptChord<T> for SweptSeg<T> {
     fn b(&self) -> Point2<T> {
         self.b
     }
-    fn kind(&self) -> SweptKind<T> {
+    fn kind(&self) -> SegmentKind<T> {
+        self.kind
+    }
+}
+
+/// A canonical segment is the forward traversal of itself — what the
+/// loft's walls read (`skin::vertex_segment`), outside any swept
+/// traversal.
+impl<T: Real> SweptChord<T> for profile::ValidatedSegment<T> {
+    fn a(&self) -> Point2<T> {
+        self.start
+    }
+    fn b(&self) -> Point2<T> {
+        self.end
+    }
+    fn kind(&self) -> SegmentKind<T> {
         self.kind
     }
 }
@@ -235,7 +225,13 @@ pub(crate) fn swept_segments<T: Real>(
             let s = &segs[j];
             (s, s.start, s.end, j, j)
         };
-        let kind = swept_kind(s.kind, reverse);
+        let kind = match s.kind {
+            SegmentKind::Arc { arc, turn } if reverse => SegmentKind::Arc {
+                arc: arc.reversed(),
+                turn: turn.flip(),
+            },
+            kind => kind,
+        };
         out.push(SweptSeg {
             a,
             b,
@@ -256,55 +252,10 @@ pub(crate) fn swept_segments<T: Real>(
 /// gets to supply, and a provided method is one an impl may quietly
 /// override — which would put the body back to two.
 pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegment<T> {
-    sketch_segment_of(seg.a(), seg.b(), seg.kind())
-}
-
-/// A canonical segment's carrier class in a traversal: carried
-/// through, with the sweep negated and the turn flipped when the
-/// traversal runs the segment backwards (the profile crate's reversal
-/// involution). The one home of that mapping.
-fn swept_kind<T: Real>(kind: profile::SegmentKind<T>, reverse: bool) -> SweptKind<T> {
-    match kind {
-        profile::SegmentKind::Line => SweptKind::Line,
-        profile::SegmentKind::Arc {
-            center,
-            radius,
-            sweep,
-            turn,
-        } => SweptKind::Arc {
-            center,
-            radius,
-            sweep: if reverse { T::zero() - sweep } else { sweep },
-            turn: if reverse { turn.flip() } else { turn },
-        },
-    }
-}
-
-/// A CANONICAL profile segment, traversed forward, as a `geom-brep`
-/// sketch segment — [`sketch_segment`]'s mapping, for the loft's walls
-/// (`skin::vertex_segment`), which read a validated segment outside
-/// any swept traversal.
-pub(crate) fn canonical_sketch_segment<T: Real>(
-    s: &profile::ValidatedSegment<T>,
-) -> SketchSegment<T> {
-    sketch_segment_of(s.start, s.end, swept_kind(s.kind, false))
-}
-
-fn sketch_segment_of<T: Real>(a: Point2<T>, b: Point2<T>, kind: SweptKind<T>) -> SketchSegment<T> {
-    match kind {
-        SweptKind::Line => SketchSegment::Line { a, b },
-        SweptKind::Arc {
-            center,
-            radius,
-            sweep,
-            ..
-        } => SketchSegment::Arc {
-            a,
-            b,
-            centre: center,
-            radius,
-            sweep,
-        },
+    let (a, b) = (seg.a(), seg.b());
+    match seg.kind() {
+        SegmentKind::Line => SketchSegment::Line { a, b },
+        SegmentKind::Arc { arc, .. } => SketchSegment::Arc { a, b, arc },
     }
 }
 
@@ -566,7 +517,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
         place,
     });
     match seg.kind() {
-        SweptKind::Line => EdgeCurveSpec {
+        SegmentKind::Line => EdgeCurveSpec {
             description,
             carrier: Curve3::Line {
                 origin: q_from,
@@ -575,10 +526,13 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             param_start: T::zero(),
             param_end: q_from.distance(q_to),
         },
-        SweptKind::Arc {
-            center,
-            radius,
-            sweep,
+        SegmentKind::Arc {
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    sweep,
+                },
             turn,
         } => {
             let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
@@ -629,7 +583,11 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     let mut pts = Vec::with_capacity(segs.len() * 2);
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
-        if let SweptKind::Arc { sweep, turn, .. } = s.kind() {
+        if let SegmentKind::Arc {
+            arc: Arc2 { sweep, .. },
+            turn,
+        } = s.kind()
+        {
             let apex = arc_apex(s.a(), s.b(), sweep, turn);
             pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
         }
@@ -670,7 +628,7 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     match (prev.kind(), next.kind()) {
-        (SweptKind::Line, SweptKind::Line) => {
+        (SegmentKind::Line, SegmentKind::Line) => {
             // Margin: perpendicular distance of the next chord's far
             // endpoint from the previous chord's carrier line (meters,
             // direct displacement).
@@ -683,17 +641,23 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
             ))
         }
         (
-            SweptKind::Arc {
-                center: c1,
-                radius: r1,
+            SegmentKind::Arc {
+                arc:
+                    Arc2 {
+                        centre: c1,
+                        radius: r1,
+                        ..
+                    },
                 turn: t1,
-                ..
             },
-            SweptKind::Arc {
-                center: c2,
-                radius: r2,
+            SegmentKind::Arc {
+                arc:
+                    Arc2 {
+                        centre: c2,
+                        radius: r2,
+                        ..
+                    },
                 turn: t2,
-                ..
             },
         ) => {
             if t1 != t2 {
@@ -812,7 +776,7 @@ mod tests {
                     (e, iv(0.0)),
                     (Point2::new(iv(0.0), iv(-l)), iv(0.0)),
                 ]);
-                let profile::Segment::Arc { sweep, .. } = lp.segments()[0] else {
+                let profile::Segment::Arc(Arc2 { sweep, .. }) = lp.segments()[0] else {
                     panic!("a nonzero bulge lowers to an arc");
                 };
                 let apex = arc_apex(a, e, sweep, Sign::Positive);

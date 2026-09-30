@@ -10,7 +10,7 @@
 use crate::common;
 
 use common::{annulus, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
-use geom_core::Sign;
+use geom_core::{Arc2, Sign};
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
 
 /// Convenience: validate an f64 profile or panic with the error.
@@ -87,8 +87,12 @@ fn circle_as_two_arcs_is_the_minimal_closed_carrier() {
     for s in lp.segments() {
         match s.kind {
             SegmentKind::Arc {
-                center,
-                radius,
+                arc:
+                    Arc2 {
+                        centre: center,
+                        radius,
+                        ..
+                    },
                 turn,
                 ..
             } => {
@@ -144,7 +148,15 @@ fn rounded_rectangle_alternates_lines_and_ccw_arcs() {
     // Corner arc geometry: the second canonical segment is the corner
     // about (3.5, 0.5) with radius 0.5.
     match lp.segments()[1].kind {
-        SegmentKind::Arc { center, radius, .. } => {
+        SegmentKind::Arc {
+            arc:
+                Arc2 {
+                    centre: center,
+                    radius,
+                    ..
+                },
+            ..
+        } => {
             assert!((center.x - 3.5).abs() < 1e-12);
             assert!((center.y - 0.5).abs() < 1e-12);
             assert!((radius - 0.5).abs() < 1e-12);

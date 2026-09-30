@@ -16,7 +16,7 @@ use core::f64::consts::FRAC_PI_2;
 use profile::RawLoop;
 
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 use step_export::{StepOptions, step_string};
 use sweep::{ProfileLoop, SketchSegment, sweep_body};
 
@@ -35,9 +35,11 @@ fn duplicate_elbow(tol: Tol) -> topo::Body<f64> {
         SketchSegment::Arc {
             a: Point2::new(0.0, 0.0),
             b: Point2::new(R, R),
-            centre: Point2::new(0.0, R),
-            radius: R,
-            sweep: FRAC_PI_2,
+            arc: Arc2 {
+                centre: Point2::new(0.0, R),
+                radius: R,
+                sweep: FRAC_PI_2,
+            },
         },
         Affine3::rotation_about_axis(
             Point3::new(0.0, 0.0, 0.0),

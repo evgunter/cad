@@ -27,6 +27,7 @@
 )]
 
 use crate::common;
+use geom_core::Arc2;
 
 use common::{lift, profile, tol};
 use geom_core::k_stats::{self, Probe};
@@ -65,16 +66,22 @@ fn probe_canonical_form_is_bit_identical_to_f64() {
                 match (&sf.kind, &sq.kind) {
                     (
                         SegmentKind::Arc {
-                            center: cf,
-                            radius: rf,
+                            arc:
+                                Arc2 {
+                                    centre: cf,
+                                    radius: rf,
+                                    sweep: wf,
+                                },
                             turn: tf,
-                            sweep: wf,
                         },
                         SegmentKind::Arc {
-                            center: cq,
-                            radius: rq,
+                            arc:
+                                Arc2 {
+                                    centre: cq,
+                                    radius: rq,
+                                    sweep: wq,
+                                },
                             turn: tq,
-                            sweep: wq,
                         },
                     ) => {
                         assert_eq!(cf.x.to_bits(), cq.x.0.to_bits());
