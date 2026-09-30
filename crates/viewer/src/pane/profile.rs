@@ -196,7 +196,7 @@ pub(crate) fn preview_verdict(
 ) -> bool {
     // The first frame this form is on screen: the latch has not asked
     // for a preview yet, so there is nothing honest to say about one.
-    // The commit door is still the judge, so the button is not held
+    // The commit door is still the judge, so the button is not withheld
     // for a frame either.
     let Some(preview) = preview else {
         return false;

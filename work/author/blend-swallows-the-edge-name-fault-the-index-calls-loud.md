@@ -55,3 +55,11 @@ crate. Both sites (`load_all_edges`'s `filter_map(.. .ok())` and
 `mark_segments`'s `is_ok_and`) are unchanged on main at that date. The
 `marks.rs` sibling for faces is
 `work/vgeom/marks-focus-drops-an-unnamed-patch-from-attribution`.
+
+## Moved (AUTH-10, 2026-09-30)
+
+The first site left `blend.rs`: the held set's per-frame mark walk is
+now `marks::HeldEdges::segments` (`crates/viewer/src/marks.rs`), which
+the blend tool feeds through `BlendTool::held_edges`. The collapse is
+unchanged — `index.edge_name_of(id).is_ok_and(...)` — so the row's
+first bullet now lands on VGEOM's `marks.rs` as well as this slate.
