@@ -101,7 +101,9 @@ impl<K: Ord + Clone> Obstacles<K> {
             && (naming.a_keys, naming.b_keys)
                 != (topo::OperandKeys::Direct, topo::OperandKeys::Grafted)
         {
-            return Err(bug("a boolean recorded discards in a key layout it has no rows for"));
+            return Err(bug(
+                "a boolean recorded discards in a key layout it has no rows for",
+            ));
         }
         let grafted: BTreeMap<EdgeKey, EdgeKey> = naming
             .graft_edges
@@ -115,7 +117,10 @@ impl<K: Ord + Clone> Obstacles<K> {
                 .iter()
                 .map(|chain| match row.operand {
                     topo::Operand::A => chain.clone(),
-                    topo::Operand::B => chain.iter().map_while(|k| grafted.get(k).copied()).collect(),
+                    topo::Operand::B => chain
+                        .iter()
+                        .map_while(|k| grafted.get(k).copied())
+                        .collect(),
                 })
                 .collect();
             let mut seams = Vec::new();
