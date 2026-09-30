@@ -4308,3 +4308,7 @@ bundled with `refusal-rows-that-count-instead-of-snapshot` (branch
 - As with the side tables, the lane measures which rows newly red, and
   defers any fix that lies in a live lane's files.
 - `null.rs`'s part waits for PR 3531.
+
+PR 3562 merged (`f0cce79cbb`) after CI run 36733898770 went green,
+closing `revert-writes-each-start-through-an-unproven-next`. `revert`
+now proves every map it writes.
