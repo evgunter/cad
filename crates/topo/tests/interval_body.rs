@@ -122,7 +122,7 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
         NetState::Poisoned,
         "the fixture is corrupt DESCRIBED geometry at this scalar, not the placeholder"
     );
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Nurbs(Arc::new(net)),

@@ -33,3 +33,16 @@ S-BOOL: two of the three spellings are in `crates/topo/src/splitting/*` and `cra
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Evidence from PR 3580 (TOPO, 2026-09-30)
+
+`crates/topo/src/attach.rs` now reads adjacency coherence through one
+private `Named::adjacent_to`, over both the spec
+(`EdgeDescriptionSpec`) and the stored description (`EdgeDescription`),
+for `set_edge_curve`'s check and the re-chart doors'
+(`set_face_surface`'s stranding refusal and
+`set_face_surfaces_describing`). That folds the attach layer's own
+copy into one, and it is a candidate home for the ladder: it already
+takes the faces' surfaces as parameters, so a door asking about a state
+it has not written yet can ask it. `validate.rs`'s tier-3 reader and
+`splitting/finish.rs`'s keep-vs-restate arm still spell it by hand.

@@ -88,7 +88,7 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     let g = geometry();
     let wall = g.walls[0][1].as_ref().clone();
     let face = built.side_faces[0][1];
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         face,
         FaceSurface::New {
             surface: Surface::Nurbs(wall.into()),

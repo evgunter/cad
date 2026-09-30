@@ -156,7 +156,7 @@ fn intrinsic_seam_at(
     };
     // The plane the flat wall IS: `y = -1`, outward normal `-y`.
     let plane = body
-        .set_face_surface(
+        .set_face_surface_stranding_for_tests(
             flat_face,
             FaceSurface::New {
                 surface: Surface::Plane {
@@ -412,7 +412,7 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .faces()
         .find(|(_, f)| f.surface == old)
         .expect("the bowed wall has a face");
-    body.set_face_surface(
+    body.set_face_surface_stranding_for_tests(
         fk,
         FaceSurface::New {
             surface: new,
