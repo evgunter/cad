@@ -4017,3 +4017,40 @@ PR 3532 merged at `6d0fbfe5d8` (merge `9e5c80df7a`) after CI run
   PR 3531's rework, which is live in those plans.
 - `vertex-orbit-reads-no-start-vertex` reaches `boolean/` and waits
   for PR 3513.
+
+## PR 3531 reworked to keys-only kills; its single review out (2026-09-30)
+
+The rework brought the lane's total to 700,020 tokens, 422 tools and
+15,723 s. Head `f7746ac162` is green on CI run 36713008162.
+
+**The shape.**
+- `kef`, `kfmrh`, `ring_move` and `mfkrh` stay keys-only. Where a
+  re-mint is owed, they refuse `PcurveMint { KeysOnly }` before they
+  mutate.
+- The `_minting` twins take `tol` and re-mint. One plan serves both:
+  `plan_site_mint_of(Option<Tol>)`, with `site_selects` split out of
+  `site_rows`.
+- `mfkrh_plug` keeps its signature, since its spline placeholder
+  never owes.
+
+**Callers, by probe of the `KeysOnly` refusal across both suites:**
+- Seven production sites moved to a twin: `zip.rs` ×3 and `rest.rs`
+  ×3 among them.
+- The rest stay keys-only, and 0 refusals remain.
+- `chord_join::cut_core` stays keys-only. It never reached a re-mint in
+  the suites; an unmeasured path would now refuse typed instead of
+  half-minting.
+
+**The gate re-pin.** `bit-identity-debug-only.sh` goes 17 → 19 and
+19 → 23 for the new doors' debug-only arena-delta checks. That is a
+re-count under the gate's own rule, as with the bounds pin on PR 3508,
+not a new decision.
+
+**The review.** A single full review, frozen at `f7746ac162`, on the
+rebase target. The claims it tests:
+- the refusal and the twin agree at every boundary case;
+- whether an unmeasured public path now refuses a valid Boolean;
+- the emptied faces (deviation 2);
+- red-first, honestly at base;
+- atomicity;
+- the gate re-pin.
