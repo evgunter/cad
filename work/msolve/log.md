@@ -1025,3 +1025,23 @@ Closes MSOLVE-11, `mate-lane-escalations-reach-no-nodes-log`,
 
 Spec deleted, with a note in `docs/doc-ledger/msolve-11-spec.md`.
 Next: item 21's design fork, which is with two designers.
+
+## 2026-10-01 — MSOLVE-11 merged; item 21 to Ev; MSOLVE-12 dispatched
+
+MSOLVE-11 merged on PR 3680. Its MERGED entry rode the unit branch.
+
+Item 21's two designers agreed on their first reports. The solve
+should not refuse, because the two layers answer two different
+questions. The question is on `[ev]` PR 3695 (fork-log row 36), as
+one sentence in A11 (4).
+
+Friction, a triage miss: four rows were routed onto this slate on
+2026-09-20 by the P0 scoring pass (`d0ad286f6`). Three of them are P0.
+They came in through a main merge, and `incoming` listed them, but I
+never placed them, so they sat for eleven days. A review of all open
+`work/msolve/` rows by priority found them. The rule I take from it:
+at each check-in, `incoming` is followed by placing every new row on
+the plan, not only reading it. Three of the rows are now MSOLVE-12
+(plan item 23), dispatched on Opus with a single full review. The
+fourth, the null-payload spelling, is blocked on item 22 (plan item
+24).
