@@ -462,11 +462,9 @@ impl core::fmt::Display for PointInSolidError {
             Self::PartialConeFace { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: one of its cone faces has an \
-                 outline the inside/outside test cannot read (it passes through the \
-                 apex twice, or a tilted cut bounds it, say). The solid itself is fine. \
+                 outline the inside/outside test cannot read. The solid itself is fine. \
                  Recourse: split the cone face so each piece reaches the apex at most \
-                 once, or let its faces cover the turn; a face a tilted cut bounds has \
-                 no way through yet"
+                 once, or let its faces cover the turn; a tilted cut has none yet"
             ),
             Self::PartialTorusFace { .. } => write!(
                 f,
