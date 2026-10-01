@@ -20,15 +20,19 @@ standard (`work/chrome/error-and-check-text-overflows-its-region.md`,
 part never to drop, and where there is no way through the sentence
 says so.
 
-These rows, raised through `MateFault` (`crates/editor-core/src/mate.rs`), in the feature tree and through `EditError::MateRefused` / `MaintenanceRefused` on the status line, render with none. Each is admitted
+These rows, raised through `MateFault` (`crates/editor-core/src/mate.rs`), in the feature tree and through `EditError::MateRefused` on the status line, render with none. Each is admitted
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
   11 feature-tree rows.
 - `crates/viewer/tests/refusal_concision_edits.rs`, `FILED_NO_RECOURSE`:
-  22 status-line rows.
+  12 status-line rows.
 
-Families: `Edit/MaintenanceRefused`, `Edit/MateRefused`, `Mate`.
+Families: `Edit/MateRefused`, `Mate`. (`Edit/MaintenanceRefused` and
+its eleven forwarded rows left the list with the arm, which EDIT's
+placement unit P2 deleted: no edit records a frame. The two
+`MateFault` arms P2 added, `OffsetDisagrees` and `OffsetUnchecked`,
+state their recourse from birth and are not admitted.)
 
 ## Repair shape
 

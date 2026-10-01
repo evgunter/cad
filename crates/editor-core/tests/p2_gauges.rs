@@ -1194,3 +1194,39 @@ fn a_declaring_mate_across_gauges_is_minted_and_certified_at_rest() {
         vec![mate]
     );
 }
+
+/// **Only a cut of exactly one placed group hoists** (A4). Two placed
+/// groups cut together move verbatim: the instance left behind sits at
+/// the empty offset and each root keeps its own offset in the part —
+/// hoisting either would move the other group.
+#[test]
+fn a_cut_of_two_placed_groups_moves_verbatim_rather_than_hoisting() {
+    let p = parts("p2-two-groups");
+    let doc = ProfileDoc::empty(DocumentId::derive("p2-two-groups"), Tol::witness());
+    let (doc, first) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, first, Some(literal([4.0, 0.0, 0.0])));
+    let (doc, second) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(doc, second, Some(literal([0.0, 9.0, 0.0])));
+    let o = p.opts();
+    let out = editor_core::split(
+        &doc,
+        &cut(&[first, second]),
+        DocumentId::derive("p2-two-groups-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect("two whole groups");
+    assert_eq!(
+        offset_of(&out.remainder, out.instance),
+        Some(Placement::IDENTITY),
+        "nothing hoisted"
+    );
+    assert_eq!(
+        offset_of(&out.part, out.node_map[&first]),
+        Some(literal([4.0, 0.0, 0.0]))
+    );
+    assert_eq!(
+        offset_of(&out.part, out.node_map[&second]),
+        Some(literal([0.0, 9.0, 0.0]))
+    );
+}
