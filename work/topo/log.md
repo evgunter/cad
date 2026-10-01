@@ -5551,3 +5551,32 @@ PR 3648 merged at `9569d15775` after CI run 36835851234 went green on
 `per-op-postcondition` scalpel reported tears the tests planted. Tests
 that tear bodies now go through `fixtures::through_the_scalpel`. The CI
 gap is filed on CIW.
+
+## PR 3513 verifier: NOT VERIFIED on two narrow items; fix pass 6 (scoped) dispatched (2026-10-01)
+
+The verifier ran on `cba319f9e8`, where CI run 36835224854 is green on
+the full tier.
+
+**What held:**
+- every fr4 finding is closed under the refined rule;
+- fr4's 103-pose `chain.py` agrees with the PR body row for row;
+- 66 new poses are T1, or T2 through a true story;
+- all 8 mutants red, `MYR` included;
+- the dihedral re-baselines equal sinθ·arm at all three ε.
+
+**What remains:**
+- **NF-1, real.** `at_wedge`'s exact-zero carve-out misses a wedge that
+  is nonzero but sits in its zero band. A tangent seam quotes
+  "tighten below 1.05e-25 m" where the arm's 7e-10 already passes. It
+  reaches certify and validate too.
+- **NF-2, not the offer's.** `CoplanarNeighbours`' F2 is the stranded
+  fixture's `ClassificationInvariant`, which it reaches at every ε. The
+  verifier executed true offers for the same decision on valid bodies.
+- **The gate.** The PR is dirty against main (`certify.rs` taxonomy,
+  `ops.rs` seam mint).
+
+**Fix pass 6** is scoped to those three: merge main; quote the arm when
+the wedge is undecided, with rows at all three ε and a mutant; swap the
+harness to valid-body `CoplanarNeighbours` poses and file the stranded
+fixture's invariant. On green and clean CI, I read NF-1 and merge, with
+no further verifier.
