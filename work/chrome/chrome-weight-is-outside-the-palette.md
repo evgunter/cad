@@ -5,9 +5,14 @@ title: The tree's badge WEIGHT carries meaning no palette can tune, and no test 
 status: open
 opened: 2026-09-04
 refs: [1769, 1463]
+needs_ev: true
 priority: P4
 cost: E
 ---
+
+## Question
+
+Should the theme contract cover the chrome's loud/quiet tone split? The feature tree tells the row to act on (`Tone::Actionable`, the palette colour `unresolved`) from a quiet row (`Tone::Advisory`, egui's weak text). `theme.rs`'s dichromacy carve-out exempts the actionable colour from the colourblind-safe claim because badges carry their own words. The choice is whether the salience the tone split carries is the theme's to supply and to check.
 
 Found by CHROME's style lane on PR 1769; judged a class question by the
 fix pass on that PR rather than a missing assertion in it.
