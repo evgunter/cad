@@ -191,16 +191,26 @@ fn intrinsic_seam_at(
 }
 
 /// The ATTACHMENT is ε-dependent too, and that is the honest answer:
-/// this seam's certified between-samples sup is ~6.22e-12 m, so at
-/// ε_in = 1e-12 the declare-and-check rung refuses TYPED carrying that
+/// this seam's certified between-samples sup is ~5.47e-14 m, so below
+/// ε_in = 1e-13 the declare-and-check rung refuses TYPED carrying that
 /// number and no mint happens at all. `None` IS that cell — pinned as a
 /// refusal whose own number explains it, never widened away.
+///
+/// **The boundary moved from 1e-9 to 1e-13 when `insert_once_ring` took
+/// the convex insertion form** (the sup was ~6.22e-12 m, 114x wider):
+/// the sup is a between-samples bound assembled over a Bézier
+/// decomposition, and the lerp form multiplied each coefficient's own
+/// dust up once per insertion. The seam therefore attaches first-class
+/// at ε_in = 1e-12 now, where it refused before. The refusal cell is
+/// still reachable and still measured — at ε_in = 1e-14 — but no eps row
+/// the gate or the nightly runs reaches it any more, which is filed
+/// rather than absorbed.
 fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
     let eps = Tol::witness().get().eps;
     match intrinsic_seam(swap) {
         Ok(seam) => {
             assert!(
-                eps >= 1e-9,
+                eps >= 1e-13,
                 "the certified sup does not fit inside a finer ε_in — attaching there \
                  would be a widened gate"
             );
@@ -214,7 +224,7 @@ fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::Surfac
                     ..
                 },
         }) => {
-            assert!(eps < 1e-9, "only the ε-fine cell refuses: {cause:?}");
+            assert!(eps < 1e-13, "only the ε-fine cell refuses: {cause:?}");
             let geom_core::ErrorTextReading::Value(sup) =
                 cause.margin.diagnostic_f64_for_error_text()
             else {
