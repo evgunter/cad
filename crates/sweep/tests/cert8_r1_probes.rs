@@ -74,7 +74,10 @@ fn probe(name: &str, surface: &Surface<f64>) {
     let sup = geom_brep::chart_stretch_sup(surface);
     let (sup_u, sup_v) = match sup {
         Ok(pair) => (pair.0.get(), pair.1.get()),
-        Err(_) => (f64::NAN, geom_brep::chart_stretch_sup_v(surface).get()),
+        Err(_) => (
+            f64::NAN,
+            geom_brep::chart_stretch_sup_v(surface).map_or(f64::NAN, |v| v.get()),
+        ),
     };
     let (arm_u, arm_v, rho) = assemble(&inf);
     let mw = 2.0 * (arm_u * arm_v) / (2.0 * (arm_u + arm_v));

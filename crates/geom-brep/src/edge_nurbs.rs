@@ -464,8 +464,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     };
     if wall.is_placeholder() {
         return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
-                   surface to certify against",
+            what: geom::PLACEHOLDER_SURFACE,
         });
     }
 
@@ -588,13 +587,12 @@ where
 {
     if wall.is_placeholder() {
         // The same refusal `plane_nurbs_limbs` states before it gets here, kept at
-        // the producer too: the mvfs placeholder is a mid-surgery "no
-        // description yet" fact, and projecting onto it would return
+        // the producer too: the placeholder has no description
+        // yet, and projecting onto it would return
         // feet of a surface that does not exist. `plane_nurbs_limbs`
         // still checks first, so its own refusal ORDER is unchanged.
         return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
-                   surface to derive a chart image on",
+            what: geom::PLACEHOLDER_SURFACE,
         });
     }
     let (t0, t1) = carrier.domain();
@@ -654,7 +652,7 @@ where
 ///
 /// [`PlaneNurbsRefusal::FootPointInconclusive`] when the projection
 /// will not converge (never a best-effort foot), or
-/// [`PlaneNurbsRefusal::Unsupported`] on the mvfs placeholder.
+/// [`PlaneNurbsRefusal::Unsupported`] on the placeholder (`geom::PLACEHOLDER_SURFACE`).
 pub(crate) fn chart_foot<T>(
     point: Point3<T>,
     wall: &NurbsSurface<T>,
@@ -664,8 +662,7 @@ where
 {
     if wall.is_placeholder() {
         return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
-                   surface to derive a chart image on",
+            what: geom::PLACEHOLDER_SURFACE,
         });
     }
     let proj = wall
