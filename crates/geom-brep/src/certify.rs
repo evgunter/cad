@@ -182,9 +182,11 @@ pub enum CertCheck {
     /// **sup-norm** bound over the whole span — the number that
     /// certifies (a bound, never a sampled max).
     PlaneNurbsHull,
-    /// Intersection, plane × NURBS (M7-8): the lane's own margins as a
-    /// whole, named when one of them escalates.
-    PlaneNurbsCertificate,
+    /// Intersection, plane × NURBS (M7-8): the lane's reported
+    /// transversality, the minimum sine over the interior samples that
+    /// each decided transverse — named when that aggregate is poisoned,
+    /// which no geometry and no tolerance reaches.
+    PlaneNurbsReportedTransversality,
 }
 
 /// The check's own name — the noun a refusal about it writes (the
@@ -244,7 +246,9 @@ impl core::fmt::Display for CertCheck {
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
             Self::PlaneNurbsHull => "the plane × NURBS sup-norm bound",
-            Self::PlaneNurbsCertificate => "the plane × NURBS lane's margins",
+            Self::PlaneNurbsReportedTransversality => {
+                "the plane × NURBS lane's reported minimum crossing angle"
+            }
         })
     }
 }
@@ -490,11 +494,18 @@ impl core::fmt::Display for CertifyError {
             // the fifteen checks that reach this arm meter no residual
             // (two sup bounds, a parallelism defect, a component, an
             // excess), so the noun is not the sentence's to write.
-            Self::ResidualExceeded { check, sample } => write!(
-                f,
-                "{check} at sample {sample} definitely exceeds the tolerance \
-                 band (the cache does not represent the description, D4 ¶2)"
-            ),
+            Self::ResidualExceeded { check, sample } => {
+                if *sample == NOT_A_SAMPLE {
+                    write!(f, "{check} (not a sampled check)")?;
+                } else {
+                    write!(f, "{check} at sample {sample}")?;
+                }
+                write!(
+                    f,
+                    " definitely exceeds the tolerance band (the cache does not represent \
+                     the description, D4 ¶2)"
+                )
+            }
             Self::PlaneNurbs(refusal) => {
                 write!(f, "the plane × NURBS Intersection lane refused — {refusal}")
             }
@@ -685,9 +696,12 @@ impl CertCheck {
             | Self::SeamSide
             | Self::ChartResidual => Ending::Unsized(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
+            // A fold over samples that each decided transverse: a poison
+            // that survives it is the kernel's.
+            Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
             // Approximations: a fitted intersection carrier on its
             // surfaces, a certified sag bound, and the plane × NURBS
-            // lane's fitted image and rung-3 certificate. The surface
+            // lane's fitted image's two residual limbs. The surface
             // residuals take the last resort for EVERY carrier, the exact
             // analytic ones too, where a miss would be a defect: the
             // routing reads the decision alone and cannot see which kind
@@ -696,8 +710,7 @@ impl CertCheck {
             | Self::Surface2Residual
             | Self::TangentHull
             | Self::PlaneNurbsOnLocus
-            | Self::PlaneNurbsHull
-            | Self::PlaneNurbsCertificate => Ending::Unsized(Unsized::LastResort),
+            | Self::PlaneNurbsHull => Ending::Unsized(Unsized::LastResort),
         }
     }
 }
@@ -743,7 +756,7 @@ fn tube_separation<T: Decide>(
         Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { verdict }),
         Err(cause) => Err(CertifyError::Escalated {
             check: CertCheck::TangentTube,
-            sample: 0,
+            sample: NOT_A_SAMPLE,
             cause,
         }),
     }
@@ -989,14 +1002,6 @@ pub struct EdgeCurve<T: Real> {
 }
 
 impl<T: Decide> EdgeCurve<T> {
-    /// The carrier point at the middle of the certified parameter
-    /// interval — a point ON the edge, interior to it, whatever the
-    /// carrier kind (a curved edge's chord midpoint is not on it).
-    pub fn mid_point(&self) -> Point3<T> {
-        self.carrier
-            .eval(self.param_start + (self.param_end - self.param_start) * T::from_f64(0.5))
-    }
-
     /// Certifies `spec` against the edge's endpoint points and the
     /// owning body's surfaces, returning the certified carrier.
     ///
@@ -1040,7 +1045,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///      residual `|w·v_ref|`, wrong-side excess `max(0, −w·u_ref)`.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
-    ///    `|carrier((t₀+t₁)/2) − witness| ≤ ε`
+    ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
     ///    ([`CertCheck::WitnessMidpoint`]): the witness contract is
     ///    that the stored witness IS the edge's mid-parameter point —
     ///    constructors mint it as `carrier(mid)` (the upgrade helpers'
@@ -1432,6 +1437,13 @@ impl<T: Real> EdgeCurve<T> {
 }
 
 impl<T: SpanLocate> EdgeCurve<T> {
+    /// The carrier point at the middle of the certified parameter
+    /// interval ([`Curve3::mid_point`]) — a point ON the edge, interior
+    /// to it, whatever the carrier kind.
+    pub fn mid_point(&self) -> Point3<T> {
+        self.carrier.mid_point(self.param_start, self.param_end)
+    }
+
     /// The two **uncertified child specs** of splitting this certified
     /// carrier at interior parameter `t` (M3 PR 1, for `split_edge`):
     /// the carrier is unchanged and the interval splits at `t`
@@ -1460,13 +1472,9 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     EdgeDescriptionSpec::Intersection {
                         s1: k1,
                         s2: k2,
-                        // The child's mid-parameter point, computed
-                        // exactly as the certification schedule's
-                        // middle sample (bitwise — zero
-                        // WitnessMidpoint residual).
-                        witness: self
-                            .carrier
-                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                        // The point the WitnessMidpoint pin reads:
+                        // zero residual by construction.
+                        witness: self.carrier.mid_point(ta, tb),
                     }
                 }
                 // TangentIntersection splits exactly as Intersection:
@@ -1476,9 +1484,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     EdgeDescriptionSpec::TangentIntersection {
                         s1: k1,
                         s2: k2,
-                        witness: self
-                            .carrier
-                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                        witness: self.carrier.mid_point(ta, tb),
                     }
                 }
                 EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1)),
@@ -1630,6 +1636,73 @@ pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
     }
 }
 
+/// An edge about to be described as the transverse `Intersection` of
+/// its two faces' surfaces, read once: the `witness` and lever arm
+/// (`extent`) the dihedral classifies at, and the carrier and interval
+/// the description is certified against if the class is transverse.
+///
+/// A curved certified carrier ([`Curve3::is_curved`]) is kept with its
+/// interval — only the description changes — and is read at its
+/// [`EdgeCurve::mid_point`] and [`edge_extent`]. Anything else (a line,
+/// or no certified carrier yet) becomes the chord `p0 → p1`
+/// ([`EdgeCurveSpec::line_between`]), whose midpoint is on it and whose
+/// length is its extent.
+#[derive(Clone, Debug)]
+pub struct IntersectionDraft<T: Real> {
+    /// The point the dihedral classifies at and the description pins.
+    pub witness: Point3<T>,
+    /// The lever arm the dihedral meters angles through.
+    pub extent: T,
+    carrier: Curve3<T>,
+    param_start: T,
+    param_end: T,
+}
+
+impl<T: SpanLocate> IntersectionDraft<T> {
+    /// Reads the edge from its certified curve, if it has one, and the
+    /// points of `start(he_plus)` and `end(he_plus)`.
+    pub fn of(existing: Option<&EdgeCurve<T>>, p0: Point3<T>, p1: Point3<T>) -> Self {
+        match existing.filter(|c| c.carrier().is_curved()) {
+            Some(c) => {
+                let (t0, t1) = c.params();
+                Self {
+                    witness: c.mid_point(),
+                    extent: edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
+                    carrier: c.carrier().clone(),
+                    param_start: t0,
+                    param_end: t1,
+                }
+            }
+            None => {
+                let chord = EdgeCurveSpec::line_between(p0, p1);
+                Self {
+                    witness: p0.lerp(p1, T::from_f64(0.5)),
+                    extent: p0.distance(p1),
+                    carrier: chord.carrier,
+                    param_start: chord.param_start,
+                    param_end: chord.param_end,
+                }
+            }
+        }
+    }
+}
+
+impl<T: Real> IntersectionDraft<T> {
+    /// The `Intersection` spec of `s1` and `s2` at this draft's witness.
+    pub fn into_spec(self, s1: SurfaceKey, s2: SurfaceKey) -> EdgeCurveSpec<T> {
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: self.witness,
+            },
+            carrier: self.carrier,
+            param_start: self.param_start,
+            param_end: self.param_end,
+        }
+    }
+}
+
 /// The honest spatial **extent** of an edge — the lever arm the
 /// dihedral/transversality classification meters angles through
 /// (D4 ¶1), replacing the bare chord (M2 PR 3 fix pass, B2).
@@ -1743,6 +1816,33 @@ fn check_residual<T: Decide>(
             sample,
             cause,
         }),
+    }
+}
+
+/// The plane × NURBS lane's refusal in this module's vocabulary: a
+/// per-sample transversality refusal keeps its sample, and a limb's
+/// escalation or the poisoned aggregate, which no schedule point
+/// carries, names none ([`NOT_A_SAMPLE`]).
+fn from_plane_nurbs(e: crate::edge_nurbs::PlaneNurbsRefusal) -> CertifyError {
+    use crate::edge_nurbs::PlaneNurbsRefusal as P;
+    match e {
+        P::NotTransverse { sample, verdict } => CertifyError::NotTransverse { sample, verdict },
+        P::TransversalityEscalated { sample, cause } => CertifyError::Escalated {
+            check: CertCheck::Transversality,
+            sample,
+            cause,
+        },
+        P::Escalated { limb, cause } => CertifyError::Escalated {
+            check: limb.check(),
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        P::ReportedTransversalityPoisoned(cause) => CertifyError::Escalated {
+            check: CertCheck::PlaneNurbsReportedTransversality,
+            sample: NOT_A_SAMPLE,
+            cause,
+        },
+        other => CertifyError::PlaneNurbs(other),
     }
 }
 
@@ -2490,7 +2590,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "tangent_hull_sup",
             CertCheck::TangentHull,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(tangent_resid_max + bounds.residual_sag),
             band,
             &mut max_residual,
@@ -2520,28 +2620,11 @@ fn run_checks<T: Decide>(
         let Some(lane) = lane else {
             return Err(CertifyError::Unimplemented);
         };
-        let limbs = lane(carrier, plane, wall, extent, band).map_err(|e| match e {
-            crate::edge_nurbs::PlaneNurbsRefusal::NotTransverse { sample, verdict } => {
-                CertifyError::NotTransverse { sample, verdict }
-            }
-            crate::edge_nurbs::PlaneNurbsRefusal::TransversalityEscalated { sample, cause } => {
-                CertifyError::Escalated {
-                    check: CertCheck::Transversality,
-                    sample,
-                    cause,
-                }
-            }
-            crate::edge_nurbs::PlaneNurbsRefusal::Escalated(cause) => CertifyError::Escalated {
-                check: CertCheck::PlaneNurbsCertificate,
-                sample: 0,
-                cause,
-            },
-            other => CertifyError::PlaneNurbs(other),
-        })?;
+        let limbs = lane(carrier, plane, wall, extent, band).map_err(from_plane_nurbs)?;
         check_residual(
             "plane_nurbs_on_locus",
             CertCheck::PlaneNurbsOnLocus,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(limbs.on_locus_max),
             band,
             &mut max_residual,
@@ -2549,7 +2632,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "plane_nurbs_hull_sup",
             CertCheck::PlaneNurbsHull,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(limbs.hull_sup),
             band,
             &mut max_residual,
@@ -2574,7 +2657,7 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_1",
             CertCheck::WitnessSurface1,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(surf1, *witness)),
             band,
             &mut max_residual,
@@ -2582,14 +2665,12 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_2",
             CertCheck::WitnessSurface2,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(surf2, *witness)),
             band,
             &mut max_residual,
         )?;
-        let mid = spec
-            .carrier
-            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        let mid = spec.carrier.mid_point(t0, t1);
         check_residual(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
@@ -2610,14 +2691,12 @@ fn run_checks<T: Decide>(
         check_residual(
             "witness_on_surface_1",
             CertCheck::WitnessSurface1,
-            0,
+            NOT_A_SAMPLE,
             Margin::of(implicit_residual(plane, *witness)),
             band,
             &mut max_residual,
         )?;
-        let mid = spec
-            .carrier
-            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        let mid = spec.carrier.mid_point(t0, t1);
         check_residual(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
@@ -2734,7 +2813,7 @@ mod tests {
         CertCheck::ChartResidual,
         CertCheck::PlaneNurbsOnLocus,
         CertCheck::PlaneNurbsHull,
-        CertCheck::PlaneNurbsCertificate,
+        CertCheck::PlaneNurbsReportedTransversality,
     ];
 
     /// **[`ALL_CHECKS`] is the WHOLE taxonomy**, pinned against a
@@ -2773,7 +2852,7 @@ mod tests {
             CertCheck::ChartResidual => 22,
             CertCheck::PlaneNurbsOnLocus => 22,
             CertCheck::PlaneNurbsHull => 22,
-            CertCheck::PlaneNurbsCertificate => 22,
+            CertCheck::PlaneNurbsReportedTransversality => 22,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -3737,7 +3816,7 @@ mod tests {
             err,
             CertifyError::ResidualExceeded {
                 check: CertCheck::WitnessSurface1,
-                sample: 0
+                sample: NOT_A_SAMPLE
             }
         );
 
@@ -4292,13 +4371,97 @@ mod tests {
         for (reading, definite, undecided, exact) in rows {
             assert_eq!(limb.ending(reading).unwrap(), definite, "{reading:?}");
             assert_eq!(
-                P::Escalated(cause).ending(reading).unwrap(),
+                P::Escalated {
+                    limb: crate::ssi::SsiLimb::OnLocus,
+                    cause
+                }
+                .ending(reading)
+                .unwrap(),
                 undecided,
                 "{reading:?}"
             );
             assert_eq!(unavailable.ending(reading).unwrap(), exact, "{reading:?}");
             assert_eq!(chart.ending(reading).unwrap(), exact, "{reading:?}");
         }
+    }
+
+    /// **A certificate escalation ends by its limb's decision.** On the
+    /// lane's refusal and through its map into certification alike:
+    /// limbs 1 and 2 are residuals (the last resort at a build), limb
+    /// 3's margin in band is the transversality's (its lever and the
+    /// tolerance below `m/K`), and the poisoned reported transversality
+    /// ends in the kernel-defect ending. None of them was decided at a
+    /// schedule point, so certification renders none.
+    #[test]
+    fn a_certificate_escalation_ends_by_its_limbs_decision() {
+        use crate::edge_nurbs::PlaneNurbsRefusal as P;
+        use crate::ssi::SsiLimb;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cause = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("a_probe"),
+            terminal_sliver: false,
+        };
+        let tube = "Recourse: move the geometry so the faces cross at a clearer angle, or, if \
+                    this angle is intended, tighten the tolerance below 5e-10 m";
+        for (refusal, check, want) in [
+            (
+                P::Escalated {
+                    limb: SsiLimb::OnLocus,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::PlaneNurbsOnLocus,
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                P::Escalated {
+                    limb: SsiLimb::HullSup,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::PlaneNurbsHull,
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                P::Escalated {
+                    limb: SsiLimb::Tube,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::Transversality,
+                tube,
+            ),
+            (
+                P::ReportedTransversalityPoisoned(cause(MarginDiag::INVALID)),
+                CertCheck::PlaneNurbsReportedTransversality,
+                KERNEL_DEFECT_ENDING,
+            ),
+        ] {
+            let (got_check, _) = refusal.decision().unwrap();
+            assert_eq!(got_check, check, "{refusal:?}");
+            assert_eq!(refusal.ending(Reading::Build).unwrap(), want, "{refusal:?}");
+            // Through certification: the same check, and no schedule
+            // point the limb never visited.
+            let certified = from_plane_nurbs(refusal);
+            assert_eq!(
+                certified.decision().map(|(c, _)| c),
+                Some(check),
+                "{certified:?}"
+            );
+            let shown = certified.to_string();
+            assert!(
+                shown.contains("(not a sampled check)") && !shown.contains("at sample"),
+                "a non-sampled limb renders no schedule point: {shown}"
+            );
+        }
+        let exceeded = CertifyError::ResidualExceeded {
+            check: CertCheck::PlaneNurbsHull,
+            sample: NOT_A_SAMPLE,
+        }
+        .to_string();
+        assert!(
+            exceeded.contains("(not a sampled check)") && !exceeded.contains("at sample"),
+            "{exceeded}"
+        );
     }
 
     /// Each decision family ends every refused arm the one way its
@@ -4313,7 +4476,9 @@ mod tests {
     ///   kernel-defect ending, the file's too at rest, and its definite
     ///   refusal ends the same;
     /// - an approximation (a fitted carrier on its surface, the
-    ///   plane × NURBS certificate) ends in the last resort.
+    ///   plane × NURBS residual limbs) ends in the last resort, and the
+    ///   plane × NURBS lane's poisoned reported transversality, which
+    ///   no geometry reaches, in the kernel-defect ending.
     #[test]
     fn each_decision_family_ends_in_its_routed_sentence() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4370,8 +4535,15 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE,
             ),
             (
-                undecided(CertCheck::PlaneNurbsCertificate, MarginDiag::INVALID),
+                undecided(CertCheck::PlaneNurbsHull, MarginDiag::value(5e-9)),
                 KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                undecided(
+                    CertCheck::PlaneNurbsReportedTransversality,
+                    MarginDiag::INVALID,
+                ),
+                KERNEL_DEFECT_ENDING,
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(0.0)),
@@ -4563,7 +4735,7 @@ mod tests {
             (CertCheck::ChartImage, Defect),
             (CertCheck::PlaneNurbsOnLocus, LastResort),
             (CertCheck::PlaneNurbsHull, LastResort),
-            (CertCheck::PlaneNurbsCertificate, LastResort),
+            (CertCheck::PlaneNurbsReportedTransversality, Defect),
         ];
         assert_eq!(table.len(), ALL_CHECKS.len());
         for check in ALL_CHECKS {

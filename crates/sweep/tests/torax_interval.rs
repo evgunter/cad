@@ -312,17 +312,20 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 }
 
 /// **The klein elbow at `T = Interval`**: the carried-datum arm, the
-/// kind-changing spiric mint (its six `decide` sites) and both
-/// endpoint meters execute at the certified scalar on the way to the
-/// same door f64 measures — the equator seams' re-author, which
-/// refuses a `RevolvedPoint` corner displaced off its sketch plane
-/// (`torax_axial`). The old door, verbatim: `TogetherAxialEdge { what:
-/// "a circular edge between two charts whose centre is off the axis"
-/// }`, the latitude mint's `offset_axial_centre`. An escalation at a
-/// strict band is the certified scalar's honest answer and is pinned
-/// as such.
+/// kind-changing spiric mint (its six `decide` sites), both endpoint
+/// meters, the rim window's forward read (`offset_axial_rim_window`)
+/// and the equator seams' re-author — each end's out-of-plane decide
+/// and the turned start's verification — execute at the certified
+/// scalar on the way to the door f64 measures: tier 3's check 7,
+/// `VolumeUncomputable` at a spiric-bounded cap (`Unimplemented`). The
+/// old door, verbatim: `Face { error: Op { edge: None, error:
+/// RechartFalsifies { edge: EdgeKey(2v1), error: IntervalNotForward {
+/// margin: Enclosure [−0.7068583470577047, −0.7068583470577025] } } } }`,
+/// a rim window read backwards on `atan2`'s branch cut. An escalation
+/// at a strict band is the certified scalar's honest answer and is
+/// pinned as such.
 #[test]
-fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
+fn interval_the_klein_elbow_hollows_to_the_props_door() {
     let tol = Tol::witness();
     let r = 0.275_f64;
     let profile = Profile::new(
@@ -345,25 +348,66 @@ fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     )
     .expect("the elbow revolves")
     .body;
-    let e = topo::shell(&body, iv(0.05), tol)
-        .expect_err("the elbow's equator seams cannot be re-authored off their plane");
+    let e = topo::shell(&body, iv(0.05), tol).expect_err("check 7's volume");
     match e {
-        ShellError::Face { ref error, .. }
+        ShellError::NotValid { ref errors }
             if matches!(
-                **error,
-                topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
-                    if what == "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+                errors[..],
+                [ValidationError::VolumeUncomputable {
+                    source: topo::MassPropsError::Face {
+                        source: geom_brep::PropsError::Unimplemented,
+                        ..
+                    },
+                    ..
+                }]
             ) => {}
+        // At a strict band the certified scalar may escalate first: at
+        // the door's own decides, or (measured at ε = 1e-12) at the
+        // pcurve envelope of a spiric RIM, whose enclosure is wider than
+        // the band. Only a rim's: a re-authored seam's escalation is not
+        // absorbed here.
         ShellError::Face { ref error, .. }
             if tol.eps() < DEFAULT_EPS
-                && matches!(**error, topo::ReplaceFaceError::Escalated { .. }) =>
+                && (matches!(**error, topo::ReplaceFaceError::Escalated { .. })
+                    || rim_envelope_escalation(&body, error)) =>
         {
             stood_down(
-                &format!("the klein elbow's interval rim, eps = {:e}", tol.eps()),
-                "the certified scalar escalated before the seam re-author's refusal was \
-                 reachable, so THIS RUN ASSERTS ONLY the door's own typed escalation",
+                &format!("the klein elbow's interval hollow, eps = {:e}", tol.eps()),
+                "the certified scalar escalated before the props door was reachable, so \
+                 THIS RUN ASSERTS ONLY a typed escalation",
             );
         }
-        other => panic!("expected the seam re-author's out-of-plane refusal, got {other:?}"),
+        other => panic!("expected check 7's props door, got {other:?}"),
     }
+}
+
+/// Whether `error` is the pcurve mint's envelope escalating on a
+/// half-edge of a DERIVED edge of `body` — a spiric rim, not a
+/// re-authored (declared) seam.
+fn rim_envelope_escalation(
+    body: &Body<Interval>,
+    error: &topo::ReplaceFaceError<Interval>,
+) -> bool {
+    let topo::ReplaceFaceError::Pcurve {
+        source:
+            topo::PcurveMintError::Certify {
+                half_edge,
+                error:
+                    geom_brep::PcurveCertifyError::Escalated {
+                        check: geom_brep::PcurveCheck::Envelope,
+                        cause,
+                        ..
+                    },
+            },
+    } = error
+    else {
+        return false;
+    };
+    cause.predicate == Some("pcurve_envelope")
+        && body
+            .get_half_edge(*half_edge)
+            .and_then(|h| body.get_edge(h.edge))
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(|c| c.certified())
+            .is_some_and(|c| matches!(c.authority(), geom_brep::EdgeAuthority::Derived))
 }

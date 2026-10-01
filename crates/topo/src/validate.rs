@@ -152,10 +152,12 @@
 //!     never outlives its face
 //!     ([`ValidationError::LeakedNullFaceRecord`]), and every loop key
 //!     a record names resolves
-//!     ([`ValidationError::StaleNullFaceLoop`]). Deliberately
-//!     minimal and referential-only — attribute semantics are the
-//!     surgery ops' contract, and tier 2 bans null entities at rest
-//!     outright (see `crate::null`).
+//!     ([`ValidationError::StaleNullFaceLoop`]) and is its face's
+//!     outer loop or one of its rings
+//!     ([`ValidationError::StaleNullFaceOwnership`]). Deliberately
+//!     minimal — which role each loop plays is the surgery ops'
+//!     contract, and tier 2 bans null entities at rest outright (see
+//!     `crate::null`).
 //!
 //! The harness is deliberately a plain function plus an error enum,
 //! **not a trait**: there is exactly one notion of body validity per
@@ -1884,13 +1886,23 @@ pub enum ValidationError {
     /// record names a loop key that does not resolve in the loop
     /// arena — a loop-killing operator ran without scrubbing the
     /// record (the same leak rule as `LeakedNullFaceRecord`, applied
-    /// to the record's named loops). Referential-only by the ratified
-    /// posture: *which* loops the record names is semantics, not
-    /// checked at tier 1.
+    /// to the record's named loops).
     StaleNullFaceLoop {
         /// The face whose record is stale.
         face: FaceKey,
         /// The named loop key that no longer resolves.
+        named_loop: LoopKey,
+    },
+    /// **Tier 1, pass 13.** A null-face record names a live loop that
+    /// is neither its face's outer loop nor one of its rings — an op
+    /// moved the loop off the face without dropping the record. A null
+    /// face is one face's two coincident loops (`crate::null`), so the
+    /// record describes none. Which role each loop plays is not checked
+    /// here.
+    StaleNullFaceOwnership {
+        /// The face whose record is stale.
+        face: FaceKey,
+        /// The named loop, live but not the face's own.
         named_loop: LoopKey,
     },
     /// **Tier 2 (M3 PR 1).** A null edge at rest: the edge's curve
@@ -2439,8 +2451,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
         }
-        CertifyError::PlaneNurbs(P::Escalated(_)) => {
-            certify_undecided(CertCheck::PlaneNurbsCertificate)
+        CertifyError::PlaneNurbs(P::Escalated { limb, .. }) => certify_undecided(limb.check()),
+        CertifyError::PlaneNurbs(P::ReportedTransversalityPoisoned(_)) => {
+            certify_undecided(CertCheck::PlaneNurbsReportedTransversality)
         }
         CertifyError::Band(b) => classify_band(b),
     };
@@ -2474,7 +2487,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TransversalityEscalated { .. }
                 | P::Limb { .. }
                 | P::TubeStraddles { .. }
-                | P::Escalated(_),
+                | P::Escalated { .. }
+                | P::ReportedTransversalityPoisoned(_),
             ) => unreachable!("a decision's refused arm always has its decision's ending"),
         }),
     };
@@ -2512,9 +2526,11 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         | CertCheck::SeamSide
         | CertCheck::ChartResidual
         | CertCheck::PlaneNurbsOnLocus
-        | CertCheck::PlaneNurbsHull
-        | CertCheck::PlaneNurbsCertificate => {
+        | CertCheck::PlaneNurbsHull => {
             "whether it lies where its description says is too close to call at this tolerance"
+        }
+        CertCheck::PlaneNurbsReportedTransversality => {
+            "the check's own summary of how clearly its faces cross came out unreadable"
         }
     }
 }
@@ -2687,6 +2703,12 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         M::Escalated { cause, .. } => return (CLOSE, unnamed(&cause.margin)),
         M::Band(b) => (classify_band(b), TOLERANCE),
+        // Never produced at rest (the pass skips a placeholder face);
+        // classified as its Display states it.
+        M::PlaceholderChart { .. } => (
+            geom::PLACEHOLDER_SURFACE,
+            crate::pcurves::PLACEHOLDER_RECOURSE,
+        ),
         M::Certify { error, .. } => {
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
@@ -2694,6 +2716,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
                 | C::FittedMateMissing => (KIND, NOT_YET),
+                C::PlaceholderChart => (
+                    geom::PLACEHOLDER_SURFACE,
+                    crate::pcurves::PLACEHOLDER_RECOURSE,
+                ),
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
                     "Recourse: check the body at a certifying scalar",
@@ -3312,6 +3338,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a construction record on face {face:?} names loop {named_loop:?}, which \
                  no longer exists. {DEFECT}"
+            ),
+            Self::StaleNullFaceOwnership { face, named_loop } => write!(
+                f,
+                "a construction record on face {face:?} names loop {named_loop:?}, which \
+                 that face no longer holds. {DEFECT}"
             ),
             Self::NullEdgeAtRest { edge } => write!(
                 f,
@@ -7119,7 +7150,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 radius,
                 u_ref,
             };
-            let mid = (t0 + t1) * T::from_f64(0.5);
+            let mid = geom::mid_param(t0, t1);
             match crate::splitting::containment::arc_trim(
                 p,
                 [carrier.eval(t0), carrier.eval(t1)],
@@ -8555,16 +8586,23 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         }
     }
     for (face_key, record) in body.null_faces.iter() {
-        if !body.faces.contains_key(face_key) {
+        let face = body.faces.get(face_key);
+        if face.is_none() {
             errors.push(ValidationError::LeakedNullFaceRecord { face: face_key });
         }
-        // Review flag (c): the record's named loops must also resolve —
-        // referential-only (a record naming killed loops is the same
-        // leak as a record outliving its face); which loops they are
-        // stays unexamined at tier 1.
+        // The record's named loops must resolve (a record naming a
+        // killed loop is the same leak as a record outliving its face),
+        // and be its face's own: a null face is one face's two
+        // coincident loops. Which role each plays stays unexamined.
         for named_loop in record.loops() {
             if !body.loops.contains_key(named_loop) {
                 errors.push(ValidationError::StaleNullFaceLoop {
+                    face: face_key,
+                    named_loop,
+                });
+            } else if face.is_some_and(|f| f.outer != named_loop && !f.rings.contains(&named_loop))
+            {
+                errors.push(ValidationError::StaleNullFaceOwnership {
                     face: face_key,
                     named_loop,
                 });
@@ -10982,7 +11020,7 @@ mod tests {
             description: geom_brep::EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: cylinder,
-                witness: carrier.eval((t0 + t1) * 0.5),
+                witness: carrier.mid_point(t0, t1),
             },
             carrier,
             param_start: t0,
@@ -13281,6 +13319,32 @@ mod certify_escalation_rows {
                 "its faces are not certainly crossing along it, so they do not fix where it \
                  runs. There is no way through: this is a kernel defect or a damaged file; \
                  report it",
+            ),
+            // A certificate escalation ends by its limb's decision: the
+            // tube's in-band margin is the transversality's, and a
+            // poisoned reported transversality, which no geometry
+            // reaches, is a defect.
+            (
+                says(CertifyError::PlaneNurbs(P::Escalated {
+                    limb: geom_brep::ssi::SsiLimb::Tube,
+                    cause: Indeterminate {
+                        margin: MarginDiag::value(5.0e-9),
+                        band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                        predicate: Some("a_probe"),
+                        terminal_sliver: false,
+                    },
+                })),
+                "its faces meet too nearly tangentially to decide at this tolerance. Recourse: \
+                 move the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 intended, tighten the tolerance below 5e-10 m",
+            ),
+            (
+                escalated(
+                    CertCheck::PlaneNurbsReportedTransversality,
+                    MarginDiag::INVALID,
+                ),
+                "the check's own summary of how clearly its faces cross came out unreadable. \
+                 There is no way through: this is a kernel defect or a damaged file; report it",
             ),
         ];
         for (msg, tail) in rows {

@@ -826,3 +826,22 @@ active and in the middle of the arc carrier (`store-constructed-carriers`,
 unit 5's split), in the same `seg.rs`. A DECIDE unit there would cross its
 in-flight work. When the row lands on `main`, DECIDE measures what it
 moves on the tier, on `props/sign-hull`.
+
+## 2026-10-01 — #3283 and #3649 merged; DECIDE idles until a gate lifts
+
+Both P1 rows are still gated: the declared tangency on ROUND's
+`fillet-tangency-is-not-the-constructors-node`, and the revolve carriers
+on E6. Neither P2 moves a measured document:
+- `rule-g-trades-sixteen-…`'s residue is the coefficient ring and the
+  term budget;
+- `the-exact-quotient-re-keys-…` needs a multivariate factorisation.
+
+The P3 `the-brackets-fillet-decisions-owe-a-structural-look` most likely
+leads into the gated declared-tangency P1 (18 of its 28 are fillet
+tangencies), so the item now says where its look starts.
+
+**No unit is dispatched.** DECIDE resumes when one of these happens:
+- ROUND's row closes, which ungates the declared tangency;
+- E6 moves;
+- PATHS lands `an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`,
+  after which DECIDE measures its tier effect on `props/sign-hull`.

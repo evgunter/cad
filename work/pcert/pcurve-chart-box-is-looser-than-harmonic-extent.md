@@ -2,12 +2,14 @@
 id: pcurve-chart-box-is-looser-than-harmonic-extent
 kind: issue
 title: Pcurve::chart_box is p0 +- |pl|*max|t| - twice the true span of a Harmonic image and what the mint's check 5 reads
-status: dispatched
+status: closed
 opened: 2026-09-06
 refs: [torus-operand-boxes-span-whole-ring, 1907]
 priority: P1
 cost: H
 branch: pcert/chart-box-harmonic-extent
+closed: 2026-10-01
+pr: 3610
 ---
 
 
@@ -32,3 +34,17 @@ check 5's thresholds is the measurement.
 ## Home
 
 TRIM — `pcurve_cache.rs` is this program's.
+
+## Closed (PR 3610, 2026-10-01)
+
+`Pcurve::harmonic_span_box` is the one home: the linear part's exact
+hull plus the trig part's own meet of a chord bound and the `[−M, M]`
+ball, monotone under span restriction (fuzz-checked in
+`crates/geom-brep/tests/chart_box_span.rs`, which stays in the suite).
+`chart_box`'s Harmonic and IsoLine arms, the torus window and
+`chord_join`'s azimuth range read it; the torus unit's
+`harmonic_extent` is gone. The row's premise about check 5 was wrong:
+the mint's window is the hull of the same rows' `chart_box`, so check 5
+is tautological at mint and at rest and no verdict moved (measured over
+~32k rows); `split_cache` is its one non-tautological caller, which the
+restriction monotonicity serves.

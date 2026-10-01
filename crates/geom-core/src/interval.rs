@@ -301,6 +301,76 @@ impl Interval {
     }
 }
 
+// The directed scalar helpers certification arithmetic reads its `f64`
+// bounds through. Each is the kernel's ONE spelling of its rounding
+// rule: a site that wants a root, a norm or a quotient rounded to the
+// safe side calls these rather than re-spelling `sqrt().next_up()` or
+// a bare `/`, which round to nearest and can land on the unsafe side.
+
+/// `√x` rounded DOWN (a lower bound); `0` for a non-positive or NaN
+/// argument.
+#[must_use]
+pub fn sqrt_down(x: f64) -> f64 {
+    if x > 0.0 { x.sqrt().next_down() } else { 0.0 }
+}
+
+/// `√x` rounded UP (an upper bound); a non-positive argument and NaN
+/// come back unchanged.
+#[must_use]
+pub fn sqrt_up(x: f64) -> f64 {
+    if x > 0.0 { x.sqrt().next_up() } else { x }
+}
+
+/// The enclosure of `‖v‖²`: the DEPENDENT square per component (the
+/// even power, so a side straddling zero keeps a zero lower end, where
+/// `x·x` would treat its factors as independent and go negative), and
+/// both sums in interval arithmetic.
+#[must_use]
+pub fn norm_sq(v: &[Interval; 3]) -> Interval {
+    v[0].powi(2) + v[1].powi(2) + v[2].powi(2)
+}
+
+/// A certified upper bound on `‖v‖` for a componentwise enclosure:
+/// [`sqrt_up`] of [`norm_sq`]'s upper end. An `f64` fold of the same
+/// endpoints rounds to nearest at each step and can land BELOW the
+/// real norm, which is the unsound side wherever the result divides a
+/// lower bound or crosses a metre length into chart units.
+///
+/// A refused enclosure answers `NaN`: no bound at all. It is asked by
+/// name because a refused enclosure carries ordinary endpoints, and a
+/// root of one would be a plausible bound with nothing behind it. An
+/// overflowed sum answers `+∞`.
+///
+/// A free function rather than a
+/// [`Certification`](certification::Certification) door: the doors are
+/// scalar methods, and a door is reached only by naming the
+/// certification module, which the SSI driver files that call this
+/// cannot do with `Real` in scope.
+#[must_use]
+pub fn norm_sup(v: &[Interval; 3]) -> f64 {
+    let sq = norm_sq(v);
+    if !sq.is_certified() {
+        return f64::NAN;
+    }
+    sqrt_up(sq.hi())
+}
+
+/// `num / den` rounded DOWN — a lower bound on the real quotient,
+/// which is what a lower bound divided by an upper bound has to stay.
+/// A quotient rounded to nearest can land half an ulp above the real
+/// one.
+///
+/// The quotient is interval arithmetic's (`.lo()` of the point
+/// quotient). Where that refuses — a zero, infinite or NaN operand —
+/// the bare `num / den` is returned, which is exact or has no real
+/// value to bound (`x/±∞`, `x/0`, `0/0`, NaN), so each caller's own
+/// reading of those cases is unchanged.
+#[must_use]
+pub fn div_down(num: f64, den: f64) -> f64 {
+    let q = Interval::from_bounds(num, num) / Interval::from_bounds(den, den);
+    if q.is_certified() { q.lo() } else { num / den }
+}
+
 impl Add for Interval {
     type Output = Self;
 
@@ -1855,6 +1925,13 @@ mod tests {
                 .0
                 .is_nai()
         );
+    }
+
+    /// A refused side answers NaN, not a root of its endpoints.
+    #[test]
+    fn norm_sup_of_a_refused_enclosure_is_nan() {
+        let refused = Interval::from_f64(f64::NAN);
+        assert!(norm_sup(&[iv(1.0, 2.0), refused, iv(0.0, 0.0)]).is_nan());
     }
 
     proptest! {

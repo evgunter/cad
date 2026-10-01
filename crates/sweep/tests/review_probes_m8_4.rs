@@ -181,7 +181,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         Err(topo::EulerOpError::Certification {
             error:
                 geom_brep::CertifyError::Escalated {
-                    check: geom_brep::CertCheck::PlaneNurbsCertificate,
+                    check: geom_brep::CertCheck::PlaneNurbsHull,
                     cause,
                     ..
                 },

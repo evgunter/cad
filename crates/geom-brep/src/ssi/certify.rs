@@ -109,12 +109,14 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::interval::norm_sup;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface, tensor};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
+    Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Real, Sign, SupSpeed, Vec3,
 };
 
+use crate::certify::CertCheck;
 use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::dihedral::{decide, decide_reported};
 use crate::recourse::Refused;
@@ -228,6 +230,20 @@ impl SsiLimb {
             Self::OnLocus => "limb 1 (on-locus residual)",
             Self::HullSup => "limb 2 (control-hull sup-norm bound)",
             Self::Tube => "limb 3 (uniqueness tube)",
+        }
+    }
+
+    /// The certification check a refusal of this limb is a refused arm
+    /// of, whose ending ([`crate::certify::recourse`]) every door that
+    /// reports the limb reads. Limbs 1 and 2 are the fitted carrier's
+    /// on-locus residual and sup-norm bound; limb 3's margin is the
+    /// operands' transversality over the box chain.
+    #[must_use]
+    pub fn check(self) -> CertCheck {
+        match self {
+            Self::OnLocus => CertCheck::PlaneNurbsOnLocus,
+            Self::HullSup => CertCheck::PlaneNurbsHull,
+            Self::Tube => CertCheck::Transversality,
         }
     }
 }
@@ -372,7 +388,12 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                     value: r.hi(),
                 });
             }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
+            Err(cause) => {
+                return Err(SsiError::CertificateEscalated {
+                    limb: SsiLimb::OnLocus,
+                    cause,
+                });
+            }
         }
     }
 
@@ -401,7 +422,10 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             limb: SsiLimb::HullSup,
             value: sup.hi(),
         }),
-        Err(diag) => Err(SsiError::Escalated(diag)),
+        Err(cause) => Err(SsiError::CertificateEscalated {
+            limb: SsiLimb::HullSup,
+            cause,
+        }),
     }
 }
 
@@ -440,7 +464,12 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                     value: proj.distance.hi(),
                 });
             }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
+            Err(cause) => {
+                return Err(SsiError::CertificateEscalated {
+                    limb: SsiLimb::OnLocus,
+                    cause,
+                });
+            }
         }
         // The orthogonality residuals, normalized by the chart speeds
         // so the margin is a length: |S_d·r|/|S_d| is the component of
@@ -459,7 +488,12 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                         value: margin.value().hi(),
                     });
                 }
-                Err(diag) => return Err(SsiError::Escalated(diag)),
+                Err(cause) => {
+                    return Err(SsiError::CertificateEscalated {
+                        limb: SsiLimb::OnLocus,
+                        cause,
+                    });
+                }
             }
         }
     }
@@ -525,7 +559,10 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             limb: SsiLimb::HullSup,
             value: sup.hi(),
         }),
-        Err(diag) => Err(SsiError::Escalated(diag)),
+        Err(cause) => Err(SsiError::CertificateEscalated {
+            limb: SsiLimb::HullSup,
+            cause,
+        }),
     }
 }
 
@@ -741,7 +778,8 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
 /// [`SsiError::CertificateLimb`] naming the limb,
 /// [`SsiError::TubeStraddles`] for the sliver case,
 /// [`SsiError::FootPointInconclusive`] when a NURBS foot will not
-/// converge, [`SsiError::Escalated`] for any in-band trilean.
+/// converge, [`SsiError::CertificateEscalated`] naming the limb whose trilean
+/// escalated.
 ///
 /// `scale` carries the two lengths the certificate is stated over: the
 /// folded curvature/extent lever arm the transversality margin is
@@ -832,7 +870,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
                 let (ud, vd) = (n.knots_u().domain(), n.knots_v().domain());
                 let nb = NurbsBoxes::new(n);
                 let speed = |bx: Box3| {
-                    let m = bx.speed_sup();
+                    let m = norm_sup(&[bx.x, bx.y, bx.z]);
                     SupSpeed::new(if m > 0.0 { m } else { f64::NAN })
                 };
                 let su = speed(nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true));
@@ -894,21 +932,17 @@ fn tube_transversality<T: Decide>(
     band: Band,
 ) -> Result<T, SsiError> {
     let transversality = Margin::levered(T::from_f64(clearance), arm);
-    let decided = decide_reported("ssi_tube_transversality", transversality, band)
-        .map_err(SsiError::Escalated)?;
+    let decided =
+        decide_reported("ssi_tube_transversality", transversality, band).map_err(|cause| {
+            SsiError::CertificateEscalated {
+                limb: SsiLimb::Tube,
+                cause,
+            }
+        })?;
     match Refused::of(decided, band) {
         Some(verdict) => Err(SsiError::TubeStraddles { verdict, boxes }),
         None => Ok(transversality.value()),
     }
-}
-
-/// The witness of a rung-3 carrier: `carrier(mid)`, unchanged from M2
-/// (`WitnessMidpoint`; S2 stays discharged).
-pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &NurbsCurve3<T>,
-) -> Point3<T> {
-    let (t0, t1) = carrier.domain();
-    carrier.eval(T::from_f64(0.5 * (t0 + t1)))
 }
 
 #[cfg(test)]
