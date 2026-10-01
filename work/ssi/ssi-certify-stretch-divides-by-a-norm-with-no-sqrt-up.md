@@ -5,7 +5,7 @@ title: ssi/certify: the chart stretch divisor is a raw sqrt of an f64 fold, so i
 status: open
 opened: 2026-09-15
 priority: P0
-cost: H
+cost: M
 ---
 
 

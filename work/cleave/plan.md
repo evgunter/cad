@@ -1,6 +1,6 @@
 # CLEAVE — plan
 
-No orchestrator yet. Live state is `work/cleave/log.md`'s tail and the
+Orchestrator: a CLEAVE session opened 2026-10-01. Live state is `work/cleave/log.md`'s tail and the
 item files beside this plan.
 
 Branch prefix **`cleave/`**; away-channel tag `(CLEAVE orchestrator)`.

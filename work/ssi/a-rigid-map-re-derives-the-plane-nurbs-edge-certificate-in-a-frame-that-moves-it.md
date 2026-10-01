@@ -5,7 +5,7 @@ title: transform_rigid_via re-derives the plane x NURBS edge certificate in the 
 status: open
 opened: 2026-09-28
 priority: P3
-cost: E
+cost: M
 ---
 
 ## Found (ENCL rigid-map headroom lane, branch `encl/rigid-map-approx-headroom`, 2026-09-28)
