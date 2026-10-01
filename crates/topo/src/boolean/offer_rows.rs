@@ -1829,20 +1829,19 @@ fn a_declared_rest_at_a_decided_tilt_is_contradicted() {
 /// that adds it.
 #[test]
 fn every_site_names_the_decision_it_raises() {
+    use test_utils::source::{code_only, rust_sources};
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/boolean");
-    let mut files: Vec<_> = std::fs::read_dir(&dir)
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == "rs"))
-        .collect();
-    files.sort();
     let mut got: std::collections::BTreeMap<(String, String, String), usize> = Default::default();
-    for path in files {
-        let file = path.file_name().unwrap().to_string_lossy().into_owned();
+    for path in rust_sources(&dir) {
+        let file = path
+            .strip_prefix(&dir)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
         if file == "refusal_routes.rs" || file == "offer_rows.rs" {
             continue;
         }
-        let source = without_test_modules(&std::fs::read_to_string(&path).unwrap());
+        let source = without_test_modules(&code_only(&std::fs::read_to_string(&path).unwrap()));
         let mut function = String::from("-");
         for line in source.lines() {
             if let Some(name) = top_level_fn(line) {
@@ -1896,43 +1895,43 @@ const SITE_TYPES: &[&str] = &[
     "SelfCheck",
 ];
 
-/// `source` with every `#[cfg(test)]` module block removed.
-fn without_test_modules(source: &str) -> String {
-    let lines: Vec<&str> = source.lines().collect();
+/// `code` (a [`test_utils::source::code_only`] view) with every
+/// `#[cfg(test)]` module's body removed.
+fn without_test_modules(code: &str) -> String {
+    use test_utils::source::balanced_end;
     let mut out = String::new();
-    let mut i = 0;
-    while i < lines.len() {
-        if lines[i] == "#[cfg(test)]" {
-            let mut j = i + 1;
-            while j < lines.len() && lines[j].starts_with("#[") {
-                j += 1;
+    let mut from = 0;
+    while let Some(at) = code[from..].find("#[cfg(test)]").map(|i| from + i) {
+        // Past the attribute and any after it, to the item.
+        let mut item = at;
+        while code[item..].trim_start().starts_with("#[") {
+            let open = item + code[item..].find('[').unwrap();
+            item = balanced_end(code, open).unwrap() + 1;
+        }
+        let head = code[item..].trim_start();
+        let head = head
+            .strip_prefix("pub(crate) ")
+            .or_else(|| head.strip_prefix("pub "))
+            .unwrap_or(head);
+        let body = head
+            .strip_prefix("mod ")
+            .and_then(|rest| {
+                let name_end = rest.find(|c: char| !(c.is_alphanumeric() || c == '_'))?;
+                rest[name_end..].trim_start().starts_with('{').then_some(())
+            })
+            .and_then(|()| code[item..].find('{').map(|i| item + i));
+        match body.and_then(|open| balanced_end(code, open)) {
+            Some(close) => {
+                out.push_str(&code[from..at]);
+                from = close + 1;
             }
-            let opens = lines.get(j).is_some_and(|l| {
-                let l = l
-                    .trim_start_matches("pub ")
-                    .trim_start_matches("pub(crate) ");
-                l.starts_with("mod ") && l.ends_with('{')
-            });
-            if opens {
-                let mut depth = 0_i64;
-                let mut k = j;
-                loop {
-                    for c in lines[k].chars() {
-                        depth += i64::from(c == '{') - i64::from(c == '}');
-                    }
-                    k += 1;
-                    if depth == 0 || k == lines.len() {
-                        break;
-                    }
-                }
-                i = k;
-                continue;
+            None => {
+                out.push_str(&code[from..item]);
+                from = item;
             }
         }
-        out.push_str(lines[i]);
-        out.push('\n');
-        i += 1;
     }
+    out.push_str(&code[from..]);
     out
 }
 
@@ -1981,11 +1980,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "ring_run_ccw", "BooleanDecision::SelfCheck", 1),
     ("join.rs", "ring_run_ccw", "SelfCheck::RingWinding", 1),
     ("join.rs", "slots", "Coincide::Join", 1),
-    ("mod.rs", "-", "BooleanDecision::VertexOnVertex", 1),
-    ("mod.rs", "-", "BooleanDecision::subject", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
-    ("mod.rs", "coincidence", "BooleanDecision::of_lever", 1),
-    ("mod.rs", "coincidence", "LeverArm::reading", 1),
     ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
@@ -2004,23 +1999,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
-    (
-        "mod.rs",
-        "backstop_subject",
-        "BooleanDecision::Coincidence",
-        1,
-    ),
-    (
-        "mod.rs",
-        "null_edges_of",
-        "BooleanDecision::PierceCurvature",
-        1,
-    ),
-    ("mod.rs", "null_edges_of", "BooleanDecision::Torus", 1),
-    ("mod.rs", "null_edges_of", "Coincide::EdgeOnCurvedFace", 1),
-    ("mod.rs", "null_edges_of", "SphereQuestion::Nested", 1),
     ("mod.rs", "of_lever", "BooleanDecision::of_lever", 1),
-    ("mod.rs", "of_lever", "BooleanDecision::of_plane_rung", 1),
     (
         "mod.rs",
         "of_pierced_normal",
@@ -2047,12 +2026,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "mod.rs",
-        "verify_rest_declaration",
-        "SelfCheck::CarrierLadder",
-        1,
-    ),
-    (
-        "mod.rs",
         "verify_tangent_declaration",
         "Coincide::Contact",
         1,
@@ -2062,6 +2035,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "mod.rs",
         "verify_tangent_declaration",
         "Coincide::TangentLocus",
+        1,
+    ),
+    (
+        "ops.rs",
+        "bound_holds",
+        "BooleanDecision::VolumeBackstop",
         1,
     ),
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
@@ -2088,18 +2067,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
-    (
-        "ops.rs",
-        "sphere_extent_scan",
-        "SphereQuestion::RecutAlign",
-        1,
-    ),
-    (
-        "ops.rs",
-        "bound_holds",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     (
         "ops.rs",
         "volume_backstop",
@@ -2220,14 +2187,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "invalid_escalation", "SelfCheck::Normals", 1),
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
-    (
-        "sectors.rs",
-        "parallel_same",
-        "BooleanDecision::DirectionSense",
-        1,
-    ),
     ("sectors.rs", "parallel_same", "Coincide::Sectors", 1),
-    ("sectors.rs", "sector_face", "SelfCheck::Normals", 1),
     (
         "sectors.rs",
         "side_code",
