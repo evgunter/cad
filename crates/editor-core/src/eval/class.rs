@@ -1014,18 +1014,20 @@ mod tests {
             }),
             C::MateUnleverable => mate(crate::MateFault::Unleverable {
                 mate: n(9),
-                refusal: crate::LeverRefusal::NoExtent {
+                refusal: Box::new(crate::LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref(),
-                },
+                    refusal: crate::ReachRefusal::NoExtent,
+                }),
             }),
             C::MateFaceUnresolved => mate(crate::MateFault::FaceUnresolved {
                 mate: n(9),
                 side: crate::MateSide::A,
-                refusal: Box::new(crate::FaceRefusal::NoSuchName {
+                refusal: Box::new(crate::FaceRefusal::Reach {
                     instance: n(6),
                     part: doc_ref(),
                     face: crate::FaceName::new(name()).expect("a face name"),
+                    refusal: crate::FacePoseRefusal::NoSuchName,
                 }),
             }),
             C::CrossingUnverified => K::CrossingUnverified {

@@ -712,8 +712,8 @@ fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::Prof
     match doc.node(node.0) {
         Some(d::Node::Profile(program)) => Ok(program),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
-            "node {} is not a profile",
-            node.0.0
+            "{} is not a profile",
+            doc.spoken(node.0)
         ))),
     }
 }
@@ -828,7 +828,7 @@ pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
 #[pymethods]
 impl NodeId {
     fn __repr__(&self) -> String {
-        format!("NodeId({})", self.0.0)
+        format!("NodeId({})", self.0.full())
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -1150,8 +1150,8 @@ impl Doc {
             .pieces(&self.inner.param_env::<f64>(), Tol::witness())
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
-                    "node {} has no pieces under the current values: {refusal}",
-                    profile.0.0
+                    "{} has no pieces under the current values: {refusal}",
+                    self.inner.spoken(profile.0)
                 ))
             })?;
         pieces
@@ -1173,32 +1173,32 @@ impl Doc {
         self.inner.roots().iter().copied().map(NodeId).collect()
     }
 
-    /// An instance's **cluster frame**: the placement recorded for the
-    /// cluster this node belongs to, or the identity when nothing was
+    /// An instance's **group frame**: the placement recorded for the
+    /// group this node belongs to, or the identity when nothing was
     /// recorded.
     ///
     /// Total — a node with no recorded row answers the identity, which
     /// is what an unplaced instance's placement IS. To know whether a
     /// row exists, compare against `Frame.translation((0*m, 0*m,
     /// 0*m))`; to know which node the registry is keyed by, ask
-    /// `gauge_of`.
+    /// `root_of`.
     ///
     /// This is the AUTHORED frame, not the solved one: a mated
-    /// instance's world pose is its cluster frame composed with the
+    /// instance's world pose is its group frame composed with the
     /// solve's relative pose, which is `SolvedPoses.placement`.
     fn placement(&self, node: &NodeId) -> super::place::Frame {
         super::place::Frame(self.inner.placement(node.0))
     }
 
     /// The placement **registry itself**: every node with a recorded
-    /// cluster frame, as node → frame.
+    /// group frame, as node → frame.
     ///
     /// `placement` is total and answers the identity for a node with
     /// no row, which is what an unplaced instance's placement IS — so
     /// this is the door that distinguishes "placed at the identity"
     /// from "carries no frame of its own". A mated instance that is
-    /// not its cluster's gauge is ABSENT here however it is posed:
-    /// placement lives on the cluster, and its pose is solved.
+    /// not its group's root is ABSENT here however it is posed:
+    /// placement lives on the group, and its pose is solved.
     fn placements(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
         let out = PyDict::new(py);
         for (node, frame) in self.inner.placements() {
@@ -2835,7 +2835,7 @@ impl Node {
     /// its own recorded edit (`DocEdit.update_reference`, or
     /// `update_references` for every site at once).
     ///
-    /// **No frame argument.** Placement lives on the CLUSTER, and the
+    /// **No frame argument.** Placement lives on the GROUP, and the
     /// registry holding it is document data — an instance carries no
     /// frame of its own, which is what makes zero-anchor and
     /// multi-anchor states unrepresentable rather than merely refused.
@@ -3819,13 +3819,13 @@ impl DocEdit {
         }
     }
 
-    /// Place an instance's **cluster**.
+    /// Place an instance's **group**.
     ///
-    /// The target is the instantiate node whose cluster moves, and the
+    /// The target is the instantiate node whose group moves, and the
     /// frame REPLACES whatever was recorded (the identity, if nothing
-    /// was). Placement is per-cluster, not per-instance: an instance
+    /// was). Placement is per-group, not per-instance: an instance
     /// coupled to others by mates shares their frame, and setting it
-    /// through any member places the whole cluster — `gauge_of` says
+    /// through any member places the whole group — `root_of` says
     /// which node the registry is actually keyed by.
     ///
     /// Refuses typed on `EditError`: `placement_on_non_instance`,

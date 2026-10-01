@@ -33,11 +33,11 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AuthoredFrame, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId,
-    EditError, EntityKind, EvalOptions, Evaluation, Expr, FaceName, FaceRefusal, Frame, LoggedEdit,
-    LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind, PartFault,
-    PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RefusingReach,
-    RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,
-    mate_reach, save,
+    EditError, EntityKind, EvalOptions, Evaluation, Expr, FaceName, FacePoseRefusal, FaceRefusal,
+    Frame, LoggedEdit, LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node,
+    NodeErrorKind, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
+    RecipeNodeId, RefusingReach, RoleSeg, SitedFace, SlotId, StableName, all_faces,
+    face_carrier_kind, face_frame, load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -655,8 +655,9 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
     else {
         panic!("expected FaceUnresolved, got {fault:?}");
     };
-    let FaceRefusal::Readback {
-        error: topo::readback::ReadbackError::NoCanonicalFrame { carrier },
+    let FaceRefusal::Reach {
+        refusal:
+            FacePoseRefusal::Readback(topo::readback::ReadbackError::NoCanonicalFrame { carrier }),
         face,
         ..
     } = refusal.as_ref()
@@ -713,7 +714,11 @@ fn a_tied_face_refuses_ambiguous_at_the_door() {
     assert!(
         matches!(
             refusal.as_ref(),
-            FaceRefusal::Ambiguous { face, candidates: 2, .. } if **face == tied
+            FaceRefusal::Reach {
+                face,
+                refusal: FacePoseRefusal::Ambiguous { candidates: 2 },
+                ..
+            } if **face == tied
         ),
         "{refusal:?}"
     );
@@ -755,8 +760,12 @@ fn a_face_frame_under_a_dual_evaluation_refuses_unpinned() {
     assert!(
         matches!(
             refusal.as_ref(),
-            FaceRefusal::Unpinned { instance, face, .. }
-                if *instance == s.post_i && **face == cap(s.post_body, CapEnd::End)
+            FaceRefusal::Reach {
+                instance,
+                face,
+                refusal: FacePoseRefusal::Unpinned,
+                ..
+            } if *instance == s.post_i && **face == cap(s.post_body, CapEnd::End)
         ),
         "{refusal:?}"
     );
@@ -797,10 +806,11 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     else {
         panic!("expected FaceUnresolved, got {fault:?}");
     };
-    let FaceRefusal::NoSuchName {
+    let FaceRefusal::Reach {
         instance,
         part,
         face,
+        refusal: FacePoseRefusal::NoSuchName,
     } = refusal.as_ref()
     else {
         panic!("expected NoSuchName, got {refusal:?}");
@@ -813,7 +823,9 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     };
     assert_eq!(part, doc_ref);
     assert!(
-        fault.to_string().contains("face name minted by node 99"),
+        fault
+            .to_string()
+            .contains("face name minted by node 000000000063"),
         "the badge names the face: {fault}"
     );
 
@@ -860,7 +872,14 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
         panic!("expected FaceUnresolved, got {fault:?}");
     };
     assert!(
-        matches!(refusal.as_ref(), FaceRefusal::NoSuchName { instance, .. } if *instance == s.post_i),
+        matches!(
+            refusal.as_ref(),
+            FaceRefusal::Reach {
+                instance,
+                refusal: FacePoseRefusal::NoSuchName,
+                ..
+            } if *instance == s.post_i
+        ),
         "{fault:?}"
     );
     assert!(
@@ -892,7 +911,10 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
         matches!(
             &replayed_fault,
             MateFault::FaceUnresolved { refusal, .. }
-                if matches!(refusal.as_ref(), FaceRefusal::NoSuchName { .. })
+                if matches!(
+                    refusal.as_ref(),
+                    FaceRefusal::Reach { refusal: FacePoseRefusal::NoSuchName, .. }
+                )
         ),
         "the next solve decides the declined face: {replayed_fault:?}"
     );
@@ -928,11 +950,11 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
             MateFault::FaceUnresolved { side: MateSide::A, refusal, .. }
                 if matches!(
                     refusal.as_ref(),
-                    FaceRefusal::PartUnresolved {
+                    FaceRefusal::Reach {
                         instance,
                         part,
                         face,
-                        fault: PartFault::NoResolver,
+                        refusal: FacePoseRefusal::PartUnresolved { fault: PartFault::NoResolver },
                     } if instance_named.is_none_or(|named| *instance == named)
                         && *part == post_ref
                         && **face == cap(s.post_body, CapEnd::End)
@@ -952,8 +974,12 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
     let text = refusal.to_string();
     assert!(
         text.contains(&cap(s.post_body, CapEnd::End).to_string())
-            && text.contains(&post_ref.to_string()),
-        "the message names the face and the part: {text}"
+            && text.contains(&format!("instance {}'s part", s.post_i)),
+        "the message names the face and the instance whose part it is: {text}"
+    );
+    assert!(
+        !text.contains(&post_ref.id.to_string()),
+        "the part's id rides the payload, not the sentence: {text}"
     );
 }
 

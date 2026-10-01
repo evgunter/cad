@@ -71,8 +71,141 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 /// `f64` with a fresh cancel token and the witness tolerance, which
 /// is what every suite here wants and what none of them should spell
 /// for itself.
+///
+/// A document with a mate is also checked for where the mate solve's
+/// decisions land ([`solve_decisions_have_one_home`]), so every mate
+/// document a suite evaluates here is that check's corpus. What the
+/// evaluation recorded outside its nodes still reaches the caller's
+/// frame.
 pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+    let (ev, outside) = geom_core::k_stats::detached(|| {
+        evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+    });
+    if doc
+        .order()
+        .iter()
+        .any(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
+    {
+        solve_decisions_have_one_home(doc, o, &ev, outside.recorded());
+    }
+    geom_core::k_stats::splice(outside);
+    ev
+}
+
+/// **Every decision the mate solve makes is on exactly one mate's
+/// log, and on no frame outside the evaluation's nodes.**
+///
+/// The reference is the same solve through the ordinary door
+/// ([`solve`]), which records into the caller's frame in decision
+/// order — what a frame around the evaluation received while the
+/// solve recorded nowhere else. Against it, over the evaluation `ev`
+/// of `doc` and what it recorded outside its nodes (`outside`):
+///
+/// - `outside` holds nothing;
+/// - every mate's escalation log is the reference's escalations taken
+///   in order (a subsequence), and the mates' logs together are the
+///   reference's, element for element;
+/// - the same of the verdicts, over the mates that evaluate `Ok`, and
+///   exactly the reference's only when every mate does. A failed node
+///   carries no verdict log, so for a document with a failing mate the
+///   verdicts are checked only as far as the `Ok` mates go, and the
+///   escalations are the one channel compared whole.
+///
+/// Entries compare by their `Debug` spelling, which a margin that is
+/// no number compares equal under.
+pub fn solve_decisions_have_one_home(
+    doc: &editor_core::ProfileDoc,
+    o: &EvalOptions,
+    ev: &Evaluation<f64>,
+    outside: &geom_core::k_stats::Recorded,
+) {
+    let label = doc.id();
+    let reference = {
+        let bracket = geom_core::k_stats::Bracket::open();
+        drop(solve(doc, o, Tol::witness()));
+        bracket.finish()
+    };
+    assert!(
+        outside.escalations.is_empty() && outside.verdicts.is_empty(),
+        "document {label}: the evaluation recorded outside its nodes: {outside:?}"
+    );
+    let spell = |xs: &[_]| -> Vec<String> { xs.iter().map(|x| format!("{x:?}")).collect() };
+    let mut escalations: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
+    let mut verdicts: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
+    let mut every_mate_ok = true;
+    for &id in doc.order() {
+        if !matches!(doc.node(id), Some(Node::Mate { .. })) {
+            continue;
+        }
+        match ev.result(id) {
+            Some(editor_core::NodeResult::Ok(v)) => {
+                escalations.push((id, spell(&v.escalations)));
+                verdicts.push((id, v.verdicts.iter().map(|x| format!("{x:?}")).collect()));
+            }
+            Some(editor_core::NodeResult::Failed(e)) => {
+                escalations.push((id, spell(&e.escalations)));
+                every_mate_ok = false;
+            }
+            other => panic!("document {label}: mate {} has no log: {other:?}", id.0),
+        }
+    }
+    let reference_escalations = spell(&reference.escalations);
+    let reference_verdicts: Vec<String> = reference
+        .verdicts
+        .iter()
+        .map(|x| format!("{x:?}"))
+        .collect();
+    one_home(
+        label,
+        "escalation",
+        &reference_escalations,
+        &escalations,
+        true,
+    );
+    one_home(
+        label,
+        "verdict",
+        &reference_verdicts,
+        &verdicts,
+        every_mate_ok,
+    );
+}
+
+/// `parts` are each an in-order subsequence of `whole`, and together
+/// a sub-multiset of it — all of it when `complete`.
+fn one_home(
+    label: editor_core::DocumentId,
+    what: &str,
+    whole: &[String],
+    parts: &[(RecipeNodeId, Vec<String>)],
+    complete: bool,
+) {
+    for (mate, part) in parts {
+        let mut rest = whole.iter();
+        assert!(
+            part.iter().all(|x| rest.any(|y| y == x)),
+            "document {label}: mate {}'s {what} log is not the solve's in decision order: \
+             {part:?} against {whole:?}",
+            mate.0
+        );
+    }
+    let mut unclaimed: Vec<&String> = whole.iter().collect();
+    for (mate, part) in parts {
+        for x in part {
+            let Some(at) = unclaimed.iter().position(|y| *y == x) else {
+                panic!(
+                    "document {label}: mate {}'s {what} {x} is not the solve's, or is on a \
+                     second log",
+                    mate.0
+                );
+            };
+            unclaimed.remove(at);
+        }
+    }
+    assert!(
+        !complete || unclaimed.is_empty(),
+        "document {label}: the solve's {what}s on no mate's log: {unclaimed:?}"
+    );
 }
 
 /// **The mate solve, through the ordinary door** — levered by the
@@ -195,7 +328,7 @@ pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
 /// Applies an edit, returning the new doc and any minted id.
 ///
-/// Through the REFUSING reach: an edit that moves a cluster's gauge
+/// Through the REFUSING reach: an edit that moves a group's root
 /// on a mated document mints a frame from the parts' extent and
 /// refuses here — a row that deletes a mate or an instance of a mated
 /// document steps through [`step_with`] and the store's own reach.
@@ -282,7 +415,7 @@ pub fn door_refusal(
 /// a deleted operand — and this is the shortest road to a head on
 /// LIVE geometry. The mate enters with that head on copy 1 of a scratch
 /// pattern over `anchor`, the instance its OTHER head stands on — two
-/// members over one instance, so it welds nothing and no cluster
+/// members over one instance, so it welds nothing and no group
 /// moves — then `DocEdit::Rebind` moves the head onto the name `node`
 /// spells for it (the name-repair door checks that its target is
 /// live, not that a member stands there), and the scratch pattern is

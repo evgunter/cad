@@ -11,6 +11,7 @@
 <line x1="418" y1="122" x2="440" y2="122" stroke="#333" stroke-width="2.4"/><text x="446" y="126" font-family="monospace" font-size="10.5" fill="#444">dot — a loop junction;  arrow — traversal direction</text>
 <line x1="18" y1="137" x2="40" y2="137" stroke="#c1590a" stroke-width="2.4"/><text x="46" y="141" font-family="monospace" font-size="10.5" fill="#444">fitted — the rung-3 SSI-trace chart projection</text>
 <line x1="418" y1="137" x2="440" y2="137" stroke="#a01c3c" stroke-width="2.4"/><text x="446" y="141" font-family="monospace" font-size="10.5" fill="#444">general — a curve-in-UV with no construction provenance</text>
+<line x1="18" y1="152" x2="40" y2="152" stroke="#1d7a5f" stroke-width="2.4"/><text x="46" y="156" font-family="monospace" font-size="10.5" fill="#444">spiric — the exact plane×torus section’s chart image</text>
 <g transform="translate(18, 163)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">bossplate  ·  face 6</text>
