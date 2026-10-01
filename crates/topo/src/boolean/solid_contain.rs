@@ -1738,8 +1738,14 @@ fn partial_cone_reach<T: Decide>(
     let f = body.get_face(face).ok_or_else(corrupt)?;
     let mut reach = T::zero();
     for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
-            continue;
+        let first = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
+            LoopBoundary::Cycle { first } => first,
+            // A lone vertex is a point of the face like any other.
+            LoopBoundary::Empty { vertex } => {
+                let p = crate::readback::vertex_point(body, vertex).map_err(|_| corrupt())?;
+                reach = reach.max((p - apex).norm());
+                continue;
+            }
         };
         for he in body.loop_cycle(first).ok_or_else(corrupt)? {
             let half = body.get_half_edge(he).ok_or_else(corrupt)?;
