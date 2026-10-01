@@ -156,10 +156,15 @@ the move.
 is made) plus the operand node it is read at, so a mate naming an edge
 is a program that does not compile; `class` is the kernel
 `topo::ContactClass`; `Alignment` is two `MateFrame`s in each side's
-part coordinates, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
-`PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
-primitive), an authored `AxisSense` (so no π-flip is inferred) and an
-optional clocking rider. `Node::Pattern` replicates an instance by
+part coordinates, a `MatePrimitive` (`FrameCoincidence { turn }`,
+`Coaxial { turn }`, `PlanarRest { offset }`) and an authored
+`AxisSense` (so no π-flip is inferred). The turn is the mate's roll:
+the signed angle about the shared axis from `a`'s reference to `b`'s,
+each frame supplying only the zero it is measured from (an authored
+frame's reference vector, a face frame's carrier `u_ref`). A
+coincidence carries one; a coaxial mate carries one or leaves the
+roll free; a planar rest has no axis to turn about and carries none,
+so no primitive can be written that the table has no row for. `Node::Pattern` replicates an instance by
 `PatternKind::Linear`, `Circular` or `Explicit`. Evaluation mints each
 mate's declaration into the product's `ContactRecords`, the same
 currency as the boolean wrapper's; declarations are verified, never
@@ -372,8 +377,7 @@ Empty}` and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`): DETERMINED, UNDER or CONTRADICTORY, the last refusing
 with the added mate's measured clash. The edit door asks the same
 per-mate admission of a mate being inserted — the walk, the class,
-each frame, the table's row, the rider on a coincidence decided over
-the mate's own lever — so a mate the table refuses on its own is
+each frame, the table's row — so a mate the table refuses on its own is
 refused at the insert door (`EditError::MateRefused`, carrying the
 solve's fault); the doors decide edits and the solve decides states,
 so a verdict about the pair, and a state a mate comes to hold after

@@ -7,6 +7,7 @@ opened: 2026-09-24
 priority: P1
 cost: M
 design: true
+needs_ev: true
 ---
 
 
@@ -49,3 +50,21 @@ beside the name — a number the author owns, unlike the removed
 coincidence row the table decides rather than refuses. A design
 question on MSOLVE's ground (`mate.rs`, `mate/solve.rs`) with CHROME's
 affordance on top.
+
+## Weighed (2026-10-01)
+
+Two designers weighed this on `msolve/ev-mate-turn`, where `ASSEMBLY.md`
+A3 and A11 (1) state the recommended answer. They converged in two
+rounds: the turn is the mate's, carried as
+`FrameCoincidence { turn }` and `Coaxial { turn: Option }`, and the
+rider is deleted.
+
+Corrections to this row, which both designers found:
+- The coincidence rider is not refused statically. It is decided over
+  the mate's lever (`mate_clocking_redundant`), so a rider of 0 within
+  band is admitted.
+- The GUI authors no rider at all: the mate panel hard-codes
+  `clocking: None`.
+- No edit rewrites a committed mate's datum
+  (`DocEdit::writes_a_mates_datum` is true only for `InsertNode`).
+
