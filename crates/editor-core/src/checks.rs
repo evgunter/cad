@@ -537,7 +537,7 @@ impl crate::finding::Finding for CheckFinding {
         write!(
             f,
             "check {}: root {} output {}",
-            self.check, self.root.0, self.output_ix
+            self.check, self.root, self.output_ix
         )
     }
 
@@ -572,7 +572,7 @@ impl crate::finding::Finding for CheckFinding {
                 f,
                 "not certifiably disjoint from root {} output {other_output}, so any space \
                  they share is gathered twice",
-                other_root.0
+                other_root
             ),
             CheckEvidence::SeparationUnavailable { reason, .. } => {
                 write!(f, "separation could not be checked: {reason}")

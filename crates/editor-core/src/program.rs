@@ -2470,18 +2470,18 @@ impl core::fmt::Display for StepIdFault {
                 f,
                 "step id {} is not a step of the program this node holds, so there is nothing \
                  for it to keep; a new step carries no id",
-                step.0
+                step
             ),
-            Self::Repeated { step } => write!(f, "step id {} stands for two steps", step.0),
+            Self::Repeated { step } => write!(f, "step id {} stands for two steps", step),
             Self::NotMinted { step } => write!(
                 f,
                 "step id {} is not in the document's mint log, so the document never minted it",
-                step.0
+                step
             ),
             Self::Collides { step } => write!(
                 f,
                 "the mint drew step id {}, which the document's mint log already holds",
-                step.0
+                step
             ),
         }
     }

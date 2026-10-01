@@ -43,7 +43,7 @@ fn wall(
     segment: usize,
 ) -> StableName {
     let Some(Node::Extrude { profile, .. }) = doc.node(node) else {
-        panic!("node {} is an extrude", node.0);
+        panic!("node {:012x} is an extrude", node.0);
     };
     let Some(Node::Profile(program)) = doc.node(*profile) else {
         panic!("an extrude's operand is a profile");
@@ -272,12 +272,12 @@ fn every_maintenance_row_rides_beside_a_refusal() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} node 3 carries a face name minted by node 7; this edit removed \
+        "nothing to undo \u{2022} node 000000000003 carries a face name minted by node 000000000007; this edit removed \
          what it denoted (its minting node, or the profile segment it named), so the name \
          resolves to nothing until it is rebound \u{2022} the appearance store holds an \
-         attachment under a face name minted by node 8; this edit removed what it denoted (its \
+         attachment under a face name minted by node 000000000008; this edit removed what it denoted (its \
          minting node, or the profile segment it named), so the name resolves to nothing until \
-         it is rebound or cleared \u{2022} node 5 declares contacts and this edit deleted the \
+         it is rebound or cleared \u{2022} node 000000000005 declares contacts and this edit deleted the \
          last node that consumed it, so no node consumes the declaration until a boolean or \
          union names it again"
     );

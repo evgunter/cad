@@ -162,11 +162,9 @@ fn failures<T: pncad::geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .filter_map(|id| match ev.result(*id) {
             // The payload's `Debug` carries the predicate key; the
             // user-facing sentence no longer names it.
-            Some(NodeResult::Failed(e)) => {
-                Some(format!("node {} — {} [{:?}]", id.0, e.kind, e.kind))
-            }
+            Some(NodeResult::Failed(e)) => Some(format!("node {} — {} [{:?}]", id, e.kind, e.kind)),
             Some(NodeResult::Poisoned { through }) => {
-                Some(format!("node {} poisoned through {}", id.0, through.0))
+                Some(format!("node {} poisoned through node {}", id, through))
             }
             _ => None,
         })

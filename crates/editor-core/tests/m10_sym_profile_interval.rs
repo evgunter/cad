@@ -254,23 +254,29 @@ fn eps_row(eps: f64) -> usize {
 }
 
 /// The slab's walk ledger at its nominal, per ε row.
+///
+/// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
+/// edges' mid-parameter points are the lever — every witness is minted
+/// and certified at [`geom::mid_param`], and its spelling,
+/// `(t₀ + t₁)·½`, builds different forms from `t₀ + (t₁ − t₀)·½` for
+/// the same point, which reads here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest 03f37caff1322731ed06355f6880c51c\n\
+     Plain/Decision calls 980 forms 9852 frozen 0 digest 470abc12bada3dcd9f6cc5ecc9b8c3a4\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
      Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 144775155146a913025d282ba655d459\n\
      Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest d6944216b808695de65a32c884bbff84\n\
+     Plain/Decision calls 980 forms 9852 frozen 0 digest 750cf690b774e40d40aad503aab9d326\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
      Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 25e1a56d72b822e9b22340ed78923147\n\
      Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
     "\
-     Plain/Decision calls 980 forms 9426 frozen 0 digest fffa8447b6a8ffd4d42e7d855abb8194\n\
+     Plain/Decision calls 980 forms 9852 frozen 0 digest 19552976703374afc650924be6414006\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
      Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
@@ -302,19 +308,21 @@ const PLATE_MAX_TERMS: usize = 288;
 ///
 /// What moves it: any change to the forms the walks meet, or the order
 /// they meet them in — a loop's start vertex, how a sketch segment or
-/// an arc apex is pushed forward, where a curve is sampled. A change
+/// an arc apex is pushed forward, where a curve is sampled, how an
+/// edge's mid parameter is spelled ([`geom::mid_param`]). A change
 /// that moves only digests reorders the forms; one that moves counts
 /// changes what is built.
+///
 /// The door's calls include the lowering's endpoint registrations
 /// (`Arc2::register_endpoints`): 16 decisions and 16 assertions.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 14653 frozen 672 digest 80e1e6f05a0bccd518da4df030788582\n\
-     Plain/Assertion calls 462 forms 2525 frozen 372 digest 2e14336f6eaba7e011317ac4ab863fac\n\
+     Plain/Decision calls 951 forms 15130 frozen 720 digest 677f5bfb62903fc91a32d9d540c8c894\n\
+     Plain/Assertion calls 462 forms 2873 frozen 420 digest 861a08f31ff7204eb7ece5f038adb553\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7710 frozen 8 digest 3c4bcb9c2a6b5f1e52dfc65fcdf173ec\n\
-     Early/Assertion calls 462 forms 3388 frozen 104 digest 24eece643fd0281869c7ad25fd6e84fb\n\
+     Early/Decision calls 320 forms 7942 frozen 8 digest a589a983fddf7bd97f96045c97b7c02e\n\
+     Early/Assertion calls 462 forms 3736 frozen 112 digest e15ed7e9f36092516ab5457ae84d72db\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 346 forms 11730 frozen 104 digest ad4bc7508b3454ca97606354da812d3b\n\
+     Door/Decision calls 346 forms 12194 frozen 112 digest c1c10ef8b8da80de4750f126a5b2fa32\n\
      Door/Assertion calls 206 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
