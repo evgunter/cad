@@ -26,7 +26,6 @@ from pncad import (
     Doc,
     DocEdit,
     EditError,
-    Expr,
     Frame,
     Node,
     Placement,

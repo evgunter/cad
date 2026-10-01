@@ -495,7 +495,7 @@ class TestBenchStand(BenchWorkspace):
         they answer for a whole edit LIST rather than one edit:
         `test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed`
         is their half of the same funnel."""
-        doc, (_post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
+        doc, (_post_a, shelf_i, post_b), (_mate_1, mate_2) = self.stand()
         # `insert`: the stand's second mate places post_b's group on the
         # shelf's, clearing post_b's offset, and that is what the door
         # just accepted.
