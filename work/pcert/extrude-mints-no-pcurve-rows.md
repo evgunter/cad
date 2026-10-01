@@ -2,10 +2,12 @@
 id: extrude-mints-no-pcurve-rows
 kind: issue
 title: extrude mints no pcurve rows, alone among the producers, so its cylinder walls reach rest rowless
-status: open
+status: dispatched
 opened: 2026-10-01
 priority: P1
 cost: E
+parent: S331
+branch: pcert/at-rest-rows-mandatory
 ---
 
 
