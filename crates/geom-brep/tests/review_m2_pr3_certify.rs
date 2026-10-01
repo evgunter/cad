@@ -462,10 +462,14 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     let p = at(3.0 * eps());
     assert!(classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).is_err());
     // Collapsed arm: now an honest escalation naming the arm gate —
-    // never a definite classification.
+    // never a definite classification. It quotes the wedge the arm
+    // meters (PR 3513's fifth fix pass), under that reading's own name.
     let p = at(0.5 * eps());
     let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
-    assert_eq!(err.diag.predicate, Some("dihedral_arm"));
+    assert_eq!(
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge"))
+    );
 }
 
 /// (c) FIXED (was `finding_sub_epsilon_chord_true_corner_reads_smooth`):
@@ -488,10 +492,20 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
+    // The arm gate escalates, quoting the wedge it meters where that is
+    // nonzero, and its own decided zero where the arm is exactly zero.
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
-    assert_eq!(err.diag.predicate, Some("dihedral_arm"), "sub-eps extent");
+    assert_eq!(
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge")),
+        "sub-eps extent"
+    );
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
-    assert_eq!(err.diag.predicate, Some("dihedral_arm"), "zero extent");
+    assert_eq!(
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
+        "zero extent"
+    );
 }
 
 /// (c) SURVIVES: huge edges on tiny features — the curvature arm caps

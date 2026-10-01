@@ -667,11 +667,16 @@ fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::body::Body<f64>, crate::bo
 /// A block tilted by an in-band angle on a block's top face, the pair
 /// declared `Tangent` (the review's G2 pose).
 fn tilted_block_declared_tangent() -> Result<(), BooleanError> {
+    block_declared_tangent_at(D / 2.0)
+}
+
+/// The same block, its top rising by `tilt` over each metre along `x`.
+fn block_declared_tangent_at(tilt: f64) -> Result<(), BooleanError> {
     use crate::test_support_fixtures::{brick, mapped_cube};
     let tol = Tol::witness();
     let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol);
     let b = mapped_cube::<f64>(
-        |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + (D / 2.0) * u),
+        move |u, v, w| Point3::new(1.0 + 2.0 * u, 1.0 + 2.0 * v, 1.0 + w + tilt * u),
         tol,
     );
     let facing = |body: &crate::body::Body<f64>, up: bool| {
@@ -1069,6 +1074,11 @@ fn germ_facing(lean: f64) -> Result<(), BooleanError> {
 /// where `against`), at an arm of `D`, the pair declared `Rest` through
 /// the Boolean's declaration door where `rest`.
 fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError> {
+    planar_flank_membership_at(against, rest, D)
+}
+
+/// [`planar_flank_membership`] at the flankers' arm `arm`.
+fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(), BooleanError> {
     use super::super::SideCode::{In, On, Out};
     use super::super::recl::resolve_edge_edge;
     use super::super::sectors::{BoolSector, PairRecord};
@@ -1097,7 +1107,7 @@ fn planar_flank_membership(against: bool, rest: bool) -> Result<(), BooleanError
         },
         face,
         normal: OutwardNormal::from_chart(y, true),
-        arm: D,
+        arm,
     };
     let records = [PairRecord {
         a: 0,
@@ -2220,3 +2230,78 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("vtxfac.rs", "pierce_germ_dir", "Coincide::Sectors", 1),
 ];
+
+// ------------------------------------------------------------------
+// The levers the withdrawn arms name, executed (the coincfr4 review's
+// MINOR-2 and C3).
+// ------------------------------------------------------------------
+
+/// Declares the lever rows: one `#[ignore]`d child each, run at
+/// [`DESIGN_EPS`] by [`every_withdrawn_arms_lever_passes_or_it_ends_as_its_frontier`],
+/// with the outcome it must have (`None`: it passes).
+macro_rules! lever_rows {
+    ($($name:ident: $want:expr => $raise:expr;)*) => {
+        $(
+            #[test]
+            #[ignore = "a child row: every_withdrawn_arms_lever_passes_or_it_ends_as_its_frontier runs it"]
+            fn $name() {
+                report(stringify!($name), &outcome($raise));
+            }
+        )*
+        const LEVER_ROWS: &[(&str, Option<&str>)] = &[$((stringify!($name), $want)),*];
+    };
+}
+
+lever_rows! {
+    // `CurvedFlankSense`: the faces along the edge reshaped to planes that
+    // only touch there, at a clear arm.
+    curved_flank_reshaped_to_touching_planes: None => planar_flank_membership_at(true, false, 1e-3);
+    // `VertexOnCoveredFace` and `ArcOnCoveredFace`: the vertex moved
+    // clearly onto the face it is declared to touch (the arc's ends with
+    // it) passes; moved clearly clear of it, the declaration is
+    // contradicted, which is why the lever no longer names that side.
+    covered_vertex_moved_onto_its_face: None =>
+        arc_against_a_wall(1.0, Some(ContactClass::Rest));
+    covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
+        arc_against_a_wall(1.1, Some(ContactClass::Rest));
+    // `Coincidence(Planes)`: a declared-`Tangent` pair of planes, clearly
+    // parallel (contradicted) or clearly tilted (the class unsupported):
+    // no move of the parts passes, so the arm ends as that frontier.
+    tangent_planes_made_parallel: Some("ContactContradicted") => block_declared_tangent_at(0.0);
+    tangent_planes_clearly_tilted: Some("UnsupportedDeclarationClass") =>
+        block_declared_tangent_at(1e-3);
+    // `FlankSense`, overlapping and undeclared: lengthened, the sense
+    // decides and the undeclared coplanar pair refuses next, whose own
+    // story is the declaration, which passes.
+    overlapping_flanks_lengthened: Some("UndeclaredCoincidence") =>
+        planar_flank_membership_at(false, false, 1e-3);
+    overlapping_flanks_lengthened_declared_rest: None =>
+        planar_flank_membership_at(false, true, 1e-3);
+    touching_flanks_lengthened: None => planar_flank_membership_at(true, false, 1e-3);
+    // `PlaneOrientation`: lengthened, the offset rung refuses the
+    // undeclared pair next, as above.
+    facing_planes_lengthened: Some("UndeclaredCoincidence") => shared_side_plane(1e-3);
+    // `VertexOnFace`: the vertices moved clearly off the face.
+    vertex_moved_clearly_above_a_face: None => block_on_a_block(1.0 + 1e-3);
+    vertex_moved_clearly_into_a_face: None => block_on_a_block(1.0 - 1e-3);
+}
+
+/// **Every lever a withdrawn arm names passes, or the arm ends as its
+/// frontier**: each row moves the parts as a withdrawn arm's lever says
+/// and runs at [`DESIGN_EPS`]; it passes, or refuses on the decision its
+/// row names, which is the frontier or the next decision's own story.
+#[test]
+fn every_withdrawn_arms_lever_passes_or_it_ends_as_its_frontier() {
+    let module = module_path!()
+        .split_once("::")
+        .map_or(module_path!(), |(_, m)| m);
+    for &(name, want) in LEVER_ROWS {
+        let got = run(&format!("{module}::{name}"), DESIGN_EPS);
+        let met = match (&got, want) {
+            (Outcome::Pass, None) => true,
+            (Outcome::Refused { key, defect, .. }, Some(want)) => key == want && !defect,
+            _ => false,
+        };
+        assert!(met, "{name}: wants {want:?}: {got:?}");
+    }
+}
