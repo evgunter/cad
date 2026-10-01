@@ -63,3 +63,13 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   `work/emit/a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush.md`.
   The alternative was to hold a P0 wrong refusal until that row is
   settled.
+- `rehome_rings` reproduced: a bore in the lune refuses `TornComponent`
+  on a split and on `BoolPlanar` booleans. It is a wrong refusal, not a
+  silent misplacement. Moved to P0. Fixed in PR 3660 (green), which is
+  in full review.
+- Graft reachability: no boolean reaches the plain certify, but the
+  public `insert_void` door does. The measurement is in the row, which
+  is back to `open` with `design: true`. Its question is the same as
+  SHELL's `plain-transform-rigid-still-refuses-the-m7-8-class`, so one
+  designer pair is weighing the class across both doors. (SHELL has no
+  orchestrator; I will note this on its log when the weighing returns.)
