@@ -1576,9 +1576,11 @@ fn border_delta<T: Decide>(
 /// to the survivor — and an `OrderAlong` group ranks its members
 /// against EACH OTHER, so a group of one runs no pair. What remains in
 /// evidence is the count. An edge piece's `Ends` holds no count, so a
-/// cut elsewhere on its parent leaves its name as it was; only the
-/// group's collapse to one, or a cut that moves one of its own ends,
-/// makes it vanish.
+/// cut elsewhere on its parent, by a face that does not already cross
+/// it, leaves its name as it was. A crossing keeps an ordinal, so a
+/// second crossing by a face that already crosses the parent renames
+/// the first, and every piece whose `Ends` cite it vanishes too; so do
+/// a piece whose own end moves and a group that collapses to one.
 ///
 /// # What is counted
 ///

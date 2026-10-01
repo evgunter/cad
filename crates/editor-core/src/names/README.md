@@ -376,9 +376,12 @@ can vanish with no flip) needs a prior run: when the last-good table at the
 minting node carried the name, and the group its emitter divided the
 fragment's parent into held `was` entities there and holds `now ≠ was` in the
 current run, the diagnosis is `GroupResized { node, was, now, cutters }`. An
-edge piece's `Ends` holds no count, so a cut elsewhere on its parent leaves the
-piece's name as it was, and the rung meets an edge piece only where its own
-ends moved or its group stopped being divided. The group is
+edge piece's `Ends` holds no count, so a cut elsewhere on its parent, by a face
+that does not already cross it, leaves the piece's name as it was. A crossing
+keeps an ordinal, so a second crossing by a face that already crosses the parent
+renames the first crossing, and with it every piece whose `Ends` cite it. The
+rung meets an edge piece where its own ends moved or were renamed, or its group
+stopped being divided. The group is
 the one the emitter formed, read from the record it keeps beside the table
 (`names::FragmentGroups`, not persisted), not re-derived from the names: it
 counts the distinct entities of the node's output descended from the parent
