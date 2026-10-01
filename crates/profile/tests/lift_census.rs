@@ -111,6 +111,7 @@ fn thirds() -> ProfileLoop<f64> {
     circle_split(Point2::new(1.2, 1.7), 0.35, 3, 0.0, Tol::witness())
         .expect("boss rim splits")
         .loop_
+        .into_loop()
 }
 
 /// A plain arc chain: no declared joints, no same-carrier run.
@@ -144,15 +145,16 @@ fn corpus() -> Vec<(&'static str, ProfileLoop<f64>, Class)> {
     vec![
         ("rect", rect(0.0, 0.0, 2.0, 1.0), Class::Bits),
         ("l_profile", l_profile(), Class::Bits),
-        ("arc_chain", arc_chain(), Class::Bits),
-        ("lens", lens(), Class::Bits),
+        ("arc_chain", arc_chain(), Class::Value),
+        ("lens", lens(), Class::Value),
         ("circle_h", circle_h(0.0, 0.0, 1.0), Class::Bits),
         ("circle_v", circle_v(0.0, 0.0, 1.0), Class::Value),
         (
             "circle_primitive",
             circle(Point2::new(0.5, -0.25), 1.5, Tol::witness())
                 .expect("circle")
-                .loop_,
+                .loop_
+                .into_loop(),
             Class::Bits,
         ),
         ("circle_split_3", thirds(), Class::Bits),
@@ -199,8 +201,8 @@ fn the_census() {
 
     // The tally of record. A vocabulary change that moves a loop
     // between buckets must move these numbers deliberately.
-    assert_eq!(tally[Class::Bits as usize], 8, "bit-identical lifts");
-    assert_eq!(tally[Class::Value as usize], 3, "value-equal lifts");
+    assert_eq!(tally[Class::Bits as usize], 6, "bit-identical lifts");
+    assert_eq!(tally[Class::Value as usize], 5, "value-equal lifts");
     assert_eq!(tally[Class::Refused as usize], 1, "structural walls");
     assert_eq!(tally[Class::Wall as usize], 1, "geometric walls");
     // The one mismatch is the undeclared cocircular run, whose lift
@@ -264,7 +266,25 @@ fn the_fidelity_report_is_honest() {
         }
         other => panic!("rounded_rect should lift: {}", describe(&other)),
     }
-    // The undeclared shapes are exact — nothing derived enters them.
+    // An undeclared arc is written about its stored centre
+    // (`arc_to(Center)`), and the replay derives its sweep from the two
+    // endpoint angles about that centre, so the free arc chains are
+    // value-equal too — the writer's lossless route is a program step
+    // spelled on the carrier, and its residue is this, measured.
+    for (name, loop_, ceiling) in [("arc_chain", arc_chain(), 1e-14), ("lens", lens(), 1e-15)] {
+        match lift_checked(&loop_, Tol::witness()) {
+            LiftOutcome::Lifted {
+                fidelity,
+                worst_abs,
+                ..
+            } => {
+                assert_eq!(fidelity, Fidelity::ValueEqual, "{name}");
+                assert!(worst_abs < ceiling, "{name}: {worst_abs:e}");
+            }
+            other => panic!("{name} should lift: {}", describe(&other)),
+        }
+    }
+    // The undeclared straight shapes are exact — nothing derived enters them.
     for (name, loop_) in [
         ("rect", rect(0.0, 0.0, 2.0, 1.0)),
         ("l_profile", l_profile()),
@@ -433,7 +453,9 @@ fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
         ],
         "the joint is declared, the arc derived from the inherited tangent"
     );
-    let replayed = replay(&program, Tol::witness()).expect("the declared spelling replays");
+    let replayed = replay(&program, Tol::witness())
+        .expect("the declared spelling replays")
+        .into_loop();
     let n = raw.vertices().len();
     assert_eq!(replayed.vertices().len(), n);
     for k in 0..n {
@@ -442,9 +464,9 @@ fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
         assert_eq!(w.x.to_bits(), g.x.to_bits(), "vertex {k} x");
         assert_eq!(w.y.to_bits(), g.y.to_bits(), "vertex {k} y");
         assert_eq!(
-            raw.bulges()[(rotation + k) % n].to_bits(),
-            replayed.bulges()[k].to_bits(),
-            "vertex {k} bulge"
+            crate::common::segment_bits(&raw.segments()[(rotation + k) % n]),
+            crate::common::segment_bits(&replayed.segments()[k]),
+            "segment {k}"
         );
     }
     assert_eq!(replayed.tangent_joints(), &[(1 + n - rotation) % n]);
@@ -471,6 +493,7 @@ fn zero_bulge_square(b: f64) -> ProfileLoop<f64> {
         .line_to(Start, t)
         .unwrap()
         .loop_
+        .into_loop()
 }
 
 /// The same square with its first side a `tangent_arc_to` whose target
@@ -493,6 +516,7 @@ fn collinear_tangent_arc_square() -> ProfileLoop<f64> {
         .line_to(Start, t)
         .unwrap()
         .loop_
+        .into_loop()
 }
 
 /// **A zero bulge is stored as a line, whichever verb wrote it**, so it
@@ -507,7 +531,6 @@ fn zero_bulge_arc_to_lifts_as_a_line() {
             "b = {b:e}: {:?}",
             lp.segments()[0]
         );
-        assert_eq!(lp.bulges()[0].to_bits(), b.to_bits(), "b = {b:e}");
         let program = lift(&lp, Tol::witness()).expect("the square lifts");
         assert!(
             matches!(program[1], Step::LineTo(Target::Point(p)) if (p.x, p.y) == (2.0, 0.0)),

@@ -90,11 +90,19 @@ fn r2_cusp_profile_extrudes_and_passes_at_rest() {
 fn r2_the_cusp_reversal_residual_is_measured() {
     let lp = lune();
     let raw = profile::ProfileLoop::from(lp);
+    // Each vertex with its leaving segment's bulge, read off the stored
+    // sweep as tan(Δθ/4) (zero for a line).
     let v: Vec<(Point2<f64>, f64)> = raw
         .vertices()
         .iter()
-        .zip(raw.bulges())
-        .map(|(&p, &b)| (p, b))
+        .zip(raw.segments())
+        .map(|(&p, s)| {
+            let b = match s {
+                profile::Segment::Line => 0.0,
+                profile::Segment::Arc(arc) => (arc.sweep / 4.0).tan(),
+            };
+            (p, b)
+        })
         .collect();
     let n = v.len();
     // The kiss is vertex 2 (the loop is: (0,4) → (0,2) → (0,0) kiss →

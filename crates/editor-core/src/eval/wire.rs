@@ -1373,11 +1373,14 @@ pub(crate) fn prepare_profile(
         loops.push(lp);
         replay_records.push(record);
     }
-    let profile_f64 = profile::Profile::new(plane, loops);
-    let (validated_f64, canonical) = profile_f64
+    // The loops are the replay's own construction, so validation
+    // decides no arc's consistency checks (D1).
+    let replayed = profile::ConstructedProfile::new(plane, loops);
+    let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
-    let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
+    let profile_f64 = replayed;
+    let naming = anchor::derive_naming(&validated_f64, profile_f64.loops()).ok_or({
         // A canonical loop matched no program loop: an internal break.
         // The loop coordinate is not recoverable; 0 names the walk.
         NodeErrorKind::ProfileAnchor { loop_: 0 }
@@ -1446,7 +1449,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    profile::Profile::new(plane, loops)
+    profile::ConstructedProfile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
 }
@@ -4316,6 +4319,9 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";
 
+/// A loft section of loops the path lattice constructed (the replay's).
+type ConstructedSection = sweep::Section<profile::ConstructedLoop<f64>>;
+
 /// One section of a loft, taken from the RECIPE's own `f64`
 /// description rather than from the evaluated `T` payload.
 ///
@@ -4329,7 +4335,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
+) -> Result<(ConstructedSection, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -4389,7 +4395,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         .placement;
     // The REPLAYED loops in program order (LIB-U3), and the canonical
     // positions' names the skin's walls and seams are named by.
-    Ok((pre.profile_f64.loops, place, pre.pieces))
+    Ok((pre.profile_f64.into_parts().1, place, pre.pieces))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.

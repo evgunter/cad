@@ -70,13 +70,13 @@ use geom_core::spline::SplineError;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
-use profile::{ProfileLoop, SketchPlane, ValidatedProfile};
+use profile::{SketchPlane, ValidatedProfile};
 use topo::{
     Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
     PcurveMintError, ShellKey, SolidKey,
 };
 
-use crate::skin::{LoftGeometry, Section, SkinError, loft_geometry, sweep_places};
+use crate::skin::{LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, sweep_places};
 use crate::swept::{
     SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
     swept_segments,
@@ -745,7 +745,7 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 ///
 /// [`LoftError`] — every door named on the enum.
 pub fn loft_body<T: Decide + topo::AtRestPolicy>(
-    sections: &[Section],
+    sections: &[Section<impl SectionLoop>],
     places: &[Affine3<f64>],
     v_degree: usize,
     tol: Tol,
@@ -788,7 +788,7 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
 /// [`SkinError::PathTangentReversal`] arriving through
 /// [`LoftError::Skin`].
 pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
-    profile: &[ProfileLoop<f64>],
+    profile: &[impl SectionLoop],
     place: Affine3<f64>,
     path: &geom::NurbsCurve3<f64>,
     stations: usize,
@@ -796,7 +796,7 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
-    let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
+    let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
     let geometry = loft_geometry(&sections, &places, v_degree, tol).map_err(LoftError::Skin)?;
     assemble(&places, &geometry, tol)
 }

@@ -1267,6 +1267,8 @@ pub fn profile_error_tag(err: &ProfileError) -> &'static str {
         ProfileError::TooFewVertices { .. } => "too_few_vertices",
         ProfileError::DegenerateSegment(_) => "degenerate_segment",
         ProfileError::NearFullArc(_) => "near_full_arc",
+        ProfileError::InconsistentArc { .. } => "inconsistent_arc",
+        ProfileError::ArcBelowSceneResolution { .. } => "arc_below_scene_resolution",
         ProfileError::NonSimple { .. } => "non_simple",
         ProfileError::TangentialContact { .. } => "tangential_contact",
         ProfileError::TangentJointOutOfRange { .. } => "tangent_joint_out_of_range",

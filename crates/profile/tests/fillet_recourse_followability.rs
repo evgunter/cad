@@ -199,7 +199,7 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// The same corner class with the STRAIGHT side short: its ray starts
@@ -218,7 +218,7 @@ fn straight_leg(start_x: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError
             tol(),
         )?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **Two unit lobes** whose crossing is a real corner. At a radius at
@@ -239,7 +239,7 @@ fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         },
         tol(),
     )
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// **The mixed-winding arc × arc corner.** The legs turn opposite ways,
@@ -261,7 +261,7 @@ fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// **A short straight leg meeting a radius-2 circle at a real angle.**
@@ -289,7 +289,7 @@ fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Result<ProfileLoop<f64
         .line_to(Point2::new(-3.0, -3.0), tol())?
         .line_to(Point2::new(-3.0, 3.0), tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The lever lens.** Two carriers of radius `big`, mixed winding, so
@@ -319,7 +319,7 @@ fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     .line_to(Point2::new(-1.5 * big, 2.0 * big), tol())?
     .line_to(Point2::new(-1.5 * big, -1.5 * big), tol())?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// The conditioning gate's own threshold at the lens, computed from
@@ -353,7 +353,7 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 // ------------------------------------------------------------------ rows
@@ -854,7 +854,7 @@ fn far_bend(shift: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, Pat
         .angle(theta, tol())?
         .line(3.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// The turn at which the stored sagitta `r(1 − cos(θ/2))` crosses the
@@ -926,7 +926,7 @@ fn the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius() {
             .line_to(Point2::new(4.0, 0.0), tol())
             .and_then(|p| p.line_to(anchor, tol()))
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_),
+            .map(|c| c.loop_.into_loop()),
         "dropping the fillet",
     );
 }
@@ -1023,7 +1023,7 @@ fn the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet() {
             .line_to(Point2::new(4.0, 0.0), tol())
             .and_then(|p| p.line_to(anchor, tol()))
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_),
+            .map(|c| c.loop_.into_loop()),
         "dropping the fillet settles it either way",
     );
 }
