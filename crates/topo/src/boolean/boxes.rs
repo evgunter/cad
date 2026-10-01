@@ -2300,10 +2300,10 @@ mod tests {
     /// generator edges at the sides. The face's own surface is the
     /// CYLINDER through the bottom rim; a caller wanting another
     /// surface of revolution through the same boundary re-labels it
-    /// ([`Body::set_face_surfaces_describing`]) — the boundary is genuinely on that
-    /// surface whenever `rho` is the surface's own radius profile,
-    /// which is what makes the re-label honest rather than a fixture
-    /// trick.
+    /// ([`Body::set_face_surfaces_describing`]) — the boundary is
+    /// genuinely on that surface whenever `rho` is the surface's own
+    /// radius profile, which is what makes the re-label honest rather
+    /// than a fixture trick.
     ///
     /// The rim carriers are described as the cylinder-of-that-radius
     /// cut by the plane at that height, which is the same circle
