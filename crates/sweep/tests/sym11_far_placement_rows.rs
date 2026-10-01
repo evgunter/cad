@@ -188,28 +188,37 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   every point lane builds it (the enclosure straddles the band where
 ///   the point does not), and it builds the triangle everywhere,
 ///   including the cells where both point lanes refuse it.
+/// - **The certified lane refuses the stadium at the origin**, at every
+///   ε row, and at `1e6` and `3.7e7` at `1e-6`: the extrude's closing
+///   pcurve mint certifies the arc walls' rows over the `r` box, and
+///   the `Envelope` (or `MapResidual`) check's enclosure straddles the
+///   band where the point lanes' value does not
+///   (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
+///   The washer, minted by revolve already, and the arc-free triangle
+///   do not move.
 #[rustfmt::skip]
 const TABLE: [[Cell; 4]; 3] = [
-    // ε = 1e-6: nothing refuses anywhere, except the certified lane's
-    // washer at the furthest placement.
+    // ε = 1e-6: the point lanes refuse nothing anywhere; the certified
+    // lane refuses the stadium at every placement and the washer at the
+    // furthest.
     [
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["Envelope", "built", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["Envelope", "built", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MapResidual", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "MappedSource", "built"], 0) },
     ],
     // ε = 1e-9 (the shipped default): the mechanism reaches the point
     // lanes at 1e9, and at 3.7e7 the tier rescues two bodies the bare
     // lift refuses.
     [
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["Envelope", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "MappedSource", "built"], 0) },
         Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["built", "MappedSource", "built"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
         Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
     // ε = 1e-12: every placement off the origin disputes.
     [
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
+        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["Envelope", "built", "built"], 0) },
         Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
         Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
         Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },

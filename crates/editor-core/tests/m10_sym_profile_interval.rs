@@ -399,14 +399,20 @@ const PLATE_MAX_TERMS: usize = 252;
 /// changes what is built.
 ///
 /// The door's calls include the lowering's endpoint registrations
-/// (`Arc2::register_endpoints`): 16 decisions and 16 assertions.
+/// (`Arc2::register_endpoints`): 16 decisions and 16 assertions. The
+/// extrude's closing pcurve mint certifies the plate's wall rows, so
+/// the certificate's decisions are walked too, and the residuals it
+/// leaves blocked are rendered by the shape report (the `Report`
+/// lines, which build no form).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 14653 frozen 672 digest 5f922b2af13058d8b4f4572cf657c77d\n\
-     Plain/Assertion calls 462 forms 2526 frozen 372 digest 6c29633eaf7b7e2c746fddc842754e9a\n\
-     Early/Decision calls 320 forms 7710 frozen 8 digest cc786663ad599318ae48e1ad6a64521d\n\
-     Early/Assertion calls 462 forms 3389 frozen 0 digest c8a22079b42a8cbe472a3f7466cd3bd0\n\
-     Door/Decision calls 346 forms 11732 frozen 0 digest 2184a919171301ac92d6fd3426aa3e03\n\
-     Door/Assertion calls 206 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1255 forms 21366 frozen 1176 digest 7c74ba7e557cf182c3fd34497ebed9f9\n\
+     Plain/Assertion calls 578 forms 3233 frozen 372 digest 77d3de90d77357db9ef5efb8cfd5ba7d\n\
+     Plain/Report calls 176 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 552 forms 14290 frozen 8 digest b3347c9bc55dc0cf89b8753b3de8f001\n\
+     Early/Assertion calls 578 forms 4144 frozen 0 digest 407f49d309377b6baa7c3da26b2b47a7\n\
+     Early/Report calls 176 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Door/Decision calls 662 forms 19170 frozen 0 digest 5a397ab48e289d7a15d02541d9130dcf\n\
+     Door/Assertion calls 322 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

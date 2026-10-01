@@ -24,19 +24,21 @@
 //! through the DOOR — rule D makes the two spellings' trig meet at
 //! every sample, and the rim identity `‖q − c‖ = r` the registrant
 //! states is what closes it, so the count is `registered`; and
-//! `pcurve_map_residual` (36 → 0) through the door too, once rule D's
+//! `pcurve_map_residual` on the rims (56 registered of 180) through the
+//! door too, once rule D's
 //! A1 folds take the chart's phase — `atan2(0, r²/sqrt(r²))` from the
 //! cylinder chart derivation is `atan2` of the zero form over a form
 //! non-negative BY SYNTAX, so it is the zero form (no sign read: the
 //! `r² = 0` box is one clause 1 refuses), and on the negative frame
 //! the `+ π` the branch-stabilized azimuth adds leaves `cos π = −1`
-//! outright. The plate's whole-certifying ceiling moves from
-//! `1.25e3 · ε` to 0.2368 (ε = 1e-6), 0.2631 (1e-9), 0.2631 (1e-12) of
-//! its REAL study — the staged walk's own end, to the bisection step —
-//! and is bounded by `assert_bound`'s ENCLOSURE: dependency widening
-//! of the document's own web margin, which is affine and positive over
-//! the whole box there (`m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`);
-//! the leaves certify up to the real flip at 0.625 of the study.
+//! outright. With the extrude closing on the pcurve mint, its wall rows'
+//! certificate (`pcurve_envelope`, and the `pcurve_map_residual`
+//! samples the door does not state) bounds the plate's whole-certifying
+//! ceiling at `3.9044e2·ε` under every rule set, below the assertion
+//! the algebra used to reach — the dependency widening of the
+//! document's own web margin, affine and positive over the whole box
+//! (`m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first`;
+//! `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -203,7 +205,7 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     assert_eq!(row(&off, "carrier_matches_mapped_source"), [180, 0, 16, 56]);
     assert_eq!(row(&off, "carrier_on_surface_2"), [108, 0, 0, 72]);
     assert_eq!(row(&off, "witness_on_surface_2"), [12, 0, 0, 8]);
-    assert_eq!(row(&off, "pcurve_map_residual"), [0, 0, 0, 36]);
+    assert_eq!(row(&off, "pcurve_map_residual"), [0, 0, 0, 180]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
@@ -223,10 +225,12 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),
-        [0, 0, 36, 0],
+        [0, 0, 56, 124],
         "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
-         on the negative frame to −1; the rim identity the door states closes the rest, \
-         so every one of the 36 is REGISTERED"
+         on the negative frame to −1; the rim identity the door states closes the rim rows' \
+         samples, so 56 are REGISTERED — and the 124 of the extrude's closing mint the door \
+         does not state stay numeric \
+         (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`)"
     );
     assert_eq!(
         row(&on, "line_span"),
@@ -246,88 +250,86 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     }
 }
 
-/// **The door and the algebra move the plate TOGETHER, and neither
-/// alone.** Between M10-9's ceiling and M10-10's — at `1.0e3 · ε` of
-/// the real study — the plate certifies whole under the shipped set
-/// and refuses under each of its two halves: the algebra with the door
-/// shut (rule D meets the two spellings' trig at every sample, but the
-/// rim identity `‖q − c‖ = r` that closes the scaffold residual is the
-/// door's), and the door with the algebra off (M10-9's tier, whose
-/// door reaches the `i = 0` sample alone). This is the mechanism claim
-/// in one drive triple, ε-relative.
+/// **The certificate bounds the plate, under every rule set alike.**
+/// The extrude closes with the pcurve mint, and over the plate's box
+/// the certificate's `pcurve_envelope` — `‖image − carrier‖` over the
+/// `Harmonic` image's coefficients, zero by construction — widens past
+/// the band that neither the door nor the algebra discharges. So the
+/// plate certifies whole up to `3.9044e2·ε` and refuses past it under
+/// `shipped`, `shipped_without_the_door` and `without_the_algebra`
+/// alike, at every ε row: the mechanism this row used to show (the
+/// door and the algebra lifting the plate past M10-9's `7.81e2·ε`
+/// TOGETHER, and neither alone) sits above that ceiling and is masked
+/// (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
+/// A fix to that row reds this one, which is the point.
 #[test]
-fn m10_10_the_door_and_the_algebra_move_the_plate_together() {
+fn m10_10_the_closing_mints_certificate_bounds_the_plate_under_every_set() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let doc = crate::m10_7_plate::plate(5.0e-5 * 1.0e3 * eps, 1.0e-5 * 1.0e3 * eps, tol).0;
-    assert!(
-        certifies_whole(&doc, SymRules::shipped(), tol),
-        "the shipped set certifies the plate whole at 1e3·ε"
-    );
-    assert!(
-        !certifies_whole(&doc, SymRules::shipped_without_the_door(), tol),
-        "the algebra with the door shut does not: the rim identity is the door's"
-    );
-    assert!(
-        !certifies_whole(&doc, SymRules::without_the_algebra(), tol),
-        "the door with the algebra off does not: M10-9's ceiling is 7.81e2·ε"
+    let at = |k: f64| crate::m10_7_plate::plate(5.0e-5 * k * eps, 1.0e-5 * k * eps, tol).0;
+    let (inside, outside) = (at(3.90e2), at(3.92e2));
+    for (name, rules) in [
+        ("shipped", SymRules::shipped()),
+        (
+            "shipped_without_the_door",
+            SymRules::shipped_without_the_door(),
+        ),
+        ("without_the_algebra", SymRules::without_the_algebra()),
+    ] {
+        assert!(
+            certifies_whole(&inside, rules, tol),
+            "{name}: the plate certifies whole at 3.90e2·ε"
+        );
+        assert!(
+            !certifies_whole(&outside, rules, tol),
+            "{name}: and refuses at 3.92e2·ε"
+        );
+    }
+    let analyzed = analyzed_box(&outside, &AnalysisPolicy::default());
+    let (shapes, _, _) = replay(&outside, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+    let over: Vec<&str> = over_band_set(&shapes).iter().map(|e| e.predicate).collect();
+    assert_eq!(
+        over,
+        vec!["pcurve_envelope"],
+        "the closing mint's certificate is what refuses"
     );
 }
 
-/// **THE PLATE'S CEILING IS DEPENDENCY WIDENING OF A REAL MARGIN, NOT
-/// A FLIP** (R2's MAJOR, by execution; the class
+/// **THE PLATE'S WEB MARGIN IS REAL AND POSITIVE WHERE ITS ASSERTION
+/// CEILING WAS, AND THE CLOSING MINT NOW REFUSES BEFORE IT IS READ**
+/// (R2's MAJOR, by execution; the class
 /// `work/sym/real-margin-dependency-widening` names). The web
 /// assertion's margin is AFFINE in the study's parameters — `web −
 /// floor = 1e-4 + 2·Δhalf_spacing − Δr_a − Δr_b` — so its TRUE range
 /// over the box at scale `s` of the study is exact arithmetic: `1e-4 ±
 /// 1.6e-4·s` (the spacing's ±5e-5·s doubled, and each radius's ±3σ =
 /// ±3e-5·s). The flip therefore first enters the box at `s = 0.625`.
-/// At the measured ceiling (`s ≈ 0.2632`) the true margin is `[5.79e-5,
-/// 1.42e-4]`, positive everywhere, while the enclosure the replay
-/// reports for `assert_bound` straddles zero (`1e-9`, `1e-12`) or sits
-/// in the band (`1e-6`) — widened by ~6e-5 on each side. That widening
-/// is what bounds the whole-certifying ceiling; the flip is what the
-/// LEAVES certify up to (the whole drive's refusals refine to
-/// `{assert_bound}` alone at every depth: both reviews' rows).
+/// At `s ≈ 0.2632`, where `assert_bound`'s enclosure — dependency
+/// widening of ~6e-5 on each side of a margin positive everywhere —
+/// used to bound the whole-certifying ceiling, the replay now stops at
+/// the extrude: its closing pcurve mint's `pcurve_map_residual` is over
+/// the band there, so `assert_bound` is never asked
+/// (`work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`).
+/// The arithmetic half holds; the enclosure half is masked, and a fix
+/// to that row reds this one.
 #[test]
-fn m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip() {
+fn m10_10_the_plates_web_margin_is_real_and_the_closing_mint_refuses_first() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let row = eps_row(eps);
     let s = [0.2369, 0.2632, 0.2632][row];
-    // The true margin over the box at the refusing end of the bracket.
-    let (true_lo, true_hi) = (1.0e-4 - 1.6e-4 * s, 1.0e-4 + 1.6e-4 * s);
+    let (true_lo, _) = (1.0e-4 - 1.6e-4 * s, 1.0e-4 + 1.6e-4 * s);
     assert!(true_lo > 0.0, "the true margin is positive at s = {s}");
     let flip_enters_at: f64 = 1.0e-4 / 1.6e-4;
     assert!((flip_enters_at - 0.625).abs() < 1.0e-12);
-    assert!(
-        s < flip_enters_at,
-        "the ceiling is well inside the flip-free box"
-    );
+    assert!(s < flip_enters_at, "s is well inside the flip-free box");
     let doc = crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
-    let set = over_band_set(&shapes);
-    let ab = set
-        .iter()
-        .find(|e| e.predicate == "assert_bound")
-        .expect("assert_bound is over the band at ceiling + δ");
-    let (lo, hi) = ab.enclosure;
-    println!(
-        "   s = {s}: true margin [{true_lo:.4e}, {true_hi:.4e}], enclosure [{lo:.4e}, {hi:.4e}], \
-         widened {:.3e} below and {:.3e} above",
-        true_lo - lo,
-        hi - true_hi
-    );
-    // The enclosure reaches into the band (or past zero) while the
-    // true margin never comes within 5e-5 of it.
-    assert!(
-        lo < 10.0 * eps,
-        "the enclosure's lower end is what refuses: {lo:e} against a band of 10·ε"
-    );
-    let (below, above) = (true_lo - lo, hi - true_hi);
-    assert!(
-        (4.0e-5..=8.0e-5).contains(&below) && (4.0e-5..=8.0e-5).contains(&above),
-        "the widening is ~6e-5 on each side (measured 5.8e-5): {below:e} / {above:e}"
+    let over: Vec<&str> = over_band_set(&shapes).iter().map(|e| e.predicate).collect();
+    assert_eq!(
+        over,
+        vec!["pcurve_map_residual"],
+        "the closing mint's certificate refuses, and `assert_bound` is not reached"
     );
 }

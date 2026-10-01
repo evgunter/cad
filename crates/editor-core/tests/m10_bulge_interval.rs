@@ -75,7 +75,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// The literal's shipped CEILING is not the residue: 0.56 of
 /// its real study, bounded by `arc_diameter_clearance` (the annulus's
 /// real-margin class); the parameter's is `3.52e2·ε`, on and off
-/// alike.
+/// alike. Both are unmeasured with the extrude's closing pcurve mint in
+/// the build, whose three `pcurve_*` rows below are its wall rows'
+/// certificate; the re-measure is
+/// `work/sym/pcurve-certificate-checks-widen-past-the-band-over-a-parameter-box.md`'s.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
@@ -101,9 +104,20 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),
-    ("pcurve_chart_azimuth_frame", [0, 0, 0, 2]),
-    ("pcurve_chart_radial_moving", [2, 0, 0, 0]),
-    ("pcurve_map_residual", [0, 0, 18, 0]),
+    ("pcurve_azimuth_period", [0, 0, 0, 12]),
+    ("pcurve_chart_azimuth_affine", [24, 0, 0, 0]),
+    ("pcurve_chart_azimuth_frame", [6, 0, 0, 14]),
+    ("pcurve_chart_orientation", [0, 0, 0, 6]),
+    ("pcurve_chart_radial_moving", [8, 0, 0, 6]),
+    ("pcurve_chart_winding", [12, 0, 0, 18]),
+    ("pcurve_envelope", [0, 0, 2, 10]),
+    ("pcurve_interval_forward", [0, 0, 0, 12]),
+    ("pcurve_loop_closure", [0, 0, 0, 3]),
+    ("pcurve_loop_closure_height", [3, 0, 0, 0]),
+    ("pcurve_loop_continuity", [9, 0, 0, 9]),
+    ("pcurve_loop_pole_joint", [0, 0, 0, 9]),
+    ("pcurve_map_residual", [0, 0, 28, 98]),
+    ("pcurve_trim_containment", [18, 0, 0, 30]),
     ("segment_straightness", [6, 0, 0, 6]),
     ("side_cylinders_cosurface", [2, 0, 0, 0]),
     ("side_planes_cosurface", [0, 0, 0, 2]),
@@ -191,9 +205,20 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("newell_plane_residual", [18, 0, 0, 0]),
             ("path_circle_radius", [0, 0, 0, 1]),
             ("path_junction_turn", [0, 0, 0, 2]),
-            ("pcurve_chart_azimuth_frame", [0, 0, 0, 2]),
-            ("pcurve_chart_radial_moving", [2, 0, 0, 0]),
-            ("pcurve_map_residual", [0, 0, 18, 0]),
+            ("pcurve_azimuth_period", [0, 0, 0, 12]),
+            ("pcurve_chart_azimuth_affine", [24, 0, 0, 0]),
+            ("pcurve_chart_azimuth_frame", [6, 0, 0, 14]),
+            ("pcurve_chart_orientation", [0, 0, 0, 6]),
+            ("pcurve_chart_radial_moving", [8, 0, 0, 6]),
+            ("pcurve_chart_winding", [12, 0, 0, 18]),
+            ("pcurve_envelope", [0, 0, 3, 9]),
+            ("pcurve_interval_forward", [0, 0, 0, 12]),
+            ("pcurve_loop_closure", [0, 0, 0, 3]),
+            ("pcurve_loop_closure_height", [3, 0, 0, 0]),
+            ("pcurve_loop_continuity", [9, 0, 0, 9]),
+            ("pcurve_loop_pole_joint", [0, 0, 0, 9]),
+            ("pcurve_map_residual", [0, 0, 37, 89]),
+            ("pcurve_trim_containment", [0, 18, 0, 30]),
             ("segment_straightness", [2, 0, 0, 6]),
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),
