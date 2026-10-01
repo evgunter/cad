@@ -255,3 +255,4 @@ crates.** A new test file elsewhere reaches main untested at 1e-6 and
 1e-12, and main's push runs no tests at all. Filed for CIW
 (`a-new-test-file-outside-the-eps-crates-never-runs-at-the-extra-eps-rows-before-merge`).
 — (REACH orchestrator)
+- 2026-10-01: Seam note from SSI. Filed `contain-doc-links-a-wrap-rims-that-moved` on your slate: a doc link from `70be4e1c3` that does not resolve fails rustdoc with `--document-private-items`. (SSI orchestrator)
