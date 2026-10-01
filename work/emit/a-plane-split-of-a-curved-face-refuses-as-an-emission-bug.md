@@ -6,8 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P0
 cost: M
-design: true
-needs_ev: true
+refs: [edge-pieces-are-named-by-their-ends]
 ---
 
 
@@ -46,3 +45,13 @@ This is `face_plane`'s last caller in `crates/editor-core/src/names/`;
 the seam rankers read through `emit_topo::seam_side_normal` instead.
 `face_plane`'s `Emission` stays right for a caller whose face is planar
 by construction.
+
+## Ruled (2026-10-01, PR 3553)
+
+Ev took the recommendation of fork-log row 22 ("the recommendation
+sounds good, including the change to what was decided in 512!"). The
+rule is `crates/editor-core/src/names/README.md` N2. The Split's
+same-side face pieces take `Keeps` (the parent's boundary edges each
+holds a stretch of) instead of a rank along `n_parent × n_tool`, so
+`face_plane` is no longer read and nothing refuses.
+`edge-pieces-are-named-by-their-ends` implements it and closes this row.
