@@ -300,11 +300,12 @@ impl BernsteinSpans {
 ///   quotient refuses.
 /// - Containment through a WHOLE fold of these steps, against exact
 ///   rational arithmetic, is
-///   [`tests::the_ring_fold_encloses_the_exact_refined_net`]; the width
-///   the fold accumulates is
-///   [`tests::the_convex_form_does_not_inflate_the_fold`], which also
-///   witnesses the bulge at this function rather than at
-///   `apply_certified`.
+///   this module's `the_ring_fold_encloses_the_exact_refined_net`; the
+///   width the fold accumulates is
+///   `the_convex_form_does_not_inflate_the_fold`, which also witnesses
+///   the bulge at this function rather than at `apply_certified`.
+///   (Both are `#[cfg(test)]`, so these are names and not links —
+///   rustdoc does not document a test module.)
 /// - [`to_bezier_spans_extra`] inserts each interior knot to full
 ///   multiplicity, so the fold here is `p − m` deep for a knot of
 ///   existing multiplicity `m` (`for step in m..p`) — `p` deep for a
@@ -1531,7 +1532,7 @@ mod tests {
     /// so a wrong span or a mis-placed window boundary is invisible here
     /// — both folds would make the same wrong choice and agree. Those
     /// are covered separately, by
-    /// [`tests::the_raw_span_search_tracks_the_linear_scan_through_every_insertion`]
+    /// `the_raw_span_search_tracks_the_linear_scan_through_every_insertion`
     /// (the span, against an independent linear scan, at every step of a
     /// real decomposition) and by the module's end-to-end soundness
     /// rows. What the shadow proves is that given the schedule, the

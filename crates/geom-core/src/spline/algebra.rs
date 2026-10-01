@@ -301,11 +301,13 @@ impl CurvePlan {
     /// bracket around it. That is outward and therefore sound; what it
     /// is not is variation-diminishing in the exact sense the reals
     /// give. The excursion's SIZE is pinned here by
-    /// [`the_convex_form_bulges_by_the_ratios_own_rounding`], and its
-    /// existence at `insert_once_ring` by that function's own width row.
+    /// this module's `the_convex_form_bulges_by_the_ratios_own_rounding`,
+    /// and its existence at `insert_once_ring` by that function's own
+    /// width row. (Both are `#[cfg(test)]`, so these are names and not
+    /// links.)
     ///
     /// **Two width allowances, one claim.** This module's
-    /// [`the_ring_applier_stays_in_step_and_near_the_described_hull`]
+    /// `the_ring_applier_stays_in_step_and_near_the_described_hull`
     /// allows `8.0·(plans.len() + 1)` ulps where `compose`'s row allows
     /// `2 + 0.5·insertions` — a 16x difference in slope over the same
     /// quantity. Neither is a derived bound; both are ceilings set so
