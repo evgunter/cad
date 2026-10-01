@@ -5668,3 +5668,31 @@ Two designers are dispatched concurrently with one problem statement
 blinding byte and the protocol hash are on
 `analysis/design-fork/topo-kef-kfmrh-across-keys`. Neither designer
 sees the other's report until both are in.
+
+## kef/kfmrh fork: first reports disagree; reconciliation round 1 (2026-10-01)
+
+Both designers delivered. Their first reports are recorded in
+`design-kef-round0.md` (A/B only), before reconciliation.
+
+- **A:** no refusal and no twins for the kills. The strand is a
+  representation defect, since descriptions store copies of face keys.
+  - Final state: derive the keys, so the strand becomes unrepresentable.
+  - Interim: the kills ask nothing, and the composing door's outermost
+    close debug-asserts the naming half of tier 3 check 2.
+- **B:** the kills refuse through `vouch_move` with describing twins;
+  the merge door re-describes; transient faces wear "no chart yet".
+
+Both found, independently:
+- the public coplanar merge returns stranded descriptions at rest, so I
+  filed `merge-coplanar-faces-returns-the-kept-boundary-described-against-the-absorbed-key`
+  (P2, M);
+- `emit_topo.rs`'s two `kef`s are test code.
+
+Reconciliation round 1 is out: each designer is shown the other's
+report and asked what moves it and whether its own argument is
+answered.
+
+PR 3673 is unaffected either way. Both keep the refusals on the
+chart-choosing doors. A would move `ring_move` with the kills, which
+the measurement says is harmless, since `ring_move` had zero production
+refusals.
