@@ -2,8 +2,10 @@
 id: at-rest-badge-repeats-a-gather-refusal-another-channel-carries
 kind: issue
 title: the at-rest badge repeats every gather refusal of an assembly-shaped document, including the ones frame::badge_site sends to the feature tree or to product_badge
-status: dispatched
+status: closed
 opened: 2026-09-24
+closed: 2026-10-01
+pr: 3632
 priority: P3
 cost: E
 branch: chrome/at-rest-result
@@ -27,8 +29,8 @@ gives the same refusal:
 
 - a `Frame` class (a naming collision across roots, a graft, a validity
   verdict) is also drawn by `frame::product_badge` in the same column,
-  so the reader sees *"product: …"* and *"at rest: assembly: product:
-  …"* one badge apart;
+  so the reader sees *"product: …"* and *"at rest: product: …"* one
+  badge apart;
 - a `FeatureTree` class (`RootFailed`, `RootPoisoned`, `UnknownNode`)
   is badged at the node by the Features pane, and `badge_site`'s doc
   argues that a frame badge for it "would say strictly less, in a
@@ -65,7 +67,7 @@ at `product_badge`.
   second policy or makes it answer to the first.
 - **The badge's words claim a gate run that did not happen.** The
   `Refused` built in that arm renders
-  `AssemblyError::product_refusal(&fault)` — *"assembly: product: …"* —
+  `AssemblyError::product_refusal(&fault)` — *"at rest: product: …"* —
   though on a gather refusal the A5 gate never ran: there was no
   product to hand it. That is a further argument for option 1 (no
   at-rest verdict when the gather refused).
@@ -80,3 +82,13 @@ The ruling has three parts:
 - **Wording deleted.** `tree::product_refusal_wording` loses its only caller and is deleted, and `AssemblyError::product_refusal` folds back into the kernel's `Display`.
 
 The tests that move are the ones the PR body lists. `work/vnews/the-at-rest-badge-restates-a-failed-root-louder-than-its-row.md` closes with the same change.
+
+## Closed
+
+PR 3632. `LandedRun` holds the gather's outcome as
+`gather: Result<Gathered, ProductError>`, `Gathered { at_rest, body }`,
+so a gather refusal of any class takes no at-rest badge and the landing
+has no class policy of its own; `frame::badge_site` is the one router.
+`tree::product_refusal_wording` and `AssemblyError::product_refusal`
+are gone. `work/vnews/the-at-rest-badge-restates-a-failed-root-louder-than-its-row.md`
+closes with it.
