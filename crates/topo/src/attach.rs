@@ -144,7 +144,42 @@ impl<T: Decide> Body<T> {
         face: FaceKey,
         surface: FaceSurface<T>,
     ) -> Result<SurfaceKey, EulerOpError> {
-        self.set_face_surface_gated(face, surface, true)
+        let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Face(face),
+        })?;
+        let old = face_data.surface;
+        let resolved =
+            self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
+        self.vouch_move(
+            RechartDoor::SetFaceSurface,
+            face,
+            (old, Slot::of_spec(&surface, old)),
+            self.edges.keys(),
+            |_, _, f| f == face,
+            resolved.on_parent_chart,
+            None,
+        )?;
+
+        // ---- Mutation (infallible from here on). ----
+        let new = self.mint_face_surface(surface, old);
+        let Some(f) = self.get_face_mut(face) else {
+            unreachable!(
+                "set_face_surface: `face` resolved in the plan phase and minting a \
+                 surface kills no face"
+            )
+        };
+        f.sense = resolved.sense;
+        if new != old {
+            f.surface = new;
+            if !resolved.on_parent_chart {
+                self.drop_face_rows(face);
+            }
+            self.remove_surface_if_orphaned(old);
+        }
+
+        #[cfg(debug_assertions)]
+        self.assert_tier1_postcondition("set_face_surface");
+        Ok(new)
     }
 
     /// **Failure-injection door** (test builds only: this crate's own
@@ -177,54 +212,7 @@ impl<T: Decide> Body<T> {
         face: FaceKey,
         surface: FaceSurface<T>,
     ) -> Result<SurfaceKey, EulerOpError> {
-        self.set_face_surface_gated(face, surface, false)
-    }
-
-    /// [`Body::set_face_surface`], its refusals of a swap it cannot
-    /// vouch for asked iff `vouch`.
-    fn set_face_surface_gated(
-        &mut self,
-        face: FaceKey,
-        surface: FaceSurface<T>,
-        vouch: bool,
-    ) -> Result<SurfaceKey, EulerOpError> {
-        let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(face),
-        })?;
-        let old = face_data.surface;
-        let resolved =
-            self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
-        let after = Slot::of_spec(&surface, old);
-        if vouch && after != Slot::Kept(old) {
-            self.vouch_move(
-                RechartDoor::SetFaceSurface,
-                face,
-                self.edges.keys(),
-                |_, _, f| (f == face).then_some(after),
-                resolved.on_parent_chart,
-            )?;
-        }
-
-        // ---- Mutation (infallible from here on). ----
-        let new = self.mint_face_surface(surface, old);
-        let Some(f) = self.get_face_mut(face) else {
-            unreachable!(
-                "set_face_surface: `face` resolved in the plan phase and minting a \
-                 surface kills no face"
-            )
-        };
-        f.sense = resolved.sense;
-        if new != old {
-            f.surface = new;
-            if !resolved.on_parent_chart {
-                self.drop_face_rows(face);
-            }
-            self.remove_surface_if_orphaned(old);
-        }
-
-        #[cfg(debug_assertions)]
-        self.assert_tier1_postcondition("set_face_surface");
-        Ok(new)
+        self.lifting_rechart_refusals_for_tests(|body| body.set_face_surface(face, surface))
     }
 
     /// Re-charts faces with the re-descriptions of the edges the move
@@ -655,77 +643,94 @@ impl<T: Decide> Body<T> {
         Ok(out)
     }
 
-    /// The keys-only refusal of a move a door cannot vouch for: `edges`
-    /// walked as [`Body::rechart_edges`] walks them, `moved` saying where
-    /// each half-edge's face lands. Refuses
-    /// [`EulerOpError::RechartStrandsDescriptions`] where the move
-    /// strands an edge, then [`EulerOpError::RechartUnvouched`] where a
-    /// certified edge lands on a chart it does not name — unless
-    /// `one_payload` (a certificate is a function of the payload it was
-    /// taken on, and the move re-reads that payload). `face` is the face
-    /// the refusal names. Pure.
+    /// **The keys-only re-chart refusals, one home for every door that
+    /// puts existing half-edges, or a chord it mints, on a face wearing
+    /// another key**: [`Body::set_face_surface`], [`Body::mef`],
+    /// [`Body::mfkrh`] and [`Body::ring_move`], each with its siblings.
+    ///
+    /// The half-edges `moves` answers for (given each one's loop and
+    /// face) land on a face wearing `after`, every other on the surface
+    /// its face wears now; `old` is the key they leave. `edges` are the
+    /// edges walked, as [`Body::rechart_edges`] walks them. A move that
+    /// keeps `old` asks nothing. Otherwise the door refuses
+    /// [`EulerOpError::RechartStrandsDescriptions`] where a description
+    /// coherent now names no key either of its edge's faces wears after
+    /// the move, then [`EulerOpError::RechartUnvouched`] where a
+    /// certified edge lands on a chart it does not name — or `chord`,
+    /// the chord a minting door mints with one half on each side, does
+    /// — unless `one_payload` (a certificate is a function of the
+    /// payload it was taken on, and the move re-reads that payload).
+    /// Scaffold and null edges carry no certificate: they neither
+    /// strand nor vouch, and are not asked. `face` is the face the
+    /// refusal names. Pure.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn vouch_move(
         &self,
         door: RechartDoor,
         face: FaceKey,
+        (old, after): (SurfaceKey, Slot),
         edges: impl IntoIterator<Item = EdgeKey>,
-        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
+        moves: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> bool,
         one_payload: bool,
+        chord: Option<&EdgeCurve<T>>,
     ) -> Result<(), EulerOpError> {
+        if after == Slot::Kept(old) || refusals_lifted() {
+            return Ok(());
+        }
         let RechartEdges {
             stranded,
             unvouched,
             ..
-        } = self.rechart_edges(edges, moved, false)?;
+        } = self.rechart_edges(edges, |he, l, f| moves(he, l, f).then_some(after), false)?;
         if !stranded.is_empty() {
             return Err(EulerOpError::RechartStrandsDescriptions {
                 door,
                 edges: stranded.into_iter().map(|(e, _)| e).collect(),
             });
         }
-        if !one_payload && !unvouched.is_empty() {
+        let chord_unvouched = chord.is_some_and(|curve| {
+            !Sides {
+                before: [old, old],
+                after: [Slot::Kept(old), after],
+            }
+            .vouched(Named::of_description(curve.description()))
+        });
+        if !one_payload && (chord_unvouched || !unvouched.is_empty()) {
             return Err(EulerOpError::RechartUnvouched {
                 door,
                 face,
                 edges: unvouched,
+                chord: chord_unvouched,
             });
         }
         Ok(())
     }
 
-    // PROBE
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn probe_move(
-        &self,
-        door: &str,
-        kind: &str,
-        caller: &str,
-        edges: Vec<EdgeKey>,
-        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
-        one_payload: bool,
-        chord: Option<bool>,
-    ) {
-        let r = self.rechart_edges(edges.iter().copied(), &moved, false);
-        let (st, u) = match r {
-            Ok(r) => (r.stranded.len(), r.unvouched.len()),
-            Err(_) => (999, 999),
-        };
-        let uv = if one_payload { 0 } else { u };
-        crate::mefchart_probe::log(&format!(
-            "{door}\t{kind}\t{caller}\tmoved={}\tstrand={st}\tunvouched={uv}\traw={u}\tchord={chord:?}",
-            edges.len()
-        ));
-    }
-
-    /// Whether a chord a door mints in `parent`'s face, its `he_minus`
-    /// on a face wearing `after`, is vouched for there: [`Sides::vouched`]
-    /// asked of an edge whose two halves lay on `parent`'s chart.
-    pub(crate) fn chord_vouched(parent: SurfaceKey, after: Slot, curve: &EdgeCurve<T>) -> bool {
-        Sides {
-            before: [parent, parent],
-            after: [Slot::Kept(parent), after],
+    /// **Failure-injection scope** (test builds only: this crate's own
+    /// tests, `test-support` and `sweep-testing`): runs `op` with every
+    /// keys-only re-chart refusal [`Body::vouch_move`] makes taken out —
+    /// [`EulerOpError::RechartStrandsDescriptions`] and
+    /// [`EulerOpError::RechartUnvouched`], at every door that raises
+    /// them — so a door may leave edges described against a surface
+    /// their faces no longer wear, or put a face's boundary on a chart
+    /// no certified edge of it names. Every other precondition and
+    /// every write is the real door's.
+    ///
+    /// It is for a row that builds such a body on purpose, and only
+    /// there. Every call carries a one-line `// Lifts` comment naming
+    /// the refusal it takes out and why that state is the row's
+    /// premise.
+    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+    #[doc(hidden)]
+    pub fn lifting_rechart_refusals_for_tests<R>(&mut self, op: impl FnOnce(&mut Self) -> R) -> R {
+        struct Restore(bool);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                LIFTED.with(|lifted| lifted.set(self.0));
+            }
         }
-        .vouched(Named::of_description(curve.description()))
+        let _restore = Restore(LIFTED.with(|lifted| lifted.replace(true)));
+        op(self)
     }
 
     /// `edge`'s stored description restated on the charts its moved
@@ -1200,6 +1205,27 @@ impl<T: Real> Rechart<T> {
             ChartSurface::New(_) => Slot::Minted(index),
             ChartSurface::Shared(key) => Slot::Kept(key),
         }
+    }
+}
+
+#[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+thread_local! {
+    /// Whether [`Body::lifting_rechart_refusals_for_tests`] is running
+    /// on this thread.
+    static LIFTED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+/// Whether the keys-only re-chart refusals are taken out
+/// ([`Body::lifting_rechart_refusals_for_tests`]); never outside a test
+/// build.
+fn refusals_lifted() -> bool {
+    #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
+    {
+        LIFTED.with(core::cell::Cell::get)
+    }
+    #[cfg(not(any(test, feature = "test-support", feature = "sweep-testing")))]
+    {
+        false
     }
 }
 

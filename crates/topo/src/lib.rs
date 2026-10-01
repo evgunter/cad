@@ -445,7 +445,6 @@ mod tier3_tests;
 pub mod transform;
 pub mod validate;
 
-pub(crate) mod mefchart_probe;
 pub use body::Body;
 pub use boolean::{
     BoolNullEdgeRecord, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,

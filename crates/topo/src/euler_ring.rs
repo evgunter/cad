@@ -235,13 +235,14 @@
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
 
+#[cfg(debug_assertions)]
+use crate::attach::Slot;
 use crate::body::Body;
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, ShellKey, VertexKey,
 };
-#[cfg(debug_assertions)]
-use crate::euler::ArenaDelta;
 use crate::euler::FaceSurface;
+use crate::euler::{ArenaDelta, RechartDoor};
 use crate::euler::{
     Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, Records, RunExtent,
     require_halves, shared_loop,
@@ -876,11 +877,9 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    #[track_caller]
     pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        crate::mefchart_probe::enter();
         let plan = self.kfmrh_plan(f1, f2, None)?;
         #[cfg(debug_assertions)]
         let declared = plan.delta();
@@ -900,7 +899,6 @@ impl<T: Decide> Body<T> {
     ///
     /// As [`Body::kfmrh`], except the `KeysOnly` refusal, and the site
     /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors).
-    #[track_caller]
     pub fn kfmrh_minting(
         &mut self,
         f1: FaceKey,
@@ -909,7 +907,6 @@ impl<T: Decide> Body<T> {
     ) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        crate::mefchart_probe::enter();
         let plan = self.kfmrh_plan(f1, f2, Some(tol))?;
         #[cfg(debug_assertions)]
         let declared = plan.delta();
@@ -927,7 +924,6 @@ impl<T: Decide> Body<T> {
         f2: FaceKey,
         tol: Option<Tol>,
     ) -> Result<KfmrhPlan<T>, EulerOpError> {
-        let probe_caller = crate::mefchart_probe::caller();
         // ---- Preconditions. ----
         let f1_data = self.get_face(f1).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(f1),
@@ -1029,22 +1025,6 @@ impl<T: Decide> Body<T> {
             |body| body.site_face_receiving(f1, &ring_halves),
             tol,
         )?;
-        if f2_data.surface != f1_surface {
-            let after = crate::attach::Slot::Kept(f1_surface);
-            self.probe_move(
-                if tol.is_some() {
-                    "kfmrh_minting"
-                } else {
-                    "kfmrh"
-                },
-                "-",
-                &probe_caller,
-                self.run_edges(&ring_halves)?,
-                |_, l, _| (l == ring).then_some(after),
-                self.same_chart(f2_data.surface, f1_surface),
-                None,
-            );
-        }
         Ok(KfmrhPlan {
             f1,
             f2,
@@ -1211,11 +1191,9 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
-    #[track_caller]
     pub fn ring_move(&mut self, ring: LoopKey, to_face: FaceKey) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        crate::mefchart_probe::enter();
         self.ring_move_with(ring, to_face, None)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
@@ -1233,7 +1211,6 @@ impl<T: Decide> Body<T> {
     /// As [`Body::ring_move`], except the `KeysOnly` refusal, and the
     /// site mint's plan in its place ([`Body::plan_moved_rows`]'s
     /// errors).
-    #[track_caller]
     pub fn ring_move_minting(
         &mut self,
         ring: LoopKey,
@@ -1242,7 +1219,6 @@ impl<T: Decide> Body<T> {
     ) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        crate::mefchart_probe::enter();
         self.ring_move_with(ring, to_face, Some(tol))?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move_minting");
@@ -1258,7 +1234,6 @@ impl<T: Decide> Body<T> {
         to_face: FaceKey,
         tol: Option<Tol>,
     ) -> Result<(), EulerOpError> {
-        let probe_caller = crate::mefchart_probe::caller();
         // ---- Preconditions. ----
         let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(ring),
@@ -1286,6 +1261,15 @@ impl<T: Decide> Body<T> {
             Vec::new()
         } else {
             let ring_halves = self.site_cycle(ring)?;
+            self.vouch_move(
+                RechartDoor::RingMove,
+                to_face,
+                (from_surface, Slot::Kept(to_surface)),
+                self.run_edges(&ring_halves)?,
+                |_, l, _| l == ring,
+                self.same_chart(from_surface, to_surface),
+                None,
+            )?;
             self.plan_moved_rows(
                 &ring_halves,
                 self.same_chart(from_surface, to_surface),
@@ -1295,23 +1279,6 @@ impl<T: Decide> Body<T> {
             )?
         };
 
-        if from_face != to_face && from_surface != to_surface {
-            let after = crate::attach::Slot::Kept(to_surface);
-            let ring_halves = self.site_cycle(ring)?;
-            self.probe_move(
-                if tol.is_some() {
-                    "ring_move_minting"
-                } else {
-                    "ring_move"
-                },
-                "-",
-                &probe_caller,
-                self.run_edges(&ring_halves)?,
-                |_, l, _| (l == ring).then_some(after),
-                self.same_chart(from_surface, to_surface),
-                None,
-            );
-        }
         // ---- Mutation (infallible; no-op when the faces coincide). ----
         if from_face != to_face {
             let Some(face) = self.get_face_mut(from_face) else {
