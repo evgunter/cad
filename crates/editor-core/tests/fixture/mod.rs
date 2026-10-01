@@ -105,9 +105,11 @@ pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 /// - every mate's escalation log is the reference's escalations taken
 ///   in order (a subsequence), and the mates' logs together are the
 ///   reference's, element for element;
-/// - the same of the verdicts, over the mates that evaluate `Ok` (a
-///   failure carries no verdict log), and exactly the reference's
-///   when every mate does.
+/// - the same of the verdicts, over the mates that evaluate `Ok`, and
+///   exactly the reference's only when every mate does. A failed node
+///   carries no verdict log, so for a document with a failing mate the
+///   verdicts are checked only as far as the `Ok` mates go, and the
+///   escalations are the one channel compared whole.
 ///
 /// Entries compare by their `Debug` spelling, which a margin that is
 /// no number compares equal under.

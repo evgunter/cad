@@ -690,12 +690,25 @@ impl core::fmt::Display for LeverRefusal {
                 node,
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::OutOfRange { parts, datum } => write!(
-                f,
-                "its lever, {parts} m of its parts' reach plus {datum} m of its datum, is too \
-                 long for a tilt to be decided over it. Recourse: {}",
-                geom_core::RANGE_RECOURSE
-            ),
+            Self::OutOfRange { parts, datum } => {
+                // A half that is not finite has no metre figure to print.
+                let length = |f: &mut core::fmt::Formatter<'_>, x: f64, of: &str| {
+                    if x.is_finite() {
+                        write!(f, "{x} m of {of}")
+                    } else {
+                        write!(f, "a length of {of} that is not finite")
+                    }
+                };
+                f.write_str("its lever, ")?;
+                length(f, *parts, "its parts' reach")?;
+                f.write_str(" plus ")?;
+                length(f, *datum, "its datum")?;
+                write!(
+                    f,
+                    ", is too long for a tilt to be decided over it. Recourse: {}",
+                    geom_core::RANGE_RECOURSE
+                )
+            }
         }
     }
 }
@@ -1038,7 +1051,8 @@ pub enum MateFault {
         side: MateSide,
         /// **The node whose evaluation raised the refusal.** It lies
         /// on the reference's derivation: a pattern or a transform on
-        /// the chain, a `Part` on it whose own index does not evaluate,
+        /// the chain, a `Part` on it whose own index does not evaluate or
+        /// selects outside its value,
         /// or a node one of those reads to derive its map — a circular
         /// rule's axis DATUM, whose slot that does not evaluate is
         /// reported under the datum's id, or a TRANSFORM on the way to
@@ -1075,12 +1089,10 @@ pub enum MateFault {
         /// pattern of one body, the flat `j·M + i` over a nested one.
         named: u32,
         /// What the `Part`'s index expression evaluates to at the
-        /// document's parameter bindings.
-        ///
-        /// `i64`, where `named` is the `u32` a name's structural
-        /// index is: an evaluated Count can be negative or past the
-        /// pattern's count, and narrowing it to compare would be
-        /// deciding the disagreement this fault exists to report.
+        /// document's parameter bindings: a copy the value has, since
+        /// an index outside it is the `Part`'s own refusal
+        /// ([`MateFault::PlacerRefused`]), judged first. `i64`, the
+        /// type the evaluated Count has.
         selected: i64,
     },
     /// A mate names ONE instance on both sides. A pair is two
@@ -1211,26 +1223,91 @@ pub enum PlacerRow {
 /// that needs to know reads THIS rather than inspecting a margin.
 pub(crate) const MATE_MEMBER_EMPTY: &str = "mate_member_empty";
 
-/// **What a contradiction's predicate found, in words**: the fact the
-/// membership check or the rider refuted, for the sentence, which
-/// leaves the predicate's name to the payload. `None` for a name the
-/// solve does not refuse a contradiction on, whose sentence then says
-/// what was measured and no more.
-fn refuted(predicate: &str) -> Option<&'static str> {
-    Some(match predicate {
-        "mate_member_rotation_identity" => "the relative rotation is not the identity",
-        "mate_member_translation_zero" => "the relative translation is not zero",
-        "mate_member_translation_along" => "the translation leaves the shared direction",
-        "mate_member_axis_fixed" => "the rotation moves the shared axis",
-        "mate_member_translation_in_plane" => "the translation leaves the shared plane",
-        "mate_member_point_on_axis" => "the axis point leaves the shared axis",
-        "mate_member_point_fixed" => "the shared point moves",
-        "mate_rotation_two_axis_reachable" => "no one rotation aligns both axes",
-        "mate_clocking_redundant" => {
-            "the clocking disagrees with the roll the coincidence already pins"
+/// **A predicate the solve refuses a contradiction on: its funnel name
+/// and what refusing it found, in words, declared together.** Every
+/// site that decides one passes [`Refuted::name`], and the sentence
+/// says [`Refuted::found`] in its place, so a predicate cannot be
+/// decided under a name the sentence has no words for — both are arms
+/// of one exhaustive match. The structural empty intersection
+/// ([`MATE_MEMBER_EMPTY`]) is not here: no margin decides it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refuted {
+    /// A coset admitting no rotation: the candidate's rotation is the
+    /// identity.
+    RotationIdentity,
+    /// A coset admitting no motion: the candidate's translation is zero.
+    TranslationZero,
+    /// A prismatic coset: the translation runs along its direction.
+    TranslationAlong,
+    /// A coset about an axis: the rotation fixes that axis.
+    AxisFixed,
+    /// A planar coset: the translation stays in the plane.
+    TranslationInPlane,
+    /// A cylindrical coset: the axis point stays on the axis.
+    PointOnAxis,
+    /// A revolute coset: the axis point stays put.
+    PointFixed,
+    /// Two one-axis rotation constraints: one rotation reaches both.
+    TwoAxisReachable,
+    /// A clocking rider on a coincidence: the rider is redundant.
+    ClockingRedundant,
+}
+
+impl Refuted {
+    /// Every predicate, once.
+    pub const ALL: [Self; 9] = [
+        Self::RotationIdentity,
+        Self::TranslationZero,
+        Self::TranslationAlong,
+        Self::AxisFixed,
+        Self::TranslationInPlane,
+        Self::PointOnAxis,
+        Self::PointFixed,
+        Self::TwoAxisReachable,
+        Self::ClockingRedundant,
+    ];
+
+    /// The funnel's name for it — routing, which a refusal carries in
+    /// its payload and never in its sentence.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::RotationIdentity => "mate_member_rotation_identity",
+            Self::TranslationZero => "mate_member_translation_zero",
+            Self::TranslationAlong => "mate_member_translation_along",
+            Self::AxisFixed => "mate_member_axis_fixed",
+            Self::TranslationInPlane => "mate_member_translation_in_plane",
+            Self::PointOnAxis => "mate_member_point_on_axis",
+            Self::PointFixed => "mate_member_point_fixed",
+            Self::TwoAxisReachable => "mate_rotation_two_axis_reachable",
+            Self::ClockingRedundant => "mate_clocking_redundant",
         }
-        _ => return None,
-    })
+    }
+
+    /// What refusing it found, as a clause of the contradiction's
+    /// sentence.
+    #[must_use]
+    pub const fn found(self) -> &'static str {
+        match self {
+            Self::RotationIdentity => "the relative rotation is not the identity",
+            Self::TranslationZero => "the relative translation is not zero",
+            Self::TranslationAlong => "the translation leaves the shared direction",
+            Self::AxisFixed => "the rotation moves the shared axis",
+            Self::TranslationInPlane => "the translation leaves the shared plane",
+            Self::PointOnAxis => "the axis point leaves the shared axis",
+            Self::PointFixed => "the shared point moves",
+            Self::TwoAxisReachable => "no one rotation aligns both axes",
+            Self::ClockingRedundant => {
+                "the clocking disagrees with the roll the coincidence already pins"
+            }
+        }
+    }
+
+    /// The predicate a refusal's payload names, when it is one of these.
+    #[must_use]
+    pub fn of(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|r| r.name() == name)
+    }
 }
 
 impl core::fmt::Display for MateFault {
@@ -1250,24 +1327,24 @@ impl core::fmt::Display for MateFault {
             ),
             Self::ClassNotAdmitted { mate } => write!(
                 f,
-                "mate {}'s contact class is not admitted in v1 — {}. Recourse: declare the \
-                 contact a Rest, or delete the mate",
+                "mate {}'s contact class is not admitted in v1 — {}. Recourse: delete the \
+                 mate, and insert it again declaring a Rest",
                 mate,
                 topo::FIT_DEFERRAL
             ),
             Self::TableLacks { mate, what } => write!(
                 f,
                 "mate {}: the coset table has no entry for {what}, and refuses rather than \
-                 invent one. Recourse: carry the clocking as a rider on a coaxial mate, or \
-                 delete it",
+                 invent one. Recourse: delete the mate, and insert it again as a coaxial mate \
+                 carrying the clocking",
                 mate
             ),
             Self::Indeterminate { mate, diag } => write!(
                 f,
-                "mate {}: a case split could not be decided — {}. Recourse: move the \
-                 geometry, or lower the tolerance",
+                "mate {}: a case split could not be decided — {}. Recourse: {}",
                 mate,
-                diag.payload()
+                diag.payload(),
+                geom_core::NO_DECLARATION_RECOURSE
             ),
             Self::Band { error } => write!(f, "the mate solve could not build a band: {error}"),
             Self::Contradictory {
@@ -1292,8 +1369,8 @@ impl core::fmt::Display for MateFault {
                 // The predicate's name is routing and rides the
                 // payload; the sentence says what it found in words.
                 f.write_str(": ")?;
-                if let Some(found) = refuted(predicate) {
-                    write!(f, "{found} — ")?;
+                if let Some(refuted) = Refuted::of(predicate) {
+                    write!(f, "{} — ", refuted.found())?;
                 }
                 f.write_str("the solve ")?;
                 // WHETHER there is a measurement to report, and of

@@ -355,7 +355,9 @@ pub(super) fn walk_of<P>(
 /// [`MateFault::PlacerRefused`] instead, carrying the evaluation
 /// layer's own words for it, at the node whose slot it is: `Expr` for
 /// a pattern's count at the pattern, and for a `Part`'s index at the
-/// `Part`, whose expression does not evaluate in `env`; `MissingInput`
+/// `Part`, whose expression does not evaluate in `env`;
+/// `InstanceOutOfRange` at the `Part` for an index outside the value it
+/// selects from, judged before the name is; `MissingInput`
 /// for a node the walk recorded and the document does not hold, which
 /// no door reaches.
 ///
@@ -452,13 +454,25 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
         // fits. A pattern over another pattern's many bodies does not
         // evaluate, so its row states a refusal of its own and the
         // mate carries this one.
+        // The value's flat length is that level's arithmetic too.
+        let past_width = || {
+            refused(
+                level.node,
+                NodeErrorKind::Naming(crate::names::NamingError::Emission {
+                    what: "an output-body index exceeds the table's u32 row width",
+                }),
+                PlacerRow::Silent,
+            )
+        };
         let mut flat = level.i;
+        let mut bodies = level.n;
         for below in &levels[t + 1..] {
             if below.part.is_some() {
                 break;
             }
             flat = crate::names::flat_body_index(flat, below.n, below.i)
                 .map_err(|e| refused(level.node, NodeErrorKind::Naming(e), PlacerRow::Silent))?;
+            bodies = bodies.checked_mul(below.n).ok_or_else(past_width)?;
         }
         // No door reaches this refusal: the walk recorded `part` only
         // where it read this node of this document as a `Part`
@@ -466,8 +480,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
         // hands here. It is answered rather than assumed, at the
         // `Part`, whose node it is about.
         let Some(Node::Part {
+            of,
             select: PartSelect::Instance(index),
-            ..
         }) = doc.node(part)
         else {
             return Err(refused(
@@ -480,6 +494,20 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
         // is the `Part`'s, which the evaluation fails with the same
         // refusal in its own right.
         let selected = count_of(part, index, SlotId::Instance, PlacerRow::States)?;
+        // Judged against the value's flat length before the name, as the
+        // evaluation judges it: an index outside it selects no copy, and
+        // the `Part` fails on it in its own right.
+        if !(0..i64::from(bodies)).contains(&selected) {
+            return Err(refused(
+                part,
+                NodeErrorKind::InstanceOutOfRange {
+                    input: *of,
+                    index: selected,
+                    count: bodies as usize,
+                },
+                PlacerRow::States,
+            ));
+        }
         if selected != i64::from(flat) {
             return Err(MateFault::PartSelectsAnotherCopy {
                 mate,

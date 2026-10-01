@@ -3670,11 +3670,17 @@ where
     // the one mate whose answer it decided
     // (`mate::solve::SolvedPoses::take_recordings`), so the decision
     // is on this mate's log whether the mate evaluates `Ok` or not.
-    if matches!(node, crate::node::Node::Mate { .. }) {
+    let spliced = matches!(node, crate::node::Node::Mate { .. }).then(|| {
+        let mut kept = geom_core::k_stats::Recorded::default();
         for recording in op_env.poses.take_recordings(id) {
+            kept.verdicts
+                .extend_from_slice(&recording.recorded().verdicts);
+            kept.escalations
+                .extend_from_slice(&recording.recorded().escalations);
             geom_core::k_stats::splice(recording);
         }
-    }
+        kept
+    });
 
     // Poison propagation (spec D2, GQ2): first blocking input in the
     // node's deterministic input order; `through` always names a
@@ -3884,7 +3890,8 @@ where
         // mates folded before it, which the mate's key does not. So a
         // reused mate carries this run's recording, the log a fresh
         // evaluation of it would carry.
-        if matches!(node, crate::node::Node::Mate { .. }) {
+        if let Some(spliced) = &spliced {
+            mate_log_is_the_solves(id, &fresh, spliced);
             return NodeStep {
                 result: NodeResult::Ok(NodeValue {
                     verdicts: Arc::new(fresh.verdicts),
@@ -3939,6 +3946,9 @@ where
         Err(_) => Ok(None),
     };
     let recorded = bracket.finish();
+    if let Some(spliced) = &spliced {
+        mate_log_is_the_solves(id, &recorded, spliced);
+    }
     let escalations = Arc::new(recorded.escalations);
     match (op, placement) {
         (Ok(out), Ok(placement)) => NodeStep {
@@ -3976,6 +3986,27 @@ where
             reused: false,
         },
     }
+}
+
+/// **A mate's frame holds exactly what the solve recorded for it.** A
+/// mate's key and its op decide nothing, which is what lets a reused
+/// mate carry this run's recording in place of its prior log (the memo
+/// hit's mate arm, which bypasses the prefix assert). A mate op or key
+/// that comes to decide anything breaks that, and trips here. The
+/// escalations compare by predicate, since a margin that is no number
+/// compares unequal to itself.
+fn mate_log_is_the_solves(
+    id: RecipeNodeId,
+    frame: &geom_core::k_stats::Recorded,
+    spliced: &geom_core::k_stats::Recorded,
+) {
+    let named = |r: &geom_core::k_stats::Recorded| -> Vec<&'static str> {
+        r.escalations.iter().map(|e| e.predicate()).collect()
+    };
+    assert!(
+        frame.verdicts == spliced.verdicts && named(frame) == named(spliced),
+        "mate {id}'s frame holds decisions the solve did not record for it"
+    );
 }
 
 /// **The content key's structural tags, declared by vocabulary.**

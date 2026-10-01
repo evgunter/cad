@@ -35,7 +35,7 @@ use geom_core::k_stats::decide;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 
-use super::{Clash, Lever, LeverRefusal};
+use super::{Clash, Lever, LeverRefusal, Refuted};
 
 /// A residual SE(3) subgroup — the closure set the table is closed
 /// over. Its directions are [`UnitVec3`] witnesses: the predicates
@@ -376,14 +376,17 @@ impl From<Indeterminate> for FoldStop {
 /// receive it: a length minted only by [`Arm::of`], which refuses one
 /// the format cannot decide over.
 ///
-/// Every levered predicate multiplies the arm by a pure number of
-/// magnitude below 4 — a sine or a cosine of two unit witnesses, a
-/// departure of a rotation from the identity (at most `2√3`), a
-/// reachability defect (at most 2) — and [`parallel`] hands that
-/// product to the direction door, which squares it. An arm whose
-/// sixteenfold square is finite keeps every one of those finite, so a
-/// margin here is never infinite for want of range, which `Decide`
-/// would read as maximally definite.
+/// Every levered predicate in this module multiplies the arm by a pure
+/// number of magnitude below 4 — a sine or a cosine of two unit
+/// witnesses, a departure of a rotation from the identity (at most
+/// `2√3`), a reachability defect (at most 2) — and [`parallel`] hands
+/// that product to the direction door, which squares it. An arm whose
+/// sixteenfold square is finite keeps every one of those finite, so
+/// such a margin is never infinite for want of range, which `Decide`
+/// would read as maximally definite. **One exception**: the clocking
+/// rider's roll (`Lever::Roll`, `mate/solve.rs`) levers the authored
+/// clocking unreduced, which no bound holds, so its margin can still
+/// overflow (`work/msolve/a-clocking-rider-is-levered-unreduced.md`).
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Arm(f64);
 
@@ -731,17 +734,17 @@ fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), F
     let residual = |value: f64| Measured::Lever(Lever::Residual { value, arm });
     let axis_fixed = |axis: UnitVec3<f64>| {
         (
-            "mate_member_axis_fixed",
+            Refuted::AxisFixed,
             residual((x.linear * axis.get() - axis.get()).norm()),
         )
     };
     let rotation_identity = || {
         (
-            "mate_member_rotation_identity",
+            Refuted::RotationIdentity,
             residual(rotation_residual(x.linear)),
         )
     };
-    let checks: Vec<(&'static str, Measured)> = match g {
+    let checks: Vec<(Refuted, Measured)> = match g {
         // The empty set holds nothing, and no margin decides that —
         // the answer is structural, so it never reaches the funnel.
         Subgroup::Empty => {
@@ -754,28 +757,28 @@ fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), F
         Subgroup::Trivial => vec![
             rotation_identity(),
             (
-                "mate_member_translation_zero",
+                Refuted::TranslationZero,
                 Measured::Length(x.translation.norm()),
             ),
         ],
         Subgroup::Prismatic { direction } => vec![
             rotation_identity(),
             (
-                "mate_member_translation_along",
+                Refuted::TranslationAlong,
                 Measured::Length(x.translation.reject_from(direction.get()).norm()),
             ),
         ],
         Subgroup::Planar { normal } => vec![
             axis_fixed(normal),
             (
-                "mate_member_translation_in_plane",
+                Refuted::TranslationInPlane,
                 Measured::Length(x.translation.dot(normal.get())),
             ),
         ],
         Subgroup::Cylindrical { point, direction } => vec![
             axis_fixed(direction),
             (
-                "mate_member_point_on_axis",
+                Refuted::PointOnAxis,
                 Measured::Length(
                     (x.transform_point(point) - point)
                         .reject_from(direction.get())
@@ -786,15 +789,15 @@ fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), F
         Subgroup::Revolute { point, direction } => vec![
             axis_fixed(direction),
             (
-                "mate_member_point_fixed",
+                Refuted::PointFixed,
                 Measured::Length((x.transform_point(point) - point).norm()),
             ),
         ],
     };
     for (predicate, measured) in checks {
-        if decide(predicate, measured.margin(), band)? != Sign::Zero {
+        if decide(predicate.name(), measured.margin(), band)? != Sign::Zero {
             return Err(FoldStop::Clash {
-                predicate,
+                predicate: predicate.name(),
                 clash: measured.clash(),
             });
         }
@@ -905,11 +908,10 @@ fn candidate_rotation(
                         value: v.dot(a1) - a2.dot(a1),
                         arm: arm.get(),
                     });
-                    if decide("mate_rotation_two_axis_reachable", reach.margin(), band)?
-                        != Sign::Zero
-                    {
+                    let refuted = Refuted::TwoAxisReachable;
+                    if decide(refuted.name(), reach.margin(), band)? != Sign::Zero {
                         return Err(FoldStop::Clash {
-                            predicate: "mate_rotation_two_axis_reachable",
+                            predicate: refuted.name(),
                             clash: reach.clash(),
                         });
                     }

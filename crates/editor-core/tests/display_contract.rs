@@ -2370,10 +2370,20 @@ fn a_lever_refusal_names_the_instance_and_why() {
         },
         &[
             "2 m of its parts' reach",
+            "a length of its datum that is not finite",
             "too long",
             geom_core::RANGE_RECOURSE,
         ],
         &["OutOfRange"],
+    );
+    let said = LeverRefusal::OutOfRange {
+        parts: 2.0,
+        datum: f64::INFINITY,
+    }
+    .to_string();
+    assert!(
+        !said.contains("inf"),
+        "a length that is not finite has no metre figure: {said}"
     );
 }
 

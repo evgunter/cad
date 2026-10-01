@@ -47,7 +47,7 @@ use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
 use super::reach::{FacePoseRefusal, MateReach};
 use super::{
     Alignment, AuthoredFrame, AxisSense, Clash, FaceRefusal, Lever, MateFault, MateFrame,
-    MatePrimitive, MateSide,
+    MatePrimitive, MateSide, Refuted,
 };
 use crate::doc::Doc;
 use crate::edit::EditError;
@@ -577,19 +577,22 @@ fn mate_coset(
                     radians: theta,
                     arm: arm.get(),
                 });
-                let sign =
-                    geom_core::k_stats::decide("mate_clocking_redundant", roll.margin(), band)
-                        .map_err(|diag| {
-                            Box::new(MateFault::Indeterminate {
-                                mate,
-                                diag: Box::new(diag),
-                            })
-                        })?;
+                let sign = geom_core::k_stats::decide(
+                    Refuted::ClockingRedundant.name(),
+                    roll.margin(),
+                    band,
+                )
+                .map_err(|diag| {
+                    Box::new(MateFault::Indeterminate {
+                        mate,
+                        diag: Box::new(diag),
+                    })
+                })?;
                 if sign != geom_core::predicate::Sign::Zero {
                     return Err(Box::new(MateFault::Contradictory {
                         held: mate,
                         added: mate,
-                        predicate: "mate_clocking_redundant",
+                        predicate: Refuted::ClockingRedundant.name(),
                         clash: roll.clash(),
                     }));
                 }

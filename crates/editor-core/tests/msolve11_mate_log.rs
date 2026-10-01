@@ -334,11 +334,10 @@ fn a_reused_mate_carries_the_log_a_fresh_one_does() {
         log(&fresh, pin),
         "the served pin carries this run's decisions about it"
     );
-    let escalations = |ev: &Evaluation<f64>| match ev.result(pin) {
-        Some(NodeResult::Ok(v)) => v.escalations.to_vec(),
-        other => panic!("the pin did not evaluate: {other:?}"),
-    };
-    assert_eq!(escalations(&later), escalations(&fresh));
+    // The escalation channel travels with the verdicts through the same
+    // splice and the same mate arm, but it cannot be pinned here: an
+    // escalation in the solve refuses its mate, and only an `Ok` mate is
+    // ever served from the memo.
 }
 
 // ---- the lever ----
@@ -623,4 +622,226 @@ fn a_mate_role_reads_in_words() {
         MateRole::Refused.to_string(),
         "places nothing: the solve refused it"
     );
+}
+
+/// **A `Part`'s index outside its value is refused as the evaluation
+/// refuses it, at the `Part`.** The index 5 over a two-copy pattern
+/// selects no copy: the evaluation fails the `Part` with
+/// `InstanceOutOfRange`, and the mate's check is the same refusal at
+/// the same node, stated on the `Part`'s own row, rather than a
+/// disagreement whose recourse names a copy that does not exist.
+#[test]
+fn a_parts_index_outside_its_value_is_refused_as_the_evaluation_refuses_it() {
+    use editor_core::{NodeErrorKind, PartSelect};
+    let mut s = scene("msolve11-part-out-of-range");
+    let part = s.add(Node::Part {
+        of: s.pattern,
+        select: PartSelect::Instance(Expr::count(5)),
+    });
+    let b = fixture::head_at(
+        part,
+        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::Start)),
+    );
+    let fault = fixture::door_refusal(
+        &s.doc,
+        seat(
+            s.base_top(),
+            b,
+            (2.0, 2.0),
+            MatePrimitive::FrameCoincidence,
+            None,
+        ),
+    );
+    let editor_core::MateFault::PlacerRefused {
+        placer,
+        error,
+        placer_row,
+        ..
+    } = &fault
+    else {
+        panic!("expected PlacerRefused, got {fault:?}");
+    };
+    assert_eq!(*placer, part, "the refusal names the `Part`");
+    assert_eq!(*placer_row, editor_core::PlacerRow::States);
+    let ev = fixture::run(&s.doc, &s.opts);
+    let Some(NodeResult::Failed(failed)) = ev.result(part) else {
+        panic!("the evaluation fails the `Part`: {:?}", ev.result(part));
+    };
+    assert!(
+        matches!(
+            failed.kind,
+            NodeErrorKind::InstanceOutOfRange {
+                index: 5,
+                count: 2,
+                ..
+            }
+        ),
+        "{:?}",
+        failed.kind
+    );
+    assert_eq!(
+        format!("{:?}", error.kind()),
+        format!("{:?}", failed.kind),
+        "the mate carries the refusal the `Part`'s own row states"
+    );
+    assert!(
+        !fault.to_string().contains("copy 5"),
+        "no recourse names a copy that does not exist: {fault}"
+    );
+}
+
+/// **Today's behaviour, pinned for the fix to flip**: a `Part` whose
+/// index refuses while the pattern below it is poisoned by an instance
+/// whose part does not resolve. The mate names the `Part` and says its
+/// row states the refusal (`PlacerRow::States`), but the `Part`'s row
+/// reads poisoned, so the cause is stated nowhere.
+/// `work/msolve/a-placer-row-states-what-a-poisoned-row-cannot.md`.
+#[test]
+fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
+    use editor_core::{Dimension, DocParam, DocParamValue, ParamName, PartSelect};
+    let mut store = PartStore::new();
+    let (base_ref, base_body) = store.insert_part(
+        slab("msolve11-poisoned-base", BASE_WIDTH, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    // The block's part is stored where the resolver never looks.
+    let mut elsewhere = PartStore::new();
+    let (block_ref, block_body) = elsewhere.insert_part(
+        slab("msolve11-poisoned-block", BLOCK_WIDTH, BLOCK_HEIGHT),
+        Tol::witness(),
+    );
+    let opts = with_resolver(store);
+    let doc = ProfileDoc::empty(DocumentId::derive("msolve11-poisoned"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, block) = insert(doc, Node::instantiate_part(block_ref));
+    let (doc, other) = insert(doc, Node::instantiate_part(base_ref));
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: block,
+            count: Expr::count(2),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(3.0),
+            },
+        },
+    );
+    let mut s = Scene {
+        doc,
+        opts,
+        base,
+        base_body,
+        block,
+        other,
+        block_body,
+        pattern,
+    };
+    let k = ParamName::from_static("k");
+    let (doc, _) = fixture::step(
+        s.doc.clone(),
+        DocEdit::SetDocParam {
+            name: k.clone(),
+            value: DocParam::Count { value: 0 },
+        },
+    );
+    s.doc = doc;
+    let index = Expr::add(
+        Expr::mul(
+            Expr::param(k.clone(), Dimension::Count),
+            Expr::count(i64::MAX),
+        )
+        .unwrap(),
+        Expr::count(1),
+    )
+    .unwrap();
+    let part = s.add(Node::Part {
+        of: s.pattern,
+        select: PartSelect::Instance(index),
+    });
+    let read_at_part = fixture::head_at(
+        part,
+        in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::Start)),
+    );
+    let mate = s.add(seat(
+        s.base_top(),
+        read_at_part,
+        (2.0, 2.0),
+        MatePrimitive::FrameCoincidence,
+        None,
+    ));
+    let (doc, _) = fixture::step(
+        s.doc.clone(),
+        DocEdit::SetDocParamValue {
+            name: k,
+            value: DocParamValue::Count(1),
+        },
+    );
+    s.doc = doc;
+    let ev = fixture::run(&s.doc, &s.opts);
+    let fault = match ev.result(mate) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            editor_core::NodeErrorKind::Mate(fault) => (**fault).clone(),
+            other => panic!("expected a mate refusal, got {other:?}"),
+        },
+        other => panic!("expected the mate to fail, got {other:?}"),
+    };
+    assert!(
+        matches!(
+            fault,
+            editor_core::MateFault::PlacerRefused {
+                placer,
+                placer_row: editor_core::PlacerRow::States,
+                ..
+            } if placer == part
+        ),
+        "{fault:?}"
+    );
+    assert!(
+        matches!(ev.result(part), Some(NodeResult::Poisoned { .. })),
+        "the `Part`'s row reads poisoned, not the refusal: {:?}",
+        ev.result(part)
+    );
+}
+
+// ---- the contradiction's words ----
+
+/// **Every predicate the solve refuses a contradiction on reads in
+/// words**, each row pinned, and the predicate's name is left to the
+/// payload. The list is every variant: the match below is exhaustive,
+/// and `ALL` must hold each variant exactly once.
+#[test]
+fn every_refuted_predicate_reads_in_words() {
+    use editor_core::mate::Refuted;
+    let words = |r: Refuted| match r {
+        Refuted::RotationIdentity => "the relative rotation is not the identity",
+        Refuted::TranslationZero => "the relative translation is not zero",
+        Refuted::TranslationAlong => "the translation leaves the shared direction",
+        Refuted::AxisFixed => "the rotation moves the shared axis",
+        Refuted::TranslationInPlane => "the translation leaves the shared plane",
+        Refuted::PointOnAxis => "the axis point leaves the shared axis",
+        Refuted::PointFixed => "the shared point moves",
+        Refuted::TwoAxisReachable => "no one rotation aligns both axes",
+        Refuted::ClockingRedundant => {
+            "the clocking disagrees with the roll the coincidence already pins"
+        }
+    };
+    let mut names: Vec<&str> = Refuted::ALL.iter().map(|r| r.name()).collect();
+    names.sort_unstable();
+    names.dedup();
+    assert_eq!(names.len(), Refuted::ALL.len(), "each predicate once");
+    for refuted in Refuted::ALL {
+        assert_eq!(Refuted::of(refuted.name()), Some(refuted));
+        let said = editor_core::MateFault::Contradictory {
+            held: RecipeNodeId(3),
+            added: RecipeNodeId(5),
+            predicate: refuted.name(),
+            clash: editor_core::Clash::Length { metres: 0.5 },
+        }
+        .to_string();
+        assert!(
+            said.contains(words(refuted)) && !said.contains(refuted.name()),
+            "{}: {said}",
+            refuted.name()
+        );
+    }
 }

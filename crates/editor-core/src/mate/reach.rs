@@ -179,15 +179,15 @@ impl core::fmt::Display for FacePoseRefusal {
         match self {
             Self::PartUnresolved { fault } => write!(f, "the part is not in hand: {fault}"),
             Self::NoSuchName => f.write_str(
-                "the part has no face answering to that name — the part's edit removed it, or the \
-                 name is not the part's own. Recourse: rebind the frame to a face the part \
-                 has, or author the frame's vectors",
+                "the part has no face answering to that name: its edit removed it, or the \
+                 name is not its own. Recourse: delete the mate, and insert it again on a face \
+                 the part has, or with authored vectors",
             ),
             Self::Ambiguous { candidates } => write!(
                 f,
                 "{candidates} of the part's faces answer to that name equally, so there is no one \
-                 pose to read. Recourse: rebind the frame to one of them, or author the \
-                 frame's vectors"
+                 pose to read. Recourse: delete the mate, and insert it again on one of \
+                 them, or with authored vectors"
             ),
             Self::NotAFace { found } => write!(
                 f,
@@ -197,7 +197,11 @@ impl core::fmt::Display for FacePoseRefusal {
                 found.noun()
             ),
             Self::Readback(error @ topo::readback::ReadbackError::NoCanonicalFrame { .. }) => {
-                write!(f, "{error}. Recourse: author the frame's vectors")
+                write!(
+                    f,
+                    "{error}. Recourse: delete the mate, and insert it again with authored \
+                     vectors"
+                )
             }
             Self::Readback(_) => write!(
                 f,
@@ -206,7 +210,8 @@ impl core::fmt::Display for FacePoseRefusal {
             Self::Unpinned => f.write_str(
                 "the part is elaborated at a scalar that pins no single number, so the face \
                  has no coordinates the solve can read: a face frame resolves on the nominal \
-                 lane only. Recourse: author the frame's vectors to solve on this lane",
+                 lane only. Recourse: to solve on this lane, delete the mate and insert it \
+                 again with authored vectors",
             ),
         }
     }
