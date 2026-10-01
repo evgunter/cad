@@ -38,3 +38,14 @@ Do they stand on a sign some layer already decides and drops, such as
 pattern, where the tier re-derived what the profile had decided. If so,
 the answer is to carry that decision and no read is needed. If not,
 these are the residue a certified-sign read would be weighed on.
+
+## Where the look starts
+
+The bracket is filleted, and 18 of the 28 are `tangent_on_surface_*`.
+That is the shape of `declared-tangency-needs-the-registered-identity-door`
+(P1): a tangency the `Fillet` constructor declares, which the
+registered-identity door would discharge. That row waits on ROUND's
+`fillet-tangency-is-not-the-constructors-node`. So the look begins by
+checking how many of the 28 are that row's declared tangencies. Those go
+with the P1 when its gate lifts, and only the remainder is this item's.
+
