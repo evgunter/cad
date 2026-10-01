@@ -5773,3 +5773,28 @@ PR opens once PR 3673 merges, since it carries the row. It will:
 The agreed part (1) is TOPO's and goes on the next free target. Parts (2)
 and (3) wait for the PR's package, because (2) spans other programs'
 ground and (3) needs (1) first.
+
+## The merge door re-describes: dispatched (2026-10-01)
+
+I dispatched agreed part (1) of the kef/kfmrh fork,
+`merge-coplanar-faces-returns-the-kept-boundary-described-against-the-absorbed-key`
+(P2), on the walk target. That target is empty again, with 6.1 GB free.
+
+What the brief asks for:
+- **Witness first:** a declared-planar merge on distinct keys that strands a
+  description, read as `DescriptionNotAdjacent`.
+- **Re-describe in the door:** the door re-describes its kept faces'
+  boundaries before it returns. The kept-face half of
+  `describe_minted_edges`' worklist moves into the door, so it has one home.
+- **Gate:** the door's gate checks tier 3's naming half, exactly.
+- **Identity:** the boolean's bodies must be identical by `deep_snapshot`.
+
+The brief also scopes the unit so it holds under either answer to the open
+question:
+- no `kef_describing`;
+- no new refusal;
+- no change to the representation.
+
+The lane stops if the clean route needs one of those.
+
+Brief: `mergedesc-impl-brief.md` (hash in `brief-hashes.txt`).
