@@ -48,3 +48,16 @@ A chart in which the section is polar. Two shapes are visible:
 
 The second is the general one; the first covers the free-ball family
 alone. Which to build is a design choice for whoever specs this.
+
+## Evidence (2026-10-01, PR 3659 review)
+
+- The refusal is now its own variant,
+  `SplitJoinError::SectionNotPolar { face, band }`, shared with the
+  plane×sphere arm.
+- A Z offset of 0.2 at `y = 1.4` — ball(0.8) centred at `(0, 1.4, 0.2)`
+  against ball(1.0) at the origin, both charted about `y` — does not
+  reach the polar gate: it refuses `CurvedSectorSideUnsupported`, the
+  sector-side sagitta charge of
+  `work/reach/slab-cut-cylinder-refuses-sector-side.md`, one door
+  earlier. Re-charting a free ball along the centre line would move
+  this pose too.

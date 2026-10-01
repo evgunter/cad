@@ -336,6 +336,20 @@ pub enum SplitJoinError {
         /// What failed.
         what: &'static str,
     },
+    /// A sphere face's section plane is definitely TILTED against the
+    /// face's chart polar axis (`split_sphere_section_polar`): the
+    /// azimuth-anchored arc-side rule premises azimuth monotone along
+    /// the section carrier, which a sphere chart gives only for a polar
+    /// section. A deliberate typed frontier, for a plane×sphere pair and
+    /// for a sphere pair's radical plane alike — the no-crossings re-cut
+    /// re-charts a free ball so its sections ARE polar; a configuration
+    /// it does not reach stops here.
+    SectionNotPolar {
+        /// The sphere face being divided.
+        face: FaceKey,
+        /// The band the tilt was decided against.
+        band: Band,
+    },
 }
 
 impl From<EulerOpError> for SplitJoinError {
@@ -467,6 +481,14 @@ impl SplitJoinError {
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
+            Self::SectionNotPolar { band, .. } => write!(
+                f,
+                "the section through a sphere face is tilted against the face's polar \
+                 axis, and the arc-side rule reads azimuth, which runs monotone only \
+                 along a polar section ('split_sphere_section_polar', band ({:e}, {:e}))",
+                band.zero(),
+                band.escalate(),
+            ),
         }
     }
 }
@@ -794,12 +816,7 @@ fn section_case<T: Decide>(
         {
             Sign::Zero => {}
             Sign::Positive | Sign::Negative => {
-                return Err(invariant(
-                    "plane×sphere section tilted against the sphere chart's polar \
-                     axis — the azimuth-anchored arc-side rule needs a polar \
-                     section (the extent-certified re-cut re-charts the operand; a tilted \
-                     residual configuration is a typed frontier)",
-                ));
+                return Err(SplitJoinError::SectionNotPolar { face, band });
             }
         }
         return Ok(SectionCase::Conic(SectionConic {

@@ -8,6 +8,13 @@
 //! the sphere pair's join. Every body is held to all three validation
 //! tiers and to its volume against the two spherical caps the radical
 //! plane cuts, computed here from the radii alone.
+//!
+//! **What builds is the COPLANAR-seam pose.** Both balls are revolved
+//! from the same seam, so each seam meridian pierces the other sphere
+//! on the other's seam meridian and every chord runs seam to seam. Spin
+//! one ball about the shared axis and the pierce lands inside a
+//! half-band instead, which is the pierce-ring door — pinned below as
+//! the frontier, not as a body.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -165,12 +172,51 @@ fn a_near_tangent_snowman_builds() {
     );
 }
 
+/// **Where the near-tangent family stops, at the default band.** The
+/// gap `δ = r1 + r2 − d` is the depth of each pole inside the other
+/// ball: at `δ = 1e-6` every op still builds to its closed form; at
+/// `δ = 1e-8` the pole's side of the other sphere is a residual of
+/// `−δ`, inside the band's escalation gap, and the op escalates on that
+/// decision by name. Both are band-relative facts, so the other ε rows
+/// stand down rather than re-read them at a different scale.
+#[test]
+fn the_near_tangent_family_builds_to_1e_6_and_escalates_at_1e_8() {
+    if Tol::witness().get().eps != 1e-9 {
+        test_utils::vacuity::stood_down(
+            "non-default eps",
+            "the near-tangent edges are measured at the default band only",
+        );
+        return;
+    }
+    let a = ball(R1, 0.0);
+    let d = R1 + R2 - 1e-6;
+    assert_body(
+        "δ = 1e-6, A ∪ B",
+        &run(BooleanOp::Union, &a, &ball(R2, d)),
+        ball_volume(R1) + ball_volume(R2) - lens_volume(R1, R2, d),
+    );
+    let b = ball(R2, R1 + R2 - 1e-8);
+    for op in OPS {
+        let e = refusal(op, &a, &b);
+        assert!(
+            matches!(
+                &e,
+                topo::BooleanError::Escalated { diag, .. }
+                    if diag.predicate == Some("bool_vertex_face_side")
+            ),
+            "δ = 1e-8 under {op:?}: expected the vertex-side escalation, got {e:?}"
+        );
+    }
+}
+
 /// **The tangent pairs are the honest frontier.** Touching externally
 /// (`d = r1 + r2`) or internally (`d = r1 − r2`), the two balls meet at
 /// one pole, where a meridian of each touches the other sphere without
 /// crossing it. The circle × sphere roots read that as a tangency, which
 /// is not a crossing at any order the crossing layer sees, so every op
-/// refuses typed at the pierce door rather than guessing a contact.
+/// refuses typed at the pierce door — naming a MERIDIAN (a circle edge)
+/// of one ball against a SPHERE face of the other — rather than
+/// guessing a contact.
 #[test]
 fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
     let a = ball(R1, 0.0);
@@ -180,9 +226,28 @@ fn a_pole_tangent_pair_refuses_at_the_pierce_door() {
     ] {
         for op in OPS {
             let e = refusal(op, &a, &b);
-            assert!(
-                matches!(e, topo::BooleanError::CurvedPierceUnsupported { .. }),
-                "{label} tangency under {op:?}: expected the pierce door, got {e:?}"
+            let topo::BooleanError::CurvedPierceUnsupported {
+                operand,
+                edge,
+                face,
+                ..
+            } = e
+            else {
+                panic!("{label} tangency under {op:?}: expected the pierce door, got {e:?}");
+            };
+            let (edge_body, face_body) = match operand {
+                topo::Operand::A => (&a, &b),
+                topo::Operand::B => (&b, &a),
+            };
+            assert_eq!(
+                topo::query::edge_carrier_kind(edge_body, edge),
+                Some(topo::CurveKind::Circle),
+                "{label} under {op:?}: the edge is a meridian"
+            );
+            assert_eq!(
+                topo::query::face_surface_kind(face_body, face),
+                Some(geom_brep::SurfaceKind::Sphere),
+                "{label} under {op:?}: the face is the other ball's sphere"
             );
         }
     }
@@ -213,12 +278,12 @@ fn a_nested_pair_builds_under_every_boolean() {
 
 /// **The snowman at the `Interval` scalar**: the same two balls,
 /// enclosures throughout, under every op — the circle × sphere roots'
-/// `atan2`/`acos` and their rounding meter run on enclosures here, and
-/// every body still certifies.
+/// `atan2`/`acos` and their rounding meter run on enclosures here — and
+/// every body certifies with a volume bracket around the closed form.
 #[test]
 fn the_snowman_builds_at_the_interval_scalar() {
     use crate::common::interval::iv;
-    use geom_core::Interval;
+    use geom_core::{Bounds, Interval};
     let ball_iv = |r: f64, y: f64| -> Body<Interval> {
         sweep::test_support::revolved_about_y_at::<Interval>(
             vec![
@@ -230,7 +295,13 @@ fn the_snowman_builds_at_the_interval_scalar() {
         )
     };
     let (a, b) = (ball_iv(R1, 0.0), ball_iv(R2, D));
-    for op in OPS {
+    let lens = lens_volume(R1, R2, D);
+    let (va, vb) = (ball_volume(R1), ball_volume(R2));
+    for (op, expected) in [
+        (BooleanOp::Union, va + vb - lens),
+        (BooleanOp::Intersect, lens),
+        (BooleanOp::Subtract, va - lens),
+    ] {
         let out = match op {
             BooleanOp::Union => topo::boolean::union(&a, &b, Tol::witness()),
             BooleanOp::Intersect => topo::boolean::intersect(&a, &b, Tol::witness()),
@@ -247,6 +318,185 @@ fn the_snowman_builds_at_the_interval_scalar() {
             Ok(()),
             "Interval {op:?}: validate_geometric"
         );
+        let v = topo::mass_properties(body, Tol::witness())
+            .unwrap_or_else(|e| panic!("Interval {op:?}: mass properties, got {e:?}"))
+            .volume;
+        let slack = 1e-9 * expected.max(1.0);
+        assert!(
+            v.lo() - slack <= expected && expected <= v.hi() + slack,
+            "Interval {op:?}: volume [{}, {}] against the cap closed form {expected}",
+            v.lo(),
+            v.hi()
+        );
+    }
+}
+
+// ------------------------------------------------------------------
+// An exact oracle for axisymmetric stacks.
+// ------------------------------------------------------------------
+
+/// A solid of revolution about `y` whose every slice is a disc: its
+/// squared slice radius as a function of height, and the heights where
+/// that function stops being one quadratic.
+struct Axi {
+    r2: Box<dyn Fn(f64) -> f64>,
+    breaks: Vec<f64>,
+}
+
+/// The ball of radius `r` centred at height `c`, clipped to `y ≤ top`.
+fn axi_ball(r: f64, c: f64, top: f64) -> Axi {
+    Axi {
+        r2: Box::new(move |y| {
+            if y > top {
+                0.0
+            } else {
+                (r * r - (y - c).powi(2)).max(0.0)
+            }
+        }),
+        breaks: [c - r, c + r, top]
+            .into_iter()
+            .filter(|y| y.is_finite())
+            .collect(),
+    }
+}
+
+/// Every height where two spheres' slice radii cross, so a min or max
+/// of them is one quadratic between consecutive breaks.
+fn radical_heights(spheres: &[(f64, f64)]) -> Vec<f64> {
+    let mut out = Vec::new();
+    for (i, &(r1, c1)) in spheres.iter().enumerate() {
+        for &(r2, c2) in &spheres[i + 1..] {
+            if c1 != c2 {
+                out.push((r2 * r2 - r1 * r1 + c1 * c1 - c2 * c2) / (2.0 * (c1 - c2)));
+            }
+        }
+    }
+    out
+}
+
+/// `π∫ f(y) dy` for an `f` that is one quadratic between consecutive
+/// `breaks`: two-point Gauss–Legendre on each piece, which is exact for
+/// a quadratic and samples only the piece's INTERIOR — a clip plane
+/// makes `f` jump at a break, so an endpoint rule would read the wrong
+/// side of it.
+fn axi_volume(f: impl Fn(f64) -> f64, mut breaks: Vec<f64>) -> f64 {
+    breaks.sort_by(f64::total_cmp);
+    breaks.dedup();
+    breaks
+        .windows(2)
+        .map(|w| {
+            let (mid, half) = ((w[0] + w[1]) / 2.0, (w[1] - w[0]) / 2.0);
+            let node = half / 3.0_f64.sqrt();
+            half * (f(mid - node) + f(mid + node))
+        })
+        .sum::<f64>()
+        * PI
+}
+
+/// The volume of `x op y` for two axisymmetric solids sharing the
+/// sphere list `spheres` (for the radical heights).
+fn axi_op(op: BooleanOp, x: &Axi, y: &Axi, spheres: &[(f64, f64)]) -> f64 {
+    let mut breaks: Vec<f64> = x.breaks.iter().chain(&y.breaks).copied().collect();
+    breaks.extend(radical_heights(spheres));
+    match op {
+        BooleanOp::Union => axi_volume(|t| (x.r2)(t).max((y.r2)(t)), breaks),
+        BooleanOp::Intersect => axi_volume(|t| (x.r2)(t).min((y.r2)(t)), breaks),
+        BooleanOp::Subtract => axi_volume(|t| ((x.r2)(t) - (y.r2)(t)).max(0.0), breaks),
+    }
+}
+
+/// **A sphere pair meeting a partner face from two of this body's
+/// sphere faces.** The lens `ball(1, 0) ∩ ball(0.8, 1.4)` has two sphere
+/// SURFACES, and a ball of radius 0.5 at `y = 0.75` crosses both, so one
+/// partner face of the ball meets two germ faces of the lens on two
+/// different spheres — two different radical planes against one partner.
+/// Each body's aux copy of a radical plane is keyed by both spheres it
+/// depends on, so neither chord can cite the other's plane.
+#[test]
+fn a_lens_against_a_ball_crossing_both_its_caps_builds() {
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let c = ball(0.5, 0.75);
+    let spheres = [(R1, 0.0), (R2, D), (0.5, 0.75)];
+    let lens_axi = Axi {
+        r2: Box::new(|y| {
+            (R1 * R1 - y * y)
+                .max(0.0)
+                .min((R2 * R2 - (y - D).powi(2)).max(0.0))
+        }),
+        breaks: vec![-R1, R1, D - R2, D + R2],
+    };
+    let c_axi = axi_ball(0.5, 0.75, f64::INFINITY);
+    for op in OPS {
+        let want = axi_op(op, &lens_axi, &c_axi, &spheres);
+        assert_body(&format!("lens {op:?} ball"), &run(op, &lens, &c), want);
+    }
+}
+
+/// **A plane × sphere germ and a sphere × sphere germ against one
+/// partner face.** A hemisphere (its flat cap at `y = 0`, its dome
+/// below) against a ball of radius 0.8 at `y = −0.5`: the ball's sphere
+/// crosses the hemisphere's flat cap AND its dome, so the same partner
+/// face of the ball is a plane×sphere germ's partner (a copy of the
+/// ball's sphere) and a sphere pair's (a radical plane) — two different
+/// aux surfaces that must not share a key.
+#[test]
+fn a_hemisphere_against_a_ball_crossing_its_cap_and_dome_builds() {
+    let mut hemi = revolved_about_y(
+        vec![
+            (Point2::new(0.0, -1.0), (PI / 8.0).tan()),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+        ],
+        Revolution::Full,
+        Tol::witness(),
+    );
+    // The full revolve leaves the flat cap as two half-discs on one
+    // plane; the boolean takes maximal faces, so the cap is repaired
+    // into one first.
+    hemi.merge_coplanar_faces(Tol::witness())
+        .expect("the hemisphere's cap halves merge");
+    let b = ball(0.8, -0.5);
+    let spheres = [(1.0, 0.0), (0.8, -0.5)];
+    let (h_axi, b_axi) = (axi_ball(1.0, 0.0, 0.0), axi_ball(0.8, -0.5, f64::INFINITY));
+    for op in OPS {
+        let want = axi_op(op, &h_axi, &b_axi, &spheres);
+        assert_body(
+            &format!("hemisphere {op:?} ball"),
+            &run(op, &hemi, &b),
+            want,
+        );
+    }
+}
+
+/// **The snowman builds only with its seams coplanar.** Spin B about the
+/// shared axis by any angle off `0` and `π` and A's seam meridian pierces
+/// B's sphere at a point INSIDE B's half-band rather than on B's seam:
+/// that pierced face then carries a ring of null scaffolding with no
+/// charted run, which is the pierce-ring door
+/// (`work/tang/pierce-ring-has-no-join-arm.md`), typed, for every op.
+#[test]
+fn a_spun_snowman_refuses_at_the_pierce_ring_door() {
+    let a = ball(R1, 0.0);
+    for angle in [1e-3, 0.9, core::f64::consts::FRAC_PI_2] {
+        let spin = geom_core::Affine3::rotation_about_axis(
+            geom_core::Point3::origin(),
+            geom_core::Vec3::new(0.0, 1.0, 0.0),
+            angle,
+        );
+        let b = topo::transform_rigid(&ball(R2, D), &spin, Tol::witness()).unwrap();
+        for op in OPS {
+            let e = refusal(op, &a, &b);
+            assert!(
+                matches!(
+                    e,
+                    topo::BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
+                        case: topo::ArcWindowCase::NoChartedRun,
+                        ..
+                    })
+                ),
+                "spun by {angle} under {op:?}: expected the pierce-ring door, got {e:?}"
+            );
+        }
     }
 }
 

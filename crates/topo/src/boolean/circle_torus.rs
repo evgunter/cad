@@ -392,8 +392,10 @@ pub(super) struct HalfAngleFrame<T> {
 /// count with room. It is a ROUNDING estimate, the `f64` lane's
 /// contract, not an enclosure: the `Interval` lane carries the
 /// enclosure itself through every coefficient and the ladder decides on
-/// it, so it needs no meter to be sound.
-const NOISE_ULPS: f64 = 16.0;
+/// it, so it needs no meter to be sound. The circle × sphere door
+/// ([`super::circle_sphere`]) charges its first harmonic the same count:
+/// its chain is shorter, so the count holds there with more room.
+pub(super) const NOISE_ULPS: f64 = 16.0;
 
 /// What [`half_angle_roots`] certifies.
 pub(super) enum HalfAngleRoots<T> {

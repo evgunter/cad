@@ -69,8 +69,7 @@ fn overlapping_balls_stop_at_the_polar_gate() {
     assert!(
         matches!(
             &err,
-            BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. })
-                if what.contains("tilted against the sphere chart's polar axis")
+            BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
         ),
         "expected the polar gate, got {err:?}"
     );

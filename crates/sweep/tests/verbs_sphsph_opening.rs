@@ -17,10 +17,13 @@
 //!   sphere, so a seam edge crosses a CURVED face and the circle ×
 //!   sphere roots pierce it. The pair reaches the join, which hands each
 //!   side the pair's radical plane, and the split turns on that plane
-//!   against the CHART: offset along Y (the polar axis) the section is
-//!   polar for both operands and the union builds — the snowman
-//!   (`snowman.rs`); offset along X it is tilted and the arc-side
-//!   rule's polar gate refuses it, typed.
+//!   against the CHART: offset along X it is tilted and the arc-side
+//!   rule's polar gate refuses it, typed (`SectionNotPolar`); offset
+//!   along Y (the polar axis) the section is polar for both operands,
+//!   and the union builds because both balls are revolved from the same
+//!   seam — each seam meridian pierces the other sphere ON the other's
+//!   seam. Spin either ball about Y and the pierce lands inside a
+//!   half-band: the pierce-ring door (`snowman.rs`).
 //!
 //! Nested balls answer, and must keep answering.
 
@@ -89,8 +92,7 @@ fn seam_crossing_pairs_reach_the_join() {
     assert!(
         matches!(
             &err,
-            BooleanError::Join(topo::SplitJoinError::SectionInvariant { what, .. })
-                if what.contains("tilted against the sphere chart's polar axis")
+            BooleanError::Join(topo::SplitJoinError::SectionNotPolar { .. })
         ),
         "offset along X, in the seam plane: expected the polar gate, got {err:?}"
     );

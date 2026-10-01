@@ -3795,13 +3795,12 @@ pub(super) fn line_wall_roots<T: Decide>(
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
-/// `(center, radius)`, `d` UNIT — the precondition both callers meet: a
-/// ray's direction is unit, and so is a `Line` carrier's `dir` (its
-/// parameter is arc length). With it the system is monic in `t`:
-/// `t² + 2(w·d)t + (|w|² − r²) = 0`, `w = q − c`.
+/// `(center, radius)`: `|d|²t² + 2(w·d)t + (|w|² − r²) = 0`, `w = q − c`.
+/// `d` need not be unit — a ray's is, and a `Line` carrier's is by a
+/// convention nothing checks — so the roots are in `d`'s own parameter.
 ///
-/// The discriminant is metered as a LENGTH: `√disc` is the half-chord
-/// in metres, so `disc` is m² and `disc / 2r` is the D4 ¶1-honest
+/// The discriminant is metered as a LENGTH: `disc/|d|²` is the squared
+/// half-chord in metres, so `disc/(|d|²·2r)` is the D4 ¶1-honest
 /// margin. That is NOT what [`line_wall_roots`] does with its own
 /// (`disc/(2r)²`, dimensionless); the length form here is the correct
 /// one, and the cylinder's is pinned where it stands.
@@ -3813,7 +3812,8 @@ pub(super) fn line_wall_roots<T: Decide>(
 /// # Errors
 ///
 /// [`geom_core::Indeterminate`] — an in-band discriminant decision the
-/// band cannot call. The caller wraps it in its own error type.
+/// band cannot call, or a zero-length `d` (no line at all). The caller
+/// wraps it in its own error type.
 pub(super) fn line_sphere_roots<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
@@ -3822,13 +3822,14 @@ pub(super) fn line_sphere_roots<T: Decide>(
     band: Band,
 ) -> Result<WallRoots<T>, geom_core::Indeterminate> {
     let w0 = q - center;
+    let a2 = d.norm_squared();
     let b2 = w0.dot(d);
     let c2 = w0.norm_squared() - radius.powi(2);
-    let disc = b2.powi(2) - c2;
+    let disc = b2.powi(2) - a2 * c2;
     let two_r = T::from_f64(2.0) * radius;
     match decide(
         "bool_ray_sphere_disc",
-        Margin::over_lever(disc, two_r),
+        Margin::over_lever(disc / a2, two_r),
         band,
     )? {
         Sign::Positive => {}
@@ -3837,8 +3838,8 @@ pub(super) fn line_sphere_roots<T: Decide>(
     }
     let root = disc.max(T::zero()).sqrt();
     Ok(WallRoots::Two([
-        T::zero() - b2 - root,
-        T::zero() - b2 + root,
+        (T::zero() - b2 - root) / a2,
+        (T::zero() - b2 + root) / a2,
     ]))
 }
 

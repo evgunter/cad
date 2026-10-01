@@ -1898,33 +1898,19 @@ fn wall_crossing<T: Decide>(
     let mut roots = [T::zero(); 4];
     // The carrier's metres per unit of its parameter, so that a root's
     // distance from the span's ends is metered as a length: a `Line`'s
-    // `dir` is unit (its parameter IS arc length), a `Circle`'s
-    // parameter is an angle and its arc length is `radius·Δθ`.
+    // parameter runs `|dir|` metres per unit (one, by the carrier's
+    // convention, which nothing checks), a `Circle`'s is an angle and its
+    // arc length is `radius·Δθ`.
     let (count, metres_per_param) = match *carrier {
         geom::Curve3::Line { origin, dir } => (
             line_wall_root_count(origin, dir, surface, &mut roots, band)?,
-            T::one(),
+            dir.norm(),
         ),
         // The circle × sphere first harmonic ([`super::circle_sphere`]).
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } if matches!(surface, geom::Surface::Sphere { .. }) => {
-            let geom::Surface::Sphere {
-                center: s_center,
-                radius: s_radius,
-                ..
-            } = *surface
-            else {
-                return Ok(SpanVerdict::Unsettled);
-            };
+        geom::Curve3::Circle { radius, .. } if matches!(surface, geom::Surface::Sphere { .. }) => {
             use super::circle_sphere::CircleSphereRoots;
-            match super::circle_sphere::circle_sphere_roots(
-                center, axis, radius, u_ref, t0, t1, s_center, s_radius, band,
-            )
-            .map_err(BooleanError::coincidence)?
+            match super::circle_sphere::circle_sphere_roots(carrier, t0, t1, surface, band)
+                .map_err(BooleanError::coincidence)?
             {
                 CircleSphereRoots::Two(thetas) => {
                     roots[..2].copy_from_slice(&thetas);
