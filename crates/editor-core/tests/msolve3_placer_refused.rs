@@ -58,11 +58,8 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// The seat every row's mate declares.
 fn seat(a: StableName, b: StableName) -> Node<ProfileProgram> {
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame =
+        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -637,7 +634,7 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
         "{kind}"
     );
     assert!(
-        f.to_string().contains(&format!("node {}", datum.0)),
+        f.to_string().contains(&format!("node {:012x}", datum.0)),
         "and the message names that node: {f}"
     );
     // Off the chain, the datum is not poisoned by the fault: its own

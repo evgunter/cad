@@ -494,8 +494,14 @@ fn overlapping_roots_are_one_finding_naming_both() {
     // never has to consult the attribution separately to know what it
     // is about.
     let rendered = report.findings[0].to_string();
-    assert!(rendered.contains(&format!("root {}", a.0)), "{rendered}");
-    assert!(rendered.contains(&format!("root {}", b.0)), "{rendered}");
+    assert!(
+        rendered.contains(&format!("root {:012x}", a.0)),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains(&format!("root {:012x}", b.0)),
+        "{rendered}"
+    );
     // And it denies the CERTIFICATE — it never claims the two overlap,
     // which the boxes do not decide.
     assert!(rendered.contains("not certifiably disjoint"), "{rendered}");
@@ -943,7 +949,7 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
     };
     let rendered = finding.to_string();
     assert!(
-        rendered.contains("check chart-coherence: root 4 output 1"),
+        rendered.contains("check chart-coherence: root 000000000004 output 1"),
         "{rendered}"
     );
     assert!(

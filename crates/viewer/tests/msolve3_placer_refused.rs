@@ -66,11 +66,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         tol,
     );
     let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame =
+        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {
@@ -119,8 +116,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         message,
         format!(
-            "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
-             node {p}, which places it, refuses — repair node {p}",
+            "node {:012x} failed: the mate solve refused: mate {:012x}'s a reference has no derived pose: \
+             node {p:012x}, which places it, refuses — repair node {p:012x}",
             mate.0,
             mate.0,
             p = pattern.0,
@@ -135,7 +132,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &vec![viewer::tree::CarriedLine {
             document: viewer::tree::THIS_DOCUMENT.to_owned(),
             line: format!(
-                "node {} failed: the pattern direction has no finite length (a component \
+                "node {:012x} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
                 pattern.0,
                 geom_core::RANGE_RECOURSE
@@ -161,7 +158,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     // an author goes and fixes is one click from the words, and it is
     // the only link any row draws beside a `Poisoned` pointer.
     assert_eq!(
-        row.repair_at,
+        row.repair_at.map(|at| at.id()),
         Some(pattern),
         "the mate's row links to the placer"
     );
@@ -239,11 +236,8 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         Some(part) => common::head_at(part, named),
         None => common::head(named),
     };
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame =
+        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
     // The mate must MINT while its copy is there: a refusal here would
     // be a broken fixture, not the fault the rows below read once a
     // later edit to the named node strands it.
@@ -290,7 +284,7 @@ fn mate_fault(ev: &Evaluation<f64>, mate: RecipeNodeId) -> MateFault {
 fn assert_no_row_links(rows: &[tree::TreeRow]) {
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .filter_map(|row| row.repair_at.map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(linking, Vec::new(), "no row links to a node to repair");
 }
@@ -529,7 +523,7 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
     );
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .filter_map(|row| row.repair_at.map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(
         linking,

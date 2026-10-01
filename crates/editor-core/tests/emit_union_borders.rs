@@ -14,9 +14,10 @@
 //! A boss standing on one piece, a notch in one, a feature on one piece
 //! aligned with a divider elsewhere: each is an obstacle bordering one
 //! piece, so none is cited. Further rows hold a tie that nothing divides
-//! as a tie, a split's names under an edit that moves its divider, a
-//! curved divider to the pair boolean's own answer, and a merged wall a
-//! slot divides.
+//! as a tie, a split's names under an edit that moves its divider, the
+//! names of a tie's divided candidate under an edit that moves the
+//! divider onto the other, a curved divider to the pair boolean's own
+//! answer, and a merged wall a slot divides.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -28,9 +29,9 @@ use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, scl, step, table};
 
 use editor_core::{
-    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
-    StableName,
+    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable,
+    NamingError, Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg,
+    SlotId, StableName,
 };
 use geom_core::Tol;
 
@@ -1118,9 +1119,84 @@ fn a_split_keeps_its_names_when_the_splitting_feature_moves() {
     assert!(checked > 0);
 }
 
+/// **A divider is a discriminator among a tie's candidates, so an edit
+/// that moves it onto the other candidate moves each name with its
+/// role** (N2's repair by a discriminator, N4's narrowing; ratified on
+/// PR 3523). A bar at x 2.9..3.1, y 0.8..1.7 crosses the lower of the
+/// tied-prongs block's two tied slot ceilings and splits it: its pieces
+/// are named by the bar wall each borders, and the upper ceiling, now
+/// the tie's only whole candidate, keeps the bare tied name narrowed to
+/// `Unique`. Moving the bar 1.5 up in y makes it cross the upper ceiling
+/// instead, and the names follow: the two `Borders` pieces now lie on
+/// the upper ceiling and the bare name on the lower, in both member
+/// orders. (The slot floors, which nothing divides, stay tied.) Changing this is changing that ruling, so it re-baselines on
+/// purpose.
+#[test]
+fn a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it() {
+    const LOWER: f64 = 1.25;
+    const UPPER: f64 = 2.75;
+    let (doc, sub) = tied_prongs();
+    let (doc, bar) = block(doc, (2.9, 3.1), (0.8, 1.7), 2.5, 1.0);
+    let (doc, tr) = movable(doc, bar);
+    let labels = BTreeMap::from([(sub, "sub"), (tr, "bar")]);
+    for order in permutations(&[0, 1]) {
+        let (doc1, u) = union_of(doc.clone(), &[sub, tr], &order);
+        let doc2 = moved(doc1.clone(), tr, Axis3::Y, 1.5);
+        let mut by_role = Vec::new();
+        for (at, d) in [("before", &doc1), ("after", &doc2)] {
+            let ev = run(d);
+            assert!(
+                failure(&ev, u).is_none(),
+                "{order:?} {at}: {:?}",
+                failure(&ev, u)
+            );
+            let c = face_centroids(&ev, u);
+            let mut role: BTreeMap<String, (StableName, f64)> = BTreeMap::new();
+            let ceiling = from_tied(&ev, u, sub)
+                .into_iter()
+                .filter(|(n, _)| label(&ev, &labels, &parent_of(n)) == "sub:z=3.00");
+            for (n, tied) in ceiling {
+                assert!(!tied, "{order:?} {at}: {n:?} is still tied");
+                let key = match n.path.last() {
+                    Some(RoleSeg::Fragment(Qualifier::Borders(walls))) => walls
+                        .iter()
+                        .map(|w| label(&ev, &labels, w))
+                        .collect::<Vec<_>>()
+                        .join("+"),
+                    _ => "bare".to_owned(),
+                };
+                let y = c[&n][1];
+                assert!(
+                    role.insert(key.clone(), (n, y)).is_none(),
+                    "{order:?} {at}: two faces under {key}"
+                );
+            }
+            assert_eq!(
+                role.keys().map(String::as_str).collect::<Vec<_>>(),
+                ["bar:x=2.90", "bar:x=3.10", "bare"],
+                "{order:?} {at}: the faces descending from the tie"
+            );
+            by_role.push(role);
+        }
+        for (key, want) in [
+            ("bar:x=2.90", [LOWER, UPPER]),
+            ("bar:x=3.10", [LOWER, UPPER]),
+            ("bare", [UPPER, LOWER]),
+        ] {
+            let (n0, y0) = &by_role[0][key];
+            let (n1, y1) = &by_role[1][key];
+            assert_eq!(n0, n1, "{order:?}: the edit renamed {key}");
+            assert!(
+                (y0 - want[0]).abs() < 1e-9 && (y1 - want[1]).abs() < 1e-9,
+                "{order:?}: {key} lies at y {y0} before and {y1} after, not {want:?}"
+            );
+        }
+    }
+}
+
 /// A cylinder of radius 0.3 about the axis through `c` along `x × y`,
 /// from `c` for `length`.
-fn cylinder(
+pub(crate) fn cylinder(
     doc: ProfileDoc,
     c: [f64; 3],
     x: [f64; 3],
@@ -1145,20 +1221,19 @@ fn cylinder(
     )
 }
 
-/// **A curved divider answers in the union as it does in the pair
+/// **A curved divider names in the union as it does in the pair
 /// boolean.** A cylinder lying along y across the plate's top divides
-/// it in two with curved walls. `Borders` reads no plane, so the pieces
-/// need none; whatever the lone pair boolean does with this recipe,
-/// each member order of the union does the same.
-///
-/// What both do is refuse as a missing rule: the seam chain along the
-/// cylinder's wall is ranked along `n_a × n_b`, and the wall has no
-/// plane (`NamingError::SplitReference`, curved, citing the wall). In
-/// the union it is the fold's pair step that refuses, so which of the
-/// seam's sides is `a` follows member order; every order cites the one
-/// seam.
+/// it in two with curved walls. `Borders` reads no plane, so the face
+/// pieces need none, and the seam between the plate's top and the
+/// cylinder's wall is two separate lines (x = 1.2 and x = 1.8) that no
+/// direction separates: each piece is named by its two ends (N2's
+/// `Ends`), which differ in the lateral edge of the cylinder each line
+/// runs into. So the pair boolean names, and so does the union in
+/// either member order, with one table between the two orders. (The
+/// top's two pieces border the one lower half-wall, so they are N2's
+/// tie; no edge is.)
 #[test]
-fn a_curved_divider_answers_as_the_pair_boolean_does() {
+fn a_curved_divider_names_as_the_pair_boolean_does() {
     let doc = ProfileDoc::empty_derived("union-dividing-across", Tol::witness());
     let (doc, cyl) = cylinder(doc, [1.5, 4.0, 1.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0);
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
@@ -1171,48 +1246,55 @@ fn a_curved_divider_answers_as_the_pair_boolean_does() {
             declare: None,
         },
     );
-    let member = |n: &StableName| match n.path.as_slice() {
-        [RoleSeg::FromMember { of, .. }] => of.name().clone(),
-        _ => n.clone(),
-    };
-    // A curved refusal as (the curved side, the seam's two sides), each
-    // read through the union's `FromMember` to the member's own name so
-    // the pair boolean's and the union's spellings compare. The sides
-    // are a set: which is `a` follows member order.
-    let curved = |e: Option<&NodeErrorKind>| match e {
-        Some(NodeErrorKind::Naming(NamingError::SplitReference {
-            group,
-            reference,
-            curved: true,
-        })) => match group.path.as_slice() {
-            [RoleSeg::Seam { a, b }] => Some((
-                member(reference),
-                BTreeSet::from([member(a.name()), member(b.name())]),
-            )),
-            _ => None,
-        },
-        _ => None,
+    // The edge pieces each table names by their ends: (seam head, the
+    // pieces' qualifiers), the head's sides read as a set.
+    let ends_groups = |t: &NameTable| -> BTreeMap<String, usize> {
+        let mut out = BTreeMap::new();
+        for (name, entry) in t.iter() {
+            assert!(
+                name.kind != EntityKind::Edge || matches!(entry, Entry::Unique(_)),
+                "a tied edge: {name:?} {entry:?}"
+            );
+            if name.kind == EntityKind::Edge
+                && matches!(
+                    name.path.last(),
+                    Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+                )
+            {
+                *out.entry(format!("{:?}", name.path.first())).or_default() += 1;
+            }
+        }
+        out
     };
     let pair_ev = run(&pair_doc);
-    let alone = curved(failure(&pair_ev, pair));
     assert!(
-        alone
-            .as_ref()
-            .is_some_and(|(wall, sides)| wall.node == cyl && sides.contains(wall)),
-        "the pair boolean refuses the seam chain along the cylinder's wall as a missing \
-         rule: {:?}",
+        failure(&pair_ev, pair).is_none(),
+        "the pair boolean names: {:?}",
         failure(&pair_ev, pair)
     );
+    let alone = ends_groups(table(&pair_ev, pair));
+    assert!(
+        alone.values().any(|&n| n == 2),
+        "the seam along the wall is two pieces told apart by their ends: {alone:?}"
+    );
+    let mut tables = Vec::new();
     for order in permutations(&[0, 1]) {
         let (docx, u) = union_of(doc.clone(), &[plate, cyl], &order);
         let ev = run(&docx);
-        assert_eq!(
-            curved(failure(&ev, u)),
-            alone,
-            "{order:?}: {:?}",
+        assert!(
+            failure(&ev, u).is_none(),
+            "{order:?}: the union names: {:?}",
             failure(&ev, u)
         );
+        let t = table(&ev, u);
+        assert_eq!(
+            ends_groups(t).values().copied().collect::<Vec<_>>(),
+            alone.values().copied().collect::<Vec<_>>(),
+            "{order:?}: the union cuts its edges as the pair boolean does"
+        );
+        tables.push(t.iter().map(|(n, _)| n.clone()).collect::<BTreeSet<_>>());
     }
+    assert_eq!(tables[0], tables[1], "the names depend on member order");
 }
 
 /// **A merged face cut in two is two pieces of one parent.** A cylinder
@@ -1277,6 +1359,71 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
             ),
             "{label}: the slot's faces name and only the chord rule is missing: {:?}",
             failure(&ev, cut)
+        );
+    }
+}
+
+/// **A slot across a sunk boss, turned 90°, names.** The boss of
+/// [`a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`],
+/// with the slab running along x instead (x −1..4, y 1.4..1.6, from
+/// z = 0.8 up): its walls cross the boss's curved wall, and the seam
+/// chains along that wall are named by their ends, where they were once
+/// ranked along a plane the wall does not have.
+#[test]
+fn a_slot_along_x_across_a_sunk_boss_names() {
+    let doc = ProfileDoc::empty_derived("sunk-boss-slot-x", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, boss) = cylinder(doc, [1.5, 1.5, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
+    let (doc, slab) = block(doc, (-1.0, 4.0), (1.4, 1.6), 0.8, 1.2);
+    let (pair_doc, pair) = insert(
+        doc.clone(),
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: plate,
+            b: boss,
+            declare: None,
+        },
+    );
+    let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
+    for order in permutations(&[0, 1]) {
+        let (d, u) = union_of(doc.clone(), &[plate, boss], &order);
+        joins.push((format!("union {order:?}"), d, u));
+    }
+    for (label, doc, joined) in joins {
+        let (doc, cut) = insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Subtract,
+                a: joined,
+                b: slab,
+                declare: None,
+            },
+        );
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, cut).is_none(),
+            "{label}: the slot names: {:?}",
+            failure(&ev, cut)
+        );
+        // Seam heads → the pieces named by their ends under each.
+        let mut chains: BTreeMap<String, usize> = BTreeMap::new();
+        for (name, entry) in table(&ev, cut).iter() {
+            if name.kind != EntityKind::Edge {
+                continue;
+            }
+            assert!(
+                matches!(entry, Entry::Unique(_)),
+                "{label}: a tied edge: {name:?}"
+            );
+            if let ([head, ..], Some(RoleSeg::Fragment(Qualifier::Ends(_)))) =
+                (name.path.as_slice(), name.path.last())
+            {
+                *chains.entry(format!("{head:?}")).or_default() += 1;
+            }
+        }
+        assert!(
+            chains.values().any(|&n| n >= 2),
+            "{label}: some chain is two or more pieces told apart by their ends: {chains:?}"
         );
     }
 }

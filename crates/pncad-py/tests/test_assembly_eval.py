@@ -90,15 +90,16 @@ from pathlib import Path
 
 import bench_scene
 import pncad
+from spoken import tag
 from bench_scene import (
     FLAT_PACK_GAP,
     FLAT_PACK_SHELF_Y,
     GAUGE_OFFSET_Y,
     PATTERN_COUNT,
     PATTERN_SPACING,
+    POST_CAP,
     POST_HEIGHT,
     POST_SECTION,
-    POST_SEAT,
     POST_VOLUME,
     SEAT_A,
     SEAT_B,
@@ -416,7 +417,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertEqual(refusal.kind, "part_root_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
-        self.assertIn(f"repair node {repr(bracket_root)[7:-1]}", text)
+        self.assertIn(f"repair node {tag(bracket_root)}", text)
 
         # One level down: the bracket's root, itself a part whose root
         # failed — in the bracket's own id space.
@@ -509,8 +510,8 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
         self.assertEqual(refusal.kind, "part_root_poisoned")
         text = str(refusal)
-        self.assertIn(f"its root, node {repr(self.root)[7:-1]}", text)
-        self.assertIn(f"repair node {repr(self.extrude)[7:-1]}", text)
+        self.assertIn(f"its root, node {tag(self.root)}", text)
+        self.assertIn(f"repair node {tag(self.extrude)}", text)
 
         cause = refusal.__cause__
         self.assertIsInstance(cause, pncad.EvaluationError)
@@ -692,13 +693,13 @@ class TestNestingPastTheBound(unittest.TestCase):
         self.assertNotIn("lost sys.stderr", child.stderr)
         self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
         self.assertEqual(
-            len(re.findall(r"the part's node \d+ failed", child.stderr)),
+            len(re.findall(r"the part's node [0-9a-f]{12} failed", child.stderr)),
             DEPTH_BOUND,
             "one line for the instance and one for each document above the bound",
         )
         self.assertRegex(
             child.stderr.rstrip().splitlines()[-1],
-            r"^pncad\.EvaluationError: node \d+ failed",
+            r"^pncad\.EvaluationError: node [0-9a-f]{12} failed",
             "the traceback ends at the refusal that was raised",
         )
 
@@ -1140,15 +1141,15 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
                 self.assertScene(tour_value(self.declared(name, "f64")), value, name)
 
     def test_the_derived_seats_still_use_the_tours_formulas(self):
-        """The hole a value comparison leaves: `SEAT_A`, `SEAT_B` and
-        `POST_SEAT` are COMPUTED from the bases, so a guard that read
-        only the bases passed a changed formula. The formula is read
-        and evaluated here, against the values `bench_scene` derives
-        the same way."""
+        """The hole a value comparison leaves: `SEAT_A` and `SEAT_B`
+        are COMPUTED from the bases, so a guard that read only the
+        bases passed a changed formula. The formula is read and
+        evaluated here, against the values `bench_scene` derives the
+        same way. (The post's seat is its cap FACE, not a formula —
+        the stand row below reads that call site.)"""
         for name, value in (
             ("SEAT_A", SEAT_A),
             ("SEAT_B", SEAT_B),
-            ("POST_SEAT", POST_SEAT),
         ):
             with self.subTest(constant=name):
                 self.assertScene(
@@ -1205,11 +1206,16 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             (0.0, GAUGE_OFFSET_Y, 0.0),
             "the gauge post's offset",
         )
-        seats = re.findall(r"^\s+[ab]: mate_frame\((\w+)\),$", stand, re.M)
+        # A seat is an authored point (`mate_frame(NAME)`) or the
+        # post's cap face (`post_seat(post_top)`), read in document
+        # order.
+        seats = re.findall(
+            r"^\s+[ab]: (?:mate_frame\((\w+)\)|(post_seat)\(post_top\)),$", stand, re.M
+        )
         self.assertEqual(len(seats), 4, "the stand no longer authors exactly two mates")
-        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "POST_SEAT": POST_SEAT}
+        named = {"SEAT_A": SEAT_A, "SEAT_B": SEAT_B, "post_seat": POST_CAP}
         self.assertScene(
-            tuple(named[name] for name in seats),
+            tuple(named[point or face] for point, face in seats),
             tuple(seat for mate in STAND_SEATS for seat in mate),
             "the stand's mate seats",
         )

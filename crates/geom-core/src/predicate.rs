@@ -745,6 +745,16 @@ impl Margin<f64> {
     pub fn lift<T: crate::real::Real>(self) -> Margin<T> {
         Margin(T::from_f64(self.0))
     }
+
+    /// Door: [`Margin::over_lever`]'s dimensional argument, for a
+    /// certified LOWER-bound measure over an UPPER-bound lever, whose
+    /// quotient is itself claimed from below. The quotient rounds down
+    /// ([`div_down`](crate::interval::div_down)); a quotient rounded to
+    /// nearest can land above the real one, the side that certifies a
+    /// margin the geometry does not have.
+    pub fn over_lever_down(measure: f64, lever: f64) -> Self {
+        Self(crate::interval::div_down(measure, lever))
+    }
 }
 
 /// A certified **upper** bound on a speed — metres per parameter unit.
@@ -807,9 +817,9 @@ impl Margin<f64> {
 /// be compared without saying `get()` — the [`Real`](crate::real::Real)
 /// surface's rule. The rule it enforces is that **a tagged rate is
 /// never `==`'d or `<`'d**, not that no ordering happens: a fold that
-/// picks the larger of two sups ([`SupSpeed`] producers do this —
-/// `speed_lever`, `nurbs_stretch_bounds`) orders the bare payloads and
-/// mints the tag on the result, which is where such a fold belongs.
+/// picks the larger of two sups folds on the type, through
+/// [`SupSpeed::max`] (and the inf half's [`InfSpeed::min`]), which
+/// propagates poison where the inherent `f64::max` would drop it.
 ///
 /// ```compile_fail,E0369
 /// use geom_core::SupSpeed;
@@ -878,6 +888,16 @@ impl<T: crate::real::Real> SupSpeed<T> {
     pub fn to_param(self, meters: T) -> T {
         meters / self.0
     }
+
+    /// The fold of two sups over two regions: the larger is a sup over
+    /// their union. **Poison propagates** — either rate NaN gives NaN —
+    /// because this is [`Real::max`](crate::real::Real::max) and not
+    /// the inherent `f64::max`, which returns the other operand and so
+    /// turns a refused region into a bound over the rest.
+    #[must_use]
+    pub fn max(self, other: Self) -> Self {
+        Self(crate::real::Real::max(self.0, other.0))
+    }
 }
 
 impl<T: crate::real::Real> InfSpeed<T> {
@@ -901,6 +921,13 @@ impl<T: crate::real::Real> InfSpeed<T> {
     /// [`SupSpeed::to_param`], which is the whole pair's.
     pub fn to_meters(self, span: T) -> T {
         span * self.0
+    }
+
+    /// The fold of two infs over two regions: the smaller is an inf
+    /// over their union. Poison propagates, as in [`SupSpeed::max`].
+    #[must_use]
+    pub fn min(self, other: Self) -> Self {
+        Self(crate::real::Real::min(self.0, other.0))
     }
 }
 
@@ -1562,21 +1589,48 @@ impl Indeterminate {
 
 impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.payload())?;
-        match self.margin.kind() {
-            MarginKind::Value => write!(f, " — a near-coincidence; {COINCIDENCE_RECOURSE}"),
+        write!(f, "{}", self.under(COINCIDENCE_RECOURSE))
+    }
+}
+
+/// An [`Indeterminate`] rendered with its margin kind's own advice and
+/// a recourse the door supplies in place of [`COINCIDENCE_RECOURSE`] —
+/// for a door that takes no declaration
+/// ([`NO_DECLARATION_RECOURSE`]). The bare [`Indeterminate`] Display
+/// is this view under [`COINCIDENCE_RECOURSE`].
+#[derive(Debug, Clone, Copy)]
+pub struct IndeterminateUnder<'a> {
+    diag: &'a Indeterminate,
+    recourse: &'a str,
+}
+
+impl Indeterminate {
+    /// This escalation's sentence with `recourse` as the levers the
+    /// door has — see [`IndeterminateUnder`].
+    pub fn under<'a>(&'a self, recourse: &'a str) -> IndeterminateUnder<'a> {
+        IndeterminateUnder {
+            diag: self,
+            recourse,
+        }
+    }
+}
+
+impl fmt::Display for IndeterminateUnder<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let recourse = self.recourse;
+        write!(f, "{}", self.diag.payload())?;
+        match self.diag.margin.kind() {
+            MarginKind::Value => write!(f, " — a near-coincidence; {recourse}"),
             MarginKind::Enclosure => write!(
                 f,
-                " — subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE}"
+                " — subdivide the parameter box for a tighter enclosure, or {recourse}"
             ),
             // Poison explains WHY the sign is indeterminate, but the
             // user's levers at a coincidence site are unchanged — the
-            // Invalid arm carries the shared recourse like the others
-            // (S6 review, MINOR-1).
+            // Invalid arm carries the recourse like the others.
             MarginKind::Invalid => write!(
                 f,
-                " — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
+                " — check the operation's inputs upstream, then {recourse}"
             ),
         }
     }

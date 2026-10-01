@@ -7,7 +7,7 @@ opened: 2026-08-29
 github: 1238
 refs: [762, 1221]
 priority: P0
-cost: D
+cost: M
 ---
 
 ## From GitHub issue 1238
@@ -54,3 +54,80 @@ Moved from `work/cert/` to `work/curved/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Design (2026-10-01): the chart speed, decided
+
+Two designers weighed this row together with
+`limb-3-chart-tube-speed-has-neither-guard-its-sibling-site-has`,
+`ssi-tube-pad-folds-both-axes-by-max-speed-where-limb-3-proved-per-axis`
+and `ssi-certify-stretch-divides-by-a-norm-with-no-sqrt-up`, as one
+problem: what the chart speed is. They converged in three rounds
+(`log.md`). Nothing in it changes ratified text, so it goes to no
+`[ev]` PR. This section is the spec all four rows build to.
+
+**Premise correction.** The march's "speed" (`ssi/march.rs`,
+`tangent_speed`) is not the chart speed. It is the traced point's
+pointwise speed and sizes a heuristic step. Its finite-but-unusable
+window is guarded on the step `h`/`h_meters` where the step is minted
+(the step must be finite and must actually move the state), and the
+step refuses naming the speed. The 1e150 m wall is a FLOOR that no
+bisection can reach, not an unusable speed.
+
+1. **One outward norm.** `Box3::speed_sup` (round-to-nearest) is
+   deleted. `offset_meters::norm_sup` (ring squares and sums, then
+   `sqrt_up`) moves to `geom_core` beside `Interval` as the one home.
+   All three callers (floor rate, tube pad, transverse stretch) divide
+   a bound by it, so every one of them needs the outward bound. Where
+   bits move, it is because the old ones were not certified;
+   re-baseline and say so.
+2. **Typed folds.** `SupSpeed`/`InfSpeed` gain a `max`/`min` that
+   propagates NaN, and producers fold tags rather than bare `f64`s.
+   This covers `offset_meters::patch_regularity`'s
+   `speed_u.max(norm_sup(..))` and `PatchRegularity::speed_lever`,
+   which today use the inherent `f64::max` and drop NaN. `new` stays a
+   tag that may carry poison: DESIGN.md D4's degeneracy row 3 (poison
+   flows through values and is classified `Invalid`) decides this, and
+   `certify.rs`'s `nurbs_span_meter` relies on it. `to_param` and
+   `to_meters` stay total and one operation each. The rate-pair doc's
+   "fold the bare payloads" sentence becomes "fold on the type".
+3. **One mint, a per-axis pair.** `NurbsBoxes::chart_speeds` (name the
+   implementer's) mints `{u, v}` over the wall's domain and refuses by
+   axis: zero means "the wall is constant along u"; non-finite means
+   "no finite bound on the chart speed along v". `plane_nurbs_ssi` and
+   limb 3 (including via `edge_nurbs::certify_rung3`) both mint
+   through it, and the `if m > 0 { m } else { NAN }` closure goes.
+   The sweep's single floor takes the pair's NaN-keeping max.
+4. **The certificate records what was proved.** `SsiCertificate`'s
+   `tube_radius` becomes a per-kind tube: `Spatial { radius }` (metres,
+   the ℝ³ arm) and `Chart { rung, pad_u, pad_v }` (the ladder rung that
+   was tried, plus the per-axis pad in chart units, which IS the proved
+   region). The certificate is a stored claim (`PcurveCache.ssi`, D5
+   ¶2). On the chart arm a metre radius over-states the proof, because
+   dividing by a sup under-states chart reach. `PlaneNurbsLimbs` takes
+   the same type. `chart_tube_windows(pcurve, pad)` builds the windows
+   for the probe and for accounting alike, so accounting reads the pad
+   rather than re-dividing.
+5. **Bad chart lengths stop at the door of the space they land in.**
+   - `NurbsBoxes::cells` refuses a NaN or inverted window. A NaN end
+     currently passes through `f64::clamp` and lands on the first span,
+     which is the silent wrong-region certificate.
+   - The floor is minted once as a typed chart floor, and that door
+     refuses a floor its domain cannot resolve (non-finite, zero, or
+     below the resolution of the domain's endpoints) with a new typed
+     refusal naming the rate through `write_chart_length`.
+   - The same precondition applies on the ℝ³ lane (D4 ¶1's km headroom
+     becomes a check). The exact ulp form is the implementer's to pin
+     with a row at the boundary.
+   - A pad needs no resolvability guard: under (4) the recorded pad is
+     the honest region whatever it rounds to.
+
+Folded in as findings from the weighing:
+- `ExhaustivenessRefusal::cell_width_meters`'s doc calls w·max-sup "a
+  ceiling", which is off by up to 2×; fix it in the floor unit.
+- `plane_nurbs_ssi` swallows `SeedRefinementFailed` (`continue`); handle
+  it in the floor unit with the stepper guard.
+- `probe_tube_chart` skips a rung when the transverse stretch is zero,
+  which no smaller rung can cure; handle it in the tube unit.
+
+README C2/C3 are re-worded to describe the landed code. That is a
+description, not a second decision.

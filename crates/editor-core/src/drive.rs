@@ -807,13 +807,13 @@ impl ParamBoxVerdict {
             self.receipt.splits,
             self.receipt.holds()
         );
-        let _ = writeln!(s, "witness_vector {:032x}", self.witness_vector.key().0);
+        let _ = writeln!(s, "witness_vector {:032x}", self.witness_vector.key());
         for leaf in &self.certified {
             let _ = writeln!(
                 s,
                 "certified {} key={:032x}",
                 render_box(&leaf.box_),
-                leaf.verdict_vector_key.0
+                leaf.verdict_vector_key
             );
         }
         for leaf in &self.refused {
@@ -1144,7 +1144,7 @@ impl core::fmt::Display for DriveRefusal {
                 f,
                 "the witness build refuses at node {}: {cause} — there is no branch to certify \
                  leaves against until the nominal document builds",
-                node.0
+                node
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1155,7 +1155,7 @@ impl core::fmt::Display for DriveRefusal {
                 "node {} measures a `min_clearance`, whose engine has no lane at the symbolic \
                  identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
                  to get the numeric-only answer, or measure a closed form",
-                node.0
+                node
             ),
         }
     }
@@ -1938,7 +1938,7 @@ fn render_reason(r: &RefusalReason) -> String {
     match r {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
         RefusalReason::MeasureRefused { node, class } => {
-            format!("measure_refused {} {class}", node.0)
+            format!("measure_refused {} {class}", node.full())
         }
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
@@ -1950,26 +1950,35 @@ fn render_reason(r: &RefusalReason) -> String {
                     let _ = write!(
                         s,
                         " {}:status:{:?}->{:?}",
-                        node.0, delta.old_status, delta.new_status
+                        node.full(),
+                        delta.old_status,
+                        delta.new_status
                     );
                 }
                 for f in &delta.flips {
                     let _ = write!(
                         s,
                         " {}:{}:{:?}->{:?}x{}",
-                        node.0, f.predicate, f.from, f.to, f.count
+                        node.full(),
+                        f.predicate,
+                        f.from,
+                        f.to,
+                        f.count
                     );
                 }
                 for d in &delta.diverged {
                     let _ = write!(
                         s,
                         " {}:{}:count {}->{}",
-                        node.0, d.predicate, d.old_count, d.new_count
+                        node.full(),
+                        d.predicate,
+                        d.old_count,
+                        d.new_count
                     );
                 }
             }
             for f in &flipped.structure {
-                let _ = write!(s, " {}:structure:{:?}", f.node.0, f.refusal.decision);
+                let _ = write!(s, " {}:structure:{:?}", f.node.full(), f.refusal.decision);
             }
             if flipped.is_empty() {
                 // The population engine's blind spot netted to nothing.

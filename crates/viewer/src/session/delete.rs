@@ -10,8 +10,6 @@
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId, cascade_delete_order};
 
-use crate::tree;
-
 /// **What the delete button says, and the list it says it about.**
 ///
 /// A destructive action that understates itself is worse than one that
@@ -38,12 +36,12 @@ pub struct DeleteAffordance {
 impl DeleteAffordance {
     /// Compose the sentences for deleting `node` out of `doc`.
     ///
-    /// The kind name is the node vocabulary's own (first-light finding
-    /// #1097: reached from a face selection, a bare "Delete feature"
-    /// read as deleting the *face* — an entity this vocabulary can
-    /// never delete). The id-only arm is for a node the document does
-    /// not hold: no button renders for one today, and if that changes
-    /// the label stays honest rather than panicking.
+    /// The node is named as the document speaks it, kind noun and tag
+    /// (first-light finding #1097: reached from a face selection, a
+    /// bare "Delete feature" read as deleting the *face* — an entity
+    /// this vocabulary can never delete). A node the document does not
+    /// hold reads `node <tag>`: no button renders for one today, and if
+    /// that changes the label stays honest rather than panicking.
     ///
     /// Neither sentence mentions the features that merely FED the
     /// target and survive as roots of their own, because this delete
@@ -52,20 +50,13 @@ impl DeleteAffordance {
     /// #1324.
     pub(super) fn of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Self {
         let cascade = cascade_delete_order(doc, node);
-        let Some(target) = doc.node(node) else {
-            return Self {
-                label: format!("Delete {}", crate::tree::node_number(node)),
-                hover: None,
-                cascade,
-            };
-        };
-        let kind = tree::node_kind(target);
+        let spoken = doc.spoken(node);
         // The cascade's last entry is the target itself; everything
         // before it is a dependent.
         let dependents = cascade.len().saturating_sub(1);
         if dependents == 0 {
             return Self {
-                label: format!("Delete feature '{kind}'"),
+                label: format!("Delete {spoken}"),
                 hover: None,
                 cascade,
             };
@@ -77,7 +68,7 @@ impl DeleteAffordance {
         };
         let census = kind_census(doc, &cascade[..dependents]);
         Self {
-            label: format!("Delete feature '{kind}' and {dependents} dependent feature{plural}"),
+            label: format!("Delete {spoken} and {dependents} dependent feature{plural}"),
             hover: Some(format!(
                 "Also deletes {dependents} feature{plural} that {depend} on it: {census}"
             )),
@@ -93,8 +84,8 @@ fn kind_census(doc: &Doc<ProfileProgram>, nodes: &[RecipeNodeId]) -> String {
     let mut counts: std::collections::BTreeMap<&'static str, usize> =
         std::collections::BTreeMap::new();
     for &id in nodes {
-        if let Some(node) = doc.node(id) {
-            *counts.entry(tree::node_kind(node)).or_default() += 1;
+        if let Some(kind) = doc.spoken(id).kind() {
+            *counts.entry(kind).or_default() += 1;
         }
     }
     let mut census: Vec<(&'static str, usize)> = counts.into_iter().collect();

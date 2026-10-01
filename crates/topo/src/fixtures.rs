@@ -55,7 +55,7 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
     Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::euler::{MefCreated, MevCreated, MevSite, MvfsCreated};
+use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
@@ -313,6 +313,13 @@ pub(crate) enum KillAnchorFault {
     DeadSolid(ShellKey),
     /// A half-edge whose `edge` does not resolve.
     DeadEdge(HalfEdgeKey),
+    /// A half-edge whose `next` or `prev` does not resolve, a loop whose
+    /// `first` does not, a vertex whose `emanating` does not, or an edge
+    /// a slot of which does not.
+    DeadHalfEdge(EntityId),
+    /// A face whose null-face record names a loop that does not
+    /// resolve.
+    DeadNullFaceLoop(FaceKey),
 }
 
 /// Every [`KillAnchorFault`] on `body`.
@@ -364,6 +371,35 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
         if body.get_edge(data.edge).is_none() {
             faults.push(KillAnchorFault::DeadEdge(he));
         }
+        if [data.next, data.prev]
+            .iter()
+            .any(|&link| body.get_half_edge(link).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::HalfEdge(he)));
+        }
+    }
+    for (l, data) in body.loops() {
+        if let LoopBoundary::Cycle { first } = data.boundary
+            && body.get_half_edge(first).is_none()
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Loop(l)));
+        }
+    }
+    for (v, data) in body.vertices() {
+        if data
+            .emanating
+            .is_some_and(|he| body.get_half_edge(he).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Vertex(v)));
+        }
+    }
+    for (e, data) in body.edges() {
+        if [data.he_plus, data.he_minus]
+            .iter()
+            .any(|&slot| body.get_half_edge(slot).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Edge(e)));
+        }
     }
     for (l, data) in body.loops() {
         if let LoopBoundary::Empty { vertex } = data.boundary
@@ -399,7 +435,74 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
             faults.push(KillAnchorFault::DeadShell(EntityId::Solid(solid)));
         }
     }
+    for (face, record) in body.null_faces() {
+        if record.loops().iter().any(|&l| body.get_loop(l).is_none()) {
+            faults.push(KillAnchorFault::DeadNullFaceLoop(face));
+        }
+    }
     faults
+}
+
+/// Runs `door` — one call of an operator named in `doors` — on a body a
+/// test has made tier-1-invalid on purpose, inside a surgery scope the
+/// caller drops unswept: `Ok` with what the operator returned, or `Err`
+/// with the panic message of its own tier-1 postcondition.
+///
+/// The `Err` arm is the `per-op-postcondition` scalpel's: it sweeps
+/// after every operator inside a scope too, so an operator that runs to
+/// its end on a torn body fires on the input's corruption after its
+/// last write and before its `Ok`. Without the scalpel the arm is
+/// unreachable. A caught sweep prints nothing; any other panic, an
+/// operator's postcondition named outside `doors` included, prints as
+/// it would have and propagates.
+pub(crate) fn through_the_scalpel<R>(
+    doors: &[&str],
+    door: impl FnOnce() -> R,
+) -> Result<R, String> {
+    use std::cell::RefCell;
+    use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind, set_hook, take_hook};
+    thread_local! {
+        /// `Some` while this thread is inside the helper: where the
+        /// hook leaves a panic's report instead of printing it.
+        static HELD: RefCell<Option<String>> = const { RefCell::new(None) };
+    }
+    static HOOK: std::sync::Once = std::sync::Once::new();
+    if !cfg!(feature = "per-op-postcondition") {
+        return Ok(door());
+    }
+    HOOK.call_once(|| {
+        let previous = take_hook();
+        set_hook(Box::new(move |info| {
+            let held = HELD.with(|held| match held.borrow_mut().as_mut() {
+                Some(report) => {
+                    *report = info.to_string();
+                    true
+                }
+                None => false,
+            });
+            if !held {
+                previous(info);
+            }
+        }));
+    });
+    HELD.with(|held| *held.borrow_mut() = Some(String::new()));
+    let caught = catch_unwind(AssertUnwindSafe(door));
+    let report = HELD
+        .with(|held| held.borrow_mut().take())
+        .unwrap_or_default();
+    let payload = match caught {
+        Ok(got) => return Ok(got),
+        Err(payload) => payload,
+    };
+    if doors
+        .iter()
+        .any(|op| report.contains(&format!(": {op} postcondition: result is not tier-1 valid")))
+    {
+        Err(report)
+    } else {
+        eprintln!("{report}");
+        resume_unwind(payload)
+    }
 }
 
 /// Asserts that `kill` refuses exactly `expected` and leaves `body`
@@ -663,6 +766,66 @@ pub(crate) fn ngon_pillow(n: usize, tol: Tol) -> NgonPillow {
 /// The digon pillow — the minimal closed fixture (see [`ngon_pillow`]).
 pub(crate) fn pillow(tol: Tol) -> NgonPillow {
     ngon_pillow(2, tol)
+}
+
+/// The PR 4 detached-digon transient with `n` digons: a pillow, and
+/// `n` digons each grown on its own ring of the pillow's seed face and
+/// promoted (`mfkrh`) — one shell entity of `n + 1` closed components.
+/// Returns (body, shell, seed face, the promoted faces in order). The
+/// seed face is the shell's first face.
+pub(crate) fn detached_digons(n: usize) -> (Body<f64>, ShellKey, FaceKey, Vec<FaceKey>) {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    let seg = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        )
+        .unwrap();
+    body.mef_chord(
+        MefSite::Chords {
+            he1: seg.he_plus,
+            he2: seg.he_minus,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
+    let mut promoted = Vec::new();
+    for i in 0..n {
+        let x = 2.0 * (i as f64) + 2.0;
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                Point3::new(x, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let grow = body
+            .mev_line(
+                MevSite::Lone { r#loop: kill.ring },
+                Point3::new(x + 1.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        body.mef_chord(
+            MefSite::Chords {
+                he1: grow.he_plus,
+                he2: grow.he_minus,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        promoted.push(body.mfkrh_plug(kill.ring, true).unwrap().face);
+    }
+    assert_eq!(body.get_shell(seed.shell).unwrap().faces[0], seed.face);
+    (body, seed.shell, seed.face, promoted)
 }
 
 /// Every shell of `donor` refiled under `keeper` — appended to
@@ -1088,6 +1251,67 @@ pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
         tube_mevs: hole.drops.try_into().expect("n = 4"),
         tube_mefs: hole.walls.try_into().expect("n = 4"),
         plug: hole.plug,
+    }
+}
+
+/// Key bundle for [`ops_two_ring_face`].
+pub(crate) struct OpsTwoRingFace {
+    pub body: Body<f64>,
+    /// The face holding both rings.
+    pub face: FaceKey,
+    pub outer: LoopKey,
+    /// The hole's ring.
+    pub hole: LoopKey,
+    /// The `Empty` ring the strut's tip leaves.
+    pub tip: LoopKey,
+}
+
+/// [`ops_holed_box`]'s ringed face given a second ring: a strut grown
+/// from its outer loop's first corner a tenth of the way toward the
+/// cap's centre `(0.5, 0.5)`, then killed from its tip by `kemr`,
+/// leaves the tip an `Empty` ring beside the hole's. The one valid body
+/// here with a face whose ring a null-face record on its outer and
+/// other ring does not name. Construction from the PR 3618 review's
+/// probe (`two_ring_face`).
+pub(crate) fn ops_two_ring_face(tol: Tol) -> OpsTwoRingFace {
+    let mut body = ops_holed_box(tol).body;
+    let (face, outer, hole) = body
+        .faces()
+        .find_map(|(f, data)| match data.rings[..] {
+            [ring] => Some((f, data.outer, ring)),
+            _ => None,
+        })
+        .expect("the holed box has a face with one ring");
+    let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the holed box's ringed face has a cycle outer loop")
+    };
+    let start = body.get_half_edge(first).unwrap().start;
+    let p = *body
+        .get_point(body.get_vertex(start).unwrap().point)
+        .unwrap();
+    let tip = Point3::new(p.x + 0.1 * (0.5 - p.x), p.y + 0.1 * (0.5 - p.y), p.z);
+    let site = MevSite::Fan {
+        he1: first,
+        he2: first,
+    };
+    let strut = body.mev_line(site, tip, tol).unwrap();
+    let tip = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
+    assert!(
+        matches!(
+            body.get_loop(tip).unwrap().boundary,
+            LoopBoundary::Empty { .. }
+        ),
+        "`kemr` from the tip leaves the tip an `Empty` ring"
+    );
+    let data = body.get_face(face).unwrap();
+    assert_eq!((data.outer, &data.rings[..]), (outer, &[hole, tip][..]));
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    OpsTwoRingFace {
+        body,
+        face,
+        outer,
+        hole,
+        tip,
     }
 }
 

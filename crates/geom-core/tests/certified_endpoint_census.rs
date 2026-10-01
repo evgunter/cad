@@ -245,6 +245,7 @@ const HOLDERS: &[&str] = &[
     "crates/geom-core/src/spline/net.rs",
     "crates/geom-core/src/sym/signed.rs",
     "crates/geom/src/curves/nurbs.rs",
+    "crates/geom/src/curves/second_derivative.rs",
     "crates/geom/src/net.rs",
     "crates/geom/src/surfaces/nurbs.rs",
     "crates/mesh/src/chords.rs",
@@ -273,9 +274,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        13,
-        13,
-        "the mignitude, the two norm assemblies and the curvature join all refuse by name",
+        12,
+        12,
+        "the mignitude, the norm assemblies and the curvature join all refuse by name",
     ),
     (
         "crates/geom-brep/src/patch_bound.rs",
@@ -331,10 +332,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-core/src/interval.rs",
-        16,
-        2,
-        "the type's own body. The 2 that ask are the two refusal doors \
-         (`certified_bracket`, `sign_within`). The other 14 are not certification \
+        18,
+        4,
+        "the type's own body. The 4 that ask are the two refusal doors \
+         (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup` \
+         and `div_down`. The other 14 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
          `repr_bits`, `copysign` and the kink selectors), which test NaI and empty \
@@ -349,7 +351,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-core/src/spline/compose/tensor.rs", 3, 3, ""),
     ("crates/geom-core/src/sym/signed.rs", 2, 2, ""),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
-    ("crates/mesh/src/chords.rs", 2, 2, ""),
+    ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
+    ("crates/mesh/src/chords.rs", 1, 1, ""),
     ("crates/mesh/src/nurbs_cert.rs", 1, 1, ""),
     ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
 ];

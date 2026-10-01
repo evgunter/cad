@@ -5,7 +5,7 @@ title: plane_nurbs_ssi pads its uniqueness tubes by max(su, sv) on both chart ax
 status: open
 opened: 2026-09-12
 priority: P1
-cost: H
+cost: M
 ---
 
 
@@ -28,3 +28,8 @@ with, which `SsiCertificate` currently does not store — every consumer
 re-derives the speed) or the sentence says "a subset of". Found by the
 SCALAR rate census, 2026-09-12; `ssi*` is TRIM's ground per PROPS'
 `keep_out`.
+
+## Design (2026-10-01)
+
+Decided with three sibling rows; the spec is the "Design" section of
+`ssi-chart-speed-usability-boundary`.

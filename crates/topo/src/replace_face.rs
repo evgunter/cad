@@ -1665,7 +1665,7 @@ fn plan_edge<T: Decide>(
     let (t0, t1) = curve.params();
     let old_carrier = curve.carrier().clone();
     let description = curve.description().clone();
-    let mid = old_carrier.eval((t0 + t1) * T::from_f64(0.5));
+    let mid = curve.mid_point();
 
     // The one description that gets an EXACT carrier rather than a
     // transported one: an iso-curve of a fitted chart is a row of the
@@ -1788,7 +1788,7 @@ fn plan_edge<T: Decide>(
             edge,
             what: "this (surface kind, carrier kind) pair has no closed-form offset action",
         })?;
-    let new_mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+    let new_mid = carrier.mid_point(t0, t1);
 
     // **The declaring pushforward travels with the face** (PCURVE
     // P-1b), and it travels the same way whichever arm below the
@@ -2075,6 +2075,35 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
             angle,
             breaks: breaks.clone(),
         },
+        // Both spiric images are affine in the chart's SECOND channel
+        // — the cap's `v` coordinate is its constant term's, the
+        // wall's is `v0` — so the shift lands on one field exactly, as
+        // it does on the three arms above. The shift this door
+        // computes is the cone's `d·cot α` and zero on every other
+        // chart kind, so on the two charts a spiric lives on it is
+        // zero; the arm is written for the action, not for the value.
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            ref image,
+        } => Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: match *image {
+                geom_brep::SpiricImage::Cap { p0, pm, pa } => geom_brep::SpiricImage::Cap {
+                    p0: geom_core::Point2::new(p0.x, p0.y + shift),
+                    pm,
+                    pa,
+                },
+                geom_brep::SpiricImage::Wall { u0, v0, sense } => geom_brep::SpiricImage::Wall {
+                    u0,
+                    v0: v0 + shift,
+                    sense,
+                },
+            },
+        },
         Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
@@ -2351,7 +2380,7 @@ fn plan_reanchors<T: Decide>(
         // fails `WitnessMidpoint` at the very gate that re-attaches it.
         // The carrier did not move, so the new witness is that carrier
         // read at the new midpoint.
-        let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+        let mid = carrier.mid_point(t0, t1);
         description = match description {
             EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
                 s1,

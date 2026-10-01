@@ -303,7 +303,7 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
     assert!(
-        said.contains("pairwise distinct") && said.contains(&format!("{}", u.0)),
+        said.contains("pairwise distinct") && said.contains(&format!("node {:012x}", u.0)),
         "{said}"
     );
     // And a list left under two.

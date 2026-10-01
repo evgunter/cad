@@ -74,11 +74,7 @@ fn wrap(node: RecipeNodeId, inner: StableName) -> StableName {
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 fn mate_node(
@@ -725,7 +721,7 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
     let rendered = result.unwrap_err().to_string();
     assert!(
         rendered.contains(&inner_id.to_string())
-            && rendered.contains(&format!("mate {}", inner_mate.0)),
+            && rendered.contains(&format!("mate {:012x}", inner_mate.0)),
         "the badge names the document and the mate: {rendered}"
     );
 }

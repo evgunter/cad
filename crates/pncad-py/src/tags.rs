@@ -131,12 +131,12 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
-    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError, PersistError,
-    PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, RecordedProgramError,
-    RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError, SlotId, SnapshotError,
-    SplitError, StepHandleRefusal, StepIdFault, Subgroup, UpdateError,
+    EditError, EvalError, FaceRefusal, FrameFault, InlineError, InterfaceCrossing, LeverRefusal,
+    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
+    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
+    PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
+    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -1001,6 +1001,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MatePartSelectsAnotherCopy => "mate_part_selects_another_copy",
         C::MateSelf => "mate_self",
         C::MateUnleverable => "mate_unleverable",
+        C::MateFaceUnresolved => "mate_face_unresolved",
         C::CrossingUnverified => "crossing_unverified",
     }
 }
@@ -1494,6 +1495,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Merge => "merge",
         BooleanErrorKind::ResultInvalid => "result_invalid",
         BooleanErrorKind::ResultVolumeImplausible => "result_volume_implausible",
+        BooleanErrorKind::VolumeUnmeasured => "volume_unmeasured",
+        BooleanErrorKind::VolumeCorrupt => "volume_corrupt",
+        BooleanErrorKind::VolumeUndecided => "volume_undecided",
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
     }
@@ -1593,10 +1597,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
         NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
-        NamingError::SeamLineSides { .. } => "seam_line_sides",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
-        NamingError::SplitReference { .. } => "split_reference",
-        NamingError::NarrowBand { .. } => "narrow_band",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -1685,6 +1686,25 @@ pub fn seed_error_tag(err: &SeedError) -> &'static str {
 /// mate refusals and `EvaluationError.kind` speak one word per fault.
 pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
     node_error_tag(NodeErrorClass::of_mate(fault))
+}
+
+/// The stable tag for a face refusal — the inner arm of
+/// [`mate_fault_tag`]'s `mate_face_unresolved`: why a `FromFace`
+/// frame's face answered no pose through the mated part's own
+/// evaluation.
+///
+/// The map is exhaustive rather than a constant so a new way for a
+/// face to refuse arrives here as a compile error.
+pub fn face_refusal_tag(refusal: &FaceRefusal) -> &'static str {
+    match refusal {
+        FaceRefusal::PartUnresolved { .. } => "part_unresolved",
+        FaceRefusal::NoSuchName { .. } => "no_such_name",
+        FaceRefusal::Ambiguous { .. } => "ambiguous",
+        FaceRefusal::NotAFace { .. } => "not_a_face",
+        FaceRefusal::Readback { .. } => "readback",
+        FaceRefusal::Unpinned { .. } => "unpinned",
+        FaceRefusal::NotAnInstance { .. } => "not_an_instance",
+    }
 }
 
 /// The stable tag for a lever refusal — the inner arm of
@@ -2847,6 +2867,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::NullScaffoldShared { .. } => "null_scaffold_shared",
         ValidationError::LeakedNullFaceRecord { .. } => "leaked_null_face_record",
         ValidationError::StaleNullFaceLoop { .. } => "stale_null_face_loop",
+        ValidationError::StaleNullFaceOwnership { .. } => "stale_null_face_ownership",
         ValidationError::NullEdgeAtRest { .. } => "null_edge_at_rest",
         ValidationError::NullFaceAtRest { .. } => "null_face_at_rest",
     }

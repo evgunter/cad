@@ -14,10 +14,10 @@ Found by CONTACT-2 (PR 3250) and its review.
 `boolean/join.rs` `resolve_roles_geometric` decides which loop of a
 completed section polygon is the IN copy by probing the regions flanking
 the seam against the other operand, tier by tier (`Anchor::Vertex`,
-`Anchor::EdgeMidpoint`, `Anchor::EdgeOnCarrier`, `Anchor::RegionInterior`,
+`Anchor::ChordMidpoint`, `Anchor::EdgeOnCarrier`, `Anchor::RegionInterior`,
 `Anchor::RegionVertexChord`). Two defects sit in it.
 
-## 1. `Anchor::EdgeMidpoint` is unsound on a curved edge (reproduced)
+## 1. `Anchor::ChordMidpoint` is unsound on a curved edge (reproduced)
 
 The tier probes each region edge's CHORD midpoint (`lerp` of its ends)
 uncertified, as if it lay on the region. For a curved edge it does not:

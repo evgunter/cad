@@ -289,3 +289,11 @@ pub fn first_node_id(node: &Node<ProfileProgram>) -> RecipeNodeId {
         .insert(node)
         .expect("an empty log holds no id")
 }
+
+/// **A spoken node built by hand**: what a document holding `id` as a
+/// `kind` would say (`None`: a document that does not hold it), for a
+/// fixture that builds a row by hand rather than through a document.
+#[must_use]
+pub fn spoken(id: RecipeNodeId, kind: Option<&'static str>) -> crate::SpokenNode {
+    crate::SpokenNode::forged(id, kind)
+}

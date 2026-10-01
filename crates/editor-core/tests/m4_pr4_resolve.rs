@@ -125,22 +125,20 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
     doc
 }
 
-/// A ranked rim-edge fragment name from the overlapping union's table
-/// (`[FromA(RimEdge..), Fragment(OrderAlong{of: 2})]`).
-fn ranked_rim_name(ev: &Evaluation<f64>, union: RecipeNodeId) -> StableName {
+/// A rim-edge piece name from the overlapping union's table
+/// (`[FromA(RimEdge..), Fragment(Ends)]`).
+fn rim_piece_name(ev: &Evaluation<f64>, union: RecipeNodeId) -> StableName {
     ev.value(union)
         .unwrap()
         .name_table
         .iter()
         .find_map(|(n, e)| {
-            let ranked = matches!(
-                n.path.last(),
-                Some(RoleSeg::Fragment(Qualifier::OrderAlong { of: 2, .. }))
-            ) && matches!(n.path.first(), Some(RoleSeg::FromA(_)))
+            let piece = matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
+                && matches!(n.path.first(), Some(RoleSeg::FromA(_)))
                 && n.kind == EntityKind::Edge;
-            (ranked && matches!(e, Entry::Unique(_))).then(|| n.clone())
+            (piece && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
-        .expect("overlapping union has ranked FromA rim fragments")
+        .expect("overlapping union has FromA rim pieces")
 }
 
 // ---- Resolved ----
@@ -440,7 +438,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
 fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
     let s = slide_union(0.5);
     let ev1 = run(&s.doc, None);
-    let probe = ranked_rim_name(&ev1, s.union);
+    let probe = rim_piece_name(&ev1, s.union);
     let doc2 = slide_to(&s, 2.5); // disjoint: fragments vanish
     let ev2 = run(&doc2, Some(&ev1));
     let res = resolve_with_prior(
@@ -590,7 +588,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         },
     );
     let ev1 = run(&doc, None);
-    let master = ranked_rim_name(&ev1, s.union);
+    let master = rim_piece_name(&ev1, s.union);
     let inst = minted(
         EntityKind::Edge,
         pattern,
@@ -937,7 +935,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         RoleSeg::InPart { .. } => false,
         // Discrimination, not derivation: the fragment is classified
         // AGAINST these, not built from them.
-        RoleSeg::Fragment(Qualifier::Borders(v)) => {
+        RoleSeg::Fragment(Qualifier::Borders(v) | Qualifier::Keeps(v) | Qualifier::Ends(v)) => {
             partners == Partners::Include && v.iter().any(under)
         }
         RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => false,

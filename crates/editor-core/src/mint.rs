@@ -69,6 +69,16 @@ impl Minted {
     }
 }
 
+/// `node <tag>` or `step <tag>`: the entry as a sentence reads it.
+impl core::fmt::Display for Minted {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Node(id) => write!(f, "node {id}"),
+            Self::Step(step) => write!(f, "step {step}"),
+        }
+    }
+}
+
 /// Why the mint refused a node id; the insert door reports it as
 /// [`crate::EditError::NodeIdCollides`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

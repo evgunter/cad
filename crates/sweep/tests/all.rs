@@ -107,6 +107,8 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
+#[path = "placeholder_chart_boundary.rs"]
+mod placeholder_chart_boundary;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -115,6 +117,8 @@ mod r1_mate3_probes;
 mod r2_mate3_probes;
 #[path = "r2_mesh1_donut_probes.rs"]
 mod r2_mesh1_donut_probes;
+#[path = "rehome_rings_lune.rs"]
+mod rehome_rings_lune;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -160,6 +164,8 @@ mod verbs_shell;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
+#[path = "band_ruled_cap_ring.rs"]
+mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
@@ -304,6 +310,8 @@ mod must_carry_rule;
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]
 mod r2_sense_fold_probes;
+#[path = "reach_volume_backstop.rs"]
+mod reach_volume_backstop;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "recourse_roster.rs"]
@@ -515,6 +523,8 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "full_turn_wall.rs"]
+mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]
 mod germ_circle_torus;
 #[path = "germ_cone_apex_closure.rs"]

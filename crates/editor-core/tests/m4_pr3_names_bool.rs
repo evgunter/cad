@@ -65,7 +65,7 @@ fn block(
 // ---- FromA/FromB + Seam + OrderAlong on the overlapping union. ----
 
 #[test]
-fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
+fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
@@ -139,20 +139,19 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             "missing surviving x-wall of {node:?}"
         );
     }
-    // Cut rims carry OrderAlong ranks 0 and 1 (never bare indices —
-    // ordinal positions under the named order-along predicate).
-    let ranked = t
+    // Cut rims are told apart by their ends (never bare indices).
+    let pieces = t
         .iter()
         .filter(|(n, _)| {
             matches!(
                 n.path.last(),
-                Some(RoleSeg::Fragment(Qualifier::OrderAlong { of: 2, .. }))
+                Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
             )
         })
         .count();
     assert_eq!(
-        ranked, 8,
-        "ranked rim fragments (per-operand rims cut in two)"
+        pieces, 8,
+        "rim pieces named by their ends (per-operand rims cut in two)"
     );
     // Seam vertices exist, with operand-name arguments.
     let seams = t
