@@ -289,3 +289,19 @@ confirmed back on the PR together with the still-open question
 settle.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — D36 merged
+
+PR 3664 merged (`97a207f`) after a full review and a delta review, both
+in their own cloud sessions, and two fix passes. One live wrong answer
+closed (an edge not on its face no longer passes the mint), and two
+were found and closed in review that the split itself would have
+introduced (on-chart circles near a sphere's pole and on a wide cone
+called off-chart). Filed by the lane on other slates: chart's
+`plane-chart-polygon-erases-the-chart-pcurve-refusal` and
+`chart-region-arm-unbounded-names-its-chart-by-string`, export's
+`step-export-carrier-kind-duplicates-curve-kind`, and in `work/issues/`
+`chart-image-unavailable-folds-uncovered-and-off-chart` and
+`uncovered-chart-classes-have-no-incidence-test`.
+
+Signed (PCERT orchestrator).
