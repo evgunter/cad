@@ -8,6 +8,7 @@ priority: P1
 cost: M
 design: true
 needs_ev: true
+pr: 3734
 branch: emit/fold-discarded-member
 ---
 
