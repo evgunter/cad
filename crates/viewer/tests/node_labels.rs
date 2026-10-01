@@ -444,3 +444,39 @@ fn session_axis(session: &mut DocSession, frame: RecipeNodeId) -> RecipeNodeId {
         },
     )
 }
+
+/// **A failed row speaks its node as the document holds it now**: the
+/// kind, the label and the tag, read when the row is drawn. A rename
+/// recomputes nothing, so the memoized failure is the same value
+/// before and after it, and the row still says the new label.
+#[test]
+fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
+    let tol = Tol::witness();
+    let (doc, extrude, _) = common::broken_document(tol);
+    let doc = relabelled(&doc, extrude, "pocket", tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let failed_line = |session: &DocSession| match &common::status_of(&session.tree_rows(), extrude)
+    {
+        viewer::tree::RowStatus::Failed { message, .. } => message.clone(),
+        other => panic!("the extrude fails: {other:?}"),
+    };
+    let before = failed_line(&session);
+    assert!(
+        before.starts_with(&format!("Extrude \"pocket\" ({}) failed: ", tag(extrude.0))),
+        "{before}"
+    );
+
+    let renamed = session.perform(SessionOp::SetLabel {
+        node: extrude,
+        label: Some(label("slot")),
+    });
+    assert!(renamed.refusal.is_none(), "{:?}", renamed.refusal);
+    session.pump();
+    let after = failed_line(&session);
+    assert_eq!(
+        after,
+        before.replacen("\"pocket\"", "\"slot\"", 1),
+        "the rename moves the label and nothing else the row says"
+    );
+}

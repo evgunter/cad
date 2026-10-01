@@ -861,9 +861,9 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
 /// the row namespace that writes it: the node, measure, sketch step or
 /// mate the refusal is about, and a pair's corner list.
 const LABELS: &[(&str, &str)] = &[
-    ("Edit/PlacementRuleMismatch", "node 000000000005"),
-    ("Edit/EmptyPlacementList", "node 000000000005"),
-    ("Edit/MeasureMalformed", "measure node 000000000005"),
+    ("Edit/PlacementRuleMismatch", "Extrude \"base plate\""),
+    ("Edit/EmptyPlacementList", "Extrude \"base plate\""),
+    ("Edit/MeasureMalformed", "Extrude \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",

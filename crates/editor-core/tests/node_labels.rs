@@ -123,7 +123,7 @@ fn set_label_refuses_a_dead_node_and_a_no_op_and_delete_drops_the_label() {
         },
     ) {
         EditError::LabelUnchanged { node, label: held } => {
-            assert_eq!((node.id(), held), (extrude, Some(label("pin"))));
+            assert_eq!((&node, held), (&doc.spoken(extrude), Some(label("pin"))));
         }
         other => panic!("relabelling with the same text refuses LabelUnchanged, got {other:?}"),
     }
@@ -291,4 +291,53 @@ fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
     );
     let (gone, _) = step(labelled, DocEdit::DeleteNode { id: extrude });
     assert_eq!(gone.spoken(extrude).to_string(), format!("node {t}"));
+}
+
+/// **An edit refusal speaks each node it names at the raise**, from the
+/// document the door holds: kind, label and tag for a held node, and
+/// kind and tag for the node an insert is minting, which carries no
+/// label. The typed field keeps the id a caller matches on.
+#[test]
+fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
+    let doc = ProfileDoc::empty_derived("node-labels-refusals", Tol::witness());
+    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("sketch"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let (p, e) = (tag(profile.0), tag(extrude.0));
+
+    let dangle = refusal(&doc, DocEdit::DeleteNode { id: profile });
+    let EditError::DeleteWouldDangle { id, referenced_by } = &dangle else {
+        panic!("deleting a read node refuses DeleteWouldDangle, got {dangle:?}");
+    };
+    assert_eq!((id.id(), referenced_by.id()), (profile, extrude));
+    assert!(
+        dangle.to_string().starts_with(&format!(
+            "Profile \"sketch\" ({p}) is still an input to Extrude \"base plate\" ({e})"
+        )),
+        "{dangle}"
+    );
+
+    let twice = refusal(
+        &doc,
+        DocEdit::InsertNode {
+            node: Node::Union {
+                members: vec![extrude, extrude],
+                declare: None,
+            },
+        },
+    );
+    let EditError::DuplicateInput { node, input } = &twice else {
+        panic!("a member named twice refuses DuplicateInput, got {twice:?}");
+    };
+    assert_eq!(
+        (node.kind(), node.label(), input),
+        (Some("Union"), None, &doc.spoken(extrude)),
+        "the minted node by its kind alone, the input as the document holds it"
+    );
+    assert!(
+        twice.to_string().contains(&format!(
+            "Extrude \"base plate\" ({e}) is taken as an input twice"
+        )),
+        "{twice}"
+    );
 }

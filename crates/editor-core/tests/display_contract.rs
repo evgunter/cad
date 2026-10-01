@@ -3118,7 +3118,7 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             },
         },
         &[
-            "node 000000000004's program cannot take the step ids given",
+            "Profile 000000000004's program cannot take the step ids given",
             "step id 000000000002 stands for two steps",
         ],
         &["StepIdsRefused", "Repeated"],
