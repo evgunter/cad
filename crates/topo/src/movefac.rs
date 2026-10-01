@@ -64,10 +64,16 @@ impl<T: Decide> Body<T> {
     ///
     /// [`EulerOpError::StaleKey`] if `shell`, its solid, or a
     /// face/loop/half-edge/edge reached by the walk does not resolve;
+    /// [`EulerOpError::NotOwned`] if a face the walk reaches is not the
+    /// shell's (its `shell` is another, or the shell does not list it),
+    /// or a loop a face lists names another face;
     /// [`EulerOpError::LoopCycleBroken`] naming the loop if a cycle walk
     /// fails to close or is not the loop's whole cycle: a member claims
-    /// another loop, or a half-edge that claims the loop is not walked.
-    /// All checks precede any mutation (atomic).
+    /// another loop, or a half-edge that claims the loop is not walked;
+    /// [`EulerOpError::UnclaimedHalfEdge`] if a member's edge does not
+    /// claim it, and [`EulerOpError::NotSameEdge`] if the mate that edge
+    /// gives names another edge. All checks precede any mutation
+    /// (atomic).
     pub fn movefac(&mut self, shell: ShellKey) -> Result<Vec<ShellKey>, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
@@ -94,6 +100,10 @@ impl<T: Decide> Body<T> {
                 }
             }
         }
+        let mut listed: slotmap::SecondaryMap<FaceKey, ()> = slotmap::SecondaryMap::new();
+        for &face in &shell_data.faces {
+            listed.insert(face, ());
+        }
         let mut component: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
         let mut count = 0_usize;
         for &seed in &shell_data.faces {
@@ -111,10 +121,26 @@ impl<T: Decide> Body<T> {
                     .ok_or(EulerOpError::StaleKey {
                         key: EntityId::Face(face_key),
                     })?;
+                // Every face labelled is the shell's, in both directions:
+                // the move builds its lists from the shell's, so a face
+                // the walk glued on from outside them would join two
+                // components through a face it does not move.
+                if face.shell != shell || !listed.contains_key(face_key) {
+                    return Err(EulerOpError::NotOwned {
+                        child: EntityId::Face(face_key),
+                        owner: EntityId::Shell(shell),
+                    });
+                }
                 for loop_key in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
                     let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
                         key: EntityId::Loop(loop_key),
                     })?;
+                    if loop_data.face != face_key {
+                        return Err(EulerOpError::NotOwned {
+                            child: EntityId::Loop(loop_key),
+                            owner: EntityId::Face(face_key),
+                        });
+                    }
                     let LoopBoundary::Cycle { first } = loop_data.boundary else {
                         continue; // empty loop: glues only its vertex
                     };
@@ -126,10 +152,7 @@ impl<T: Decide> Body<T> {
                         return Err(broken());
                     }
                     for member in cycle {
-                        let mate = self.mate(member).ok_or(EulerOpError::StaleKey {
-                            key: EntityId::HalfEdge(member),
-                        })?;
-                        let mate_data = self.resolve_half_edge(mate)?;
+                        let mate_data = self.proven_mate(member)?.mate_data;
                         let mate_loop =
                             self.get_loop(mate_data.parent_loop)
                                 .ok_or(EulerOpError::StaleKey {
@@ -341,7 +364,7 @@ mod tests {
     use super::*;
     use crate::entity::{EdgeKey, LoopKey};
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{deep_snapshot, ops_strut_cube};
+    use crate::fixtures::{deep_snapshot, detached_digons, ops_strut_cube};
     use crate::test_support_fixtures::declined_cube;
     use crate::validate::{ValidationError, validate, validate_closed};
     use slotmap::SecondaryMap;
@@ -357,65 +380,6 @@ mod tests {
     fn detached_digon() -> (Body<f64>, ShellKey, FaceKey, FaceKey) {
         let (body, shell, seed_face, promoted) = detached_digons(1);
         (body, shell, seed_face, promoted[0])
-    }
-
-    /// [`detached_digon`] with `n` digons, each grown on its own ring
-    /// of the pillow's seed face and promoted: one shell of `n + 1`
-    /// components. Returns (body, shell, seed face, the promoted faces
-    /// in order). The seed face is the shell's first face.
-    pub(super) fn detached_digons(n: usize) -> (Body<f64>, ShellKey, FaceKey, Vec<FaceKey>) {
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0), true).unwrap();
-        let seg = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p(1.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        body.mef_chord(
-            MefSite::Chords {
-                he1: seg.he_plus,
-                he2: seg.he_minus,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-        let mut promoted = Vec::new();
-        for i in 0..n {
-            let x = 2.0 * (i as f64) + 2.0;
-            let strut = body
-                .mev_line(
-                    MevSite::Fan {
-                        he1: seg.he_plus,
-                        he2: seg.he_plus,
-                    },
-                    p(x),
-                    Tol::witness(),
-                )
-                .unwrap();
-            let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
-            let grow = body
-                .mev_line(
-                    MevSite::Lone { r#loop: kill.ring },
-                    p(x + 1.0),
-                    Tol::witness(),
-                )
-                .unwrap();
-            body.mef_chord(
-                MefSite::Chords {
-                    he1: grow.he_plus,
-                    he2: grow.he_minus,
-                },
-                Tol::witness(),
-            )
-            .unwrap();
-            promoted.push(body.mfkrh_plug(kill.ring, true).unwrap().face);
-        }
-        assert_eq!(body.get_shell(seed.shell).unwrap().faces[0], seed.face);
-        (body, seed.shell, seed.face, promoted)
     }
 
     /// The distribution primitive: the two-component shell splits into
@@ -699,12 +663,11 @@ mod tests {
         (joined, split)
     }
 
-    /// `movefac(shell)` on a torn `body` refuses `LoopCycleBroken`
-    /// naming `broken` with the body deep-unchanged. It runs in a
-    /// surgery scope, so an `Ok` answers with its partition rather than
-    /// with the tier-1 postcondition a torn input fails whatever the
-    /// operator writes.
-    fn assert_refuses_torn(body: &mut Body<f64>, shell: ShellKey, broken: LoopKey) {
+    /// `movefac(shell)` on a torn `body` refuses `expected` with the body
+    /// deep-unchanged. It runs in a surgery scope, so an `Ok` answers with
+    /// its partition rather than with the tier-1 postcondition a torn
+    /// input fails whatever the operator writes.
+    fn assert_refuses_torn(body: &mut Body<f64>, shell: ShellKey, expected: &EulerOpError) {
         let truth = claimed_components(body, shell);
         let before = deep_snapshot(body);
         let mut scope = body.begin_surgery();
@@ -714,14 +677,38 @@ mod tests {
             Ok(shells) => {
                 let (joined, split) = misread(body, &shells, &truth);
                 panic!(
-                    "movefac partitioned a torn walk: Ok({shells:?}), \
+                    "movefac partitioned a torn body: Ok({shells:?}), \
                      joined {joined}, split {split}"
                 );
             }
             Err(err) => {
-                assert_eq!(err, EulerOpError::LoopCycleBroken { r#loop: broken });
+                assert_eq!(&err, expected);
                 assert_eq!(deep_snapshot(body), before, "movefac atomicity on Err");
             }
+        }
+    }
+
+    /// [`assert_refuses_torn`] for [`EulerOpError::NotOwned`], with the
+    /// rendered refusal read for its subject: `child` taken as `owner`'s,
+    /// and both directions the ownership can fail in, at every raise
+    /// site whichever direction failed there.
+    fn assert_refuses_not_owned(
+        body: &mut Body<f64>,
+        shell: ShellKey,
+        child: EntityId,
+        owner: EntityId,
+    ) {
+        let expected = EulerOpError::NotOwned { child, owner };
+        assert_refuses_torn(body, shell, &expected);
+        let text = expected.to_string();
+        for subject in [
+            format!("movefac took {child} as {owner}'s"),
+            format!("{owner} does not list {child}, or {child} does not name {owner}"),
+        ] {
+            assert!(
+                text.contains(&subject),
+                "NotOwned renders `{subject}`: {text}"
+            );
         }
     }
 
@@ -755,7 +742,11 @@ mod tests {
             "the walk crosses into the digon's loop"
         );
         assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
-        assert_refuses_torn(&mut body, shell, walked);
+        assert_refuses_torn(
+            &mut body,
+            shell,
+            &EulerOpError::LoopCycleBroken { r#loop: walked },
+        );
     }
 
     /// **A short walk would split one component.** The strut cube's top
@@ -785,7 +776,175 @@ mod tests {
             "the short walk closes"
         );
         assert_eq!(claimed_count(&body, shell), 1, "the records still hold one");
-        assert_refuses_torn(&mut body, shell, t.outer);
+        assert_refuses_torn(
+            &mut body,
+            shell,
+            &EulerOpError::LoopCycleBroken { r#loop: t.outer },
+        );
+    }
+
+    /// The first member of a face's outer loop.
+    fn outer_first(body: &Body<f64>, face: FaceKey) -> crate::entity::HalfEdgeKey {
+        first_of(body, body.get_face(face).unwrap().outer)
+    }
+
+    /// **A mate whose own edge is another would join two components.**
+    /// The detached digon's shell before the partition, and a circle in
+    /// another shell: the seed face's first half-edge torn to name the
+    /// circle's edge, which is torn to claim it with a half-edge of the
+    /// digon as its mate. The circle's two halves, which the edge no
+    /// longer claims, lie in the other shell, so no walk of this one
+    /// reaches them; the mate hop would glue the seed face to the digon.
+    #[test]
+    fn movefac_refuses_a_mate_whose_stranded_half_lies_in_another_shell() {
+        let (mut body, shell, seed_face, promoted) = detached_digons(1);
+        let seed = body.mvfs(p(9.0), true).unwrap();
+        let circle = body
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                Tol::witness(),
+            )
+            .unwrap();
+        let x = outer_first(&body, seed_face);
+        let y = outer_first(&body, promoted[0]);
+        body.get_half_edge_mut(x).unwrap().edge = circle.edge;
+        let torn = body.get_edge_mut(circle.edge).unwrap();
+        (torn.he_plus, torn.he_minus) = (x, y);
+        assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
+        assert_refuses_torn(
+            &mut body,
+            shell,
+            &EulerOpError::NotSameEdge { he1: x, he2: y },
+        );
+    }
+
+    /// `a`'s mate and `b`'s mate traded: `a`'s edge claims `a` with `b`'s
+    /// old mate, `b`'s edge claims `b` with `a`'s, and each traded half
+    /// names its new edge. The bijection stays whole.
+    fn trade_mates(
+        body: &mut Body<f64>,
+        a: crate::entity::HalfEdgeKey,
+        b: crate::entity::HalfEdgeKey,
+    ) {
+        let (ea, eb) = (
+            body.get_half_edge(a).unwrap().edge,
+            body.get_half_edge(b).unwrap().edge,
+        );
+        let (a2, b2) = (body.mate(a).unwrap(), body.mate(b).unwrap());
+        for (edge, old, new) in [(ea, a2, b2), (eb, b2, a2)] {
+            let data = body.get_edge_mut(edge).unwrap();
+            if data.he_plus == old {
+                data.he_plus = new;
+            } else {
+                data.he_minus = new;
+            }
+        }
+        body.get_half_edge_mut(a2).unwrap().edge = eb;
+        body.get_half_edge_mut(b2).unwrap().edge = ea;
+    }
+
+    /// The detached digon's shell before the partition, and a pillow in
+    /// another shell traded one edge's mates with the seed face and the
+    /// other's with the digon: each mate hop names its edge, and the
+    /// walk reaches the digon only through the pillow. Returns the body,
+    /// the shell, the pillow's shell and faces, and the pillow face the
+    /// seed face's walk reaches last, which the worklist pops first.
+    fn bridged_through_a_pillow() -> (Body<f64>, ShellKey, ShellKey, [FaceKey; 2], FaceKey) {
+        let (mut body, shell, seed_face, promoted) = detached_digons(1);
+        let seed = body.mvfs(p(9.0), true).unwrap();
+        let seg = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p(10.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let chord = body
+            .mef_chord(
+                MefSite::Chords {
+                    he1: seg.he_plus,
+                    he2: seg.he_minus,
+                },
+                Tol::witness(),
+            )
+            .unwrap();
+        let x = outer_first(&body, seed_face);
+        let y = outer_first(&body, promoted[0]);
+        trade_mates(&mut body, x, seg.he_plus);
+        trade_mates(&mut body, y, chord.he_plus);
+        let face_of = |he| {
+            let l = body.get_half_edge(he).unwrap().parent_loop;
+            body.get_loop(l).unwrap().face
+        };
+        let reached = face_of(seg.he_plus);
+        (body, shell, seed.shell, [seed.face, chord.face], reached)
+    }
+
+    /// **A neighbour in another shell would join two components**: the
+    /// walk would reach the digon through the pillow ([`bridged_through_a_pillow`]),
+    /// which the shell does not list, and leave the two in one shell.
+    /// First the pillow's faces as its own shell has them, then with
+    /// their `shell` torn to the walked one, which still does not list
+    /// them.
+    #[test]
+    fn movefac_refuses_a_neighbour_in_another_shell() {
+        for torn_back in [false, true] {
+            let (mut body, shell, _, pillow, reached) = bridged_through_a_pillow();
+            if torn_back {
+                for face in pillow {
+                    body.get_face_mut(face).unwrap().shell = shell;
+                }
+            }
+            assert_refuses_not_owned(
+                &mut body,
+                shell,
+                EntityId::Face(reached),
+                EntityId::Shell(shell),
+            );
+        }
+    }
+
+    /// A face the shell lists whose `shell` is torn to another: the walk
+    /// reaches it from the seed face, and the partition would leave it
+    /// naming the other shell.
+    #[test]
+    fn movefac_refuses_a_face_it_lists_that_names_another_shell() {
+        let (mut body, shell, seed_face, _) = detached_digons(1);
+        let other = body.mvfs(p(9.0), true).unwrap();
+        let x = outer_first(&body, seed_face);
+        let mate = body.mate(x).unwrap();
+        let l = body.get_half_edge(mate).unwrap().parent_loop;
+        let neighbour = body.get_loop(l).unwrap().face;
+        assert_ne!(neighbour, seed_face);
+        body.get_face_mut(neighbour).unwrap().shell = other.shell;
+        assert_refuses_not_owned(
+            &mut body,
+            shell,
+            EntityId::Face(neighbour),
+            EntityId::Shell(shell),
+        );
+    }
+
+    /// **A loop of another face would join two components.** The seed
+    /// face of the detached digon's shell torn to list the digon's outer
+    /// loop as a ring: its walk would glue the seed face to the digon's
+    /// mates.
+    #[test]
+    fn movefac_refuses_a_loop_that_names_another_face() {
+        let (mut body, shell, seed_face, promoted) = detached_digons(1);
+        let foreign = body.get_face(promoted[0]).unwrap().outer;
+        body.get_face_mut(seed_face).unwrap().rings.push(foreign);
+        assert_eq!(claimed_count(&body, shell), 2, "the records still hold two");
+        assert_refuses_not_owned(
+            &mut body,
+            shell,
+            EntityId::Loop(foreign),
+            EntityId::Face(seed_face),
+        );
     }
 
     /// No over-refusal: on every valid body here — one to three

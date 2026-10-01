@@ -57,3 +57,30 @@ reading a key the edge's face wore as the chart it moves to
 (`attach.rs`'s `Sides::repoint`), and re-describes nothing by default. `crates/topo/src/shell.rs`'s rim re-point
 (`remap_description` over a loop after a merge, then
 `set_edge_curve`) is a caller doing this by hand today.
+
+## Evidence: the off-boundary half (PR 3598)
+
+`set_face_surface` now also refuses a swap onto another chart that a
+certified edge of the face does not name
+(`EulerOpError::RechartUnvouched`): only a certificate on the new chart
+vouches that the face's boundary lies on it. The doors here mint or move
+a face onto a chart the same way and ask neither question. Probed on
+`attach::tests`' inlay (the brick's top cap with a square membrane
+whose four edges are images in the cap's chart), with the membrane's
+own plane raised four units (`far`):
+
+- `kfmrh(cap, membrane)`, then `mfkrh(ring, New far)`: `Ok`, and tier 3
+  reports `PlanarFaceResidual` and `PlanarBoundaryResidual` on the
+  promoted face, with no `DescriptionNotAdjacent` (no edge is stranded,
+  since the cap still wears the key they name).
+- `mef(Chords)` across the membrane between opposite corners, `New far`
+  (a scaffold chord): `Ok`, with the same two residuals beside the
+  chord's `ScaffoldAtRest`.
+- `kfmrh(cap, membrane)`, then `ring_move(ring, front)`: `Ok`, with the
+  same two residuals (and `RingMeetsOuter`).
+
+`mef_lone` mints its face the same way (`mint_face_surface` after
+`resolve_face_surface`, `crates/topo/src/euler.rs`) and was not probed.
+The keys-only answer for each is the one `set_face_surface` now gives:
+refuse typed, before mutating, where a certified edge on the face names
+no key it wears after the move; scaffold and null edges are not asked.
