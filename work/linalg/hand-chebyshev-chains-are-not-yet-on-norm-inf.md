@@ -2,10 +2,11 @@
 id: hand-chebyshev-chains-are-not-yet-on-norm-inf
 kind: issue
 title: hand max-abs (Chebyshev) chains outside geom-core's linalg are not yet on Vec2/Vec3::norm_inf, and their f64::max folds drop a NaN coordinate
-status: open
+status: closed
 opened: 2026-10-01
 priority: P4
 cost: E
+closed: 2026-10-01
 ---
 
 The residue of `point3-has-no-order-and-vec3-no-sup-norm-door`'s
@@ -46,3 +47,11 @@ therefore reads as the max of the other two, and a `<= tol` gate on it
 passes. `norm_inf` would make that gap NaN and fail the gate. Moving a
 site onto the door tightens it, and a row that goes red on the move has
 found a NaN it was passing.
+
+## Closed (2026-10-01)
+
+Closed by #3725. All 8 named sites moved, plus 6 siblings.
+
+The NaN semantics changed. A NaN gap used to pass `<= tol` whenever one of its coordinates was finite. It now fails every gate. The differential shows the old chain passing 227,517 NaN-gap rows that the new one refuses, and nothing else differs. No assertion was weakened.
+
+Filed: `work/tint/inverse-round-trip-row-drops-a-nan-entry-through-f64-max.md`.

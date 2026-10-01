@@ -2,10 +2,11 @@
 id: array-doors-are-not-yet-adopted-by-the-test-suites
 kind: issue
 title: the array doors are adopted by every non-test site, and about two hundred test-suite lowerings still spell the components by hand
-status: open
+status: closed
 opened: 2026-10-01
 priority: P4
 cost: E
+closed: 2026-10-01
 ---
 
 
@@ -69,3 +70,19 @@ component (`[p.x as f32, …]`, VGEOM's narrowing rows).
 - `crates/topo`: `src/attach.rs` (2), `src/boolean/carrier_eq.rs` (5), `src/boolean/circle_sphere.rs` (1), `src/boolean/circle_torus.rs` (7), `src/boolean/contact_verify.rs` (4), `src/boolean/plane_eq.rs` (2), `src/boolean/recl.rs` (3), `src/boolean/rim_wedge.rs` (2), `src/boolean/sectors.rs` (5), `src/census.rs` (2), `src/euler_kill.rs` (1), `src/merge_faces.rs` (1), `src/replace_face.rs` (1), `src/test_support_fixtures.rs` (1), `tests/bool4r1_probes.rs` (1), `tests/contact5_gate_and_beam.rs` (1), `tests/contact7_touch_sweeps.rs` (2), `tests/contact9_side_codes.rs` (1), `tests/review_m3_pr55.rs` (1), `tests/review_m9_1_probes.rs` (5), `tests/review_m9_1_r2_probes.rs` (4)
 - `crates/viewer`: `src/gpu.rs` (5), `tests/common/asm.rs` (3), `tests/creation_ops.rs` (5), `tests/datum_draw.rs` (7), `tests/display_budget.rs` (1), `tests/index_memo.rs` (2), `tests/profile_draw.rs` (1), `tests/review_gui4_r1.rs` (3)
 - `tools/tess-meter`: `tests/mesh5_r2probe.rs` (1)
+
+## Closed (2026-10-01)
+
+Closed by #3725, which moved 203 lowerings and 11 readouts onto the doors. Two of the 203 were non-test sites in `viewer/src/sketch.rs`.
+
+None of the rewritten sites needed a column/row determination. No `Mat3` or `Affine3` is built from a nested array, and every `cols`, `components` and `to_cols_array` site reads the named fields.
+
+A 2M-iteration differential compared the old and new code bit for bit and found 0 mismatches.
+
+The 26 sites left in place are listed in the PR body. They fall into four groups:
+- oracles, kept as independent spellings;
+- projections;
+- slices;
+- non-geom-core types.
+
+Tier: the orchestrator's read. The change is mechanical and differential-checked.
