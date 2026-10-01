@@ -1005,10 +1005,10 @@ fn sweep_loop<T: Decide>(
         strut_minus,
         |s| {
             let to = (s + 1) % n;
-            (
+            Ok((
                 qs[to] + w,
                 placed_segment_spec(&segs[s], top_place, normal, qs[s] + w, qs[to] + w, tol),
-            )
+            ))
         },
         |body, run, faces| {
             let surface = side_surface(

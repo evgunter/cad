@@ -428,13 +428,21 @@ pub(super) fn sweep_loop<T: Decide>(
         at,
         |s| {
             let to = (s + 1) % n;
+            // A station inside a run joins two walls on one carrier, so
+            // it is off the axis for every validated profile: a pinned
+            // one would need a wall that reaches the axis and carries on
+            // past it, which the half-plane checks refuse first.
+            // Surfaced rather than trusted (the `CapPlane` posture).
             if cls.verts[to].pinned {
-                unreachable!("a station between two collinear off-axis walls is off-axis");
+                return Err(RevolveError::PinnedRunStation {
+                    loop_index,
+                    vertex_index: segs[to].canonical_vertex,
+                });
             }
-            (
+            Ok((
                 rq[to],
                 placed_segment_spec(&segs[s], place_end, n_end, rq[s], rq[to], tol),
-            )
+            ))
         },
         |body, run, faces| {
             let j = run.first;

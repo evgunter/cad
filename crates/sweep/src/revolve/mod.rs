@@ -598,6 +598,17 @@ pub enum RevolveError {
         /// The edge whose station refuted the smooth premise.
         edge: EdgeKey,
     },
+    /// A station INSIDE a wall run (two walls one carrier holds) sits
+    /// pinned on the axis, so the run's wall would have no strut there
+    /// (defense-in-depth, the `CapPlane` posture: a wall through an
+    /// on-axis station carries on past the axis, which the half-plane
+    /// checks refuse first for every validated profile).
+    PinnedRunStation {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the station vertex.
+        vertex_index: usize,
+    },
     /// A cap plane failed Newell certification (unreachable for
     /// validated profiles — surfaced rather than trusted).
     CapPlane {
@@ -764,6 +775,14 @@ impl fmt::Display for RevolveError {
                 "the join along {edge:?} classified definitely smooth at its witness but \
                  definitely a corner at a certification station, so the construction \
                  refuses rather than choose a description for it"
+            ),
+            Self::PinnedRunStation {
+                loop_index,
+                vertex_index,
+            } => write!(
+                f,
+                "loop {loop_index} vertex {vertex_index} joins two walls of one run but lies \
+                 on the axis, so the run's wall has no strut there"
             ),
             Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::Op { source } => write!(f, "an Euler operation refused: {source}"),

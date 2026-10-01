@@ -1370,6 +1370,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverJoin { .. } => "sliver_join",
         RevolveError::SliverRim { .. } => "sliver_rim",
         RevolveError::SmoothJoinRefuted { .. } => "smooth_join_refuted",
+        RevolveError::PinnedRunStation { .. } => "pinned_run_station",
         RevolveError::CapPlane { .. } => "cap_plane",
         RevolveError::Op { .. } => "op",
         RevolveError::Pcurve(_) => "pcurve",

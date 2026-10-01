@@ -683,3 +683,5 @@ mod emit_union_borders;
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "run_wall_offers.rs"]
+mod run_wall_offers;

@@ -765,7 +765,7 @@ pub(crate) struct RunWalls {
 /// `at(first)` — the strut's minus half at the run's lead — a
 /// `mev` chain lays the far-side edge of every segment but the last,
 /// minting each station's far vertex (`chain(s)`: the far end of
-/// segment `s` and its edge spec); then the closing `mef` lays the last
+/// segment `s` and its edge spec, or the caller's typed refusal); then the closing `mef` lays the last
 /// segment's edge and splits the wall off. It closes against the first
 /// far-side half the first run laid when the run ends at the first
 /// run's lead (the strut minus there was consumed), and against
@@ -777,7 +777,7 @@ pub(crate) fn build_run_walls<T: Decide, E: From<EulerOpError>>(
     runs: &[Run],
     n: usize,
     at: impl Fn(usize) -> HalfEdgeKey,
-    mut chain: impl FnMut(usize) -> (Point3<T>, EdgeCurveSpec<T>),
+    mut chain: impl FnMut(usize) -> Result<(Point3<T>, EdgeCurveSpec<T>), E>,
     mut wall: impl FnMut(
         &mut Body<T>,
         Run,
@@ -799,7 +799,7 @@ pub(crate) fn build_run_walls<T: Decide, E: From<EulerOpError>>(
             unreachable!("a wall run holds at least one segment")
         };
         for (k, &s) in stations.iter().enumerate() {
-            let (far, spec) = chain(s);
+            let (far, spec) = chain(s)?;
             let m = body.mev(MevSite::Fan { he1, he2: he1 }, far, spec, tol)?;
             if ri == 0 && k == 0 {
                 first_top = Some(m.he_plus);

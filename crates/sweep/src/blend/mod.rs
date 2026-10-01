@@ -920,10 +920,12 @@ pub const FILLET3_CORNER_INDEPENDENCE_RECOURSE: &str = "tilt the faces meeting a
 /// INCIDENCE — two rim arcs carrying one support pair, plus two
 /// co-surface seam meridians, or ONE where the other support is a whole
 /// face carrying the rim (a full revolve's plane disc or annulus) and
-/// the rim's arcs close into one chain, which is what `rim_of` answers
-/// — and never reads convexity, so it fires
-/// at a concave rim's seam vertex exactly as readily as at a convex
-/// one. The sentence conditions on nothing because the door it names
+/// `rim_of` lists the rim through the vertex, so the recourse's door is
+/// there wherever the tag fires (`run_walls_built`'s
+/// `seam_vertex_fires_only_where_rim_of_lists_the_rim` holds that over
+/// bodies of cocircular arcs and full revolves) — and never reads
+/// convexity, so it fires at a concave rim's seam vertex exactly as
+/// readily as at a convex one. The sentence conditions on nothing because the door it names
 /// serves both sides. Held to it by
 /// `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
 /// which asserts the sentence and the whole-rim CARVE together, convex

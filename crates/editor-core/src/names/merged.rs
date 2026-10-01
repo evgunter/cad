@@ -152,6 +152,17 @@ pub(crate) fn run_constituents(name: &StableName) -> Option<Vec<StableName>> {
     )
 }
 
+/// True iff `row`, peeled of its descent wrappers, is a run of two or
+/// more pieces — the rows [`run_holds`] can answer true for a name
+/// other than themselves.
+fn holds_run(row: &StableName) -> bool {
+    let mut at = row;
+    while let Some((_, inner)) = peel(at) {
+        at = inner;
+    }
+    run_foot(at).is_some_and(|(_, run)| run.pieces().len() >= 2)
+}
+
 /// True iff the run row `row` (two or more pieces) holds `name`: the
 /// two read through the SAME descent chain to feet of one role on one
 /// node, and every piece of `name`'s run is one of `row`'s. A one-piece
@@ -196,9 +207,13 @@ pub(crate) fn constituents(name: &StableName) -> Option<Vec<StableName>> {
 /// listed holds its pieces' walls), or `name` is itself a set-holding
 /// face ([`constituents`]) every one of whose constituents is so
 /// covered. `set` is sorted, as every minted set is (name order), so
-/// membership is a binary search; the run reading allocates nothing.
+/// membership is a binary search; the run members (the only ones that
+/// can hold a name other than themselves) are picked out once, so a
+/// set-holding `name` costs `O(|set| + k·(log|set| + runs))`, not
+/// `O(k·|set|)`, and the run reading allocates no name.
 pub(crate) fn covers(set: &[StableName], name: &StableName) -> bool {
-    let one = |n: &StableName| set.binary_search(n).is_ok() || set.iter().any(|c| run_holds(c, n));
+    let runs: Vec<&StableName> = set.iter().filter(|c| holds_run(c)).collect();
+    let one = |n: &StableName| set.binary_search(n).is_ok() || runs.iter().any(|c| run_holds(c, n));
     if one(name) {
         return true;
     }

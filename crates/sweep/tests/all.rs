@@ -432,6 +432,9 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
+
+#[path = "run_walls_built.rs"]
+mod run_walls_built;
 #[path = "seat6_germ_channel.rs"]
 mod seat6_germ_channel;
 #[path = "split_edge_loft_charts.rs"]
