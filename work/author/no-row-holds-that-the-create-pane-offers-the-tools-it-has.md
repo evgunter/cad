@@ -111,7 +111,7 @@ for its two panels and for the seven that shipped before them, is that
   redden when either call is deleted (measured by mutation, PR 3573).
 - The sweep's second pass filed
   `work/author/a-tools-commit-button-spells-its-name-a-second-time` and
-  `work/chrome/the-mate-tools-refusal-names-the-mate-tool-twice`.
+  `work/polish/the-mate-tools-refusal-names-the-mate-tool-twice`.
 - Fix pass: which section hosts a kind has one home in the test
   module, `properties_pane_tests::section_of`. It is read by the census
   and by `painted_with_tool`, which lost its `section` parameter. The

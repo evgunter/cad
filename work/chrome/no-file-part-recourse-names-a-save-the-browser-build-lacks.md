@@ -2,7 +2,7 @@
 id: no-file-part-recourse-names-a-save-the-browser-build-lacks
 kind: issue
 title: viewer: on wasm32 a part in a document with no file states 'save it beside its parts', and the browser build has no save door
-status: open
+status: deferred
 opened: 2026-09-29
 priority: P3
 cost: E
@@ -31,3 +31,11 @@ The browser build's own way through, stated where `NoFile` states the
 native one (a `cfg(target_arch = "wasm32")` arm, or a resolver the
 browser session carries instead), or the shared no-way-through ending
 if the browser has none, with a row that renders the badge there.
+
+## Deferred (Ev, in chat, 2026-10-01)
+
+"idk if it makes sense to change the browser's error messages when
+presumably it will have save added before it's released." The browser
+build is expected to gain save before release, and the recourse will
+then be true as written. Not-now; revisit if the web build ships
+without save.

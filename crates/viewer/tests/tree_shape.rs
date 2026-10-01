@@ -177,7 +177,7 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     use pncad::document::{Dimension, DocParam, Expr, MeasureExpr, ParamName};
     use viewer::props::SlotValue;
     use viewer::session::{DocSession, SessionOp};
-    use viewer::tree::Measured;
+    use viewer::tree::Readout;
 
     let tol = Tol::witness();
     let gap = ParamName::from_static("gap");
@@ -203,9 +203,9 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
             .tree_rows()
             .into_iter()
             .find(|row| row.id == measure)
-            .and_then(|row| row.measured)
+            .and_then(|row| row.readout)
     };
-    let landed = Some(Measured::Value("0.01 m".to_owned()));
+    let landed = Some(Readout::Value("0.01 m".to_owned()));
     assert_eq!(measured(&session), landed);
 
     session.perform(SessionOp::SetParam {
@@ -221,6 +221,6 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     session.pump();
     assert_eq!(
         measured(&session),
-        Some(Measured::Value("0.012 m".to_owned()))
+        Some(Readout::Value("0.012 m".to_owned()))
     );
 }

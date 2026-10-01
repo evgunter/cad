@@ -55,6 +55,8 @@
 //! - [`torus_walls`] — the torus-walled revolves the offset-axial door
 //!   is measured on, and the cavity it carves in one (body authoring,
 //!   same routing);
+//! - [`bead`] — the drilled bead, the smallest valid body whose faces
+//!   wrap the azimuth alone (body authoring, same routing);
 //! - [`cert_corpus`] — the valid and corrupt bodies the certified doors
 //!   and their `_structural` twins are walked over (body authoring,
 //!   same routing);
@@ -218,6 +220,10 @@ pub mod poses;
 /// swapped for the reversed order. What a suite drives a door WITH, so
 /// it routes here.
 pub mod revert_ops;
+
+/// The drilled bead: a bore cylinder and a sphere zone, each a whole
+/// turn. Body authoring, so it routes here.
+pub mod bead;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
