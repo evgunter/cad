@@ -1460,7 +1460,7 @@ impl PartialEq for PickHit {
             t_hi: other_t_hi,
             point: other_point,
         } = other;
-        let xyz = |p: &Point3<f64>| [p.x, p.y, p.z];
+        let xyz = |p: &Point3<f64>| p.to_array();
         name == other_name
             && node == other_node
             && body == other_body
@@ -3146,8 +3146,8 @@ mod tests {
             assert_eq!(span.t, 2.0, "triangle {i} answers the midpoint at t = 2");
             let at = ray.origin + ray.dir * span.t;
             assert_eq!(
-                [at.x, at.y, at.z].map(f64::to_bits),
-                [midpoint.x, midpoint.y, midpoint.z].map(f64::to_bits),
+                at.to_array().map(f64::to_bits),
+                midpoint.to_array().map(f64::to_bits),
                 "triangle {i}'s answer places the hit at the shared edge's midpoint"
             );
             assert!(

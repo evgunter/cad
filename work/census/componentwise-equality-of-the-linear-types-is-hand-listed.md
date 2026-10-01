@@ -82,3 +82,17 @@ onto the wrong side): of the eleven, **six are library sites** —
 `sweep/tests/m7_skin_integral.rs:162`,
 `demos/tour/src/skinned.rs:1186`. The count of eleven was right; the
 sorting was not.
+
+## Evidence from the array doors (`linalg/doors`, 2026-10-01)
+
+`Vec3`/`Point3::to_array` now exist and bind every field by pattern, so
+a comparison spelled `a.to_array() == b.to_array()` is tied to the
+declaration: a fourth component is an E0027 at the door, not a silent
+miss here. `mate/coset.rs`'s `vec_eq` and `point_eq` are now spelled
+that way, and `PartialEq for Coset` reads its placement through
+`Affine3::cols`, so its comment no longer has to disclaim the leaf.
+`topo/src/separation.rs`'s column arm reads through `Mat3::cols`. The
+other copies (`clearance.rs`'s `same`, `mesh/src/planar.rs`,
+`step-import/src/assemble.rs`, and the assertions) are untouched;
+whether `to_array` equality is the door this row asks for is still
+this row's call.

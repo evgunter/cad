@@ -71,13 +71,8 @@ fn union_of(
     members: &[RecipeNodeId],
     order: &[usize],
 ) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::Union {
-            members: order.iter().map(|&i| members[i]).collect(),
-            declare: None,
-        },
-    )
+    let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| members[i]).collect();
+    crate::fixture::union_over(doc, &ordered, None)
 }
 
 /// Each uniquely named face of `union`'s table → the centroid of its
@@ -194,10 +189,7 @@ fn plane_label(ev: &Evaluation<f64>, node: RecipeNodeId, of: &StableName) -> Str
     let topo::Surface::Plane { origin, normal, .. } = s else {
         return "curved".to_owned();
     };
-    let (n, o) = (
-        [normal.x, normal.y, normal.z],
-        [origin.x, origin.y, origin.z],
-    );
+    let (n, o) = (normal.to_array(), origin.to_array());
     for (i, axis) in ["x", "y", "z"].into_iter().enumerate() {
         if (n[i].abs() - 1.0).abs() < 1e-9 {
             return format!("{axis}={:.2}", o[i]);
@@ -301,19 +293,21 @@ fn check(fx: &Fixture) -> usize {
         .collect();
     let mut first: Option<(String, BTreeMap<StableName, [f64; 3]>)> = None;
     for order in &orders {
-        let node = match fx.pair {
-            Some(op) => Node::Boolean {
-                op,
-                a: ids[0],
-                b: ids[1],
-                declare: None,
-            },
-            None => Node::Union {
-                members: order.iter().map(|&i| ids[i]).collect(),
-                declare: None,
-            },
+        let (d, n) = match fx.pair {
+            Some(op) => insert(
+                doc.clone(),
+                Node::Boolean {
+                    op,
+                    a: ids[0],
+                    b: ids[1],
+                    declare: None,
+                },
+            ),
+            None => {
+                let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
+                crate::fixture::union_over(doc.clone(), &ordered, None)
+            }
         };
-        let (d, n) = insert(doc.clone(), node);
         let ev = run(&d);
         let at = format!("{} {order:?}", fx.label);
         assert!(failure(&ev, n).is_none(), "{at}: {:?}", failure(&ev, n));

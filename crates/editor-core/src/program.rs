@@ -469,7 +469,7 @@ pub struct ProfileProgram {
     /// profile pieces").
     ///
     /// The document's edit doors mint them from its mint chain
-    /// ([`crate::StepMint`]) — `InsertNode` every one, `SetProgram` each step it does
+    /// ([`crate::Mint`]) — `InsertNode` every one, `SetProgram` each step it does
     /// not keep — so a program on its way IN carries none (`InsertNode`
     /// refuses one that does), and a program at rest carries exactly
     /// one per step, unique across the document, which the load door
@@ -485,7 +485,7 @@ pub type ProfileDoc = crate::doc::Doc<ProfileProgram>;
 /// and one per loop — the pair [`ProfileProgram::check`] and
 /// [`ProfileProgram::pieces`] read.
 type Replayed = (
-    Vec<profile::ProfileLoop<f64>>,
+    Vec<profile::ConstructedLoop<f64>>,
     Vec<profile::ReplayStructure>,
 );
 
@@ -496,8 +496,10 @@ type Replayed = (
 /// What `Node<P>` needs from a profile payload so slot addressing and
 /// the authoring-time check stay generic (`Doc<P>` keeps its fake test
 /// payloads — the defaults are the slot-free, check-free behavior the
-/// retired opaque payload had).
-pub trait ProfilePayload {
+/// retired opaque payload had). `Serialize`, because the insert door
+/// mints a node's id from the node's bytes, payload included
+/// ([`crate::Mint`]).
+pub trait ProfilePayload: serde::Serialize {
     /// **The program's slot table**: every expression it holds, keyed
     /// by its `(loop, step, arg)` address, in that deterministic order.
     /// `Node::Profile` reads its slots, and answers
@@ -553,20 +555,16 @@ pub trait ProfilePayload {
     {
         None
     }
-    /// **Mints an id for every authored step** of this payload, entering
-    /// the document as `node`, from the document's mint
-    /// ([`crate::StepMint`]): the insert door's half of N1's minting. A
-    /// payload with no program mints nothing.
+    /// **Mints an id for every authored step** of this payload from the
+    /// document's mint ([`crate::Mint`]), after the insert door minted
+    /// the payload's node from it: the insert door's half of N1's
+    /// minting. A payload with no program mints nothing.
     ///
     /// # Errors
     ///
     /// [`StepIdFault::Preminted`] where the program already carries
     /// ids; the mint's own refusals.
-    fn mint_step_ids(
-        &mut self,
-        _node: crate::RecipeNodeId,
-        _mint: &mut crate::StepMint,
-    ) -> Result<(), StepIdFault> {
+    fn mint_step_ids(&mut self, _mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         Ok(())
     }
     /// **The document node this payload is drawn ON**, if it names one
@@ -1985,7 +1983,7 @@ impl ProfileProgram {
         env: &ParamEnv<f64>,
         tol: Tol,
     ) -> Result<(profile::ValidatedProfile<f64>, Replayed), ProgramRefusal> {
-        let (loops, records) = self.replay_records(env, tol)?;
+        let (replayed, records) = self.replay_records(env, tol)?;
         // **The identity plane, and the check is honest about why.**
         // Validation is 2-D — `profile::validate` says so itself, and
         // the plane rides through it as conventional data — so what
@@ -1995,10 +1993,11 @@ impl ProfileProgram {
         // document, and the frame is a node in one. A profile whose
         // frame reference does not denote a frame is refused where
         // every other operand's kind is, at evaluation.
-        let validated = profile::Profile::new(profile::SketchPlane::xy(), loops.clone())
-            .validate(tol)
-            .map_err(ProgramRefusal::Validate)?;
-        Ok((validated, (loops, records)))
+        // The loops are the replay's own construction, so validation
+        // decides no arc's consistency checks (D1).
+        let replayed = profile::ConstructedProfile::new(profile::SketchPlane::xy(), replayed);
+        let validated = replayed.validate(tol).map_err(ProgramRefusal::Validate)?;
+        Ok((validated, (replayed.into_parts().1, records)))
     }
 
     /// **The piece every canonical position of this program is**, under
@@ -2081,7 +2080,17 @@ impl ProfileProgram {
     /// loop recording — and what they produce: the replayed loops and
     /// each loop's structure record. Validation is the third rung,
     /// [`ProfileProgram::validated`]'s.
-    fn replay_records(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<Replayed, ProgramRefusal> {
+    fn replay_records(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<
+        (
+            Vec<profile::ConstructedLoop<f64>>,
+            Vec<profile::ReplayStructure>,
+        ),
+        ProgramRefusal,
+    > {
         let resolved = self
             .resolve(env)
             .map_err(|(slot, source)| ProgramRefusal::Resolve { slot, source })?;
@@ -2361,11 +2370,7 @@ impl ProfilePayload for ProfileProgram {
             ids,
         })
     }
-    fn mint_step_ids(
-        &mut self,
-        node: crate::RecipeNodeId,
-        mint: &mut crate::StepMint,
-    ) -> Result<(), StepIdFault> {
+    fn mint_step_ids(&mut self, mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         if self.carries_step_ids() {
             return Err(StepIdFault::Preminted);
         }
@@ -2374,14 +2379,7 @@ impl ProfilePayload for ProfileProgram {
             .iter()
             .map(|lp| vec![None; lp.authored_steps()])
             .collect();
-        self.ids = mint.mint(
-            &crate::step_mint::MintingEdit::InsertNode {
-                node,
-                plane: self.plane,
-                loops: &self.loops,
-            },
-            &every_new,
-        )?;
+        self.ids = mint.steps_of_insert(&every_new)?;
         Ok(())
     }
 }

@@ -2128,6 +2128,19 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 /// halves are rowed (`ring_clearance_forms`, `review_ring_clearance_r1_probes`).
 /// `external` is the one reading with no screen counterpart, because the
 /// screen has no notion of which side of a boundary a strip lies on.
+///
+/// **A ring is read as one whole circle here, not as its pieces through
+/// [`piece_distance`], because `external` is not a per-piece
+/// question.** `other_inside_trim` would fold — it is `si` less the
+/// ring's farthest reach from the trim centre, the largest of its
+/// pieces' `far` — but a piece's `near` is unsigned: `near − si` reads a
+/// ring that ENCLOSES the trim circle (the trim sitting in a hole) as
+/// clear by `aj − d − si`, where `external` reads it as the overlap
+/// `d − si − aj < 0`. Which side of a ring the trim lies on is whether
+/// the closed cycle winds about the trim centre, a property of the
+/// cycle and of no piece of it. The ladder walk's outer boundary is
+/// metered by pieces exactly because there the enclosing side is the
+/// one expected, and `near − si` asks nothing else.
 struct CircleMargins<T> {
     /// `‖cj − ci‖ − si − aj`: separation of two circles that lie
     /// outside each other.
@@ -2270,8 +2283,14 @@ impl<T: Real> CircleFrame<T> {
 
 impl<T: Bounds> CircleFrame<T> {
     /// **Whether the arc over `(ta, tb)` certainly misses the circle
-    /// point `q`**: `q`'s angle past `ta` ([`Self::past`]) is certainly
-    /// beyond the arc's span and certainly short of a full turn.
+    /// point `q`**: `q`'s angle past `ta` ([`Self::past`], read in
+    /// `(0, τ]` with its branch cut on the window's start) certainly
+    /// lies outside the window `[0, tb − ta]` relative to that start —
+    /// asked of [`geom::periodic_window_may_hold`]. In that frame the
+    /// home's first translate is the bracket itself, so the answer is
+    /// `past.lo > (tb − ta).hi` and `past.hi < τ` exactly: `ta`'s own
+    /// bracket enters only through the window's width, never through
+    /// the angle.
     ///
     /// **A bracket read whose branch reaches a decision, sound by
     /// value-channel delegation** (DL5(b), `geom_core::real`'s
@@ -2299,8 +2318,22 @@ impl<T: Bounds> CircleFrame<T> {
     ///   on it the choice moves no tangent — what the locally-constant
     ///   condition of DL5(b) exists to guarantee.
     fn misses(self, (ta, tb): (T, T), q: Point3<T>) -> bool {
-        let past = self.past(ta, q);
-        (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
+        Self::past_misses(self.past(ta, q), (ta, tb))
+    }
+
+    /// [`Self::misses`] on the angle `past` already read: whether it
+    /// certainly lies outside `[0, tb − ta]` and short of a whole turn,
+    /// for a `past` bracket within `[0, τ]` — the range [`Self::past`]
+    /// reads, up to its own rounding at either end. On that domain the
+    /// home's first translate is `past` itself, and the answer is
+    /// exactly `past.lo > (tb − ta).hi` and `past.hi < τ`; outside it
+    /// a further translate is tried, which is no reading `past` gives.
+    fn past_misses(past: T, (ta, tb): (T, T)) -> bool {
+        !geom::periodic_window_may_hold(
+            (past.lo(), past.hi()),
+            (0.0, (tb - ta).hi()),
+            core::f64::consts::TAU,
+        )
     }
 
     /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
@@ -4812,12 +4845,8 @@ mod tests {
     #[test]
     fn a_body_that_is_not_one_solid_and_one_shell_is_refused_at_the_door() {
         let mut dst = cube(L, Tol::witness());
-        topo::instance::graft_disjoint_all(
-            &mut dst,
-            &cube(L * 0.5, Tol::witness()),
-            Tol::witness(),
-        )
-        .expect("the public transplant door accepts a disjoint cube");
+        topo::instance::graft_disjoint_all(&mut dst, &cube(L * 0.5, Tol::witness()))
+            .expect("the public transplant door accepts a disjoint cube");
         assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
         assert_eq!(dst.shells().count(), 2, "and a second shell");
         let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();
@@ -5075,5 +5104,88 @@ mod tests {
             near <= d && d <= far,
             "distance {d} of a carrier point outside the bound [{near}, {far}]"
         );
+    }
+
+    /// **`CircleFrame::misses` is the bracket read it always was**: the
+    /// window's start enters only through the window's width, so the
+    /// answer is exactly `(past − (tb − ta)).lo() > 0` and
+    /// `(τ − past).lo() > 0`, at `f64` and at the interval scalar —
+    /// on a far window start with `past` a whole turn (an angle read as
+    /// `ta + past` rounds that to the window's far side), and over wide
+    /// `ta` brackets (where `ta + past` carries `ta`'s width into the
+    /// angle).
+    #[test]
+    fn misses_is_the_relative_bracket_read() {
+        use super::CircleFrame;
+        use geom_core::{Bounds, Interval, Real};
+        // The former predicate, the oracle every assertion below reads.
+        fn old_misses<T: Bounds>(past: T, (ta, tb): (T, T)) -> bool {
+            (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
+        }
+        let tau = core::f64::consts::TAU;
+        // The far window start with the point at it: `past` a whole
+        // turn, which the arc holds.
+        let (ta, tb) = (1e6, 1e6 + 2.0);
+        assert!(!CircleFrame::<f64>::past_misses(tau, (ta, tb)));
+        assert!(!old_misses(tau, (ta, tb)));
+        let (tai, tbi) = (Interval::from_f64(ta), Interval::from_f64(tb));
+        assert!(!CircleFrame::past_misses(Interval::tau(), (tai, tbi)));
+        // The domain's ends, sharp and bracketed, against the oracle: a
+        // whole turn, a hair short of it, zero and a hair past it.
+        for w in [0.0, 1e-300, 2.0, tau.next_down(), tau] {
+            let (ta, tb) = (1e6, 1e6 + w);
+            for past in [0.0, 1e-300, tau.next_down(), tau] {
+                assert_eq!(
+                    CircleFrame::<f64>::past_misses(past, (ta, tb)),
+                    old_misses(past, (ta, tb)),
+                    "width {w}, past {past}"
+                );
+            }
+            let (tai, tbi) = (Interval::from_f64(ta), Interval::from_f64(tb));
+            for pi in [
+                Interval::from_bounds(0.0, 0.0),
+                Interval::from_bounds(0.0, 1e-9),
+                Interval::from_bounds(tau.next_down(), tau),
+                Interval::tau(),
+            ] {
+                assert_eq!(
+                    CircleFrame::past_misses(pi, (tai, tbi)),
+                    old_misses(pi, (tai, tbi)),
+                    "width {w}, past {pi:?}"
+                );
+            }
+        }
+        // A deterministic spread of angles in `(0, τ]` and just past
+        // either end, at both scalars, over sharp and wide window starts.
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        for i in 0..40_000 {
+            let ta = (next() - 0.5) * 2e6;
+            let w = next() * 7.0;
+            // Every fourth angle sits within a few ulps of an end.
+            let past = match i % 4 {
+                0 => w * (1.0 + (next() - 0.5) * 1e-15),
+                1 => tau * (1.0 - next() * 1e-15),
+                _ => next() * tau,
+            };
+            let tb = ta + w;
+            assert_eq!(
+                CircleFrame::<f64>::past_misses(past, (ta, tb)),
+                old_misses(past, (ta, tb)),
+                "ta {ta}, tb {tb}, past {past}"
+            );
+            let wide = next() * 1e-3;
+            let tai = Interval::from_bounds(ta - wide, ta + wide);
+            let tbi = tai + Interval::from_f64(w);
+            let pi = Interval::from_bounds(past, past + next() * 1e-3);
+            assert_eq!(
+                CircleFrame::past_misses(pi, (tai, tbi)),
+                old_misses(pi, (tai, tbi)),
+                "ta {ta} ±{wide}, width {w}, past {past}"
+            );
+        }
     }
 }

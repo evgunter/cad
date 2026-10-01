@@ -50,7 +50,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let Some(NodeResult::Failed(error)) = evaluation.result(extrude) else {
         panic!("the evaluation should report the extrude as failed");
     };
-    assert_eq!(message, &error.to_string());
+    assert_eq!(message, &error.spoken(session.committed_doc()));
 
     let poisoned = rows
         .iter()
@@ -63,8 +63,8 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 message.as_deref(),
                 Some(
                     format!(
-                        "upstream failure at Extrude {:012x} — that row carries the cause",
-                        extrude.0
+                        "upstream failure at Extrude {} — that row carries the cause",
+                        test_utils::refusal::tag(extrude.0)
                     )
                     .as_str()
                 ),
@@ -687,8 +687,10 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         .detail()
         .expect("the badge defers its words to the tooltip");
     assert!(
-        detail.contains(&format!("failure at node {:012x}", offender.0))
-            && !detail.contains("ancestor"),
+        detail.contains(&format!(
+            "failure at node {}",
+            test_utils::refusal::tag(offender.0)
+        )) && !detail.contains("ancestor"),
         "the pick index's tooltip names the offending mate: {detail}"
     );
 
@@ -1099,7 +1101,7 @@ fn child_band_refusal_rows() {
         };
         assert_eq!(
             status.message(),
-            Some(error.to_string().as_str()),
+            Some(error.spoken(&asm).as_str()),
             "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
         );
     }
@@ -1283,7 +1285,7 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
         "{rows:?}"
     );
     assert_eq!(
-        row(profile).repair_at.map(|at| at.id()),
+        row(profile).repair_at.as_ref().map(|at| at.id()),
         Some(frame),
         "the profile's row links to the frame whose slot refused"
     );
@@ -1612,7 +1614,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 /// mate's id alone: the mate as the document speaks it.
 fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
     format!(
-        "upstream failure at Mate {:012x} — that row carries the cause",
-        mate.0
+        "upstream failure at Mate {} — that row carries the cause",
+        test_utils::refusal::tag(mate.0)
     )
 }

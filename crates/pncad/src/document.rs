@@ -107,7 +107,11 @@ pub use editor_core::{
 
 // How a sentence names a node: the kind noun and tag a person reads, and
 // the full-width id a machine channel prints.
-pub use editor_core::{FullId, SpokenNode, node_kind_noun};
+pub use editor_core::{FullId, SpokenName, SpokenNode, node_kind_noun};
+
+// A node's label (DESIGN.md Band 1, "Node labels"): document data the
+// kernel stores and speaks, never identity.
+pub use editor_core::{Label, LabelFault};
 
 // Placement: the chain a `Node::Transform` holds — rigid steps of
 // expressions and literal frames — and its steps.
@@ -152,8 +156,8 @@ pub use editor_core::{
 // source text an expression reads back from, which is what a panel
 // showing a stored expression needs and cannot otherwise derive.
 // `ExprPath` is here by the payload rule: it is the ADDRESS
-// `EditError::PathOffTree` names, so without it a consumer can match
-// the refusal and cannot say which expression the address ran off.
+// `DocEdit::SetExpression` takes, so without it a consumer cannot spell
+// which expression the edit replaces.
 pub use editor_core::{
     Dimension, DimensionError, Expr, ExprPath, ParamEnv, ParseError, parse_expr, unparse,
 };
@@ -460,7 +464,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, StepMap, StepMapDivergence, inline, split,
+    SplitOutcome, StepMap, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

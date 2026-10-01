@@ -56,6 +56,45 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
     doc
 }
 
+/// `part` (a [`box_part`]) re-valued in place: its square's half-width
+/// and its extrude's height edited, every id kept — a later version of
+/// the same document.
+fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
+    let profile = part
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(part.node(id), Some(Node::Profile(_))))
+        .expect("a box part has one profile");
+    let Some(Node::Profile(program)) = part.node(profile) else {
+        unreachable!("found as a profile")
+    };
+    let ids = program
+        .ids
+        .iter()
+        .map(|lp| lp.iter().copied().map(Some).collect())
+        .collect();
+    let loops = fixture::desc(program.plane, vec![fixture::square(0.0, 0.0, half)]).loops;
+    let body = body_node(&part);
+    let (part, _) = fixture::step(
+        part,
+        DocEdit::SetProgram {
+            node: profile,
+            loops,
+            ids,
+        },
+    );
+    let (part, _) = fixture::step(
+        part,
+        DocEdit::SetParam {
+            node: body,
+            slot: editor_core::SlotId::Distance,
+            expr: len(height),
+        },
+    );
+    part
+}
+
 /// A cylinder part: a rectangle `radius × height` in the xy plane,
 /// revolved a full turn about the plane's +y through the origin. The
 /// cylinder stands on the origin along +y; its farthest point from
@@ -596,16 +635,12 @@ fn a5_a_mated_part_is_evaluated_exactly_once() {
 #[test]
 fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     let theta = 1e-8;
-    // Two versions of ONE part document: the same id, so the
-    // reference can be re-pinned in place; different extents.
+    // Two versions of ONE part document, the later a value edit of the
+    // earlier: the same ids, so the reference can be re-pinned in
+    // place; different extents.
     let small = box_part("msolve6-a5-memo-part", 0.005, 0.01);
     let body = body_node(&small);
-    let large = box_part("msolve6-a5-memo-part", 5.0, 10.0);
-    assert_eq!(
-        body_node(&large),
-        body,
-        "the re-pinned part keeps its body's id"
-    );
+    let large = resized(small.clone(), 5.0, 10.0);
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -845,7 +880,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
     let editor_core::EditError::MaintenanceRefused { gauge, fault } = &err else {
         panic!("expected MaintenanceRefused, got {err:?}");
     };
-    assert_eq!(*gauge, lost);
+    assert_eq!(gauge.id(), lost);
     assert!(
         matches!(
             fault.as_deref(),
@@ -1159,7 +1194,7 @@ fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
             Tol::witness(),
             &editor_core::RefusingReach
         ),
-        Err(EditError::ImproperPlacement { node, determinant, .. }) if node == b && determinant == -1.0
+        Err(EditError::ImproperPlacement { node, determinant, .. }) if node.id() == b && determinant == -1.0
     ));
 }
 
@@ -1222,7 +1257,7 @@ fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_
             editor_core::PersistError::EditReplay {
                 index: i,
                 error: editor_core::EditError::MaintenanceUnrecorded { gauge }
-            } if *i == join && *gauge == b
+            } if *i == join && gauge.id() == b
         ),
         "{err:?}"
     );
@@ -1238,7 +1273,7 @@ fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_
             editor_core::PersistError::EditReplay {
                 index: i,
                 error: editor_core::EditError::MaintenanceUnrecorded { gauge }
-            } if *i == index && *gauge == b
+            } if *i == index && gauge.id() == b
         ),
         "{err:?}"
     );
@@ -1687,12 +1722,7 @@ fn a6_an_under_determined_prior_records_the_split_with_the_clusters_frame() {
 fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     let small = box_part("msolve6-p3c-part", 0.005, 0.01);
     let body = body_node(&small);
-    let large = box_part("msolve6-p3c-part", 5.0, 10.0);
-    assert_eq!(
-        body_node(&large),
-        body,
-        "the re-pinned part keeps its body's id"
-    );
+    let large = resized(small.clone(), 5.0, 10.0);
     let large_pin = content_pin(&large, Tol::witness()).unwrap();
     let mut store_small = PartStore::new();
     let small_ref = store_small.insert(small, Tol::witness());
@@ -1770,7 +1800,7 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     assert!(matches!(
         &err,
         EditError::MaintenanceRefused { gauge, fault: Some(f) }
-            if *gauge == c && matches!(**f, MateFault::Indeterminate { .. })
+            if gauge.id() == c && matches!(**f, MateFault::Indeterminate { .. })
     ));
     let err = doc
         .apply(
@@ -1782,7 +1812,7 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
     assert!(matches!(
         &err,
         EditError::MaintenanceRefused { gauge, fault: Some(f) }
-            if *gauge == c && matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
+            if gauge.id() == c && matches!(&**f, MateFault::Unleverable { refusal, .. } if matches!(
                 refusal.as_ref(),
                 LeverRefusal::Reach {
                     refusal: ReachRefusal::PartUnresolved { fault: PartFault::NoResolver },

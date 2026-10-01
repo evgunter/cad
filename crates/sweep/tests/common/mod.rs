@@ -537,10 +537,7 @@ pub fn bulged_extrusion() -> Body<f64> {
 /// exactness row in this tree wants, and a fourth hand-rolled copy is
 /// how a suite ends up with a subtly different one.
 pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
-    (a.x - b.x)
-        .abs()
-        .max((a.y - b.y).abs())
-        .max((a.z - b.z).abs())
+    (a - b).norm_inf()
 }
 
 /// **A margin strictly inside the run's ambiguity band** — the

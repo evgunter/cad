@@ -158,9 +158,9 @@ impl AuthoredFrame {
     /// respectively). This is `point_at`'s own list; the three cases
     /// arrive here unchanged.
     pub fn frame(&self, tol: Tol) -> Result<OrthoFrame<f64>, FrameError> {
-        let eye = Point3::new(self.origin[0], self.origin[1], self.origin[2]);
-        let axis = Vec3::new(self.axis[0], self.axis[1], self.axis[2]);
-        let reference = Vec3::new(self.reference[0], self.reference[1], self.reference[2]);
+        let eye = Point3::from_array(self.origin);
+        let axis = Vec3::from_array(self.axis);
+        let reference = Vec3::from_array(self.reference);
         geom_core::linalg::frame::point_at_frame(eye, eye + axis, reference, tol)
     }
 

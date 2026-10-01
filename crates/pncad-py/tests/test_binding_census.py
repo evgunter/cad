@@ -1291,9 +1291,6 @@ BOUND_AS = {
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "StepMap": "SplitOutcome.step_map",
-    # What a `StepMapDiverged` refusal carries; the arm crosses as its
-    # tag word.
-    "StepMapDivergence": "SplitError.variant",
     # A profile's pieces cross as opaque text, one per canonical
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
@@ -2246,7 +2243,10 @@ NOT_BOUND = {
     # `NodeId`'s and `StepId`'s repr, which prints the full id
     # (`FullId`); and its kind word is `Doc.node_kind`, the snake_case
     # vocabulary `src/node_kind.rs` keeps apart from the chrome's noun.
+    # A spoken name is the same: its sentence rides inside the error,
+    # and its machine spelling is the opaque name text.
     "FullId": SHAPE,
+    "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
@@ -2629,7 +2629,10 @@ NOT_BOUND = {
     # a door projecting its arms' FIELDS, which is
     # `work/lib/pncad-py-seven-doors-lack-field-projection.md`'s
     # (the `path` door is one of the six it names), and not a missing
-    # binding for these five types.
+    # binding for these five types. `ArcCheck` is the sixth, on the
+    # same footing: `InconsistentArc`'s payload, crossing as the word
+    # `inconsistent_arc` with its check left behind.
+    "ArcCheck": INTERIOR,
     "ContactKind": INTERIOR,
     "EscalationSite": INTERIOR,
     "FilletLeg": INTERIOR,
@@ -2779,6 +2782,10 @@ NOT_BOUND = {
     "TargetShape": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
+    # The loop the lattice constructed, carrying that provenance into
+    # validation. Python holds a `ClosedLoop` whole and validates
+    # through the document, never taking the loop out.
+    "ConstructedLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
     "ProfileVertexRef": INTERIOR,
     "ProgramArcData": INTERIOR,
@@ -2945,6 +2952,15 @@ NOT_BOUND = {
     # type crosses, for `NotAFaceName`'s reason.
     "ParamNameFault": SHAPE,
     "ParamNameReason": SHAPE,
+    # `Label` is a node's label as a validated text, and `LabelFault`
+    # what `Label::new` refuses with. A Python caller holds a label as
+    # `str`: `Doc.label` answers one, and `DocEdit.set_label` and
+    # `label=` at insert call the constructor at the boundary and
+    # publish its refusal as `EditError.variant` (`label_blank`,
+    # `label_line_break`, `label_control_character`); neither type
+    # crosses, for `NotAFaceName`'s reason.
+    "Label": SHAPE,
+    "LabelFault": SHAPE,
     # **The clearance engine's refusal, flattened to a tag — and
     # unreachable at the lane Python evaluates on.** It reaches Python
     # as `EvaluationError.kind == "measure_clearance_refused"`
@@ -3392,6 +3408,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
+    "EditError::NodeIdCollides": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
@@ -3450,6 +3467,7 @@ MEMBERS_BOUND_AS = {
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
+    "EditError::LabelUnchanged": "EditError.variant",
     "EditError::MaintenanceRefused": "EditError.variant",
     "EditError::MaintenanceUnrecorded": "EditError.variant",
     "EvalError::UnknownParam": "EvalError.variant",
@@ -3477,7 +3495,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
-    "InlineError::StepMapDiverged": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Frame": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
@@ -3608,7 +3625,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::Pin": "SplitError.variant",
     "SplitError::PartEdit": "SplitError.variant",
     "SplitError::RemainderEdit": "SplitError.variant",
-    "SplitError::StepMapDiverged": "SplitError.variant",
     "StepImportError::Syntax": "StepImportError.variant",
     "StepImportError::DanglingReference": "StepImportError.variant",
     "StepImportError::WrongEntityType": "StepImportError.variant",

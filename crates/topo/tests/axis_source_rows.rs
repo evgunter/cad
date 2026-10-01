@@ -236,7 +236,7 @@ fn a_graft_carries_source_and_cleared_rows() {
     src.set_surface_axis_source(src_keys[0], restamped.clone())
         .unwrap();
     let native: Vec<_> = dst.surfaces().map(|(k, _)| k).collect();
-    graft_disjoint(&mut dst, &src, tol).unwrap();
+    graft_disjoint(&mut dst, &src).unwrap();
 
     let mut carried: Vec<_> = dst
         .surfaces()

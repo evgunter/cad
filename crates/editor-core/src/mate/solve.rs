@@ -805,9 +805,9 @@ fn resolve_side<P: crate::ProfilePayload>(
         unreachable!("readback::face_pose fixes u_ref for every carrier it answers")
     };
     Ok(AuthoredFrame {
-        origin: [pose.origin.x, pose.origin.y, pose.origin.z],
-        axis: [pose.axis.x, pose.axis.y, pose.axis.z],
-        reference: [u_ref.x, u_ref.y, u_ref.z],
+        origin: pose.origin.to_array(),
+        axis: pose.axis.to_array(),
+        reference: u_ref.to_array(),
     })
 }
 
@@ -1444,14 +1444,34 @@ fn solve_group<P: crate::ProfilePayload>(
         group.iter().enumerate().map(|(i, &id)| (id, i)).collect();
     let mut neighbours: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
     // The tree edge between two instances: the FIRST member pair
-    // relating them, in pair-key order (deterministic). Every other
+    // relating them, in the order `Member`'s key states with every node
+    // read as its position in the document — so the members the author
+    // placed first win, whatever ids the mint gave them. Every other
     // pair between the same two is a non-tree edge and stays
     // declaring.
+    let placed = s.doc.positions();
+    let at = |id: RecipeNodeId| placed.get(&id).copied().unwrap_or(usize::MAX);
+    let rank = |m: &Member| {
+        (
+            at(m.instance),
+            m.copy
+                .iter()
+                .map(|&(node, index)| (at(node), index))
+                .collect::<Vec<_>>(),
+            at(m.at),
+        )
+    };
+    let mut pairs: Vec<(&Member, &Member)> = by_pair
+        .keys()
+        .filter(|(x, _)| position.contains_key(&x.instance))
+        .map(|(x, y)| (x, y))
+        .collect();
+    pairs.sort_by_cached_key(|&(x, y)| {
+        let (rx, ry) = (rank(x), rank(y));
+        if rx <= ry { (rx, ry) } else { (ry, rx) }
+    });
     let mut edge_of: BTreeMap<(RecipeNodeId, RecipeNodeId), (&Member, &Member)> = BTreeMap::new();
-    for ((x, y), _) in by_pair
-        .iter()
-        .filter(|((x, _), _)| position.contains_key(&x.instance))
-    {
+    for (x, y) in pairs {
         if x.instance == y.instance {
             continue;
         }
@@ -1702,6 +1722,17 @@ impl<'a> Maintain<'a> {
     }
 }
 
+/// A maintenance refusal's gauge, spoken from the document the edit
+/// leaves when it holds the gauge, else from the one it found: a
+/// dropped cluster's gauge is gone from `after`.
+fn gauge_spoken<P>(before: &Doc<P>, after: &Doc<P>, gauge: RecipeNodeId) -> crate::SpokenNode {
+    if after.node(gauge).is_some() {
+        after.spoken(gauge)
+    } else {
+        before.spoken(gauge)
+    }
+}
+
 /// **The maintenance for one accepted edit** — [`reconcile`] deriving
 /// the rows, or the recorded rows re-applied — leaving `after`'s
 /// registry keyed on its clusters and answering the rows that got it
@@ -1733,7 +1764,7 @@ pub(crate) fn maintain<P: crate::ProfilePayload>(
             match acts.first() {
                 None => Ok(acts),
                 Some(act) => Err(EditError::MaintenanceUnrecorded {
-                    gauge: act.moved_gauge(),
+                    gauge: gauge_spoken(before, after, act.moved_gauge()),
                 }),
             }
         }
@@ -1939,7 +1970,10 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
                         None => {
                             let fault = unsolved_because(poses, gauge);
                             if fault.as_deref().is_none_or(undecided) {
-                                return Err(EditError::MaintenanceRefused { gauge, fault });
+                                return Err(EditError::MaintenanceRefused {
+                                    gauge: gauge_spoken(before, after, gauge),
+                                    fault,
+                                });
                             }
                             // Decided: no pose to preserve. The orphan
                             // keeps the cluster's frame ([`undecided`]).
@@ -1947,7 +1981,11 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
                         }
                     }
                 }
-                None => return Err(EditError::MaintenanceUnrecorded { gauge }),
+                None => {
+                    return Err(EditError::MaintenanceUnrecorded {
+                        gauge: gauge_spoken(before, after, gauge),
+                    });
+                }
             };
             let prior = before.placements().get(&old_gauge).copied();
             let frame = match (prior, relative.is_identity_bits()) {
@@ -1996,6 +2034,66 @@ pub(crate) fn reconcile<P: crate::ProfilePayload>(
 mod tests {
     use super::*;
     use geom_core::ErrorTextReading;
+
+    /// A gauge the edit left is spoken from the document it leaves; a
+    /// gauge the edit dropped is gone from that one, so it is spoken
+    /// from the document the edit found, kind and label and all, not
+    /// as a node nothing holds.
+    #[test]
+    fn a_dropped_gauge_is_spoken_from_the_document_the_edit_found() {
+        use crate::edit::DocEdit;
+        let tol = Tol::witness();
+        let empty: Doc<crate::program::ProfileProgram> = Doc::empty_derived("gauge-spoken", tol);
+        let node = crate::test_support::xy_frame();
+        let inserted = empty
+            .apply(&DocEdit::InsertNode { node }, tol, &crate::RefusingReach)
+            .expect("the frame inserts")
+            .doc;
+        let gauge = *inserted.order().last().expect("the inserted node");
+        let label = crate::Label::new("anchor").expect("a valid label");
+        let before = inserted
+            .apply(
+                &DocEdit::SetLabel {
+                    node: gauge,
+                    label: Some(label.clone()),
+                },
+                tol,
+                &crate::RefusingReach,
+            )
+            .expect("the label sets")
+            .doc;
+        let after = before
+            .apply(
+                &DocEdit::DeleteNode { id: gauge },
+                tol,
+                &crate::RefusingReach,
+            )
+            .expect("the node deletes")
+            .doc;
+        let dropped = gauge_spoken(&before, &after, gauge);
+        assert_eq!(dropped, before.spoken(gauge));
+        assert_eq!(
+            dropped.label(),
+            Some(&label),
+            "read off the document the edit found"
+        );
+        let renamed = before
+            .apply(
+                &DocEdit::SetLabel {
+                    node: gauge,
+                    label: Some(crate::Label::new("datum").expect("a valid label")),
+                },
+                tol,
+                &crate::RefusingReach,
+            )
+            .expect("the label moves")
+            .doc;
+        assert_eq!(
+            gauge_spoken(&before, &renamed, gauge),
+            renamed.spoken(gauge),
+            "a gauge the edit left is spoken from the document it leaves"
+        );
+    }
 
     const SITE: &str = "solve_test_direction";
 

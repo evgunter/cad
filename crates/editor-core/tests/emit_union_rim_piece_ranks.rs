@@ -300,20 +300,30 @@ pub(crate) fn runs(
     let (doc, mut ids) = document(&case.blocks, &case.creation);
     let doc = match case.shift {
         None => doc,
+        // The shift is a value edit of one transform, so every shift of
+        // a case is one document's history and names one set of nodes.
         Some((i, dx)) => {
             let (doc, tr) = insert(
                 doc,
                 Node::transform(
                     ids[i],
                     editor_core::Step::Rigid {
-                        translation: [len(dx), len(0.0), len(0.0)],
+                        translation: [len(0.0), len(0.0), len(0.0)],
                         axis: [scl(0.0), scl(0.0), scl(1.0)],
                         angle: ang(0.0),
                     },
                 ),
             );
             ids[i] = tr;
-            doc
+            crate::fixture::step(
+                doc,
+                editor_core::DocEdit::SetParam {
+                    node: tr,
+                    slot: editor_core::SlotId::Translation(editor_core::Axis3::X),
+                    expr: len(dx),
+                },
+            )
+            .0
         }
     };
     let flush = |ids: &[RecipeNodeId]| {
@@ -330,14 +340,8 @@ pub(crate) fn runs(
                 .chain(ids[2..].iter().copied())
                 .collect();
             for olab in permutations(&(0..outer.len()).collect::<Vec<_>>()) {
-                let members = olab.iter().map(|&i| outer[i]).collect();
-                let (docx, top) = insert(
-                    d1.clone(),
-                    Node::Union {
-                        members,
-                        declare: None,
-                    },
-                );
+                let members: Vec<RecipeNodeId> = olab.iter().map(|&i| outer[i]).collect();
+                let (docx, top) = crate::fixture::union_over(d1.clone(), &members, None);
                 let ev = run(&docx);
                 each(
                     &format!("{inner:?}{olab:?}"),
@@ -352,13 +356,7 @@ pub(crate) fn runs(
     for order in permutations(&(0..case.blocks.len()).collect::<Vec<_>>()) {
         let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
         let (docx, union) = if case.flush.is_empty() {
-            insert(
-                doc.clone(),
-                Node::Union {
-                    members,
-                    declare: None,
-                },
-            )
+            crate::fixture::union_over(doc.clone(), &members, None)
         } else {
             let (d, u, _) = declared_union(doc.clone(), &members, flush(&ids));
             (d, u)
@@ -410,8 +408,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// `work/emit/a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush.md`
 /// owns it.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r4tri", "U", 168, 4231530857450118831),
-    ("r4trig", "U", 564, 7570011804769676243),
+    ("r4tri", "U", 168, 7247189332466889283),
+    ("r4trig", "U", 564, 9722981482501312581),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.

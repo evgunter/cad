@@ -68,7 +68,7 @@ fn graft_prism(
         tol,
     );
     common::describe_as_intersections(&mut part, tol);
-    topo::graft_disjoint(body, &part, tol).unwrap();
+    topo::graft_disjoint(body, &part).unwrap();
 }
 
 /// The rotation by `ang` about `axis`.
@@ -139,7 +139,7 @@ fn a_rotated_bracket_and_brick_sweep_clears_no_overlap() {
         let r = rotation(axis, ang);
         let map = move |x: f64, y: f64, z: f64| {
             let q = r([x, y, z]);
-            Point3::new(q[0], q[1], q[2])
+            Point3::from_array(q)
         };
         for &x in &xy {
             for &y in &xy {
@@ -202,7 +202,7 @@ fn graft_parallelepiped(body: &mut Body<f64>, p: [f64; 3], a: [f64; 3], b: [f64;
         },
         Tol::witness(),
     );
-    topo::graft_disjoint(body, &part, Tol::witness()).unwrap();
+    topo::graft_disjoint(body, &part).unwrap();
 }
 
 type Solid3 = ([f64; 3], [f64; 3], [f64; 3], [f64; 3]);
@@ -425,7 +425,7 @@ fn sweep_pairs(poses: &[(String, Part<'_>, Part<'_>)]) -> (usize, usize, Vec<Str
         let r = rotation(axis, ang);
         let map = move |x: f64, y: f64, z: f64| {
             let q = r([x, y, z]);
-            Point3::new(q[0], q[1], q[2])
+            Point3::from_array(q)
         };
         for (label, (pa, ba, za), (pb, bb, zb)) in poses {
             let mut body = Body::<f64>::new();

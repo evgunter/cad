@@ -385,6 +385,25 @@ pub const HEX_ID_MIN: usize = 12;
 /// shape rule above reads it, not that.
 pub const NODE_TAG_DIGITS: usize = 12;
 
+/// **The tag a sentence names a node or a step by**, from the id's
+/// bits: `editor_core::spoken`'s `write_tag`, mirrored because this
+/// crate sits below that one. An expected text spells a tag through
+/// this, from the id the row built, never from the text under test.
+#[must_use]
+pub fn tag(bits: u64) -> String {
+    let digits = format!("{bits:016x}");
+    digits[..NODE_TAG_DIGITS].to_owned()
+}
+
+/// **A hand-built id whose tag reads `n`**: `n` in the tag's last
+/// digits, and below them the four hex digits a tag never shows. A
+/// fixture that forges ids takes them from here, so its sentences name
+/// each id apart.
+#[must_use]
+pub const fn tagged(n: u64) -> u64 {
+    n << (64 - 4 * NODE_TAG_DIGITS as u32)
+}
+
 /// The lengths a hex id is printed at: a `DocRef`'s pin prefix, a
 /// `DocumentId`, and a whole pin.
 pub const HEX_ID_LENGTHS: [usize; 3] = [HEX_ID_MIN, 32, 64];
@@ -527,6 +546,15 @@ pub fn problems(name: &str, text: &str, allowed: &[&str], keyed: bool) -> Vec<St
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A tag is the first twelve of the id's sixteen zero-padded hex
+    /// digits, the bits `editor_core::spoken` shows.
+    #[test]
+    fn a_tag_is_the_ids_twelve_leading_digits() {
+        assert_eq!(tag(0x0123_4567_89ab_cdef), "0123456789ab");
+        assert_eq!(tag(0x2a_0000), "00000000002a");
+        assert_eq!(tag(tagged(0x2a)), "00000000002a");
+    }
 
     /// Each check reads the shape, so each goes red on a prefix, struct
     /// or key it was never told about, and stays quiet on prose.

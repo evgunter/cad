@@ -198,8 +198,11 @@ fn a_notch_reaching_inside_the_bore_rims_trim_between_samples_refuses() {
 #[derive(Clone, Copy)]
 enum Cut {
     /// A cone from radius `0.5` at `y = 0` out to `1` at `y = 0.5`, then
-    /// a cylinder of radius 1 up to `y = 3`, cut from ABOVE; the rim's
-    /// HOST is the cylinder.
+    /// a cylinder of radius 1 up to `y = 2`, cut from ABOVE; the rim's
+    /// HOST is the cylinder. The cut leaves a strip of the top cap
+    /// standing: at `y = 3` it removes the whole cap, and the cut face
+    /// it leaves — bounded by ellipse arcs alone — refuses to measure
+    /// at eps `1e-12` (`work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`).
     HostFromAbove,
     /// A cylinder of radius 1 from `y = −2` up to `0.5`, then a cone in
     /// to radius `0.5` at `y = 1`, cut from BELOW; the rim's host is the
@@ -213,7 +216,7 @@ enum Cut {
 /// `180° + spin` ([`Cut`] says which wall is which).
 fn tilted_cut_shaft(cut: Cut, level: f64, spin: f64) -> Body<f64> {
     let profile = match cut {
-        Cut::HostFromAbove => [(0.0, 0.0), (0.5, 0.0), (1.0, 0.5), (1.0, 3.0), (0.0, 3.0)],
+        Cut::HostFromAbove => [(0.0, 0.0), (0.5, 0.0), (1.0, 0.5), (1.0, 2.0), (0.0, 2.0)],
         Cut::MateFromBelow => [(0.0, -2.0), (1.0, -2.0), (1.0, 0.5), (0.5, 1.0), (0.0, 1.0)],
     };
     let mut shaft = revolved_about_y(

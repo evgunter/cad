@@ -369,6 +369,54 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
     (doc, minted.unwrap())
 }
 
+/// `name` as the node `to` would mint it where `from` did: the same
+/// role path at another minting node. Two inserts that differ only in
+/// what a row varies are two nodes under two ids (N1), and a row that
+/// compares their tables compares them up to that id.
+pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> StableName {
+    let mut name = name.clone();
+    if name.node == from {
+        name.node = to;
+    }
+    name
+}
+
+/// **A union whose members stand in `members`' order**, reached the way
+/// one union is reordered rather than by inserting another: the union
+/// is inserted over the members in document order, and `SetMembers`
+/// then puts them in the order asked. Every order of one member set is
+/// so one node under one id — an insert mints its id from its node,
+/// the members' order included (N1) — which is what a row comparing
+/// member orders compares.
+pub fn union_over(
+    doc: ProfileDoc,
+    members: &[RecipeNodeId],
+    declare: Option<RecipeNodeId>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let positions = doc.positions();
+    let at = |id: &RecipeNodeId| positions.get(id).copied();
+    let mut inserted = members.to_vec();
+    inserted.sort_by_key(at);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: inserted.clone(),
+            declare,
+        },
+    );
+    if inserted == members {
+        return (doc, union);
+    }
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: union,
+            members: members.to_vec(),
+        },
+    );
+    (doc, union)
+}
+
 /// **The insert door's verdict on a mate**, through `reach`: the door
 /// asks the solve's own per-mate admission — a frame with no definite
 /// direction, the table's gaps, a `FromFace` side resolved from the
@@ -389,7 +437,7 @@ pub fn at_the_door(
             let id = applied.record.minted.expect("an insert mints an id");
             Ok((applied.doc, id))
         }
-        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node, *fault)),
+        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node.id(), *fault)),
         Err(other) => panic!("the door refused otherwise: {other:?}"),
     }
 }
@@ -1336,10 +1384,10 @@ pub fn no_piece() -> ProfileEdgeRef {
 /// spells a minted step, and denotes nothing.
 pub fn no_piece_of(doc: &editor_core::ProfileDoc) -> ProfileEdgeRef {
     ProfileEdgeRef::Piece {
-        step: *doc
-            .step_mint()
-            .log()
-            .first()
+        step: doc
+            .mint()
+            .steps()
+            .next()
             .expect("the document has minted a step"),
         role: editor_core::PieceRole::Piece(7),
     }

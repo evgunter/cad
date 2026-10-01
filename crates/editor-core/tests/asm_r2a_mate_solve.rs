@@ -524,8 +524,8 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
         applied.maintenance,
         vec![
             Maintenance::Strand {
-                node: mate_node,
-                name: in_part(ids[0], body, CapEnd::Start),
+                node: doc.spoken(mate_node),
+                name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
             },
             Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
                 from: ids[0],
@@ -1394,7 +1394,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
         )
         .expect_err("the head names no node");
     assert!(
-        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.node == ghost),
+        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.name().node == ghost),
         "{err:?}"
     );
 }
@@ -1404,7 +1404,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
 /// `Rebind`'s source door refuses a never-minted id, so the document
 /// would load unrepairable.
 #[test]
-fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
+fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
     let (doc, ids, _, body) = assembly("asm-r2a-mate-wire-id", 3);
     let (doc, mate_id) = mint(
         doc,
@@ -1436,11 +1436,10 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
         head["node"] = serde_json::json!(99);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::IdBeyondCounter {
+        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::NodeNotMinted {
             id,
-            ..
         })) => assert_eq!(id, RecipeNodeId(99)),
-        other => panic!("expected IdBeyondCounter, got {other:?}"),
+        other => panic!("expected NodeNotMinted, got {other:?}"),
     }
 }
 
@@ -1524,7 +1523,9 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
     .unwrap_err();
     assert_eq!(
         err,
-        EditError::NameUnresolvedInEvaluation { name: bogus },
+        EditError::NameUnresolvedInEvaluation {
+            name: doc.spoken_name(&bogus)
+        },
         "the mate head is checkable, so it is checked"
     );
 }
@@ -1825,9 +1826,10 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
             &reach,
         )
         .expect_err("the rider contradicts the coincidence");
-    let EditError::MateRefused { node: id, fault } = err else {
+    let EditError::MateRefused { node, fault } = err else {
         panic!("expected MateRefused, got {err:?}");
     };
+    let id = node.id();
     let fault = *fault;
     let editor_core::MateFault::Contradictory {
         held,
@@ -1857,11 +1859,18 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
     );
     let message = fault.to_string();
     assert!(
-        message.contains(&format!("mate {:012x} contradicts itself", id.0)),
+        message.contains(&format!(
+            "mate {} contradicts itself",
+            test_utils::refusal::tag(id.0)
+        )),
         "one mate at fault is named ONCE: {message}"
     );
     assert!(
-        !message.contains(&format!("mates {:012x} and {:012x}", id.0, id.0)),
+        !message.contains(&format!(
+            "mates {} and {}",
+            test_utils::refusal::tag(id.0),
+            test_utils::refusal::tag(id.0)
+        )),
         "the pair sentence reads as an indexing fault here: {message}"
     );
     assert!(

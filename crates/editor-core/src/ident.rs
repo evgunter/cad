@@ -25,12 +25,12 @@ use sha2::{Digest, Sha256};
 pub struct DocumentId(pub u128);
 
 impl DocumentId {
-    /// Deterministic id from a human label: the first 16 bytes of
-    /// SHA-256 of the label's UTF-8 bytes, big-endian. Same label,
-    /// same id, on every platform — what corpus, demos, and tests
-    /// use so regeneration stays byte-identical (D9).
-    pub fn derive(label: &str) -> Self {
-        let digest = Sha256::digest(label.as_bytes());
+    /// Deterministic id from a seed text: the first 16 bytes of
+    /// SHA-256 of the seed's UTF-8 bytes, big-endian. Same seed, same
+    /// id, on every platform — what corpus, demos, and tests use so
+    /// regeneration stays byte-identical (D9).
+    pub fn derive(seed: &str) -> Self {
+        let digest = Sha256::digest(seed.as_bytes());
         let mut first = [0u8; 16];
         first.copy_from_slice(&digest[..16]);
         Self(u128::from_be_bytes(first))

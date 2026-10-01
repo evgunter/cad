@@ -204,3 +204,32 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
 
   Filed `edge-mint-doors-read-the-nurbs-lane-from-the-policy` (unit 2
   of the NURBS-lane design); held until PR 3678 lands.
+- NURBS lane merged (PR 3678) after a dual review (DR-31, no MAJOR) and
+  one fix pass. The lane is sealed and held per scalar by
+  `AtRestPolicy::nurbs_lane()`. `transform_rigid` reads it, the void
+  graft carries certificates, and refusals now name the cause that is
+  actually known where they are raised. The dead `tol` left the
+  `insert_void`/`graft_disjoint*` doors. Four rows closed, including
+  SHELL's P0 transform row and EXCH's placed-instance row. Unit 2
+  (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) is
+  dispatchable. Known gap: `PcurveCertifyError::FittedLaneUnsupported`
+  has the same conflation of causes, though its claim holds in
+  production today; not filed.
+- Unit 2 (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) dispatched on `cleave/mint-doors`; it also takes TOPO's `euler-rebased-run-...` row. Review: single, full.
+- Ev ruled on PR 3642: derive, no declaration (fork row 34; both designers' recommendation). The tangency lane is dispatched on `cleave/tangency`. Review: single, full.
+- `plane_section` regions merged (PR 3714) after a style review and one
+  fix pass. `plane_section` returns `regions` (an outline with its
+  holes, oriented by role) and its own `SectionError`.
+  `splitting/section_loops.rs` is the one home of the section-loop
+  sense, the hole nesting, and the side-normal and u-axis rules, which
+  the split's finish and `plane_section` both read. The ring-vs-ring
+  guard is split-only. Filed `plane-section-polygons-drop-their-arcs`
+  (P2).
+- Witness ladders merged (PR 3716) after a full review and one fix
+  pass. There is one cell-dimension ladder (`complex_side`) with one
+  "inconclusive" rule, and first-decisive applies to both callers.
+  Join's loop-roles cross-check is now a pure function pinned by
+  synthetic rows, and the contact skip is deleted under a debug guard.
+  Refusals no longer name a remote witness. The contact-skip row closed
+  with it. Filed `point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`
+  (P2), for the 26-in-band `wide_wedge` case.

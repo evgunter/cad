@@ -20,23 +20,34 @@
 use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, Dimension, DimensionError, DistributionFault, DistributionField,
-    DocumentId, EditError, EntityKind, EvalError, ExprPath, FrameSite, MateFault, MeasureNodeFault,
-    MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, StableName,
-    StepIdFault,
+    DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault, MeasureNodeFault,
+    MetaVersionError, NodeErrorKind, ParamName, RecipeNodeId, RootFault, SlotId, SpokenName,
+    SpokenNode, StableName, StepIdFault,
 };
 use test_utils::refusal::Admission;
+use test_utils::refusal::tagged;
 use viewer::session::Refusal;
 
 fn shown(e: EditError) -> String {
     Refusal::Edit(Box::new(e)).to_string()
 }
 
-fn name() -> StableName {
+fn stable_name() -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(3),
+        node: RecipeNodeId(tagged(3)),
         path: Vec::new(),
     }
+}
+
+/// The name as an arm whose minting node is live speaks it.
+fn name() -> SpokenName {
+    editor_core::test_support::spoken_name(stable_name(), s(3, "Extrude"))
+}
+
+/// The name as an arm whose minting node is not live speaks it.
+fn missing() -> SpokenName {
+    SpokenName::absent(stable_name())
 }
 
 fn param() -> ParamName {
@@ -44,7 +55,16 @@ fn param() -> ParamName {
 }
 
 fn n(id: u64) -> RecipeNodeId {
-    RecipeNodeId(id)
+    RecipeNodeId(tagged(id))
+}
+
+/// Node `id` as a refusal raised over a document holding it as a
+/// `kind` speaks it: labelled, the longest spelling a sentence names a
+/// node by, and by the kind the arm really names, so a template that
+/// says the noun its node already says is read here as it ships.
+fn s(id: u64, kind: &'static str) -> SpokenNode {
+    let label = Label::new("base plate").expect("a valid label");
+    editor_core::test_support::spoken_labelled(n(id), kind, label)
 }
 
 /// Every `EditError` arm, on a representative payload.
@@ -52,11 +72,16 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
     use editor_core::edit::CarryForwardDoor;
     use editor_core::{DocParamField, DocParamValue};
     vec![
-        ("UnknownNode", EditError::UnknownNode { id: n(9) }),
+        (
+            "UnknownNode",
+            EditError::UnknownNode {
+                id: SpokenNode::absent(n(9)),
+            },
+        ),
         (
             "ProfileProgramRefused(Geometry)",
             EditError::ProfileProgramRefused {
-                node: n(4),
+                node: s(4, "Profile"),
                 refusal: Box::new(ProgramRefusal::Geometry {
                     loop_: 0,
                     step: 2,
@@ -72,7 +97,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "ProfileProgramRefused(Resolve)",
             EditError::ProfileProgramRefused {
-                node: n(4),
+                node: s(4, "Profile"),
                 refusal: Box::new(ProgramRefusal::Resolve {
                     slot: SlotId::Distance,
                     source: EvalError::UnknownParam(param()),
@@ -82,7 +107,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "ProfileProgramRefused(Transition)",
             EditError::ProfileProgramRefused {
-                node: n(4),
+                node: s(4, "Profile"),
                 refusal: Box::new(ProgramRefusal::Transition {
                     loop_: 0,
                     step: 2,
@@ -94,7 +119,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "ProfileProgramRefused(Validate)",
             EditError::ProfileProgramRefused {
-                node: n(4),
+                node: s(4, "Profile"),
                 refusal: Box::new(ProgramRefusal::Validate(
                     profile::ProfileError::TangencyContradicted {
                         first: profile::SegmentRef {
@@ -112,54 +137,68 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "UnresolvedInput",
-            EditError::UnresolvedInput { input: n(9) },
+            EditError::UnresolvedInput {
+                input: SpokenNode::absent(n(9)),
+            },
         ),
-        ("WouldCycle", EditError::WouldCycle { at: n(4) }),
+        (
+            "WouldCycle",
+            EditError::WouldCycle {
+                at: s(4, "Extrude"),
+            },
+        ),
         (
             "DuplicateInput",
             EditError::DuplicateInput {
-                node: n(5),
-                input: n(3),
+                node: s(5, "Union"),
+                input: s(3, "Extrude"),
             },
         ),
         (
             "RepeatedDesignation",
             EditError::RepeatedDesignation {
-                node: n(5),
+                node: s(5, "Shell"),
                 first: 0,
                 again: 2,
             },
         ),
         (
             "SelectionNotCanonical",
-            EditError::SelectionNotCanonical { node: n(5), at: 1 },
+            EditError::SelectionNotCanonical {
+                node: s(5, "Fillet"),
+                at: 1,
+            },
         ),
         (
             "SetMembersOnNonList",
-            EditError::SetMembersOnNonList { node: n(5) },
+            EditError::SetMembersOnNonList {
+                node: s(5, "Extrude"),
+            },
         ),
         (
             "SetProgramOnNonProfile",
-            EditError::SetProgramOnNonProfile { node: n(5) },
+            EditError::SetProgramOnNonProfile {
+                node: s(5, "Extrude"),
+            },
         ),
         (
             "TooFewMembers",
             EditError::TooFewMembers {
-                node: n(5),
+                node: s(5, "Union"),
                 found: 1,
             },
         ),
         (
             "DeleteWouldDangle",
             EditError::DeleteWouldDangle {
-                id: n(3),
-                referenced_by: n(5),
+                id: s(3, "Profile"),
+                referenced_by: s(5, "Extrude"),
             },
         ),
         (
             "UnknownSlot",
             EditError::UnknownSlot {
-                id: n(5),
+                id: s(5, "Extrude"),
                 slot: SlotId::Radius,
             },
         ),
@@ -174,13 +213,15 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "MaintenanceRefused",
             EditError::MaintenanceRefused {
-                gauge: n(6),
+                gauge: s(6, "InstantiatePart"),
                 fault: Some(Box::new(MateFault::ClassNotAdmitted { mate: n(9) })),
             },
         ),
         (
             "MaintenanceUnrecorded",
-            EditError::MaintenanceUnrecorded { gauge: n(6) },
+            EditError::MaintenanceUnrecorded {
+                gauge: s(6, "InstantiatePart"),
+            },
         ),
         (
             "StructuralSlotNeedsStructuralEdit",
@@ -198,7 +239,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "SlotUnknownDocParam",
             EditError::SlotUnknownDocParam {
                 name: param(),
-                node: n(5),
+                node: s(5, "Extrude"),
                 slot: SlotId::Distance,
             },
         ),
@@ -206,7 +247,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "SlotDocParamDimension",
             EditError::SlotDocParamDimension {
                 name: param(),
-                node: n(5),
+                node: s(5, "Extrude"),
                 slot: SlotId::Distance,
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
@@ -216,14 +257,14 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "PayloadUnknownDocParam",
             EditError::PayloadUnknownDocParam {
                 name: param(),
-                node: n(5),
+                node: s(5, "Measure"),
             },
         ),
         (
             "PayloadDocParamDimension",
             EditError::PayloadDocParamDimension {
                 name: param(),
-                node: n(5),
+                node: s(5, "Measure"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -231,7 +272,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "MeasureMalformed",
             EditError::MeasureMalformed {
-                node: n(5),
+                node: s(5, "Measure"),
                 fault: MeasureNodeFault::RefIndexOutOfRange {
                     verb: "min_clearance",
                     index: 2,
@@ -242,22 +283,22 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "AssertionTarget",
             EditError::AssertionTarget {
-                node: n(6),
-                measure: n(5),
+                node: s(6, "Assertion"),
+                measure: s(5, "Extrude"),
             },
         ),
         (
             "DeclareInputNotDeclare",
             EditError::DeclareInputNotDeclare {
-                node: n(6),
-                input: n(5),
+                node: s(6, "Union"),
+                input: s(5, "Extrude"),
             },
         ),
         (
             "AssertionDimension",
             EditError::AssertionDimension {
-                node: n(6),
-                measure: n(5),
+                node: s(6, "Assertion"),
+                measure: s(5, "Measure"),
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
             },
@@ -300,11 +341,9 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "PathOffTree",
             EditError::PathOffTree {
-                path: ExprPath {
-                    node: n(5),
-                    slot: SlotId::Distance,
-                    path: vec![0, 3],
-                },
+                node: s(5, "Extrude"),
+                slot: SlotId::Distance,
+                path: vec![0, 3],
             },
         ),
         (
@@ -317,28 +356,33 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "DeclareNamesMissingNode",
-            EditError::DeclareNamesMissingNode { name: name() },
+            EditError::DeclareNamesMissingNode { name: missing() },
         ),
         (
             "NameStepNeverMinted",
             EditError::NameStepNeverMinted {
-                name: StableName {
-                    kind: EntityKind::Edge,
-                    node: n(3),
-                    path: vec![editor_core::RoleSeg::RimEdge(
-                        editor_core::CapEnd::End,
-                        editor_core::ProfileEdgeRef::Piece {
-                            step: editor_core::StepId(9),
-                            role: editor_core::PieceRole::Leg,
-                        },
-                    )],
-                },
-                step: editor_core::StepId(9),
+                name: editor_core::test_support::spoken_name(
+                    StableName {
+                        kind: EntityKind::Edge,
+                        node: n(3),
+                        path: vec![editor_core::RoleSeg::RimEdge(
+                            editor_core::CapEnd::End,
+                            editor_core::ProfileEdgeRef::Piece {
+                                step: editor_core::StepId(tagged(9)),
+                                role: editor_core::PieceRole::Leg,
+                            },
+                        )],
+                    },
+                    s(3, "Extrude"),
+                ),
+                step: editor_core::StepId(tagged(9)),
             },
         ),
         (
             "ReadSiteMissingNode",
-            EditError::ReadSiteMissingNode { at: n(9) },
+            EditError::ReadSiteMissingNode {
+                at: SpokenNode::absent(n(9)),
+            },
         ),
         (
             "NonFiniteDocParam",
@@ -356,11 +400,11 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "RebindTargetMissingNode",
-            EditError::RebindTargetMissingNode { name: name() },
+            EditError::RebindTargetMissingNode { name: missing() },
         ),
         (
             "RebindUnknownName",
-            EditError::RebindUnknownName { name: name() },
+            EditError::RebindUnknownName { name: missing() },
         ),
         (
             "RebindKindMismatch",
@@ -376,11 +420,15 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "WitnessOnNonSketch",
-            EditError::WitnessOnNonSketch { node: n(5) },
+            EditError::WitnessOnNonSketch {
+                node: s(5, "Extrude"),
+            },
         ),
         (
             "DuplicateWitnessEntry",
-            EditError::DuplicateWitnessEntry { node: n(5) },
+            EditError::DuplicateWitnessEntry {
+                node: s(5, "Profile"),
+            },
         ),
         ("EmptyWitnessBulk", EditError::EmptyWitnessBulk),
         (
@@ -407,7 +455,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "AppearanceNamesMissingNode",
-            EditError::AppearanceNamesMissingNode { name: name() },
+            EditError::AppearanceNamesMissingNode { name: missing() },
         ),
         (
             "AppearanceNotSet",
@@ -453,26 +501,32 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "Roots",
             EditError::Roots(RootFault::Ancestor {
-                ancestor: n(3),
-                descendant: n(5),
+                ancestor: s(3, "Extrude"),
+                descendant: s(5, "Fillet"),
             }),
         ),
         (
             "PlacementOnNonInstance",
-            EditError::PlacementOnNonInstance { node: n(5) },
+            EditError::PlacementOnNonInstance {
+                node: s(5, "Extrude"),
+            },
         ),
         (
             "PlacementRuleMismatch",
-            EditError::PlacementRuleMismatch { node: n(5) },
+            EditError::PlacementRuleMismatch {
+                node: s(5, "InstantiatePart"),
+            },
         ),
         (
             "EmptyPlacementList",
-            EditError::EmptyPlacementList { node: n(5) },
+            EditError::EmptyPlacementList {
+                node: s(5, "InstantiatePart"),
+            },
         ),
         (
             "ImproperPlacement",
             EditError::ImproperPlacement {
-                node: n(5),
+                node: s(5, "InstantiatePart"),
                 at: FrameSite::Step { index: 1 },
                 determinant: -1.0,
             },
@@ -480,14 +534,14 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         (
             "NonFinitePlacement",
             EditError::NonFinitePlacement {
-                node: n(5),
+                node: s(5, "InstantiatePart"),
                 at: FrameSite::Registry,
             },
         ),
         (
             "NonRigidPlacement",
             EditError::NonRigidPlacement {
-                node: n(5),
+                node: s(5, "InstantiatePart"),
                 at: FrameSite::Listed { index: 2 },
                 check: "transform_rigid_col01_orth",
             },
@@ -503,12 +557,12 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "NonFiniteAlignment",
-            EditError::NonFiniteAlignment { node: n(5) },
+            EditError::NonFiniteAlignment { node: s(5, "Mate") },
         ),
         (
             "MateRefused",
             EditError::MateRefused {
-                node: n(9),
+                node: s(9, "Mate"),
                 fault: Box::new(MateFault::SelfMate {
                     mate: n(9),
                     instance: n(6),
@@ -517,12 +571,14 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
         ),
         (
             "UpdateOnNonInstance",
-            EditError::UpdateOnNonInstance { node: n(5) },
+            EditError::UpdateOnNonInstance {
+                node: s(5, "Profile"),
+            },
         ),
         (
             "PinUnchanged",
             EditError::PinUnchanged {
-                node: n(6),
+                node: s(6, "InstantiatePart"),
                 pin: ContentPin::of_bytes(b"bracket v3"),
             },
         ),
@@ -552,12 +608,16 @@ fn variant(witness: &impl core::fmt::Debug) -> String {
 
 fn next_root_fault(fault: &RootFault) -> Option<RootFault> {
     match fault {
-        RootFault::NotLive { .. } => Some(RootFault::Duplicate { root: n(3) }),
-        RootFault::Duplicate { .. } => Some(RootFault::Ancestor {
-            ancestor: n(3),
-            descendant: n(5),
+        RootFault::NotLive { .. } => Some(RootFault::Duplicate {
+            root: s(3, "Extrude"),
         }),
-        RootFault::Ancestor { .. } => Some(RootFault::Uncovered { node: n(4) }),
+        RootFault::Duplicate { .. } => Some(RootFault::Ancestor {
+            ancestor: s(3, "Extrude"),
+            descendant: s(5, "Fillet"),
+        }),
+        RootFault::Ancestor { .. } => Some(RootFault::Uncovered {
+            node: s(4, "Extrude"),
+        }),
         RootFault::Uncovered { .. } => None,
     }
 }
@@ -584,9 +644,15 @@ fn next_step_id_fault(fault: &StepIdFault) -> Option<StepIdFault> {
             authored: 4,
             given: 3,
         }),
-        StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles { step: StepId(7) }),
-        StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated { step: StepId(7) }),
-        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides { step: StepId(7) }),
+        StepIdFault::Shape { .. } => Some(StepIdFault::NotThisProfiles {
+            step: StepId(tagged(7)),
+        }),
+        StepIdFault::NotThisProfiles { .. } => Some(StepIdFault::Repeated {
+            step: StepId(tagged(7)),
+        }),
+        StepIdFault::Repeated { .. } => Some(StepIdFault::Collides {
+            step: StepId(tagged(7)),
+        }),
         StepIdFault::Collides { .. } => None,
         // No row: no edit door raises it. It is the load door's word,
         // and an edit that writes a name spelling a step the document
@@ -787,7 +853,7 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
         rows.push((
             format!("ProfileProgramRefused(Geometry/{arm})"),
             EditError::ProfileProgramRefused {
-                node: n(4),
+                node: s(4, "Profile"),
                 refusal: Box::new(ProgramRefusal::Geometry {
                     loop_: 0,
                     step: 2,
@@ -799,7 +865,12 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     }
     // Each states its own recourse, so each is rendered, not only the
     // representative row's — every arm, from the witness chains below.
-    for fault in witnesses(RootFault::NotLive { root: n(9) }, next_root_fault) {
+    for fault in witnesses(
+        RootFault::NotLive {
+            root: SpokenNode::absent(n(9)),
+        },
+        next_root_fault,
+    ) {
         rows.push((
             format!("Roots({})", variant(&fault)),
             EditError::Roots(fault),
@@ -808,7 +879,10 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     for fault in witnesses(StepIdFault::Preminted, next_step_id_fault) {
         rows.push((
             format!("StepIdsRefused({})", variant(&fault)),
-            EditError::StepIdsRefused { node: n(4), fault },
+            EditError::StepIdsRefused {
+                node: s(4, "Profile"),
+                fault,
+            },
         ));
     }
     for fault in witnesses(
@@ -827,14 +901,14 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
         rows.push((
             format!("MaintenanceRefused({arm})"),
             EditError::MaintenanceRefused {
-                gauge: n(6),
+                gauge: s(6, "InstantiatePart"),
                 fault: Some(Box::new(fault.clone())),
             },
         ));
         rows.push((
             format!("MateRefused({arm})"),
             EditError::MateRefused {
-                node: n(9),
+                node: s(9, "Mate"),
                 fault: Box::new(fault),
             },
         ));
@@ -846,9 +920,12 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
 /// the row namespace that writes it: the node, measure, sketch step or
 /// mate the refusal is about, and a pair's corner list.
 const LABELS: &[(&str, &str)] = &[
-    ("Edit/PlacementRuleMismatch", "node 000000000005"),
-    ("Edit/EmptyPlacementList", "node 000000000005"),
-    ("Edit/MeasureMalformed", "measure node 000000000005"),
+    (
+        "Edit/PlacementRuleMismatch",
+        "InstantiatePart \"base plate\"",
+    ),
+    ("Edit/EmptyPlacementList", "InstantiatePart \"base plate\""),
+    ("Edit/MeasureMalformed", "Measure \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",

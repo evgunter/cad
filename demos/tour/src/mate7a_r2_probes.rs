@@ -40,7 +40,7 @@ fn aabb(pts: &[Point3<f64>]) -> ([f64; 3], [f64; 3]) {
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     for p in pts {
-        for (k, v) in [p.x, p.y, p.z].into_iter().enumerate() {
+        for (k, v) in p.to_array().into_iter().enumerate() {
             lo[k] = lo[k].min(v);
             hi[k] = hi[k].max(v);
         }

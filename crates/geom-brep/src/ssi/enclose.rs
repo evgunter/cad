@@ -117,6 +117,23 @@ impl Box3 {
         }
     }
 
+    /// The componentwise intersection, or `self` where the two share no
+    /// point or either side refused: a reach for what lies in both, which
+    /// an empty meet has nothing of. Not a certified enclosure.
+    pub(crate) fn meet(self, o: Self) -> Self {
+        let side = |a: Interval, b: Interval| {
+            if !(a.is_certified() && b.is_certified()) {
+                return None;
+            }
+            let (lo, hi) = (a.lo().max(b.lo()), a.hi().min(b.hi()));
+            (lo <= hi).then(|| Interval::from_bounds(lo, hi))
+        };
+        match (side(self.x, o.x), side(self.y, o.y), side(self.z, o.z)) {
+            (Some(x), Some(y), Some(z)) => Self { x, y, z },
+            _ => self,
+        }
+    }
+
     /// Grow every side by `r` (the certified tube radius).
     pub(crate) fn pad<T: CertifiedBounds>(self, r: T) -> Self {
         let g = pad_interval(r);
@@ -1052,7 +1069,7 @@ mod tests {
         for s in [sphere(), cylinder()] {
             let g = implicit_gradient_enclosure(&s, b);
             let at = implicit_gradient(&s, b.center());
-            for (i, v) in [at.x, at.y, at.z].iter().enumerate() {
+            for (i, v) in at.to_array().iter().enumerate() {
                 assert!(
                     g[i].contains(*v),
                     "{v} not in [{}, {}]",
