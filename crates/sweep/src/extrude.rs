@@ -51,11 +51,12 @@
 //!    contract: for arc rims the chord midpoint lies off the carrier by
 //!    the sagitta, so `carrier(mid)` is the only honest mint); the
 //!    certified carrier and interval are kept verbatim. Transverse ⇒
-//!    upgrade; Smooth ⇒ the conventional description, an image at rest
-//!    in the wall's chart (D2's conventional split, as at the strut
-//!    join's under-determined case — the arm in `upgrade_rim` says
-//!    why the second-order rule has nothing to add there);
-//!    Indeterminate ⇒ the typed [`ExtrudeError::SliverRim`].
+//!    upgrade; Smooth ⇒ one order down through the same must-carry
+//!    rule as step 4's joins, which reads the plane pairs that reach it
+//!    under-determined: the conventional description, an image at rest
+//!    in the wall's chart (the arm in `upgrade_rim` says which pairs
+//!    reach it, and at which K); Indeterminate ⇒ the typed
+//!    [`ExtrudeError::SliverRim`].
 //! 7. **Declared cusps.** Every declared cusp joint
 //!    ([`profile::ValidatedLoop::cusp_joints`]) sweeps a strut at
 //!    material wedge 0 (2π on a hole loop). The profile's `.cusp()` is
@@ -136,7 +137,8 @@ pub struct Extruded<T: Real> {
     /// here that it does not cover:
     ///
     /// - a cap rim the dihedral lever reads definitely SMOOTH keeps the
-    ///   conventional description (`upgrade_rim`'s smooth arm) and is
+    ///   conventional description (the must-carry rule's verdict on the
+    ///   plane pairs that reach `upgrade_rim`'s smooth arm) and is
     ///   refused as `topo::ValidationError::SliverDihedral` under
     ///   `material_wedge_side`: a smooth cap–wall pair has no material
     ///   side. There is nothing to do at the door — the refusal is the
@@ -228,14 +230,16 @@ pub enum ExtrudeError {
         source: Indeterminate,
     },
     /// The dihedral classification at a cap–wall rim edge escalated
-    /// during the rim upgrade pass (module docs, step 6) — the rim's
-    /// counterpart of [`ExtrudeError::SliverJoin`].
+    /// during the rim upgrade pass (module docs, step 6), or the
+    /// must-carry rule's reading did on a rim it read smooth — the
+    /// rim's counterpart of [`ExtrudeError::SliverJoin`].
     ///
-    /// Defense-in-depth (the `CapPlane` posture): a normal extrusion's
-    /// rims meet their walls at a right angle through definite lever
-    /// arms, so an escalation here means the inputs already carried
-    /// something a validated profile cannot — surfaced rather than
-    /// trusted.
+    /// Reachable from admitted inputs: the direction gates admit a tilt
+    /// of up to `1/K` against a rim the profile door floors at `K·ε`,
+    /// so the shortest admitted rim under the worst admitted tilt can
+    /// meter its wedge inside the band (`dihedral_wedge`) —
+    /// `review_fillet_h6_r1_probes` and `review_blend_k_rk_probes`
+    /// build exactly that.
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -244,19 +248,20 @@ pub enum ExtrudeError {
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
-    /// The must-carry rule read a station of a strut definitely
-    /// transverse ([`geom_brep::MustCarryVerdict::Transverse`]) after
-    /// the join's witness classified definitely smooth: the geometry
-    /// refuted the premise the smooth arm was entered on.
+    /// The must-carry rule read a station of a strut or a cap rim
+    /// definitely transverse ([`geom_brep::MustCarryVerdict::Transverse`])
+    /// after the edge's witness classified definitely smooth: the
+    /// geometry refuted the premise the smooth arm was entered on.
     ///
     /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
-    /// along the strut, so their normals are constant along it and
-    /// every station reads what the witness read. Reaching this means
+    /// along a strut, and a rim that reads smooth is a line between two
+    /// planes, so in either case both normals are constant along the
+    /// edge and every station reads what the witness read. Reaching this means
     /// the inputs carried something a validated profile cannot, and it
     /// is surfaced rather than stored under a description neither
     /// reading chose.
     SmoothJoinRefuted {
-        /// The strut edge whose station refuted the smooth premise.
+        /// The strut or rim edge whose station refuted the smooth premise.
         edge: EdgeKey,
     },
     /// A cap plane failed Newell certification (non-planar or
@@ -338,7 +343,7 @@ impl fmt::Display for ExtrudeError {
             ),
             Self::SmoothJoinRefuted { edge } => write!(
                 f,
-                "the wall join along {edge:?} classified definitely smooth at its witness \
+                "the join along {edge:?} classified definitely smooth at its witness \
                  but definitely a corner at a certification station, so the construction \
                  refuses rather than choose a description for it"
             ),
@@ -1201,10 +1206,9 @@ fn side_surface<T: Decide>(
 /// certified `set_edge_curve` door. `classify_dihedral` at the witness
 /// decides, metered through the edge's honest extent
 /// ([`geom_brep::edge_extent`] — the carrier diameter for near-closed
-/// arc rims, whose chord collapses): Transverse upgrades; Smooth keeps
-/// the conventional description, an image at rest in the wall's chart
-/// (the arm below); Indeterminate is the typed
-/// [`ExtrudeError::SliverRim`].
+/// arc rims, whose chord collapses): Transverse upgrades; Smooth
+/// descends through [`geom_brep::must_carry_over_edge`] (the arm
+/// below); Indeterminate is the typed [`ExtrudeError::SliverRim`].
 #[allow(clippy::too_many_arguments)] // two call sites in one loop; the
 // arguments are the upgrade's fixed context, not a configuration
 // surface.
@@ -1269,19 +1273,61 @@ fn upgrade_rim<T: Decide>(
             body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
-        // A definitely-smooth cap rim keeps the CONVENTIONAL
-        // description by the predicate (D2's conventional split, as at
-        // the strut join's under-determined case), and the at-rest gate
-        // refuses the body when the wedge has no material side. It rests
-        // in its WALL's chart — the chart swept from the rim's own
-        // carrier; the cap plane certifies too, and `fillet_h6_cap_rim`
-        // pins the choice. The second-order rule the sibling smooth arms
-        // read has nothing to say here: only plane pairs reach this arm
-        // (a cylinder wall's normal is radial about the sketch normal,
-        // so it is perpendicular to the cap's ±n at every rim point),
-        // and a plane pair's `κ_rel` is identically zero.
+        // A definitely-smooth cap rim descends one order through the
+        // must-carry rule over the edge, exactly as the strut join does:
+        // the gate, the stations and the verdict policy are the rule's,
+        // not this arm's ([`geom_brep::must_carry_over_edge`]).
+        //
+        // The arm is live only at a run K below the crossover `√φ`. The
+        // direction gates admit a tilt of `w` off the sketch normal of
+        // up to `1/K`; a LINE leg's wall is the plane through the quad
+        // swept along `w`, so it leans against the cap's `±n` by that
+        // tilt, and the wedge is metered as `sin θ` over a rim the
+        // profile door floors at `K·ε`. An ARC leg's wall is a cylinder
+        // whose axis is `±n` on both doors ([`side_surface`]), so it is
+        // perpendicular to the cap at every rim point and never reads
+        // smooth. `fillet_h6_cap_rim` measures both facts.
+        //
+        // So the pairs that arrive are plane pairs over a line rim. A
+        // plane pair's `κ_rel` is identically zero, so the rule reads
+        // them under-determined: the CONVENTIONAL description, which
+        // the at-rest gate refuses because a smooth cap–wall pair has
+        // no material side. It rests in the WALL's chart — the chart
+        // swept from the rim's own carrier; the cap plane certifies
+        // too, and `fillet_h6_cap_rim` pins the choice.
         Ok(DihedralClass::Smooth) => {
-            body.describe_at_rest(edge, wall, tol)?;
+            match geom_brep::must_carry_over_edge(&s_cap, &s_wall, &carrier, t0, t1, extent, band) {
+                geom_brep::MustCarryVerdict::JetDeterminate => {
+                    let spec = EdgeCurveSpec {
+                        description: EdgeDescriptionSpec::TangentIntersection {
+                            s1: cap,
+                            s2: wall,
+                            witness,
+                        },
+                        carrier,
+                        param_start: t0,
+                        param_end: t1,
+                    };
+                    body.set_edge_curve(edge, spec, tol)?;
+                }
+                geom_brep::MustCarryVerdict::UnderDetermined => {
+                    body.describe_at_rest(edge, wall, tol)?;
+                }
+                geom_brep::MustCarryVerdict::InBand(source) => {
+                    return Err(ExtrudeError::SliverRim {
+                        loop_index,
+                        segment_index,
+                        source,
+                    });
+                }
+                // A station reads the rim a corner where the witness
+                // read it smooth: the arm's premise is refuted, and the
+                // rim refuses rather than store a description neither
+                // reading chose.
+                geom_brep::MustCarryVerdict::Transverse => {
+                    return Err(ExtrudeError::SmoothJoinRefuted { edge });
+                }
+            }
             Ok(())
         }
         Err(source) => Err(ExtrudeError::SliverRim {

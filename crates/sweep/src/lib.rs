@@ -84,7 +84,9 @@
 //!   [`ExtrudeError::SliverJoin`] (escalate-never-guess). The revolve's
 //!   latitude joins and the blend's CONTACT edges — a band's tangent
 //!   contact with its support, the corner ball's with its band — are
-//!   the rule's other two callers, each refusing typed at its own door.
+//!   the rule's callers in the other two verbs, each refusing typed at
+//!   its own door; extrude's cap rims (below) are its second caller
+//!   here.
 //! - **Cap–wall rims upgrade too** (the ratified rim decision — Ev,
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as
@@ -99,10 +101,12 @@
 //!   run's K rather than a geometric identity, because the wedge's
 //!   lever is the rim CHORD: below `K = √φ ≈ 1.272` a chord the
 //!   profile door admits, times a tilt the direction gates admit,
-//!   reads under ε. A definitely-smooth rim then keeps the
-//!   conventional description — an image at rest in the wall's chart —
-//!   and the body reaches the at-rest gate, which refuses it as
-//!   `SliverDihedral`. Indeterminate is [`ExtrudeError::SliverRim`].
+//!   reads under ε. A definitely-smooth rim then descends through the
+//!   same must-carry rule as a smooth join; the plane pairs that reach
+//!   it read under-determined and keep the conventional description —
+//!   an image at rest in the wall's chart — and the body reaches the
+//!   at-rest gate, which refuses it as `SliverDihedral`. Indeterminate
+//!   is [`ExtrudeError::SliverRim`].
 //! - **Cosurface sharing**: smooth joins whose side faces lie on the
 //!   identical-by-construction surface — collinear line segments (one
 //!   plane), tangent arcs on one carrier circle (one cylinder) — share
