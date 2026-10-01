@@ -177,8 +177,8 @@
 
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
-use geom_core::Bounds;
-use geom_core::interval::{Interval, norm_sq, sqrt_up};
+use geom_core::interval::certification::Certification;
+use geom_core::interval::{Interval, norm_sq};
 use topo::FaceKey;
 
 use crate::types::TessellateError;
@@ -505,8 +505,8 @@ pub(crate) struct CellBound {
 /// enclosure answers NaN, which every consumer treats as "unbounded/refused".
 ///
 /// **An exactly-zero enclosure collapses to exactly `0.0`** — sound
-/// (the sup of the zero enclosure IS zero; `next_up` exists to cover
-/// `sqrt` rounding, and `√0` does not round) and load-bearing: the
+/// (the sup of the zero enclosure IS zero; the root steps outward only
+/// where it rounds, and `√0` does not round) and load-bearing: the
 /// split selection's degenerate-direction predicates
 /// ([`NurbsFaceBound::split_steps`]) are decided on `== 0.0`, so the
 /// structurally-exact zero of a degree-1 direction must not leave here
@@ -519,17 +519,11 @@ pub(crate) struct CellBound {
 /// convention and `0 + 0` by the TwoSum witness
 /// (`interval_transcendentals`' `mul_lo`/`mul_hi`, `add_lo`/`add_hi`),
 /// so a direction whose derivative net is the exact zero assembles to
-/// `[0, 0]`, which [`sqrt_up`] returns unchanged. An enclosure that is merely
+/// `[0, 0]`, whose root is exactly `[0, 0]`. An enclosure that is merely
 /// NARROW does not, and must not: it is an enclosure of something the
 /// assembly could not prove zero.
 fn cell_component(sq: Interval) -> f64 {
-    // The refusal is asked by name: interval arithmetic keeps it in the
-    // decoration, so a refused enclosure carries an ordinary `hi` and
-    // the NaN the contract above promises has to be spelled here.
-    if !sq.is_certified() {
-        return f64::NAN;
-    }
-    sqrt_up(sq.hi())
+    sq.sqrt().mag()
 }
 
 /// **The per-cell bounds** (TESS-SPAN, promoted from the #320 sizing
@@ -1624,7 +1618,7 @@ pub(crate) mod tests {
     /// **`muu` and `mvv` are pinned at `== 0.0`, not under a ceiling.**
     /// They are the structural zeros of two degree-1 directions, and a
     /// ceiling cannot tell the zero from dust: this row reds if the
-    /// ring ever pads `0 + 0` or `0²` again, or if `norm_sq` stops
+    /// ring ever pads `0 + 0`, `0²` or `√0` again, or if `norm_sq` stops
     /// summing exact zeros exactly, either of which kills the
     /// `hi == 0.0` arm the split selection is decided on. `muv` keeps a
     /// ceiling because its zero is not structural — `S_uv = ΔΔP`
@@ -3071,7 +3065,7 @@ pub(crate) mod tests {
                 let s = NurbsSurface::new(
                     kv.clone(),
                     kv.clone(),
-                    net.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+                    net.iter().copied().map(Point3::from_array).collect(),
                     w.to_vec(),
                 )
                 .unwrap();
@@ -3205,7 +3199,7 @@ pub(crate) mod tests {
                 }
             }
             let list = |v: &[f64]| v.iter().map(|x| hex(*x)).collect::<Vec<_>>().join(",");
-            let points: Vec<f64> = control.iter().flat_map(|p| [p.x, p.y, p.z]).collect();
+            let points: Vec<f64> = control.iter().flat_map(|p| p.to_array()).collect();
             println!(
                 "DUMP {trial} W {} C {} B {} ARG {}",
                 list(&weights),
@@ -3653,19 +3647,17 @@ pub(crate) mod tests {
         })
     }
 
-    /// **The counterfactual is FAITHFUL**: re-expressing the retired
-    /// whole-net arm through the shared home
-    /// ([`whole_net_bound`]) reproduces the digits the deleted
-    /// `integral_face_bound` answered, exactly.
+    /// **The counterfactual's digits are pinned**: re-expressing the
+    /// retired whole-net arm through the shared home
+    /// ([`whole_net_bound`]) answers these literals exactly. They began as
+    /// the deleted `integral_face_bound`'s digits and have since moved
+    /// only tighter, each move noted at its row.
     ///
-    /// Both reviewers checked this by hand, which is the reason it is a
-    /// row now: the fold-cost table and the tighter-or-equal claim are
-    /// both measured AGAINST this function, so a counterfactual that
-    /// drifted would silently restate the comparison the unit's whole
-    /// argument rests on. The literals are the pre-collapse
-    /// measurement, taken before the arm was deleted.
+    /// The fold-cost table and the tighter-or-equal claim are both
+    /// measured AGAINST this function, so a counterfactual that drifted
+    /// unnoticed would silently restate the comparison they rest on.
     #[test]
-    fn cert10_the_whole_net_counterfactual_reproduces_the_pre_collapse_digits() {
+    fn cert10_the_whole_net_counterfactual_digits_are_pinned() {
         for (name, s, want) in [
             (
                 // The wavy row's `muu` moved TIGHTER with interval arithmetic's
@@ -3689,15 +3681,11 @@ pub(crate) mod tests {
                 // 1.08e-13 (was 48.219_564_494_093_156,
                 // 1.084_596_414_278_405_7e-13, 2.000_000_000_000_007,
                 // 20.000_000_000_000_025, 2.000_000_000_000_002_7).
+                // The last three sum exact squares (4, 400, 4), and
+                // their roots are exact: 2, 20 and 2.
                 "staggered_channels",
                 staggered_channels(),
-                [
-                    48.219_564_494_093_07,
-                    0.0,
-                    2.000_000_000_000_000_4,
-                    20.000_000_000_000_004,
-                    2.000_000_000_000_000_4,
-                ],
+                [48.219_564_494_093_07, 0.0, 2.0, 20.0, 2.0],
             ),
         ] {
             let b = whole_net_bound(&s).expect("covered");

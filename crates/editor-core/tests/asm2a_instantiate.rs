@@ -1494,10 +1494,10 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
         // `eval::wire::wire_transform`'s own expression, verbatim: the
         // axis normalized (its `unit`), then `Mat3::rotation_about`,
         // then `Affine3::from_parts` with the translation.
-        let unit = geom_core::Vec3::new(axis[0], axis[1], axis[2]).normalize();
+        let unit = geom_core::Vec3::from_array(axis).normalize();
         let expected = geom_core::Affine3::from_parts(
             geom_core::Mat3::rotation_about(unit, angle),
-            geom_core::Vec3::new(translation[0], translation[1], translation[2]),
+            geom_core::Vec3::from_array(translation),
         );
         let got = frame.affine::<f64>();
         let cols = [

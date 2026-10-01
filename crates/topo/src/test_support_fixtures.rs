@@ -1428,7 +1428,7 @@ mod tests {
             .edges()
             .filter_map(
                 |(_, e)| match body.get_curve_geom(e.curve)?.certified()?.carrier() {
-                    Curve3::Circle { axis, .. } => Some([axis.x, axis.y, axis.z]),
+                    Curve3::Circle { axis, .. } => Some(axis.to_array()),
                     _ => None,
                 },
             )

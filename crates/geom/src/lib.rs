@@ -148,6 +148,7 @@ pub mod curves;
 mod datum;
 mod net;
 mod param;
+mod periodic;
 mod projection_policy;
 mod scalar_lift;
 pub mod surfaces;
@@ -167,6 +168,7 @@ pub use curves::{
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use param::mid_param;
+pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
 // public names both halves' callers have always used.
