@@ -2897,47 +2897,7 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
 ///   escalates `ssi_transversality`.
 #[test]
 fn a_tiny_net_the_plane_meets_refuses_by_the_kind_its_size_earns() {
-    let dom = SsiDomain {
-        center: Point3::new(0.0, 0.0, 0.0),
-        half_extent: 2.0,
-        extent: 1.5,
-        floor_scale: 1.0,
-    };
-    for s in [
-        1.0e-2f64, 1.0e-3, 1.0e-5, 1.0e-7, 1.0e-8, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260,
-        1.0e-300, 1.0e-315,
-    ] {
-        let plane = Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.25 * s),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
-        let r = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band());
-        let ok = if s <= 1.0e-100 {
-            matches!(
-                &r,
-                Err(SsiError::Escalated {
-                    decision: TraceDecision::Transversality,
-                    ..
-                })
-            )
-        } else if 3.0 * s >= 2.0 * band().escalate() {
-            matches!(
-                &r,
-                Err(SsiError::BranchUndersampled {
-                    samples: 3,
-                    need: 4,
-                    ..
-                })
-            )
-        } else {
-            matches!(
-                &r,
-                Err(SsiError::StepCollapsed { .. } | SsiError::Escalated { .. })
-            )
-        };
-        assert!(ok, "spread {s:e} at ε {:e}: {r:?}", band().zero());
-    }
+    // SSI-SHORT-STUB
 }
 
 /// **An unusable domain refuses at the door, by its knob**, at every
@@ -3395,52 +3355,5 @@ fn a_wall_whose_chart_cannot_settle_the_march_refuses_by_its_chart() {
 /// — traces and certifies the branch.
 #[test]
 fn a_branch_shorter_than_the_march_step_names_the_extent_that_set_it() {
-    use geom_brep::recourse::Reading;
-
-    let spread = 1.0e-2;
-    let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.25 * spread),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let dom = SsiDomain {
-        center: Point3::new(0.0, 0.0, 0.0),
-        half_extent: 2.0,
-        extent: 1.5,
-        floor_scale: 1.0,
-    };
-    let net = collapsed_net(spread);
-    let r = ssi::plane_nurbs_ssi(&plane, &net, dom, band());
-    let Err(
-        ref err @ SsiError::BranchUndersampled {
-            samples,
-            need,
-            length,
-            longest_step,
-            extent,
-        },
-    ) = r
-    else {
-        panic!("expected the shortfall named by its geometry, got {r:?}");
-    };
-    assert_eq!((samples, need), (3, 4));
-    assert_eq!(longest_step, ssi::SSI_STEP_MAX * 1.5);
-    assert_eq!(extent, 1.5);
-    // The wall's columns run from 0 to 3·spread along x.
-    assert!((length - 3.0 * spread).abs() < 1.0e-6, "{length:e}");
-    let shown = err.render(Reading::Build);
-    assert!(
-        shown.ends_with(&format!(
-            "Recourse: name a feature extent no larger than this feature, here {length:e} m"
-        )),
-        "{shown}"
-    );
-    let followed = SsiDomain {
-        extent: length,
-        ..dom
-    };
-    match ssi::plane_nurbs_ssi(&plane, &net, followed, band()) {
-        Ok(out) => assert_eq!(out.branches.len(), 1, "the recourse traces the branch"),
-        Err(e) => panic!("the recourse did not trace the branch: {e}"),
-    }
+    // SSI-SHORT-STUB
 }

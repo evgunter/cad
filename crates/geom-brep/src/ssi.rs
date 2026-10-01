@@ -125,7 +125,10 @@ pub mod system;
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, Margin, Point3, Real, SizedPass};
+use geom_core::{
+    Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, Margin, Point3, Real,
+    SizedPass,
+};
 
 use crate::certify::CertCheck;
 use crate::recourse::{
@@ -456,23 +459,6 @@ pub enum SsiError {
     },
     /// The fitting stack refused the marched polyline.
     Fit(FitError),
-    /// A traced branch yielded fewer samples than the cubic fit needs:
-    /// it is shorter than a few of the march's longest steps, which are
-    /// [`SSI_STEP_MAX`] of the caller's named feature extent. The extent
-    /// over-states this feature.
-    BranchUndersampled {
-        /// Samples the branch produced.
-        samples: usize,
-        /// Samples the fit needs.
-        need: usize,
-        /// The branch's polyline length, in metres.
-        length: f64,
-        /// The march's longest step, in metres.
-        longest_step: f64,
-        /// The caller's named feature extent it was scaled from, in
-        /// metres.
-        extent: f64,
-    },
     /// One branch's marched polyline exceeded
     /// [`SSI_MAX_FIT_SAMPLES`]. The tolerance and the operand
     /// curvature together demand more samples than the (cubic) fit can
@@ -744,18 +730,6 @@ impl core::fmt::Display for SsiError {
                  NURBS operand cannot be stated"
             ),
             Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
-            Self::BranchUndersampled {
-                samples,
-                need,
-                length,
-                longest_step,
-                extent,
-            } => write!(
-                f,
-                "ssi: a traced branch is {length:e} m long, under a few of the march's longest \
-                 steps of {longest_step:e} m (scaled from the domain's {extent:e} m feature \
-                 extent), so it yielded {samples} samples where the cubic fit needs {need}"
-            ),
             Self::FitSampleBudget { samples, budget } => write!(
                 f,
                 "ssi: a branch marched {samples} samples against a {budget}-sample fit \
@@ -853,10 +827,6 @@ impl SsiError {
                 let (name, must) = field.words();
                 format!("Recourse: give the domain a {name} that is {must}")
             }
-            // The caller's extent sets the march's longest step.
-            Self::BranchUndersampled { length, .. } => format!(
-                "Recourse: name a feature extent no larger than this feature, here {length:e} m"
-            ),
             // A floor too fine for the domain is the geometry's scale,
             // decided exactly: no band, so no tolerance to name. One that
             // is not a length is the caller's knobs.
@@ -896,6 +866,10 @@ impl SsiError {
                 "Recourse: loosen the tolerance until a branch needs at most {budget} samples, \
                  {KERNEL_LIMIT_LAST_RESORT}"
             ),
+            // `march_both` re-marches a trace too short for the cubic at
+            // the branch's own length, so one that is still short is the
+            // kernel's limit, with no lever of the caller's behind it.
+            Self::Fit(FitError::TooFewPoints { .. }) => KERNEL_LIMIT_RECOURSE.to_owned(),
             // Decisions not yet given an ending
             // (`work/ssi/ssi-refusals-whose-decision-has-no-ending.md`).
             Self::ExhaustivenessInconclusive(_)
@@ -1267,33 +1241,6 @@ impl DomainField {
 /// (`|S(P(t)) − C(t)| ≤ ε`), and it is why the ℝ⁴ trace discharges OQ4
 /// without any re-plumbing.
 fn fit_branch(
-    points: &[Point3<f64>],
-    charts: Option<ChartSamples<'_>>,
-    extent: f64,
-) -> Result<FittedBranch, SsiError> {
-    fit_samples(points, charts).map_err(|e| match e {
-        // A marched branch of at least two samples has too few for the
-        // cubic only when it is shorter than a few of the march's
-        // longest steps, which the caller's extent sets: name that, not
-        // the fit's count. Any other shortfall (one sample has no
-        // length to name) stays the fit's own refusal.
-        SsiError::Fit(FitError::TooFewPoints { have, need })
-            if have >= 2 && need == SSI_FIT_DEGREE + 1 =>
-        {
-            SsiError::BranchUndersampled {
-                samples: have,
-                need,
-                length: points.windows(2).map(|w| (w[1] - w[0]).norm()).sum(),
-                longest_step: SSI_STEP_MAX * extent,
-                extent,
-            }
-        }
-        e => e,
-    })
-}
-
-/// [`fit_branch`]'s fit, with the fitting stack's own refusals.
-fn fit_samples(
     points: &[Point3<f64>],
     charts: Option<ChartSamples<'_>>,
 ) -> Result<FittedBranch, SsiError> {
@@ -1749,7 +1696,7 @@ fn finish_r3(
 ) -> Result<SsiBranch, SsiError> {
     let march_tol = seam_tol(tol, band)?;
     let points = trace_points::<2, 3, _>(sys, trace);
-    let (carrier, _, _) = fit_branch(&points, None, domain.extent)?;
+    let (carrier, _, _) = fit_branch(&points, None)?;
     let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let cert = certify::certify_branch(
         &carrier,
@@ -1984,7 +1931,7 @@ fn finish_r4(
         .iter()
         .map(|s| geom_core::Point2::new(s[2], s[3]))
         .collect();
-    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a, &chart_b)), domain.extent)?;
+    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a, &chart_b)))?;
     let cert = certify::certify_branch(
         &carrier,
         pb.as_ref(),
@@ -2105,7 +2052,7 @@ pub fn trace_plane_nurbs_uncertified(
         .iter()
         .map(|s| geom_core::Point2::new(s[2], s[3]))
         .collect();
-    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a_pts, &chart_b_pts)), domain.extent)?;
+    let (carrier, pa, pb) = fit_branch(&points, Some((&chart_a_pts, &chart_b_pts)))?;
     match (pa, pb) {
         (Some(a), Some(b)) => Ok((carrier, a, b)),
         _ => Err(SsiError::UnsupportedCertificate {
