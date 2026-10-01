@@ -71,6 +71,7 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
+use geom_core::interval::{div_down, norm_sq, norm_sup};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, Vec3};
 
 /// An axis-aligned enclosure box in ℝ³.
@@ -103,33 +104,6 @@ impl Box3 {
             y: Interval::hull(Interval::from_certified(a.y), Interval::from_certified(b.y)),
             z: Interval::hull(Interval::from_certified(a.z), Interval::from_certified(b.z)),
         }
-    }
-
-    /// **The sup of `‖·‖` over this box**: `√(Σ mag²)`, where `mag` is
-    /// the larger absolute end of a side.
-    ///
-    /// Read off a derivative box it is a certified UPPER bound on the
-    /// surface's speed there — metres per chart unit — which is what
-    /// the three sites that need one compute: the chart floor's rate
-    /// in `plane_nurbs_ssi`, limb 3's chart tube pad, and the
-    /// transverse stretch inside `chart_transverse_margin`. One arithmetic,
-    /// one home.
-    ///
-    /// It answers the number and nothing else, and mints no
-    /// [`SupSpeed`](geom_core::SupSpeed): a box whose sides are refused
-    /// or whose magnitudes overflow can answer `0`, `NaN` or `+∞`, and
-    /// what each of those MEANS is the caller's decision — the two
-    /// chart-rate sites currently answer it differently, which is a
-    /// finding filed on TRIM's slate and not this method's to settle.
-    /// The tag goes on past each caller's own guard.
-    ///
-    /// `offset_meters::norm_sup` is the same shape over a different
-    /// operand and a different arithmetic — it rounds the square root
-    /// outward — so the two are siblings, not copies, and folding them
-    /// into one would move bits.
-    pub(crate) fn speed_sup(self) -> f64 {
-        (self.x.mag() * self.x.mag() + self.y.mag() * self.y.mag() + self.z.mag() * self.z.mag())
-            .sqrt()
     }
 
     /// Componentwise hull.
@@ -278,14 +252,6 @@ fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
     ]
 }
 
-/// `|q|²` with **tight** squares — [`Interval::sqr`], not `q*q`:
-/// a straddling coordinate multiplied by itself as two independent
-/// operands would report a spurious negative lower bound (the
-/// `norm_squared` rationale, M2 PR 3).
-fn norm_sq(q: [Interval; 3]) -> Interval {
-    q[0].sqr() + q[1].sqr() + q[2].sqr()
-}
-
 /// The enclosure of the **linearized implicit residual in meters**
 /// ([`crate::implicit::implicit_residual`]) over `b`.
 ///
@@ -309,7 +275,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             // it (the interval-square rule). One crossing, bound once,
             // for the same reason.
             let r = Interval::from_certified(radius);
-            (norm_sq(subp(b, center)) - r.sqr()) / (two * r)
+            (norm_sq(&subp(b, center)) - r.sqr()) / (two * r)
         }
         Surface::Cylinder {
             origin,
@@ -335,7 +301,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             // axis-aligned cylinder it is exact.
             let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
             let r = Interval::from_certified(radius);
-            (norm_sq(w) - r.sqr()) / (two * r)
+            (norm_sq(&w) - r.sqr()) / (two * r)
         }
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
@@ -433,7 +399,7 @@ pub(super) fn chart_transverse_margin(
         y: du.y * ex + dv.y * ey,
         z: du.z * ex + dv.z * ey,
     };
-    let stretch = vt.speed_sup();
+    let stretch = norm_sup(&[vt.x, vt.y, vt.z]);
     // Positive FINITE only: an admitted `+∞` stretch divides the
     // margin to an exact `0`, which the caller's fold then records as
     // the certificate's worst transversality — a definite-looking
@@ -441,8 +407,11 @@ pub(super) fn chart_transverse_margin(
     if !stretch.is_finite() || stretch <= 0.0 {
         return None;
     }
-    let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
-    Some(margin)
+    // A lower bound over an upper bound stays one only rounded down.
+    Some(div_down(
+        zero_free_lower_bound(phi_u * ex + phi_v * ey),
+        stretch,
+    ))
 }
 
 /// The certified distance of an enclosure from zero: `0` when it
