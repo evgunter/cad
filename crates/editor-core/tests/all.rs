@@ -642,6 +642,8 @@ mod wire_rv_unknown;
 mod decide_1_self_dot_interval;
 #[path = "edit_refusal_recourse.rs"]
 mod edit_refusal_recourse;
+#[path = "emit_edge_piece_locality.rs"]
+mod emit_edge_piece_locality;
 #[path = "emit_pair_cut_and_merged.rs"]
 mod emit_pair_cut_and_merged;
 #[path = "emit_seam_edge_merged.rs"]

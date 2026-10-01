@@ -22,8 +22,8 @@ use geom_core::Tol;
 /// digest in `m4_pr4_ci`) pin what production users actually get.
 /// Scenario A's flip-vanish row therefore exercises the AMENDED N5
 /// semantics: the disjoint run's pair space is pruned and no flip
-/// evidence is computed. The vanished name is a ranked rim-edge
-/// fragment whose group went from two to one, so the row diagnoses
+/// evidence is computed. The vanished name is a rim-edge piece named by
+/// its ends, whose group went from two to one, so the row diagnoses
 /// to `GroupResized` (`resolve::group_resized`'s docs). Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
@@ -116,9 +116,9 @@ where
         },
     );
     let ev1 = run::<T>(&doc, None);
-    // The FIRST ranked FromA rim-edge fragment in table order — a
+    // The FIRST FromA rim-edge piece in table order — a
     // deterministic probe.
-    let ranked: StableName = ev1
+    let piece: StableName = ev1
         .value(u)
         .expect("union evaluates")
         .name_table
@@ -126,19 +126,16 @@ where
         .find_map(|(n, e)| {
             let hit = n.kind == EntityKind::Edge
                 && matches!(n.path.first(), Some(RoleSeg::FromA(_)))
-                && matches!(
-                    n.path.last(),
-                    Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
-                );
+                && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
             (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
-        .expect("ranked rim fragment exists");
+        .expect("a rim piece named by its ends exists");
     let inst = minted(
         EntityKind::Edge,
         pat,
         RoleSeg::Instance {
             i: 1,
-            of: ranked.clone().into(),
+            of: piece.clone().into(),
         },
     );
     let (doc2, _) = step(
@@ -158,7 +155,7 @@ where
         doc: &doc,
         eval: &ev1,
     };
-    out.push(("flip-vanish", resolve_with_prior(new, prior, &ranked)));
+    out.push(("flip-vanish", resolve_with_prior(new, prior, &piece)));
     out.push(("cascade", resolve_with_prior(new, prior, &inst)));
 
     // ---- Scenario B: pattern count shrink (StructuralParam). ----
