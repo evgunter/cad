@@ -216,8 +216,10 @@ pub enum Safety {
     /// No claim; nothing is asserted about this palette's marks.
     Unchecked,
     /// Claims its marks stay mutually distinguishable under
-    /// dichromatic vision, and its actionable colour stays apart from
-    /// the chrome's text, and is held to both.
+    /// dichromatic vision, and that its actionable colour stays apart
+    /// from the panel, plain text and weak text under the three
+    /// dichromacies (`crates/viewer/GUI-DESIGN.md`, Colour (G5)), and
+    /// is held to both.
     ColorblindSafe,
 }
 
@@ -565,10 +567,10 @@ const LIGHT_NEUTRAL: Theme = Theme {
 /// Meaning — FAILED, POISONED, Violated, "deleted" — is carried by
 /// each badge's own words, so the colour is not part of that claim.
 /// Salience is: which row is loud is what [`crate::frame::Tone`]
-/// exists to say, so this palette promises that
-/// [`Theme::actionable`] stays apart from the chrome's plain and weak
-/// text, and from the panel behind both, under all three
-/// dichromacies.
+/// exists to say, so this palette makes the claim
+/// `crates/viewer/GUI-DESIGN.md`'s Colour (G5) states: the actionable
+/// colour stays apart from the panel, plain text and weak text under
+/// the three dichromacies.
 const COLORBLIND_SAFE: Theme = Theme {
     name: "colorblind-safe",
     polarity: Polarity::Light,

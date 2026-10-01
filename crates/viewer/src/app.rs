@@ -275,7 +275,7 @@ fn draw_badge(ui: &mut egui::Ui, theme: &Theme, badge: &frame::Badge) -> egui::R
 /// context should be asked to follow, and stating it that way leaves
 /// the toolkit's own per-theme visuals intact underneath — a
 /// `set_visuals` would freeze one snapshot of them into the style.
-fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
+pub(crate) fn apply_polarity(ctx: &egui::Context, polarity: Polarity) {
     ctx.set_theme(match polarity {
         Polarity::Light => egui::ThemePreference::Light,
         Polarity::Dark => egui::ThemePreference::Dark,

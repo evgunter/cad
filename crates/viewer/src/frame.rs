@@ -1590,9 +1590,9 @@ pub fn cursor_status(step: IdStep) -> StatusUpdate {
 /// **Meaning is the words', salience is the colour's.** Every badge
 /// says its own words, so what a verdict MEANS never depends on the
 /// colour being read. Which row is LOUD does, and a theme claiming
-/// [`crate::theme::Safety::ColorblindSafe`] promises it: its
-/// [`crate::theme::Theme::actionable`] stays apart from plain and
-/// weak text under the three dichromacies (`tests/theme.rs`).
+/// [`crate::theme::Safety::ColorblindSafe`] keeps it: the actionable
+/// colour stays apart from the panel, plain text and weak text under
+/// the three dichromacies (`crates/viewer/GUI-DESIGN.md`, Colour (G5)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tone {
     /// A report. The reader may want to know; there is nothing to do

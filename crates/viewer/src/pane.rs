@@ -293,19 +293,32 @@ pub(crate) mod headless {
         pub(crate) actionable: egui::Color32,
     }
 
-    /// [`landed`] of `draw` handed `theme`, and the [`Voices`] of the
-    /// frame it drew.
+    /// One headless frame of `draw` handed `theme`, on a context set to
+    /// that theme's polarity as the application sets it, and the
+    /// [`Voices`] of the frame it drew.
     ///
-    /// Panics when the two voices are one colour, since then no row
-    /// could tell them apart.
+    /// Panics when the frame was drawn in the other polarity, or when
+    /// the two voices are one colour, since then no row could tell them
+    /// apart.
     pub(crate) fn landed_voiced(
         theme: &crate::theme::Theme,
         draw: impl FnOnce(&mut egui::Ui, &crate::theme::Theme),
     ) -> (Vec<Landed>, Voices) {
+        let ctx = egui::Context::default();
+        crate::app::apply_polarity(&ctx, theme.polarity);
         let weak = core::cell::Cell::new(egui::Color32::PLACEHOLDER);
-        let painted = landed(|ui| {
+        let mut draw = Some(draw);
+        let painted = frame(&ctx, egui::RawInput::default(), &mut |ui| {
+            assert_eq!(
+                ui.visuals().dark_mode,
+                theme.polarity == crate::theme::Polarity::Dark,
+                "{}: the frame is drawn in the theme's polarity",
+                theme.name,
+            );
             weak.set(ui.visuals().weak_text_color());
-            draw(ui, theme);
+            if let Some(draw) = draw.take() {
+                draw(ui, theme);
+            }
         });
         let voices = Voices {
             weak: weak.get(),
