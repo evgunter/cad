@@ -665,13 +665,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
         node: bench.post_b,
         body: 0,
     });
-    match both.proposal(
-        doc,
-        ev,
-        &session.eval_options(),
-        tol,
-        common::asm::seat_choice(),
-    ) {
+    match both.proposal(doc, ev, common::asm::seat_choice()) {
         Err(MateToolError::Frame {
             error: InterrogateError::Standing(standing),
             ..
@@ -1017,11 +1011,7 @@ fn child_band_refusal_rows() {
             path: Vec::new(),
         })
     };
-    let frame = MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     // DOOR 2a — a mate cannot be INSERTED where no band exists: the
     // edit door refuses it with the solve's own `Band`. A snapshot
     // loaded under this tolerance can still hold one, and the solve
@@ -1035,7 +1025,7 @@ fn child_band_refusal_rows() {
                 b: face_of(b),
                 class: ContactClass::Rest,
                 alignment: Alignment {
-                    a: frame,
+                    a: frame.clone(),
                     b: frame,
                     primitive: MatePrimitive::FrameCoincidence,
                     sense: AxisSense::Opposed,

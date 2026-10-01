@@ -377,19 +377,11 @@ const PLATE_MAX_TERMS: usize = 252;
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
 ///
-/// Re-captured when validation began keeping each loop's authored
-/// start (`profile` README V3): the plate's holes are authored
-/// counter-clockwise and reversed into canonical sense, and a reversed
-/// loop now starts where it was authored rather than at its lex-min
-/// vertex, so the walks meet the same forms in another order. Every
-/// count is unchanged; only the digest chains moved.
-///
-/// Re-captured again when the sketch pushforward began reading the
-/// segment's stored carrier and sweep (`geom_brep::SketchSegment`), and
-/// a cap's arc apex began reading the sweep (`mid − n̂·σ·(len/2)·
-/// tan(|Δθ|/4)`) rather than the bulge: plain and early decision forms
-/// +16 each, door forms −20, one fewer assertion form. Calls, frozen
-/// counts and every decision count are unchanged.
+/// What moves it: any change to the forms the walks meet, or the order
+/// they meet them in — a loop's start vertex, how a sketch segment or
+/// an arc apex is pushed forward, where a curve is sampled. A change
+/// that moves only digests reorders the forms; one that moves counts
+/// changes what is built.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 951 forms 15086 frozen 720 digest 2bae6acb5dd6e6f182a32aa86e7c9f69\n\
      Plain/Assertion calls 462 forms 2941 frozen 420 digest 889d036c604d77280102ff460908e6cc\n\

@@ -1,20 +1,17 @@
 //! **Which seam pair a name lies on.**
 //!
-//! A `Fragment(OrderAlong)` rank is a place along a direction. For a
-//! chain along a SEAM line the direction is the seam pair's
-//! `n_a × n_b`, with the `a` face's outward normal first. That holds for
-//! the pieces of a seam minted already cut (the seam-chain ranker, whose
-//! sides the pair emitter knows structurally), for the pieces of a whole
-//! seam a later step cut (the descent ranker), and for a seam-vertex
-//! group ranked along a seam edge (the vertex carrier). So one line gets
-//! one orientation, whichever step cut it.
+//! A seam vertex group's `Fragment(OrderAlong)` rank is a place along
+//! the edge it crosses. Where that edge lies on a SEAM line, it runs as
+//! the loop of the pair's first side runs along it (N2), whichever step
+//! cut it, so a rank needs the pair the edge's name records.
 //!
 //! This module holds the one answer to "is this name on a seam line,
-//! and which pair", for the rankers that know a seam only by its NAME.
-//! The pair emitter reads it to pick the direction; the canonical form
+//! and which pair", for the readers that know a seam only by its NAME.
+//! The pair emitter reads it to orient a crossed edge
+//! (`emit_topo::crossed_edge_orientation`); the canonical form
 //! (`names::canonical`) reads it, in a name's earlier and later
 //! spelling, to decide whether a rewrite — the union's collapse, or a
-//! re-map of a published name — reversed the direction. Both read the
+//! re-map of a published name — reversed that orientation. Both read the
 //! same answer through the same wrappers, so they cannot disagree about
 //! which ranks lie on a seam line.
 
@@ -51,8 +48,8 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::InPart { of: n } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
         // A union member's entity is NOT seen through: its seam belongs
-        // to the member, whose pair order no union reorders, so it ranks
-        // along its own carrier.
+        // to the member, whose pair order no union reorders, and is read
+        // in the member's own table.
         RoleSeg::FromMember { .. }
         // New entities an op minted FROM a source — a blend face, a
         // shell's cavity twin (an offset line, not the source's), a
@@ -75,7 +72,9 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
-        | RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::OrderAlong { .. })
+        | RoleSeg::Fragment(
+            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_) | Qualifier::OrderAlong { .. },
+        )
         | name_free_seg!() => Head::Stop,
     }
 }
@@ -86,11 +85,16 @@ fn head(seg: &RoleSeg) -> Head<'_> {
 /// it through the wrappers [`head`] lists as `Through`, with any
 /// `Fragment` tail after it. A pair whose two sides carry the SAME name
 /// (two placements of one prototype, N1) names no side, so it is not a
-/// sided line: it is answered `None`, and its pieces rank along their own
-/// carrier like any other edge — the union's collapse, which never swaps
-/// an equal pair, agrees.
+/// sided line: it is answered `None` — the union's collapse, which never
+/// swaps an equal pair, agrees.
 pub(super) fn seam_line_pair(name: &StableName) -> Option<(&StableName, &StableName)> {
     seam_through(name, EntityKind::Edge).filter(|(a, b)| a != b)
+}
+
+/// The two sides `(a, b)` of the seam an EDGE name lies on, if any,
+/// found as [`seam_line_pair`] finds them, an equal pair included.
+pub(super) fn seam_edge_sides(name: &StableName) -> Option<(&StableName, &StableName)> {
+    seam_through(name, EntityKind::Edge)
 }
 
 /// The two parents `(a, b)` of a seam VERTEX name, if it is one: a

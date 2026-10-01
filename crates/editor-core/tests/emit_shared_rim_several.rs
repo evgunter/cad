@@ -13,7 +13,7 @@
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
-use crate::fixture::{edge_of, member_entity, table};
+use crate::fixture::{edge_of, table};
 
 use editor_core::{
     CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
@@ -57,20 +57,19 @@ pub(crate) fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<Re
     (doc, ids)
 }
 
-/// A published piece of member `m`'s edge `edge`: the member-keyed
-/// name, ranked `(rank, of)` when the edge is in several pieces.
-pub(crate) fn rim_piece(
-    union: RecipeNodeId,
-    m: RecipeNodeId,
-    edge: &StableName,
-    rank: Option<(u32, u32)>,
-) -> StableName {
-    let mut n = member_entity(union, m, edge.clone(), EntityKind::Edge);
-    if let Some((rank, of)) = rank {
-        n.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
-    }
-    n
+/// Whether `n` is a published piece of member `m`'s edge `edge`: the
+/// member-keyed name, bare or, when the edge is in several pieces,
+/// qualified by its ends.
+pub(crate) fn is_rim_piece(n: &StableName, m: RecipeNodeId, edge: &StableName) -> bool {
+    n.kind == EntityKind::Edge
+        && match n.path.as_slice() {
+            [RoleSeg::FromMember { member, of }, tail @ ..] => {
+                *member == m
+                    && **of == *edge
+                    && matches!(tail, [] | [RoleSeg::Fragment(Qualifier::Ends(_))])
+            }
+            _ => false,
+        }
 }
 
 /// The x-span of a published edge that runs along y = z = 1.
@@ -136,12 +135,11 @@ fn every_member_edge_lies_on_its_source(
 }
 
 /// **`[a, b, g]`: the chord x = 0.0..0.3 is named as a piece of `a`'s
-/// top/y = 1 rim**, ranked with that rim's other pieces. The rim runs
-/// from x = 1 to x = 0 (segment 2 of `a`'s profile), and the body's
-/// vertices cut it at 0.5, 0.4 and 0.3 into four cells, numbered along
-/// that direction (`emit_union::rank_member_edges`). `a` holds cells 0, 1
-/// and 3; cell 2 lies inside `g`. On main this order refused
-/// `SharedRim { found: Several }`.
+/// top/y = 1 rim**, beside that rim's other pieces. The rim runs from
+/// x = 1 to x = 0 (segment 2 of `a`'s profile), and the body's vertices
+/// cut it at 0.5, 0.4 and 0.3; `a` holds x = 0.5..1.0, 0.4..0.5 and
+/// 0.0..0.3, each its own name by its ends, and 0.3..0.4 lies inside
+/// `g`. This order once refused `SharedRim { found: Several }`.
 #[test]
 fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
     let (doc, ids) = document(&[A, B, G], &[0, 1, 2]);
@@ -158,12 +156,21 @@ fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
             crate::fixture::piece(&docx, a, 0, 2),
         )],
     };
-    let near =
-        |(p, q): (f64, f64), (r, s): (f64, f64)| (p - r).abs() < 1e-12 && (q - s).abs() < 1e-12;
-    for (rank, want) in [(0, (0.5, 1.0)), (1, (0.4, 0.5)), (3, (0.0, 0.3))] {
-        let got = x_span(&ev, union, &rim_piece(union, a, &rim, Some((rank, 4))));
-        assert!(near(got, want), "#{rank} of 4: {got:?}, wanted {want:?}");
-    }
+    let micro = |x: f64| (x * 1e6).round() as i64;
+    let mut spans: Vec<(i64, i64)> = table(&ev, union)
+        .iter()
+        .filter(|(n, _)| is_rim_piece(n, a, &rim))
+        .map(|(n, _)| {
+            let (x0, x1) = x_span(&ev, union, n);
+            (micro(x0), micro(x1))
+        })
+        .collect();
+    spans.sort_unstable();
+    assert_eq!(
+        spans,
+        [(0.0, 0.3), (0.4, 0.5), (0.5, 1.0)].map(|(p, q)| (micro(p), micro(q))),
+        "a's rim pieces"
+    );
 }
 
 /// **No order of the review probe's documents refuses
