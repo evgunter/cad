@@ -317,6 +317,9 @@ pub(crate) enum KillAnchorFault {
     /// `first` does not, a vertex whose `emanating` does not, or an edge
     /// a slot of which does not.
     DeadHalfEdge(EntityId),
+    /// A face whose null-face record names a loop that does not
+    /// resolve.
+    DeadNullFaceLoop(FaceKey),
 }
 
 /// Every [`KillAnchorFault`] on `body`.
@@ -430,6 +433,11 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
     for (solid, data) in body.solids() {
         if data.shells.iter().any(|&s| body.get_shell(s).is_none()) {
             faults.push(KillAnchorFault::DeadShell(EntityId::Solid(solid)));
+        }
+    }
+    for (face, record) in body.null_faces() {
+        if record.loops().iter().any(|&l| body.get_loop(l).is_none()) {
+            faults.push(KillAnchorFault::DeadNullFaceLoop(face));
         }
     }
     faults

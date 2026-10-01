@@ -119,6 +119,7 @@ use crate::fixtures::{
     KillAnchorFault, assert_kill_refuses, deep_snapshot, kill_anchor_faults, ops_genus2,
     ops_holed_box, ops_ring_bridge, ops_strut_cube,
 };
+use crate::null::NullFacePair;
 use crate::test_support_fixtures::declined_cube;
 use geom_core::Tol;
 #[cfg(not(debug_assertions))]
@@ -1689,6 +1690,69 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
     }),
 ];
 
+/// Marks every face that has a ring as a null face, through the door:
+/// its outer loop above, its first ring below. The bodies whose kills
+/// and moves read the null-face hygiene
+/// ([`Body::drop_null_face_records_naming`]).
+fn mark_ringed_faces(body: &mut Body<f64>) {
+    let marks: Vec<(FaceKey, NullFacePair)> = body
+        .faces()
+        .filter_map(|(face, data)| {
+            let below_loop = *data.rings.first()?;
+            let above_loop = data.outer;
+            Some((
+                face,
+                NullFacePair::Split {
+                    above_loop,
+                    below_loop,
+                },
+            ))
+        })
+        .collect();
+    for (face, pair) in marks {
+        body.set_null_face_pair(face, pair)
+            .expect("a face's own outer loop and ring mark it");
+    }
+}
+
+/// How an op that took `before` to `after` left `before`'s null-face
+/// records: `[kept, dropped]`. A record stands exactly where both its
+/// loops are still its face's own and falls exactly where one died or
+/// left the face, so a drop of a record whose loops stay (an
+/// over-reach) and a record left naming a loop gone from its face each
+/// panic, naming `context`.
+fn null_records_maintained(
+    before: &Body<f64>,
+    after: &Body<f64>,
+    context: impl Fn() -> String,
+) -> [usize; 2] {
+    let mut counts = [0usize; 2];
+    for (face, record) in before.null_faces() {
+        let held = record.loops().iter().all(|&l| {
+            after.get_loop(l).is_some_and(|data| data.face == face)
+                && after
+                    .get_face(face)
+                    .is_some_and(|data| data.outer == l || data.rings.contains(&l))
+        });
+        match (held, after.null_face_pair(face)) {
+            (true, Some(kept)) if kept == record => counts[0] += 1,
+            (false, None) => counts[1] += 1,
+            (held, left) => panic!(
+                "{}: {face:?}'s record {record:?} with its loops held {held} is left {left:?}",
+                context()
+            ),
+        }
+    }
+    assert!(
+        after
+            .null_faces()
+            .all(|(face, _)| before.null_face_pair(face).is_some()),
+        "{}: a record appeared",
+        context()
+    );
+    counts
+}
+
 /// No over-refusal of the anchor, run and removal proofs: on every
 /// valid body [`FIXTURES`], [`BESIDE_A_LONE_VERTEX`],
 /// [`RING_ABOUT_AN_EMPTY_OUTER`], [`EMPTY_RING_BESIDE_A_CYCLE`],
@@ -1698,7 +1762,10 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
 /// ([`AnchorCall::run_twin`]), and `movefac` at every shell, refuses
 /// nothing that reports a torn arena
 /// ([`EulerOpError::reports_tier1_corruption`]). An enumeration, not a
-/// sample.
+/// sample. Every ringed face is marked as a null face
+/// ([`mark_ringed_faces`]), and each `Ok`, and `mfkrh` and `ring_move`
+/// at every marked ring, keeps exactly the records whose loops stay on
+/// their face ([`null_records_maintained`]).
 ///
 /// Each proof sits late in its plan, so a sweep whose calls all refused
 /// earlier would pass having asked none of them; the floors say each
@@ -1708,7 +1775,8 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
 /// its merged fan does not prove, and at a null edge, whose merge moves
 /// nothing, and each kill emptied a loop somewhere, the write whose
 /// proof reads every member: `kev` at the segment, `kef` at the circle
-/// (the `Lone` inverse), and `kemr` at the strut from its tip.
+/// (the `Lone` inverse), and `kemr` at the strut from its tip; and a
+/// record stood somewhere, and fell to `mekr`, `mfkrh` and `ring_move`.
 #[test]
 fn valid_fixtures_never_refuse_a_kill_anchor() {
     let tol = Tol::witness();
@@ -1735,8 +1803,14 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
     let mut mekr_sites = [0usize; 4];
     let mut kfmrh_fusions = 0usize;
     let mut movefacs = 0usize;
+    // Null-face records kept and dropped by the anchor calls, then
+    // dropped by `mfkrh` and `ring_move`.
+    let mut records = [0usize; 2];
+    let mut moved_off = [0usize; 2];
     for (fixture, build) in bodies {
-        let body = build(tol);
+        let mut body = build(tol);
+        mark_ringed_faces(&mut body);
+        let body = body;
         assert_eq!(
             crate::validate::validate(&body),
             Ok(()),
@@ -1754,7 +1828,12 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
         for call in anchor_calls(&body) {
             let mut twin = body.clone();
             match call.run_twin(&mut twin, tol) {
-                Some(Ok(())) => ran[call.op()][2] += 1,
+                Some(Ok(())) => {
+                    ran[call.op()][2] += 1;
+                    null_records_maintained(&body, &twin, || {
+                        format!("{call:?}'s twin on {fixture}")
+                    });
+                }
                 Some(Err(refusal)) if refusal.reports_tier1_corruption() => {
                     panic!("{call:?}'s twin door on the valid {fixture} refuses {refusal:?}")
                 }
@@ -1764,6 +1843,10 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
             match call.run(&mut trial, tol) {
                 Ok(()) => {
                     ran[call.op()][0] += 1;
+                    let [kept, dropped] =
+                        null_records_maintained(&body, &trial, || format!("{call:?} on {fixture}"));
+                    records[0] += kept;
+                    records[1] += dropped;
                     // The loop a kill empties where it empties one: the
                     // mate's for `kef`, whose own loop dies, else `he`'s.
                     let emptiable = match call {
@@ -1811,7 +1894,38 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
                 Err(_) => {}
             }
         }
+        // The moves off a face `anchor_calls` does not make: each
+        // marked ring promoted by `mfkrh`, and moved by `ring_move` to
+        // every other face of its shell.
+        for (face, record) in body.null_faces() {
+            let [_, ring] = record.loops();
+            let mut trial = body.clone();
+            if trial.mfkrh_plug(ring, true).is_ok() {
+                let [_, dropped] = null_records_maintained(&body, &trial, || {
+                    format!("mfkrh({ring:?}) on {fixture}")
+                });
+                moved_off[0] += dropped;
+            }
+            let shell = body.get_face(face).map(|data| data.shell);
+            for (to, data) in body.faces() {
+                let mut trial = body.clone();
+                if to != face && Some(data.shell) == shell && trial.ring_move(ring, to).is_ok() {
+                    let context = || format!("ring_move({ring:?}, {to:?}) on {fixture}");
+                    moved_off[1] += null_records_maintained(&body, &trial, context)[1];
+                }
+            }
+        }
     }
+    assert!(
+        records.iter().all(|&n| n > 0),
+        "the anchor calls kept and dropped [{}, {}] null-face records on the valid bodies",
+        records[0],
+        records[1]
+    );
+    assert!(
+        moved_off.iter().all(|&n| n > 0),
+        "`mfkrh` and `ring_move` dropped {moved_off:?} null-face records on the valid bodies"
+    );
     for (op, [ok, emptied, twin]) in ANCHOR_OPS.iter().zip(ran) {
         assert!(ok > 0, "no `{op}` ran to Ok on the valid bodies: {ran:?}");
         assert!(
@@ -1884,7 +1998,8 @@ type AnchorTable = [AnchorRows; ANCHOR_TEARS.len()];
 /// seed, one and two tears on every [`FIXTURES`] body, the genus-2 body,
 /// the holed box, [`BESIDE_A_LONE_VERTEX`],
 /// [`RING_ABOUT_AN_EMPTY_OUTER`], [`EMPTY_RING_BESIDE_A_CYCLE`],
-/// [`TWO_EMPTY_LOOPS`] and [`TWO_SHELLS_OF_ONE_SOLID`], then every
+/// [`TWO_EMPTY_LOOPS`] and [`TWO_SHELLS_OF_ONE_SOLID`], each ringed
+/// face marked first ([`mark_ringed_faces`]), then every
 /// [`anchor_calls`] call, each on a
 /// clone. An `Ok` counts in a fault column where it leaves a
 /// [`kill_anchor_faults`] fault the tear did not plant, which is one the
@@ -1912,6 +2027,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
         for tears in [1, 2] {
             for (_, build) in bodies {
                 let mut body = build(tol);
+                mark_ringed_faces(&mut body);
                 let mut rng = Rng::from_seed(seed);
                 for _ in 0..tears {
                     plant(&mut body, tear, &mut rng, HalfEdgeKey::default());
@@ -1946,6 +2062,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
                             KillAnchorFault::DeadSolid(_) => 7,
                             KillAnchorFault::DeadEdge(_) => 8,
                             KillAnchorFault::DeadHalfEdge(_) => 9,
+                            KillAnchorFault::DeadNullFaceLoop(_) => 10,
                         };
                         columns[column] = true;
                     }
@@ -1960,7 +2077,7 @@ fn kill_anchor_rows(tear: Tear, seeds: &[u64]) -> AnchorRows {
 }
 
 /// The fault columns of an [`AnchorRows`] cell, after calls and `Err`.
-const ANCHOR_COLUMNS: [&str; 10] = [
+const ANCHOR_COLUMNS: [&str; 11] = [
     "a vertex anchor off its vertex",
     "`None` on a vertex that keeps edges",
     "a loop anchor off its loop",
@@ -1971,6 +2088,7 @@ const ANCHOR_COLUMNS: [&str; 10] = [
     "a dead solid left named",
     "a dead edge left named",
     "a dead half-edge left named",
+    "a null-face record naming a dead loop",
 ];
 
 /// Asserts every fault column of `table` is 0, naming the cell and

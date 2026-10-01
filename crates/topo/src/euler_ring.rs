@@ -1090,9 +1090,10 @@ impl<T: Decide> Body<T> {
         };
         self.faces.remove(f2);
         self.face_provenance.remove(f2);
-        // Null-face record hygiene (M3 PR 1): a record never outlives
-        // its face (crate::null).
+        // A null-face record never outlives its face, nor names a loop
+        // that left it (crate::null).
         self.null_faces.remove(f2);
+        self.drop_null_face_records_naming(ring);
         let killed_surface = self
             .remove_surface_if_orphaned(f2_data.surface)
             .then_some(f2_data.surface);
@@ -1274,6 +1275,7 @@ impl<T: Decide> Body<T> {
                 unreachable!("ring_move: the ring resolved in the plan phase")
             };
             l.face = to_face;
+            self.drop_null_face_records_naming(ring);
         }
         self.drop_rows_on_chart_change(ring, from_surface, to_surface);
         crate::pcurves::apply_site_rows(self, rows, None);
@@ -2018,6 +2020,7 @@ impl<T: Decide> Body<T> {
         face_data.rings.retain(|&l| l != ring_loop);
         self.loops.remove(ring_loop);
         self.loop_provenance.remove(ring_loop);
+        self.drop_null_face_records_naming(ring_loop);
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("mekr: `u` resolved in check_anchors")
         };

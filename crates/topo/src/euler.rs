@@ -979,6 +979,17 @@ pub enum EulerOpError {
         /// The ring-side loop, in a different face.
         ring: LoopKey,
     },
+    /// [`Body::set_null_face_pair`]'s record names a loop that is not
+    /// the marked face's own — neither its outer loop nor one of its
+    /// rings. A null face is one face's two coincident loops
+    /// ([`crate::null`]), so such a record describes none.
+    NullPairForeignLoop {
+        /// The face the record would mark.
+        face: FaceKey,
+        /// The first role loop, in declaration order, that `face` does
+        /// not hold.
+        r#loop: LoopKey,
+    },
     /// A loop named as a ring is its face's outer loop:
     /// [`Body::mekr`]'s ring argument, [`Body::ring_move`]'s ring, and
     /// [`Body::mfkrh`]'s ring must be interior loops (members of
@@ -1312,6 +1323,12 @@ impl EulerOpError {
                 "mekr: loops {target:?} and {ring:?} belong to different \
                  faces"
             ),
+            Self::NullPairForeignLoop { face, r#loop } => format!(
+                "a null-face record on face {face:?} names loop {loop:?}, which is not \
+                 that face's outer loop or one of its rings (a null face is one face's \
+                 two coincident loops)",
+                loop = r#loop
+            ),
             Self::RingIsOuter { r#loop } => format!(
                 "loop {loop:?} is its face's outer loop, not a ring",
                 loop = r#loop
@@ -1504,6 +1521,10 @@ pub(crate) fn every_euler_op_error_once()
             target: lp,
             ring: lp,
         },
+        EulerOpError::NullPairForeignLoop {
+            face: fc,
+            r#loop: lp,
+        },
         EulerOpError::RingIsOuter { r#loop: lp },
         EulerOpError::SameFace { face: fc },
         EulerOpError::CrossShell { f1: fc, f2: fc },
@@ -1644,6 +1665,7 @@ impl EulerOpError {
             | Self::SelfLoopEdge { .. }
             | Self::SameLoop { .. }
             | Self::NotSameFace { .. }
+            | Self::NullPairForeignLoop { .. }
             | Self::RingIsOuter { .. }
             | Self::SameFace { .. }
             | Self::CrossShell { .. }
@@ -6679,12 +6701,14 @@ mod tests {
 /// `tier1` constructs is one relation, keyed by the variant and the
 /// kinds its fields wrap (`EntityId::Face(..)` reads `Face`), or by its
 /// field names where it wraps none. `RELATIONS` gives each one a
-/// disposition: the helper whose scan reads the naming field before a
+/// disposition: the helper whose scan reads the naming field when a
 /// kill removes the record it names, checked against that helper's
-/// body, or the tracker row that files the gap, checked to exist. A
-/// relation `tier1` gains, or a variant of either prefix the enum gains
-/// that `tier1` does not construct and `NOT_BODY_RELATIONS` does not
-/// place, reds here until it is given one.
+/// body — a proof that refuses before the kill, or, for the null-face
+/// records a kill maintains rather than refuses over, the drop in its
+/// mutation phase. A relation `tier1` gains, or a variant of either
+/// prefix the enum gains that `tier1` does not construct and
+/// `NOT_BODY_RELATIONS` does not place, reds here until it is given
+/// one.
 ///
 /// What this cannot see: a relation the validator checks without a
 /// `Dangling*` or `Stale*` variant, and a second field of one kind pair
@@ -6708,13 +6732,8 @@ mod removal_census {
         /// The helper whose scan reads the field, and the code
         /// fragments its body reads it through.
         Read(&'static str, &'static [&'static str]),
-        /// The row that files the gap, repo-relative.
-        Filed(&'static str),
     }
-    use Disposition::{Filed, Read};
-
-    const NULL_FACES: &str =
-        "work/topo/kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove.md";
+    use Disposition::Read;
 
     /// One disposition per relation `tier1` checks, in its pass order.
     const RELATIONS: [(&str, Disposition); 19] = [
@@ -6799,7 +6818,10 @@ mod removal_census {
             "DanglingTopology: Vertex -> HalfEdge",
             Read("require_killed_halves_unnamed", &["data.emanating"]),
         ),
-        ("StaleNullFaceLoop: face, named_loop", Filed(NULL_FACES)),
+        (
+            "StaleNullFaceLoop: face, named_loop",
+            Read("drop_null_face_records_naming", &["pair.loops().contains"]),
+        ),
     ];
 
     /// Variants of either prefix that name no record of a `Body`, so no
@@ -6896,7 +6918,7 @@ mod removal_census {
     }
 
     #[test]
-    fn every_relation_validate_checks_is_read_by_a_kill_helper_or_filed() {
+    fn every_relation_validate_checks_is_read_by_a_kill_helper() {
         let found = tier1_relations();
         let keys: Vec<&str> = found.iter().map(|(_, key)| key.as_str()).collect();
         let listed: Vec<&str> = RELATIONS.iter().map(|&(key, _)| key).collect();
@@ -6921,25 +6943,16 @@ mod removal_census {
              in `NOT_BODY_RELATIONS`"
         );
         let helpers: Vec<String> = HELPER_SOURCES.iter().map(|s| code_only(s)).collect();
-        let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
-        for (key, disposition) in &RELATIONS {
-            match disposition {
-                Read(helper, reads) => {
-                    let head = format!("fn {helper}(");
-                    let sources: Vec<&String> =
-                        helpers.iter().filter(|code| code.contains(&head)).collect();
-                    let [source] = sources[..] else {
-                        panic!("`{key}`: `{helper}` is defined once among the helper sources");
-                    };
-                    let body = body_of(source, &head);
-                    for read in *reads {
-                        assert!(body.contains(read), "`{key}`: `{helper}` reads `{read}`");
-                    }
-                }
-                Filed(row) => assert!(
-                    root.join(row).is_file(),
-                    "`{key}` is filed at `{row}`, which no longer exists: give it a disposition"
-                ),
+        for (key, Read(helper, reads)) in &RELATIONS {
+            let head = format!("fn {helper}(");
+            let sources: Vec<&String> =
+                helpers.iter().filter(|code| code.contains(&head)).collect();
+            let [source] = sources[..] else {
+                panic!("`{key}`: `{helper}` is defined once among the helper sources");
+            };
+            let body = body_of(source, &head);
+            for read in *reads {
+                assert!(body.contains(read), "`{key}`: `{helper}` reads `{read}`");
             }
         }
     }

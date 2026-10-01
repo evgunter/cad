@@ -2,11 +2,11 @@
 id: kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove
 kind: issue
 title: kef, kvfs and mekr remove a loop a null-face record names and return Ok, leaving a tier-1-invalid body from a valid one
-status: open
+status: dispatched
+branch: topo/null-face-record-dies-with-its-loops
 opened: 2026-09-30
 priority: P2
 cost: M
-design: true
 refs: [kills-remove-half-edges-another-record-names, mekr-and-kvfs-remove-an-empty-loop-or-lone-vertex-another-record-names, kef-kvfs-and-mekr-remove-a-face-shell-solid-or-edge-another-record-names]
 ---
 
@@ -108,3 +108,32 @@ No `[ev]` question: the reading keeps the ratified decision as it stands
 (the PR 3156 lesson). The lane measures who calls `set_null_face_pair`
 with loops not the face's own. If a production caller does so on
 purpose, it stops and reports, because that would be a real fork.
+
+### Refined before dispatch (orchestrator, 2026-10-01)
+
+`set_null_face_pair`'s docs (M3 PR 1, `c1ae341b26`) leave loop
+ownership unchecked "here or at tier 1", because Euler surgery
+legitimately re-homes loops mid-sequence. That reason concerns a
+record's currency *after* it is set. It is not about what is named at
+set time: both production callers (`splitting::join`'s `cut` and
+`boolean::join`) name the completed face's own outer loop and ring.
+
+So a check at set time alone does not close the row. A later re-home
+can still leave a record naming another face's loop, which a kill then
+removes. The mechanism rests on the loop's death, F9's hygiene read for
+a null face's two loops:
+
+1. **Every op that removes a loop drops each record naming it.** A null
+   face is its two coincident loops, so a record whose loop dies no
+   longer describes a null face. This covers the `kef`, `kvfs` and
+   `mekr` witnesses alike. Every kill stays `Ok`, and the body stays
+   tier-1 valid.
+2. **The door refuses, typed, a record naming loops that are not the
+   face's own at set time** (D2 row 0 at the door), because no
+   production caller does so. Tier 1 is not given an ownership check:
+   the mid-sequence re-homing the docs describe stays legal.
+3. **Ops that re-home a named loop off its record's face**
+   (`ring_move`, `mfkrh`, `kfmrh`'s ring): measure first. If no
+   production sequence re-homes a named loop and then reads the record,
+   such an op drops the record too, by the same reading. If one does,
+   the lane stops and reports.

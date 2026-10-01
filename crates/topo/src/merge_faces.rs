@@ -1111,7 +1111,7 @@ impl EstablishedFact {
 /// door does not call: the attachment and split gates
 /// (`set_edge_curve`, `split_edge`), the make-side sites (`mev`,
 /// `mef`), `kvfs`, `kfmrh`'s cross-solid form, `movefac`'s ownership
-/// proof and the shell-move door. That is not a third arm: an arm the
+/// proof, the shell-move door and the null-face door. That is not a third arm: an arm the
 /// door cannot reach cannot be pinned, and a classification nothing can
 /// distinguish is documentation, which is what this table is. No
 /// count of the remainder is stated here; the match below is the
@@ -1180,6 +1180,7 @@ impl OpPlacement {
             | E::FanOrbitBroken { .. }
             | E::LoopNotEmpty { .. }
             | E::NotSameFace { .. }
+            | E::NullPairForeignLoop { .. }
             | E::SolidNotSingleShell { .. }
             | E::ShellNotSingleFace { .. }
             | E::NullScaffoldCurve { .. }

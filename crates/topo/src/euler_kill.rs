@@ -688,11 +688,12 @@ impl<T: Decide> Body<T> {
         // vertex, then orphaned geometry.
         self.faces.remove(face);
         self.face_provenance.remove(face);
-        // Null-face record hygiene (M3 PR 1): a record never outlives
-        // its face (crate::null).
+        // A null-face record never outlives its face, nor a loop it
+        // names (crate::null).
         self.null_faces.remove(face);
         self.loops.remove(loop_key);
         self.loop_provenance.remove(loop_key);
+        self.drop_null_face_records_naming(loop_key);
         self.shells.remove(shell);
         self.shell_provenance.remove(shell);
         self.solids.remove(solid);
@@ -1680,9 +1681,10 @@ impl<T: Decide> Body<T> {
         self.loop_provenance.remove(l1);
         self.faces.remove(f1);
         self.face_provenance.remove(f1);
-        // Null-face record hygiene (M3 PR 1): a record never outlives
-        // its face (crate::null).
+        // A null-face record never outlives its face, nor a loop it
+        // names (crate::null).
         self.null_faces.remove(f1);
+        self.drop_null_face_records_naming(l1);
         let Some(shell_data) = self.get_shell_mut(shell) else {
             unreachable!("kef: the shell resolved in the plan phase; only `f1` is reaped above")
         };
@@ -1902,6 +1904,7 @@ impl<T: Decide> Body<T> {
             unreachable!("mfkrh: the ring resolved in the plan phase")
         };
         loop_data.face = face;
+        self.drop_null_face_records_naming(ring);
         if !resolved.on_parent_chart {
             self.drop_loop_rows(ring);
         }
