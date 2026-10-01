@@ -877,7 +877,7 @@ mod tests {
             (tree::Emptiness::Half(SplitHalf::Above), "above half empty"),
             (tree::Emptiness::Half(SplitHalf::Below), "below half empty"),
         ] {
-            let painted = landed(|ui| feature_row_drawn(ui, &row(emptiness)));
+            let painted = landed(|ui| feature_row_drawn(ui, &row(emptiness), &Theme::DEFAULT));
             let said = find(&painted, phrase);
             let kind = find(&painted, "Split");
             assert!(
