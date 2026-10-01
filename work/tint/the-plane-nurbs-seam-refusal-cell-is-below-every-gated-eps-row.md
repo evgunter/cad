@@ -68,3 +68,17 @@ true of any gated configuration.
    below every gated row), but it leaves four `Err` arms that cannot fail.
 
 Option 1 is the one PROPS would take; the choice belongs to the owners.
+
+## The recommendation, and why it is filed rather than done
+
+PROPS recommends **option 1**: one line in `nightly.yml`'s eps matrix
+(`for eps in default 1e-6 1e-12` gains `1e-14`). `1e-14` is the
+known-clean candidate — PROPS drove `m8_4_intersection_iso` at 1e-12,
+1e-13, 1e-14, 1e-15 and 1e-16, and only the last two fail, for a reason
+unrelated to this change and not investigated.
+
+It is filed rather than done because **adding a nightly ε row spends
+this program's CI budget on this program's gate**, and that is the
+owners' call, not a visiting lane's. A `work/` file is this project's
+schedule; the row is on the slate with its options costed, which is what
+a visiting lane owes.

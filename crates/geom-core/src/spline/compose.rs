@@ -285,42 +285,46 @@ impl BernsteinSpans {
 ///
 /// Fixed ascending index order.
 ///
-/// **`β` is derived from the knots, not computed as `1 − α`, and the
-/// two are not required to sum to exactly one.** Each encloses its own
-/// true ratio by outward rounding, which is the whole of what the
-/// enclosure needs: with `λ` the exact real ratio, `α ∋ λ` and
-/// `β ∋ 1 − λ`, so the combination contains `(1 − λ)·c_{i−1} + λ·c_i`
-/// for any values in the input enclosures. `1 − α` would instead
-/// inherit `α`'s rounding and add its own, and route the argument
-/// through a subtraction rather than through the knots.
+/// **The argument for this form — why `β` comes from the knots and not
+/// from `1 − α`, why the combination still encloses the true refined
+/// coefficient, why reading each coefficient once is the whole width
+/// saving, and why the result nevertheless reaches a little past the
+/// hull of its two sources — has one home in this crate and it is
+/// [`super::algebra::CurvePlan::apply_certified`]'s docs.** That method
+/// combines identically; restating its reasoning here is the very
+/// duplication this form exists to remove. What belongs here is only
+/// what is local:
 ///
-/// **The convex form reads each coefficient ONCE, and that is WIDTH.**
-/// `c_{i−1} + (c_i − c_{i−1})·α` reads `c_{i−1}` twice, so an interval
-/// coefficient's own dust enters with coefficient `1 + α` and a fold of
-/// insertions multiplies it up step by step;
-/// [`to_bezier_spans_extra`] inserts to full interior multiplicity, so
-/// that fold is `p` deep per interior knot. Read once each, the width
-/// grows only by the ratios' own rounding
-/// (`the_convex_form_does_not_inflate_the_fold`).
-///
-/// It does NOT hold a slot inside the hull of its two sources: `α` and
-/// `β` round outward independently, so `α_hi + β_hi > 1` and a
-/// constant column comes out as a bracket around its point rather than
-/// the point. That is outward, and so sound; what it is not is
-/// variation-diminishing in the exact sense the reals give.
+/// - `Δ_i > 0` because `U_i < u` (`i ≤ k − s`, below the copy run) and
+///   `U_{i+p} ≥ U_{k+1} > u` (span `k` is nonempty), so neither
+///   quotient refuses.
+/// - Containment through a WHOLE fold of these steps, against exact
+///   rational arithmetic, is
+///   [`tests::the_ring_fold_encloses_the_exact_refined_net`]; the width
+///   the fold accumulates is
+///   [`tests::the_convex_form_does_not_inflate_the_fold`], which also
+///   witnesses the bulge at this function rather than at
+///   `apply_certified`.
+/// - [`to_bezier_spans_extra`] inserts each interior knot to full
+///   multiplicity, so the fold here is `p − m` deep for a knot of
+///   existing multiplicity `m` (`for step in m..p`) — `p` deep for a
+///   fresh break, one step for a knot already at `p − 1`. That is the
+///   depth the lerp form multiplied a coefficient's dust up over.
 ///
 /// **The Boehm structure is shared with `algebra::insert_once` (private
-/// there, so this is a name and not a link); the coefficient arithmetic
-/// is deliberately not.** Both derive the span through the same search
-/// ([`super::knots::find_span_in`] here, `find_span` there) and both
-/// insert one knot at `k + 1`. There the weights are `f64` and the
-/// output is a replayable `CurvePlan` of `Step`s whose `λ` is formed
-/// from those weights; here there are no weights at all — one
-/// homogeneous channel of `Interval`s, folded in place, with `α` and
-/// `β` ring quotients that round **outward** under D9's fixed
-/// association. A shared body would have to make that widening
-/// conditional on the scalar, which is the one thing certification
-/// arithmetic exists to make unconditional.
+/// there, so this is a name and not a link), and so is the coefficient
+/// arithmetic.** Both derive the span through the same search
+/// ([`super::knots::find_span_in`] here, `find_span` there), both
+/// insert one knot at `k + 1`, and both combine in the convex form.
+/// What separates them is the SHAPE of the schedule: this one folds
+/// interval coefficients in place over a RAW knot list, to full
+/// interior multiplicity, deliberately never rebuilding a
+/// [`super::KnotVector`] per step, where `insert_once` builds a
+/// replayable `CurvePlan` of `Step`s and rebuilds a vector per
+/// insertion. There are also no weights at all here — one homogeneous
+/// channel — where `insert_once` forms the projective applier's `λ`
+/// from them. Unifying the two is filed, not argued away
+/// (`insert_once`'s docs name the row).
 fn insert_once_ring(
     knots: &mut Vec<f64>,
     p: usize,
@@ -1176,6 +1180,17 @@ mod tests {
     /// operations the Boehm combination needs — the point is that the
     /// SHADOW of the ring fold carries no rounding at all, so a ring
     /// bound that fails to contain it is unsound by construction.
+    ///
+    /// **Why this is not [`crate::sym::Rat`]**, which is this crate's
+    /// own exact rational over the same `num-bigint`: `Rat` is BOUNDED
+    /// at `sym::rational`'s `COEFF_BITS` (256) and freezes the form it
+    /// belongs to when a coefficient would exceed it. That is correct
+    /// for the symbolic tier, whose budget is the point, and fatal
+    /// here: the shadow's denominator picks up a factor of `Δ` per
+    /// insertion, so a fold to full multiplicity over a clustered
+    /// vector runs past 256 bits well before it ends, and a freeze
+    /// would silently stop the oracle being exact — the one property it
+    /// exists for.
     #[derive(Clone, Debug, PartialEq, Eq)]
     struct Q {
         num: BigInt,
@@ -1253,12 +1268,25 @@ mod tests {
             (&self.num * &y.den).cmp(&(&y.num * &self.den))
         }
 
-        fn to_f64_approx(&self) -> f64 {
-            let (n, d) = (
-                self.num.to_f64().unwrap_or(f64::NAN),
-                self.den.to_f64().unwrap_or(f64::NAN),
-            );
-            n / d
+        /// A reported-only `f64` rendering, total over the magnitudes
+        /// this shadow reaches. Dividing `num.to_f64()` by
+        /// `den.to_f64()` is NOT total: both overflow to `inf` once the
+        /// fold's denominator passes 1024 bits, and `inf / inf` is
+        /// `NaN` — which silently dropped 45 of the 487 slack samples
+        /// from the figure the row reports. Scaling the numerator first
+        /// and dividing in `BigInt` keeps the ratio.
+        ///
+        /// Never read by an assertion about containment: that is
+        /// [`Q::cmp_f64`], which is exact.
+        fn to_f64_report(&self) -> f64 {
+            #[allow(clippy::cast_possible_wrap)]
+            let (bn, bd) = (self.num.bits() as i64, self.den.bits() as i64);
+            let shift = (64 - (bn - bd)).max(0);
+            let q = (&self.num << usize::try_from(shift).unwrap_or(0)) / &self.den;
+            let Some(v) = q.to_f64() else {
+                return f64::NAN;
+            };
+            v * 2f64.powi(i32::try_from(-shift).unwrap_or(i32::MIN))
         }
     }
 
@@ -1403,6 +1431,72 @@ mod tests {
             ]),
         ));
 
+        // Spans that overflow, go subnormal, or whose numerator
+        // underflows: the regimes where the two quotients are least
+        // like each other and a refusal is the sound answer. A REFUSAL
+        // is fine (loud); an escape is not, and the row below treats
+        // them differently.
+        out.push((
+            "overflowing knot span",
+            2,
+            vec![-1e308, -1e308, -1e308, 0.0, 1e308, 1e308, 1e308],
+            pts(&[1.0, -1.0, 2.0, 3.0]),
+        ));
+        out.push((
+            "subnormal knot span",
+            2,
+            vec![0.0, 0.0, 0.0, 5e-324, 1e-323, 1.5e-323, 1.5e-323, 1.5e-323],
+            pts(&[1.0, -1.0, 1.0, -1.0, 1.0]),
+        ));
+        out.push((
+            "numerator underflow across 1e300",
+            3,
+            vec![
+                0.0, 0.0, 0.0, 0.0, 1e-308, 1e300, 1e308, 1e308, 1e308, 1e308,
+            ],
+            pts(&[1.0, -2.0, 4.0, -8.0, 16.0, -32.0]),
+        ));
+
+        // Wide coefficients that straddle zero at the SAME magnitude as
+        // their neighbour — the cancellation the lerp form hides inside
+        // its `c_i − c_{i−1}`.
+        {
+            let mut knots = vec![0.0; 5];
+            knots.extend([0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]);
+            knots.extend(core::iter::repeat_n(1.0, 5));
+            #[allow(clippy::cast_precision_loss)]
+            let ends: Vec<(f64, f64)> = (0..12)
+                .map(|i| {
+                    let m = 1e16_f64 * if i % 2 == 0 { 1.0 } else { -1.0 };
+                    (m - 1.0, m + 1.0)
+                })
+                .collect();
+            out.push(("equal-magnitude straddling wide inputs", 4, knots, ends));
+        }
+
+        // Degree 7 over a vector clustered at an ulp of 0.5 — the
+        // deepest fold the row runs, at the degree where the window arm
+        // is entered most often.
+        {
+            let mut knots = vec![0.0; 8];
+            knots.extend([
+                1e-9,
+                0.5 - f64::EPSILON,
+                0.5,
+                0.5 + f64::EPSILON,
+                1.0 - 1e-9,
+            ]);
+            knots.extend(core::iter::repeat_n(1.0, 8));
+            #[allow(clippy::cast_precision_loss)]
+            let ends: Vec<(f64, f64)> = (0..13)
+                .map(|i| {
+                    let x = (i as f64) * 0.5 - 3.0;
+                    (x, x + 1e-13)
+                })
+                .collect();
+            out.push(("degree 7 clustered deep fold", 7, knots, ends));
+        }
+
         out
     }
 
@@ -1417,7 +1511,10 @@ mod tests {
     /// families chosen to break it (non-dyadic ratios, ulp-scale knot
     /// spans, cancelling 1e17 coefficients, ratios an ulp from either
     /// end, subnormals, already-wide inputs, a degree-5 fold over a
-    /// clustered vector).
+    /// clustered vector, spans that overflow or go subnormal, a
+    /// numerator that underflows across 1e300, equal-magnitude
+    /// straddling wide inputs, and a degree-7 fold clustered at an ulp
+    /// of 0.5).
     ///
     /// The shadow folds the SAME schedule the ring fold does, over the
     /// same `f64` knot list, with `λ` the exact ratio of exact knot
@@ -1426,10 +1523,31 @@ mod tests {
     /// `(0, 1)`, so it is monotone in each source; the extremes are
     /// therefore attained at the sources' endpoints and two rationals
     /// describe the set with nothing left over.
+    ///
+    /// **What the shadow does NOT test, stated so nobody reads it as
+    /// more than it is.** It is an oracle of the ARITHMETIC, not of the
+    /// structure: it calls the same [`find_span_in`] and repeats the
+    /// same `i + p <= k` / `i + s <= k` window predicates as the subject,
+    /// so a wrong span or a mis-placed window boundary is invisible here
+    /// — both folds would make the same wrong choice and agree. Those
+    /// are covered separately, by
+    /// [`tests::the_raw_span_search_tracks_the_linear_scan_through_every_insertion`]
+    /// (the span, against an independent linear scan, at every step of a
+    /// real decomposition) and by the module's end-to-end soundness
+    /// rows. What the shadow proves is that given the schedule, the
+    /// ring combination encloses the real one.
+    ///
+    /// **A REFUSAL is sound and is treated as such.** On the overflow
+    /// and subnormal families a quotient can legitimately refuse (D4);
+    /// the row counts those and requires that a slot which does NOT
+    /// refuse contains the truth. A row that demanded certification
+    /// everywhere would be asserting that interval arithmetic never
+    /// refuses, which is a different and false claim.
     #[test]
     fn the_ring_fold_encloses_the_exact_refined_net() {
         let mut worst_slack_ulps = f64::INFINITY;
-        let mut checked = 0usize;
+        let (mut checked, mut refused, mut tie_lo, mut tie_hi) = (0usize, 0usize, 0usize, 0usize);
+        let (mut unreported, mut no_ulp_scale) = (0usize, 0usize);
         for (name, p, knot_list, coeff_ends) in containment_fixtures() {
             let kv = KnotVector::clamped(knot_list, p).unwrap();
             assert_eq!(
@@ -1456,11 +1574,13 @@ mod tests {
                     insert_once_ring(&mut knots, p, step, &mut ring, *v);
                     assert_eq!(ring.len(), exact.len(), "{name}: the two folds left step");
                     for (i, (r, x)) in ring.iter().zip(exact.iter()).enumerate() {
-                        assert!(
-                            r.is_certified(),
-                            "{name}: slot {i} refused after inserting {} (step {step})",
-                            v.value()
-                        );
+                        if !r.is_certified() {
+                            // Loud, and outward: a refusal encloses
+                            // everything, so it cannot be tighter than
+                            // truth. Counted, not asserted away.
+                            refused += 1;
+                            continue;
+                        }
                         // Containment, in exact arithmetic: the ring
                         // bracket must reach at or past the true set on
                         // BOTH sides. A tighter bound fails here, which
@@ -1471,7 +1591,7 @@ mod tests {
                              THAN TRUTH below — ring lo {:e} is above the exact lo {:e}",
                             v.value(),
                             r.lo(),
-                            x.lo.to_f64_approx()
+                            x.lo.to_f64_report()
                         );
                         assert!(
                             x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
@@ -1479,20 +1599,48 @@ mod tests {
                              THAN TRUTH above — ring hi {:e} is below the exact hi {:e}",
                             v.value(),
                             r.hi(),
-                            x.hi.to_f64_approx()
+                            x.hi.to_f64_report()
                         );
                         checked += 1;
+                        // Is the reported "0.00 ulps of slack" a REAL
+                        // zero — the ring bracket exactly on the truth
+                        // in exact arithmetic — or a rendering of a
+                        // small positive slack? Counted exactly, so the
+                        // headline figure cannot be a rounding.
+                        if x.lo.cmp_f64(r.lo()) == core::cmp::Ordering::Equal {
+                            tie_lo += 1;
+                        }
+                        if x.hi.cmp_f64(r.hi()) == core::cmp::Ordering::Equal {
+                            tie_hi += 1;
+                        }
                         // How much room the enclosure has left over the
                         // truth, in ulps of the slot's own scale. It is
                         // reported, not asserted tight: this row is
-                        // about the sound direction only.
+                        // about the sound direction only. What IS
+                        // asserted is that every certified slot reaches
+                        // the reported figure — a metric that silently
+                        // drops its hard cases says nothing.
                         let scale = r.lo().abs().max(r.hi().abs());
-                        if scale > 0.0 && scale.is_finite() {
-                            let slack = (r.hi() - x.hi.to_f64_approx())
-                                .min(x.lo.to_f64_approx() - r.lo())
-                                / (scale * f64::EPSILON);
+                        let ulp = scale * f64::EPSILON;
+                        #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                        if !(ulp > 0.0) || !ulp.is_finite() {
+                            // The slot has no representable ulp scale:
+                            // it is exactly `{0}`, or it sits at a
+                            // subnormal magnitude where `scale·ε`
+                            // underflows to zero. Legitimate, and
+                            // distinguished from a sample the metric
+                            // LOST — the exact asserts above cover
+                            // these slots like any other, so a truth
+                            // outside one would have red there.
+                            no_ulp_scale += 1;
+                        } else {
+                            let slack = (r.hi() - x.hi.to_f64_report())
+                                .min(x.lo.to_f64_report() - r.lo())
+                                / ulp;
                             if slack.is_finite() {
                                 worst_slack_ulps = worst_slack_ulps.min(slack);
+                            } else {
+                                unreported += 1;
                             }
                         }
                     }
@@ -1504,9 +1652,32 @@ mod tests {
             checked > 400,
             "only {checked} slot comparisons — the fixture families stopped folding"
         );
+        // The slack figure is reported over EVERY certified comparison
+        // or it is not reported. `to_f64_report`'s predecessor divided
+        // two overflowed `BigInt::to_f64()`s and lost 45 of 487 samples
+        // to `inf / inf`; a zero-scale slot (a true zero coefficient
+        // held exactly) is the only legitimate exclusion.
+        assert!(
+            unreported == 0,
+            "{unreported} of {checked} certified comparisons never reached the reported \
+             slack figure, so '{worst_slack_ulps:.2} ulps' is taken over a subset the row \
+             does not name ({no_ulp_scale} slots with no representable ulp scale are \
+             excluded by construction and are not these)"
+        );
+        // The zero is a real zero: some slot's bracket lands exactly on
+        // the truth in exact arithmetic. If this ever reads 0 while the
+        // slack prints 0.00, the headline is a rendering and not a
+        // measurement.
+        assert!(
+            tie_lo > 0 && tie_hi > 0,
+            "no slot is exactly on the truth ({tie_lo} lo, {tie_hi} hi), so the reported \
+             {worst_slack_ulps:.2} ulps of slack is a rounded positive number"
+        );
         println!(
-            "{checked} exact containment comparisons; tightest side left {worst_slack_ulps:.2} \
-             ulps of slack over the truth"
+            "{checked} exact containment comparisons ({refused} slots refused, which is \
+             outward; {no_ulp_scale} carry no representable ulp scale); tightest \
+             side left {worst_slack_ulps:.2} ulps of slack over the truth, and it is an \
+             EXACT tie on {tie_lo} slots below and {tie_hi} above"
         );
     }
 
@@ -1521,10 +1692,26 @@ mod tests {
     /// therefore stated against the insertion COUNT: a per-step growth
     /// factor blows through it, an additive one does not.
     ///
-    /// `to_bezier_spans_extra` inserts to full interior multiplicity,
-    /// so the deep fold this pins is the one the composite bounds
-    /// actually pay: degree 6, sixteen interior knots, six insertions
-    /// each.
+    /// [`to_bezier_spans_extra`] inserts each interior knot to full
+    /// multiplicity, `p − m` steps for an existing multiplicity `m`, so
+    /// the deep fold this pins is the one the composite bounds actually
+    /// pay: degree 6, sixteen interior knots already present once, five
+    /// insertions each, 80 in all.
+    ///
+    /// **What this ceiling can and cannot catch, said at the claim
+    /// site.** The allowance has a lot of room: 7.0x at `p = 2` over 30
+    /// insertions, widening to about 15x at `p = 6` over 200, because
+    /// the convex form's width per insertion FALLS with depth while the
+    /// line's slope is constant. So it cannot catch a regression under
+    /// roughly 7x, and the 0.06-ulps-per-insertion and 100x figures the
+    /// row prints are evidence for a reader, not gates. Tightening it to
+    /// bite harder would mean a per-degree ceiling fitted to measured
+    /// values, i.e. a second baseline to re-derive whenever any
+    /// coefficient of the assembly changes; the claim this row is for —
+    /// the fold does not INFLATE, additive against geometric — is a
+    /// claim about the shape of the growth, and a linear allowance is
+    /// the honest statement of it. The lerp form misses it by 431.7
+    /// ulps, which is the size of regression it exists to catch.
     #[test]
     fn the_convex_form_does_not_inflate_the_fold() {
         // (degree, interior count). The first is TESS-2's measuring
@@ -1567,6 +1754,19 @@ mod tests {
                 assert!(r.is_certified(), "p={p}: refused slot in the fold");
                 a.max(r.hi() - r.lo())
             });
+            // The bulge, witnessed AT THIS FUNCTION rather than at
+            // `apply_certified`: the inputs are points, so in ℝ every
+            // refined coefficient is a convex combination of points and
+            // the answer would be a point too. `α` and `β` round
+            // outward independently, so it is a bracket. A fold that
+            // held the points exactly would be reporting a tighter
+            // enclosure than its own rounding licenses.
+            assert!(
+                worst > 0.0,
+                "p={p}: every slot of a {insertions}-insertion fold held its point exactly, \
+                 so either the ratios stopped rounding outward or something clamped the \
+                 result"
+            );
             let ulps = worst / (scale * f64::EPSILON);
             #[allow(clippy::cast_precision_loss)]
             let allowance = 2.0 + 0.5 * insertions as f64;

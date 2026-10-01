@@ -75,3 +75,44 @@ de-homogenizing through the weight channel rather than through a stored
 `λ`. (a) is cheap and is the honest first move: the sweep did not find a
 shipped `T = Interval` instantiation of these four, only that the types
 permit one.
+
+## The sweep's other two hits, recorded here so the pattern is not re-run from scratch
+
+Added after the dual review of PR 3524, which found both. Neither is this
+row's subject and neither is a defect today; they are recorded because
+the next lane to sweep for this shape should not have to rediscover
+them, and because the REASONS first given for setting them aside were
+wrong.
+
+- **`crates/topo/src/pcurves.rs`, the `Chart`/`Scaffold` closed form
+  (`let p0x = cu0 - (cu1 - cu0) * t0 / span;`), generic over `T: Real`.**
+  It reads `cu0` twice. It is the **minus-sign variant** `x − (y − x)·t`
+  of the shape, which the original sweep's pattern did not match and did
+  not name as a gap. Not a defect: `cu0` and `cu1` are
+  `T::from_f64(knots_u().domain())`, so at `T = Interval` they are
+  POINTS lifted from the chart's own `f64` knot-domain ends, with no
+  accumulated width for the double read to amplify — and the expression
+  is one closed-form evaluation, not a fold, so nothing compounds.
+  Either of those going away (a chart whose domain ends arrive as
+  enclosures, or this put inside an iteration) makes it the same defect
+  as `insert_once_ring`'s was.
+- **`geom_core::linalg`'s `Point2::lerp` / `Point3::lerp` /
+  `Vector3::lerp` (`self + (other - self) * t`), generic over `T`.**
+  PR 3524 set these aside on the ground that "every caller passes a
+  point `t`, never a fold". **The first half of that is false**:
+  `geom-brep/src/mapped.rs`'s `SketchSegment::<T>::eval` passes the
+  caller's general `T` through `Point2::lerp`, and `Point2::lerp` was
+  not in the hit list at all. The disposition survives on the second
+  half plus the helpers' own documented trade: they are exact at BOTH
+  endpoints and pay for it by treating `t` and `1 − t` as independent
+  when `t` carries width, which is an argued choice for an evaluation
+  helper rather than an oversight, and `eval` is one combination per
+  call — there is no fold for the `1 + t` factor to compound over. The
+  hazard this row is about needs a fold; a sampler does not have one.
+
+**The shape's blind spots, stated for the next sweep**: the literal
+pattern `x + (y − x) * t` misses (a) the minus-sign variant
+`x − (y − x) * t`, (b) the same combination spelled through a named
+helper or a closure handed to a combinator (`.lerp(`, `apply_points`),
+and (c) a combination assembled across statements. PR 3524 checked (b)
+and (c) and missed (a); (a) is where `pcurves.rs` was found.

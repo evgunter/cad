@@ -340,9 +340,11 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
             );
         }
         // The ε-fine cell, pinned as a REFUSAL with its own number:
-        // this seam's certified between-samples sup is ~6.2e-12 m, so
-        // at ε_in = 1e-12 the carrier refuses during ADOPTION and never
-        // reaches the pcurve stage. Measured, not widened.
+        // this seam's certified between-samples sup is ~3.55e-14 m, so
+        // below ε_in = 1e-13 the carrier refuses during ADOPTION and
+        // never reaches the pcurve stage. Measured, not widened. (It was
+        // ~6.2e-12 m and refused at 1e-12, before `insert_once_ring`
+        // took the convex insertion form.)
         Err(refusal) => {
             assert!(
                 eps < 1e-13,
@@ -521,9 +523,11 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 );
             }
         }
-        // The ε-fine posture, UNCHANGED by the gate: at 1e-12 the
-        // envelope's own slack refuses during adoption, so the body
-        // never reaches the at-rest pass at all.
+        // The ε-fine posture, UNCHANGED by the gate: below ε_in = 1e-13
+        // the envelope's own slack refuses during adoption, so the body
+        // never reaches the at-rest pass at all. (The boundary was 1e-9
+        // before the convex insertion form; 1e-12 used to be this cell
+        // and is now the first-class one.)
         Err(StepImportError::Adoption { id, attempts }) => {
             assert!(
                 eps < 1e-13,
@@ -683,8 +687,11 @@ fn plane_nurbs_seams(
 }
 
 // The seam's own certified NUMBERS are pinned where they are measured
-// rather than re-derived here: the ε-fine branches above assert this
-// seam's certified sup (3.5528237131349995e-14 m) from the refusal payload, and
+// rather than re-derived here. What the ε-fine branches above assert
+// about the payload is only that its number EXPLAINS the refusal
+// (`sup > eps`) — not the number itself, which would be a second copy
+// of a measured quantity. Its value at the finest row measured is
+// 3.5528237131349995e-14 m, and
 // geom-brep's `m7_8_plane_nurbs_edge` rows measure the same
 // quarter-cylinder-meets-plane geometry at the lane and at the door.
 // What the rows above add is the CONSEQUENCE — the certified seam

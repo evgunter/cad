@@ -640,14 +640,21 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 /// the quarter cylinder at an unreachable `1e-15`, and taking a request
 /// whose refusal is the budget's face with `LastRound::DidNotImprove`.
 ///
-/// Round 6 is the non-improving one, and it is a LONE one: round 5
-/// came in under `1e-8` where round 4 did not, so round 5 improved,
-/// so the marking that built round 6's grid was the directional one
-/// rather than the both-directions fallback — which is the admission
-/// set the stall's refusal wants and does not have here. (The stall
-/// guard firing would have made this refusal `RefinementStalled`, so
-/// the budget's face is itself evidence the guard's two-round
-/// admission set was not met.)
+/// Round 6 is the non-improving one, and it is a LONE one. The
+/// read-back below shows the last step of that — round 5 came in under
+/// `1e-8` where round 4 did not, so round 5 improved, so the marking
+/// that built round 6's grid was the directional one rather than the
+/// both-directions fallback. **What covers the rounds BEFORE 4, which
+/// the read-back does not reach, is `stall_verdict`'s own first guard:
+/// `!prev_sup.is_finite()` answers `Refine::Directional`.** `+∞` is not
+/// a failure to improve, so this fixture's rounds 0 and 1 — which carry
+/// no finite bound at all, a shape the `d = 1e-4` fixture this row used
+/// to stand on did not have — cannot make round 6 the SECOND
+/// non-improving round, and neither can rounds 2–4, each of which fell.
+/// (The stall guard firing would in any case have made this refusal
+/// `RefinementStalled`, so the budget's face is itself evidence the
+/// guard's two-round admission set was not met; the point of spelling
+/// the ladder out is that the row is about WHY it was not.)
 #[test]
 fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let base = bumpy_patch();
@@ -1171,9 +1178,26 @@ fn saddle_wall(theta: f64) -> NurbsSurface<f64> {
 /// request pinned by the round it stalls on, its grid and its bound:
 ///
 /// ```text
-/// d = ±5.6234132519034906e-11   round 5, (31, 23) / (35, 23), ~2.8e-14
-/// d =  1.333521432163324e-10    OFFSET_FIT_BUDGET's round, (41, 29), 3.1913e-14
+/// d = +5.6234132519034906e-11   round 5, (31, 23), 2.767036e-14
+/// d = −5.6234132519034906e-11   round 5, (35, 23), 2.812559e-14
+/// d =  1.333521432163324e-10    OFFSET_FIT_BUDGET's round, (41, 29), 3.191256e-14
 /// ```
+///
+/// **The ± pair does NOT agree grid-for-grid, and nothing was lost.**
+/// `S + d·n` and `S − d·n` are different surfaces with different
+/// residual fields, so their bounds differ: measured on this request
+/// they already differ in the fourth significant digit at round 2
+/// (7.7411034e-14 against 7.7439392e-14) and at round 3
+/// (1.4319696e-14 against 1.4397345e-14), while the grids agree there
+/// — (7, 7) then (11, 7) on both signs. The refinement marks cells by
+/// model-space extent, so once the two bounds put the worst cell in
+/// different places the grids part, which here happens at the last
+/// round. The requests this row carried before (`theta = 0.3`,
+/// `d = ±5e-10`) agreed on (16, 12) because they STOPPED at round 4,
+/// before the divergence reached the marking — and even there they
+/// agreed only to the 1e-3 relative slack the bound assertion carries,
+/// never bit for bit. Sign-independence of the GRID was a property of
+/// where that fixture stopped, not of the fit.
 ///
 /// At `d = 1.333521432163324e-10`, a loop that tested the budget first
 /// would refuse `BudgetExhausted` on the same round, so this request is
