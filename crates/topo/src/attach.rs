@@ -64,7 +64,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey};
-use crate::euler::{EulerOpError, FaceSurface, ParentSide};
+use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::pcurves::{SiteHalf, SiteRows};
 use geom_core::Tol;
@@ -194,29 +194,15 @@ impl<T: Decide> Body<T> {
         let old = face_data.surface;
         let resolved =
             self.resolve_face_surface(&surface, face, (old, face_data.sense), ParentSide::With)?;
-        let after = match surface {
-            FaceSurface::Inherit => Slot::Kept(old),
-            FaceSurface::New { .. } => Slot::Minted(0),
-            FaceSurface::Shared { key, .. } => Slot::Kept(key),
-        };
+        let after = Slot::of_spec(&surface, old);
         if vouch && after != Slot::Kept(old) {
-            let moved = |f: FaceKey| (f == face).then_some(after);
-            let RechartEdges {
-                stranded,
-                unvouched,
-                ..
-            } = self.rechart_edges(moved, false)?;
-            if !stranded.is_empty() {
-                return Err(EulerOpError::RechartStrandsDescriptions {
-                    edges: stranded.into_iter().map(|(e, _)| e).collect(),
-                });
-            }
-            if !resolved.on_parent_chart && !unvouched.is_empty() {
-                return Err(EulerOpError::RechartUnvouched {
-                    face,
-                    edges: unvouched,
-                });
-            }
+            self.vouch_move(
+                RechartDoor::SetFaceSurface,
+                face,
+                self.edges.keys(),
+                |_, _, f| (f == face).then_some(after),
+                resolved.on_parent_chart,
+            )?;
         }
 
         // ---- Mutation (infallible from here on). ----
@@ -345,7 +331,7 @@ impl<T: Decide> Body<T> {
             error: CertifyError::Band(e),
         })?;
         let faces = self.plan_recharts(&charts)?;
-        let moved = |f: FaceKey| moved_slot(&faces, f);
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(&faces, f);
         let (body, planned) = (&*self, &charts);
         let resolve = |sides: Sides| {
             move |k: SurfaceKey| body.slot_surface(planned, sides.repoint(k)).cloned()
@@ -385,7 +371,7 @@ impl<T: Decide> Body<T> {
 
         // ---- No unlisted edge stranded. ----
         let undescribed: Vec<EdgeKey> = self
-            .rechart_edges(moved, false)?
+            .rechart_edges(self.edges.keys(), moved, false)?
             .stranded
             .into_iter()
             .map(|(e, _)| e)
@@ -468,9 +454,9 @@ impl<T: Decide> Body<T> {
         charts: &[Rechart<T>],
     ) -> Result<Vec<(EdgeKey, EdgeCurveSpec<T>)>, EulerOpError> {
         let faces = self.plan_recharts(charts)?;
-        let moved = |f: FaceKey| moved_slot(&faces, f);
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(&faces, f);
         let mut out = Vec::new();
-        for (edge, sides) in self.rechart_edges(moved, true)?.carried {
+        for (edge, sides) in self.rechart_edges(self.edges.keys(), moved, true)?.carried {
             out.push((edge, self.carried_spec(edge, sides, charts)?));
         }
         Ok(out)
@@ -628,11 +614,15 @@ impl<T: Decide> Body<T> {
     /// description — and `carried` is empty. Pure.
     fn rechart_edges(
         &self,
-        moved: impl Fn(FaceKey) -> Option<Slot>,
+        edges: impl IntoIterator<Item = EdgeKey>,
+        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
         repoint: bool,
     ) -> Result<RechartEdges, EulerOpError> {
         let mut out = RechartEdges::default();
-        for (edge_key, edge) in &self.edges {
+        for edge_key in edges {
+            let edge = self.get_edge(edge_key).ok_or(EulerOpError::StaleKey {
+                key: EntityId::Edge(edge_key),
+            })?;
             let named = Named::of(self.get_curve_geom(edge.curve).ok_or(
                 EulerOpError::StaleGeometry {
                     key: GeomRef::Curve(edge.curve),
@@ -663,6 +653,79 @@ impl<T: Decide> Body<T> {
             }
         }
         Ok(out)
+    }
+
+    /// The keys-only refusal of a move a door cannot vouch for: `edges`
+    /// walked as [`Body::rechart_edges`] walks them, `moved` saying where
+    /// each half-edge's face lands. Refuses
+    /// [`EulerOpError::RechartStrandsDescriptions`] where the move
+    /// strands an edge, then [`EulerOpError::RechartUnvouched`] where a
+    /// certified edge lands on a chart it does not name — unless
+    /// `one_payload` (a certificate is a function of the payload it was
+    /// taken on, and the move re-reads that payload). `face` is the face
+    /// the refusal names. Pure.
+    pub(crate) fn vouch_move(
+        &self,
+        door: RechartDoor,
+        face: FaceKey,
+        edges: impl IntoIterator<Item = EdgeKey>,
+        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
+        one_payload: bool,
+    ) -> Result<(), EulerOpError> {
+        let RechartEdges {
+            stranded,
+            unvouched,
+            ..
+        } = self.rechart_edges(edges, moved, false)?;
+        if !stranded.is_empty() {
+            return Err(EulerOpError::RechartStrandsDescriptions {
+                door,
+                edges: stranded.into_iter().map(|(e, _)| e).collect(),
+            });
+        }
+        if !one_payload && !unvouched.is_empty() {
+            return Err(EulerOpError::RechartUnvouched {
+                door,
+                face,
+                edges: unvouched,
+            });
+        }
+        Ok(())
+    }
+
+    // PROBE
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn probe_move(
+        &self,
+        door: &str,
+        kind: &str,
+        caller: &str,
+        edges: Vec<EdgeKey>,
+        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
+        one_payload: bool,
+        chord: Option<bool>,
+    ) {
+        let r = self.rechart_edges(edges.iter().copied(), &moved, false);
+        let (st, u) = match r {
+            Ok(r) => (r.stranded.len(), r.unvouched.len()),
+            Err(_) => (999, 999),
+        };
+        let uv = if one_payload { 0 } else { u };
+        crate::mefchart_probe::log(&format!(
+            "{door}\t{kind}\t{caller}\tmoved={}\tstrand={st}\tunvouched={uv}\traw={u}\tchord={chord:?}",
+            edges.len()
+        ));
+    }
+
+    /// Whether a chord a door mints in `parent`'s face, its `he_minus`
+    /// on a face wearing `after`, is vouched for there: [`Sides::vouched`]
+    /// asked of an edge whose two halves lay on `parent`'s chart.
+    pub(crate) fn chord_vouched(parent: SurfaceKey, after: Slot, curve: &EdgeCurve<T>) -> bool {
+        Sides {
+            before: [parent, parent],
+            after: [Slot::Kept(parent), after],
+        }
+        .vouched(Named::of_description(curve.description()))
     }
 
     /// `edge`'s stored description restated on the charts its moved
@@ -709,7 +772,7 @@ impl<T: Decide> Body<T> {
     fn sides(
         &self,
         edge: EdgeKey,
-        moved: impl Fn(FaceKey) -> Option<Slot>,
+        moved: impl Fn(HalfEdgeKey, LoopKey, FaceKey) -> Option<Slot>,
     ) -> Result<Sides, EulerOpError> {
         let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
             key: EntityId::Edge(edge),
@@ -728,7 +791,8 @@ impl<T: Decide> Body<T> {
                     key: EntityId::Face(face),
                 })?
                 .surface;
-            Ok::<_, EulerOpError>((surface, moved(face).unwrap_or(Slot::Kept(surface))))
+            let after = moved(he, he_data.parent_loop, face).unwrap_or(Slot::Kept(surface));
+            Ok::<_, EulerOpError>((surface, after))
         };
         let (plus, plus_after) = side(edge_data.he_plus)?;
         let (minus, minus_after) = side(edge_data.he_minus)?;
@@ -1071,7 +1135,7 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         description: &geom_brep::EdgeDescriptionSpec<T>,
     ) -> Result<(), EulerOpError> {
-        let sides = self.sides(edge, |_| None)?;
+        let sides = self.sides(edge, |_, _, _| None)?;
         if !sides.coherent_before(Named::of_spec(description)) {
             return Err(EulerOpError::DescriptionNotAdjacent { edge });
         }
@@ -1216,12 +1280,14 @@ impl Sides {
 
     /// Whether every side that moves lands on a key `named` names: the
     /// edge's certificate vouches for it on each chart its faces move
-    /// onto.
+    /// onto. A scaffold or null edge carries no certificate, so it
+    /// vouches for nothing and is not asked.
     fn vouched(self, named: Named) -> bool {
-        (0..2).all(|i| {
-            self.after[i] == Slot::Kept(self.before[i])
-                || named.keys().any(|k| Slot::Kept(k) == self.after[i])
-        })
+        matches!(named, Named::Nothing)
+            || (0..2).all(|i| {
+                self.after[i] == Slot::Kept(self.before[i])
+                    || named.keys().any(|k| Slot::Kept(k) == self.after[i])
+            })
     }
 }
 
@@ -1229,9 +1295,21 @@ impl Sides {
 /// lands: a key the body already holds, or the chart the call mints at
 /// that position — which has no key until the mutation phase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Slot {
+pub(crate) enum Slot {
     Kept(SurfaceKey),
     Minted(usize),
+}
+
+impl Slot {
+    /// The surface a face given `spec` wears, `own` being the key
+    /// `Inherit` keeps; a `New` surface is the one chart its door mints.
+    pub(crate) fn of_spec<T: Real>(spec: &FaceSurface<T>, own: SurfaceKey) -> Self {
+        match spec {
+            FaceSurface::Inherit => Self::Kept(own),
+            FaceSurface::New { .. } => Self::Minted(0),
+            FaceSurface::Shared { key, .. } => Self::Kept(*key),
+        }
+    }
 }
 
 /// The surfaces an edge description names, in the shape the adjacency
@@ -1252,10 +1330,13 @@ enum Named {
 
 impl Named {
     fn of<T: Real>(curve: &crate::CurveGeom<T>) -> Self {
-        let Some(curve) = curve.certified() else {
-            return Self::Nothing;
-        };
-        match curve.description() {
+        curve.certified().map_or(Self::Nothing, |curve| {
+            Self::of_description(curve.description())
+        })
+    }
+
+    fn of_description<T: Real>(description: &geom_brep::EdgeDescription<T>) -> Self {
+        match description {
             geom_brep::EdgeDescription::Intersection { s1, s2, .. }
             | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
                 Self::Pair(*s1, *s2)
@@ -1326,7 +1407,7 @@ mod tests {
     use super::Rechart;
     use crate::body::Body;
     use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary};
-    use crate::euler::{EulerOpError, FaceSurface};
+    use crate::euler::{EulerOpError, FaceSurface, RechartDoor};
     use crate::fixtures::{assert_err_deep_unchanged, deep_snapshot};
     use crate::geometry::SurfaceKey;
     use crate::test_support_fixtures::{brick, plant_ring_face};
@@ -1530,6 +1611,7 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RechartStrandsDescriptions {
+                door: RechartDoor::SetFaceSurface,
                 edges: named.clone(),
             },
             |b| b.set_face_surface(top, swap()).unwrap_err(),
@@ -1656,6 +1738,7 @@ mod tests {
             body.clone()
                 .set_face_surface(top, FaceSurface::Shared { key: shared, sense }),
             Err(EulerOpError::RechartStrandsDescriptions {
+                door: RechartDoor::SetFaceSurface,
                 edges: named.clone()
             }),
         );
@@ -1732,6 +1815,7 @@ mod tests {
             assert_err_deep_unchanged(
                 &mut body,
                 &EulerOpError::RechartUnvouched {
+                    door: RechartDoor::SetFaceSurface,
                     face: membrane,
                     edges: rim.clone(),
                 },
@@ -1787,6 +1871,7 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RechartUnvouched {
+                door: RechartDoor::SetFaceSurface,
                 face: membrane,
                 edges: rim.clone(),
             },
@@ -1835,6 +1920,7 @@ mod tests {
         assert_err_deep_unchanged(
             &mut body,
             &EulerOpError::RechartUnvouched {
+                door: RechartDoor::SetFaceSurface,
                 face: membrane,
                 edges: rim[1..].to_vec(),
             },
@@ -1895,6 +1981,7 @@ mod tests {
             assert_err_deep_unchanged(
                 &mut body,
                 &EulerOpError::RechartUnvouched {
+                    door: RechartDoor::SetFaceSurface,
                     face: membrane,
                     edges: rim,
                 },

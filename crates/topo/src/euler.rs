@@ -318,6 +318,47 @@ pub enum FaceSurface<T: Real> {
     },
 }
 
+/// The keys-only door a [`EulerOpError::RechartStrandsDescriptions`] or
+/// [`EulerOpError::RechartUnvouched`] refusal is raised by. Each puts
+/// existing half-edges, or a chord it mints, on a face wearing another
+/// key than the one they lay on, and the lever its refusal names is
+/// its own: a minting door picks the chart it mints the face on, a
+/// moving door the face it moves the loop onto.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RechartDoor {
+    /// [`Body::set_face_surface`]: re-charts a face in place.
+    SetFaceSurface,
+    /// [`Body::mef`] and [`Body::mef_chord`]: mints a face from part of
+    /// a loop (the run `[he1 .. he2)` and the chord's `he_minus`).
+    Mef,
+    /// [`Body::mfkrh`], [`Body::mfkrh_minting`] and
+    /// [`Body::mfkrh_plug`]: mints a face from a ring.
+    Mfkrh,
+    /// [`Body::kef`] and [`Body::kef_minting`]: moves the dying face's
+    /// loop onto the surviving face.
+    Kef,
+    /// [`Body::kfmrh`] and [`Body::kfmrh_minting`]: moves `f2`'s outer
+    /// loop onto `f1` as a ring.
+    Kfmrh,
+    /// [`Body::ring_move`] and [`Body::ring_move_minting`]: moves a
+    /// ring onto another face.
+    RingMove,
+}
+
+impl RechartDoor {
+    /// The door's name, as its refusals lead with it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::SetFaceSurface => "set_face_surface",
+            Self::Mef => "mef",
+            Self::Mfkrh => "mfkrh",
+            Self::Kef => "kef",
+            Self::Kfmrh => "kfmrh",
+            Self::RingMove => "ring_move",
+        }
+    }
+}
+
 /// Which way a face on its parent's chart faces relative to the
 /// parent, as the operator's own topology decides it
 /// ([`Body::resolve_face_surface`]).
@@ -712,6 +753,8 @@ pub enum EulerOpError {
     /// the re-descriptions. Raised in the plan phase, so the body is
     /// untouched.
     RechartStrandsDescriptions {
+        /// The door that refuses.
+        door: RechartDoor,
         /// The stranded edges, in edge-arena order.
         edges: Vec<EdgeKey>,
     },
@@ -730,6 +773,8 @@ pub enum EulerOpError {
     /// (`work/restfront/validate-tier3-curved-boundary-containment`,
     /// #638). Raised in the plan phase, so the body is untouched.
     RechartUnvouched {
+        /// The door that refuses.
+        door: RechartDoor,
         /// The moved face.
         face: FaceKey,
         /// The certified edges on it that name no key it wears after
@@ -1242,7 +1287,7 @@ impl EulerOpError {
                 "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
                  its adjacent faces' surfaces (D2 adjacency coherence)"
             ),
-            Self::RechartStrandsDescriptions { edges } => format!(
+            Self::RechartStrandsDescriptions { door: _, edges } => format!(
                 "set_face_surface: the swap would leave edges {edges:?} described against a \
                  surface their faces no longer wear, and the keys-only door takes no band to \
                  re-describe them. Recourse: leave the face on the chart those edges name, \
@@ -1250,7 +1295,11 @@ impl EulerOpError {
                  takes their re-descriptions under a band, and carried_redescriptions states \
                  the stored ones there)"
             ),
-            Self::RechartUnvouched { face, edges } => format!(
+            Self::RechartUnvouched {
+                door: _,
+                face,
+                edges,
+            } => format!(
                 "set_face_surface: face {face:?} would move onto a chart that its certified \
                  edges {edges:?} do not name, so nothing vouches that its boundary lies on \
                  that chart. Recourse: move the face onto a chart its certified edges name, \
@@ -1510,12 +1559,16 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::NotMergedMember { edge: ek },
         EulerOpError::DuplicateRedescription { edge: ek },
         EulerOpError::DescriptionNotAdjacent { edge: ek },
-        EulerOpError::RechartStrandsDescriptions { edges: vec![ek] },
+        EulerOpError::RechartStrandsDescriptions {
+            door: RechartDoor::Mef,
+            edges: vec![ek],
+        },
         EulerOpError::RechartFalsifies {
             edge: ek,
             error: CertifyError::Unimplemented,
         },
         EulerOpError::RechartUnvouched {
+            door: RechartDoor::Kef,
             face: fc,
             edges: vec![ek],
         },
@@ -2261,6 +2314,7 @@ impl<T: Decide> Body<T> {
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
+    #[track_caller]
     pub fn mef(
         &mut self,
         site: MefSite,
@@ -2270,6 +2324,7 @@ impl<T: Decide> Body<T> {
     ) -> Result<MefCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        crate::mefchart_probe::enter();
         let created = self.mef_with(site, NewCurve::Given(curve), surface, tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
@@ -2310,9 +2365,11 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mef`].
+    #[track_caller]
     pub fn mef_chord(&mut self, site: MefSite, tol: Tol) -> Result<MefCreated, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        crate::mefchart_probe::enter();
         let created = self.mef_with(site, NewCurve::Chord, FaceSurface::Inherit, tol)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::MEF, "mef");
@@ -2746,6 +2803,7 @@ impl<T: Decide> Body<T> {
         surface: FaceSurface<T>,
         tol: Tol,
     ) -> Result<MefCreated, EulerOpError> {
+        let probe_caller = crate::mefchart_probe::caller();
         // ---- Preconditions. ----
         let (he1_live, he1_data) = self.resolve_half_edge_live(he1)?;
         let (u1, he1_prev) = (he1_data.start, he1_data.prev);
@@ -2838,6 +2896,27 @@ impl<T: Decide> Body<T> {
             tol,
         )?;
 
+        {
+            let after = crate::attach::Slot::of_spec(&surface, inherit_surface);
+            if after != crate::attach::Slot::Kept(inherit_surface) {
+                let kind = match &surface {
+                    FaceSurface::Inherit => "Inherit",
+                    FaceSurface::New { .. } => "New",
+                    FaceSurface::Shared { .. } => "Shared",
+                };
+                let chord = Self::chord_vouched(inherit_surface, after, &certified);
+                let chord = if carried { true } else { chord };
+                self.probe_move(
+                    "mef_chords",
+                    kind,
+                    &probe_caller,
+                    self.run_edges(&run)?,
+                    |he, _, _| run.contains(&he).then_some(after),
+                    carried,
+                    Some(chord),
+                );
+            }
+        }
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented on `mef`): surface (for New),
         // curve, edge, loop, face, he_plus, he_minus.
@@ -2926,6 +3005,7 @@ impl<T: Decide> Body<T> {
         surface: FaceSurface<T>,
         tol: Tol,
     ) -> Result<MefCreated, EulerOpError> {
+        let probe_caller = crate::mefchart_probe::caller();
         // ---- Preconditions. ----
         let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
             key: EntityId::Loop(loop_key),
@@ -2968,6 +3048,27 @@ impl<T: Decide> Body<T> {
             tol,
         )?;
 
+        {
+            let after = crate::attach::Slot::of_spec(&surface, inherit_surface);
+            if after != crate::attach::Slot::Kept(inherit_surface) {
+                let kind = match &surface {
+                    FaceSurface::Inherit => "Inherit",
+                    FaceSurface::New { .. } => "New",
+                    FaceSurface::Shared { .. } => "Shared",
+                };
+                let chord = Self::chord_vouched(inherit_surface, after, &certified);
+                let chord = if carried { true } else { chord };
+                self.probe_move(
+                    "mef_lone",
+                    kind,
+                    &probe_caller,
+                    Vec::new(),
+                    |_, _, _| None,
+                    carried,
+                    Some(chord),
+                );
+            }
+        }
         // ---- Mutation (infallible from here on). ----
         // Same minting order as Chords: surface (for New), curve,
         // edge, loop, face, he_plus, he_minus.
