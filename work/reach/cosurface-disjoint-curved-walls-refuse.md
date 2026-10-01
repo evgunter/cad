@@ -8,7 +8,6 @@ github: 1352
 refs: [1351]
 priority: P0
 cost: H
-needs_ev: true
 ---
 
 ## From GitHub issue 1352
@@ -159,5 +158,7 @@ pocket, overlapping equal-height plates, a sunk stack, a rabbet cut
 flush with a wall, and the die's pip-cutter cap. The results are
 correct. C4 as ratified in PR 3613 says "interiors disjoint, sharing
 only a boundary curve", which defines those pairs out. Before PR 3657,
-they were declared `Rest`. The `[ev]` PR that widens the definition to
-match the code is open; the code keeps its behaviour meanwhile.
+they were declared `Rest`. PR 3662 widened the definition to match the
+code, and Ev ruled for it on 2026-10-01 ("sounds good!"): a continuation
+is an aligned one-carrier pair whether its faces abut or overlap, and an
+undeclared one refuses in every op.
