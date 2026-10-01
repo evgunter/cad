@@ -141,6 +141,7 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
                 face,
                 chain,
                 margin,
+                bounded: false,
             },
             text,
         )) => {

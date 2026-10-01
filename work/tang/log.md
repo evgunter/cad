@@ -151,3 +151,27 @@ Filed from the reports' off-question findings:
 
 Lesson for the orchestrator's own briefs: re-read a row's precondition
 against the tree before handing it to designers as the problem.
+## 2026-10-01 — re-measure lands (PR 3748); arc-aware-point-in-loop closes (TANG orchestrator)
+
+Review tier: orchestrator's read. It is a measurement lane, and its
+code is pinned tests only. Findings:
+
+- **Ev's engraving pose builds**, to the closed-form volume, with tier 3
+  `Ok`. The old `SectionLoopMixed` was ATREST-9's `point_in_solid`
+  misread. The variant that crosses the rim now stops at
+  `CurvedPierceUnsupported`, the circle × cylinder cell the
+  `tang/circle-cylinder-crossing` lane is building.
+- **The pierce ring is still live** on the cylinder wall
+  (`NoChartedRun` seam-to-seam, `NeitherContained` inside one wall face,
+  now pinned on an asymmetric pose) and on the spun snowman's sphere.
+  The planar arm needs nothing. The row stays open with that narrowed
+  scope.
+- **`arc-aware-point-in-loop` closes.** Its residues are filed
+  (CLEAVE's spiric/spline row, and `loop-shape-keeps-three-classes-nothing-reads`).
+
+The PR's `test` job is red only on
+`mass_props_are_thread_count_invariant`'s serial golden. That red is
+inherited from main (`work/props/thread-count-digest-moved-on-main-loft-area-pads`):
+PRs 3746, 3747 and 3748 all fail it identically, and none of them
+changes kernel code. Merged over it, annotated on the PR, per the
+inherited-red rule.
