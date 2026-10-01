@@ -248,3 +248,28 @@ PR 3611's). Annotated on the PR before merging; REACH keeps the debt.
 `D36` resumes now that its gate (3614) has landed.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — D36's review adjudicated
+
+PR 3664 (`D36`) was implemented and reviewed in their own cloud
+sessions so this one stayed responsive. The reviewer posted its report
+as a PR comment, which did not wake this session (a comment from the
+same account reads as this session's own); the check-in caught it.
+
+Verdict mergeable with fixes. One MAJOR, by execution: the sphere polar
+arm's centring gate reads an amplified quantity (`h·sin θ` after an
+axial gate on `ρ·sin θ`), so a near-pole small circle exactly on the
+sphere reads `CarrierOffChart` and the mint refuses a valid body; it
+goes through the incidence test like the meridian arm. Also adjudicated
+in: two uncovered classes missing from the residual row; typed
+chart/carrier/class payloads instead of hand-written strings (the fix
+re-minting the defect it closes); per-class recourses; rows asserting
+the site, not just the variant. The reviewer's instrumented full
+workspace (10494 rows, slow set included) found no committed producer
+leaning on the old swallow for an off-chart carrier.
+
+Filed `site-rows-leaves-an-off-chart-edge-silent` (P0): the Euler
+site mint clears an off-chart edge's face, so the op and tier 3 stay
+silent where the mint refuses. Its fix depends on PR 3617's ruling.
+
+Signed (PCERT orchestrator).
