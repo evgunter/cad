@@ -351,7 +351,10 @@ pub struct TreeRow {
     /// **Another node whose own slot refused**, when a
     /// [`RowStatus::Failed`] row's error names one: whatever
     /// `repair_named` answers for the row's own error, never this row.
-    /// That node's own row may read `Ok`.
+    /// That node's own row may read `Ok`. The one known exception is
+    /// the kernel's: a `PlacerRefused` for a `Part` index that does not
+    /// evaluate names the pattern, whose slot refused nothing (module
+    /// header).
     ///
     /// `None` on every row that is not `Failed`. A row's other links
     /// carry their own target: a `Poisoned` row's is its `through`,
@@ -421,9 +424,27 @@ impl std::fmt::Display for Emptiness {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Whole => f.write_str("empty"),
-            Self::Half(SplitHalf::Above) => f.write_str("above half empty"),
-            Self::Half(SplitHalf::Below) => f.write_str("below half empty"),
+            Self::Half(half) => write!(f, "{} half empty", split_half_label(*half)),
         }
+    }
+}
+
+/// The word for a half of the KERNEL's [`SplitHalf`]: the part form's
+/// radio row draws one button per entry of `SplitHalf::ALL` with it,
+/// and an empty half's readout ([`Emptiness`]) names the half with it.
+///
+/// **A match, not a table**, for the reason `forms::boolean_op_label`
+/// is: the enum is declared in `topo`, so no list written here can be
+/// projected from its declaration. A third half would arrive with no
+/// membership edit here and could not arrive silently, because it has
+/// no word until this match gives it one.
+///
+/// The words are the kernel's own sides — the plane's normal decides
+/// which is which, and neither surface paraphrases that.
+pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
+    match half {
+        SplitHalf::Above => "above",
+        SplitHalf::Below => "below",
     }
 }
 
@@ -1106,10 +1127,11 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::FrameDirection { frame, .. } => Some(*frame),
         // The named input evaluated to a legal value that the failing
         // node's own choice does not fit — a family the operand does
-        // not take, an empty body or split side, too few instances, an
-        // axis on another frame than the profile's — and nothing on
-        // it refused. The frames `AxisInDifferentPlane` names are
-        // evidence of which frame each sits on.
+        // not take, an empty body or split side, an index outside the
+        // pattern's instances, an axis on another frame than the
+        // profile's — and nothing on it refused. The frames
+        // `AxisInDifferentPlane` names are evidence of which frame each
+        // sits on.
         NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }

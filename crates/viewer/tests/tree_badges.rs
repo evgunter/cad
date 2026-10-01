@@ -1484,6 +1484,35 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         tol,
     );
 
+    // Beside them, values with material: a subtract that leaves a
+    // body, and a split whose tool plane cuts the block in two.
+    let (doc, kept) = common::inserted(
+        &doc,
+        Node::Boolean {
+            op: BooleanOp::Subtract,
+            a: near,
+            b: far,
+            declare: None,
+        },
+        tol,
+    );
+    let (doc, through) = common::inserted(
+        &doc,
+        Node::Datum(Datum::Plane {
+            origin: [common::len(0.0), common::len(0.0), common::len(0.01)],
+            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    let (doc, halved) = common::inserted(
+        &doc,
+        Node::Split {
+            target: near,
+            tool: through,
+        },
+        tol,
+    );
+
     // A three-instance pattern, and a `Part` reading instance 3.
     let (doc, pattern) = common::inserted(
         &doc,
@@ -1556,6 +1585,26 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         "above half empty"
     );
     assert_eq!(
+        Emptiness::Half(SplitHalf::Below).to_string(),
+        "below half empty"
+    );
+    // The readout's half word is the kernel's, as `EmptyHalf` says it.
+    for half in SplitHalf::ALL {
+        let phrase = Emptiness::Half(half).to_string();
+        let word = phrase
+            .strip_suffix(" half empty")
+            .expect("the readout ends in its suffix");
+        let kernel = NodeErrorKind::EmptyHalf {
+            input: RecipeNodeId(0),
+            half,
+        }
+        .to_string();
+        assert!(
+            kernel.contains(&format!("the split's {word} half")),
+            "{half:?}: the readout says {phrase:?}, the kernel {kernel:?}"
+        );
+    }
+    assert_eq!(
         row(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
         "the intersect still says so once it is no longer the root"
@@ -1564,6 +1613,35 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         row(&rows, pattern).readout,
         None,
         "a pattern's count is authored, and the refusal's words state it"
+    );
+    assert!(
+        matches!(
+            ev.usable(kept).ok().map(|value| &value.payload),
+            Some(ValuePayload::Boolean(BooleanValue::Body { .. }))
+        ),
+        "the subtract leaves the block: {:?}",
+        ev.result(kept)
+    );
+    assert_eq!(
+        row(&rows, kept).readout,
+        None,
+        "a boolean with a body says everything its value does"
+    );
+    assert!(
+        matches!(
+            ev.usable(halved).ok().map(|value| &value.payload),
+            Some(ValuePayload::Split {
+                above: SplitSide::Body(_),
+                below: SplitSide::Body(_),
+            })
+        ),
+        "the tool plane cuts the block: {:?}",
+        ev.result(halved)
+    );
+    assert_eq!(
+        row(&rows, halved).readout,
+        None,
+        "a split with two bodies says everything its value does"
     );
 
     // The arm each row raised, among the four under test.
