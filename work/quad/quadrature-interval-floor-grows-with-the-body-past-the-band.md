@@ -45,3 +45,28 @@ example by:
   position into every piece.
 
 Measure first which term dominates the floor.
+
+## More evidence (REACH, reach-eps lane, PR 3636, 2026-10-01)
+
+**Measured:** the 5.5e-10 m³ "floor" above is ε-proportional, not
+rounding. I instrumented `bound_holds` and `PastTarget::refine` (not
+committed) and printed the oblique rod's per-round half-widths at three
+ε rows:
+- 1e-9: 9.2e-7, 1.16e-7, 1.49e-8, 2.34e-9, 7.7e-10;
+- 1e-6: 6.0e-5, 8.0e-6, 1.47e-6, 6.6e-7, 5.6e-7, 5.5e-7, 5.49e-7;
+- 1e-12: 1.79e-9, 2.25e-10.
+
+Every round reads as `rule(round) + 0.549·ε`. Subtracting 0.549·ε from
+the 1e-6 rounds gives the 1e-9 rounds' widths, and the last round's
+rule share is ≈ 2.2e-10 m³ at every ε. So:
+- past round 6 at the default ε the width stops at the ε share. The
+  source of that share is not traced; it is presumably the stored trim
+  geometry's own ε;
+- at round 6 (`LAST_ROUND_EVERY_LANE_RUNS`) the rule remainder is
+  still there. It is what grows with the body (∝ s³ against a lever
+  ∝ s²), and it makes the backstop undecidable on the scale-1 rod at
+  ε = 1e-12 (open range 1.8e-11 m against K·ε = 1e-11).
+
+The fix shapes above (compensated sums, a face-local origin) target
+rounding. Measure them against the round cap and the ε share before
+building either.

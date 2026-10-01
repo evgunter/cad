@@ -384,10 +384,10 @@ pub struct FieldWriting {
 impl FieldWriting {
     /// How a field of `dimension` whose value remembers `stored` is
     /// written. `stored` is the row's own `unit` — the fact the
-    /// document carries, before [`props::rendering_unit`] chooses what
-    /// a value that remembers nothing reads as.
-    pub fn of(dimension: Dimension, stored: Option<UnitDef>) -> Self {
-        let unit = props::rendering_unit(dimension, stored);
+    /// document carries, before [`props::rendering_unit`] reads a value
+    /// that remembers nothing in the working `notation`.
+    pub fn of(dimension: Dimension, stored: Option<UnitDef>, notation: props::Notation) -> Self {
+        let unit = props::rendering_unit(dimension, stored, notation);
         // A COUNT field steps by one whatever it is written in: what it
         // holds is a count, and a tenth of an instance is not a value
         // it can take. Read off the dimension and not off a

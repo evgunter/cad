@@ -84,3 +84,19 @@ its hand-rolled fold (the first bullet above). Each site's comment
 names the other. A consolidation would put the lever choice (which arm,
 given a second-order verdict) in one home beside `folded_lever_arm` and
 leave the role difference at the call sites.
+
+## Progress (SSI lever-arm lane)
+
+`geom-brep/ssi.rs`'s ℝ³ finisher now calls `folded_lever_arm`, and so does
+a site this row never counted: `ssi::system`'s `ImplicitPairR3::lever_arm`
+(the march's transversality arm), which folded the two curvature arms by
+hand and left the extent to the march. Both were concrete `f64` code, so
+their `.min` was the inherent `f64::min`, which drops a NaN operand — a
+NURBS operand's poison arm fell to the sibling's radius. That was the
+reason to move them, not just the duplication.
+
+**The two that remain are generic** (`T: Decide` in `contact_verify.rs`
+and `boolean/ops.rs`), so their `.min` resolves to `Real::min` and
+propagates poison already: a clippy `disallowed-methods` pass over
+`f64::min`/`f64::max` does not flag either. They are duplications only,
+not the poison-dropping class.
