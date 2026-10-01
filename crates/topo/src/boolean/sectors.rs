@@ -919,11 +919,11 @@ mod tests {
     /// point there is inside the hole, so the verdict is the bound's
     /// side near the vertex and not a reading at the arm.
     ///
-    /// The planted red is the same wall with a direction `1e-5` off
-    /// tangent: the bound is back on the wall within `2e-5`, it never
-    /// departs by more than `2.5e-11`, below the band, and the charge
-    /// refuses although the first-order verdict is still definite at
-    /// the arm. A plane takes no charge at all.
+    /// The planted red is the same wall with a direction `sqrt(zero)`
+    /// off tangent, `zero` the band's: the bound is back on the wall
+    /// within `2·sqrt(zero)`, it never departs by more than `zero/4`,
+    /// and the charge refuses although the first-order verdict is
+    /// still definite at the arm. A plane takes no charge at all.
     #[test]
     fn a_curved_side_verdict_stands_only_where_a_point_certifies_it() {
         use geom_brep::{EntersMaterial, enters_material};
@@ -946,7 +946,7 @@ mod tests {
         assert!(rho(d, best) < r, "the certified point is in the hole");
         assert!(rho(d, 0.5) > r, "the arm point has crossed back");
 
-        let shallow = Vec3::new(-1e-5, 1.0, 0.0);
+        let shallow = Vec3::new(-b.zero().sqrt(), 1.0, 0.0);
         assert_eq!(
             enters_material(shallow, n, 0.5, b).unwrap(),
             EntersMaterial::Exits,
