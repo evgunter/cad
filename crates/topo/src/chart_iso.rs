@@ -62,8 +62,7 @@ impl TravKind {
 /// The azimuth of the edge's mid-parameter carrier point — a
 /// representative interior point, never an apex/pole endpoint.
 pub fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
-    let (t0, t1) = curve.params();
-    chart.u_of(curve.carrier().eval(t0 + (t1 - t0) * 0.5))
+    chart.u_of(curve.mid_point())
 }
 
 /// `raw + 2πk` nearest `prev`.

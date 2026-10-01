@@ -582,7 +582,7 @@ impl<T: Decide> ConicArc<T> {
         }
         let (s0, c0) = t0.sin_cos();
         let (s1, c1) = t1.sin_cos();
-        let (sm, cm) = ((t0 + t1) * T::from_f64(0.5)).sin_cos();
+        let (sm, cm) = geom::mid_param(t0, t1).sin_cos();
         Ok(Some(Self {
             kind,
             center,
@@ -1013,10 +1013,9 @@ pub(crate) fn carrier_loop<T: Decide>(
             } => {
                 let inner = major_radius - minor_radius;
                 let speed = minor_radius * inner / (inner.powi(2) - offset.powi(2)).sqrt();
-                let half = T::from_f64(0.5);
                 LoopEdge::Unrowed {
-                    center: carrier.eval((t0 + t1) * half),
-                    reach: speed * (t1 - t0).abs() * half,
+                    center: carrier.mid_point(t0, t1),
+                    reach: speed * (t1 - t0).abs() * T::from_f64(0.5),
                 }
             }
             // Positive weights put a NURBS curve inside its control
