@@ -4,10 +4,15 @@ kind: issue
 title: A Failed row links to no node for AxisInDifferentPlane, EmptyOperand and EmptyHalf, whose repair could be either of two nodes
 status: open
 opened: 2026-09-29
+needs_ev: true
 priority: P4
 cost: E
 design: true
 ---
+
+## Question
+
+What should a failed tree row link to when the kernel's failure names a second node that could be part of the fix? `EmptyOperand`, `EmptyHalf`, `InstanceOutOfRange` and `AxisInDifferentPlane` link nowhere today. `TreeRow::repair_at` holds one node, and the code comment says one link would pick for the reader. The choice is what a link under a failed row means, and so which nodes these four arms link to.
 
 ## Finding
 
