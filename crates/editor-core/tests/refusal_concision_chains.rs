@@ -1492,6 +1492,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     what: "a section arc with no endpoint on the face's boundary",
                 },
             ),
+            ("SectionNotPolar", J::SectionNotPolar { face, band: band() }),
         ]
     };
     let join = join_arms().map(|(n, e)| (format!("Join/{n}"), SplitError::Join(e)));

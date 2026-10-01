@@ -2,10 +2,13 @@
 id: sphere-union-sphere-refuses-though-the-section-is-closed-form
 kind: issue
 title: sphere u sphere refuses CurvedPierceUnsupported although intersect::route mints the exact circle
-status: open
+status: closed
 opened: 2026-09-09
 priority: P0
 cost: H
+closed: 2026-10-01
+pr: 3659
+branch: reach/sphere-union-sphere
 ---
 
 
@@ -68,3 +71,26 @@ because the union that would build it is this refusal.
 
 `crates/sweep/tests/` — build two balls as above and call
 `topo::boolean::union`. No fixture in tree covers the pair today.
+
+## Closed (2026-10-01, PR 3659)
+
+The snowman builds: ∪, ∩ in both orders, A∖B and B∖A. Every result is
+valid at every tier and matches the two-cap closed form, at ε 1e-9,
+1e-6 and 1e-12 and at the Interval scalar. Near-tangent and nested
+pairs build. Results reuse as operands, round-trip through STEP, and
+fillet at the waist through `BlendArm::SphereSphereTorus`.
+
+What the PR built:
+- the circle × sphere and line × sphere root lanes;
+- the sphere-pair join on the radical plane, with the join's auxiliary
+  surfaces keyed by the datum each one is.
+
+The pair builds only when the two balls' seams are coplanar; a ball
+spun about the shared axis stops at TANG's pierce-ring door. Residue,
+each in its own file:
+- `tilted-sphere-pair-section-refuses-at-the-polar-gate`;
+- `non-circle-conic-edge-refuses-against-every-curved-face`;
+- `ball-inside-a-two-sphere-body-refuses-at-the-extent-scan`;
+- `circle-sphere-root-slack-refuses-near-tangent-pairs-at-1e-12`;
+- GERM's `circle-torus-meters-accept-an-unreadable-reading`;
+- the spun pose, as evidence on TANG's `pierce-ring-has-no-join-arm`.
