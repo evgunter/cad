@@ -348,10 +348,13 @@ fn the_chords_are_reachable_one_by_one_through_the_selector_layer() {
     let (doc, _, split) = l_split(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
     let ev = run(&doc);
     let params = ParamEnv::default();
-    let sel =
-        Selector::of(NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::SectionEdge)));
+    // The chords of a cap crossed twice: `[SectionEdge, Fragment(Ends)]`.
+    let sel = Selector::of(NamePat::of_kind(EntityKind::Edge).path([
+        SegPat::tag(SegTag::SectionEdge),
+        SegPat::tag(SegTag::Fragment),
+    ]));
     let plain = select(&ev, split, &sel);
-    assert!(!plain.is_empty(), "no SectionEdge name is selectable");
+    assert_eq!(plain.len(), 8, "two chords a cap a side: {plain:?}");
     let t = table(&ev, split);
     assert!(
         plain.iter().all(|n| !t.is_tied(n)),
