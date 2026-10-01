@@ -372,7 +372,7 @@ fn adv_bore_groove_torus_band() {
     ));
 }
 
-/// D1: a TOUCHING union against a body that carries reversed faces -
+/// D1: a union against a body that carries reversed faces -
 /// must not silently split a reversed face through sense-true mef
 /// re-mints.
 ///
@@ -383,14 +383,12 @@ fn adv_bore_groove_torus_band() {
 /// bit whenever the fragment lands on the parent's chart,
 /// `Body::resolve_face_surface`), so an answer is no longer prima
 /// facie wrong — the
-/// row therefore AUDITS an answer instead of rejecting it, and keeps
-/// accepting the typed refusal this washer/box pair still takes (its
-/// door is the annulus-touching lane, not sense inheritance). The
+/// row therefore AUDITS the answer, by volume and tier 3. The
 /// mixed-sense split that S12 genuinely made reachable is pinned with
 /// exact volumes in `m5_s12_curved_ops.rs`
 /// (`a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`).
 #[test]
-fn adv_touching_union_with_reversed_faces_refuses_typed() {
+fn adv_union_with_reversed_faces_answers_exactly() {
     let lp = ProfileLoop::polygon([
         Point2::new(1.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -420,7 +418,7 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
         .unwrap()
         .body;
     match topo::boolean::union(&washer, &boxb, Tol::witness()) {
-        Err(e) => println!("typed refusal (expected today): {e}"),
+        Err(e) => panic!("the washer's full-turn walls are served at both doors: {e}"),
         Ok(r) => {
             let out = r.body().expect("non-empty");
             println!(
@@ -430,11 +428,13 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
             );
             // Answering is legal as of S12; being WRONG is not. The
             // washer is the full revolve of a 1x1 square at r in [1, 2]
-            // about the y axis, and the box (0.6 x 1.0 x 0.4 at
-            // x in [1.2, 1.8]) lies wholly under its bottom annulus,
-            // so a touching union is exactly additive.
+            // about the y axis, y in [0, 1]. The box (0.6 x 1.0 x 0.4 at
+            // x in [1.2, 1.8], y in [-0.5, 0.5], z in [0, 0.4]) pokes
+            // through the bottom annulus: its y in [0, 0.5] half lies in
+            // the washer (r stays within [1.2, 1.85]), so the union is
+            // the sum less that 0.6 x 0.5 x 0.4 overlap.
             let washer_vol = std::f64::consts::PI * (2.0f64.powi(2) - 1.0) * 1.0;
-            let expect = washer_vol + 0.6 * 1.0 * 0.4;
+            let expect = washer_vol + 0.6 * 1.0 * 0.4 - 0.6 * 0.5 * 0.4;
             assert!(
                 (vol(&out.body) - expect).abs() < 1e-9,
                 "touching curved union answered with {} for {expect} - inspect \

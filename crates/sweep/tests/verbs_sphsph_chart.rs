@@ -765,21 +765,19 @@ fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
     }
 }
 
-/// **The §7 full-period-azimuth row**, and the one place the two
-/// containment doors deliberately disagree. A sphere face that attains
-/// EVERY azimuth has no azimuth window to be excluded by: the ray lane
-/// serves it (the latitude window still describes it exactly), while
-/// the face door keeps its typed frontier and answers `None`.
+/// **The §7 full-period-azimuth row.** A sphere face that attains
+/// EVERY azimuth has no azimuth window to be excluded by, and both
+/// containment doors serve it: the latitude window still describes it
+/// exactly.
 ///
 /// Planted by `kef` on one of a full ball's two seam meridians, which
 /// merges the two half-bands into a single face whose boundary walk
-/// carries a whole turn. The differential IS the row: the same body,
-/// the same face, `None` at one door and a definite verdict at the
-/// other, which is only possible if the trim returned a rectangle whose
-/// azimuth half is `None` — `face_geo` would have refused
-/// `PartialSphereFace` for any other reason the trim declines.
+/// carries a whole turn. `face_geo` would have refused
+/// `PartialSphereFace` for any reason the trim declines, so a definite
+/// verdict at both doors says the trim returned a rectangle whose
+/// azimuth half is `None`.
 #[test]
-fn a_full_period_azimuth_window_is_served_by_the_ray_lane_and_refused_by_the_face_door() {
+fn a_full_period_azimuth_window_is_served_by_both_doors() {
     let (b, t) = (band(), Tol::witness());
     let mut planted = rimmed_ball(1.0, Revolution::Full);
     let seam = seam_meridian(&planted, sphere_faces(&planted)[0]).0;
@@ -792,8 +790,8 @@ fn a_full_period_azimuth_window_is_served_by_the_ray_lane_and_refused_by_the_fac
     let (f, ch) = (faces[0], chart(&planted, faces[0]));
     assert_eq!(
         topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
-        None,
-        "the face door keeps its typed frontier at a full period"
+        Some(topo::FaceContainment::In),
+        "the face door serves a full period: every azimuth is in the face"
     );
     assert_eq!(
         point_in_solid(&planted, at(ch, 0.4, 2.0, 0.5), b, t).unwrap(),
