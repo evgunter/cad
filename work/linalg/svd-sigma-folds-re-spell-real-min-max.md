@@ -4,6 +4,8 @@ kind: issue
 title: Svd::sigma_min and sigma_max hand-roll the NaN-propagating fold Real::min and Real::max already are
 status: open
 opened: 2026-10-01
+priority: P4
+cost: E
 ---
 
 

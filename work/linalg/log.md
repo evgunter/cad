@@ -73,3 +73,39 @@ owner. Nothing new targets `props/sign-hull`.
 - Process finding: this session cannot dispatch `nightly.yml`
   (403 for the integration), so a branch-ref full run is unavailable
   from a remote box.
+
+## 2026-10-01 — three units land; the slate re-ordered
+
+- **#2468 landed (`dc39bce`).** `props/sign-hull` is retired, and
+  nothing targets it any more: DECIDE-8 had already closed at Phase 1
+  on Ev's #3283. The landing record is on the item and in the entry
+  above.
+- **#3687 landed (`ca1ae66`).** It carries the D9 NaN qualifier at
+  linalg's home, `Mat3`'s product pinned to literal values, and the
+  interval backend's zero signs chosen by rule (lower takes −0, upper
+  takes +0).
+  - Single FULL review: APPROVE.
+  - One MINOR: the guard's `transform_point` arm had no teeth until a
+    cancellation case was added. Fixed.
+  - The review measured 0 value differences against the old backend
+    over a biased random corpus, and 0 debug-vs-release bit
+    divergences in the new backend over 5.56M results. The old
+    backend had 104.
+  - D9's text is unchanged, because NaN code motion does not break
+    same-build replay.
+- **#3686 landed (`14f6143`).** `torus_meridian_orient` and
+  `sector_shape` now take the decided door.
+  - Single FULL review: REQUEST CHANGES, with one MAJOR confirmed by
+    rendering the refusal. Negating `sector_straight`'s margin to fit
+    `decide_positive` inverted the Boolean's "tighten the tolerance"
+    advice. `refusal_routes`' table reads that sign, and about 1,500
+    committed K rows recorded it.
+  - Ruling: the margin keeps its sign. `geom_core::k_stats::decide_negative`
+    is added beside `decide_positive`, because a sign other tables
+    read is not a door's to flip. The delta review returned APPROVE.
+  - Filed from the sweep: on BAND, CHART, CLEAVE, OFFSET, RESTFRONT
+    and TESS. On RESTFRONT: topo's crate-funnel bypasses.
+- Priced: the svd fold row is P4, cost E. The array doors are cost M,
+  because the population is large. The point-order and literal-door
+  rows are marked `design: true`. The plan now states the present
+  order.

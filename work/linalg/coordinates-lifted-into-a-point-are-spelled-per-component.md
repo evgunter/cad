@@ -5,7 +5,8 @@ title: Whether geom_core should carry a public literal constructor (a point or v
 status: open
 opened: 2026-09-24
 priority: P3
-cost: D
+cost: E
+design: true
 ---
 
 
