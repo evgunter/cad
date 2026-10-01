@@ -28,8 +28,8 @@ use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seats, seat_line};
 use crate::session::{
-    DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp,
-    Standing, face_frame_seat_drawn,
+    Creation, DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection,
+    SessionOp, Standing, face_frame_seat_drawn,
 };
 use crate::sketch;
 use crate::theme::Theme;
@@ -348,6 +348,13 @@ pub(crate) const ADD_DATUM: &str = "Add datum";
 
 /// What the add-profile form's commit button says.
 pub(crate) const ADD_PROFILE: &str = "Add profile";
+
+/// The kind nouns of the nodes the forms with no [`ToolKind`] create —
+/// `node_kind_noun`'s words, which a form's proposed label counts by.
+/// `tests/node_labels.rs` holds each to the node its form commits.
+const PROFILE_NOUN: &str = "Profile";
+const EXTRUDE_NOUN: &str = "Extrude";
+const MATE_NOUN: &str = "Mate";
 
 /// The heading of the section that makes a body out of nothing.
 pub(crate) const ADD_FEATURE: &str = "Add feature";
@@ -681,6 +688,7 @@ impl ViewerBehavior<'_> {
             }
         });
         ui.checkbox(&mut self.drafts.mate_opposed, "axes opposed");
+        self.creation_label_row(ui, MATE_NOUN);
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Mate.commit()).clicked() {
@@ -703,9 +711,9 @@ impl ViewerBehavior<'_> {
                         };
                         match tool.proposal(doc, eval, choice) {
                             Ok(proposal) => {
-                                // Exactly one committed DocEdit; the
-                                // tool closes with it.
-                                self.ops.push(proposal.op());
+                                // Exactly one committed DocEdit (and
+                                // its label); the tool closes with it.
+                                self.push_labelled(MATE_NOUN, proposal.op());
                                 close = true;
                             }
                             Err(error) => {
@@ -925,12 +933,18 @@ impl ViewerBehavior<'_> {
             let said = selection_says_unresolved(&self.session.standing(), self.drafts.held_face());
             face_frame_fault(ui, &self.theme, fault, said);
         }
+        self.creation_label_row(ui, self.drafts.datum_kind.noun());
         if ui
             .add_enabled(!unpicked && refused.is_none(), egui::Button::new(ADD_DATUM))
             .clicked()
         {
             match datum {
-                Ok(Some(datum)) => self.ops.push(SessionOp::AddDatum { datum }),
+                Ok(Some(datum)) => {
+                    self.push_labelled(
+                        self.drafts.datum_kind.noun(),
+                        SessionOp::AddDatum { datum },
+                    );
+                }
                 Ok(None) => {}
                 // The add-datum form is not a seated TOOL, so it has
                 // no `ToolKind` to compose the prefix — the form's own
@@ -1207,6 +1221,7 @@ impl ViewerBehavior<'_> {
             self.theme,
             self.profile_previews.create.as_ref().filter(|_| !at_rest),
         );
+        self.creation_label_row(ui, PROFILE_NOUN);
         if ui
             .add_enabled(
                 blocked.is_none() && !refused,
@@ -1222,7 +1237,7 @@ impl ViewerBehavior<'_> {
                 self.drafts.profile_programs(*self.notation),
             ) {
                 (Some(plane), Ok(loops)) => {
-                    self.ops.push(SessionOp::AddProfile { plane, loops });
+                    self.push_labelled(PROFILE_NOUN, SessionOp::AddProfile { plane, loops });
                 }
                 // Unreachable while the button is gated on `blocked`,
                 // and typed rather than unwrapped: a form's enabling
@@ -1261,6 +1276,7 @@ impl ViewerBehavior<'_> {
             );
             length_picker(ui, "extrude_distance", &mut self.notation.length);
         });
+        self.creation_label_row(ui, EXTRUDE_NOUN);
         match self.session.selection().node() {
             Some(node) => {
                 if ui
@@ -1268,10 +1284,13 @@ impl ViewerBehavior<'_> {
                     .clicked()
                 {
                     match self.notation.length_literal(self.drafts.extrude_distance) {
-                        Ok(distance) => self.ops.push(SessionOp::AddExtrude {
-                            profile: node,
-                            distance,
-                        }),
+                        Ok(distance) => self.push_labelled(
+                            EXTRUDE_NOUN,
+                            SessionOp::AddExtrude {
+                                profile: node,
+                                distance,
+                            },
+                        ),
                         Err(error) => {
                             self.notices.push(frame::tool_news(
                                 format!("extrude: {error}"),
@@ -1708,6 +1727,8 @@ impl ViewerBehavior<'_> {
     /// `BlendTool::clear` is and what Cancel is not — Cancel replaces
     /// the whole tool value.
     pub(crate) fn blend_commit_row(&mut self, ui: &mut egui::Ui, count: usize) {
+        let noun = self.tool_noun(ToolKind::Blend);
+        self.creation_label_row(ui, noun);
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Blend.commit()).clicked() {
@@ -1719,7 +1740,7 @@ impl ViewerBehavior<'_> {
                                 BlendKindChoice::Chamfer => tool.chamfer_op(size),
                             });
                         match op {
-                            Some(Ok(op)) => self.ops.push(op),
+                            Some(Ok(op)) => self.push_labelled(noun, op),
                             Some(Err(error)) => {
                                 self.notices.push(frame::tool_news(
                                     ToolKind::Blend.says(&error),
@@ -1760,17 +1781,107 @@ impl ViewerBehavior<'_> {
     /// held picks in place to correct instead of costing all of them.
     /// Cancel closes immediately, being the door that means "drop
     /// these picks".
+    /// **The kind noun of the node a tool's commit creates** —
+    /// `node_kind_noun`'s word, which its proposed label counts by. The
+    /// pattern and blend tools create one of two kinds, by the choice
+    /// their form holds; the duplicate tool's last node is a
+    /// projection, and its label lands there.
+    fn tool_noun(&self, kind: ToolKind) -> &'static str {
+        match kind {
+            ToolKind::Mate => MATE_NOUN,
+            ToolKind::Revolve => "Revolve",
+            ToolKind::Boolean => "Boolean",
+            ToolKind::Split => "Split",
+            ToolKind::Transform => "Transform",
+            ToolKind::Pattern => match self.drafts.pattern_output {
+                PatternOutputChoice::Instances => "Pattern",
+                PatternOutputChoice::Fused => "PlacedUnion",
+            },
+            ToolKind::Blend => match self.drafts.blend_kind {
+                BlendKindChoice::Fillet => "Fillet",
+                BlendKindChoice::Chamfer => "Chamfer",
+            },
+            ToolKind::Part | ToolKind::Duplicate => "Part",
+        }
+    }
+
+    /// **A create form's label field** (DESIGN.md Band 1, "Node
+    /// labels"): the text its node will be labelled with, editable.
+    /// Until the person types, it shows the proposal for this moment
+    /// ([`tree::proposed_label`], `Kind N`); nothing is stored until
+    /// the form commits ([`Self::push_labelled`]), and a field left
+    /// blank commits no label.
+    fn creation_label_row(&mut self, ui: &mut egui::Ui, noun: &'static str) {
+        let mut text = self.creation_label_text(noun);
+        ui.horizontal(|ui| {
+            ui.label("label");
+            if ui.text_edit_singleline(&mut text).changed() {
+                self.drafts.creation_labels.insert(noun, text);
+            }
+        });
+    }
+
+    /// What a create form's label field holds: what was typed, or the
+    /// proposal for this moment.
+    fn creation_label_text(&self, noun: &'static str) -> String {
+        self.drafts
+            .creation_labels
+            .get(noun)
+            .cloned()
+            .unwrap_or_else(|| {
+                tree::proposed_label(self.session.doc(), noun)
+                    .map(|label| label.as_str().to_owned())
+                    .unwrap_or_default()
+            })
+    }
+
+    /// **A create form's commit, with its label**: `op` queued as
+    /// [`SessionOp::CreateLabelled`] when the form's label field holds
+    /// a label — the insert and the label as one undo — or alone when
+    /// it is blank. The field's draft is spent either way, so the next
+    /// creation of this kind proposes afresh. A text the label rule
+    /// refuses queues nothing and is said on the status line.
+    fn push_labelled(&mut self, noun: &'static str, op: SessionOp) {
+        let text = self.creation_label_text(noun);
+        match crate::drafts::label_typed(&text) {
+            Ok(label) => {
+                self.drafts.creation_labels.remove(noun);
+                match (label, Creation::of(op)) {
+                    (Some(label), Ok(creation)) => {
+                        self.ops.push(SessionOp::CreateLabelled { creation, label });
+                    }
+                    (None, Ok(creation)) => self.ops.push(creation.into_op()),
+                    // Every form that reaches here creates a node; one
+                    // that does not is committed as it is and said.
+                    (_, Err(op)) => {
+                        self.notices.push(frame::tool_news(
+                            "label: this form creates no node to label",
+                            frame::Retold::Again,
+                        ));
+                        self.ops.push(op);
+                    }
+                }
+            }
+            Err(fault) => self.notices.push(frame::tool_news(
+                format!("label: {fault}"),
+                frame::Retold::Again,
+            )),
+        }
+    }
+
     pub(crate) fn tool_commit_row(
         &mut self,
         ui: &mut egui::Ui,
         kind: ToolKind,
         op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
+        let noun = self.tool_noun(kind);
+        self.creation_label_row(ui, noun);
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(kind.commit()).clicked() {
                 match op(self.drafts, *self.notation) {
-                    Ok(op) => self.ops.push(op),
+                    Ok(op) => self.push_labelled(noun, op),
                     Err(error) => {
                         self.notices
                             .push(frame::tool_news(kind.says(&error), frame::Retold::Again));

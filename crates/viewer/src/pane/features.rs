@@ -48,9 +48,10 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
     (indent(depth) + INDENT_STEP).min(spare)
 }
 
-/// **What one feature-tree row reads as, drawn**: the node as the
-/// document speaks it (kind noun and tag), which one of its kind it
-/// is, and the root glyph.
+/// **What one feature-tree row reads as, drawn**: its headline
+/// ([`tree::headline`]) — a labelled node's label with its kind and tag
+/// muted beside it, an unlabelled node's kind, tag and pose — and the
+/// root glyph.
 ///
 /// **The kind alone is not a name.** A tree of rows reading `Datum
 /// frame` twice asks a person to tell two frames apart by clicking;
@@ -58,13 +59,29 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
 /// what tells a person WHICH frame ([`crate::tree::frame_pose`]) — the
 /// same words the creation forms' picker reads ([`crate::tree::node_label`]).
 pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egui::Response {
-    let named = tree::named(&row.spoken, row.pose.as_deref());
-    let label = if row.root {
-        format!("{named} {GLYPH_ROOT}")
-    } else {
-        named
+    let tree::Headline { lead, muted } = tree::headline(&row.spoken, row.pose.as_deref());
+    let font_id = egui::TextStyle::Button.resolve(ui.style());
+    // The lead takes the widget's own colour (selected, hovered), the
+    // muted half the theme's weak one.
+    let voice = |color| egui::TextFormat {
+        font_id: font_id.clone(),
+        color,
+        ..Default::default()
     };
-    ui.selectable_label(selected, label)
+    let mut job = egui::text::LayoutJob::default();
+    job.append(&lead, 0.0, voice(egui::Color32::PLACEHOLDER));
+    if let Some(muted) = muted {
+        job.append(" ", 0.0, voice(egui::Color32::PLACEHOLDER));
+        job.append(&muted, 0.0, voice(ui.visuals().weak_text_color()));
+    }
+    if row.root {
+        job.append(
+            &format!(" {GLYPH_ROOT}"),
+            0.0,
+            voice(egui::Color32::PLACEHOLDER),
+        );
+    }
+    ui.selectable_label(selected, job)
 }
 
 /// **One feature-tree row, drawn**: its line — the indent, the label,

@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Doc, Expr, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
+    BooleanOp, Dimension, DimensionError, Doc, Expr, Label, LabelFault, LoopProgram, Maintenance,
+    Node, ParamName, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
@@ -253,6 +253,29 @@ pub(crate) struct Drafts {
     /// selected, and dropped the moment the selection leaves the node
     /// it was loaded from ([`Drafts::abandon_profile_edit_off`]).
     pub(crate) profile_edit: Option<ProfileEdit>,
+    /// **The rename field's text, as typed**, and the node it renames:
+    /// `Some` once a keystroke has landed, taken when the field
+    /// commits. `None` shows the label the node has.
+    pub(crate) label_text: Option<(RecipeNodeId, String)>,
+    /// **A create form's label, as typed**, by the kind noun the form
+    /// creates. A form nobody has typed into has no entry and shows
+    /// the proposal ([`crate::tree::proposed_label`]) for that moment;
+    /// the entry is taken when the form commits.
+    pub(crate) creation_labels: BTreeMap<&'static str, String>,
+}
+
+/// **A label field's text, as the document's label**: blank clears
+/// (`None`); anything else is held to the label rule.
+///
+/// # Errors
+///
+/// [`LabelFault`] for a text the rule refuses — one with a line break
+/// or another control character.
+pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    Label::new(text).map(Some)
 }
 
 /// **One value per door of the profile editor** — the add-profile
@@ -646,6 +669,8 @@ impl Default for Drafts {
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
             profile_edit: None,
+            label_text: None,
+            creation_labels: BTreeMap::new(),
         }
     }
 }
