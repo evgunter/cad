@@ -76,19 +76,14 @@ fn dxf_quarter_arc_center_left_apex_right() {
     let seg0 = vp.loops()[0].segments()[0];
     match seg0.kind {
         SegmentKind::Arc {
-            arc:
-                Arc2 {
-                    centre: center,
-                    radius,
-                    ..
-                },
+            arc: Arc2 { centre, radius, .. },
             turn,
             ..
         } => {
             // Hand values: L = 2, r = L(1+b^2)/(4b) = sqrt(2),
-            // apothem = L(1-b^2)/(4b) = 1 -> center = (1, 1).
-            assert!((center.x - 1.0).abs() < 1e-12, "center.x = {}", center.x);
-            assert!((center.y - 1.0).abs() < 1e-12, "center.y = {}", center.y);
+            // apothem = L(1-b^2)/(4b) = 1 -> centre = (1, 1).
+            assert!((centre.x - 1.0).abs() < 1e-12, "centre.x = {}", centre.x);
+            assert!((centre.y - 1.0).abs() < 1e-12, "centre.y = {}", centre.y);
             assert!((radius - std::f64::consts::SQRT_2).abs() < 1e-12);
             assert_eq!(turn, Sign::Positive, "positive bulge = CCW sweep");
         }
@@ -551,15 +546,10 @@ fn near_full_arc_with_chord_closure_validates() {
         .expect("near-full arc must stay an arc");
     match arc.kind {
         SegmentKind::Arc {
-            arc:
-                Arc2 {
-                    centre: center,
-                    radius,
-                    ..
-                },
+            arc: Arc2 { centre, radius, .. },
             ..
         } => {
-            assert!(center.x.abs() < 1e-9 && center.y.abs() < 1e-9);
+            assert!(centre.x.abs() < 1e-9 && centre.y.abs() < 1e-9);
             assert!((radius - 1.0).abs() < 1e-9);
         }
         SegmentKind::Line => unreachable!(),

@@ -57,8 +57,10 @@ fn ngon(n: u32) -> Vec<(f64, f64)> {
         .collect()
 }
 
-/// One recipe under one identity: an `n`-gon extruded to a prism.
-/// Returns the document and its extrude node.
+/// One recipe under one identity: a square extruded to a prism, its
+/// program then replaced by an `n`-gon's. Every document this builds
+/// inserts the same nodes, so they mint one set of node ids whatever
+/// `n` is. Returns the document and its extrude node.
 fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(id), Tol::witness());
     let (doc, profile) = on_frame(
@@ -66,15 +68,32 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![ngon(n)],
+        vec![ngon(4)],
     );
-    insert(
+    let (doc, extrude) = insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
         },
-    )
+    );
+    if n == 4 {
+        return (doc, extrude);
+    }
+    let loops = fixture::desc(profile, vec![ngon(n)]).loops;
+    let ids = loops
+        .iter()
+        .map(|lp| vec![None; lp.authored_steps()])
+        .collect();
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetProgram {
+            node: profile,
+            loops,
+            ids,
+        },
+    );
+    (doc, extrude)
 }
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -192,7 +211,9 @@ fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
             &editor_core::RefusingReach
         )
         .expect_err("the triangle has no fourth outer segment"),
-        EditError::NameUnresolvedInEvaluation { name: t.fourth },
+        EditError::NameUnresolvedInEvaluation {
+            name: t.triangle.spoken_name(&t.fourth)
+        },
         "the triangle's own tables do not"
     );
 }

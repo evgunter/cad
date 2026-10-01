@@ -1071,11 +1071,11 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     assert!(n >= 1, "the measure's refs name the extrude");
     let corrupt = text.replacen(&target, "\"node\": 77,", 1);
     match load(&corrupt, Tol::witness()) {
-        // Two typed gates can own this corruption: the id-counter
+        // Two typed gates can own this corruption: the mint-log
         // check (77 was never minted) or the dangling-input walk.
         // Either is a loud load-door refusal, which is the claim.
         Err(PersistError::Snapshot(
-            SnapshotError::DanglingInput { .. } | SnapshotError::IdBeyondCounter { .. },
+            SnapshotError::DanglingInput { .. } | SnapshotError::NodeNotMinted { .. },
         )) => {}
         other => panic!("a dangling minting node must refuse typed at load, got {other:?}"),
     }

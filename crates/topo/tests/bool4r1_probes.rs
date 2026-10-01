@@ -38,7 +38,7 @@ fn hollow_box(o: (Range, Range, Range), v: (Range, Range, Range)) -> Body<f64> {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut dst, solid, hole, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut dst, solid, hole, &evidence).unwrap();
     assert_eq!(dst.shells().count(), 2);
     dst
 }
@@ -52,7 +52,7 @@ fn cube(lo: f64, hi: f64, vlo: f64, vhi: f64) -> Body<f64> {
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
@@ -86,7 +86,7 @@ fn verdicts(
 
 /// `true` when every coordinate of `p` is one of `vals`.
 fn coords_in(p: Point3<f64>, vals: &[f64]) -> bool {
-    [p.x, p.y, p.z]
+    p.to_array()
         .iter()
         .all(|c| vals.iter().any(|v| (c - v).abs() < 1e-12))
 }
@@ -357,7 +357,7 @@ fn probe_c_a_third_solids_findings_do_not_block_a_pair() {
     let part = common::brick::<f64>((1.0, 2.0), (1.2, 2.0), (0.2, 0.8), Tol::witness());
     let third = common::brick::<f64>((0.5, 1.5), (-1.0, 0.0), (0.2, 0.8), Tol::witness());
     let mut body = assembly(&l.body, &part);
-    topo::graft_disjoint(&mut body, &third, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &third).unwrap();
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert_eq!(errors.len(), 16, "{errors:?}");

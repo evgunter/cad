@@ -190,7 +190,7 @@ fn check_certified_arms(ctl: &[[f64; 3]; 9], w: &[f64; 9], note: &str) -> Option
     use geom_core::spline::KnotVector;
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let points: Vec<Point3<f64>> = ctl.iter().map(|c| Point3::new(c[0], c[1], c[2])).collect();
+    let points: Vec<Point3<f64>> = ctl.iter().copied().map(Point3::from_array).collect();
     let surf = NurbsSurface::new(ku, kv, points, w.to_vec()).ok()?;
     let s: Surface<f64> = Surface::Nurbs(std::sync::Arc::new(surf));
     let i = geom_brep::chart_stretch_inf(&s);

@@ -43,7 +43,7 @@
 //! `cfg(debug_assertions)` helpers, inside `debug_assert!` — the
 //! "records agree with bits" assertion N6 promises.
 
-use geom_brep::recourse::{SizedDecision, SizedPass, StoredDefinite};
+use geom_brep::recourse::Classified;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use super::refusal_routes::Contradiction;
@@ -73,8 +73,7 @@ pub use super::carrier_eq::CarrierEqError as PlaneEqError;
 pub enum PlaneRung {
     /// Whether the two planes are parallel (`bool_plane_parallel`). On
     /// an undeclared pair an in-band margin is a coincidence a
-    /// declaration would bridge; on a declared pair the rung bridges it,
-    /// and only an unreadable norm escalates.
+    /// declaration would bridge; on a declared pair the rung bridges it.
     Parallel,
     /// Whether the two planes face the same way or opposite ways
     /// (`bool_plane_orient`). Its margin is the normals' cosine levered
@@ -82,9 +81,14 @@ pub enum PlaneRung {
     /// the zero band at that arm, so `|cos| ≈ 1` and the rung refuses
     /// only where the arm itself is within the band. Each door ends it
     /// from what it passes on and what its arm is: the Boolean's
-    /// cross-operand doors from [`PLANE_ORIENTATION`], the merge and the
+    /// cross-operand doors from the corner's sense (`refusal_routes::CORNER_SENSE`), the merge and the
     /// maximal-faces gate from their own decisions.
     Orientation,
+    /// Whether the two planes' normals can be read at all: the
+    /// parallelism rung's norm read definitely negative, poisoned input
+    /// (`unreadable_norm`). No declaration and no move of the parts
+    /// reads it.
+    Norm,
 }
 
 impl PlaneRung {
@@ -95,25 +99,10 @@ impl PlaneRung {
         match self {
             Self::Parallel => "whether the two planes are parallel",
             Self::Orientation => "whether the two planes face the same way or opposite ways",
+            Self::Norm => "whether the normals of two faces can be read",
         }
     }
 }
-
-/// The orientation rung's decision at the Boolean's cross-operand
-/// doors, which take either definite sign ([`PlaneRung::Orientation`]).
-/// Its margin is `cos · arm` with `|cos| ≈ 1`, so what it measures is
-/// the arm: at the sector doors (`vtxfac`, `recl`) the corner's shorter
-/// edge, which the corner's own arm rung has already read positive; at
-/// the rest-contact verifications the fixed 1 m arm, which a readable
-/// cosine always decides, so only an unreadable margin refuses there.
-pub const PLANE_ORIENTATION: SizedDecision = SizedDecision {
-    lever: "make the edges at the corner where the two faces meet clearly longer than the \
-            tolerance",
-    size: "length of the corner's shorter edge",
-    passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
-    at_zero: None,
-};
 
 /// The orientation rung's refusal of a zero verdict, its decided
 /// margin riding the diagnostics.
@@ -233,6 +222,67 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<(PlaneRelation, ContactVerdict), PlaneEqError> {
+    plane_ladder(p1, p2, id, arm, band).map_err(LadderRefusal::untyped)
+}
+
+/// [`oriented_plane_eq`] with rung 4's decided zero typed
+/// ([`LadderRefusal::Coplanar`]), for a door that ends it from its
+/// decided margin: the maximal-faces gate.
+pub(crate) fn plane_eq_typed<T: Decide>(
+    p1: &PlaneDesc<T>,
+    p2: &PlaneDesc<T>,
+    id: PlaneIdentity<'_>,
+    arm: T,
+    band: Band,
+) -> Result<PlaneRelation, LadderRefusal> {
+    plane_ladder(p1, p2, id, arm, band).map(|(rel, _)| rel)
+}
+
+/// The ladder's refusal, with rung 4's decided zero carried typed.
+#[derive(Debug)]
+pub(crate) enum LadderRefusal {
+    /// Rung 4: the offset decided zero between two planes no identity
+    /// rung glued, with the margin its band decided and the orientation
+    /// decided before it.
+    Coplanar {
+        /// The decided offset.
+        offset: Classified,
+        /// The decided orientation.
+        relation: PlaneRelation,
+    },
+    /// Any other refusal.
+    Refused(PlaneEqError),
+}
+
+impl LadderRefusal {
+    /// The refusal as [`PlaneEqError`], whose `Undeclared` carries a
+    /// decided zero as `MarginDiag::INVALID`: the encoding the readers
+    /// of the untyped error still take
+    /// (`work/topo/plane-offset-rung-decided-zero-shares-invalid-with-a-poisoned-margin.md`).
+    fn untyped(self) -> PlaneEqError {
+        match self {
+            Self::Coplanar { offset, relation } => PlaneEqError::Undeclared {
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band: offset.band,
+                    predicate: Some("bool_plane_offset"),
+                    terminal_sliver: false,
+                },
+                relation,
+            },
+            Self::Refused(refusal) => refusal,
+        }
+    }
+}
+
+/// The ladder itself (module docs).
+fn plane_ladder<T: Decide>(
+    p1: &PlaneDesc<T>,
+    p2: &PlaneDesc<T>,
+    id: PlaneIdentity<'_>,
+    arm: T,
+    band: Band,
+) -> Result<(PlaneRelation, ContactVerdict), LadderRefusal> {
     // Canonical offsets (d = n̂·origin) for the geometric rungs.
     let d1 = p1.normal.dot(p1.origin - Point3::origin());
     let d2 = p2.normal.dot(p2.origin - Point3::origin());
@@ -283,7 +333,7 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
     // Rung 2: declared pair (F5) — verified intent, never trusted
     // blindly. Definitely-distinct contradicts the declaration.
     if id.declared {
-        return declared_rung(p1, p2, d1, d2, arm, band);
+        return declared_rung(p1, p2, d1, d2, arm, band).map_err(LadderRefusal::Refused);
     }
 
     // Rung 3: definite-different by geometry. Parallelism first.
@@ -293,13 +343,13 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         Ok(Sign::Zero) => {}
         Ok(Sign::Negative) => {
             // A norm cannot be definitely negative — poisoned input.
-            return Err(unreadable_norm(band));
+            return Err(LadderRefusal::Refused(unreadable_norm(band)));
         }
         Err(diag) => {
-            return Err(PlaneEqError::Escalated {
+            return Err(LadderRefusal::Refused(PlaneEqError::Escalated {
                 rung: PlaneRung::Parallel,
                 diag,
-            });
+            }));
         }
     }
     // Parallel (within band): orientation sign from the normal dot
@@ -324,32 +374,34 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
         Ok(Decided {
             sign: Sign::Zero,
             margin,
-        }) => return Err(orientation_zero(margin, band)),
+        }) => return Err(LadderRefusal::Refused(orientation_zero(margin, band))),
         Err(diag) => {
-            return Err(PlaneEqError::Escalated {
+            return Err(LadderRefusal::Refused(PlaneEqError::Escalated {
                 rung: PlaneRung::Orientation,
                 diag,
-            });
+            }));
         }
     };
     let offset_margin = Margin::of(d1 - sigma * d2);
-    match decide("bool_plane_offset", offset_margin, band) {
-        Ok(Sign::Positive | Sign::Negative) => {
-            Ok((PlaneRelation::Distinct, ContactVerdict::Definite))
-        }
+    match decide_reported("bool_plane_offset", offset_margin, band) {
+        Ok(Decided {
+            sign: Sign::Positive | Sign::Negative,
+            ..
+        }) => Ok((PlaneRelation::Distinct, ContactVerdict::Definite)),
         // Rung 4: geometrically the same plane, but neither identity
         // rung fired — undeclared coincidence, typed (rung (b): value
         // equality never glues).
-        Ok(Sign::Zero) => Err(PlaneEqError::Undeclared {
-            diag: Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some("bool_plane_offset"),
-                terminal_sliver: false,
-            },
+        Ok(Decided {
+            sign: Sign::Zero,
+            margin,
+        }) => Err(LadderRefusal::Coplanar {
+            offset: Classified { margin, band },
             relation,
         }),
-        Err(diag) => Err(PlaneEqError::Undeclared { diag, relation }),
+        Err(diag) => Err(LadderRefusal::Refused(PlaneEqError::Undeclared {
+            diag,
+            relation,
+        })),
     }
 }
 
@@ -357,7 +409,7 @@ pub fn oriented_plane_eq_verdict<T: Decide>(
 /// negative: poisoned input, with no margin to report.
 pub(crate) fn unreadable_norm(band: Band) -> PlaneEqError {
     PlaneEqError::Escalated {
-        rung: PlaneRung::Parallel,
+        rung: PlaneRung::Norm,
         diag: Indeterminate {
             margin: MarginDiag::INVALID,
             band,
@@ -480,8 +532,8 @@ mod tests {
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> PlaneDesc<f64> {
         PlaneDesc {
-            origin: Point3::new(o[0], o[1], o[2]),
-            normal: Vec3::new(n[0], n[1], n[2]),
+            origin: Point3::from_array(o),
+            normal: Vec3::from_array(n),
         }
     }
 

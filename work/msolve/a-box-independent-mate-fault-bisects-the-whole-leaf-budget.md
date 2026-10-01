@@ -44,3 +44,33 @@ usefully and stays `Bisect`. The two land together or this first.
 A red probe first: a box run over a face-framed mate under certifying
 clearance, showing `Budget` where the fault is the mate's.
 
+
+## Measured: a box run over a document whose mate escalates (MSOLVE-11, PR 3680)
+
+MSOLVE-11 puts the solve's escalations on the deciding mate's own log.
+So `classify_replay` would now meet an escalating mate at read (2), the
+log, where before it fell to read (3)'s `_ => Bisect`. That move is
+latent: no box run reaches it today.
+
+Measured on a pair with two planar rests, one tilted so that its
+levered sine lands in the band, and one parameter boxed by
+`range::derive`:
+
+- `drive` returns `DriveRefusal::WitnessDoesNotBuild`. Its cause is the
+  mate's `Unleverable`: "no part resolver was given".
+- The driver's evaluations (`drive::lane_opts`) carry no resolver. At
+  the nominal witness every mated part is out of hand, and the fold
+  refuses the lever before it decides anything. No leaf is ever
+  classified.
+- The same document under a resolver escalates. The added mate refuses
+  `MateFault::Indeterminate`, with the escalation on its own log.
+
+Pinned by
+`msolve11_mate_log::a_box_run_over_an_escalating_mate_refuses_at_its_witness`.
+
+What this means here: before this item's `Budget` shape can show, a box
+run over any assembly needs the driver to carry a resolver. Once it
+does, an escalating mate reaches read (2), not the catch-all. It
+bisects, and it reads `SliverTerminal` when the margin sits wholly in
+the band. The box-independent faults this item names would still fall
+to read (3).

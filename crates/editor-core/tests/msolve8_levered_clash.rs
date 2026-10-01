@@ -23,7 +23,7 @@
 
 use crate::fixture;
 
-use editor_core::mate::coset::{Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
+use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
     EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, NodeErrorClass,
@@ -37,6 +37,12 @@ use geom_core::predicate::Band;
 use geom_core::{Tol, Tolerance};
 
 // ---- Substrate ----
+
+/// `arm` through the one door a lever is formed by, as a datum term
+/// over parts of no reach.
+fn lever(arm: f64) -> Arm {
+    Arm::of(0.0, arm).expect("a finite arm the format can decide over")
+}
 
 /// A one-solid part: a unit square extruded 1 tall, and its body.
 fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -240,8 +246,11 @@ fn residual_of(fault: &MateFault, predicate: &str) -> (f64, f64) {
     };
     assert!(arm > 0.0, "the arm is the mated parts' own extent: {arm}");
     let message = fault.to_string();
+    assert!(
+        !message.contains(predicate),
+        "the predicate's name rides the payload, not the sentence: {message:?}"
+    );
     for want in [
-        &format!("predicate `{predicate}`"),
         &format!("a dimensionless residual of {value}"),
         &format!("on a {arm} m arm"),
         &format!("a deviation of {} m", clash.deviation().unwrap()),
@@ -795,7 +804,12 @@ fn c2_parallel_boundary_direct() {
                         representative: Affine3::identity(),
                     };
                     let want = one_spelling(n1.get(), n2.get(), arm, band);
-                    let got = match intersect_subgroups(held.subgroup, added.subgroup, band, arm) {
+                    let got = match intersect_subgroups(
+                        held.subgroup,
+                        added.subgroup,
+                        band,
+                        lever(arm),
+                    ) {
                         Ok(Subgroup::Planar { .. }) => "parallel",
                         Ok(Subgroup::Prismatic { direction }) => {
                             let line = n1.get().cross(n2.get()) * arm;
@@ -815,7 +829,7 @@ fn c2_parallel_boundary_direct() {
                     // The full door decides the same split first; what
                     // it adds past that is the singular translation
                     // stage named above, and nothing else.
-                    match intersect(held, added, band, arm) {
+                    match intersect(held, added, band, lever(arm)) {
                         Ok(_) => {}
                         Err(FoldStop::Indeterminate(d)) => assert!(
                             matches!(
@@ -919,14 +933,14 @@ fn c2_parallel_boundary_through_doors() {
         let first = al(
             MatePrimitive::PlanarRest { offset: 0.0 },
             AxisSense::Aligned,
-            frame([t, 0.0, 0.0], [raw1.x, raw1.y, raw1.z], [0.0, 1.0, 0.0]),
+            frame([t, 0.0, 0.0], raw1.to_array(), [0.0, 1.0, 0.0]),
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
         let second = al(
             MatePrimitive::PlanarRest { offset: 0.0 },
             AxisSense::Aligned,
-            frame([0.0, 0.0, 0.0], [raw2.x, raw2.y, raw2.z], [0.0, 1.0, 0.0]),
+            frame([0.0, 0.0, 0.0], raw2.to_array(), [0.0, 1.0, 0.0]),
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );

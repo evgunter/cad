@@ -79,6 +79,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pncad::document::{Doc, Frame, Node, ProfileProgram, RecipeNodeId};
+use pncad::geom_core::Vec3;
 
 use crate::g1;
 
@@ -543,10 +544,9 @@ fn is_rigid(frame: &Frame) -> bool {
     if !frame.is_finite() {
         return false;
     }
-    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    let [c0, c1, c2] = frame.columns;
-    let unit = |c: [f64; 3]| (dot(c, c) - 1.0).abs() <= RIGID_SLACK;
-    let perp = |a: [f64; 3], b: [f64; 3]| dot(a, b).abs() <= RIGID_SLACK;
+    let [c0, c1, c2] = frame.columns.map(Vec3::from_array);
+    let unit = |c: Vec3<f64>| (c.dot(c) - 1.0).abs() <= RIGID_SLACK;
+    let perp = |a: Vec3<f64>, b: Vec3<f64>| a.dot(b).abs() <= RIGID_SLACK;
     unit(c0)
         && unit(c1)
         && unit(c2)

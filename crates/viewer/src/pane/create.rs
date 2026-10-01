@@ -28,8 +28,8 @@ use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seats, seat_line};
 use crate::session::{
-    DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp,
-    Standing, face_frame_seat_drawn,
+    Creation, DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection,
+    SessionOp, Standing, face_frame_seat_drawn,
 };
 use crate::sketch;
 use crate::theme::Theme;
@@ -348,6 +348,14 @@ pub(crate) const ADD_DATUM: &str = "Add datum";
 
 /// What the add-profile form's commit button says.
 pub(crate) const ADD_PROFILE: &str = "Add profile";
+
+/// The kind nouns of the nodes the forms with no [`ToolKind`] create —
+/// `node_kind_noun`'s words, which a form's proposed label counts by.
+/// `creation_nouns` (below) holds the profile's and the extrude's to
+/// the node their op mints.
+const PROFILE_NOUN: &str = "Profile";
+const EXTRUDE_NOUN: &str = "Extrude";
+const MATE_NOUN: &str = "Mate";
 
 /// The heading of the section that makes a body out of nothing.
 pub(crate) const ADD_FEATURE: &str = "Add feature";
@@ -681,6 +689,7 @@ impl ViewerBehavior<'_> {
             }
         });
         ui.checkbox(&mut self.drafts.mate_opposed, "axes opposed");
+        self.creation_label_row(ui, MATE_NOUN);
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Mate.commit()).clicked() {
@@ -703,9 +712,9 @@ impl ViewerBehavior<'_> {
                         };
                         match tool.proposal(doc, eval, choice) {
                             Ok(proposal) => {
-                                // Exactly one committed DocEdit; the
-                                // tool closes with it.
-                                self.ops.push(proposal.op());
+                                // Exactly one committed DocEdit (and
+                                // its label); the tool closes with it.
+                                self.push_labelled(MATE_NOUN, proposal.op());
                                 close = true;
                             }
                             Err(error) => {
@@ -925,12 +934,18 @@ impl ViewerBehavior<'_> {
             let said = selection_says_unresolved(&self.session.standing(), self.drafts.held_face());
             face_frame_fault(ui, &self.theme, fault, said);
         }
+        self.creation_label_row(ui, self.drafts.datum_kind.noun());
         if ui
             .add_enabled(!unpicked && refused.is_none(), egui::Button::new(ADD_DATUM))
             .clicked()
         {
             match datum {
-                Ok(Some(datum)) => self.ops.push(SessionOp::AddDatum { datum }),
+                Ok(Some(datum)) => {
+                    self.push_labelled(
+                        self.drafts.datum_kind.noun(),
+                        SessionOp::AddDatum { datum },
+                    );
+                }
                 Ok(None) => {}
                 // The add-datum form is not a seated TOOL, so it has
                 // no `ToolKind` to compose the prefix — the form's own
@@ -1207,6 +1222,7 @@ impl ViewerBehavior<'_> {
             self.theme,
             self.profile_previews.create.as_ref().filter(|_| !at_rest),
         );
+        self.creation_label_row(ui, PROFILE_NOUN);
         if ui
             .add_enabled(
                 blocked.is_none() && !refused,
@@ -1222,7 +1238,7 @@ impl ViewerBehavior<'_> {
                 self.drafts.profile_programs(*self.notation),
             ) {
                 (Some(plane), Ok(loops)) => {
-                    self.ops.push(SessionOp::AddProfile { plane, loops });
+                    self.push_labelled(PROFILE_NOUN, SessionOp::AddProfile { plane, loops });
                 }
                 // Unreachable while the button is gated on `blocked`,
                 // and typed rather than unwrapped: a form's enabling
@@ -1261,6 +1277,7 @@ impl ViewerBehavior<'_> {
             );
             length_picker(ui, "extrude_distance", &mut self.notation.length);
         });
+        self.creation_label_row(ui, EXTRUDE_NOUN);
         match self.session.selection().node() {
             Some(node) => {
                 if ui
@@ -1268,10 +1285,13 @@ impl ViewerBehavior<'_> {
                     .clicked()
                 {
                     match self.notation.length_literal(self.drafts.extrude_distance) {
-                        Ok(distance) => self.ops.push(SessionOp::AddExtrude {
-                            profile: node,
-                            distance,
-                        }),
+                        Ok(distance) => self.push_labelled(
+                            EXTRUDE_NOUN,
+                            SessionOp::AddExtrude {
+                                profile: node,
+                                distance,
+                            },
+                        ),
                         Err(error) => {
                             self.notices.push(frame::tool_news(
                                 format!("extrude: {error}"),
@@ -1708,6 +1728,8 @@ impl ViewerBehavior<'_> {
     /// `BlendTool::clear` is and what Cancel is not — Cancel replaces
     /// the whole tool value.
     pub(crate) fn blend_commit_row(&mut self, ui: &mut egui::Ui, count: usize) {
+        let noun = self.tool_noun(ToolKind::Blend);
+        self.creation_label_row(ui, noun);
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Blend.commit()).clicked() {
@@ -1719,7 +1741,7 @@ impl ViewerBehavior<'_> {
                                 BlendKindChoice::Chamfer => tool.chamfer_op(size),
                             });
                         match op {
-                            Some(Ok(op)) => self.ops.push(op),
+                            Some(Ok(op)) => self.push_labelled(noun, op),
                             Some(Err(error)) => {
                                 self.notices.push(frame::tool_news(
                                     ToolKind::Blend.says(&error),
@@ -1751,6 +1773,94 @@ impl ViewerBehavior<'_> {
         }
     }
 
+    /// **The kind noun of the node a tool's commit creates** —
+    /// `node_kind_noun`'s word, which its proposed label counts by. The
+    /// pattern and blend tools create one of two kinds, by the choice
+    /// their form holds; the duplicate tool's last node is a
+    /// projection, and its label lands there.
+    fn tool_noun(&self, kind: ToolKind) -> &'static str {
+        match kind {
+            ToolKind::Mate => MATE_NOUN,
+            ToolKind::Revolve => "Revolve",
+            ToolKind::Boolean => "Boolean",
+            ToolKind::Split => "Split",
+            ToolKind::Transform => "Transform",
+            ToolKind::Pattern => match self.drafts.pattern_output {
+                PatternOutputChoice::Instances => "Pattern",
+                PatternOutputChoice::Fused => "PlacedUnion",
+            },
+            ToolKind::Blend => match self.drafts.blend_kind {
+                BlendKindChoice::Fillet => "Fillet",
+                BlendKindChoice::Chamfer => "Chamfer",
+            },
+            ToolKind::Part | ToolKind::Duplicate => "Part",
+        }
+    }
+
+    /// **A create form's label field** (DESIGN.md Band 1, "Node
+    /// labels"): the text its node will be labelled with, editable.
+    /// Until the person types, it shows the proposal for this moment
+    /// ([`tree::proposed_label`], `Kind N`); nothing is stored until
+    /// the form commits ([`Self::push_labelled`]), and a field left
+    /// blank commits no label.
+    fn creation_label_row(&mut self, ui: &mut egui::Ui, noun: &'static str) {
+        let mut text = self.creation_label_text(noun);
+        ui.horizontal(|ui| {
+            ui.label("label");
+            if ui.text_edit_singleline(&mut text).changed() {
+                self.drafts.creation_labels.insert(noun, text);
+            }
+        });
+    }
+
+    /// What a create form's label field holds: what was typed, or the
+    /// proposal for this moment.
+    fn creation_label_text(&self, noun: &'static str) -> String {
+        self.drafts
+            .creation_labels
+            .get(noun)
+            .cloned()
+            .unwrap_or_else(|| {
+                tree::proposed_label(self.session.doc(), noun)
+                    .map(|label| label.as_str().to_owned())
+                    .unwrap_or_default()
+            })
+    }
+
+    /// **A create form's commit, with its label**: `op` queued as
+    /// [`SessionOp::CreateLabelled`] when the form's label field holds
+    /// a label — the insert and the label as one undo — or alone when
+    /// it is blank. The field's draft is kept until the creation
+    /// commits (`Drafts::creation_landed`), so a refused creation does
+    /// not cost what was typed. A text the label rule refuses queues
+    /// nothing and is said on the status line.
+    fn push_labelled(&mut self, noun: &'static str, op: SessionOp) {
+        let text = self.creation_label_text(noun);
+        match crate::drafts::label_typed(&text) {
+            Ok(label) => {
+                match (label, Creation::of(op)) {
+                    (Some(label), Ok(creation)) => {
+                        self.ops.push(SessionOp::CreateLabelled { creation, label });
+                    }
+                    (None, Ok(creation)) => self.ops.push(creation.into_op()),
+                    // Every form that reaches here creates a node; one
+                    // that does not is committed as it is and said.
+                    (_, Err(op)) => {
+                        self.notices.push(frame::tool_news(
+                            "label: this form creates no node to label",
+                            frame::Retold::Again,
+                        ));
+                        self.ops.push(*op);
+                    }
+                }
+            }
+            Err(fault) => self.notices.push(frame::tool_news(
+                format!("label: {fault}"),
+                frame::Retold::Again,
+            )),
+        }
+    }
+
     /// **The commit/cancel row every combining tool ends with**, and
     /// the one place their two halves of the close rule live.
     ///
@@ -1766,11 +1876,13 @@ impl ViewerBehavior<'_> {
         kind: ToolKind,
         op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
+        let noun = self.tool_noun(kind);
+        self.creation_label_row(ui, noun);
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(kind.commit()).clicked() {
                 match op(self.drafts, *self.notation) {
-                    Ok(op) => self.ops.push(op),
+                    Ok(op) => self.push_labelled(noun, op),
                     Err(error) => {
                         self.notices
                             .push(frame::tool_news(kind.says(&error), frame::Retold::Again));
@@ -1837,10 +1949,10 @@ mod tests {
         FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(node),
+                node: RecipeNodeId(test_utils::refusal::tagged(node)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
-            node: RecipeNodeId(node),
+            node: RecipeNodeId(test_utils::refusal::tagged(node)),
             body: 0,
         }
     }
@@ -1882,12 +1994,12 @@ mod tests {
             painted_text(|ui| seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT))
         };
         assert_eq!(painted(&tool), "no picks yet");
-        tool.pick(&doc, RecipeNodeId(3));
+        tool.pick(&doc, RecipeNodeId(test_utils::refusal::tagged(3)));
         assert_eq!(
             painted(&tool),
             "first operand: node 000000000003; second operand: —"
         );
-        tool.pick(&doc, RecipeNodeId(5));
+        tool.pick(&doc, RecipeNodeId(test_utils::refusal::tagged(5)));
         assert_eq!(
             painted(&tool),
             "first operand: node 000000000003; second operand: node 000000000005"
@@ -2014,7 +2126,7 @@ mod tests {
     /// A stand-in labeller: the number alone, so a row asserting on
     /// the pose half is asserting on text this closure did not write.
     fn numbers(id: &RecipeNodeId) -> String {
-        format!("node {:012x}", id.0)
+        format!("node {}", test_utils::refusal::tag(id.0))
     }
 
     /// The add-profile form's plane row, on an EMPTY document, offers
@@ -2052,7 +2164,10 @@ mod tests {
     /// the selection.
     #[test]
     fn the_plane_row_offers_the_mint_beside_the_frames_that_exist() {
-        let frames = [RecipeNodeId(2), RecipeNodeId(5)];
+        let frames = [
+            RecipeNodeId(test_utils::refusal::tagged(2)),
+            RecipeNodeId(test_utils::refusal::tagged(5)),
+        ];
         let mut picked: Option<ProfilePlane> = None;
         let drawn = painted_after_clicking("pick one", |ui| {
             profile_plane_row(ui, &Theme::DEFAULT, &frames, &numbers, &mut picked);
@@ -2083,10 +2198,23 @@ mod tests {
     /// test of the labelling function alone cannot see.
     #[test]
     fn the_plane_row_draws_the_name_it_is_handed() {
-        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(4)));
-        let names = |id: &RecipeNodeId| format!("node {:012x} — xy at (0, 0, 0) m", id.0);
+        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(
+            test_utils::refusal::tagged(4),
+        )));
+        let names = |id: &RecipeNodeId| {
+            format!(
+                "node {} — xy at (0, 0, 0) m",
+                test_utils::refusal::tag(id.0)
+            )
+        };
         let drawn = painted_text(|ui| {
-            profile_plane_row(ui, &Theme::DEFAULT, &[RecipeNodeId(4)], &names, &mut picked)
+            profile_plane_row(
+                ui,
+                &Theme::DEFAULT,
+                &[RecipeNodeId(test_utils::refusal::tagged(4))],
+                &names,
+                &mut picked,
+            )
         });
         assert!(
             drawn.contains("node 000000000004 — xy at (0, 0, 0) m"),
@@ -2098,7 +2226,9 @@ mod tests {
     /// case `frame_picker`'s `text` argument exists for.
     #[test]
     fn the_plane_row_names_a_pick_the_document_no_longer_holds() {
-        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(9)));
+        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(
+            test_utils::refusal::tagged(9),
+        )));
         let drawn =
             painted_text(|ui| profile_plane_row(ui, &Theme::DEFAULT, &[], &numbers, &mut picked));
         assert!(
@@ -2179,7 +2309,7 @@ mod layout_tests {
                 "salt",
                 &[],
                 &mut picked,
-                |id| format!("node {:012x}", id.0),
+                |id| format!("node {}", test_utils::refusal::tag(id.0)),
             );
         });
         let empty = find(&painted, NO_FRAMES);
@@ -2397,10 +2527,10 @@ mod tone_tests {
         FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId(test_utils::refusal::tagged(1)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
-            node: RecipeNodeId(2),
+            node: RecipeNodeId(test_utils::refusal::tagged(2)),
             body: 0,
         }
     }
@@ -2428,7 +2558,7 @@ mod tone_tests {
                 ui,
                 theme,
                 &FaceFrameFault::NotOneBody {
-                    at: RecipeNodeId(4),
+                    at: RecipeNodeId(test_utils::refusal::tagged(4)),
                 },
                 false,
             );
@@ -2492,7 +2622,7 @@ mod tone_tests {
             error: pncad::select::ResolveError::NodeGone {
                 name: latched().name,
                 edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(1),
+                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
                 },
             },
             offers: Vec::new(),
@@ -2500,7 +2630,7 @@ mod tone_tests {
         assert!(selection_says_unresolved(&gone, Some(&latched())));
         // Another face, or nothing latched: the form must say it.
         let other = FaceSelection {
-            node: RecipeNodeId(9),
+            node: RecipeNodeId(test_utils::refusal::tagged(9)),
             ..latched()
         };
         assert!(!selection_says_unresolved(&gone, Some(&other)));
@@ -2511,7 +2641,7 @@ mod tone_tests {
         // A node selected: the header is about the node.
         assert!(!selection_says_unresolved(
             &Standing::Node {
-                node: RecipeNodeId(2),
+                node: RecipeNodeId(test_utils::refusal::tagged(2)),
                 present: false,
             },
             Some(&latched())
@@ -2611,7 +2741,7 @@ mod declared_union {
 
     /// The union the tool holds, performed: its refusal and the offer
     /// the frame loop reads off it.
-    fn refused_union(session: &mut DocSession, tool: BooleanTool) -> (Refusal, DeclareOffer) {
+    fn refused_union(session: &mut DocSession, tool: &BooleanTool) -> (Refusal, DeclareOffer) {
         let op = tool.op(BooleanOp::Union).expect("both operands are picked");
         let refusal = session.perform(op).refusal.expect("the union refuses");
         let offer = frame::declare_offer(Some(&refusal))
@@ -2625,7 +2755,7 @@ mod declared_union {
     fn panel(
         session: &DocSession,
         offer: DeclareOffer,
-        (op, tool): (BooleanOp, BooleanTool),
+        (op, tool): (BooleanOp, &BooleanTool),
         click: Option<&str>,
     ) -> (String, Option<DeclareOffer>, Vec<SessionOp>) {
         let mut held = Some(offer);
@@ -2634,7 +2764,7 @@ mod declared_union {
             declare_offer_rows(
                 ui,
                 &mut held,
-                (session.generation(), op, tool),
+                (session.generation(), op, tool.clone()),
                 session.doc(),
                 &mut ops,
                 &Theme::DEFAULT,
@@ -2664,7 +2794,7 @@ mod declared_union {
         let steps = session.history().len();
         let tool = holding(&session, block, boss);
 
-        let (refusal, offer) = refused_union(&mut session, tool);
+        let (refusal, offer) = refused_union(&mut session, &tool);
         let plain = Node::Boolean {
             op: BooleanOp::Union,
             a: block,
@@ -2701,16 +2831,16 @@ mod declared_union {
         );
         assert_eq!(finding.class, ContactClass::Rest);
 
-        let op = (BooleanOp::Union, tool);
+        let op = (BooleanOp::Union, &tool);
         let (painted, _, _) = panel(&session, offer.clone(), op, None);
         assert_eq!(
             painted,
             format!(
                 "declare this contact and commit the boolean?\n\
-                 a face of Extrude {:012x} against a face of Extrude {:012x} — {} contact\n\
+                 a face of Extrude {} against a face of Extrude {} — {} contact\n\
                  Declare\nDecline",
-                block.0,
-                boss.0,
+                test_utils::refusal::tag(block.0),
+                test_utils::refusal::tag(boss.0),
                 ContactClass::Rest.name()
             )
         );
@@ -2766,11 +2896,11 @@ mod declared_union {
         let tol = Tol::witness();
         let (mut session, block, boss) = scene(tol);
         let tool = holding(&session, block, boss);
-        let (_, offer) = refused_union(&mut session, tool);
+        let (_, offer) = refused_union(&mut session, &tool);
         let (_, held, ops) = panel(
             &session,
             offer,
-            (BooleanOp::Union, tool),
+            (BooleanOp::Union, &tool),
             Some(DeclareOffer::DECLINE_LABEL),
         );
         assert_eq!(held, None, "the offer is dropped");
@@ -2787,15 +2917,15 @@ mod declared_union {
         let tol = Tol::witness();
         let (mut session, block, boss) = scene(tol);
         let tool = holding(&session, block, boss);
-        let (_, offer) = refused_union(&mut session, tool);
-        let (painted, held, _) = panel(&session, offer.clone(), (BooleanOp::Union, tool), None);
+        let (_, offer) = refused_union(&mut session, &tool);
+        let (painted, held, _) = panel(&session, offer.clone(), (BooleanOp::Union, &tool), None);
         assert!(!painted.is_empty(), "the premise: a live offer is drawn");
         assert!(held.is_some(), "and kept");
 
         let swapped = holding(&session, boss, block);
         for (what, op) in [
-            ("other picks", (BooleanOp::Union, swapped)),
-            ("another operation", (BooleanOp::Subtract, tool)),
+            ("other picks", (BooleanOp::Union, &swapped)),
+            ("another operation", (BooleanOp::Subtract, &tool)),
         ] {
             let (painted, held, _) = panel(&session, offer.clone(), op, None);
             assert_eq!(painted, "", "{what}: nothing is drawn");
@@ -2806,8 +2936,49 @@ mod declared_union {
             datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
         });
         assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
-        let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, tool), None);
+        let (painted, held, _) = panel(&session, offer, (BooleanOp::Union, &tool), None);
         assert_eq!(painted, "", "an edit since: nothing is drawn");
         assert_eq!(held, None, "an edit since: the offer is dropped");
+    }
+}
+
+/// **A form's noun is the kind of the node its op mints**: the
+/// proposed label counts by the noun, so the noun has to be
+/// `node_kind_noun`'s word for what the form commits.
+#[cfg(test)]
+mod creation_nouns {
+    #![allow(clippy::expect_used)]
+
+    use pncad::document::{Doc, ProfileProgram, node_kind_noun};
+    use pncad::geom_core::Tol;
+
+    use super::{EXTRUDE_NOUN, PROFILE_NOUN};
+    use crate::session::{DocSession, ProfilePlane, SessionOp};
+    use crate::test_support::{framed_square, len};
+
+    /// The single node `op` minted on `session`, by its kind noun.
+    fn minted_noun(session: &mut DocSession, op: SessionOp) -> &'static str {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let node = *outcome.minted.last().expect("the op minted a node");
+        node_kind_noun(session.doc().node(node).expect("the minted node is live"))
+    }
+
+    #[test]
+    fn the_profile_and_extrude_forms_nouns_are_their_nodes_kinds() {
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("creation-nouns", tol);
+        let (doc, profile) = framed_square(&doc, 0.02, tol);
+        let mut session = DocSession::inline(doc, tol);
+        let extrude = SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        };
+        assert_eq!(minted_noun(&mut session, extrude), EXTRUDE_NOUN);
+        let add_profile = SessionOp::AddProfile {
+            plane: ProfilePlane::NewXy,
+            loops: vec![crate::test_support::rectangle_loop([0.0, 0.0], 0.01, 0.01)],
+        };
+        assert_eq!(minted_noun(&mut session, add_profile), PROFILE_NOUN);
     }
 }

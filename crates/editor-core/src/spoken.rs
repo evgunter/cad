@@ -1,25 +1,34 @@
 //! **How a sentence names a recipe node** (DESIGN.md Band 1, "Node
-//! labels"): a person reads a node as its kind and its tag,
-//! `Extrude 000000000003`; a node the document does not hold reads
-//! `node 000000000003`.
+//! labels"): a person reads a node as its kind, its label and its tag,
+//! `Extrude "base plate" (3fa9c1d2a0b1)`, or as its kind and tag when
+//! it has no label, `Extrude 3fa9c1d2a0b1`; a node the document does
+//! not hold reads `node 3fa9c1d2a0b1`.
 //!
 //! Three spellings, one home each:
 //!
 //! - [`SpokenNode`] — the node as a person reads it. It is built from
 //!   the document that holds the node, by the frame that owns that
 //!   document, when the sentence is made ([`crate::Doc::spoken`]); it
-//!   is never stored in a value the evaluation memo reuses, so what it
-//!   says is the document's word at the moment of speaking.
+//!   is never stored in a value the evaluation memo reuses, so the
+//!   label it says is the document's at the moment of speaking, never
+//!   one a later rename left stale.
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
-//!   `Display`, a load door reading bytes that are not a document yet).
+//!   `Display`, a stored reference). The edit, load and save doors all
+//!   hold a document, so each speaks.
 //! - [`FullId`] — every bit of the id, for a machine channel (a
 //!   binding's `repr`, a goldened report) where two ids must never
 //!   print alike.
+//!
+//! A [`StableName`] is a stored reference with no document behind it,
+//! so its own `Display` says its minting node by tag; a sentence made
+//! where the document is at hand says it as a [`SpokenName`].
 
 use core::fmt;
 
 use crate::doc::Doc;
+use crate::label::Label;
+use crate::names::StableName;
 use crate::node::{Datum, Node, RecipeNodeId, StepId};
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -27,22 +36,18 @@ use crate::node::{Datum, Node, RecipeNodeId, StepId};
 /// leaked document id).
 const TAG_DIGITS: usize = 12;
 
-/// The bits a tag shows: the low [`TAG_DIGITS`] hex digits of the id.
-///
-/// The LOW bits, because a counter-minted id's high bits are all zero
-/// and the low ones are what tell two nodes apart. An id minted as a
-/// digest prefix spreads its distinguishing bits from the top, and the
-/// tag is then the high [`TAG_DIGITS`] digits instead (the `DocRef`
-/// pin prefix's rule); `work/emit/node-labels-are-document-data.md`
-/// carries that switch.
-const TAG_MASK: u64 = (1 << (4 * TAG_DIGITS)) - 1;
+/// How far a tag shifts the id: it shows the HIGH [`TAG_DIGITS`] hex
+/// digits. An id is the head of a digest read big-endian
+/// (`crate::mint`), so its leading digits are the hash's own, and a
+/// tag is the id's prefix — the rule a `DocRef`'s pin prefix follows.
+const TAG_SHIFT: u32 = 64 - 4 * TAG_DIGITS as u32;
 
 fn write_tag(f: &mut fmt::Formatter<'_>, bits: u64) -> fmt::Result {
-    write!(f, "{:0width$x}", bits & TAG_MASK, width = TAG_DIGITS)
+    write!(f, "{:0width$x}", bits >> TAG_SHIFT, width = TAG_DIGITS)
 }
 
-/// The bare tag: the id's low 48 bits as 12 lowercase hex digits,
-/// zero-padded (`000000000003`).
+/// The bare tag: the id's high 48 bits as 12 lowercase hex digits, the
+/// first twelve of its sixteen (`3fa9c1d2a0b1`).
 impl fmt::Display for RecipeNodeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_tag(f, self.0)
@@ -84,31 +89,68 @@ impl StepId {
     }
 }
 
-/// **A recipe node as a person reads it**: its kind noun and its tag
-/// (`Extrude 000000000003`), or `node 000000000003` for an id the
-/// document does not hold.
+/// **A recipe node as a person reads it**: its kind noun, its label
+/// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`, with a `"` or
+/// `\` in the label escaped by a `\`), its kind and
+/// tag when it has no label (`Extrude 3fa9c1d2a0b1`), or
+/// `node 3fa9c1d2a0b1` for an id the document does not hold.
 ///
 /// Built by [`Doc::spoken`] from the document that holds the node.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The tag is always said: labels repeat, and a kept sentence finds
+/// its node after a rename by the tag.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpokenNode {
     id: RecipeNodeId,
     /// The kind noun, `None` for an id the document does not hold.
     kind: Option<&'static str>,
+    /// The node's label, `None` when it has none or is not held. Boxed
+    /// so that a spoken node stays 32 bytes on a 64-bit target (the id,
+    /// the kind's two words, the box): the edit refusals hold up to
+    /// two, and every edit door returns them by value.
+    label: Option<Box<Label>>,
 }
+
+// The width the label's box buys, held where clippy measures it: an
+// unboxed label makes it 48 bytes, and `PersistError`, which carries an
+// `EditError`, crosses clippy's 128-byte large-`Err` line.
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<SpokenNode>() == 32);
 
 impl SpokenNode {
     /// A spoken node with no document behind it, for a fixture that
     /// builds by hand what a document would say.
     #[cfg(any(test, feature = "test-support"))]
-    pub(crate) fn forged(id: RecipeNodeId, kind: Option<&'static str>) -> Self {
-        Self { id, kind }
+    pub(crate) fn forged(
+        id: RecipeNodeId,
+        kind: Option<&'static str>,
+        label: Option<Label>,
+    ) -> Self {
+        Self {
+            id,
+            kind,
+            label: label.map(Box::new),
+        }
     }
 
     /// A node no document at hand holds: `node <tag>`, what
     /// [`Doc::spoken`] answers for an id its document does not hold.
     #[must_use]
     pub fn absent(id: RecipeNodeId) -> Self {
-        Self { id, kind: None }
+        Self {
+            id,
+            kind: None,
+            label: None,
+        }
+    }
+
+    /// The node an insert is minting, before the document holds it:
+    /// its kind and tag. An insert carries no label, so it has none.
+    pub(crate) fn entering<P>(id: RecipeNodeId, node: &Node<P>) -> Self {
+        Self {
+            id,
+            kind: Some(node_kind_noun(node)),
+            label: None,
+        }
     }
 
     /// The node this sentence names.
@@ -123,22 +165,115 @@ impl SpokenNode {
     pub fn kind(&self) -> Option<&'static str> {
         self.kind
     }
+
+    /// The node's label as the document held it when this was built,
+    /// `None` when it had none.
+    #[must_use]
+    pub fn label(&self) -> Option<&Label> {
+        self.label.as_deref()
+    }
 }
 
 impl fmt::Display for SpokenNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.kind.unwrap_or("node"), self.id)
+        match (self.kind, &self.label) {
+            (Some(kind), Some(label)) => {
+                write!(f, "{kind} \"")?;
+                // The quote and the escape are escaped, so a label
+                // holding `"` cannot read as the end of the quotation.
+                for ch in label.as_str().chars() {
+                    if matches!(ch, '"' | '\\') {
+                        f.write_str("\\")?;
+                    }
+                    write!(f, "{ch}")?;
+                }
+                write!(f, "\" ({})", self.id)
+            }
+            (kind, _) => write!(f, "{} {}", kind.unwrap_or("node"), self.id),
+        }
+    }
+}
+
+/// **A stable name as a person reads it**: its entity noun and its
+/// minting node spoken ([`SpokenNode`]), `face name minted by Extrude
+/// "base plate" (3fa9c1d2a0b1)`.
+///
+/// Built by [`Doc::spoken_name`] from the document a sentence speaks
+/// from, under [`SpokenNode`]'s rule. Boxed, so that a refusal carrying
+/// one stays the width of a pointer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpokenName(Box<SpokenNameParts>);
+
+/// [`SpokenName`]'s two halves, behind its box.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SpokenNameParts {
+    name: StableName,
+    minter: SpokenNode,
+}
+
+impl SpokenName {
+    /// A spoken name with no document behind it, for a fixture that
+    /// builds by hand what a document would say.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn forged(name: StableName, minter: SpokenNode) -> Self {
+        Self::new(name, minter)
+    }
+
+    fn new(name: StableName, minter: SpokenNode) -> Self {
+        Self(Box::new(SpokenNameParts { name, minter }))
+    }
+
+    /// A name whose minting node no document at hand holds: `node
+    /// <tag>`, as [`StableName`]'s own `Display` says it.
+    #[must_use]
+    pub fn absent(name: StableName) -> Self {
+        let minter = SpokenNode::absent(name.node);
+        Self::new(name, minter)
+    }
+
+    /// The name, as the document stores it.
+    #[must_use]
+    pub fn name(&self) -> &StableName {
+        &self.0.name
+    }
+
+    /// The node that minted it, spoken.
+    #[must_use]
+    pub fn minter(&self) -> &SpokenNode {
+        &self.0.minter
+    }
+}
+
+impl fmt::Display for SpokenName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} name minted by {}",
+            self.name().kind.noun(),
+            self.minter()
+        )
     }
 }
 
 impl<P> Doc<P> {
+    /// The name `name` as a sentence speaks it ([`SpokenName`]), its
+    /// minting node read off this document now.
+    #[must_use]
+    pub fn spoken_name(&self, name: &StableName) -> SpokenName {
+        SpokenName::new(name.clone(), self.spoken(name.node))
+    }
+
     /// The node `id` as a sentence speaks it ([`SpokenNode`]), read off
     /// this document now.
     #[must_use]
     pub fn spoken(&self, id: RecipeNodeId) -> SpokenNode {
-        SpokenNode {
-            id,
-            kind: self.node(id).map(node_kind_noun),
+        match self.node(id) {
+            Some(node) => SpokenNode {
+                id,
+                kind: Some(node_kind_noun(node)),
+                label: self.label(id).cloned().map(Box::new),
+            },
+            None => SpokenNode::absent(id),
         }
     }
 }
@@ -196,21 +331,17 @@ mod tests {
     use crate::program::ProfileProgram;
     use crate::{RefusingReach, test_support};
 
-    /// The tag is the id's low twelve hex digits, zero-padded; the full
+    /// The tag is the id's high twelve hex digits, its prefix; the full
     /// id is all sixteen. Written as numbers whose digits a reader can
-    /// check by eye, and one past 48 bits, where the two part.
+    /// check by eye: the low four digits never reach the tag, and an id
+    /// below 2^16 tags as zeros.
     #[test]
-    fn the_tag_is_twelve_low_hex_digits_and_the_full_id_sixteen() {
-        assert_eq!(RecipeNodeId(3).to_string(), "000000000003");
-        assert_eq!(RecipeNodeId(0xab).to_string(), "0000000000ab");
-        assert_eq!(StepId(0x10).to_string(), "000000000010");
+    fn the_tag_is_the_twelve_high_hex_digits_and_the_full_id_sixteen() {
         let wide = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
-        assert_eq!(
-            wide.to_string(),
-            "c1d2a0b10042",
-            "the tag drops the high digits"
-        );
+        assert_eq!(wide.to_string(), "3fa9c1d2a0b1", "the tag is the prefix");
         assert_eq!(wide.full().to_string(), "3fa9c1d2a0b10042");
+        assert_eq!(StepId(0x0000_0000_00ab_ffff).to_string(), "0000000000ab");
+        assert_eq!(RecipeNodeId(0xffff).to_string(), "000000000000");
         assert_eq!(StepId(7).full(), FullId(7));
         assert_eq!(FullId(7).to_string(), "0000000000000007");
     }
@@ -231,9 +362,15 @@ mod tests {
         assert_eq!(kind, "Datum frame");
         let spoken = doc.spoken(id);
         assert_eq!((spoken.id(), spoken.kind()), (id, Some("Datum frame")));
-        assert_eq!(spoken.to_string(), format!("Datum frame {:012x}", id.0));
+        assert_eq!(
+            spoken.to_string(),
+            format!("Datum frame {}", test_utils::refusal::tag(id.0))
+        );
         let gone = empty.spoken(id);
         assert_eq!(gone.kind(), None);
-        assert_eq!(gone.to_string(), format!("node {:012x}", id.0));
+        assert_eq!(
+            gone.to_string(),
+            format!("node {}", test_utils::refusal::tag(id.0))
+        );
     }
 }

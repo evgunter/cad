@@ -71,8 +71,141 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 /// `f64` with a fresh cancel token and the witness tolerance, which
 /// is what every suite here wants and what none of them should spell
 /// for itself.
+///
+/// A document with a mate is also checked for where the mate solve's
+/// decisions land ([`solve_decisions_have_one_home`]), so every mate
+/// document a suite evaluates here is that check's corpus. What the
+/// evaluation recorded outside its nodes still reaches the caller's
+/// frame.
 pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+    let (ev, outside) = geom_core::k_stats::detached(|| {
+        evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
+    });
+    if doc
+        .order()
+        .iter()
+        .any(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
+    {
+        solve_decisions_have_one_home(doc, o, &ev, outside.recorded());
+    }
+    geom_core::k_stats::splice(outside);
+    ev
+}
+
+/// **Every decision the mate solve makes is on exactly one mate's
+/// log, and on no frame outside the evaluation's nodes.**
+///
+/// The reference is the same solve through the ordinary door
+/// ([`solve`]), which records into the caller's frame in decision
+/// order — what a frame around the evaluation received while the
+/// solve recorded nowhere else. Against it, over the evaluation `ev`
+/// of `doc` and what it recorded outside its nodes (`outside`):
+///
+/// - `outside` holds nothing;
+/// - every mate's escalation log is the reference's escalations taken
+///   in order (a subsequence), and the mates' logs together are the
+///   reference's, element for element;
+/// - the same of the verdicts, over the mates that evaluate `Ok`, and
+///   exactly the reference's only when every mate does. A failed node
+///   carries no verdict log, so for a document with a failing mate the
+///   verdicts are checked only as far as the `Ok` mates go, and the
+///   escalations are the one channel compared whole.
+///
+/// Entries compare by their `Debug` spelling, which a margin that is
+/// no number compares equal under.
+pub fn solve_decisions_have_one_home(
+    doc: &editor_core::ProfileDoc,
+    o: &EvalOptions,
+    ev: &Evaluation<f64>,
+    outside: &geom_core::k_stats::Recorded,
+) {
+    let label = doc.id();
+    let reference = {
+        let bracket = geom_core::k_stats::Bracket::open();
+        drop(solve(doc, o, Tol::witness()));
+        bracket.finish()
+    };
+    assert!(
+        outside.escalations.is_empty() && outside.verdicts.is_empty(),
+        "document {label}: the evaluation recorded outside its nodes: {outside:?}"
+    );
+    let spell = |xs: &[_]| -> Vec<String> { xs.iter().map(|x| format!("{x:?}")).collect() };
+    let mut escalations: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
+    let mut verdicts: Vec<(RecipeNodeId, Vec<String>)> = Vec::new();
+    let mut every_mate_ok = true;
+    for &id in doc.order() {
+        if !matches!(doc.node(id), Some(Node::Mate { .. })) {
+            continue;
+        }
+        match ev.result(id) {
+            Some(editor_core::NodeResult::Ok(v)) => {
+                escalations.push((id, spell(&v.escalations)));
+                verdicts.push((id, v.verdicts.iter().map(|x| format!("{x:?}")).collect()));
+            }
+            Some(editor_core::NodeResult::Failed(e)) => {
+                escalations.push((id, spell(&e.escalations)));
+                every_mate_ok = false;
+            }
+            other => panic!("document {label}: mate {} has no log: {other:?}", id.0),
+        }
+    }
+    let reference_escalations = spell(&reference.escalations);
+    let reference_verdicts: Vec<String> = reference
+        .verdicts
+        .iter()
+        .map(|x| format!("{x:?}"))
+        .collect();
+    one_home(
+        label,
+        "escalation",
+        &reference_escalations,
+        &escalations,
+        true,
+    );
+    one_home(
+        label,
+        "verdict",
+        &reference_verdicts,
+        &verdicts,
+        every_mate_ok,
+    );
+}
+
+/// `parts` are each an in-order subsequence of `whole`, and together
+/// a sub-multiset of it — all of it when `complete`.
+fn one_home(
+    label: editor_core::DocumentId,
+    what: &str,
+    whole: &[String],
+    parts: &[(RecipeNodeId, Vec<String>)],
+    complete: bool,
+) {
+    for (mate, part) in parts {
+        let mut rest = whole.iter();
+        assert!(
+            part.iter().all(|x| rest.any(|y| y == x)),
+            "document {label}: mate {}'s {what} log is not the solve's in decision order: \
+             {part:?} against {whole:?}",
+            mate.0
+        );
+    }
+    let mut unclaimed: Vec<&String> = whole.iter().collect();
+    for (mate, part) in parts {
+        for x in part {
+            let Some(at) = unclaimed.iter().position(|y| *y == x) else {
+                panic!(
+                    "document {label}: mate {}'s {what} {x} is not the solve's, or is on a \
+                     second log",
+                    mate.0
+                );
+            };
+            unclaimed.remove(at);
+        }
+    }
+    assert!(
+        !complete || unclaimed.is_empty(),
+        "document {label}: the solve's {what}s on no mate's log: {unclaimed:?}"
+    );
 }
 
 /// **The mate solve, through the ordinary door** — levered by the
@@ -236,6 +369,54 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
     (doc, minted.unwrap())
 }
 
+/// `name` as the node `to` would mint it where `from` did: the same
+/// role path at another minting node. Two inserts that differ only in
+/// what a row varies are two nodes under two ids (N1), and a row that
+/// compares their tables compares them up to that id.
+pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> StableName {
+    let mut name = name.clone();
+    if name.node == from {
+        name.node = to;
+    }
+    name
+}
+
+/// **A union whose members stand in `members`' order**, reached the way
+/// one union is reordered rather than by inserting another: the union
+/// is inserted over the members in document order, and `SetMembers`
+/// then puts them in the order asked. Every order of one member set is
+/// so one node under one id — an insert mints its id from its node,
+/// the members' order included (N1) — which is what a row comparing
+/// member orders compares.
+pub fn union_over(
+    doc: ProfileDoc,
+    members: &[RecipeNodeId],
+    declare: Option<RecipeNodeId>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let positions = doc.positions();
+    let at = |id: &RecipeNodeId| positions.get(id).copied();
+    let mut inserted = members.to_vec();
+    inserted.sort_by_key(at);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: inserted.clone(),
+            declare,
+        },
+    );
+    if inserted == members {
+        return (doc, union);
+    }
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: union,
+            members: members.to_vec(),
+        },
+    );
+    (doc, union)
+}
+
 /// **The insert door's verdict on a mate**, through `reach`: the door
 /// asks the solve's own per-mate admission — a frame with no definite
 /// direction, the table's gaps, a `FromFace` side resolved from the
@@ -256,7 +437,7 @@ pub fn at_the_door(
             let id = applied.record.minted.expect("an insert mints an id");
             Ok((applied.doc, id))
         }
-        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node, *fault)),
+        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node.id(), *fault)),
         Err(other) => panic!("the door refused otherwise: {other:?}"),
     }
 }
@@ -1203,10 +1384,10 @@ pub fn no_piece() -> ProfileEdgeRef {
 /// spells a minted step, and denotes nothing.
 pub fn no_piece_of(doc: &editor_core::ProfileDoc) -> ProfileEdgeRef {
     ProfileEdgeRef::Piece {
-        step: *doc
-            .step_mint()
-            .log()
-            .first()
+        step: doc
+            .mint()
+            .steps()
+            .next()
             .expect("the document has minted a step"),
         role: editor_core::PieceRole::Piece(7),
     }

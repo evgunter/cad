@@ -119,12 +119,29 @@ are compile-time decisions per table arm: an implicit pair in ℝ³ (2×3
 SVD; `cylinder_sphere_ssi`) and a parametric pair in ℝ⁴ on
 `G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `plane_nurbs_ssi`), from which the
 3-D curve and both pcurves fall out as projections of one traced object
-on one shared parameter. A branch jump is a certificate refusal.
+on one shared parameter. A branch jump is a certificate refusal. The
+stepper guards the step where it mints it: no step is longer than the
+march domain's diagonal, and a march speed that is not positive and
+finite, a step that is not finite or does not move the state
+(`SsiError::StepUnusable`), or one that collapses into the band
+(`StepCollapsed`) refuses naming the speed. A trace too short for the
+cubic fit refuses by its length and the extent that set its step
+(`BranchUndersampled`).
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
 zero by enclosure), *accounted* (contained in a found branch's tube), or
 refined to the named floor, where the op refuses
-`SsiError::ExhaustivenessInconclusive`. The receipt and that refusal
+`SsiError::ExhaustivenessInconclusive`. Each floor is minted once over
+the domain it bisects (`SweepFloor`), and a floor that domain cannot
+resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
+one that is not a positive finite width, or one narrower than the
+finest cell bisection can cut at the domain's largest coordinate. On
+the chart lane the refusal names the rate that crossed the floor, so
+the cell budget never answers for a floor no cell can reach (an
+attainable floor can still spend the budget by cell count). Before
+any of it, every SSI door refuses a domain whose centre is not finite
+or whose half-extent, feature extent or floor scale is not positive and
+finite (`SsiError::DomainUnusable`). The receipt and that refusal
 state their lengths in the units their own lane subdivides in and carry
 an `ExhaustLane` saying which — metres on the ℝ³ lane, chart units plus
 the certified `SupSpeed` that crossed them on the chart lane — so metres

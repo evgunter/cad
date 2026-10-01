@@ -59,12 +59,7 @@ fn pr4_dry_run_rounded_rect_arc_frames_on_a_tilted_plane() {
     let mut arcs_seen = 0;
     for seg in vp.loops()[0].segments() {
         let SegmentKind::Arc {
-            arc:
-                Arc2 {
-                    centre: center,
-                    radius,
-                    ..
-                },
+            arc: Arc2 { centre, radius, .. },
             turn,
             ..
         } = seg.kind
@@ -72,7 +67,7 @@ fn pr4_dry_run_rounded_rect_arc_frames_on_a_tilted_plane() {
             continue;
         };
         arcs_seen += 1;
-        let center3 = vp.plane().to_world(center);
+        let center3 = vp.plane().to_world(centre);
         let start3 = vp.plane().to_world(seg.start);
         let end3 = vp.plane().to_world(seg.end);
         let axis = match turn {
@@ -89,17 +84,18 @@ fn pr4_dry_run_rounded_rect_arc_frames_on_a_tilted_plane() {
         };
         // t_start = 0 at the start vertex.
         assert!(close3(circle.eval(0.0), start3, 1e-12));
-        // Span from the stored bulge: theta = 4*atan(|b|).
-        let theta_end = 4.0 * seg.bulge.abs().atan();
+        // Span from the stored sweep: theta = |sweep|.
+        let theta_end = stored_sweep(seg).abs();
         assert!(close3(circle.eval(theta_end), end3, 1e-12));
         // Midpoint = the 2-D apex through the same placement.
-        // (Apex from the sagitta identity: apex = mid - n_left*(L*b/2).)
+        // (Apex from the sagitta identity: apex = mid - n_left*(L*b/2),
+        // b = tan(sweep/4).)
         let chord = seg.end - seg.start;
         let len = seg.start.distance(seg.end);
         let unit = chord / len;
         let n_left = geom_core::Vec2::new(-unit.y, unit.x);
         let mid2 = seg.start.lerp(seg.end, 0.5);
-        let apex2 = mid2 - n_left * (len * seg.bulge / 2.0);
+        let apex2 = mid2 - n_left * (len * (stored_sweep(seg) / 4.0).tan() / 2.0);
         let apex3 = vp.plane().to_world(Point2::new(apex2.x, apex2.y));
         assert!(close3(circle.eval(theta_end / 2.0), apex3, 1e-12));
         // he_plus-forward: the tangent at 0 points into the segment
@@ -128,12 +124,7 @@ fn pr4_dry_run_hole_arcs_flip_axis() {
     assert_eq!(hole.role(), LoopRole::Hole);
     for seg in hole.segments() {
         let SegmentKind::Arc {
-            arc:
-                Arc2 {
-                    centre: center,
-                    radius,
-                    ..
-                },
+            arc: Arc2 { centre, radius, .. },
             turn,
             ..
         } = seg.kind
@@ -141,8 +132,8 @@ fn pr4_dry_run_hole_arcs_flip_axis() {
             panic!("hole is all arcs");
         };
         assert_eq!(turn, geom_core::Sign::Negative, "hole canonicalized CW");
-        assert!(seg.bulge < 0.0);
-        let center3 = vp.plane().to_world(center);
+        assert!(stored_sweep(seg) < 0.0);
+        let center3 = vp.plane().to_world(centre);
         let start3 = vp.plane().to_world(seg.start);
         let end3 = vp.plane().to_world(seg.end);
         let axis = Vec3::new(0.0, 0.0, -1.0); // -normal for CW turn
@@ -153,7 +144,7 @@ fn pr4_dry_run_hole_arcs_flip_axis() {
             radius,
             u_ref,
         };
-        let theta_end = 4.0 * seg.bulge.abs().atan();
+        let theta_end = stored_sweep(seg).abs();
         assert!(close3(circle.eval(0.0), start3, 1e-12));
         assert!(close3(circle.eval(theta_end), end3, 1e-12));
     }
@@ -183,8 +174,8 @@ fn pr3_dry_run_joins_are_definitely_smooth_or_definitely_corner() {
                 // -2*atan(b)? Check with quarter arc (0,0)->(1,1),
                 // b=tan(pi/8): tangent at start is +x: chord at 45 deg,
                 // rotated by -45 deg = -theta/2. So: rotate by
-                // -2*atan(b).
-                let half_theta = 2.0 * seg.bulge.atan();
+                // -2*atan(b) = -sweep/2.
+                let half_theta = stored_sweep(seg) / 2.0;
                 let (s, c) = (-half_theta).sin_cos();
                 geom_core::Vec2::new(c * unit.x - s * unit.y, s * unit.x + c * unit.y)
             }
@@ -197,7 +188,7 @@ fn pr3_dry_run_joins_are_definitely_smooth_or_definitely_corner() {
         match seg.kind {
             SegmentKind::Line => unit,
             SegmentKind::Arc { .. } => {
-                let half_theta = 2.0 * seg.bulge.atan();
+                let half_theta = stored_sweep(seg) / 2.0;
                 let (s, c) = half_theta.sin_cos();
                 geom_core::Vec2::new(c * unit.x - s * unit.y, s * unit.x + c * unit.y)
             }
@@ -234,5 +225,13 @@ fn pr3_dry_run_joins_are_definitely_smooth_or_definitely_corner() {
             (angle.abs() - std::f64::consts::FRAC_PI_2).abs() < 1e-12,
             "L-profile join {k}: {angle} rad"
         );
+    }
+}
+
+/// A validated arc's stored sweep; zero for a line.
+fn stored_sweep(seg: &profile::ValidatedSegment<f64>) -> f64 {
+    match seg.kind {
+        SegmentKind::Arc { arc, .. } => arc.sweep,
+        SegmentKind::Line => 0.0,
     }
 }

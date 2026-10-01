@@ -51,8 +51,9 @@
 //!
 //! Every door refuses below `Def`, so the backend's one operation whose
 //! result always carries `Trv` — `DInterval::intersection` — would be
-//! refused on every result if this scalar ever exposed it. It does not,
-//! and nothing here calls one.
+//! refused on every result if this scalar ever exposed it. It does not;
+//! its one caller, `Certification::clamped_to`, reads its endpoints and
+//! keeps the enclosure's own decoration.
 //!
 //! # Certification semantics: truth containment, not f64 containment
 //!
@@ -303,23 +304,10 @@ impl Interval {
 
 // The directed scalar helpers certification arithmetic reads its `f64`
 // bounds through. Each is the kernel's ONE spelling of its rounding
-// rule: a site that wants a root, a norm or a quotient rounded to the
-// safe side calls these rather than re-spelling `sqrt().next_up()` or
-// a bare `/`, which round to nearest and can land on the unsafe side.
-
-/// `√x` rounded DOWN (a lower bound); `0` for a non-positive or NaN
-/// argument.
-#[must_use]
-pub fn sqrt_down(x: f64) -> f64 {
-    if x > 0.0 { x.sqrt().next_down() } else { 0.0 }
-}
-
-/// `√x` rounded UP (an upper bound); a non-positive argument and NaN
-/// come back unchanged.
-#[must_use]
-pub fn sqrt_up(x: f64) -> f64 {
-    if x > 0.0 { x.sqrt().next_up() } else { x }
-}
+// rule: a site that wants a norm or a quotient rounded to the safe side
+// calls these rather than re-spelling a bare `/`, which rounds to
+// nearest and can land on the unsafe side. A root is
+// `Certification::sqrt`.
 
 /// The enclosure of `‖v‖²`: the DEPENDENT square per component (the
 /// even power, so a side straddling zero keeps a zero lower end, where
@@ -330,8 +318,10 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
     v[0].powi(2) + v[1].powi(2) + v[2].powi(2)
 }
 
-/// A certified upper bound on `‖v‖` for a componentwise enclosure:
-/// [`sqrt_up`] of [`norm_sq`]'s upper end. An `f64` fold of the same
+/// A certified upper bound on `‖v‖` for a componentwise enclosure: the
+/// upper end of [`norm_sq`]'s root, which is
+/// [`Certification::sqrt`](certification::Certification::sqrt)'s
+/// backend. An `f64` fold of the same
 /// endpoints rounds to nearest at each step and can land BELOW the
 /// real norm, which is the unsound side wherever the result divides a
 /// lower bound or crosses a metre length into chart units.
@@ -343,16 +333,16 @@ pub fn norm_sq(v: &[Interval; 3]) -> Interval {
 ///
 /// A free function rather than a
 /// [`Certification`](certification::Certification) door: the doors are
-/// scalar methods, and a door is reached only by naming the
-/// certification module, which the SSI driver files that call this
-/// cannot do with `Real` in scope.
+/// scalar methods, and this reads a vector.
 #[must_use]
 pub fn norm_sup(v: &[Interval; 3]) -> f64 {
-    let sq = norm_sq(v);
-    if !sq.is_certified() {
+    // The backend's root, which is `Certification::sqrt`'s: naming the door
+    // here would list this file as an importer, and it holds `Real`.
+    let root = Interval(norm_sq(v).0.sqrt());
+    if !root.is_certified() {
         return f64::NAN;
     }
-    sqrt_up(sq.hi())
+    root.0.hi()
 }
 
 /// `num / den` rounded DOWN — a lower bound on the real quotient,
@@ -369,6 +359,24 @@ pub fn norm_sup(v: &[Interval; 3]) -> f64 {
 pub fn div_down(num: f64, den: f64) -> f64 {
     let q = Interval::from_bounds(num, num) / Interval::from_bounds(den, den);
     if q.is_certified() { q.lo() } else { num / den }
+}
+
+/// The larger of two `f64` bounds, `NaN` if either is: [`Real::max`] at
+/// `f64`, for the certification files that may not name `Real`.
+/// `f64::max` would drop a refused bound.
+#[must_use]
+pub fn max_bound(a: f64, b: f64) -> f64 {
+    <f64 as Real>::max(a, b)
+}
+
+/// `num / den` rounded UP — an upper bound on the real quotient, which
+/// is what an upper bound divided by a positive lower bound has to
+/// stay. Refusals fall back to the bare quotient exactly as
+/// [`div_down`]'s do.
+#[must_use]
+pub fn div_up(num: f64, den: f64) -> f64 {
+    let q = Interval::from_bounds(num, num) / Interval::from_bounds(den, den);
+    if q.is_certified() { q.hi() } else { num / den }
 }
 
 impl Add for Interval {
@@ -1208,22 +1216,12 @@ mod tests {
 
     #[test]
     fn from_f64_embeds_finite_points_exactly() {
-        for x in [1.0, -2.5, 1e-308, -1e300, f64::MAX] {
+        // The backend stores a point's endpoints verbatim, so a zero keeps
+        // its sign bit too.
+        for x in [1.0, -2.5, 1e-308, -1e300, f64::MAX, 0.0, -0.0] {
             let p = Interval::from_f64(x);
             assert_eq!(p.lo().to_bits(), x.to_bits(), "lo of point {x:e}");
             assert_eq!(p.hi().to_bits(), x.to_bits(), "hi of point {x:e}");
-            assert_eq!(p.0.decoration(), Decoration::Com);
-        }
-        // Zero embeds exactly as a VALUE, but not bit-for-bit: inari
-        // canonicalizes endpoint representation (it stores the lower bound
-        // negated, so `inf()` of the point zero surfaces as -0.0). The
-        // sign of a floating-point zero is a representation artifact, not
-        // geometry (same stance as `crate::predicate`'s boundary table),
-        // so value equality is the honest assertion here.
-        for z in [0.0f64, -0.0] {
-            let p = Interval::from_f64(z);
-            assert_eq!(p.lo(), 0.0, "lo of point {z:?}");
-            assert_eq!(p.hi(), 0.0, "hi of point {z:?}");
             assert_eq!(p.0.decoration(), Decoration::Com);
         }
     }

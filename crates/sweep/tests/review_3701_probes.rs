@@ -163,43 +163,52 @@ fn the_clearance_screen_lets_joined_chains_the_band_can_carve_build() {
     builds("mid joint, r = 0.9", 2.0, &[1.0], &[], 0.9, 2);
 }
 
-/// **A joint inside a corner's reach still refuses — to the boundary.**
-/// At r = 0.25 the corner's foot sits 0.25 along the rim, so a joint at
-/// x = 0.2499999 puts the band's foot inside the corner patch and
-/// refuses on both verbs, while one at x = 0.2500001 builds: the screen
-/// meters the joint's own foot, not a setback-sum stand-in for it.
+/// **A joint inside a corner's reach still refuses — to the boundary,
+/// at every ε row.** At r = 0.25 the corner's foot sits 0.25 along the
+/// rim, which is where the screen's margin (the joint foot's distance
+/// to the end edge's trimline) crosses zero. The offsets are the run's
+/// own band, `(ε, K·ε)`: a joint two escalate-widths short of the foot
+/// is a definite Negative and refuses; one AT the foot reads Zero and
+/// refuses too (an un-certifiable clearance never passes); one two
+/// escalate-widths beyond is a definite Positive and builds. Between
+/// the halves the margin escalates, which this row does not pin.
 #[test]
 fn a_joint_inside_a_corners_setback_refuses() {
     let t = Tol::witness();
-    let body = prism(2.0, &[0.2499999], &[], t);
-    let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    for (verb, err) in [
-        (
-            "fillet",
-            sweep::fillet::fillet_edges(&body, &req, 0.25, t).unwrap_err(),
-        ),
-        (
-            "chamfer",
-            sweep::chamfer::chamfer_edges(&body, &req, 0.25, t).unwrap_err(),
-        ),
-    ] {
-        assert!(
-            matches!(
-                err.error,
-                sweep::blend::BlendError::FaceClearanceUncertified {
-                    cross_chain: false,
-                    ..
-                }
+    let band = geom_core::Band::linear(t).expect("the run's linear band");
+    let step = 2.0 * band.escalate();
+    let r = 0.25;
+    for (what, x) in [("short of the foot", r - step), ("at the foot", r)] {
+        let body = prism(2.0, &[x], &[], t);
+        let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        for (verb, err) in [
+            (
+                "fillet",
+                sweep::fillet::fillet_edges(&body, &req, r, t).unwrap_err(),
             ),
-            "{verb}: {err}"
-        );
+            (
+                "chamfer",
+                sweep::chamfer::chamfer_edges(&body, &req, r, t).unwrap_err(),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    err.error,
+                    sweep::blend::BlendError::FaceClearanceUncertified {
+                        cross_chain: false,
+                        ..
+                    }
+                ),
+                "{what} ({x}), {verb}: {err}"
+            );
+        }
     }
     builds(
-        "joint just beyond the corner's foot",
+        "joint beyond the corner's foot",
         2.0,
-        &[0.2500001],
+        &[r + step],
         &[],
-        0.25,
+        r,
         2,
     );
 }

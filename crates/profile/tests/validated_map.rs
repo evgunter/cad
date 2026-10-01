@@ -111,37 +111,24 @@ fn rounded_hole(x0: f64, y0: f64, w: f64, h: f64, r: f64) -> profile::ProfileLoo
 /// host a walk over this crate's types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
     let m = &vp.plane().placement;
-    let mut out = vec![
-        m.linear.c0.x,
-        m.linear.c0.y,
-        m.linear.c0.z,
-        m.linear.c1.x,
-        m.linear.c1.y,
-        m.linear.c1.z,
-        m.linear.c2.x,
-        m.linear.c2.y,
-        m.linear.c2.z,
-        m.translation.x,
-        m.translation.y,
-        m.translation.z,
-    ];
+    let mut out = m.components().to_vec();
     for lp in vp.loops() {
         for v in lp.vertices() {
-            out.extend([v.x, v.y]);
+            out.extend(v.to_array());
         }
         for s in lp.segments() {
-            out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
+            out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);
             if let SegmentKind::Arc {
                 arc:
                     Arc2 {
-                        centre: center,
+                        centre,
                         radius,
                         sweep,
                     },
                 ..
             } = s.kind
             {
-                out.extend([center.x, center.y, radius, sweep]);
+                out.extend([centre.x, centre.y, radius, sweep]);
             }
         }
     }

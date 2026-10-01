@@ -533,7 +533,7 @@ pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: To
 /// The axis matters: `revolve` puts the ball's poles on the sketch
 /// axis, and a plane×sphere section taken against a chart whose polar
 /// axis is TILTED to the plane is a typed frontier of the split-join
-/// (`the azimuth-anchored arc-side rule needs a polar section`). A pip
+/// (`SplitJoinError::SectionNotPolar`). A pip
 /// is cut by a face plane, so its ball is charted with the pole along
 /// that face's normal and the section stays polar by construction.
 /// [`ball_poled_y`] and [`ball_poled_z`] name the two poles suites use

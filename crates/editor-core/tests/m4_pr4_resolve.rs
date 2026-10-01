@@ -784,7 +784,9 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     .unwrap_err();
     assert_eq!(
         err,
-        editor_core::EditError::NameUnresolvedInEvaluation { name: bogus }
+        editor_core::EditError::NameUnresolvedInEvaluation {
+            name: doc.spoken_name(&bogus)
+        }
     );
     // The forward-reference carve-out: a name on a node the supplied
     // evaluation has NOT seen passes through (resolution happens at
@@ -854,7 +856,9 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     .unwrap_err();
     assert_eq!(
         err,
-        editor_core::EditError::NameUnresolvedInEvaluation { name: bogus }
+        editor_core::EditError::NameUnresolvedInEvaluation {
+            name: doc.spoken_name(&bogus)
+        }
     );
 }
 
@@ -1106,37 +1110,35 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
 #[test]
 fn repointed_input_diagnoses_recipe_edit_on_path() {
     // Two geometrically IDENTICAL operands b and c: re-pointing the
-    // boolean's second input from b to c changes NO verdict (the
-    // computed geometry is bit-identical) and NO structural
-    // parameter — the only honest evidence is the recipe edit at the
-    // boolean node, and it is on the vanished name's path.
-    let build = |use_c: bool| {
-        let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-        let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-        // General position (no coplanar planes with A): B pierces A's
-        // slab, strictly inside in y, poking out above and below.
-        let (doc, b) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
-        let (doc, c) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
-        let (doc, bl) = insert(
-            doc,
-            Node::Boolean {
-                op: BooleanOp::Union,
-                a,
-                b: if use_c { c } else { b },
-                declare: None,
-            },
-        );
-        (doc, b, c, bl)
-    };
-    let (doc1, b, _c, bl) = build(false);
+    // union's second member from b to c (`SetMembers`, the door that
+    // re-points a node's inputs in place) changes NO verdict (the
+    // computed geometry is bit-identical) and NO structural parameter
+    // — the only honest evidence is the recipe edit at the union
+    // node, and it is on the vanished name's path.
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+    // General position (no coplanar planes with A): B pierces A's
+    // slab, strictly inside in y, poking out above and below.
+    let (doc, b) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
+    let (doc, c) = block(doc, (1.0, 3.0), (0.5, 1.5), -0.5, 2.0);
+    let (doc1, bl) = insert(
+        doc,
+        Node::Union {
+            members: vec![a, b],
+            declare: None,
+        },
+    );
     let ev1 = run(&doc1, None);
-    // The union carries B's end cap as FromB(cap_b).
-    let cap_b = minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
-    let target = StableName {
+    // The union carries B's end cap as its member's.
+    let member_cap = |m: RecipeNodeId| StableName {
         kind: EntityKind::Face,
         node: bl,
-        path: vec![RoleSeg::FromB(cap_b.clone().into())],
+        path: vec![RoleSeg::FromMember {
+            member: m,
+            of: minted(EntityKind::Face, m, RoleSeg::Cap(CapEnd::End)).into(),
+        }],
     };
+    let target = member_cap(b);
     assert!(
         matches!(
             resolve(
@@ -1148,14 +1150,20 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
             ),
             Resolution::Resolved(_)
         ),
-        "the union derives FromB(cap of b) before the re-point"
+        "the union derives b's cap before the re-point"
     );
-    let (doc2, _, c, _) = build(true);
+    let (doc2, _) = step(
+        doc1.clone(),
+        DocEdit::SetMembers {
+            node: bl,
+            members: vec![a, c],
+        },
+    );
     // #95 disposition 2 LANDED (M4 PR 5): the memo-TRANSFERRED run
-    // now honestly re-derives the boolean's naming half — the
-    // recursive naming key includes input node ids, so the b→c
-    // re-point misses the memo even though the twins are
-    // bit-identical. Pinned WITH memo transfer.
+    // honestly re-derives the union's naming half — the recursive
+    // naming key includes input node ids, so the b→c re-point misses
+    // the memo even though the twins are bit-identical. Pinned WITH
+    // memo transfer.
     let ev2 = run(&doc2, Some(&ev1));
     let res = resolve_with_prior(
         RunCtx {
@@ -1189,13 +1197,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     );
     assert!(last_good.is_some(), "the prior run resolved the name");
     // The positive half of the #95 pin: the re-derived table carries
-    // FromB(cap of C) — the value the recipe actually denotes.
-    let cap_c = minted(EntityKind::Face, c, RoleSeg::Cap(CapEnd::End));
-    let target_c = StableName {
-        kind: EntityKind::Face,
-        node: bl,
-        path: vec![RoleSeg::FromB(cap_c.into())],
-    };
+    // c's cap — the value the recipe actually denotes.
     assert!(
         matches!(
             resolve(
@@ -1203,11 +1205,11 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
                     doc: &doc2,
                     eval: &ev2
                 },
-                &target_c
+                &member_cap(c)
             ),
             Resolution::Resolved(_)
         ),
-        "the memo-transferred run must derive FromB(cap of c)"
+        "the memo-transferred run must derive c's cap"
     );
 }
 
@@ -1217,43 +1219,45 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
 /// input is X either way), so a one-level context check would reuse
 /// N's stale names; the recursive naming key composes X's change
 /// through and N re-derives, embedding the twin's re-derived names.
+/// X is a union, whose members `SetMembers` re-points in place, so X
+/// and N keep their ids across the re-point.
 #[test]
 fn grandparent_repoint_rederives_the_grandchild_names() {
     use editor_core::{NodeResult, ValuePayload};
-    let build = |use_c: bool| {
-        let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-        let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, x) = insert(
-            doc,
-            Node::transform(
-                if use_c { c } else { b },
-                editor_core::Step::Rigid {
-                    translation: [len(0.25), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        );
-        let (doc, n) = insert(
-            doc,
-            Node::transform(
-                x,
-                editor_core::Step::Rigid {
-                    translation: [len(0.0), len(0.25), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        );
-        (doc, b, c, n)
-    };
-    let (doc1, b, _c, n) = build(false);
+    let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, d) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, x) = insert(
+        doc,
+        Node::Union {
+            members: vec![b, d],
+            declare: None,
+        },
+    );
+    let (doc1, n) = insert(
+        doc,
+        Node::transform(
+            x,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.25), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
+    );
     let ev1 = run(&doc1, None);
-    let (doc2, _b, c, _n) = build(true);
+    let (doc2, _) = step(
+        doc1,
+        DocEdit::SetMembers {
+            node: x,
+            members: vec![c, d],
+        },
+    );
     let ev2 = run(&doc2, Some(&ev1));
     // The grandchild's table must speak C's names now (transform
-    // pass-through: rows keep the MINTING node = the twin extrude).
+    // pass-through: rows keep the MINTING node = the union, whose
+    // member edge is the twin).
     let table = match ev2.nodes.get(&n) {
         Some(NodeResult::Ok(v)) => {
             assert!(
@@ -1264,12 +1268,17 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         }
         other => panic!("grandchild must evaluate, got {other:?}"),
     };
+    let mentions = |m: RecipeNodeId| {
+        table
+            .iter()
+            .any(|(name, _)| editor_core::derivation_nodes(name).contains(&m))
+    };
     assert!(
-        table.iter().any(|(name, _)| name.node == c),
+        mentions(c),
         "the memo-transferred grandchild table must embed the twin's names"
     );
     assert!(
-        table.iter().all(|(name, _)| name.node != b),
+        !mentions(b),
         "no stale name may survive the grandparent re-point"
     );
 }

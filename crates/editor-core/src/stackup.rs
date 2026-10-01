@@ -557,7 +557,14 @@ fn nominal_of(
         Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
             ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
-            other => Err((id, format!("node is a {}", other.kind_name()))),
+            other => Err((
+                id,
+                format!(
+                    "node is {} {} node",
+                    crate::sentence::article(other.kind_name()),
+                    other.kind_name()
+                ),
+            )),
         },
         Err(standing) => Err(no_measure(ev, standing)),
     }
@@ -603,7 +610,11 @@ fn measure_of<T: geom_core::Decide + Copy>(
             // node's own refusal rather than panicking.
             other => Err((
                 id,
-                format!("node evaluated to a {}, not a measure", other.kind_name()),
+                format!(
+                    "node evaluated to {} {} value, not a measure",
+                    crate::sentence::article(other.kind_name()),
+                    other.kind_name()
+                ),
             )),
         },
         Err(standing) => Err(no_measure(ev, standing)),
@@ -839,7 +850,7 @@ impl Digest {
 
 /// The value-channel digest of one payload: its arm, its counts, and
 /// every scalar it stores — body points, datum frames, profile
-/// vertices and bulges, measured values, verdict numbers — through the
+/// vertices and arc carriers, measured values, verdict numbers — through the
 /// scalar's own value bracket, so an `f64` build and a `Dual64` pass
 /// digest identically exactly when their value channels agree.
 fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
@@ -891,13 +902,25 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(14);
             for lp in p.validated.loops() {
                 d.u64(lp.vertices().len() as u64);
-                // Each vertex with the bulge its segment was lowered
-                // from: an arc's carrier and sweep are functions of
-                // these, so they are digested through them.
+                // Each vertex with its leaving segment's classified
+                // carrier: a kind tag, and an arc's centre, radius and
+                // sweep — every scalar the segment stores.
                 for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                     d.scalar(v.x);
                     d.scalar(v.y);
-                    d.scalar(s.bulge);
+                    match s.kind {
+                        profile::SegmentKind::Line => d.u64(0),
+                        profile::SegmentKind::Arc { arc, turn } => {
+                            d.u64(match turn {
+                                geom_core::Sign::Negative => 2,
+                                geom_core::Sign::Zero | geom_core::Sign::Positive => 1,
+                            });
+                            d.scalar(arc.centre.x);
+                            d.scalar(arc.centre.y);
+                            d.scalar(arc.radius);
+                            d.scalar(arc.sweep);
+                        }
+                    }
                 }
             }
         }
