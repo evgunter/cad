@@ -1,0 +1,4 @@
+fork: ssi chart speed (ssi-chart-speed-usability-boundary + limb-3 guards + tube pad + speed_sup rounding)
+dispatched: 2026-10-01
+byte: 81 (odd)
+mapping: A = Fable, B = Opus
