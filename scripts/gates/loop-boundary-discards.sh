@@ -164,7 +164,7 @@ REGISTER=(
   "crates/topo/src/boolean/solid_contain.rs|cylinder_chart_trim||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|torus_chart_windows||1|unaudited"
-  "crates/topo/src/boolean/surface_group.rs|surface_group||1|unaudited"
+  "crates/topo/src/boolean/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own chart trim (cylinder_chart_trim, cone_slant_window, sphere_chart_trim, torus_chart_windows), and that walk is where a non-cycle is answered"
   "crates/topo/src/boolean/vtxfac.rs|classify_vertex_on_face||1|unaudited"
   "crates/topo/src/boolean/zip.rs|zip_seam||1|unaudited"
   # The census's one loop walk: an unwalkable loop is handed back as
