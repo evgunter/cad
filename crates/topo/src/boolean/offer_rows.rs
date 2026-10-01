@@ -1661,6 +1661,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ZipCorrespondence
         | BooleanErrorKind::ResultInvalid
         | BooleanErrorKind::ResultVolumeImplausible
+        | BooleanErrorKind::VolumeCorrupt
+        | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         // Nest another module's refusal, whose offers are that module's
         // to execute: this census does not reach them.
@@ -1671,6 +1673,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
         | BooleanErrorKind::Join
+        | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify => Vec::new(),
     }
 }
@@ -2001,7 +2004,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
     ("mod.rs", "decision_words", "Coincide::Sectors", 1),
     ("mod.rs", "decision_words", "Coincide::VertexOnFace", 1),
-    ("mod.rs", "null_edges_of", "BooleanDecision::Coincidence", 1),
+    (
+        "mod.rs",
+        "backstop_subject",
+        "BooleanDecision::Coincidence",
+        1,
+    ),
     (
         "mod.rs",
         "null_edges_of",
@@ -2088,9 +2096,15 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "ops.rs",
+        "bound_holds",
+        "BooleanDecision::VolumeBackstop",
+        1,
+    ),
+    (
+        "ops.rs",
         "volume_backstop",
         "BooleanDecision::VolumeBackstop",
-        2,
+        1,
     ),
     ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
@@ -2317,5 +2331,156 @@ fn every_withdrawn_arms_lever_passes_or_it_ends_as_its_frontier() {
             _ => false,
         };
         assert!(met, "{name}: wants {want:?}: {got:?}");
+    }
+}
+
+// ------------------------------------------------------------------
+// The harness's own rule, on synthetic children.
+// ------------------------------------------------------------------
+
+mod harness {
+    use geom_core::Tol;
+    use test_utils::offer::{Executed, Outcome, Story, Verdict, execute, judge_laters, report};
+
+    /// The tolerance a synthetic child runs at, as the process
+    /// committed it.
+    fn eps() -> f64 {
+        Tol::witness().eps()
+    }
+
+    /// A refusal of `key` offering `below` (none where `None`), its text
+    /// `menu` appended.
+    fn refused(key: &str, below: Option<f64>, menu: &str) -> Outcome {
+        Outcome::Refused {
+            key: key.into(),
+            defect: false,
+            text: below.map_or_else(
+                || format!("x is undecided. Recourse: move it{menu}"),
+                |v| {
+                    format!(
+                        "x is undecided. Recourse: move it, or tighten the tolerance below {v:e} m"
+                    )
+                },
+            ),
+        }
+    }
+
+    /// Declares synthetic child rows: each reports what its closure makes
+    /// of the tolerance it runs at.
+    macro_rules! synthetic {
+        ($($name:ident => $at:expr;)*) => {
+            $(
+                #[test]
+                #[ignore = "a child row: execute_tells_each_offer_by_the_rule runs it"]
+                fn $name() {
+                    let at: fn(f64) -> Outcome = $at;
+                    report(stringify!($name), &at(eps()));
+                }
+            )*
+        };
+    }
+
+    synthetic! {
+        // Passes below its offer.
+        synthetic_t1 => |e| if e > 6e-10 { refused("K", Some(5e-10), "") } else { Outcome::Pass };
+        // Its own decision refuses below its offer.
+        synthetic_f1 => |e| refused("K", Some(e / 2.0), "");
+        // A defect below its offer.
+        synthetic_f2 => |e| if e > 6e-10 {
+            refused("K", Some(5e-10), "")
+        } else {
+            Outcome::Refused { key: "D".into(), defect: true, text: "defect".into() }
+        };
+        // A different decision below its offer, which no tolerance passes.
+        synthetic_f3 => |e| if e > 6e-10 {
+            refused("K", Some(5e-10), "")
+        } else {
+            refused("Frontier", None, "")
+        };
+        // A different decision below its offer, offering no value but an
+        // unvalued menu, and a pass a decade down.
+        synthetic_t2_menu => |e| if e > 6e-10 {
+            refused("K", Some(5e-10), "")
+        } else if e > 1e-10 {
+            refused("Other", None, ", or lower the tolerance")
+        } else {
+            Outcome::Pass
+        };
+        // A different decision below its offer whose own offer is false.
+        synthetic_t2_false_later => |e| if e > 6e-10 {
+            refused("K", Some(5e-10), "")
+        } else if e > 3e-10 {
+            refused("L", Some(e), "")
+        } else if e > 1e-11 {
+            refused("M", None, "")
+        } else {
+            Outcome::Pass
+        };
+    }
+
+    /// **`execute` tells each offer by the rule** (the module docs), on
+    /// synthetic children whose outcomes are fixed functions of the
+    /// tolerance: T1; F1, F2 and F3 refused; T2 with each later story
+    /// recorded, and `judge_laters` asking an owner for an untrue one.
+    #[test]
+    fn execute_tells_each_offer_by_the_rule() {
+        let module = module_path!()
+            .split_once("::")
+            .map_or(module_path!(), |(_, m)| m);
+        let row = |name: &str| format!("{module}::{name}");
+        let same = |a: &str, b: &str| a == b;
+        assert!(matches!(
+            execute(&row("synthetic_t1"), "K", same),
+            Ok(Executed {
+                verdict: Verdict::T1,
+                ..
+            })
+        ));
+        for (name, why) in [
+            ("synthetic_f1", "F1"),
+            ("synthetic_f2", "F2"),
+            ("synthetic_f3", "F3"),
+        ] {
+            let got = execute(&row(name), "K", same);
+            assert!(
+                got.as_ref().is_err_and(|e| e.contains(why)),
+                "{name}: {got:?}"
+            );
+        }
+        let Ok(Executed {
+            verdict: Verdict::T2 { laters },
+            ..
+        }) = execute(&row("synthetic_t2_menu"), "K", same)
+        else {
+            panic!("a different decision, then a pass");
+        };
+        assert_eq!(
+            laters
+                .iter()
+                .map(|l| (l.key.as_str(), l.story))
+                .collect::<Vec<_>>(),
+            [("Other", Story::NoValue)]
+        );
+        let menu = "lower the tolerance";
+        assert!(judge_laters(&laters, menu, &[]).is_err());
+        assert_eq!(
+            judge_laters(&laters, menu, &[("Other", "work/row.md")]),
+            Ok(vec![("Other".to_owned(), "work/row.md")])
+        );
+        let Ok(Executed {
+            verdict: Verdict::T2 { laters },
+            ..
+        }) = execute(&row("synthetic_t2_false_later"), "K", same)
+        else {
+            panic!("a different decision, then a pass");
+        };
+        assert_eq!(
+            laters
+                .iter()
+                .map(|l| (l.key.as_str(), l.story))
+                .collect::<Vec<_>>(),
+            [("L", Story::FalseOffer), ("M", Story::NoValue)]
+        );
+        assert!(judge_laters(&laters, menu, &[]).is_err());
     }
 }
