@@ -210,7 +210,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
             })
             .collect(),
     };
-    topo::boolean::insert_void(&mut body, solid, cavity, &evidence, tol).expect("the void grafts");
+    topo::boolean::insert_void(&mut body, solid, cavity, &evidence).expect("the void grafts");
     assert_eq!(body.solids().count(), 1);
     assert_eq!(body.shells().count(), 2, "outer plus one cylindrical void");
 

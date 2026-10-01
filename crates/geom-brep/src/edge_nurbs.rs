@@ -59,9 +59,10 @@
 //! 2026-08-19 — it carries the value channel's bracket, and that is
 //! not the right to mint a C9 certification bound). A dual does not receive a
 //! refusal here; it cannot write the call. `Bounds` stays off `topo`'s
-//! default signatures because the capability is injected at a separate
-//! door ([`crate::certify::NurbsLane`]) rather than raised into the
-//! shared machinery.
+//! default signatures because the capability is a sealed value
+//! ([`crate::certify::NurbsLane`], the shape [`crate::FittedLane`] has)
+//! that the shared machinery takes as an argument and `topo` reads off
+//! the scalar's policy, rather than a bound raised into that machinery.
 //!
 //! **The symbolic tier rides the same bound and needs no arm of its
 //! own** (`geom_core::sym`): `Sym<T>` implements

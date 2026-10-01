@@ -2,11 +2,13 @@
 id: sibling-branches-mint-one-node-id-for-different-nodes
 kind: issue
 title: Two inserts applied to one base mint the same node id for different nodes
-status: open
+status: review
 opened: 2026-09-29
-design: true
 priority: P1
 cost: H
+branch: emit/node-id-digest-mint
+refs: [name-order-was-insertion-order-under-the-counter]
+pr: 3594
 ---
 
 
@@ -30,10 +32,11 @@ blast radius is large". This is that row.
 
 ## Evidence
 
+Under the counter, two inserts applied to one base minted one
+`RecipeNodeId` for two different extrudes. The row that pinned it
+turns on `emit/node-id-digest-mint`:
 `crates/editor-core/tests/asm_parent_held_names.rs`,
-`sibling_versions_mint_one_node_id_for_different_nodes`: two inserts
-applied to one base mint one `RecipeNodeId` for two different
-extrudes. The row pins the behaviour and is the one that turns.
+`sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names`.
 
 ## What it also fixes
 
@@ -138,16 +141,18 @@ and substitute:
    `refactor.rs` precomputation by simulation, and regenerating or
    re-baselining everything under "Left for unit 2". N1, IDENTITY.md
    DI1, ASSEMBLY.md and REFERENCES.md say "counter" and need rewording.
-   `sibling_versions_mint_one_node_id_for_different_nodes` turns here.
+   `sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names`
+   is the row that turns.
    Unit 2 waits on unit 1 and on
    `work/emit/part-suites-name-every-parts-body-by-one-constant.md`.
-3. **How a node is shown.** Ruled on PR 3565; PR 3631 landed the
-   unlabelled slice (a node speaks as its kind and a 12-hex tag, Python
-   prints the full id), so unit 2 no longer shows raw ids. The rest is
-   `work/emit/node-labels-are-document-data.md`. **Unit 2 owes one
-   switch:** the tag is the id's low 48 bits while ids are a counter;
-   with digest ids it becomes the HIGH 48 bits (that row's "Carried
-   from PR 3631" names the two homes).
+3. **How a node is shown.** Ruled on PR 3565. Done for the unlabelled
+   slice by PR 3631 (a node speaks as its kind and a 12-hex tag, Python
+   prints the full id) and PR 3594, which switched the tag to the id's
+   HIGH 48 bits: under digest ids a tag is the 12-hex prefix of the
+   full id, the `DocRef` pin-prefix rule (`spoken.rs`'s `write_tag`,
+   `tests/spoken.py::tag`, mirrored for expected texts by
+   `test_utils::refusal::tag`). The label and the rest are
+   `work/emit/node-labels-are-document-data.md`.
 
 ### Left for unit 2
 

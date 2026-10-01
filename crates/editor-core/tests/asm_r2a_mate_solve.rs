@@ -1404,7 +1404,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
 /// `Rebind`'s source door refuses a never-minted id, so the document
 /// would load unrepairable.
 #[test]
-fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
+fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
     let (doc, ids, _, body) = assembly("asm-r2a-mate-wire-id", 3);
     let (doc, mate_id) = mint(
         doc,
@@ -1436,11 +1436,10 @@ fn row6i_the_load_check_refuses_a_mate_head_past_the_mint_counter() {
         head["node"] = serde_json::json!(99);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::IdBeyondCounter {
+        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::NodeNotMinted {
             id,
-            ..
         })) => assert_eq!(id, RecipeNodeId(99)),
-        other => panic!("expected IdBeyondCounter, got {other:?}"),
+        other => panic!("expected NodeNotMinted, got {other:?}"),
     }
 }
 
@@ -1857,11 +1856,18 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
     );
     let message = fault.to_string();
     assert!(
-        message.contains(&format!("mate {:012x} contradicts itself", id.0)),
+        message.contains(&format!(
+            "mate {} contradicts itself",
+            test_utils::refusal::tag(id.0)
+        )),
         "one mate at fault is named ONCE: {message}"
     );
     assert!(
-        !message.contains(&format!("mates {:012x} and {:012x}", id.0, id.0)),
+        !message.contains(&format!(
+            "mates {} and {}",
+            test_utils::refusal::tag(id.0),
+            test_utils::refusal::tag(id.0)
+        )),
         "the pair sentence reads as an indexing fault here: {message}"
     );
     assert!(

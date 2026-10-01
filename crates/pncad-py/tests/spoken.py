@@ -8,8 +8,8 @@ from that repr HERE, and the tag's rule has one home on this side.
 
 
 def tag(node):
-    """The tag a sentence names `node` by: the low twelve of the sixteen
-    hex digits `repr(node)` prints."""
+    """The tag a sentence names `node` by: the first twelve of the
+    sixteen hex digits `repr(node)` prints, the id's prefix."""
     digits = repr(node)[len("NodeId(") : -1]
     assert len(digits) == 16, repr(node)
-    return digits[-12:]
+    return digits[:12]

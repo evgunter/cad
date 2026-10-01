@@ -245,7 +245,10 @@ fn row1c_the_three_refusals_each_name_their_subject() {
             assert_eq!(node, ids[0]);
             assert_eq!(pin, v1);
             let msg = EditError::PinUnchanged { node, pin }.to_string();
-            assert!(msg.contains(&format!("node {:012x}", node.0)), "{msg}");
+            assert!(
+                msg.contains(&format!("node {}", test_utils::refusal::tag(node.0))),
+                "{msg}"
+            );
             assert!(msg.contains(&pin.hex()), "{msg}");
         }
         other => panic!("a same-pin update must refuse PinUnchanged, got {other:?}"),
@@ -263,7 +266,10 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         Err(EditError::UpdateOnNonInstance { node }) => {
             assert_eq!(node, profile);
             let msg = EditError::UpdateOnNonInstance { node }.to_string();
-            assert!(msg.contains(&format!("node {:012x}", node.0)), "{msg}");
+            assert!(
+                msg.contains(&format!("node {}", test_utils::refusal::tag(node.0))),
+                "{msg}"
+            );
         }
         other => panic!("a non-instance target must refuse UpdateOnNonInstance, got {other:?}"),
     }
@@ -281,7 +287,10 @@ fn row1c_the_three_refusals_each_name_their_subject() {
         Err(EditError::UnknownNode { id }) => {
             assert_eq!(id, ghost);
             let msg = EditError::UnknownNode { id }.to_string();
-            assert!(msg.contains(&format!("node {:012x}", id.0)), "{msg}");
+            assert!(
+                msg.contains(&format!("node {}", test_utils::refusal::tag(id.0))),
+                "{msg}"
+            );
         }
         other => panic!("an unknown node must refuse UnknownNode, got {other:?}"),
     }
@@ -734,10 +743,10 @@ fn row5d_a_warm_prior_carries_a_nested_update_through_two_seams() {
 
 /// Row 6 — the updated ASSEMBLY's own A4 pin moves, because canonical
 /// bytes include node data. Both directions: the update moves it, and
-/// it is a function of the resulting STATE rather than of the path —
-/// an assembly reached by update pins identically to one authored at
-/// the new version directly, and an unrelated edit composes either way
-/// round to the same pin.
+/// it is a function of the resulting STATE — an unrelated edit composes
+/// either way round to the same pin. The state holds the ids its
+/// inserts minted (N1), so an assembly authored at the new version
+/// directly is other content: its instance is another insert.
 #[test]
 fn row6_the_assembly_pin_moves_on_update_and_states_history() {
     let id = DocumentId::derive("asm-upd-r6-part");
@@ -760,12 +769,17 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
     let pin_after = content_pin(&after, Tol::witness()).expect("pin");
     assert_ne!(pin_before, pin_after, "a pin move moves the assembly's pin");
 
-    // Reached-by-update == authored-directly: identity is state.
-    let (direct, _) = assembly("asm-upd-r6-asm", &[DocRef { id, pin: v2 }]);
-    assert_eq!(
+    // Authored directly at v2, the instance is an insert of another
+    // node, so it mints another id: other content.
+    let (direct, direct_ids) = assembly("asm-upd-r6-asm", &[DocRef { id, pin: v2 }]);
+    assert_ne!(
+        direct_ids, ids,
+        "the insert of another pin mints another id"
+    );
+    assert_ne!(
         content_pin(&direct, Tol::witness()).expect("pin"),
         pin_after,
-        "the log is not part of the content"
+        "so the two are not one content"
     );
 
     // An unrelated edit keeps moving the pin exactly as it did — the
