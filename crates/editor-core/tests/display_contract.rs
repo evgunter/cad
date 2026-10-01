@@ -861,7 +861,10 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
-        &["bounds a length measure", "with an angle expression"],
+        &[
+            "bounds Measure 000000000004, which measures a length",
+            "with an angle expression",
+        ],
         &dumps,
     );
     assert_f6(
@@ -2428,7 +2431,7 @@ fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
             })),
         },
         &[
-            "could not place gauge InstantiatePart 000000000003",
+            "could not place InstantiatePart 000000000003, its cluster's gauge",
             "refused: mate 000000000005",
             "instance 000000000003",
         ],
@@ -2440,7 +2443,7 @@ fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
             fault: None,
         },
         &[
-            "could not place gauge InstantiatePart 000000000003",
+            "could not place InstantiatePart 000000000003, its cluster's gauge",
             "no pose",
             "no fault",
         ],
@@ -2449,7 +2452,7 @@ fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
     assert_f6(
         &EditError::MaintenanceUnrecorded { gauge },
         &[
-            "gauge InstantiatePart 000000000003",
+            "moves the cluster gauged by InstantiatePart 000000000003",
             "no maintenance rows",
             "records every cluster row",
         ],
@@ -3411,4 +3414,110 @@ fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
         ),
     ];
     assert_parameter_names_are_bare(&framed, &name);
+}
+
+/// **An edit refusal does not say a noun its spoken node already
+/// says.** A spoken node opens with its kind (`Measure 000000000004`),
+/// so a template that still names the thing before it reads
+/// "a length measure (Measure …)" or "the mate Mate …". Every arm that
+/// names a held node is rendered over a node of the kind it really
+/// names, and the word before each spoken node must not be its kind.
+#[test]
+fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
+    let name = ParamName::from_static("width");
+    let rows: Vec<(EditError, Vec<SpokenNode>)> = vec![
+        (
+            EditError::AssertionDimension {
+                node: held(5, "Assertion"),
+                measure: held(4, "Measure"),
+                measured: Dimension::Length,
+                bound: Dimension::Angle,
+            },
+            vec![held(5, "Assertion"), held(4, "Measure")],
+        ),
+        (
+            EditError::AssertionTarget {
+                node: held(5, "Assertion"),
+                measure: held(4, "Extrude"),
+            },
+            vec![held(5, "Assertion"), held(4, "Extrude")],
+        ),
+        (
+            EditError::MeasureMalformed {
+                node: held(4, "Measure"),
+                fault: MeasureNodeFault::RefIndexOutOfRange {
+                    verb: "min_clearance",
+                    index: 2,
+                    refs: 2,
+                },
+            },
+            vec![held(4, "Measure")],
+        ),
+        (
+            EditError::PayloadUnknownDocParam {
+                name: name.clone(),
+                node: held(4, "Measure"),
+            },
+            vec![held(4, "Measure")],
+        ),
+        (
+            EditError::NonFiniteAlignment {
+                node: held(6, "Mate"),
+            },
+            vec![held(6, "Mate")],
+        ),
+        (
+            EditError::UpdateOnNonInstance {
+                node: held(3, "Profile"),
+            },
+            vec![held(3, "Profile")],
+        ),
+        (
+            EditError::MaintenanceRefused {
+                gauge: held(3, "InstantiatePart"),
+                fault: None,
+            },
+            vec![held(3, "InstantiatePart")],
+        ),
+        (
+            EditError::MaintenanceUnrecorded {
+                gauge: held(3, "InstantiatePart"),
+            },
+            vec![held(3, "InstantiatePart")],
+        ),
+        (
+            EditError::DeclareInputNotDeclare {
+                node: held(5, "Union"),
+                input: held(4, "Extrude"),
+            },
+            vec![held(5, "Union"), held(4, "Extrude")],
+        ),
+        (
+            EditError::UnresolvedInput {
+                input: SpokenNode::absent(RecipeNodeId(tagged(9))),
+            },
+            vec![SpokenNode::absent(RecipeNodeId(tagged(9)))],
+        ),
+    ];
+    for (error, said) in rows {
+        let text = error.to_string();
+        for node in said {
+            let spoken = node.to_string();
+            let at = text
+                .find(&spoken)
+                .unwrap_or_else(|| panic!("{error:?} does not say {spoken}: {text}"));
+            let before = text[..at].trim_end_matches(|c: char| c == ' ' || c == '(');
+            let word = before
+                .rsplit(|c: char| !c.is_alphanumeric())
+                .next()
+                .unwrap_or("")
+                .to_lowercase();
+            let noun = spoken
+                .split(' ')
+                .next()
+                .expect("a spoken node opens with a word")
+                .to_lowercase();
+            assert_ne!(word, noun, "the noun is said twice before {spoken}: {text}");
+        }
+    }
 }

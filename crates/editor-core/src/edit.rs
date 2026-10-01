@@ -1674,7 +1674,7 @@ impl EditError {
                 write!(f, "{node}'s sketch refused: {refusal}")
             }
             Self::UnresolvedInput { input } => {
-                write!(f, "input {input} does not resolve to a live node")?;
+                write!(f, "the input {input} is not a live node")?;
                 tail.recourse(f, format_args!("take the input from {HELD_NODE}"))
             }
             // Only `SetMembers` can close a loop: an insert's inputs are
@@ -1909,11 +1909,11 @@ impl EditError {
             } => {
                 write!(
                     f,
-                    "{} bounds {} {measured} measure ({}) with {} \
-                     {bound} expression — an assertion compares like with like or not at all",
+                    "{} bounds {}, which measures {} {measured}, with {} {bound} expression — an \
+                     assertion compares like with like or not at all",
                     node,
-                    measured.article(),
                     measure,
+                    measured.article(),
                     bound.article(),
                 )?;
                 tail.recourse(
@@ -2329,8 +2329,8 @@ impl EditError {
             Self::MaintenanceRefused { gauge, fault } => {
                 write!(
                     f,
-                    "the cluster-record maintenance could not place gauge {}: the prior \
-                     document's solve ",
+                    "the cluster-record maintenance could not place {}, its cluster's gauge: \
+                     the prior document's solve ",
                     gauge
                 )?;
                 match fault {
@@ -2351,7 +2351,8 @@ impl EditError {
             }
             Self::MaintenanceUnrecorded { gauge } => write!(
                 f,
-                "the logged edit carries no maintenance rows but moves gauge {}; a log entry \
+                "the logged edit carries no maintenance rows but moves the cluster gauged by {}; \
+                 a log entry \
                  records every cluster row `apply` returned for its edit, and replay neither \
                  solves nor re-derives them",
                 gauge
