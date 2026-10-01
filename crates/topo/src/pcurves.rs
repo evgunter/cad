@@ -1622,10 +1622,9 @@ fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T>
             },
         },
         // A translation is affine, and a fitted image takes it exactly.
-        fitted @ Pcurve::Fitted(_) => fitted.map_affine(
-            |p| geom_core::Point2::new(p.x, p.y + k * period),
-            |v| v,
-        ),
+        fitted @ Pcurve::Fitted(_) => {
+            fitted.map_affine(|p| geom_core::Point2::new(p.x, p.y + k * period), |v| v)
+        }
         other => other.clone(),
     }
 }
@@ -2347,9 +2346,8 @@ fn mint_face<T: AtRestPolicy>(
             T::fitted_lane(),
         ),
         Pcurve::Fitted(image) => {
-            let lane = T::fitted_lane().ok_or(PcurveCertifyError::FittedLaneUnsupported {
-                scalar: T::NAME,
-            })?;
+            let lane = T::fitted_lane()
+                .ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
             PcurveCache::certify_fitted(
                 std::sync::Arc::clone(image),
                 w.t0,

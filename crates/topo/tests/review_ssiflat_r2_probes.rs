@@ -19,7 +19,9 @@ use std::sync::Arc;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
 use geom_brep::{Pcurve, PcurveCache};
-use geom_core::{Band, Point2, Point3, Real, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
+
+use crate::fixture::arc_chain;
 
 /// The tight band the reviewed row only reaches at
 /// `CAD_TOLERANCE_EPS=1e-12` — here it is a value, so every probe
@@ -61,52 +63,23 @@ fn general_circle<T: Real>(radius: f64) -> Curve3<T> {
     }
 }
 
-/// The chart image, fitted at `f64` structure on the carrier's own
-/// angle parameter — the reviewed fixture's own routine, parameterized
-/// by the arc and the sphere radius so the probes can vary the span.
-fn fit_image(radius: f64, t0: f64, t1: f64) -> NurbsCurve2<f64> {
-    let carrier = general_circle::<f64>(radius);
-    let n = 33usize;
-    let mut params = Vec::with_capacity(n);
-    let mut pts = Vec::with_capacity(n);
-    let mut prev_u: Option<f64> = None;
-    for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (i as f64 / (n - 1) as f64);
-        let p = carrier.eval(t);
-        let mut u = p.y.atan2(p.x);
-        if let Some(pu) = prev_u {
-            while u - pu > core::f64::consts::PI {
-                u -= core::f64::consts::TAU;
-            }
-            while pu - u > core::f64::consts::PI {
-                u += core::f64::consts::TAU;
-            }
-        }
-        prev_u = Some(u);
-        let v = (p.z / radius).asin();
-        params.push((t - t0) / (t1 - t0));
-        pts.push(Point2::new(u, v));
-    }
-    let fit = NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the chart image fits");
-    let knots: Vec<f64> = fit
-        .knots()
-        .knots()
-        .iter()
-        .map(|k| t0 + (t1 - t0) * k)
-        .collect();
-    let kv = geom_core::spline::KnotVector::clamped(knots, fit.knots().degree())
-        .expect("affine knot rescale");
-    NurbsCurve2::new(kv, fit.control().to_vec(), fit.weights().to_vec()).expect("rescaled image")
-}
-
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
     let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
-/// One call at the fitted door, at an explicit band — the whole route
-/// the reviewed row drives, with the tolerance a parameter.
+/// The arc as a RUNG-3 carrier at `T` (`fixture::arc_chain`), with its
+/// chart image: these probes are about the SSI certificate's payloads,
+/// which only a fitted carrier runs.
+fn rung3<T: Real>(radius: f64, (f0, f1): (f64, f64)) -> (Curve3<T>, Arc<NurbsCurve2<T>>) {
+    let at_f64 = arc_chain::chain(&general_circle::<f64>(radius), f0, f1);
+    let image = Arc::new(lift2::<T>(&arc_chain::image(&at_f64, radius, f0, f1)));
+    let chain = arc_chain::chain(&general_circle::<T>(radius), f0, f1);
+    (Curve3::Nurbs(Arc::new(chain)), image)
+}
+
+/// One call at the fitted door, at an explicit band — the whole route,
+/// with the tolerance a parameter.
 fn certify_at<T>(
     radius: f64,
     arc: (f64, f64),
@@ -115,9 +88,8 @@ fn certify_at<T>(
 where
     T: topo::AtRestPolicy,
 {
-    let carrier = general_circle::<T>(radius);
+    let (carrier, image) = rung3::<T>(radius, arc);
     let (t0, t1) = (T::from_f64(arc.0), T::from_f64(arc.1));
-    let image = Arc::new(lift2::<T>(&fit_image(radius, arc.0, arc.1)));
     let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     PcurveCache::<T>::certify_fitted(
         image,
@@ -129,55 +101,6 @@ where
         window,
         band,
         T::fitted_lane().expect("a certifying scalar holds the fitted door"),
-    )
-}
-
-/// The same arc as a RUNG-3 carrier — its one-segment rational-quadratic
-/// chain (a quarter turn needs one), `Curve3::Nurbs` on `[0, 1]` — with
-/// its chart image interpolated on the CHAIN's parameter, certified at
-/// the fitted door against the (sphere, tilted plane) pair at `f64`.
-fn certify_chain_at(
-    radius: f64,
-    arc: (f64, f64),
-    band: Band,
-) -> Result<PcurveCache<f64>, geom_brep::PcurveCertifyError> {
-    let circle = general_circle::<f64>(radius);
-    let (a, b) = arc;
-    let half = 0.5 * (b - a);
-    let w = half.cos();
-    let apex = Point3::origin() + (circle.eval(0.5 * (a + b)) - Point3::origin()) / w;
-    let knots = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
-        .expect("one rational-quadratic segment");
-    let chain = geom::NurbsCurve3::new(
-        knots,
-        vec![circle.eval(a), apex, circle.eval(b)],
-        vec![1.0, w, 1.0],
-    )
-    .expect("the arc's chain");
-    let n = 33usize;
-    let mut params = Vec::with_capacity(n);
-    let mut pts = Vec::with_capacity(n);
-    for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
-        let s = i as f64 / (n - 1) as f64;
-        let p = chain.eval(s);
-        params.push(s);
-        pts.push(Point2::new(p.y.atan2(p.x), (p.z / radius).asin()));
-    }
-    let image = Arc::new(
-        NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the chart image fits"),
-    );
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(0.0, 1.0);
-    PcurveCache::<f64>::certify_fitted(
-        image,
-        0.0,
-        1.0,
-        &Curve3::Nurbs(Arc::new(chain)),
-        &sphere::<f64>(radius),
-        Some(&tilted_plane::<f64>()),
-        window,
-        band,
-        geom_brep::FittedLane::certified(),
     )
 }
 
@@ -284,6 +207,11 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 /// "strictly smaller bound" loop over them compares nothing — every
 /// iteration passes on `None`. A row named for span dependence that
 /// measures no span dependence is the defect, not the re-baseline.
+///
+/// The full turn is not in the list: over a rung-3 chain carrier its
+/// map residual at the interval scalar reaches the 1e-12 band (sample
+/// 6, `pcurve_map_residual`) before the hull limb is read, so it
+/// measures that check rather than this one.
 #[test]
 fn the_interval_hull_bound_is_span_dependent() {
     /// The `ssi_hull_sup` bound this route certifies at the interval
@@ -306,7 +234,7 @@ fn the_interval_hull_bound_is_span_dependent() {
             Err(e) => panic!("unexpected refusal at div={div}: {e:?}"),
         }
     }
-    let bounds: Vec<(f64, Option<f64>)> = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 8.0, 64.0]
+    let bounds: Vec<(f64, Option<f64>)> = [0.5, 0.75, 1.0, 1.5, 2.0, 8.0, 64.0]
         .into_iter()
         .map(|d| (d, hull_sup_at_interval(d)))
         .collect();
@@ -356,11 +284,7 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
     // honest shape instead: a refusal that names the ladder, carries NO
     // magnitude because it measured nothing, and shows no NaN to a
     // consumer.
-    //
-    // The carrier is RUNG-3 — the arc's rational-quadratic chain as a
-    // `Curve3::Nurbs` — because only a fitted carrier runs limb 3: an
-    // exact Circle carrier certifies against the chart alone.
-    let err = certify_chain_at(1.0e-5, ARC, loose_band())
+    let err = certify_at::<f64>(1.0e-5, ARC, loose_band())
         .expect_err("a 10-micron arc has no certifiable uniqueness tube at a 1e-6 band");
     let geom_brep::PcurveCertifyError::FittedCertificate {
         what, magnitude, ..
@@ -398,14 +322,13 @@ fn the_margin_is_legible_through_the_public_topo_door() {
     use topo::Body;
 
     let radius = 1.0;
-    let carrier = general_circle::<Interval>(radius);
+    let (carrier, image) = rung3::<Interval>(radius, ARC);
     let (f0, f1) = ARC;
     let (t0, t1) = (
         <Interval as Real>::from_f64(f0),
         <Interval as Real>::from_f64(f1),
     );
     let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
-    let image = Arc::new(lift2::<Interval>(&fit_image(radius, f0, f1)));
 
     let mut body = Body::<Interval>::new();
     let seed = body.mvfs(p0, true).unwrap();

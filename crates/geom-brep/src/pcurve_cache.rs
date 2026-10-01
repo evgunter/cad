@@ -1677,7 +1677,9 @@ pub enum EnvelopeStatement {
     /// enclose, exactly and tightly, is the carrier's incidence with
     /// the chart's own surface: `f_S ∘ C` is a polynomial composite.
     /// So the fitted analytic certificate proves, between the samples,
-    /// that **the carrier never leaves the surface**. Over a fitted
+    /// that **the carrier never leaves the surface** — over a Circle
+    /// carrier on a sphere in closed form instead (the squared distance
+    /// is a degree-2 trigonometric polynomial in `t`). Over a fitted
     /// carrier it pairs that with limb 3's uniqueness tube, which proves
     /// the locus near the carrier is a single arc; over an exact Circle
     /// carrier the carrier IS the locus and there is no tube. The map
@@ -1924,10 +1926,7 @@ pub(crate) fn sphere_circle_image_lane<
     // The pole fence: the circle is the sphere's section by its own
     // plane, so it passes through a pole exactly when that pole lies in
     // the plane — a signed distance in metres, `axis` being unit.
-    for pole in [
-        s_center + s_axis * s_radius,
-        s_center - s_axis * s_radius,
-    ] {
+    for pole in [s_center + s_axis * s_radius, s_center - s_axis * s_radius] {
         match decide(
             "pcurve_sphere_circle_pole",
             Margin::of((pole - center).dot(axis)),
@@ -1949,7 +1948,11 @@ pub(crate) fn sphere_circle_image_lane<
     let mid3 = |v: Vec3<T>| Vec3::new(mid(v.x), mid(v.y), mid(v.z));
     let (c, n, e) = (mid3(center - Point3::origin()), mid3(axis), mid3(u_ref));
     let r = mid(radius);
-    let (sc, sa, su) = (mid3(s_center - Point3::origin()), mid3(s_axis), mid3(s_u_ref));
+    let (sc, sa, su) = (
+        mid3(s_center - Point3::origin()),
+        mid3(s_axis),
+        mid3(s_u_ref),
+    );
     let sv = sa.cross(su);
     let cv = n.cross(e);
     let (f0, f1) = (mid(t0), mid(t1));
@@ -1988,12 +1991,7 @@ pub(crate) fn sphere_circle_image_lane<
         magnitude: None,
     };
     let fit = NurbsCurve2::interpolate_with_params(&points, 3, &params).map_err(structure)?;
-    let knots: Vec<f64> = fit
-        .knots()
-        .knots()
-        .iter()
-        .map(|k| f0 + span * k)
-        .collect();
+    let knots: Vec<f64> = fit.knots().knots().iter().map(|k| f0 + span * k).collect();
     let kv = KnotVector::clamped(knots, fit.knots().degree()).map_err(|_| {
         PcurveCertifyError::FittedCertificate {
             limb: None,
@@ -2054,20 +2052,17 @@ pub(crate) struct FittedEnvelope<T: Real> {
 /// invented here.
 ///
 /// **An exact `Curve3::Circle` carrier** (the sphere chart's general
-/// circle) certifies against the chart ALONE: limbs 1 and 2 of its
-/// locus-exact rational chain against the chart's implicit form. Both
-/// are locus statements, so the chain's own parameter never enters the
-/// claim. No mate is read and no tube is proved: the carrier is the
-/// locus itself, not a fit of it, so there is no branch for a tube to
-/// select — and the junctions that mint such circles are often
-/// TANGENT (a fillet's corner ball against its bands), where no
-/// transversality, hence no tube, exists. A spline chart refuses: its
-/// limbs are parameter-coupled to a traced pcurve a synthetic chain
-/// does not have.
+/// circle) certifies against the chart ALONE: its incidence with the
+/// sphere, bounded over the whole circle in closed form
+/// ([`circle_off_sphere_sup`]). No mate is read and no tube is proved:
+/// the carrier is the locus itself, not a fit of it, so there is no
+/// branch for a tube to select — and the junctions that mint such
+/// circles are often TANGENT (a fillet's corner ball against its
+/// bands), where no transversality, hence no tube, exists. Any other
+/// chart refuses: the sphere is the one chart whose general circles
+/// take this lane.
 pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
-    t0: T,
-    t1: T,
     image: &NurbsCurve2<T>,
     surface: &Surface<T>,
     mate: Option<&Surface<T>>,
@@ -2099,30 +2094,25 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             radius,
             u_ref,
         } => {
-            // `Approx` is included, and it has to be: its chart is its
-            // fit's, a spline, whose limbs are the parameter-coupled
-            // ones this arm cannot run.
-            if spline_operand(surface) {
+            let &Surface::Sphere {
+                center: s_center,
+                radius: s_radius,
+                ..
+            } = surface
+            else {
                 return Err(PcurveCertifyError::FittedCertificate {
                     limb: None,
-                    what: "a Circle carrier's rational-chain certificate is written for \
-                           analytic charts only (the spline limbs — a Nurbs payload's or \
-                           an approximating surface's fit — are parameter-coupled to a \
-                           traced pcurve)",
+                    what: "a Circle carrier's fitted certificate is written for the sphere \
+                           chart, the one chart whose general circles take the fitted lane",
                     magnitude: None,
                 });
-            }
-            let chain = rational_arc_chain(*center, *axis, *radius, *u_ref, t0, t1).ok_or(
-                PcurveCertifyError::FittedCertificate {
-                    limb: None,
-                    what: "the circle arc's rational-quadratic chain refused to build \
-                           (degenerate span or malformed structure)",
-                    magnitude: None,
-                },
-            )?;
-            let (_, hull_sup) = crate::ssi::certify::chart_limbs(&chain, surface, band)
-                .map_err(ssi_refusal)?;
-            return Ok(FittedEnvelope { hull_sup, ssi: None });
+            };
+            return Ok(FittedEnvelope {
+                hull_sup: circle_off_sphere_sup(
+                    *center, *axis, *radius, *u_ref, s_center, s_radius,
+                ),
+                ssi: None,
+            });
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => unreachable!(
             "fitted_lane: the one caller, `run_fitted_checks`, admits only Nurbs and Circle \
@@ -2174,71 +2164,47 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
     })
 }
 
-/// The **locus-exact rational-quadratic chain** of a circle arc (Book
-/// §7.3): ≤ 90° Bézier segments, middle weight `cos(θ/2)`, middle
-/// point the tangent intersection `center + radial(m)·r/cos(θ/2)`.
+/// **How far a circle strays from a sphere**, bounded over the whole
+/// circle in metres: `sup_t | |C(t) − s| − R |` for the carrier
+/// `C(t) = c + r·(e·cos t + v·sin t)`, `v = n × e`, against the sphere of
+/// centre `s` and radius `R`.
 ///
-/// The chain's LOCUS is the circle arc exactly (positive weights, the
-/// classic construction); its rational parameter is NOT the angle, so
-/// callers may consult it for locus statements only (the fitted
-/// certificate's on-locus residual and hull —
-/// [`crate::FittedLane::fitted_certificate`]'s docs).
-/// Knot structure is `f64` (C6), read from the angular span's bracket
-/// midpoints; control points are exact at `T`. `None` for a
-/// degenerate (non-forward) span — the certificate's own forward-span
-/// check refuses those before this door is consulted.
-fn rational_arc_chain<T: Decide + geom_core::Bounds>(
+/// With `d = c − s`, the squared distance is a trigonometric polynomial
+/// of degree 2 in `t`,
+///
+/// ```text
+/// |C(t) − s|² − R² = k₀ + k₁·cos t + k₂·sin t + k₃·cos 2t + k₄·sin 2t
+/// k₀ = |d|² + r²·(|e|² + |v|²)/2 − R²
+/// k₁ = 2r·(d·e)     k₂ = 2r·(d·v)
+/// k₃ = r²·(|e|² − |v|²)/2     k₄ = r²·(e·v)
+/// ```
+///
+/// (exact for any `e`, `v`; the second harmonics vanish for an
+/// orthonormal frame), so its sup is at most `Σ|kᵢ|`, and since
+/// `| |p − s| − R | = | |p − s|² − R² | / (|p − s| + R) ≤ | |p − s|² − R² | / R`
+/// the bound in metres is `Σ|kᵢ| / R`. Plain arithmetic at `T` — no
+/// root, no transcendental, no structure read off a bracket — so it
+/// encloses the true sup at the interval scalar whatever the operands'
+/// widths, which a ring composite (exact `f64` structure) cannot.
+fn circle_off_sphere_sup<T: Real>(
     center: Point3<T>,
     axis: Vec3<T>,
     radius: T,
     u_ref: Vec3<T>,
-    t0: T,
-    t1: T,
-) -> Option<NurbsCurve3<T>> {
-    let mid = |x: T| 0.5 * (x.lo() + x.hi());
-    let (f0, f1) = (mid(t0), mid(t1));
-    let span = f1 - f0;
-    // NaN-catching by design: only a definitely-forward finite span
-    // builds a chain.
-    if !(span > 0.0 && span.is_finite()) {
-        return None;
-    }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let n = (span / core::f64::consts::FRAC_PI_2).ceil().max(1.0) as usize;
-    let cv = axis.cross(u_ref);
-    let at = |t: f64| -> Point3<T> {
-        let (s, c) = T::from_f64(t).sin_cos();
-        center + (u_ref * c + cv * s) * radius
-    };
-    let seg = span / n as f64;
-    let w_mid = (seg / 2.0).cos();
-    let mut control: Vec<Point3<T>> = Vec::with_capacity(2 * n + 1);
-    let mut weights: Vec<f64> = Vec::with_capacity(2 * n + 1);
-    let mut knots: Vec<f64> = Vec::with_capacity(2 * n + 4);
-    knots.extend([f0, f0, f0]);
-    control.push(at(f0));
-    weights.push(1.0);
-    for i in 0..n {
-        let a = f0 + seg * i as f64;
-        let b = if i + 1 == n {
-            f1
-        } else {
-            f0 + seg * (i + 1) as f64
-        };
-        let m = 0.5 * (a + b);
-        let (s, c) = T::from_f64(m).sin_cos();
-        control.push(center + (u_ref * c + cv * s) * (radius / T::from_f64(w_mid)));
-        weights.push(w_mid);
-        control.push(at(b));
-        weights.push(1.0);
-        if i + 1 == n {
-            knots.extend([b, b, b]);
-        } else {
-            knots.extend([b, b]);
-        }
-    }
-    let kv = geom_core::spline::KnotVector::clamped(knots, 2).ok()?;
-    NurbsCurve3::new(kv, control, weights).ok()
+    s_center: Point3<T>,
+    s_radius: T,
+) -> T {
+    let d = center - s_center;
+    let v = axis.cross(u_ref);
+    let two = T::from_f64(2.0);
+    let (ee, vv) = (u_ref.dot(u_ref), v.dot(v));
+    let r2 = radius.powi(2);
+    let k0 = d.dot(d) + r2 * (ee + vv) / two - s_radius.powi(2);
+    let k1 = two * radius * d.dot(u_ref);
+    let k2 = two * radius * d.dot(v);
+    let k3 = r2 * (ee - vv) / two;
+    let k4 = r2 * u_ref.dot(v);
+    (k0.abs() + k1.abs() + k2.abs() + k3.abs() + k4.abs()) / s_radius
 }
 
 /// The control-net diameter of a carrier, in metres — a convexity fact
@@ -2558,8 +2524,9 @@ impl<T: Decide> PcurveCache<T> {
     /// derived through `geom_brep::ssi::certify`. Over a rung-3
     /// carrier it is the **full C2 certificate** — hull sup-norm AND
     /// uniqueness tube — against the operand pair (`surface`, `mate`).
-    /// Over a Circle carrier it is limbs 1 and 2 against `surface`
-    /// alone: the carrier is the locus, not a fit of it, so there is no
+    /// Over a Circle carrier it is the carrier's incidence with the
+    /// sphere `surface` alone, in closed form over the whole circle:
+    /// the carrier is the locus, not a fit of it, so there is no
     /// branch for a tube to select, and the junctions that mint such
     /// circles are often tangent (a fillet's corner ball against its
     /// bands), where no tube exists. [`PcurveCertificate::statement`]
@@ -4385,8 +4352,8 @@ fn trim_containment<T: Decide>(
 /// 3. **Schedule**: identical, and shared code.
 /// 4. **Envelope**: for a rung-3 carrier, the full C2 certificate from
 ///    `geom_brep::ssi::certify` — hull sup-norm AND uniqueness tube —
-///    against the operand pair; for a Circle carrier, limbs 1 and 2
-///    against the chart alone. Re-derived here at rest, never trusted
+///    against the operand pair; for a Circle carrier, its incidence with
+///    the sphere chart in closed form. Re-derived here at rest, never trusted
 ///    from storage. The stored envelope is the hull sup, and
 ///    [`PcurveCertificate::statement`] records which sup it bounds.
 ///    `lane` is the fitted door that derives it; `None` refuses HERE
@@ -4409,8 +4376,8 @@ fn run_fitted_checks<T: Decide>(
     // ---- Check 1: the lane. ----
     // Rung-3 NURBS carriers feed the SSI door directly, against their
     // operand pair; exact CIRCLE carriers are the sphere chart's
-    // general-circle class and enter through their locus-exact
-    // rational chain, against the chart alone, so they read no mate
+    // general-circle class and are bounded against the sphere alone,
+    // in closed form, so they read no mate
     // (`FittedLane::fitted_certificate`'s docs). Lines/ellipses have no
     // fitted class anywhere — every line and every conic-on-its-own-
     // chart is a closed-form citizen or a named refusal.
@@ -4479,7 +4446,7 @@ fn run_fitted_checks<T: Decide>(
     // ---- Check 4: the full C2 certificate, RE-DERIVED. ----
     let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
     let FittedEnvelope { hull_sup, ssi } =
-        lane.fitted_certificate(carrier, t0, t1, image, surface, mate, band)?;
+        lane.fitted_certificate(carrier, image, surface, mate, band)?;
     let envelope = hull_sup;
     // The catch-all is SPLIT: an approximating surface's limbs are the
     // spline composite's, exactly as a `Nurbs` chart's, because the
@@ -7992,7 +7959,7 @@ mod fitted_lane_routing_tests {
                 CHART_TUBE_NEEDS_PLANE,
             ),
         ] {
-            match fitted_lane(&carrier, 0.0, 1.0, &image, &surface, Some(&mate), band) {
+            match fitted_lane(&carrier, &image, &surface, Some(&mate), band) {
                 Err(PcurveCertifyError::FittedCertificate { what, .. }) => {
                     assert_eq!(what, want, "{name}: answered {what}");
                 }

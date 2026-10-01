@@ -8,7 +8,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use geom_core::{ErrorTextReading, Tol};
+use geom_core::{Band, ErrorTextReading, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -177,6 +177,17 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// `CurvedSenseInverted`, and a `VolumeUncomputable` carrying
 /// `NotIsoRectangle`. Turn that exemption into a raise and the second
 /// half vanishes with the first.
+///
+/// **And the pin on the octant's pcurve rows.** The oblique corners'
+/// contact circles are GENERAL circles of their sphere's chart — neither
+/// polar nor meridian — so the closed-form door has no image for them;
+/// the mint routes them through the fitted lane. Every half-edge of
+/// every corner face carries a certified row, some of them `Fitted`,
+/// and tier 3's pcurve pass re-certifies them clean. Take the route
+/// away and those faces are rowless or refused, and this half goes red.
+/// The chart boundary of every corner face that stores a fitted row
+/// gets past the derivation (a pole joint or a wrap may still refuse
+/// it, each for its own reason).
 #[test]
 fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
     let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
@@ -235,5 +246,43 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
             }
         )),
         "the refusal must name the props inventory's gap: {errs:?}"
+    );
+
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut fitted = 0;
+    for &corner in &f.corner_faces {
+        let face = f.body.get_face(corner).expect("the corner face resolves");
+        let topo::LoopBoundary::Cycle { first } = f.body.get_loop(face.outer).unwrap().boundary
+        else {
+            panic!("a corner face's outer loop is a cycle");
+        };
+        let mut face_fitted = false;
+        for he in f.body.loop_cycle(first).unwrap() {
+            let row = f.body.pcurve(he).unwrap_or_else(|| {
+                panic!("corner face {corner:?} half-edge {he:?} carries no pcurve row")
+            });
+            if matches!(row.pcurve(), geom_brep::Pcurve::Fitted(_)) {
+                fitted += 1;
+                face_fitted = true;
+            }
+        }
+        if face_fitted {
+            let chart = f.body.get_surface(face.surface).unwrap().clone();
+            if let Err(e) = topo::pcurves::chart_boundary(&f.body, corner, &chart, band) {
+                assert!(
+                    !matches!(e, topo::pcurves::PcurveMintError::Certify { .. }),
+                    "corner face {corner:?}'s boundary refused at the derivation: {e:?}"
+                );
+            }
+        }
+    }
+    assert!(
+        fitted > 0,
+        "the oblique corners' general circles take the fitted lane"
+    );
+    let findings = topo::pcurves::validate_pcurves(&f.body, band);
+    assert!(
+        findings.is_empty(),
+        "the octant's rows re-certify: {findings:?}"
     );
 }

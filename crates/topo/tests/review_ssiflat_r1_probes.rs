@@ -22,7 +22,10 @@
 //!
 //! The fixture is the M6-3 general-circle pair (a sphere and a tilted
 //! plane — `SsiOperand::Analytic` both, so nothing here enters
-//! `plane_nurbs_ssi`; #762's guard is out of frame by construction).
+//! `plane_nurbs_ssi`; #762's guard is out of frame by construction),
+//! with the arc as a RUNG-3 carrier (`fixture::arc_chain`): an exact
+//! Circle carrier is bounded against its sphere in closed form and runs
+//! no SSI certificate.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -32,7 +35,9 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
 use geom_brep::{PcurveCache, PcurveCertifyError};
 use geom_core::Tol;
-use geom_core::{Band, Point2, Point3, Real, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
+
+use crate::fixture::arc_chain;
 
 /// The interval lane's measured `ssi_hull_sup` bound for this fixture
 /// (the PR row's constant). Probe 3 uses it as a STRICT ceiling for
@@ -76,53 +81,15 @@ fn general_circle<T: Real>() -> Curve3<T> {
 
 const ARC: (f64, f64) = (0.3, 0.3 + core::f64::consts::FRAC_PI_2);
 
-/// The chart image, fitted at `f64` structure on the carrier's own
-/// angle parameter (the M6-3 fixture's construction).
-fn fit_image() -> NurbsCurve2<f64> {
-    let carrier = general_circle::<f64>();
-    let (t0, t1) = ARC;
-    let n = 33usize;
-    let mut params = Vec::with_capacity(n);
-    let mut pts = Vec::with_capacity(n);
-    let mut prev_u: Option<f64> = None;
-    for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (i as f64 / (n - 1) as f64);
-        let p = carrier.eval(t);
-        let mut u = p.y.atan2(p.x);
-        if let Some(pu) = prev_u {
-            while u - pu > core::f64::consts::PI {
-                u -= core::f64::consts::TAU;
-            }
-            while pu - u > core::f64::consts::PI {
-                u += core::f64::consts::TAU;
-            }
-        }
-        prev_u = Some(u);
-        let v = p.z.asin();
-        params.push((t - t0) / (t1 - t0));
-        pts.push(Point2::new(u, v));
-    }
-    let fit = NurbsCurve2::interpolate_with_params(&pts, 3, &params).expect("the chart image fits");
-    let knots: Vec<f64> = fit
-        .knots()
-        .knots()
-        .iter()
-        .map(|k| t0 + (t1 - t0) * k)
-        .collect();
-    let kv = geom_core::spline::KnotVector::clamped(knots, fit.knots().degree())
-        .expect("affine knot rescale");
-    NurbsCurve2::new(kv, fit.control().to_vec(), fit.weights().to_vec()).expect("rescaled image")
-}
-
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
     let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
-/// The fitted door, driven directly (the same public door the M6-3
-/// fixture drives through `Body`): certify the general circle's chart
-/// image against the (sphere, tilted plane) pair at `T`.
+/// The fitted door, driven directly: certify the arc's chart image
+/// against the (sphere, tilted plane) pair at `T`, over the arc as a
+/// RUNG-3 carrier (`fixture::arc_chain`) — the SSI certificate whose
+/// payloads these probes read runs only for a fitted carrier.
 fn drive_fitted_door<T>() -> Result<PcurveCache<T>, PcurveCertifyError>
 where
     T: topo::AtRestPolicy,
@@ -130,13 +97,15 @@ where
     let band = Band::linear(Tol::witness()).unwrap();
     let (f0, f1) = ARC;
     let (t0, t1) = (T::from_f64(f0), T::from_f64(f1));
-    let image = Arc::new(lift2::<T>(&fit_image()));
+    let at_f64 = arc_chain::chain(&general_circle::<f64>(), f0, f1);
+    let image = Arc::new(lift2::<T>(&arc_chain::image(&at_f64, 1.0, f0, f1)));
+    let carrier = Curve3::Nurbs(Arc::new(arc_chain::chain(&general_circle::<T>(), f0, f1)));
     let window = geom_brep::Pcurve::Fitted(Arc::clone(&image)).chart_box(t0, t1);
     PcurveCache::<T>::certify_fitted(
         image,
         t0,
         t1,
-        &general_circle::<T>(),
+        &carrier,
         &sphere::<T>(),
         Some(&tilted_plane::<T>()),
         window,
@@ -225,7 +194,11 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
 #[test]
 fn the_f64_siblings_hull_bound_sits_strictly_under_the_interval_constant() {
     let cache = drive_fitted_door::<f64>().expect("the f64 lane certifies at every drawn ε");
-    let hull_sup = cache.certificate().envelope;
+    let hull_sup = cache
+        .certificate()
+        .ssi
+        .expect("the full C2 certificate")
+        .hull_sup;
     assert!(
         hull_sup < HULL_SUP_AT_INTERVAL,
         "the f64 hull bound ({hull_sup:e}) reached the interval lane's constant \

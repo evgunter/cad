@@ -107,8 +107,6 @@ pub struct FittedLane<T: Real> {
     /// [`FittedLane::fitted_certificate`]'s body.
     fitted_lane: fn(
         &Curve3<T>,
-        T,
-        T,
         &NurbsCurve2<T>,
         &Surface<T>,
         Option<&Surface<T>>,
@@ -148,30 +146,24 @@ impl<T: Real> FittedLane<T> {
     /// The carrier arrives as the edge's own [`Curve3`]: a rung-3
     /// `Curve3::Nurbs` feeds the SSI door directly, against its operand
     /// pair (`mate` is `Some`); an exact `Curve3::Circle` (the sphere
-    /// chart's GENERAL-circle class) is converted to its locus-exact
-    /// rational-quadratic chain and certified against the chart alone,
-    /// limbs 1 and 2 — both statements about the LOCUS, so the chain's
-    /// own parameter never enters the certified claim, and `mate` is not
-    /// read; `t0`/`t1` name the traversed angular arc.
+    /// chart's GENERAL-circle class) is certified against the sphere
+    /// alone — its distance from it, bounded over the whole circle in
+    /// closed form — and `mate` is not read.
     ///
     /// # Errors
     ///
     /// [`PcurveCertifyError::FittedCertificate`] when the SSI
-    /// certificate itself refuses, or for a Circle carrier on a spline
-    /// chart — the NURBS limbs are parameter-coupled to a traced
-    /// pcurve a synthetic arc chain does not have.
-    #[allow(clippy::too_many_arguments)] // one parameter per named quantity
+    /// certificate itself refuses, or for a Circle carrier on a chart
+    /// that is not a sphere.
     pub(crate) fn fitted_certificate(
         self,
         carrier: &Curve3<T>,
-        t0: T,
-        t1: T,
         image: &NurbsCurve2<T>,
         surface: &Surface<T>,
         mate: Option<&Surface<T>>,
         band: Band,
     ) -> Result<FittedEnvelope<T>, PcurveCertifyError> {
-        (self.fitted_lane)(carrier, t0, t1, image, surface, mate, band)
+        (self.fitted_lane)(carrier, image, surface, mate, band)
     }
 
     /// **The chart image of a general circle on a sphere chart** — a
@@ -284,10 +276,7 @@ mod wiring_rows {
     fn holds_the_certified_fitted_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = FittedLane::<T>::certified();
-        if !std::ptr::fn_addr_eq(
-            lane.fitted_lane,
-            fitted_lane::<T> as fn(_, _, _, _, _, _, _) -> _,
-        ) {
+        if !std::ptr::fn_addr_eq(lane.fitted_lane, fitted_lane::<T> as fn(_, _, _, _, _) -> _) {
             return Err("fitted_lane is not `pcurve_cache::fitted_lane`");
         }
         if !std::ptr::fn_addr_eq(
