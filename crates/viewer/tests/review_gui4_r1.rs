@@ -175,8 +175,8 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     assert_eq!(shelf_bottom.node, rot_shelf);
 
     let mut tool = MateTool::new();
-    tool.pick(post_a_top.clone());
-    tool.pick(shelf_bottom.clone());
+    tool.pick(session.doc(), post_a_top.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
@@ -857,8 +857,8 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     assert_ne!(top.name, bottom.name, "two DIFFERENT faces of one instance");
 
     let mut tool = MateTool::new();
-    tool.pick(top);
-    tool.pick(bottom);
+    tool.pick(session.doc(), top);
+    tool.pick(session.doc(), bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     match tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {

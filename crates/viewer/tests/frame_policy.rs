@@ -3279,7 +3279,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
         tool: ToolKind::Revolve,
         event: SeatEvent::PickLost {
             seat: Seat::RevolveProfile,
-            node: RecipeNodeId(4),
+            node: viewer::test_support::spoken(RecipeNodeId(4), None),
         },
     });
     let panel = frame::tool_news(
@@ -3502,7 +3502,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
                 tool: ToolKind::Boolean,
                 event: SeatEvent::PickLost {
                     seat: Seat::OperandA,
-                    node: RecipeNodeId(3),
+                    node: viewer::test_support::spoken(RecipeNodeId(3), None),
                 },
             },
             frame::Retold::Never,

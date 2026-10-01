@@ -521,6 +521,11 @@ impl MateProposal {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MateTool {
     state: MateToolState,
+    /// Each held pick's node as the document spoke it when the pick was
+    /// taken, side `a` then side `b` — the words the panel showed, which
+    /// a drop notice repeats even once the document no longer holds the
+    /// node.
+    said: [Option<SpokenNode>; 2],
 }
 
 impl MateTool {
@@ -538,10 +543,15 @@ impl MateTool {
     /// into tool state. The first pick fills `a`, the second `b`; a
     /// third REPLACES `b` (the choice step is still open, and
     /// re-picking the second face is how a user corrects it).
-    pub fn pick(&mut self, face: FaceSelection) {
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        let said = Some(doc.spoken(face.node));
         self.state = match std::mem::take(&mut self.state) {
-            MateToolState::Idle => MateToolState::One(face),
+            MateToolState::Idle => {
+                self.said = [said, None];
+                MateToolState::One(face)
+            }
             MateToolState::One(a) | MateToolState::Two { a, .. } => {
+                self.said[1] = said;
                 MateToolState::Two { a, b: face }
             }
         };
@@ -556,6 +566,7 @@ impl MateTool {
         eval: &Evaluation<f64>,
     ) -> Vec<MateToolEvent> {
         let mut events = Vec::new();
+        let [said_a, said_b] = self.said;
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
             let verdict =
                 crate::tree::resolution_as_drawn(resolve(RunCtx { doc, eval }, &pick.name), eval);
@@ -564,27 +575,31 @@ impl MateTool {
             } else {
                 events.push(MateToolEvent::PickLost {
                     side,
-                    node: doc.spoken(pick.node),
+                    node: match side {
+                        MateSide::A => said_a,
+                        MateSide::B => said_b,
+                    }
+                    .unwrap_or_else(|| doc.spoken(pick.node)),
                     pick: pick.clone(),
                     resolution: Box::new(verdict),
                 });
                 true
             }
         };
-        self.state = match std::mem::take(&mut self.state) {
-            MateToolState::Idle => MateToolState::Idle,
+        (self.state, self.said) = match std::mem::take(&mut self.state) {
+            MateToolState::Idle => (MateToolState::Idle, [None, None]),
             MateToolState::One(a) => {
                 if lost(MateSide::A, &a) {
-                    MateToolState::Idle
+                    (MateToolState::Idle, [None, None])
                 } else {
-                    MateToolState::One(a)
+                    (MateToolState::One(a), [said_a, None])
                 }
             }
             MateToolState::Two { a, b } => match (lost(MateSide::A, &a), lost(MateSide::B, &b)) {
-                (false, false) => MateToolState::Two { a, b },
-                (false, true) => MateToolState::One(a),
-                (true, false) => MateToolState::One(b),
-                (true, true) => MateToolState::Idle,
+                (false, false) => (MateToolState::Two { a, b }, [said_a, said_b]),
+                (false, true) => (MateToolState::One(a), [said_a, None]),
+                (true, false) => (MateToolState::One(b), [said_b, None]),
+                (true, true) => (MateToolState::Idle, [None, None]),
             },
         };
         events

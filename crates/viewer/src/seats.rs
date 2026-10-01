@@ -87,7 +87,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, ProfileProgram, RecipeNodeId, SpokenNode};
 
 use crate::session::{NodeKindWanted, admits};
 use crate::vocab::vocabulary;
@@ -211,8 +211,9 @@ pub enum SeatEvent {
     PickLost {
         /// Which seat was emptied.
         seat: Seat,
-        /// The node that was held.
-        node: RecipeNodeId,
+        /// The node that was held, as the document spoke it when it was
+        /// picked — the words the panel showed.
+        node: SpokenNode,
     },
 }
 
@@ -221,7 +222,7 @@ impl core::fmt::Display for SeatEvent {
         match self {
             Self::PickLost { seat, node } => write!(
                 f,
-                "the {} pick (node {node}) is no longer in the document; the tool dropped it",
+                "the {} pick ({node}) is no longer in the document; the tool dropped it",
                 seat.name(),
             ),
         }
@@ -248,7 +249,8 @@ impl core::fmt::Display for SeatEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Seats {
     roles: [Seat; 2],
-    held: [Option<RecipeNodeId>; 2],
+    /// Each seat's pick, as the document spoke it when it was taken.
+    held: [Option<SpokenNode>; 2],
 }
 
 impl Seats {
@@ -269,7 +271,7 @@ impl Seats {
 
     /// The pick in seat `i` (0 or 1).
     pub fn held(&self, i: usize) -> Option<RecipeNodeId> {
-        self.held.get(i).copied().flatten()
+        self.held.get(i).copied().flatten().map(|held| held.id())
     }
 
     /// Whether any seat holds a pick.
@@ -287,7 +289,7 @@ impl Seats {
     /// Each seat's role and what it holds, in seat order — one entry
     /// per SEAT, so a one-seat tool's unused second slot is not one.
     fn each(&self) -> impl Iterator<Item = (Seat, Option<RecipeNodeId>)> + '_ {
-        (0..self.arity()).map(|i| (self.roles[i], self.held[i]))
+        (0..self.arity()).map(|i| (self.roles[i], self.held(i)))
     }
 
     /// Fill the first empty seat; with both full, REPLACE the second
@@ -313,8 +315,9 @@ impl Seats {
         // written over the first EMPTY slot: on a one-seat tool that
         // sends a second pick to a slot nothing reads, and the pick
         // is then a click that silently did nothing.
+        let said = Some(doc.spoken(node));
         if self.arity() == 1 {
-            self.held[0] = Some(node);
+            self.held[0] = said;
             return;
         }
         let plain = usize::from(self.held[0].is_some());
@@ -327,7 +330,7 @@ impl Seats {
         } else {
             plain
         };
-        self.held[seat] = Some(node);
+        self.held[seat] = said;
     }
 
     /// Empty every seat — the chrome's "start the picks over" door.
@@ -351,7 +354,7 @@ impl Seats {
         let mut events = Vec::new();
         for i in 0..self.arity() {
             if let Some(node) = self.held[i]
-                && doc.node(node).is_none()
+                && doc.node(node.id()).is_none()
             {
                 self.held[i] = None;
                 events.push(SeatEvent::PickLost {

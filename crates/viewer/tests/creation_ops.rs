@@ -893,7 +893,7 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
             Some(SeatEvent::PickLost {
                 seat: Seat::RevolveAxis,
                 node
-            }) if *node == axis
+            }) if node.id() == axis
         ),
         "the event names the emptied seat and the vanished node: {events:?}"
     );
@@ -961,7 +961,7 @@ fn a_dropped_profile_does_not_promote_the_axis() {
             Some(SeatEvent::PickLost {
                 seat: Seat::RevolveProfile,
                 node
-            }) if *node == profile
+            }) if node.id() == profile
         ),
         "{events:?}"
     );

@@ -449,8 +449,8 @@ fn the_windmill_story() {
     let tower_top = common::displayed_face_at(&session, &index, &asm::down_at(0.0, 0.0));
     assert_eq!(tower_top.node, tower_i);
     let mut tool = MateTool::new();
-    tool.pick(hub_bottom);
-    tool.pick(tower_top);
+    tool.pick(session.doc(), hub_bottom);
+    tool.pick(session.doc(), tower_top);
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
@@ -603,8 +603,8 @@ fn the_windmill_story() {
     assert_ne!(front_wall.name, back_wall.name, "two distinct walls");
 
     let mut tool = MateTool::new();
-    tool.pick(sail_a_bottom);
-    tool.pick(front_wall);
+    tool.pick(session.doc(), sail_a_bottom);
+    tool.pick(session.doc(), front_wall);
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
@@ -651,8 +651,8 @@ fn the_windmill_story() {
     };
 
     let mut tool = MateTool::new();
-    tool.pick(sail_b_bottom);
-    tool.pick(back_wall);
+    tool.pick(session.doc(), sail_b_bottom);
+    tool.pick(session.doc(), back_wall);
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool

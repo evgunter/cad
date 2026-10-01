@@ -43,9 +43,9 @@ fn two_picks_one_choice_one_committed_edit() {
     // The two sequential picks, held in tool state.
     let mut tool = MateTool::new();
     assert_eq!(tool.state(), &MateToolState::Idle);
-    tool.pick(post_top.clone());
+    tool.pick(session.doc(), post_top.clone());
     assert!(matches!(tool.state(), MateToolState::One(_)));
-    tool.pick(shelf_bottom.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 
     // The proposal: frames derived through `face_frame`, pulled back
@@ -119,8 +119,8 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     // Both picks on ONE instance: SamePick, refused at the tool
     // rather than authored into the self-mate the solve would refuse.
     let mut tool = MateTool::new();
-    tool.pick(post_top.clone());
-    tool.pick(post_top.clone());
+    tool.pick(session.doc(), post_top.clone());
+    tool.pick(session.doc(), post_top.clone());
     assert!(matches!(
         tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()),
         Err(MateToolError::SamePick { head }) if head == bench.post_b
@@ -130,8 +130,8 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     // (the reconcile row below is the graceful path): the deleted
     // instance is no longer an instance, and the refusal says so.
     let mut tool = MateTool::new();
-    tool.pick(post_top);
-    tool.pick(shelf_bottom);
+    tool.pick(session.doc(), post_top);
+    tool.pick(session.doc(), shelf_bottom);
     let mut session2 = asm::open_bench(&bench, tol);
     session2.perform(SessionOp::DeleteNode {
         node: bench.shelf_i,
@@ -172,8 +172,8 @@ fn the_tool_refuses_the_tables_static_gaps_before_any_geometry() {
     let session = asm::open_bench(&bench, tol);
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(post_top);
-    tool.pick(shelf_bottom);
+    tool.pick(session.doc(), post_top);
+    tool.pick(session.doc(), shelf_bottom);
     let mut gone = asm::open_bench(&bench, tol);
     gone.perform(SessionOp::DeleteNode {
         node: bench.shelf_i,
@@ -215,8 +215,8 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     let mut session = asm::open_bench(&bench, tol);
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(post_top.clone());
-    tool.pick(shelf_bottom);
+    tool.pick(session.doc(), post_top.clone());
+    tool.pick(session.doc(), shelf_bottom);
     let held_line = tool.state().line(session.doc());
 
     // The SECOND pick's instance is deleted out from under the tool.
@@ -236,19 +236,17 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
             ..
         }
     ));
-    // The notice says the pick as the document spoke it when the pick
-    // was dropped: the panel on the frame before said the instance's
-    // kind and tag, and the document that dropped it no longer holds
-    // the instance, so the notice says the same tag as a node it does
-    // not hold.
-    let tag = format!("{:012x}", bench.shelf_i.0);
+    // The notice says the pick in the panel's words on the frame
+    // before — the instance as the document spoke it when it was
+    // picked — though the document that dropped it no longer holds it.
+    let said = format!("face of InstantiatePart {:012x}", bench.shelf_i.0);
     assert!(
-        held_line.ends_with(&format!("pick b: face of InstantiatePart {tag}")),
+        held_line.ends_with(&format!("pick b: {said}")),
         "{held_line:?}"
     );
     assert_eq!(
         events[0].to_string(),
-        format!("pick b (a face of node {tag}) no longer resolves; the tool dropped it")
+        format!("pick b (a {said}) no longer resolves; the tool dropped it")
     );
     match tool.state() {
         MateToolState::One(held) => assert_eq!(held, &post_top),
@@ -322,8 +320,8 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     assert_eq!(copy_one.node, pattern, "the ray met the pattern's body");
     let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
-    tool.pick(copy_one.clone());
-    tool.pick(shelf_bottom.clone());
+    tool.pick(session.doc(), copy_one.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
@@ -350,8 +348,8 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
         proposal.alignment.a.origin
     );
     let mut zero = MateTool::new();
-    zero.pick(copy_pick(&session, 0));
-    zero.pick(shelf_bottom.clone());
+    zero.pick(session.doc(), copy_pick(&session, 0));
+    zero.pick(session.doc(), shelf_bottom.clone());
     let from_zero = zero
         .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("copy 0 is a member too");
@@ -417,8 +415,8 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     assert_eq!(copy_one.node, pattern);
     let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
-    tool.pick(copy_one);
-    tool.pick(shelf_bottom);
+    tool.pick(session.doc(), copy_one);
+    tool.pick(session.doc(), shelf_bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
@@ -470,8 +468,8 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     let _ = bench.post_a;
     let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
-    tool.pick(post_top);
-    tool.pick(shelf_bottom);
+    tool.pick(session.doc(), post_top);
+    tool.pick(session.doc(), shelf_bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
@@ -518,8 +516,8 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     );
     let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
-    tool.pick(post_top.clone());
-    tool.pick(shelf_bottom.clone());
+    tool.pick(session.doc(), post_top.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
@@ -656,8 +654,8 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal_of = |copy: &FaceSelection| {
         let mut tool = MateTool::new();
-        tool.pick(copy.clone());
-        tool.pick(shelf_bottom.clone());
+        tool.pick(session.doc(), copy.clone());
+        tool.pick(session.doc(), shelf_bottom.clone());
         tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
             .expect("a pattern copy is a member")
     };
@@ -835,8 +833,8 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
     assert_eq!(nested.node, outer, "the ray met the outer pattern's body");
     let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
-    tool.pick(nested.clone());
-    tool.pick(shelf_bottom.clone());
+    tool.pick(session.doc(), nested.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
@@ -892,8 +890,8 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     assert_eq!(picked.node, loose, "the ray met the Part's body");
     let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
-    tool.pick(picked.clone());
-    tool.pick(shelf_bottom.clone());
+    tool.pick(session.doc(), picked.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
@@ -935,36 +933,40 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
 /// The mate panel says a held pick is the face of the node as the
 /// document speaks it, and the two refusals that name a picked node
 /// reach the status line on the frame the panel still shows that pick;
-/// a refusal carries no document, so it says the node's tag.
+/// a refusal carries no document, so it names the node by the same tag.
 #[test]
-fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
+fn a_mate_refusal_names_the_picked_node_by_the_tag_the_panel_shows() {
+    let tol = pncad::geom_core::Tol::witness();
+    let (doc, node) = viewer::test_support::inserted(
+        &pncad::document::Doc::empty_derived("mate-refusal", tol),
+        viewer::test_support::xy_frame(),
+        tol,
+    );
+    let tag = format!("{:012x}", node.0);
     let panel = MateToolState::One(FaceSelection {
         name: pncad::prelude::StableName {
             kind: pncad::prelude::EntityKind::Face,
-            node: RecipeNodeId(3),
+            node,
             path: vec![RoleSeg::Cap(pncad::prelude::CapEnd::End)],
         },
-        node: RecipeNodeId(3),
+        node,
         body: 0,
     })
-    .line(&pncad::document::Doc::empty_derived(
-        "mate-refusal",
-        pncad::geom_core::Tol::witness(),
-    ));
-    assert_eq!(panel, "pick a: face of node 000000000003; pick b: —");
+    .line(&doc);
+    assert_eq!(
+        panel,
+        format!("pick a: face of Datum frame {tag}; pick b: —")
+    );
     assert_eq!(
         MateToolError::NotAnInstancePick {
             side: MateSide::A,
-            node: RecipeNodeId(3),
+            node,
         }
         .to_string(),
-        "pick a is on node 000000000003, which is not a part instance or a copy of one"
+        format!("pick a is on node {tag}, which is not a part instance or a copy of one")
     );
     assert_eq!(
-        MateToolError::SamePick {
-            head: RecipeNodeId(3),
-        }
-        .to_string(),
-        "both picks name the same member (head: node 000000000003); a mate relates a pair"
+        MateToolError::SamePick { head: node }.to_string(),
+        format!("both picks name the same member (head: node {tag}); a mate relates a pair")
     );
 }

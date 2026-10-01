@@ -551,7 +551,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
         session.standing()
     );
     let mut mate_tool = MateTool::new();
-    mate_tool.pick(face.clone());
+    mate_tool.pick(session.doc(), face.clone());
     let index = common::asm::index_of(&session);
 
     common::session_insert(
@@ -659,12 +659,15 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     }
     // The mate tool's frame read, on a pick of post_a and one of post_b.
     let mut both = MateTool::new();
-    both.pick(face.clone());
-    both.pick(FaceSelection {
-        name: common::asm::in_part(bench.post_b, &bench.post_top),
-        node: bench.post_b,
-        body: 0,
-    });
+    both.pick(session.doc(), face.clone());
+    both.pick(
+        session.doc(),
+        FaceSelection {
+            name: common::asm::in_part(bench.post_b, &bench.post_top),
+            node: bench.post_b,
+            body: 0,
+        },
+    );
     match both.proposal(
         doc,
         ev,

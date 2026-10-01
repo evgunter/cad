@@ -153,10 +153,10 @@ fn the_exit_demo_walk() {
         post_top.node, bench.post_b,
         "the probed post is picked where it is drawn"
     );
-    tool.pick(post_top);
+    tool.pick(session.doc(), post_top);
     let shelf_bottom = common::displayed_face_at(&session, &index, &asm::under_shelf());
     assert_eq!(shelf_bottom.node, bench.shelf_i);
-    tool.pick(shelf_bottom);
+    tool.pick(session.doc(), shelf_bottom);
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 
     // ── 7. The ADMITTED CLASS, exposed through the kernel's own

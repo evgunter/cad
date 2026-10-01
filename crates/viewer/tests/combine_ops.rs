@@ -1196,7 +1196,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
             [SeatEvent::PickLost {
                 seat: Seat::OperandB,
                 node
-            }] if *node == b
+            }] if node.id() == b
         ),
         "{events:?}"
     );
@@ -1767,7 +1767,7 @@ fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     assert_eq!(
         SeatEvent::PickLost {
             seat: Seat::OperandB,
-            node: RecipeNodeId(4),
+            node: viewer::test_support::spoken(RecipeNodeId(4), None),
         }
         .to_string(),
         "the second operand pick (node 000000000004) is no longer in the document; the tool \
