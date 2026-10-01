@@ -1859,7 +1859,7 @@ impl ViewerBehavior<'_> {
                             "label: this form creates no node to label",
                             frame::Retold::Again,
                         ));
-                        self.ops.push(op);
+                        self.ops.push(*op);
                     }
                 }
             }

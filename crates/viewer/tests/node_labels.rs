@@ -4,6 +4,8 @@
 //! label, and a create form proposes `Kind N` counted among that kind's
 //! labels.
 
+#![allow(clippy::expect_used, clippy::panic)]
+
 use crate::common;
 
 use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
@@ -129,7 +131,7 @@ fn a_labelled_creation_is_the_insert_and_its_label_as_one_undo() {
 fn only_a_creation_can_be_labelled() {
     let refused = Creation::of(SessionOp::Undo);
     assert!(
-        matches!(refused, Err(SessionOp::Undo)),
+        matches!(refused.as_ref().map_err(|op| &**op), Err(SessionOp::Undo)),
         "undo creates nothing, and comes back"
     );
 }

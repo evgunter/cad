@@ -1494,9 +1494,10 @@ impl Creation {
     ///
     /// The operation itself, when it is not one of the creating
     /// operations.
-    pub fn of(op: SessionOp) -> Result<Self, SessionOp> {
+    pub fn of(op: SessionOp) -> Result<Self, Box<SessionOp>> {
+        let op = Box::new(op);
         if op.creates_a_node() {
-            Ok(Self(Box::new(op)))
+            Ok(Self(op))
         } else {
             Err(op)
         }
