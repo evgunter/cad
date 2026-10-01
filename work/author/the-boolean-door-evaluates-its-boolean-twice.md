@@ -7,7 +7,7 @@ opened: 2026-09-30
 priority: P2
 cost: M
 refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist]
-needs_ev: true
+blocked_on: [declared-pairs-are-a-booleans-own-payload]
 ---
 
 Filed by AUTH-9 as the residue of its own design call. Re-priced at
@@ -72,3 +72,7 @@ Two designers weighed this row and reached the same final state after one reconc
 **Measured, and rejected as a cheaper judge:** `find_flush_candidates`. It shares the boolean's per-pair verifier, but it compares carriers without checking extent. Two blocks apart on one ground plane report four pairs while their union builds undeclared.
 
 **Also measured:** n undeclared contacts cost n+1 evaluations today, because the kernel reports one pair per refusal.
+
+## Ruled 2026-10-01 (Ev, #3587)
+
+Answered with its sibling (see `a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added`, "Ruled"). The declared pairs become the boolean's own payload, settable on a live node. The door then stops judging, every boolean commits plainly, and the seam evaluates it once. This row's costs disappear by construction. It is blocked on EDIT's `declared-pairs-are-a-booleans-own-payload`.

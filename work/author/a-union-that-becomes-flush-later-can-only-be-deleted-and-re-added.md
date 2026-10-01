@@ -8,7 +8,7 @@ priority: P2
 cost: M
 design: true
 refs: [addboolean-doc-names-a-vocabulary-that-does-not-exist, no-docedit-splices-a-deleted-node]
-needs_ev: true
+blocked_on: [declared-pairs-are-a-booleans-own-payload]
 ---
 
 
@@ -77,3 +77,14 @@ Both designers lean A2 and are unsure. A1 is the reversible minimum.
 **Undo.** The boolean is one step and the declaration another. Undo walks the declaration off first, then the boolean.
 
 **If neither shape is taken,** the fallback is to *replace* a boolean nothing refers to: delete it and its `Declare`, then insert `Declare` + boolean as one action. It needs no ruling, but it dead-ends every mid-chain boolean, and the new id strands appearance keys and display state on the old one.
+
+## Ruled 2026-10-01 (Ev, #3587): attach, shape A2
+
+**A declaration can be set on a live boolean or union. The declared pairs become the node's own payload (A2).** Ev conditioned this on the `Declare` node having no other use. It has none: its value is read only through the `Boolean`/`Union` declare edge (`eval/wire.rs` `declared_pairs`). Everything else is bookkeeping, machinery that exists because it is a separate node, or constructors. The one scope cost Ev was told of: Python's declare API (`Node.declare`, `Doc.declare`/`declare_all`, `Node.boolean(..., declare=)`) changes shape, as do the persisted form and the schema.
+
+**Where the work is:**
+- **EDIT `declared-pairs-are-a-booleans-own-payload` (P1).** The node shape (DM4's `declare` edge becomes a payload) and a whole-list edit shaped like `SetMembers`, with nothing inferred. `Declare`, its orphan report, its kind check and its re-rooting go. Also persistence, the schema bump, `pncad-py`, and the kernel recourse sentence ("wire it into the Boolean's declare input") rewritten to name the new edit. With no edge, DM6 needs no exception.
+- **AUTHOR, both rows: the viewer half, blocked on it.**
+  - `add_boolean` becomes a plain commit (no judge, no `evaluate_beside`, no `RefusedBoolean` generation rule).
+  - A contact refusal shows on the boolean's own row with a Declare control that records the edit.
+  - This row and `the-boolean-door-evaluates-its-boolean-twice` close together.
