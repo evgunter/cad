@@ -5243,3 +5243,36 @@ dropped (P4).
 - the two mutants claimed equivalent;
 - whether the paragraph added to F9's ratified module docs changes
   what F9 decides.
+
+## PR 3621 delivered; single full review dispatched (2026-10-01)
+
+The corruption-ending lane delivered PR 3621 (`331526d8f2`), and CI run
+36817013405 went green.
+
+**The row's prescription was wrong.** No file hands the Euler operators
+a torn body:
+- the kernel crates are serde-free;
+- editor-core persists two enums and replays edits;
+- topo's raw builders are crate-private;
+- step-import builds through public doors.
+
+So the class ends in `KERNEL_DEFECT_ENDING`. `KillLeavesDangling` and
+`NotOwned` move to it, and the row carries a Correction.
+
+**Three variants mix a caller's stale key with a torn body:**
+`StaleKey` (~170 sites), `StaleGeometry` and `NotSameEdge`. They carry
+a conditional "pass keys this body holds; if the call did, the body is
+torn" ending. The split is filed as a design row.
+
+**Also in the PR:**
+- `require_vertex_unnamed`'s Empty-loop raise now goes through
+  `KillLeavesDangling`.
+- `MergeRebasesCarriers` gains its own lever.
+- 11 editor-core `FILED_NO_RECOURSE` admissions are removed.
+
+**The single full review** is dispatched on the walk target, frozen
+`331526d8f2`. It is to probe:
+- the no-file claim, across every crate and feature;
+- the conditional ending at both kinds of raise site;
+- the editor-core chains;
+- the second lever.
