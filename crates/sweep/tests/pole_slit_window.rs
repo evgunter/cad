@@ -1,5 +1,5 @@
-//! **A sphere face slit to its pole answers containment the same way at
-//! both scalars.**
+//! **A sphere face slit to its pole: the interval lane's azimuth window
+//! encloses the `f64` replay's, and containment answers the same.**
 //!
 //! The dome is a unit hemisphere revolved about `y`: a flat base and two
 //! π-band sphere faces meeting along two meridians at the pole. Merging
@@ -9,19 +9,25 @@
 //! holds). Killed from its minus half, the surviving face's walk crosses
 //! the slit mid-walk, where the azimuth walk's strictly-next pole branch
 //! sits exactly on its jump: at `f64` it lands a whole period on, and at
-//! `Interval` the enclosure straddles it and spans both branches. The
-//! face's window is then a whole period wide in both lanes, which the
-//! containment door's period gate declines before it reads the window as
-//! a region — so the verdicts do not depend on which branch the pick
-//! took. A pick that refused the straddle instead would turn every
-//! verdict below into a partial-sphere refusal at `Interval`.
+//! `Interval` the enclosure straddles it and spans both branches.
+//!
+//! Two rows. The window row holds the interval window against the `f64`
+//! window on every slit: a pick that kept one branch of the straddle
+//! would hand back a window excluding the replay's. The containment row
+//! asks points of the dome at both scalars; the slit face's rims wrap
+//! the axis, so the door reads its latitude window and not the azimuth
+//! one, and a pick that refused the straddle instead would turn every
+//! verdict into a partial-sphere refusal.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Real, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y_at;
-use topo::{Body, SolidContainment, ValidationError, point_in_solid, validate, validate_closed};
+use topo::{
+    Body, SolidContainment, ValidationError, face_azimuth_window_traces, point_in_solid, validate,
+    validate_closed,
+};
 
 fn f<T: Real>(x: f64) -> T {
     T::from_f64(x)
@@ -112,4 +118,44 @@ fn a_slit_dome_answers_containment_at_f64() {
 #[test]
 fn a_slit_dome_answers_containment_at_interval() {
     verdicts::<Interval>("Interval");
+}
+
+/// The slit face's azimuth window: the one sphere face the slit leaves.
+fn window<T: Decide + Bounds>(slit: &Body<T>) -> (T, T) {
+    let band = Band::linear(Tol::witness()).expect("the witness band");
+    let mut spheres = slit.faces().filter(|(_, face)| {
+        matches!(
+            slit.get_surface(face.surface),
+            Some(geom::Surface::Sphere { .. })
+        )
+    });
+    let (face, _) = spheres.next().expect("the slit sphere face");
+    assert!(spheres.next().is_none(), "one sphere face after the kill");
+    face_azimuth_window_traces(slit, face, band)
+        .expect("the slit face's walk")
+        .expect("the slit face's loop is a cycle")
+}
+
+#[test]
+fn the_interval_window_of_a_slit_dome_encloses_the_f64_window() {
+    let replay = slits::<f64>();
+    let certified = slits::<Interval>();
+    assert_eq!(
+        replay.len(),
+        certified.len(),
+        "one slit per kill in each lane"
+    );
+    for (i, (r, c)) in replay.iter().zip(&certified).enumerate() {
+        let (r_lo, r_hi) = window(r);
+        let (c_lo, c_hi) = window(c);
+        for (end, want, got) in [("lo", r_lo, c_lo), ("hi", r_hi, c_hi)] {
+            assert!(
+                got.lo() <= want && want <= got.hi(),
+                "slit {i}: the interval window's {end} [{:e}, {:e}] does not enclose \
+                 the f64 window's {want} (f64 window ({r_lo}, {r_hi}))",
+                got.lo(),
+                got.hi()
+            );
+        }
+    }
 }

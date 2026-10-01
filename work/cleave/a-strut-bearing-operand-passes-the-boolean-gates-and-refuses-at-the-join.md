@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-01
 ---
 
-
 Found by the LINALG pole-branch measurement (`linalg/pole-branch-shift`).
 
 A body whose sphere face is slit to its pole (a unit dome from
