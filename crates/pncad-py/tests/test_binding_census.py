@@ -2556,7 +2556,9 @@ NOT_BOUND = {
     # there is no tag to split, none to pin, and nothing for a Python
     # caller to branch on. Not a `gap:` either: the debt is the blend
     # door being unprojected, which is #1479's row and not a missing
-    # binding for these four types.
+    # binding for these types. `BlendDecision` (`Escalated`'s decision)
+    # joined them on the same terms.
+    "BlendDecision": INTERIOR,
     "BlendSite": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanDeclarations": INTERIOR,
