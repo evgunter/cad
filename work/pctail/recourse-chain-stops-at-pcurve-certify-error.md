@@ -4,6 +4,8 @@ kind: issue
 title: PcurveCertifyError's stopping arms are per-SITE, not per-arm: the recourse chain's last second-hop carrier, cut from the second-hop unit
 status: open
 opened: 2026-09-21
+cost: H
+priority: P3
 ---
 
 

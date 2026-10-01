@@ -4,8 +4,8 @@ kind: issue
 title: A long cascade's maintenance puts one long sentence per surviving row on the one status line
 status: open
 opened: 2026-09-25
-priority: P3
-cost: D
+priority: P4
+cost: M
 ---
 
 
