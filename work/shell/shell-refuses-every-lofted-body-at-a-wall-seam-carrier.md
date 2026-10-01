@@ -54,3 +54,24 @@ body at the default ε, mint plus tier 3's per-call re-derivation) has
 no operand until this lane exists AND O4's fitted-boundary refusal is
 answered. `encl_curved_loft_shell.rs` pins both boundaries so that
 either moving reds and hands the next lane the operand.
+
+## Also measured (CLEAVE, `edge-mint-doors-read-the-nurbs-lane-from-the-policy`, 2026-10-01)
+
+The same site blocks the plane × NURBS (M7-8) class at `f64`, after the
+edge-mint doors started reading the lane off `AtRestPolicy`. On the
+M7-8 cube (`crates/topo/tests/fixture/m7_8.rs`, the unit cube whose
+`y = 0` face is a described NURBS net and whose four wall edges are
+plane × NURBS `Intersection`s on degree-1 NURBS carriers):
+
+| call | result |
+|---|---|
+| `replace_face_offset(top z = 1, +0.25)` | `CarrierLaneUnsupported { edge, what: "a re-anchored carrier that is neither a line nor a circle" }` |
+| `replace_face_offset(side x = 0, +0.25)` | the same |
+| `replace_face_offset(back y = 1, +0.25)` (not adjacent to the wall) | `Ok`, the class intact |
+| `shell(0.1)`, `shell_open(0.1, [top])` | `ShellError::Face { error: CarrierLaneUnsupported { .. } }` on the same edge |
+
+Any face that meets the wall has wall edges ending at its corners, and
+those are re-anchored, so offset and shell reach neither the boundary
+transport of a plane × NURBS edge nor the lane-reading re-description
+(`set_face_surfaces_describing`) until `plan_reanchors` takes a NURBS
+carrier.
