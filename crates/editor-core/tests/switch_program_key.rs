@@ -10,7 +10,7 @@
 //! The plane is NOT in that stream. It is a document node the profile
 //! names, so it folds into the key as an upstream input key, the same
 //! way every other input does; these rows build every document with
-//! its frame at node 0 and read the profile at node 1.
+//! its frame first and read the profile second.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, len2, scl, xy_frame};
@@ -21,10 +21,20 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-/// The frame every document below is built on, and the profile drawn
-/// on it: two nodes, inserted in that order.
-const PLANE: RecipeNodeId = RecipeNodeId(0);
-const PROFILE: RecipeNodeId = RecipeNodeId(1);
+/// The frame every document below is built on: the id its insert
+/// mints, first among the minting edits of every document here, so one
+/// id in all of them (D9).
+fn plane() -> RecipeNodeId {
+    crate::fixture::newest(&with_frame(ProfileDoc::empty_derived(
+        "switch_program_key",
+        Tol::witness(),
+    )))
+}
+
+/// The profile drawn on that frame: the document's second node.
+fn profile(doc: &ProfileDoc) -> RecipeNodeId {
+    doc.order()[1]
+}
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {
     let ev = evaluate::<f64>(
@@ -34,7 +44,9 @@ fn key_of(doc: &ProfileDoc) -> ContentKey {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    ev.value(PROFILE).expect("profile evaluates").content_key
+    ev.value(profile(doc))
+        .expect("profile evaluates")
+        .content_key
 }
 
 fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
@@ -43,7 +55,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
+                    plane: plane(),
                     loops,
                     ids: Vec::new(),
                 }),
@@ -55,7 +67,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
         .doc
 }
 
-/// The world xy frame at node 0. Every row here is about the PROGRAM's
+/// The world xy frame, inserted first. Every row here is about the PROGRAM's
 /// key, so every document shares one plane: a key difference between
 /// two of these documents can only have come from their programs.
 fn with_frame(doc: ProfileDoc) -> ProfileDoc {
@@ -77,8 +89,8 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
 /// different spelling, D6.)
 fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Expr) -> ProfileDoc {
     let slots: Vec<SlotId> = doc
-        .node(PROFILE)
-        .expect("the profile at node 1")
+        .node(profile(doc))
+        .expect("the profile is the second node")
         .slots()
         .into_iter()
         .filter(|s| matches!(*s, SlotId::Profile { arg: a, .. } if a == arg))
@@ -88,7 +100,7 @@ fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Expr) -> ProfileDoc {
     };
     doc.apply(
         &DocEdit::SetParam {
-            node: PROFILE,
+            node: profile(doc),
             slot: *slot,
             expr,
         },
@@ -166,7 +178,7 @@ fn resolved_values_feed_the_key() {
             .apply(
                 &DocEdit::InsertNode {
                     node: Node::Profile(ProfileProgram {
-                        plane: PLANE,
+                        plane: plane(),
                         loops: vec![LoopProgram::Circle {
                             centre: [len(0.0), len(0.0)],
                             radius: Expr::param(ParamName::from_static("r"), Dimension::Length),
@@ -218,7 +230,7 @@ fn a_carrier_centre_respelled_keys_identically() {
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
+                    plane: plane(),
                     loops: vec![LoopProgram::Circle {
                         centre: [
                             Expr::param(ParamName::from_static("cx"), Dimension::Length),
@@ -281,7 +293,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
+                    plane: plane(),
                     loops,
                     ids: Vec::new(),
                 }),

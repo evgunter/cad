@@ -93,8 +93,12 @@ fn r1_replay_bit_identity_adversarial() {
     let a = doc
         .apply(&e, Tol::witness(), &editor_core::RefusingReach)
         .unwrap();
-    // D3: ids strictly increase even after deleting the highest one.
-    assert!(a.record.minted.unwrap() > *minted.iter().max().unwrap());
+    // D3: an id is never reused, even after deleting the newest one.
+    let fresh = a.record.minted.unwrap();
+    assert!(
+        !minted.contains(&fresh),
+        "{fresh:?} was minted before and deleted, and is handed out again"
+    );
     doc = a.doc;
     log.push(e);
     // Re-insert a last-ulp carrier after the churn — replay must
@@ -555,7 +559,17 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
     let doc = a.doc;
     // Forward ref to a FUTURE id (the only way to seed a cycle at
     // insert) is refused: the id isn't live yet.
-    let next_would_be = RecipeNodeId(extrude.0 + 1);
+    // The id the next insert would mint, read by making it on a copy.
+    let next_would_be = doc
+        .apply(
+            &point_edit(len(0.0)),
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .record
+        .minted
+        .unwrap();
     let res = doc.apply(
         &Edit::InsertNode {
             node: Node::Boolean {

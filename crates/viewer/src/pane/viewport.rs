@@ -112,9 +112,9 @@ fn push_preview(
         let points = &polyline.points;
         push_loop(lane, &plane, polyline);
         let refused_tip = match &polyline.end {
-            sketch::LoopEnd::Refused { closes: true, .. } => polyline.vertices.first().copied(),
-            sketch::LoopEnd::Refused { closes: false, .. } => polyline.vertices.last().copied(),
-            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished => None,
+            sketch::LoopEnd::Refused(cut) if cut.closes => polyline.vertices.first().copied(),
+            sketch::LoopEnd::Refused(_) => polyline.vertices.last().copied(),
+            sketch::LoopEnd::Closed | sketch::LoopEnd::Unfinished(_) => None,
         };
         for &at in &polyline.vertices {
             let here = points[at];
@@ -836,6 +836,7 @@ impl ViewerBehavior<'_> {
             self.tools,
             self.drafts,
         );
+        *self.held_edges_refused = composed.edges().held_refused.clone();
         // **The three lanes this pane composes itself**, each as the
         // value that owns the display seam's rule
         // ([`marks::LegLane`]) rather than as a bare `Vec` each block
@@ -2369,6 +2370,11 @@ mod tests {
     fn chain(tail: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
         let mut steps = crate::test_support::two_legs(0.0, 0.0);
         steps.extend(tail);
+        path(steps)
+    }
+
+    /// The preview of one path loop on the xy plane, which draws.
+    fn path(steps: Vec<pncad::profile::Step<f64>>) -> ProfilePreview {
         sketch::preview(
             pncad::profile::SketchPlane::xy(),
             &[ProfileShape::Path { steps }],
@@ -2443,6 +2449,79 @@ mod tests {
         assert_eq!(arrow, 2, "an arrowhead ahead of it");
     }
 
+    /// **A chain with an unclosable tip is painted as the legs before
+    /// it, going on** — at every state no `line_to` leaves, as the
+    /// lattice table lists them. The steps that put the tip there are
+    /// not a leg anybody can draw yet, so what is painted is the two
+    /// legs, not the provisional close, and the tip keeps its
+    /// arrowhead: the chain is unfinished, not refused.
+    ///
+    /// Red if such a chain draws nothing (the `expect` panics), if its
+    /// provisional close is painted, or if its tip is crossed.
+    #[test]
+    fn an_unclosable_tip_is_painted_as_the_legs_before_it_going_on() {
+        let mut walked = Vec::new();
+        for state in crate::test_support::unclosable_tips() {
+            let Some(way_in) = ::profile::test_support::way_in(state) else {
+                assert_eq!(
+                    state,
+                    pncad::profile::TipState::Entry,
+                    "only the entry has no way in"
+                );
+                continue;
+            };
+            let drawn = chain(way_in);
+            assert!(
+                matches!(
+                    drawn.loops[0].end.unfinished_refusal(),
+                    Some(sketch::PreviewError::Transition { state: at, verb: None, .. }) if *at == state
+                ),
+                "{state:?}: a fixture whose tip is unclosable: {drawn:?}"
+            );
+            let painted = painted_preview(&drawn);
+            assert!(joins(&painted, [0.0, 0.0], [0.01, 0.0]), "{state:?}");
+            assert!(joins(&painted, [0.01, 0.0], TIP), "{state:?}");
+            assert!(
+                !joins(&painted, TIP, [0.0, 0.0]),
+                "{state:?}: the provisional close is not painted"
+            );
+            let (centred, arrow) = tip_marks(&painted, TIP, ARRIVING);
+            assert_eq!(centred.len(), 1, "{state:?}: one tick: {centred:?}");
+            assert_eq!(arrow, 2, "{state:?}: an arrowhead ahead of it");
+            walked.push(state);
+        }
+        assert!(
+            walked.contains(&pncad::profile::TipState::RadiusArrival),
+            "the census reads the table: {walked:?}"
+        );
+    }
+
+    /// **A chain cut at an unclosable tip whose last leg lands on its
+    /// start is painted closed.** The walked-back prefix is the square
+    /// the author's own legs close; its last leg is authored, not the
+    /// provisional close, so it is painted.
+    ///
+    /// Red if an unfinished loop is read as never closing.
+    #[test]
+    fn a_prefix_cut_at_an_unclosable_tip_that_lands_on_its_start_is_painted_closed() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let drawn = chain(vec![
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+            Step::LineTo(Target::Point(Point2::new(0.0, 0.0))),
+            Step::Turn(0.5),
+        ]);
+        assert!(
+            matches!(&drawn.loops[0].end, sketch::LoopEnd::Unfinished(Some(cut)) if cut.closes),
+            "a fixture whose drawn prefix closes: {drawn:?}"
+        );
+        let painted = painted_preview(&drawn);
+        assert!(
+            joins(&painted, [0.0, 0.01], [0.0, 0.0]),
+            "the authored last leg is painted: {painted:?}"
+        );
+    }
+
     /// **A chain that closed and then went on is painted closed, with
     /// the cross at its start.** A square closed by `line_to Start`,
     /// then one more `line_to`, which no closed loop takes: the four
@@ -2474,6 +2553,96 @@ mod tests {
         let (centred, arrow) = tip_marks(&painted, [0.0, 0.0], [1.0, 0.0]);
         assert_eq!(centred.len(), 2, "the cross at the start: {centred:?}");
         assert_eq!(arrow, 0, "no arrowhead at the start");
+    }
+
+    /// **A chain whose close is refused on its geometry is painted as
+    /// the legs written and no more** — at every shape of such a close
+    /// ([`crate::test_support::geometry_refused_closes`]). Every painted
+    /// stroke longer than a tip mark is one of those legs; the leg back
+    /// to the start is painted where the author's last leg lands there,
+    /// and nowhere else; and the tip keeps its arrowhead, since the
+    /// chain is unfinished: at the last leg's end, or at the start
+    /// where the loop closes.
+    ///
+    /// Red if such a chain paints nothing (the `expect` panics), if it
+    /// paints the close nobody wrote or a fillet resolved against it,
+    /// or if its tip is crossed.
+    #[test]
+    fn a_close_refused_on_its_geometry_is_painted_as_the_legs_written() {
+        for fixture in crate::test_support::geometry_refused_closes() {
+            let drawn = path(fixture.steps.clone());
+            let painted = painted_preview(&drawn);
+            let vertices = &fixture.vertices;
+            let mut written: Vec<[[f64; 2]; 2]> =
+                vertices.windows(2).map(|w| [w[0], w[1]]).collect();
+            let back = [vertices[vertices.len() - 1], vertices[0]];
+            if fixture.closes {
+                written.push(back);
+            } else {
+                assert!(!joins(&painted, back[0], back[1]), "{:?}", fixture.steps);
+            }
+            for [a, b] in &written {
+                assert!(joins(&painted, *a, *b), "{:?}: {a:?}-{b:?}", fixture.steps);
+            }
+            let tick = a_view()
+                .screen_metres_at(pncad::geom_core::Point3::new(0.0, 0.0, 0.0), TIP_MARK_PX)
+                .expect("a mark size");
+            for [p, q] in &painted {
+                let long = (q[0] - p[0]).hypot(q[1] - p[1]) > 2.0 * tick;
+                assert!(
+                    !long || written.iter().any(|[a, b]| joins(&[[*p, *q]], *a, *b)),
+                    "{:?}: a stroke nobody wrote, {p:?}-{q:?}",
+                    fixture.steps
+                );
+            }
+            let (tip, heading) = if fixture.closes {
+                ([0.0, 0.0], [1.0, 0.0])
+            } else {
+                (TIP, ARRIVING)
+            };
+            let (centred, arrow) = tip_marks(&painted, tip, heading);
+            assert_eq!(centred.len(), 1, "{:?}: {centred:?}", fixture.steps);
+            assert_eq!(arrow, 2, "{:?}: an arrowhead", fixture.steps);
+        }
+    }
+
+    /// **The cross sits on the step that refused**, after a last leg a
+    /// close would run tangent to, after a last leg onto the start by
+    /// an entry that opens with a direction, and after a fused entry's
+    /// last leg. Each is painted to the last leg's end and crossed
+    /// there — at the start where the leg lands on it.
+    ///
+    /// Red if any last leg is dropped (the cross then lands one vertex
+    /// early, on a step that is fine), or if a close nobody wrote is
+    /// painted closed.
+    #[test]
+    fn the_cross_sits_on_the_step_that_refused() {
+        use crate::test_support::{self, ill_typed};
+        let mut cases = test_support::tangent_closes();
+        let angle_first = test_support::geometry_refused_closes()
+            .into_iter()
+            .map(|fixture| fixture.steps)
+            .find(|steps| !matches!(steps[0], pncad::profile::Step::At(_)))
+            .expect("an entry that opens with a direction");
+        cases.push((angle_first, [0.0, 0.0]));
+        let fused = test_support::fused_entry_then(test_support::line_to(0.01, 0.003));
+        cases.push((fused, [0.01, 0.003]));
+        for (mut steps, tip) in cases {
+            steps.push(ill_typed());
+            let drawn = path(steps.clone());
+            let only = &drawn.loops[0];
+            assert!(only.end.refusal().is_some(), "{steps:?}");
+            let at = only
+                .vertices
+                .iter()
+                .copied()
+                .find(|&at| near(only.points[at], tip))
+                .expect("the tip is a vertex drawn");
+            let heading = sketch::heading(&only.points, at, only.end.closes()).expect("a heading");
+            let (centred, arrow) = tip_marks(&painted_preview(&drawn), tip, heading);
+            assert_eq!(centred.len(), 2, "{steps:?}: the cross: {centred:?}");
+            assert_eq!(arrow, 0, "{steps:?}: no arrowhead");
+        }
     }
 
     /// **An edit of a committed profile that a step refuses hides the

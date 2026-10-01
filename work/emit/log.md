@@ -1191,3 +1191,59 @@ The recipe now refuses `Duplicate`: the split has no multiplicity rule for a twi
 Also filed:
 - `reach/a-split-half-loses-the-lineage-of-a-twice-crossed-edge` (P3): `topo::props` and `mesh::memo` still walk one half.
 - `origin/the-split-edge-lineage-walk-has-four-homes` (P1).
+
+## 2026-09-30 — node ids off the counter: sizing, unit 1 (PR 3569), display fork (row 23, PR 3565)
+
+**Sizing.** The lane replaced the counter's ids with a scramble and ran the suites. 519 of 2376 editor-core tests assumed small sequential node ids. No shipped code depends on id order. I accepted a split into three units:
+1. tests stop assuming ids;
+2. the digest mint itself, as one document `Mint` for node and step ids;
+3. display.
+
+The row's Sizing section carries the probe inline.
+
+**Unit 1** (PR 3569) is merged. 41 test files now take ids from the insert door or from `doc.order()`. Three library `next_id` comparisons now call `has_minted`, which is behaviour-preserving. Under the probe, 123 failures remain, and all of them are unit 2's. The review found two viewer rows made tautological or weakened (B1, B2); both are fixed. `PART_BODY` (329 uses in 34 files) is split out as a P1 row that must land before unit 2. I posted seam notes on the tcost, tint, chrome and vdoc logs.
+
+**Display fork** (fork-log row 23, byte 36). The designers crossed in round 1 and were run to round 3. B found the `DocRef` precedent: a 12-hex prefix in kernel text, with the file name shown beside it. The split was put to Ev as [ev] #3565:
+- the kernel says which node, as a 12-hex tag on every row and in every sentence (B, likely);
+- the surface says which node, as an address `Extrude 2` through a namer (A, unsure).
+
+Under either answer:
+- `eval::schedule` must break ties by `Doc::order`;
+- one mint chain serves node and step ids.
+
+## 2026-09-30 — each part's body comes from its part (PR 3581)
+
+The assembly suites no longer name every part's body by one constant, `PART_BODY` (329 uses in 34 files). Each part builder returns the id its own extrude minted, and `in_part` takes it. The change is test-only.
+
+It was checked with a per-document salted scramble: main failed 419 tests and the branch 125, and the branch's failures are all unit 2's or artefacts of the probe itself.
+
+**Review.** One blocking finding: the docm6 own-mate row borrowed the good stand's cube ids for the broken stand. It is fixed. The review also added asserts that a re-pinned part keeps its body, and folded two duplicate local `in_part` helpers into the fixture.
+
+Nothing yet catches a body paired with the wrong part's instance while ids come from the counter. That is filed as `tint/part-body-paired-with-the-wrong-instance-stays-green-under-the-counter` (P3).
+
+**Next:** node-id unit 2, the digest mint, is unblocked on the test side. The display half waits on [ev] #3565.
+
+## 2026-09-30 / 10-01 — node-id unit 2 (PRs 3593, 3594), held on #3565
+
+**PR 3593 (merged).** `eval::schedule` breaks ties by position in `Doc::order`. Under the counter nothing moved; ratified text named no id-order tie-break.
+
+**PR 3594 (open, held until [ev] #3565 decides how a person sees a node).**
+- Node ids mint from one document `Mint` shared with step ids, and `next_id` is gone.
+- Old files refuse with the regenerate advice.
+- Split and inline carry nodes one insert at a time.
+- The id-ordered walks are restated in `Doc::order`: the mate tree edge, resolve lanes, `drive`, the appearance tie site (a real regression the walk caught) and the placement backstop.
+
+**Review.** No defect in the mint, the load door or refactor. Two blocking findings, both folded:
+- **B1.** Memo rows built from two documents became true by id alone. They now carry teeth independent of ids, such as content-key inequality. 117 sites were swept.
+- **B2.** The corpus name evidence had blanked `FromMember` members. It was re-measured with each id read as its position in `Doc::order` (`name_tables_by_position`, `#[ignore]`d):
+  - 353 of 359 tables are identical;
+  - 6 respell only the wall order inside `Borders`, naming the same entities;
+  - all 819 `FromMember` segments are unchanged.
+
+The optional findings also landed: per-variant mint pins, one collision recourse, `Doc::positions()`, and a narrowed API.
+
+**Filed:**
+- `name-order-was-insertion-order-under-the-counter` (P2, design): what "least name" should mean;
+- `edit/di1-may-simplify-now-node-ids-are-digests` (P1, design).
+
+The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.

@@ -2,11 +2,14 @@
 id: movefac-labels-components-by-an-unproven-cycle-walk
 kind: issue
 title: movefac labels a shell's components through cycle walks it never proves claim their loops: a torn next can split a connected shell or join two components
-status: open
+status: closed
+pr: 3574
+branch: topo/movefac-proofs
 opened: 2026-09-30
 refs: [mef-and-mekr-move-a-walked-run-they-never-prove-is-the-loops]
 priority: P3
 cost: M
+closed: 2026-09-30
 ---
 
 ## What
