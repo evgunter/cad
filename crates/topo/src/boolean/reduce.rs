@@ -2152,10 +2152,10 @@ fn line_wall_root_count<T: Decide>(
         } => match super::solid_contain::line_wall_roots(
             origin, dir, c_origin, axis, radius, span, band,
         )
-            .map_err(|fault| BooleanError::Escalated {
-                decision: BooleanDecision::WallRoots(fault.rung),
-                diag: fault.diag,
-            })? {
+        .map_err(|fault| BooleanError::Escalated {
+            decision: BooleanDecision::WallRoots(fault.rung),
+            diag: fault.diag,
+        })? {
             super::solid_contain::WallRoots::Two(ts) => {
                 roots[..2].copy_from_slice(&ts);
                 Ok(2)

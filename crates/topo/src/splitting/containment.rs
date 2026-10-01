@@ -1026,10 +1026,7 @@ pub(crate) fn carrier_loop<T: Decide>(
 /// larger semi-axis of its centre, a spiric oval and a spline as
 /// [`LoopEdge::Unrowed`] carries them. `None` for a line, whose segment
 /// its two end vertices hold, and for a spline with no control points.
-fn carrier_ball<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
-) -> Option<(Point3<T>, T)> {
+fn carrier_ball<T: Decide>(carrier: &geom::Curve3<T>, (t0, t1): (T, T)) -> Option<(Point3<T>, T)> {
     match *carrier {
         geom::Curve3::Line { .. } => None,
         geom::Curve3::Circle { center, radius, .. } => Some((center, radius)),
@@ -1086,7 +1083,8 @@ fn carrier_ball<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk.
+/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, or
+/// a spline edge with no control points.
 pub(crate) fn loop_extent_from<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -1106,6 +1104,7 @@ pub(crate) fn loop_extent_from<T: Decide>(
         let point = body.get_vertex(h.start).ok_or_else(corrupt)?.point;
         extent = extent.max((*body.get_point(point).ok_or_else(corrupt)? - q).norm());
         let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+        // Null scaffolding is a zero-length chord its vertex holds.
         let Some(curve) = body
             .get_curve_geom(edge.curve)
             .ok_or_else(corrupt)?
@@ -1113,8 +1112,10 @@ pub(crate) fn loop_extent_from<T: Decide>(
         else {
             continue;
         };
-        if let Some((center, reach)) = carrier_ball(curve.carrier(), curve.params()) {
-            extent = extent.max((center - q).norm() + reach);
+        match carrier_ball(curve.carrier(), curve.params()) {
+            Some((center, reach)) => extent = extent.max((center - q).norm() + reach),
+            None if matches!(curve.carrier(), geom::Curve3::Line { .. }) => {}
+            None => return Err(corrupt()),
         }
     }
     Ok(extent)
