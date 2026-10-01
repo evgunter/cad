@@ -10,6 +10,10 @@ design: true
 refs: [a-driven-slots-field-draws-its-expression-source-at-any-width, the-gui-shows-no-measure-value-and-no-clearance]
 ---
 
+## Question (answered by Ev, 2026-10-01)
+
+In what notation should the viewer write a value no author wrote? This covers a driven slot's `= value`, the refusal affordance's "(currently …)", a measure's row, and both sides of an assertion's verdict. Today all of them read the canonical m/rad (`props::rendering_unit`), so `thickness * 2` over a 4 mm parameter reads `= 0.008 m`. The choice is where the notation comes from and who owns it: the document, the viewer per person, the expression itself, or canonical as now.
+
 
 Found by the review of `chrome/slot-width` (PR 3478).
 
@@ -72,3 +76,17 @@ a `Holds` row can print `0.0125 m >= 0.0125000005 m`. That is the
 kernel's rule shown faithfully, and `Violated` never does the reverse.
 It is notation evidence: the spelling shows a margin the decision
 treats as zero.
+
+## Ev's answer (2026-10-01, on PR 3602)
+
+> getting rid of all hard-coded nonstandard sites would be great (idk if there are others than the two mm ones you mentioned); i think sticking with m and pi rad is fine, it's easy to change
+
+The ruling has three parts:
+- **One working notation.** There is one per-person working notation, a length unit and an angle unit, kept in the viewer's `Prefs` and never in the document. Every value no author wrote reads in it: a driven slot's field, the refusal affordance, a measure's row, and both sides of an assertion. The creation forms' unit pickers become its control, so `Drafts` loses its two unit fields.
+- **No hard-coded notation.** Every site that hard-codes a notation reads the working notation instead. That includes `pane::view::camera_mm`, the properties pane's free-move probe, and any other site a census finds.
+- **Default.** The default stays m and π·rad.
+
+Two cleanups go with it:
+- `unparse`'s dead "canonical unit when it remembers none" clause goes.
+- `rendering_unit`'s canonical-choice argument goes.
+
