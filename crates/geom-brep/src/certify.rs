@@ -182,9 +182,11 @@ pub enum CertCheck {
     /// **sup-norm** bound over the whole span — the number that
     /// certifies (a bound, never a sampled max).
     PlaneNurbsHull,
-    /// Intersection, plane × NURBS (M7-8): the lane's own margins as a
-    /// whole, named when one of them escalates.
-    PlaneNurbsCertificate,
+    /// Intersection, plane × NURBS (M7-8): the lane's reported
+    /// transversality, the minimum sine over the interior samples that
+    /// each decided transverse — named when that aggregate is poisoned,
+    /// which no geometry and no tolerance reaches.
+    PlaneNurbsReportedTransversality,
 }
 
 /// The check's own name — the noun a refusal about it writes (the
@@ -244,7 +246,9 @@ impl core::fmt::Display for CertCheck {
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the plane × NURBS on-locus residual",
             Self::PlaneNurbsHull => "the plane × NURBS sup-norm bound",
-            Self::PlaneNurbsCertificate => "the plane × NURBS lane's margins",
+            Self::PlaneNurbsReportedTransversality => {
+                "the plane × NURBS lane's reported minimum crossing angle"
+            }
         })
     }
 }
@@ -685,9 +689,12 @@ impl CertCheck {
             | Self::SeamSide
             | Self::ChartResidual => Ending::Unsized(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
+            // A fold over samples that each decided transverse: a poison
+            // that survives it is the kernel's.
+            Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
             // Approximations: a fitted intersection carrier on its
             // surfaces, a certified sag bound, and the plane × NURBS
-            // lane's fitted image and rung-3 certificate. The surface
+            // lane's fitted image's two residual limbs. The surface
             // residuals take the last resort for EVERY carrier, the exact
             // analytic ones too, where a miss would be a defect: the
             // routing reads the decision alone and cannot see which kind
@@ -696,8 +703,7 @@ impl CertCheck {
             | Self::Surface2Residual
             | Self::TangentHull
             | Self::PlaneNurbsOnLocus
-            | Self::PlaneNurbsHull
-            | Self::PlaneNurbsCertificate => Ending::Unsized(Unsized::LastResort),
+            | Self::PlaneNurbsHull => Ending::Unsized(Unsized::LastResort),
         }
     }
 }
@@ -2531,11 +2537,20 @@ fn run_checks<T: Decide>(
                     cause,
                 }
             }
-            crate::edge_nurbs::PlaneNurbsRefusal::Escalated(cause) => CertifyError::Escalated {
-                check: CertCheck::PlaneNurbsCertificate,
-                sample: 0,
-                cause,
-            },
+            crate::edge_nurbs::PlaneNurbsRefusal::Escalated { limb, cause } => {
+                CertifyError::Escalated {
+                    check: crate::edge_nurbs::limb_check(limb),
+                    sample: 0,
+                    cause,
+                }
+            }
+            crate::edge_nurbs::PlaneNurbsRefusal::ReportedTransversalityPoisoned(cause) => {
+                CertifyError::Escalated {
+                    check: CertCheck::PlaneNurbsReportedTransversality,
+                    sample: 0,
+                    cause,
+                }
+            }
             other => CertifyError::PlaneNurbs(other),
         })?;
         check_residual(
@@ -2734,7 +2749,7 @@ mod tests {
         CertCheck::ChartResidual,
         CertCheck::PlaneNurbsOnLocus,
         CertCheck::PlaneNurbsHull,
-        CertCheck::PlaneNurbsCertificate,
+        CertCheck::PlaneNurbsReportedTransversality,
     ];
 
     /// **[`ALL_CHECKS`] is the WHOLE taxonomy**, pinned against a
@@ -2773,7 +2788,7 @@ mod tests {
             CertCheck::ChartResidual => 22,
             CertCheck::PlaneNurbsOnLocus => 22,
             CertCheck::PlaneNurbsHull => 22,
-            CertCheck::PlaneNurbsCertificate => 22,
+            CertCheck::PlaneNurbsReportedTransversality => 22,
         };
         for (i, check) in ALL_CHECKS.iter().enumerate() {
             assert!(
@@ -4292,12 +4307,81 @@ mod tests {
         for (reading, definite, undecided, exact) in rows {
             assert_eq!(limb.ending(reading).unwrap(), definite, "{reading:?}");
             assert_eq!(
-                P::Escalated(cause).ending(reading).unwrap(),
+                P::Escalated {
+                    limb: crate::ssi::SsiLimb::OnLocus,
+                    cause
+                }
+                .ending(reading)
+                .unwrap(),
                 undecided,
                 "{reading:?}"
             );
             assert_eq!(unavailable.ending(reading).unwrap(), exact, "{reading:?}");
             assert_eq!(chart.ending(reading).unwrap(), exact, "{reading:?}");
+        }
+    }
+
+    /// **A certificate escalation ends by its limb's decision.** Through
+    /// the lane's map into certification and directly on the lane's
+    /// refusal alike: limbs 1 and 2 are residuals (the last resort at a
+    /// build), limb 3's margin in band is the transversality's (its
+    /// lever and the tolerance below `m/K`), and the poisoned reported
+    /// transversality ends in the kernel-defect ending.
+    #[test]
+    fn a_certificate_escalation_ends_by_its_limbs_decision() {
+        use crate::edge_nurbs::PlaneNurbsRefusal as P;
+        use crate::ssi::SsiLimb;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cause = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("a_probe"),
+            terminal_sliver: false,
+        };
+        let tube = "Recourse: move the geometry so the faces cross at a clearer angle, or, if \
+                    this angle is intended, tighten the tolerance below 5e-10 m";
+        for (refusal, check, want) in [
+            (
+                P::Escalated {
+                    limb: SsiLimb::OnLocus,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::PlaneNurbsOnLocus,
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                P::Escalated {
+                    limb: SsiLimb::HullSup,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::PlaneNurbsHull,
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                P::Escalated {
+                    limb: SsiLimb::Tube,
+                    cause: cause(MarginDiag::value(5e-9)),
+                },
+                CertCheck::Transversality,
+                tube,
+            ),
+            (
+                P::ReportedTransversalityPoisoned(cause(MarginDiag::INVALID)),
+                CertCheck::PlaneNurbsReportedTransversality,
+                KERNEL_DEFECT_ENDING,
+            ),
+        ] {
+            let (got_check, _) = refusal.decision().unwrap();
+            assert_eq!(got_check, check, "{refusal:?}");
+            assert_eq!(refusal.ending(Reading::Build).unwrap(), want, "{refusal:?}");
+            let P::Escalated { limb, cause } = refusal else {
+                continue;
+            };
+            assert_eq!(
+                limb.recourse(RefusedArm::Undecided(&cause), Reading::Build),
+                want,
+                "the SSI door's own ending for {limb:?}"
+            );
         }
     }
 
@@ -4313,7 +4397,9 @@ mod tests {
     ///   kernel-defect ending, the file's too at rest, and its definite
     ///   refusal ends the same;
     /// - an approximation (a fitted carrier on its surface, the
-    ///   plane × NURBS certificate) ends in the last resort.
+    ///   plane × NURBS residual limbs) ends in the last resort, and the
+    ///   plane × NURBS lane's poisoned reported transversality, which
+    ///   no geometry reaches, in the kernel-defect ending.
     #[test]
     fn each_decision_family_ends_in_its_routed_sentence() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4370,8 +4456,15 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE,
             ),
             (
-                undecided(CertCheck::PlaneNurbsCertificate, MarginDiag::INVALID),
+                undecided(CertCheck::PlaneNurbsHull, MarginDiag::value(5e-9)),
                 KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                undecided(
+                    CertCheck::PlaneNurbsReportedTransversality,
+                    MarginDiag::INVALID,
+                ),
+                KERNEL_DEFECT_ENDING,
             ),
             (
                 undecided(CertCheck::ParamSpan, MarginDiag::value(0.0)),
@@ -4563,7 +4656,7 @@ mod tests {
             (CertCheck::ChartImage, Defect),
             (CertCheck::PlaneNurbsOnLocus, LastResort),
             (CertCheck::PlaneNurbsHull, LastResort),
-            (CertCheck::PlaneNurbsCertificate, LastResort),
+            (CertCheck::PlaneNurbsReportedTransversality, Defect),
         ];
         assert_eq!(table.len(), ALL_CHECKS.len());
         for check in ALL_CHECKS {

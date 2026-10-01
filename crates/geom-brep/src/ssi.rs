@@ -125,7 +125,10 @@ pub mod system;
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
-use geom_core::{Band, Indeterminate, Margin, Point3};
+use geom_core::{Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, Margin, Point3, SizedPass};
+
+use crate::certify::CertCheck;
+use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, StoredDefinite};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
 pub use exhaust::{
@@ -255,6 +258,10 @@ pub enum SsiError {
     /// construction, not something to march through, and in-band
     /// contact is a genuine sliver of the operand pair (F6). We never
     /// desingularize — Hoffmann §6.5 is deliberately not adopted.
+    ///
+    /// The refused arm of the transversality decision
+    /// ([`crate::CertCheck::Transversality`]), which passes on a positive
+    /// sign, so it ends by that decision's table.
     TransversalityBand {
         /// The sine of the angle between the operand normals.
         sin_theta: f64,
@@ -262,6 +269,27 @@ pub enum SsiError {
         arm: f64,
         /// Hoffmann's own σ₂ signal at the same state (diagnostic).
         sigma_min: f64,
+        /// The verdict on `sin θ · arm`, with the margin it classified.
+        verdict: Refused,
+    },
+    /// A cylinder × sphere pair is tangent to tolerance — the sphere
+    /// rests against the wall, or the cylinder is inscribed in it —
+    /// decided by the pair's own tangency gap before any rung runs
+    /// (`ssi_cs_tangency`, C5's within-pair degeneracy rule). The C7
+    /// regime, like [`SsiError::TransversalityBand`], reached by a
+    /// different decision: its margin is the gap from the tangent pose.
+    PairTangent {
+        /// The verdict on the gap, with the margin it classified.
+        verdict: Refused,
+    },
+    /// An operand's stored datum is not a finite number, so the operand
+    /// describes no surface. Refused at the door, as that operand's own
+    /// fault, before any sweep or march reads it.
+    OperandNotFinite {
+        /// Which operand, in the door's own words.
+        operand: &'static str,
+        /// The first datum that is not finite.
+        datum: geom::SurfaceDatum,
     },
     /// The subdivision reached its named floor with a cell it could
     /// neither exclude nor account for. **This is the never-silence
@@ -390,8 +418,19 @@ pub enum SsiError {
         /// What the arm expects.
         expected: &'static str,
     },
-    /// A named trilean landed in the ambiguity band or poisoned (F6).
+    /// A trace's named trilean landed in the ambiguity band or poisoned
+    /// (F6).
     Escalated(Indeterminate),
+    /// A certificate limb's trilean landed in the ambiguity band or
+    /// poisoned (F6) — [`SsiError::CertificateLimb`]'s undecided
+    /// sibling, ending by the same limb's decision
+    /// ([`SsiLimb::recourse`]).
+    CertificateEscalated {
+        /// Which limb.
+        limb: SsiLimb,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
     /// Band construction refused.
     Band(geom_core::BandError),
     /// A decoupled marcher step tolerance was not a usable length.
@@ -428,17 +467,33 @@ impl From<geom_core::BandError> for SsiError {
 impl core::fmt::Display for SsiError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // The doors take no declaration, so no ending offers one.
             Self::TransversalityBand {
                 sin_theta,
                 arm,
                 sigma_min,
+                verdict,
             } => write!(
                 f,
-                "ssi: transversality died along the candidate locus \
-                 (sin θ = {sin_theta:e}, arm = {arm:e} m, σ₂ = {sigma_min:e}) — this is \
-                 the tangency regime (TangentIntersection), not a locus to \
-                 march through; separate the operands, declare the tangency, or lower \
-                 the tolerance"
+                "ssi: the operands meet tangentially along the candidate locus \
+                 (sin θ = {sin_theta:e}, arm = {arm:e} m, σ₂ = {sigma_min:e}): the tangency \
+                 regime (TangentIntersection), not a locus to march. {}",
+                crate::certify::recourse(CertCheck::Transversality, verdict.arm(), Reading::Build)
+            ),
+            Self::PairTangent { verdict } => write!(
+                f,
+                "ssi: the sphere and the cylinder touch rather than cross (gap from the \
+                 tangent pose {:e} m): the tangency regime (TangentIntersection), not a \
+                 locus to march. {}",
+                verdict.margin(),
+                PAIR_TANGENCY.recourse(verdict.arm(), Reading::Build)
+            ),
+            Self::OperandNotFinite { operand, datum } => write!(
+                f,
+                "ssi: the {operand}'s {} is not a finite number, so it describes no surface \
+                 and nothing was traced. Recourse: give the {operand} a finite {}",
+                datum.name(),
+                datum.name()
             ),
             Self::ExhaustivenessInconclusive(r) => {
                 let (cell_width, floor, examined) = (r.cell_width, r.floor, r.examined);
@@ -534,11 +589,10 @@ impl core::fmt::Display for SsiError {
             Self::Fit(e) => write!(f, "ssi: the fitting stack refused the marched trace: {e}"),
             Self::FitSampleBudget { samples, budget } => write!(
                 f,
-                "ssi: one branch marched {samples} samples against a {budget}-sample fit \
-                 budget — at this tolerance and this operand curvature the carrier needs \
-                 more control points than the fit's cubic solve can afford; raise the \
-                 tolerance, or wait for the compaction work that fits a chosen knot \
-                 structure by least squares instead of interpolating every sample"
+                "ssi: a branch marched {samples} samples against a {budget}-sample fit \
+                 budget; this tolerance and curvature need more control points than the \
+                 fit affords. Recourse: loosen the tolerance until a branch needs at most \
+                 {budget} samples, {KERNEL_LIMIT_LAST_RESORT}"
             ),
             Self::UnsupportedCertificate { what } => {
                 write!(f, "ssi: {what}")
@@ -551,8 +605,15 @@ impl core::fmt::Display for SsiError {
             // recourse exactly once (S6).
             Self::Escalated(diag) => write!(
                 f,
-                "ssi: a trace or certificate trilean escalated — an ill-conditioned \
-                 operand pair at this tolerance: {diag}"
+                "ssi: a trace trilean escalated — an ill-conditioned operand pair at \
+                 this tolerance: {diag}"
+            ),
+            Self::CertificateEscalated { limb, cause } => write!(
+                f,
+                "ssi: the fitted carrier's {} escalated: {}. {}",
+                limb.name(),
+                cause.payload(),
+                limb.recourse(RefusedArm::Undecided(cause), Reading::Build)
             ),
             Self::Band(e) => write!(f, "ssi: {e}"),
             Self::InvalidMarchTol { value } => write!(
@@ -752,6 +813,32 @@ fn branch_tubes(branch: &SsiBranch) -> Vec<Box3> {
     certify::tube_boxes(c, branch.certificate.tube_radius)
 }
 
+/// The cylinder × sphere tangency decision (`ssi_cs_tangency`): the
+/// gap from the tangent pose, which passes on either definite sign.
+const PAIR_TANGENCY: SizedDecision = SizedDecision {
+    lever: "move the sphere or the cylinder so they cross clearly rather than touch",
+    size: "gap",
+    passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// `surface`, the door's `operand`, refused when one of its stored data
+/// is not a finite number ([`SsiError::OperandNotFinite`]). A spline
+/// operand's net is read by the door's own chart-speed guard.
+fn finite_operand(operand: &'static str, surface: &Surface<f64>) -> Result<(), SsiError> {
+    let geom::SurfaceData::Analytic(data) = surface.data() else {
+        return Ok(());
+    };
+    match data
+        .into_iter()
+        .find(|(_, value)| !value.scalars().all(f64::is_finite))
+    {
+        Some((datum, _)) => Err(SsiError::OperandNotFinite { operand, datum }),
+        None => Ok(()),
+    }
+}
+
 /// **cylinder × sphere** — the ℝ³ implicit-pair arm (2×3 SVD, module
 /// docs). Shape (iv)'s planted small loop lives here.
 ///
@@ -790,6 +877,8 @@ pub fn cylinder_sphere_ssi(
         (Surface::Sphere { .. }, Surface::Cylinder { .. }) => (a, b),
         _ => (b, a),
     };
+    finite_operand("sphere", sphere)?;
+    finite_operand("cylinder", cyl)?;
     let (
         Surface::Sphere { center, radius, .. },
         &Surface::Cylinder {
@@ -808,13 +897,17 @@ pub fn cylinder_sphere_ssi(
     let q = c - origin;
     let d = (q - axis * q.dot(axis)).norm();
     let tangency = ((d - r).abs() - big_r).abs().min((d + r - big_r).abs());
-    match crate::dihedral::decide("ssi_cs_tangency", Margin::of(tangency), band) {
-        Ok(geom_core::Sign::Positive | geom_core::Sign::Negative) => {}
-        Ok(geom_core::Sign::Zero) => {
-            return Err(SsiError::TransversalityBand {
-                sin_theta: 0.0,
-                arm: big_r.min(r),
-                sigma_min: 0.0,
+    match crate::dihedral::decide_reported("ssi_cs_tangency", Margin::of(tangency), band) {
+        Ok(geom_core::Decided {
+            sign: geom_core::Sign::Positive | geom_core::Sign::Negative,
+            ..
+        }) => {}
+        Ok(geom_core::Decided {
+            sign: geom_core::Sign::Zero,
+            margin,
+        }) => {
+            return Err(SsiError::PairTangent {
+                verdict: Refused::Zero(crate::recourse::Classified { margin, band }),
             });
         }
         Err(diag) => return Err(SsiError::Escalated(diag)),
@@ -979,6 +1072,10 @@ pub fn plane_nurbs_ssi(
             expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
         });
     };
+    // Before any sweep: the chart sweep lifts the plane's origin and
+    // normal into intervals, which refuse a non-finite point, and its
+    // refusal arm can only name the wall's net.
+    finite_operand("plane", plane)?;
     let half = domain.half_extent;
     let Some(chart_a) = Chart::plane_of(plane, (-half, half), (-half, half)) else {
         return Err(SsiError::WrongLane {
@@ -1232,6 +1329,7 @@ pub fn trace_plane_nurbs_uncertified(
             expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
         });
     };
+    finite_operand("plane", plane)?;
     let half = domain.half_extent;
     let Some(chart_a) = Chart::plane_of(plane, (-half, half), (-half, half)) else {
         return Err(SsiError::WrongLane {
@@ -1325,6 +1423,8 @@ pub fn idealized_trace_r3(
     domain: SsiDomain,
     band: Band,
 ) -> Result<(Vec<Point3<f64>>, BranchEnd), SsiError> {
+    finite_operand("first operand", a)?;
+    finite_operand("second operand", b)?;
     let sys = ImplicitPairR3 { a, b };
     let slab = domain.slab();
     let ctx = MarchContext::<3> {
@@ -1386,5 +1486,69 @@ mod fold_tests {
         assert!(nan_propagating_max(f64::NAN, f64::NAN).is_nan());
         assert_eq!(nan_propagating_max(1.0, 2.0), 2.0);
         assert_eq!(nan_propagating_max(f64::INFINITY, 1.0), f64::INFINITY);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod ending_tests {
+    use geom_core::{Band, KERNEL_LIMIT_LAST_RESORT, MarginDiag};
+
+    use super::{SSI_MAX_FIT_SAMPLES, SsiError};
+    use crate::recourse::{Classified, Refused};
+
+    /// The SSI refusals that end by a decision end by its table: the
+    /// transversality death and the pair's tangency offer the tolerance
+    /// their in-band margin gives (`m/K`, here `K = 10`) and no
+    /// declaration (the doors take none); the spent fit budget ends in
+    /// the loosening clause and the last resort, within 50 words.
+    #[test]
+    fn each_ssi_ending_is_its_decisions() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = Refused::Zero(Classified {
+            margin: MarginDiag::value(5e-10),
+            band,
+        });
+        let death = SsiError::TransversalityBand {
+            sin_theta: 5e-10,
+            arm: 1.0,
+            sigma_min: 1e-10,
+            verdict: zero,
+        }
+        .to_string();
+        assert!(
+            death.ends_with(
+                "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+                 angle is intended, tighten the tolerance below 5e-11 m"
+            ),
+            "{death}"
+        );
+        let pair = SsiError::PairTangent { verdict: zero }.to_string();
+        assert!(
+            pair.ends_with(
+                "Recourse: move the sphere or the cylinder so they cross clearly rather than \
+                 touch, or, if this gap is intended, tighten the tolerance below 5e-11 m"
+            ),
+            "{pair}"
+        );
+        for msg in [&death, &pair] {
+            assert!(!msg.contains("declare"), "{msg}");
+        }
+        let samples = 4 * SSI_MAX_FIT_SAMPLES;
+        let budget = SsiError::FitSampleBudget {
+            samples,
+            budget: SSI_MAX_FIT_SAMPLES,
+        }
+        .to_string();
+        assert!(
+            budget.ends_with(&format!(
+                "Recourse: loosen the tolerance until a branch needs at most \
+                 {SSI_MAX_FIT_SAMPLES} samples, {KERNEL_LIMIT_LAST_RESORT}"
+            )),
+            "{budget}"
+        );
+        assert!(budget.contains(&samples.to_string()), "{budget}");
+        let words = budget.split_whitespace().count();
+        assert!(words < 50, "{words} words: {budget}");
     }
 }

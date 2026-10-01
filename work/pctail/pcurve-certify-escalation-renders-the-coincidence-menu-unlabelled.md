@@ -60,3 +60,19 @@ no subject if a guarded row rendered it (none does today;
 `topo/tests/review_ssiflat_r1_probes.rs` pins the current words). The
 repair is a clause saying what the certificate could not decide, in
 words.
+
+## The fitted escalation drops its limb (SSI, `ssi-diag`)
+
+The SSI certificate's escalations now carry the limb that escalated
+(`geom_brep::SsiError::CertificateEscalated { limb, cause }`), and the
+plane × NURBS lane routes each limb by its own decision: limbs 1 and 2
+as residuals (the last resort), limb 3's in-band transversality as
+`CertCheck::Transversality` (its lever and the tolerance below `m/K`).
+`pcurve_cache.rs` `ssi_refusal` forwards it as
+`PcurveCertifyError::FittedEscalated { cause }`, dropping the limb, and
+`PcurveCertifyError::ending` ends every `FittedEscalated` in
+`Unsized::LastResort`. So a fitted pcurve whose uniqueness tube's
+transversality lands in band is told to loosen the tolerance, where the
+edge certifier tells the same verdict to move the geometry. The subject
+clause this row asks for is the limb (`SsiLimb::name`), and the ending
+is `SsiLimb::recourse`.

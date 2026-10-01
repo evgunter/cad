@@ -106,7 +106,8 @@
 use geom_core::linalg::svd::Svd;
 use geom_core::{Band, Margin, Point3, Sign, Vec3};
 
-use crate::dihedral::{decide, decide_positive};
+use crate::dihedral::{decide, decide_positive, decide_reported};
+use crate::recourse::Refused;
 
 use super::SsiError;
 use super::system::LocalSystem;
@@ -371,25 +372,19 @@ where
         if transversality.value() < min_transversality {
             min_transversality = transversality.value();
         }
-        match decide("ssi_transversality", transversality, band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => {
-                // The sliver band: a tangential (or in-band tangential)
-                // contact along the candidate locus. C7's regime.
-                return Err(SsiError::TransversalityBand {
-                    sin_theta,
-                    arm,
-                    sigma_min: sigma,
-                });
-            }
-            Ok(Sign::Negative) => {
-                // sin θ · arm is a magnitude; a definite negative can
-                // only be poison arithmetic. Refuse rather than march.
-                return Err(SsiError::TransversalityBand {
-                    sin_theta,
-                    arm,
-                    sigma_min: sigma,
-                });
+        // Zero is the sliver band: a tangential (or in-band tangential)
+        // contact along the candidate locus, C7's regime. `sin θ · arm`
+        // is a magnitude, so a definite negative cannot arise.
+        match decide_reported("ssi_transversality", transversality, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(SsiError::TransversalityBand {
+                        sin_theta,
+                        arm,
+                        sigma_min: sigma,
+                        verdict,
+                    });
+                }
             }
             Err(diag) => return Err(SsiError::Escalated(diag)),
         }

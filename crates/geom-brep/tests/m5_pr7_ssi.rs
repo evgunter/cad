@@ -276,7 +276,14 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             assert!(samples > budget, "BUDGET: {samples} vs {budget}");
             let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
             assert!(msg.contains("fit budget"), "BUDGET: {msg}");
-            assert!(msg.contains("raise the tolerance"), "BUDGET: {msg}");
+            assert!(
+                msg.ends_with(&format!(
+                    "Recourse: loosen the tolerance until a branch needs at most {budget} \
+                     samples, {}",
+                    geom_core::KERNEL_LIMIT_LAST_RESORT
+                )),
+                "BUDGET: {msg}"
+            );
             vacuity::stood_down(
                 &format!("planted fixture, eps = {:e}", eps()),
                 &format!(
@@ -495,9 +502,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             }
             // A hull bound that lands just ABOVE ε is inside the
             // escalation band, so limb 2 speaks as an F6 escalation
-            // rather than a definite refusal. Same limb, same meaning —
-            // and the predicate name is how they are told apart.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_hull_sup") => {
+            // rather than a definite refusal, naming the same limb.
+            Err(SsiError::CertificateEscalated {
+                limb: SsiLimb::HullSup,
+                ref cause,
+            }) if cause.predicate == Some("ssi_hull_sup") => {
                 found = Some((d, f64::NAN));
                 break;
             }
@@ -512,7 +521,10 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // own trilean legitimately lands in the escalation band on
             // the way past: that is limb 1 speaking, and the scan is
             // over.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_on_locus") => {
+            Err(SsiError::CertificateEscalated {
+                limb: SsiLimb::OnLocus,
+                ref cause,
+            }) if cause.predicate == Some("ssi_on_locus") => {
                 break;
             }
             Err(e) => panic!("LIMB-2: unexpected refusal while scanning: {e}"),
@@ -863,6 +875,8 @@ fn a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes() {
     let err = ssi::cylinder_sphere_ssi(&c, &s, slab(), band()).expect_err("must refuse");
     let msg = format!("{err}");
     match err {
+        // The pair's own tangency gap, decided before any rung.
+        SsiError::PairTangent { .. } => {}
         SsiError::TransversalityBand { sin_theta, .. } => {
             assert!(sin_theta < 1.0e-6, "sin θ = {sin_theta}");
         }
@@ -1331,7 +1345,10 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
             );
             assert!(out.branches[0].certificate.hull_sup <= eps());
         }
-        Err(SsiError::Escalated(ref d)) if d.predicate == Some("ssi_hull_sup_chart") => {
+        Err(SsiError::CertificateEscalated {
+            limb: SsiLimb::HullSup,
+            ref cause,
+        }) if cause.predicate == Some("ssi_hull_sup_chart") => {
             assert!(
                 band().zero() <= 10.0 * MEASURED_DEVIATION,
                 "in-band refusal where the band is far above the measured deviation"
@@ -2264,6 +2281,91 @@ fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
             out.exhaustiveness
         ),
     }
+}
+
+/// **A non-finite operand is refused as itself, at the door.** A plane
+/// whose origin or normal is not finite, cut against the ordinary wall,
+/// reached the chart sweep's refusal arm, whose sentence can only blame
+/// the wall's net; a non-finite sphere or cylinder reached the pair's
+/// tangency trilean as an escalation. Each door now names the operand
+/// and the datum before any sweep reads it. The healthy wall and pair
+/// are the file's own, so no other operand can be at fault.
+#[test]
+fn a_non_finite_operand_is_refused_at_the_door_by_name() {
+    let plane = |origin: Point3<f64>, normal: Vec3<f64>| {
+        let Surface::Plane { u_ref, .. } = cutting_plane() else {
+            unreachable!("the cutting plane is a plane")
+        };
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        }
+    };
+    let Surface::Plane { origin, normal, .. } = cutting_plane() else {
+        unreachable!("the cutting plane is a plane")
+    };
+    let expect = |got: Result<geom_brep::SsiOutcome, SsiError>, operand, datum, row: &str| match got
+    {
+        Err(SsiError::OperandNotFinite {
+            operand: o,
+            datum: d,
+        }) if o == operand && d == datum => {
+            let msg = format!("{}", SsiError::OperandNotFinite { operand, datum });
+            assert!(
+                msg.contains(&format!("the {operand}'s {}", datum.name())),
+                "{row}: {msg}"
+            );
+        }
+        Err(other) => panic!("{row}: expected the {operand}'s own refusal, got {other}"),
+        Ok(_) => panic!("{row}: a non-finite {operand} traced"),
+    };
+    let wall = nurbs_wall();
+    for (row, p, datum) in [
+        (
+            "+inf origin",
+            plane(Point3::new(f64::INFINITY, 0.0, 0.4), normal),
+            geom::SurfaceDatum::Origin,
+        ),
+        (
+            "NaN origin",
+            plane(Point3::new(0.0, f64::NAN, 0.4), normal),
+            geom::SurfaceDatum::Origin,
+        ),
+        (
+            "NaN normal",
+            plane(origin, Vec3::new(0.0, f64::NAN, 1.0)),
+            geom::SurfaceDatum::Normal,
+        ),
+    ] {
+        expect(
+            ssi::plane_nurbs_ssi(&p, &wall, wall_domain(), band()),
+            "plane",
+            datum,
+            row,
+        );
+    }
+    let Surface::Sphere {
+        radius,
+        axis,
+        u_ref,
+        ..
+    } = sphere()
+    else {
+        unreachable!("the sphere is a sphere")
+    };
+    let bad_sphere = Surface::Sphere {
+        center: Point3::new(f64::NAN, 0.0, 0.0),
+        radius,
+        axis,
+        u_ref,
+    };
+    expect(
+        ssi::cylinder_sphere_ssi(&threaded_cylinder(), &bad_sphere, slab(), band()),
+        "sphere",
+        geom::SurfaceDatum::Center,
+        "NaN sphere centre",
+    );
 }
 
 /// **The chart-speed guard**: a wall whose certified chart speed is not

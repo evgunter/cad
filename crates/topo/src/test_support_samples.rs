@@ -252,7 +252,15 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             sample: 4,
             cause: diag(),
         },
-        PlaneNurbsRefusal::Escalated(diag()),
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::HullSup,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::Tube,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },

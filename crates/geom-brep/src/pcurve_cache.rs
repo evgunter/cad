@@ -1394,8 +1394,8 @@ impl PcurveCertifyError {
             Self::AzimuthPeriodExceeded => (PcurveCheck::AzimuthPeriod, RefusedArm::SignCertain),
             Self::TrimEscape => (PcurveCheck::TrimContainment, RefusedArm::SignCertain),
             // The fitted lane's SSI certificate is an approximation's, as
-            // the plane × NURBS lane's rung-3 certificate is
-            // (`CertCheck::PlaneNurbsCertificate`).
+            // the plane × NURBS lane's residual limbs are
+            // (`CertCheck::PlaneNurbsOnLocus`, `CertCheck::PlaneNurbsHull`).
             Self::FittedEscalated { cause } => {
                 return Some(Unsized::LastResort.recourse(RefusedArm::Undecided(cause), reading));
             }
@@ -1636,7 +1636,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
         | P::TubeStraddles { .. }
-        | P::Escalated(_)) => unreachable!(
+        | P::Escalated { .. }
+        | P::ReportedTransversalityPoisoned(_)) => unreachable!(
             "chart_image returns these only from its per-sample hook or the certificate, and \
              the mint passes a no-op hook and runs no certificate: {other:?}"
         ),
@@ -1867,7 +1868,9 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // An escalation is the ONE refusal that carries a classified
         // margin, and it leaves through its own door with the
         // classifier's diagnostic whole.
-        E::Escalated(cause) => return PcurveCertifyError::FittedEscalated { cause },
+        E::Escalated(cause) | E::CertificateEscalated { cause, .. } => {
+            return PcurveCertifyError::FittedEscalated { cause };
+        }
         E::CertificateLimb { limb, value } => (
             Some(limb),
             "a certificate limb exceeded ε",
@@ -1907,6 +1910,8 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         // refusals whose full text lives at the SSI door; none of them
         // measured a quantity this lane can name.
         E::TransversalityBand { .. }
+        | E::PairTangent { .. }
+        | E::OperandNotFinite { .. }
         | E::ExhaustivenessInconclusive(_)
         | E::CellBudget { .. }
         | E::StepBudget { .. }

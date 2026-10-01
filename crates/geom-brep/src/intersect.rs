@@ -1560,7 +1560,7 @@ pub enum CylinderSphereSection<T: Real> {
 /// `min(||d − r| − R|, |d + r − R|)` collapses to `|r − R|` — the
 /// absolute value of row 5's margin, on the same band. So the two
 /// doors partition the coaxial poses identically: where this arm says
-/// `TangentCircle`, the marcher says `TransversalityBand` and refuses
+/// `TangentCircle`, the marcher says `PairTangent` and refuses
 /// toward C7; where this arm says `TwoCircles` or `Empty`, the
 /// marcher's trilean is definite. Same margin shape, same verdict
 /// class — a tangency is classification data at both doors, and
