@@ -216,3 +216,4 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   has the same conflation of causes, though its claim holds in
   production today; not filed.
 - Unit 2 (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) dispatched on `cleave/mint-doors`; it also takes TOPO's `euler-rebased-run-...` row. Review: single, full.
+- Ev ruled on PR 3642: derive, no declaration (fork row 34; both designers' recommendation). The tangency lane is dispatched on `cleave/tangency`. Review: single, full.
