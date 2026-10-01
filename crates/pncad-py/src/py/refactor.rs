@@ -170,14 +170,16 @@ impl InterfaceRecord {
 /// Raise `SplitError` carrying the refusal's stable tag and payload.
 fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     use d::SplitError as E;
-    let id = |n: &d::RecipeNodeId| -> Py<PyAny> {
-        Py::new(py, NodeId(*n))
+    // The machine channel keeps the full id and the stored name; the
+    // spoken forms are the message's.
+    let id = |n: &d::SpokenNode| -> Py<PyAny> {
+        Py::new(py, NodeId(n.id()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None())
     };
     let text = |s: &str| -> Py<PyAny> { PyString::new(py, s).unbind().into_any() };
-    let named = |n: &pncad::prelude::StableName| -> Py<PyAny> {
-        name_text(py, n)
+    let named = |n: &d::SpokenName| -> Py<PyAny> {
+        name_text(py, n.name())
             .map(|s| text(&s))
             .unwrap_or_else(|_| py.None())
     };
@@ -472,14 +474,16 @@ pub(crate) fn split(
 /// Raise `InlineError` carrying the refusal's stable tag and payload.
 fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
     use d::InlineError as E;
-    let id = |n: &d::RecipeNodeId| -> Py<PyAny> {
-        Py::new(py, NodeId(*n))
+    // The machine channel keeps the full id and the stored name; the
+    // spoken forms are the message's.
+    let id = |n: &d::SpokenNode| -> Py<PyAny> {
+        Py::new(py, NodeId(n.id()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None())
     };
     let text = |s: &str| -> Py<PyAny> { PyString::new(py, s).unbind().into_any() };
-    let named = |n: &pncad::prelude::StableName| -> Py<PyAny> {
-        name_text(py, n)
+    let named = |n: &d::SpokenName| -> Py<PyAny> {
+        name_text(py, n.name())
             .map(|s| text(&s))
             .unwrap_or_else(|_| py.None())
     };
