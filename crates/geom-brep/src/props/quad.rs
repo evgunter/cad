@@ -1116,6 +1116,21 @@ const QUAD2_HULL_BLOCKS: usize = 8;
 /// a face the last round provably cannot certify is refused after
 /// round 0 ([`last_round_refuses`]).
 const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
+
+/// **The last round every lane's schedule reaches** — the round a
+/// caller entering faces of several lanes one [`RoundWindow::at`] at a
+/// time may ask for without knowing which lane a face takes. Each lane
+/// asserts that a window it is handed starts inside its own schedule;
+/// this is the shortest of them, and the compile-time check below keeps
+/// it so.
+pub const LAST_ROUND_EVERY_LANE_RUNS: usize = QUAD2_MAX_ROUNDS;
+
+const _: () = assert!(
+    LAST_ROUND_EVERY_LANE_RUNS <= QUAD_MAX_ROUNDS
+        && LAST_ROUND_EVERY_LANE_RUNS <= QUAD2_MAX_ROUNDS
+        && LAST_ROUND_EVERY_LANE_RUNS <= QUAD2_RATIONAL_MAX_ROUNDS
+        && LAST_ROUND_EVERY_LANE_RUNS <= TRIM_MAX_ROUNDS
+);
 /// Cells per axis of BOTH patch lanes' area pass (fixed, D9). The
 /// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
 /// the area's honest width directly.

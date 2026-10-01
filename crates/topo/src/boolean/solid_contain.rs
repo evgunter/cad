@@ -4953,7 +4953,9 @@ fn at_infinity_side<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
-    // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
+    // Closed-form lane: this door is `T: Decide` and holds no
+    // quadrature lane, so an obliquely trimmed face refuses here
+    // (`work/contact/at-infinity-probe-measures-in-closed-form-only`).
     //
     // The props refusal is READ, not flattened. `VolumeUncertified`'s
     // own message asserts that the solid itself is fine and only its

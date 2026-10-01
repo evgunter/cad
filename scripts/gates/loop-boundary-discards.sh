@@ -104,8 +104,12 @@
 #     a closure is not an item and the reader has no name for it. That
 #     is what `<fragment>` is for.
 #   * `macro_rules!` BODIES AND `include!`d TEXT, which `lib.sh`'s
-#     reader does not expand. `#[cfg(test)]` items are skipped, so a
-#     discard reachable only from a test module is not counted.
+#     reader does not expand. `#[cfg(test)]` items INSIDE a scanned
+#     file are skipped, so a discard in an inline test module is not
+#     counted. A whole FILE mounted only under `#[cfg(test)]`
+#     (`review_d18.rs`) is still scanned, because the gate reads every
+#     crate source rather than `gate_production_sources`' narrowed list,
+#     and a discard there is registered like any other.
 #   * `Self::(Cycle|Empty) { … }` IS MATCHED, for an `impl LoopBoundary`
 #     that writes its own variants that way. The cost is the one
 #     OVER-count here: another enum with a struct variant named `Cycle`
@@ -201,6 +205,7 @@ REGISTER=(
   "crates/topo/src/props.rs|loop_edges||1|unaudited"
   "crates/topo/src/replace_face.rs|boundary_edges_into||1|unaudited"
   "crates/topo/src/revert.rs|revert||1|audited: the discarded variant is a lone vertex — no half-edge, no cycle, so no anchor for the reversal to move; the same map leaves that vertex's emanating anchor untouched (it is None on an empty loop, the validated invariant), so the loop travels unchanged, as the module docs say every loop's membership does"
+  "crates/topo/src/review_d18.rs|far_loop||1|audited: the discarded variant is a lone vertex — no half-edge to plant a namer on, and none a kill walks, so the far loop the witness tears must be a cycle"
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
   "crates/topo/src/seqgen.rs|mef_chords_candidates||1|unaudited"
