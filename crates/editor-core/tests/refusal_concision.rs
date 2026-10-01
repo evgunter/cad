@@ -463,6 +463,19 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::ShellWitnessExhausted {
                 operand: Operand::B,
                 shell: topo::ShellKey::default(),
+                on_boundary: 26,
+                in_band: 0,
+                first_in_band: None,
+            },
+        ),
+        (
+            "ShellWitnessExhausted (in band)",
+            BooleanError::ShellWitnessExhausted {
+                operand: Operand::B,
+                shell: topo::ShellKey::default(),
+                on_boundary: 20,
+                in_band: 6,
+                first_in_band: Some(topo::PointInSolidError::RayExhausted),
             },
         ),
         (

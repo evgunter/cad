@@ -106,9 +106,13 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 /// was poisoned, a mate whose placer's row cannot state its refusal)
 /// never quotes it in its message; the carried refusal crosses typed, as this exception's
 /// `__cause__` ([`with_carried`]).
-fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
-    let err = refused(py, node, &error.kind, error.to_string(), None);
-    with_carried(py, err, error.kind.carried_chain())
+///
+/// The message speaks the node from `doc`, the document the evaluation
+/// is OF ([`Evaluation`]'s captured `doc`), so a label set after
+/// `evaluate` shows on the next evaluation; `node` crosses as the id.
+fn node_failure(py: Python<'_>, doc: &d::ProfileDoc, node: NodeId, error: &d::NodeError) -> PyErr {
+    let err = refused(py, node, &error.kind, error.spoken(doc), None);
+    with_carried(py, err, error.kind.carried_chain(), Some(doc))
 }
 
 /// [`node_failure`]'s one exception, over a kind, its rendering and the
@@ -169,8 +173,13 @@ fn refused(
 }
 
 /// **`chain` as `err`'s `__cause__`** ([`carried_cause`]).
-pub(crate) fn with_carried(py: Python<'_>, err: PyErr, chain: d::CarriedChain<'_>) -> PyErr {
-    if let Some(cause) = carried_cause(py, chain) {
+pub(crate) fn with_carried(
+    py: Python<'_>,
+    err: PyErr,
+    chain: d::CarriedChain<'_>,
+    here: Option<&d::ProfileDoc>,
+) -> PyErr {
+    if let Some(cause) = carried_cause(py, chain, here) {
         err.set_cause(py, Some(cause));
     }
     err
@@ -200,8 +209,16 @@ pub(crate) const LINKED_LEVELS: usize = 256;
 /// is every level it stands for, one line each, deepest first — the
 /// order CPython prints a cause chain in. So the printed traceback
 /// still has one line per document level.
-pub(crate) fn carried_cause(py: Python<'_>, chain: d::CarriedChain<'_>) -> Option<PyErr> {
+pub(crate) fn carried_cause(
+    py: Python<'_>,
+    chain: d::CarriedChain<'_>,
+    here: Option<&d::ProfileDoc>,
+) -> Option<PyErr> {
     let levels: Vec<d::CarriedLevel<'_>> = chain.collect();
+    let line = |level: &d::CarriedLevel<'_>| match here {
+        Some(doc) => level.line_in(doc),
+        None => level.line(),
+    };
     let (linked, folded) = levels.split_at(levels.len().min(LINKED_LEVELS).saturating_sub(1));
     let raise = |level: &d::CarriedLevel<'_>, message: String| {
         let document = match level.document {
@@ -217,10 +234,10 @@ pub(crate) fn carried_cause(py: Python<'_>, chain: d::CarriedChain<'_>) -> Optio
         )
     };
     let deepest = folded.last()?;
-    let lines: Vec<String> = folded.iter().rev().map(d::CarriedLevel::line).collect();
+    let lines: Vec<String> = folded.iter().rev().map(line).collect();
     let innermost = raise(deepest, lines.join("\n"));
     Some(linked.iter().rev().fold(innermost, |inner, level| {
-        let err = raise(level, level.line());
+        let err = raise(level, line(level));
         err.set_cause(py, Some(inner));
         err
     }))
@@ -234,6 +251,7 @@ pub(crate) fn carried_cause(py: Python<'_>, chain: d::CarriedChain<'_>) -> Optio
 /// [`node_failure`] does.
 fn poisoning(
     py: Python<'_>,
+    doc: &d::ProfileDoc,
     node: d::RecipeNodeId,
     through: d::RecipeNodeId,
     root: Option<&d::NodeError>,
@@ -264,7 +282,7 @@ fn poisoning(
                     .into_any(),
             ));
             fields.push(("inner_kind", inner_kind(py, &error.kind)));
-            format!("{standing}; the failure there: {error}")
+            format!("{standing}; the failure there: {}", error.spoken(doc))
         }
         None => {
             fields.push(("kind", py.None().into_any()));
@@ -279,7 +297,7 @@ fn poisoning(
         &fields,
     );
     match root {
-        Some(error) => with_carried(py, err, error.kind.carried_chain()),
+        Some(error) => with_carried(py, err, error.kind.carried_chain(), Some(doc)),
         None => err,
     }
 }
@@ -1256,9 +1274,11 @@ impl Evaluation {
         // one's nearest failed ancestor's.
         let root = self.inner.node_error(node.0);
         Err(match (standing, root) {
-            (d::NodeStanding::Failed { .. }, Some(error)) => node_failure(py, *node, error),
+            (d::NodeStanding::Failed { .. }, Some(error)) => {
+                node_failure(py, &self.doc, *node, error)
+            }
             (d::NodeStanding::Poisoned { node, through }, root) => {
-                poisoning(py, node, through, root)
+                poisoning(py, &self.doc, node, through, root)
             }
             (
                 d::NodeStanding::Failed { .. }

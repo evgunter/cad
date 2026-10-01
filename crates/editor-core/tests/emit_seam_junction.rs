@@ -152,7 +152,7 @@ fn point_of(ev: &editor_core::Evaluation<f64>, union: RecipeNodeId, name: &Stabl
         .and_then(|vd| body.get_point(vd.point))
         .copied()
         .expect("the crossing has a point");
-    [p.x, p.y, p.z]
+    p.to_array()
 }
 
 /// **The row's fixture, `[b, g, a, h]`, fuses, and the point where `g`

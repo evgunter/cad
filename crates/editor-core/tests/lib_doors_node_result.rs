@@ -160,7 +160,7 @@ fn refusals_render_as_prose_not_debug_guts() {
     use editor_core::{DimensionError, EditError};
 
     let edit = EditError::UnknownNode {
-        id: RecipeNodeId(tagged(7)),
+        id: editor_core::SpokenNode::absent(RecipeNodeId(tagged(7))),
     };
     // No `edit: ` opening: the frame belongs to whoever received the
     // refusal (the viewer composes "the edit was refused: …", the
@@ -249,11 +249,11 @@ fn refusals_render_as_prose_not_debug_guts() {
         ),
     ] {
         let message = EditError::MetaUnversioned {
-            name: editor_core::StableName {
+            name: editor_core::SpokenName::absent(editor_core::StableName {
                 kind: editor_core::EntityKind::Body,
                 node: RecipeNodeId(tagged(1)),
                 path: vec![editor_core::RoleSeg::OutputBody],
-            },
+            }),
             key: "provenance".to_string(),
             error,
         }

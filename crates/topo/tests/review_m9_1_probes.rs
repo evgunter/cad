@@ -33,7 +33,7 @@ fn declared() -> PlaneIdentity<'static> {
 
 fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
     CarrierDesc::Sphere {
-        center: Point3::new(c[0], c[1], c[2]),
+        center: Point3::from_array(c),
         radius: r,
         outward,
     }
@@ -41,8 +41,8 @@ fn sphere(c: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
 
 fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
     CarrierDesc::Cylinder {
-        origin: Point3::new(o[0], o[1], o[2]),
-        axis: Vec3::new(a[0], a[1], a[2]),
+        origin: Point3::from_array(o),
+        axis: Vec3::from_array(a),
         radius: r,
         outward,
     }
@@ -50,8 +50,8 @@ fn cyl(o: [f64; 3], a: [f64; 3], r: f64, outward: bool) -> CarrierDesc<f64> {
 
 fn plane_s(o: [f64; 3], n: [f64; 3]) -> geom::Surface<f64> {
     geom::Surface::Plane {
-        origin: Point3::new(o[0], o[1], o[2]),
-        normal: Vec3::new(n[0], n[1], n[2]),
+        origin: Point3::from_array(o),
+        normal: Vec3::from_array(n),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }

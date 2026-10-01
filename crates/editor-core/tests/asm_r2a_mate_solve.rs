@@ -524,8 +524,8 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
         applied.maintenance,
         vec![
             Maintenance::Strand {
-                node: mate_node,
-                name: in_part(ids[0], body, CapEnd::Start),
+                node: doc.spoken(mate_node),
+                name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
             },
             Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
                 from: ids[0],
@@ -694,8 +694,8 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
             instance,
             root_is_cut,
         }) => {
-            assert_eq!(root, ids[2], "the torn group's root is named");
-            assert_eq!(instance, ids[3], "so is the member left behind");
+            assert_eq!(root, doc.spoken(ids[2]), "the torn group's root is named");
+            assert_eq!(instance, doc.spoken(ids[3]), "so is the member left behind");
             assert!(root_is_cut, "and which side each is on");
         }
         other => panic!("expected TornGroup, got {other:?}"),
@@ -712,6 +712,20 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
     .to_string();
     assert!(message.contains("tears the placement group"), "{message}");
     assert!(message.contains("widen the cut"), "{message}");
+    assert!(
+        message.contains(&format!(
+            "rooted at {}. The root is cut and its member {} is kept",
+            doc.spoken(ids[2]),
+            doc.spoken(ids[3])
+        )),
+        "both ends are spoken, the root's side and the member's said: {message}"
+    );
+    for id in [ids[2], ids[3]] {
+        assert!(
+            !message.contains(&id.0.to_string()),
+            "{id:?} in decimal: {message}"
+        );
+    }
     // The tear is refused in the OTHER direction too: keeping the
     // root and cutting the member is the same fault.
     let other_way = BTreeSet::from([ids[0], ids[1], mates[0], ids[3]]);
@@ -727,7 +741,7 @@ fn row4f_a_torn_group_cut_refuses_typed_naming_both_sides() {
             instance,
             root_is_cut,
         }) => {
-            assert_eq!((root, instance), (ids[2], ids[3]));
+            assert_eq!((root, instance), (doc.spoken(ids[2]), doc.spoken(ids[3])));
             assert!(!root_is_cut);
         }
         other => panic!("expected TornGroup, got {other:?}"),
@@ -1394,7 +1408,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
         )
         .expect_err("the head names no node");
     assert!(
-        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.node == ghost),
+        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.name().node == ghost),
         "{err:?}"
     );
 }
@@ -1438,7 +1452,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
     match load(&corrupt, Tol::witness()) {
         Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::NodeNotMinted {
             id,
-        })) => assert_eq!(id, RecipeNodeId(99)),
+        })) => assert_eq!(id.id(), RecipeNodeId(99)),
         other => panic!("expected NodeNotMinted, got {other:?}"),
     }
 }
@@ -1523,7 +1537,9 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
     .unwrap_err();
     assert_eq!(
         err,
-        EditError::NameUnresolvedInEvaluation { name: bogus },
+        EditError::NameUnresolvedInEvaluation {
+            name: doc.spoken_name(&bogus)
+        },
         "the mate head is checkable, so it is checked"
     );
 }
@@ -1824,9 +1840,10 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
             &reach,
         )
         .expect_err("the rider contradicts the coincidence");
-    let EditError::MateRefused { node: id, fault } = err else {
+    let EditError::MateRefused { node, fault } = err else {
         panic!("expected MateRefused, got {err:?}");
     };
+    let id = node.id();
     let fault = *fault;
     let editor_core::MateFault::Contradictory {
         held,

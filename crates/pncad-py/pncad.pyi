@@ -193,6 +193,13 @@ class EvaluationError(PncadError):
     always present, `None` where the reason has none (attributes never
     go missing).
 
+    The message speaks the failed node as the document holds it: its
+    kind, its label and its tag, `Extrude "base plate" (3fa9c1d2a0b1)`.
+    It is read off the document the evaluation is OF, the one
+    `evaluate` was handed. So a label set after `evaluate` shows on the
+    next evaluation, not on this one's errors. `node` is the `NodeId`,
+    every bit of it.
+
     TWO WORDS BECAUSE THERE ARE TWO ENUMS, and each is projected where
     it lives. `kind` is the carrier's discriminant — `revolve`,
     `tube`, `shell`, `boolean` — fixed by the node's kind before any

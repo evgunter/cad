@@ -550,8 +550,8 @@ mod tests {
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> PlaneDesc<f64> {
         PlaneDesc {
-            origin: Point3::new(o[0], o[1], o[2]),
-            normal: Vec3::new(n[0], n[1], n[2]),
+            origin: Point3::from_array(o),
+            normal: Vec3::from_array(n),
         }
     }
 

@@ -255,6 +255,7 @@ fn a_declare_orphaned_by_a_cascade_is_reported_at_the_delete_that_orphans_it() {
     let (doc, union, decl) = declared_union(doc, &[m1, m2], pairs);
     let order = editor_core::cascade_delete_order(&doc, m2);
     assert_eq!(order, vec![union, m2], "{order:?}");
+    let declare = doc.spoken(decl);
     let mut doc = doc;
     let mut per_step = Vec::new();
     for id in order {
@@ -280,7 +281,7 @@ fn a_declare_orphaned_by_a_cascade_is_reported_at_the_delete_that_orphans_it() {
     assert_eq!(
         per_step,
         vec![
-            vec![editor_core::Maintenance::OrphanedDeclare { declare: decl }],
+            vec![editor_core::Maintenance::OrphanedDeclare { declare }],
             Vec::new(),
         ],
         "the union's step reports the orphan; the member's step consumes no declaration"

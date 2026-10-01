@@ -287,12 +287,13 @@ cases! {
         Public, Withdrawn(Because::Refuses("Coincidence(VertexOnFace)")) =>
         corner_on_a_corner(Vec3::new(-2.0, 1.0, 0.5), 3e-9);
     // The coincfr4 review's W6: below the vertex's value the containment
-    // refuses (CONTACT's row).
+    // refuses (CONTACT's row): no witness of the wedge's shell decides,
+    // every one of them reading in band.
     wide_wedge_with_a_far_vertex_union: "Coincidence(VertexOnFace)", 1.1e-8 * sin_deg(30.0),
-        Public, Withdrawn(Because::Refuses("Containment")) =>
+        Public, Withdrawn(Because::Refuses("ShellWitnessExhausted")) =>
         turned_wedge(0, true, 10.0, 30.0, 1.0, 1.1e-8);
     wide_wedge_with_a_far_vertex_intersect: "Coincidence(VertexOnFace)",
-        1.1e-8 * sin_deg(30.0), Public, Withdrawn(Because::Refuses("Containment")) =>
+        1.1e-8 * sin_deg(30.0), Public, Withdrawn(Because::Refuses("ShellWitnessExhausted")) =>
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>

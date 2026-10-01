@@ -635,8 +635,8 @@ fn the_edit_door_refuses_a_union_declare_that_is_not_a_declare() {
     );
     assert!(
         matches!(
-            refused,
-            Err(EditError::DeclareInputNotDeclare { input, .. }) if input == far
+            &refused,
+            Err(EditError::DeclareInputNotDeclare { input, .. }) if input.id() == far
         ),
         "expected the declare edge's kind refusal, got {refused:?}"
     );
@@ -727,7 +727,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
             &editor_core::RefusingReach,
         );
         assert!(
-            matches!(refused, Err(EditError::ReadSiteMissingNode { at }) if at == future),
+            matches!(&refused, Err(EditError::ReadSiteMissingNode { at }) if at.id() == future),
             "expected the read-site door's refusal, got {refused:?}"
         );
     }

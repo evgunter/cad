@@ -5,7 +5,8 @@ title: A coincidence decided Zero on every datum is reported with a synthetic Ma
 status: open
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 ## What

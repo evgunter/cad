@@ -2243,7 +2243,10 @@ NOT_BOUND = {
     # `NodeId`'s and `StepId`'s repr, which prints the full id
     # (`FullId`); and its kind word is `Doc.node_kind`, the snake_case
     # vocabulary `src/node_kind.rs` keeps apart from the chrome's noun.
+    # A spoken name is the same: its sentence rides inside the error,
+    # and its machine spelling is the opaque name text.
     "FullId": SHAPE,
+    "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
@@ -2253,6 +2256,12 @@ NOT_BOUND = {
     # rows and the `Datum.direction` bullet's `UnitVec3Error` record,
     # one level in.
     "DirectionRefusal": SHAPE,
+    # `SnapshotError::InputList`'s payload: which of a node's own list
+    # or designation rules a file broke. It crosses as its carrier does,
+    # `PersistError.inner_variant == "input_list"` with the sentence in
+    # the message; the snapshot refusal's payload is the snapshot door's
+    # surface, as the `SnapshotError` row above says.
+    "ListFault": SHAPE,
     # `EditError::DocParamNotDeclared`'s second field: WHICH of the two
     # carry-forward doors was refused. It is `DirectionRefusal`'s row
     # one carrier over, and flattened for a reason of its own: a Python

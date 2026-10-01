@@ -107,7 +107,7 @@ use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::{kept_side, setopfinish};
 use super::join::bool_connect;
-use super::shell_witness::{contact_skip_set, shell_side};
+use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::zip_seam;
@@ -2750,19 +2750,12 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 fn classify_shells<T: Decide>(
     body: &Body<T>,
     other: &Body<T>,
-    contacts: &ContactRecords,
     operand: Operand,
     band: Band,
     tol: Tol,
 ) -> Result<Vec<(ShellKey, SideCode)>, BooleanError> {
-    let skip = contact_skip_set(contacts, operand);
     body.shells()
-        .map(|(shell, _)| {
-            Ok((
-                shell,
-                shell_side(body, shell, other, &skip, operand, band, tol)?,
-            ))
-        })
+        .map(|(shell, _)| Ok((shell, shell_side(body, shell, other, operand, band, tol)?)))
         .collect()
 }
 
@@ -2778,8 +2771,15 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let a_sides = classify_shells(&red.a, b_pristine, &red.contacts, Operand::A, band, tol)?;
-    let b_sides = classify_shells(&red.b, a_pristine, &red.contacts, Operand::B, band, tol)?;
+    debug_assert_contacts_undecisive(
+        &red.contacts,
+        (&red.a, b_pristine),
+        (&red.b, a_pristine),
+        band,
+        tol,
+    );
+    let a_sides = classify_shells(&red.a, b_pristine, Operand::A, band, tol)?;
+    let b_sides = classify_shells(&red.b, a_pristine, Operand::B, band, tol)?;
     let keep_a = kept_side(op, Operand::A);
     let keep_b = kept_side(op, Operand::B);
     let a_keep: Vec<ShellKey> = a_sides

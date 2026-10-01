@@ -109,7 +109,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m, frame_node),
+        Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m.id(), frame_node),
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 
@@ -122,7 +122,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
             measure: m,
             bound: Dimension::Length,
             ..
-        })) => assert_eq!(m, frame_node),
+        })) => assert_eq!(m.id(), frame_node),
         other => panic!("a non-measure target must refuse typed at load, got {other:?}"),
     }
 }
@@ -610,7 +610,7 @@ fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, other),
+        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node.id(), other),
         other => panic!("a placement on a non-instance must refuse typed, got {other:?}"),
     }
 
@@ -618,7 +618,7 @@ fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
     let corrupt = rekey_placement(&text, ids[0], other);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementSite { node })) => {
-            assert_eq!(node, other);
+            assert_eq!(node.id(), other);
         }
         other => panic!("a stranded placement must refuse typed at load, got {other:?}"),
     }
@@ -659,7 +659,7 @@ fn an_improper_placement_is_refused_at_both_doors() {
         Err(PersistError::Snapshot(SnapshotError::PlacementImproper {
             node, determinant, ..
         })) => {
-            assert_eq!(node, ids[0]);
+            assert_eq!(node.id(), ids[0]);
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("an improper frame must refuse typed at load, got {other:?}"),
@@ -686,8 +686,8 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(error @ EditError::NonRigidPlacement { node, at, .. }) => {
-            assert_eq!((node, at), (ids[0], editor_core::FrameSite::Registry));
+        Err(ref error @ EditError::NonRigidPlacement { ref node, at, .. }) => {
+            assert_eq!((node.id(), at), (ids[0], editor_core::FrameSite::Registry));
             let text = error.to_string();
             assert!(
                 text.contains("not definitely rigid") && text.contains("Recourse:"),
@@ -706,7 +706,7 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
     });
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementNonRigid { node, at, .. })) => {
-            assert_eq!((node, at), (ids[0], editor_core::FrameSite::Registry));
+            assert_eq!((node.id(), at), (ids[0], editor_core::FrameSite::Registry));
         }
         other => panic!("a scaled frame must refuse typed at load, got {other:?}"),
     }
@@ -752,8 +752,8 @@ fn a_placement_off_the_gauge_is_keyed_on_it_rather_than_refused() {
     let corrupt = rekey_placement(&text, ids[0], ids[1]);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementNotGauge { node, gauge })) => {
-            assert_eq!(node, ids[1]);
-            assert_eq!(gauge, ids[0]);
+            assert_eq!(node.id(), ids[1]);
+            assert_eq!(gauge.id(), ids[0]);
         }
         other => panic!("a non-gauge placement row must refuse typed at load, got {other:?}"),
     }
@@ -854,7 +854,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node, non_sketch),
+        Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node.id(), non_sketch),
         other => panic!("a witness on a non-sketch must refuse typed, got {other:?}"),
     }
 
@@ -862,7 +862,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
     let corrupt = rekey_witness(&text, sketch, non_sketch);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::WitnessSite { node })) => {
-            assert_eq!(node, non_sketch);
+            assert_eq!(node.id(), non_sketch);
         }
         other => panic!("a witness on a non-sketch must refuse typed at load, got {other:?}"),
     }
@@ -897,7 +897,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::UnknownNode { id }) => assert_eq!(id, gone),
+        Err(EditError::UnknownNode { id }) => assert_eq!(id.id(), gone),
         other => panic!("a witness on a missing node must refuse typed, got {other:?}"),
     }
 
@@ -905,7 +905,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let corrupt = rekey_witness(&text, sketch, gone);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::WitnessOnMissingNode { node })) => {
-            assert_eq!(node, gone);
+            assert_eq!(node.id(), gone);
         }
         other => panic!("a witness on a missing node must refuse typed at load, got {other:?}"),
     }
