@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-01
 priority: P1
 cost: M
-refs: [graft-recertifies-through-the-narrow-lane, euler-rebased-run-recertifies-through-the-plain-door]
+refs: [graft-recertifies-through-the-narrow-lane]
 ---
 
 
@@ -26,5 +26,5 @@ name carry the scalar's full rights. Once that holds,
 The nurbs-lane lane (PR 3678) counted 33 direct non-test
 `.set_edge_curve(` call sites: 25 in topo and 8 in sweep. Measure which
 operations can actually receive the class before sizing the tests.
-TOPO's `euler-rebased-run-recertifies-through-the-plain-door` is the
+TOPO's `work/topo/euler-rebased-run-recertifies-through-the-plain-door` (arriving with PR 3678) is the
 same shape one layer down, so take it together or say why not.
