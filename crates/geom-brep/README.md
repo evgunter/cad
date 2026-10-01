@@ -155,8 +155,16 @@ validity is part of the certificate: one branch pinned at the start (a
 τ jump is unrepresentable in `Harmonic`'s `α + β·t`; the branch per face
 is chosen once by the loop walk in `topo::pcurves` and certified by loop
 continuity) and trim containment against the caller's `ChartWindow`
-(`TrimEscape`). Planar faces store nothing; `chart_pcurve` derives on
-demand. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Fitted`, `General`
+(`TrimEscape`). A stored row is a cache of what the face's loop walk
+derives, never a fact of its own: planar faces store nothing and
+`chart_pcurve` derives on demand, and a curved face's missing row is
+derived the same way, by the walk, pinned to the branch of the rows
+the face does store. So whether a row is stored is never a finding:
+tier 3 re-certifies every stored row and derives every missing one, on
+every face of a minting chart, and what it reports is what fails to
+derive or certify. A face whose carrier is outside the closed-form
+lane's coverage is a coverage status reported beside the validity
+verdict, not within it. The lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional
