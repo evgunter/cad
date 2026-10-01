@@ -71,7 +71,7 @@
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::norm_sup;
+use geom_core::interval::{div_down, norm_sq, norm_sup};
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, Vec3};
 
 /// An axis-aligned enclosure box in ℝ³.
@@ -252,14 +252,6 @@ fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
     ]
 }
 
-/// `|q|²` with **tight** squares — [`Interval::sqr`], not `q*q`:
-/// a straddling coordinate multiplied by itself as two independent
-/// operands would report a spurious negative lower bound (the
-/// `norm_squared` rationale, M2 PR 3).
-fn norm_sq(q: [Interval; 3]) -> Interval {
-    q[0].sqr() + q[1].sqr() + q[2].sqr()
-}
-
 /// The enclosure of the **linearized implicit residual in meters**
 /// ([`crate::implicit::implicit_residual`]) over `b`.
 ///
@@ -283,7 +275,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             // it (the interval-square rule). One crossing, bound once,
             // for the same reason.
             let r = Interval::from_certified(radius);
-            (norm_sq(subp(b, center)) - r.sqr()) / (two * r)
+            (norm_sq(&subp(b, center)) - r.sqr()) / (two * r)
         }
         Surface::Cylinder {
             origin,
@@ -309,7 +301,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
             // axis-aligned cylinder it is exact.
             let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
             let r = Interval::from_certified(radius);
-            (norm_sq(w) - r.sqr()) / (two * r)
+            (norm_sq(&w) - r.sqr()) / (two * r)
         }
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
@@ -415,14 +407,11 @@ pub(super) fn chart_transverse_margin(
     if !stretch.is_finite() || stretch <= 0.0 {
         return None;
     }
-    // A lower bound over an upper bound is a lower bound only if the
-    // quotient rounds down: to nearest, it can land above the real one.
-    let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
-    Some(if margin > 0.0 {
-        margin.next_down()
-    } else {
-        margin
-    })
+    // A lower bound over an upper bound stays one only rounded down.
+    Some(div_down(
+        zero_free_lower_bound(phi_u * ex + phi_v * ey),
+        stretch,
+    ))
 }
 
 /// The certified distance of an enclosure from zero: `0` when it

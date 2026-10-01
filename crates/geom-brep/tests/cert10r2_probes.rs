@@ -237,7 +237,7 @@ fn probe1_quarter_cylinder_fold_norms_dominate() {
     let comp = |f: fn(&PatchCell) -> [Interval; 3]| -> f64 {
         cells
             .iter()
-            .map(|c| patch_bound::sq_norm(f(c)).hi())
+            .map(|c| geom_core::interval::norm_sq(&f(c)).hi())
             .fold(0.0f64, f64::max)
             .sqrt()
             .next_up()

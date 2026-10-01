@@ -1026,8 +1026,8 @@ pub fn plane_nurbs_ssi(
     // Tagged only now, past the two guards: the rate pair is a
     // dimension-and-direction tag, not a positivity witness, and this
     // lane's reading of a zero or non-finite rate is its own (above).
-    // The direction is SUP — `mag` is an upper bound on each
-    // derivative box — and dividing a metre floor by it UNDER-states
+    // The direction is SUP — `norm_sup` is an upper bound on the
+    // norm over each derivative box — and dividing a metre floor by it UNDER-states
     // the parameter reach, which is the safe side of a floor and of a
     // tube pad alike.
     let speed = geom_core::SupSpeed::new(speed);
@@ -1348,15 +1348,15 @@ pub fn idealized_trace_r3(
 }
 
 /// `max` that PROPAGATES NaN — `f64::max` returns the non-NaN operand,
-/// so a lone refused fold input (a refused box's `mag` reads NaN) would
-/// be dropped before any guard with an `is_finite`/`is_nan` arm could
-/// see it.
+/// so a lone refused fold input (a refused box's `norm_sup` reads NaN)
+/// would be dropped before any guard with an `is_finite`/`is_nan` arm
+/// could see it.
 ///
 /// At its one call site (the seeding guard's chart-speed fold) the
 /// difference from `f64::max` is defensive rather than reachable
 /// today: a refused derivative box needs a zero-touching weight hull
 /// or a malformed net — both refused at construction — and an
-/// OVERFLOWED box saturates its `mag` to `+∞`, which both folds hand
+/// OVERFLOWED box saturates its `norm_sup` to `+∞`, which both folds hand
 /// to the same not-finite refusal. The pin below is therefore on this
 /// helper by name; the reachability argument lives here so that a
 /// future producer of a one-sided refusal (a new box source, a widened

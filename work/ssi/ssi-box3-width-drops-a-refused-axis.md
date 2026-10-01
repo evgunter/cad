@@ -17,9 +17,9 @@ self.x.width().max(self.y.width()).max(self.z.width())
 
 `Certification::width` answers `NaN` for a refused side, and the
 inherent `f64::max` returns the other operand when one is NaN. A box
-with one refused axis therefore reports the width of the other two,
-and a box with all three refused reports NaN only if the last two
-are. Its consumer is `ssi/exhaust.rs`'s sweep: `cell.width() <= floor`
+with one or two refused axes therefore reports the largest width among
+the axes it can read; only a box with all three axes refused reports
+NaN. Its consumer is `ssi/exhaust.rs`'s sweep: `cell.width() <= floor`
 decides whether a cell is at the floor. On `SweepDuty::Account` a
 dropped axis can read a cell as floor-sized and refuse
 `ExhaustivenessInconclusive` with a `cell_width` that describes two
@@ -39,7 +39,8 @@ neither of them covers it.
 
 ## The fix shape
 
-Fold with the NaN-propagating max the lever-arm unit lands, or ask
+Fold with `Real::max`, which propagates NaN (the lever-arm unit's
+fix to its own folds), or ask
 `is_certified()` on each side and answer NaN. A NaN width then fails
 `<= floor` and the cell is refined until the budget answers. Whether
 that is the right refusal, or whether a refused cell should refuse by

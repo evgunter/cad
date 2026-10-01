@@ -85,9 +85,10 @@
 //!
 //! **The lever is the patch's own faster chart speed**:
 //! [`offset_normal_floor`] classifies
-//! `Margin::over_lever(floor, max(sup‖S_u‖, sup‖S_v‖))` — the
+//! `Margin::over_lever_down(floor, max(sup‖S_u‖, sup‖S_v‖))` — the
 //! `over_lever` door's own named case, a chart-orientation area over
-//! the length that scales it. The quotient is
+//! the length that scales it, with the quotient rounded down so the
+//! lower bound stays one. The quotient is
 //! `min(‖S_u‖, ‖S_v‖)·sin∠(S_u, S_v)` up to the sup-side slack: the
 //! **thinness of the chart parallelogram**, in metres, and exactly
 //! the length that goes to zero as the normal degenerates.
@@ -143,7 +144,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::norm_sup;
+use geom_core::interval::{div_down, norm_sq, norm_sup, sqrt_down, sqrt_up};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -399,17 +400,6 @@ pub fn mig(i: Interval) -> f64 {
     }
 }
 
-/// `√x` rounded DOWN (a lower bound), zero for a non-positive or
-/// non-finite argument.
-pub fn sqrt_down(x: f64) -> f64 {
-    if x > 0.0 { x.sqrt().next_down() } else { 0.0 }
-}
-
-/// `√x` rounded UP (an upper bound); NaN flows.
-pub fn sqrt_up(x: f64) -> f64 {
-    if x > 0.0 { x.sqrt().next_up() } else { x }
-}
-
 /// Interval dot product, fixed ascending order (D9).
 fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
@@ -418,24 +408,17 @@ fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
 /// Interval cross product, fixed component order (D9).
 ///
 /// Component-for-component `ssi::enclose::cross3`, which is private
-/// to that module and takes its operands by value. The three vector
-/// helpers here ([`dot`], `cross`, [`norm_sq`]) are this module's
-/// borrow-shaped triple; if a third consumer ever wants them, the
-/// pair collapses into one `geom_core` home — noted at both sites so
-/// the duplication is a decision rather than an accident.
+/// to that module and takes its operands by value. [`dot`] and this
+/// are the borrow-shaped pair; if a third consumer ever wants them,
+/// the pair collapses into one `geom_core` home beside
+/// [`norm_sq`], which already has — noted at both sites so the
+/// duplication is a decision rather than an accident.
 fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
         a[0] * b[1] - a[1] * b[0],
     ]
-}
-
-/// The enclosure of `‖v‖²` — the DEPENDENT square per component, so
-/// a component straddling zero cannot drag the lower end negative
-/// (`x·x` treats its factors as independent; `x.sqr()` does not).
-pub(crate) fn norm_sq(v: &[Interval; 3]) -> Interval {
-    v[0].sqr() + v[1].sqr() + v[2].sqr()
 }
 
 /// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
@@ -483,7 +466,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // bound when `d̂` is unit only to rounding.
     let mid = |i: Interval| (i.lo() + i.hi()) * 0.5;
     let dv = [mid(m[0]), mid(m[1]), mid(m[2])];
-    let dn = sqrt_up(dv[0].mul_add(dv[0], dv[1].mul_add(dv[1], dv[2] * dv[2])));
+    let dn = norm_sup(&dv.map(Interval::point));
     let b = if dn > 0.0 && dn.is_finite() {
         let proj = Interval::point(dv[0]) * m[0]
             + Interval::point(dv[1]) * m[1]
@@ -569,6 +552,8 @@ impl PatchRegularity {
     /// parallelogram's certified thinness in metres,
     /// `floor / max(sup‖S_u‖, sup‖S_v‖)`, which is
     /// `min(‖S_u‖, ‖S_v‖)·sin∠(S_u, S_v)` up to the sup-side slack.
+    /// The quotient rounds DOWN ([`div_down`]): a lower bound over an
+    /// upper bound stays a lower bound only that way.
     ///
     /// Deliberately UNGUARDED, so this and the predicate are the same
     /// number on every input: a zero lever leaves `0/0`, which
@@ -583,11 +568,11 @@ impl PatchRegularity {
     /// denominator). What makes it the metres the predicate
     /// classifies is the module's own unit-parameter-cell convention
     /// (module docs, *The margin and its lever*), which is
-    /// [`Margin::over_lever`]'s argument and not the rate pair's. So
+    /// [`Margin::over_lever_down`]'s argument and not the rate pair's. So
     /// the quotient leaves this door untyped rather than reaching for
     /// one whose dimensional argument does not cover it.
     pub fn thinness(&self) -> f64 {
-        self.floor / self.speed_lever().get()
+        div_down(self.floor, self.speed_lever().get())
     }
 }
 
@@ -620,7 +605,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     }
     let denom = speed_u.get() * speed_v.get();
     let sine_floor = if denom > 0.0 && denom.is_finite() {
-        (floor / denom).next_down()
+        div_down(div_down(floor, speed_u.get()), speed_v.get())
     } else {
         0.0
     };
@@ -649,7 +634,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 /// ambiguity band or is refused.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
     let meter = Meter::NormalFloor;
-    let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
+    let margin = Margin::over_lever_down(reg.floor, reg.speed_lever().get());
     let decided = decide_reported(meter.predicate(), margin, band)
         .map_err(|source| MeterError::Escalated { meter, source })?;
     match Refused::of(decided, band) {

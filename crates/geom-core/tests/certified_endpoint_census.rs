@@ -332,10 +332,11 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-core/src/interval.rs",
-        17,
-        3,
-        "the type's own body. The 3 that ask are the two refusal doors \
-         (`certified_bracket`, `sign_within`) and `norm_sup`. The other 14 are not certification \
+        18,
+        4,
+        "the type's own body. The 4 that ask are the two refusal doors \
+         (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup` \
+         and `div_down`. The other 14 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
          `repr_bits`, `copysign` and the kink selectors), which test NaI and empty \

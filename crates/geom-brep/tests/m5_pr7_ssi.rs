@@ -2523,48 +2523,60 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     }
 }
 
-/// **Only a net collapsed to a point lands on the ZERO-speed arm.**
+/// A clamped cubic × linear net of eight points collapsed to `spread`:
+/// columns `spread·i` along `x`, rows `0` and `spread/2` along `z`.
+fn collapsed_net(spread: f64) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(8);
+    for i in 0..4 {
+        let x = spread * (i as f64);
+        control.push(Point3::new(x, 0.0, 0.0));
+        control.push(Point3::new(x, 0.0, 0.5 * spread));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+}
+
+/// **A point net refuses on the zero-speed arm; a tiny net reads a
+/// speed at or above its true one.**
 ///
 /// A net whose spread is exactly zero has derivative boxes that are
 /// exactly `[0, 0]`, so the outward norm reads `0` and the
 /// `speed <= 0.0` arm refuses by the speed's own name before any floor
 /// is translated.
 ///
-/// A net collapsed only to a tiny spread is not that wall: its true
-/// chart speed along `u` is `3·spread`, positive. The outward square
-/// rounds a tiny square UP rather than underflowing it to zero, so the
-/// certified sup stays positive (`~1e-162` across the
-/// subnormal-adjacent range), the zero arm does not answer, and the
-/// sweep excludes the one cell, which the cutting plane misses. A
-/// reading of exactly `0` there would be a sup below the true speed.
+/// A net collapsed only to a tiny spread is not that wall. Its chart
+/// speed along `u` at `u = 0` is exactly `3·‖P₁ − P₀‖`, read here off
+/// the stored control points, so the certified sup must be at least
+/// that. A round-to-nearest fold of the box's squares read below it at
+/// `1e-160` (`2.99998e-160` against `3e-160`) and read exactly `0`
+/// further down, where a tiny square underflows. The outward square
+/// rounds UP, so the sup stays at or above the true speed, the zero
+/// arm does not answer, and the sweep excludes the one cell, which the
+/// cutting plane misses by ~0.39 m.
 #[test]
-fn a_collapsed_net_refuses_on_the_zero_speed_arm_not_the_budget() {
-    let net = |spread: f64| {
-        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let mut control = Vec::with_capacity(8);
-        for i in 0..4 {
-            let x = spread * (i as f64);
-            control.push(Point3::new(x, 0.0, 0.0));
-            control.push(Point3::new(x, 0.0, 0.5 * spread));
-        }
-        NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
-    };
-    match ssi::plane_nurbs_ssi(&cutting_plane(), &net(0.0), wall_domain(), band()) {
+fn a_point_net_refuses_on_the_zero_speed_arm_and_a_tiny_net_reads_at_least_its_true_speed() {
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &collapsed_net(0.0), wall_domain(), band()) {
         Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed is zero") => {}
         other => {
             panic!("a point net: expected the zero-speed arm to answer by name, got {other:?}")
         }
     }
-    for spread in [1.0e-200f64, 1.0e-260, 1.0e-300, 1.0e-315] {
-        match ssi::plane_nurbs_ssi(&cutting_plane(), &net(spread), wall_domain(), band()) {
+    for spread in [1.0e-160f64, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315] {
+        let net = collapsed_net(spread);
+        let c = net.control();
+        // `S_u(0) = 3·(P₁ − P₀)` for a clamped cubic, with `P₁` the
+        // next column (index 2: the net is column-major over `v`).
+        // `3·Δ` rounds to nearest, so it steps one ulp down to stay a
+        // lower bound on the true speed.
+        let true_speed = (3.0 * (c[2] - c[0]).norm()).next_down();
+        match ssi::plane_nurbs_ssi(&cutting_plane(), &net, wall_domain(), band()) {
             Ok(out) => {
                 let speed = out.exhaustiveness.lane.speed().map(|s| s.get());
                 assert!(
-                    speed.is_some_and(|s| s >= 3.0 * spread),
+                    speed.is_some_and(|s| s >= true_speed),
                     "spread {spread:e}: the certified chart speed {speed:?} is below the \
-                     true speed {:e}",
-                    3.0 * spread
+                     true speed {true_speed:e}"
                 );
                 assert!(
                     out.branches.is_empty(),
@@ -2572,9 +2584,35 @@ fn a_collapsed_net_refuses_on_the_zero_speed_arm_not_the_budget() {
                 );
             }
             other => panic!(
-                "spread {spread:e}: expected a positive certified speed and an excluded \
-                 cell, got {other:?}"
+                "spread {spread:e}: expected a certified speed and an excluded cell, got \
+                 {other:?}"
             ),
+        }
+    }
+}
+
+/// A tiny net the plane DOES meet never answers `Ok` with no branch:
+/// whatever the chart speed reads at these spreads, the sweep either
+/// finds the crossing or refuses. Paired with the row above, whose
+/// `Ok`-empty answers are honest only because its plane misses.
+#[test]
+fn a_tiny_net_the_plane_meets_never_answers_ok_empty() {
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.5,
+        floor_scale: 1.0,
+    };
+    for s in [
+        1.0e-8f64, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315,
+    ] {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.25 * s),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        if let Ok(out) = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band()) {
+            assert!(!out.branches.is_empty(), "spread {s:e}: silent miss");
         }
     }
 }

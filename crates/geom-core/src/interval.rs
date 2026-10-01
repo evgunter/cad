@@ -301,29 +301,74 @@ impl Interval {
     }
 }
 
-/// A certified upper bound on `‖v‖` for a componentwise enclosure —
-/// the kernel's one spelling of a norm read from above.
-///
-/// Every step rounds outward: the dependent square per component (so a
-/// side straddling zero keeps a zero lower end), both sums in interval
-/// arithmetic, then the correctly rounded `sqrt` of the upper end
-/// stepped one ulp up. An `f64` fold of the same endpoints rounds to
-/// nearest at each step and can land BELOW the real norm, which is the
-/// unsound side wherever the result divides a lower bound or crosses a
-/// metre length into chart units.
+// The directed scalar helpers certification arithmetic reads its `f64`
+// bounds through. Each is the kernel's ONE spelling of its rounding
+// rule: a site that wants a root, a norm or a quotient rounded to the
+// safe side calls these rather than re-spelling `sqrt().next_up()` or
+// a bare `/`, which round to nearest and can land on the unsafe side.
+
+/// `√x` rounded DOWN (a lower bound); `0` for a non-positive or NaN
+/// argument.
+#[must_use]
+pub fn sqrt_down(x: f64) -> f64 {
+    if x > 0.0 { x.sqrt().next_down() } else { 0.0 }
+}
+
+/// `√x` rounded UP (an upper bound); a non-positive argument and NaN
+/// come back unchanged.
+#[must_use]
+pub fn sqrt_up(x: f64) -> f64 {
+    if x > 0.0 { x.sqrt().next_up() } else { x }
+}
+
+/// The enclosure of `‖v‖²`: the DEPENDENT square per component (the
+/// even power, so a side straddling zero keeps a zero lower end, where
+/// `x·x` would treat its factors as independent and go negative), and
+/// both sums in interval arithmetic.
+#[must_use]
+pub fn norm_sq(v: &[Interval; 3]) -> Interval {
+    v[0].powi(2) + v[1].powi(2) + v[2].powi(2)
+}
+
+/// A certified upper bound on `‖v‖` for a componentwise enclosure:
+/// [`sqrt_up`] of [`norm_sq`]'s upper end. An `f64` fold of the same
+/// endpoints rounds to nearest at each step and can land BELOW the
+/// real norm, which is the unsound side wherever the result divides a
+/// lower bound or crosses a metre length into chart units.
 ///
 /// A refused enclosure answers `NaN`: no bound at all. It is asked by
 /// name because a refused enclosure carries ordinary endpoints, and a
 /// root of one would be a plausible bound with nothing behind it. An
 /// overflowed sum answers `+∞`.
+///
+/// A free function rather than a
+/// [`Certification`](certification::Certification) door: the doors are
+/// scalar methods, and a door is reached only by naming the
+/// certification module, which the SSI driver files that call this
+/// cannot do with `Real` in scope.
 #[must_use]
 pub fn norm_sup(v: &[Interval; 3]) -> f64 {
-    let sq = v[0].powi(2) + v[1].powi(2) + v[2].powi(2);
+    let sq = norm_sq(v);
     if !sq.is_certified() {
         return f64::NAN;
     }
-    let hi = sq.hi();
-    if hi > 0.0 { hi.sqrt().next_up() } else { hi }
+    sqrt_up(sq.hi())
+}
+
+/// `num / den` rounded DOWN — a lower bound on the real quotient,
+/// which is what a lower bound divided by an upper bound has to stay.
+/// A quotient rounded to nearest can land half an ulp above the real
+/// one.
+///
+/// The quotient is interval arithmetic's (`.lo()` of the point
+/// quotient). Where that refuses — a zero, infinite or NaN operand —
+/// the bare `num / den` is returned, which is exact or has no real
+/// value to bound (`x/±∞`, `x/0`, `0/0`, NaN), so each caller's own
+/// reading of those cases is unchanged.
+#[must_use]
+pub fn div_down(num: f64, den: f64) -> f64 {
+    let q = Interval::from_bounds(num, num) / Interval::from_bounds(den, den);
+    if q.is_certified() { q.lo() } else { num / den }
 }
 
 impl Add for Interval {
@@ -1747,119 +1792,11 @@ mod tests {
         );
     }
 
-    /// Veltkamp's split: `a = hi + lo` exactly, each half 26 bits wide.
-    fn split(a: f64) -> (f64, f64) {
-        let c = 134_217_729.0 * a;
-        let hi = c - (c - a);
-        (hi, a - hi)
-    }
-
-    /// Dekker's product, `a·b = p + e` exactly, in correctly rounded
-    /// operations alone (no fused multiply-add). Exact away from
-    /// overflow and underflow, which the rows below stay clear of.
-    fn two_prod(a: f64, b: f64) -> (f64, f64) {
-        let p = a * b;
-        let ((ah, al), (bh, bl)) = (split(a), split(b));
-        (p, ((ah * bh - p) + ah * bl + al * bh) + al * bl)
-    }
-
-    /// `r` against the EXACT `sup ‖·‖` over a box with side magnitudes
-    /// `m`, i.e. the sign of `r² − Σ mᵢ²` in ℝ: the eight error-free
-    /// terms are summed by Shewchuk's grow-expansion, whose components
-    /// are nonoverlapping and ascending, so the largest nonzero one
-    /// carries the sign of the whole.
-    fn cmp_with_exact_norm(r: f64, m: [f64; 3]) -> core::cmp::Ordering {
-        let (rp, re) = two_prod(r, r);
-        let mut terms = vec![rp, re];
-        for x in m {
-            let (p, e) = two_prod(x, x);
-            terms.extend([-p, -e]);
-        }
-        let mut expansion: Vec<f64> = Vec::new();
-        for t in terms {
-            let mut q = t;
-            let mut next = Vec::with_capacity(expansion.len() + 1);
-            for c in expansion {
-                let (sum, residual) = crate::exact::two_sum(q, c);
-                next.push(residual);
-                q = sum;
-            }
-            next.push(q);
-            expansion = next;
-        }
-        let top = expansion.iter().rev().find(|c| **c != 0.0).copied();
-        top.unwrap_or(0.0).total_cmp(&0.0)
-    }
-
-    fn mags(v: &[Interval; 3]) -> [f64; 3] {
-        v.map(|i| i.lo().abs().max(i.hi().abs()))
-    }
-
-    /// **A real cell where round-to-nearest was below the norm.** The
-    /// sides are bit for bit `NurbsBoxes::deriv_box` of `S_u` over the
-    /// whole domain of `m5_pr7_ssi.rs`'s `certifiable_wall`: the
-    /// chart-speed box `plane_nurbs_ssi`'s floors and limb 3's tube pad
-    /// both divide by. The `f64` fold those sites shipped,
-    /// `√(Σ mag²)` rounded to nearest at every step, reads
-    /// `1.130884609498246` there, which is BELOW the exact norm; the
-    /// outward reading is at or above it.
-    #[test]
-    fn norm_sup_is_above_the_exact_norm_on_a_cell_a_rounded_fold_is_below() {
-        let side = |lo: u64, hi: u64| iv(f64::from_bits(lo), f64::from_bits(hi));
-        let v = [
-            side(4_607_407_598_781_385_931, 4_607_407_598_781_385_934),
-            side(4_595_653_203_753_948_938, 4_601_237_667_291_888_354),
-            iv(0.0, 0.0),
-        ];
-        let m = mags(&v);
-        let fold = (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt();
-        assert_eq!(
-            fold, 1.130_884_609_498_246,
-            "the witness is the cell it names"
-        );
-        assert_eq!(
-            cmp_with_exact_norm(fold, m),
-            core::cmp::Ordering::Less,
-            "the rounded fold {fold:e} must sit below the exact norm, or this is no witness"
-        );
-        let sup = norm_sup(&v);
-        assert_ne!(
-            cmp_with_exact_norm(sup, m),
-            core::cmp::Ordering::Less,
-            "norm_sup {sup:e} is below the exact norm"
-        );
-    }
-
     /// A refused side answers NaN, not a root of its endpoints.
     #[test]
     fn norm_sup_of_a_refused_enclosure_is_nan() {
         let refused = Interval::from_f64(f64::NAN);
         assert!(norm_sup(&[iv(1.0, 2.0), refused, iv(0.0, 0.0)]).is_nan());
-    }
-
-    proptest! {
-        /// `norm_sup` is never below the exact `sup ‖·‖` of the box —
-        /// a counterexample search over boxes whose sides differ in
-        /// scale by up to 2⁸⁰, far from overflow and underflow, so the
-        /// comparison is exact.
-        #[test]
-        fn norm_sup_is_never_below_the_exact_norm(
-            raw in proptest::array::uniform6(-1.0..1.0f64),
-            scale in proptest::array::uniform3(-40i32..40),
-        ) {
-            let side = |a: f64, b: f64, e: i32| {
-                let k = 2f64.powi(e);
-                iv((a * k).min(b * k), (a * k).max(b * k))
-            };
-            let v = [
-                side(raw[0], raw[1], scale[0]),
-                side(raw[2], raw[3], scale[1]),
-                side(raw[4], raw[5], scale[2]),
-            ];
-            let m = mags(&v);
-            let sup = norm_sup(&v);
-            prop_assert_ne!(cmp_with_exact_norm(sup, m), core::cmp::Ordering::Less, "{:?}", m);
-        }
     }
 
     proptest! {

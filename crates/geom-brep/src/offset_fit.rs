@@ -221,7 +221,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::norm_sup;
+use geom_core::interval::{norm_sup, sqrt_down};
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
@@ -229,7 +229,7 @@ use geom_core::{
     Band, BandError, Interval, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, Point3, Tol,
 };
 
-use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, sqrt_down};
+use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
 use crate::recourse::Reading;
 
@@ -2498,10 +2498,9 @@ impl Composite {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
-    use crate::offset_meters::sqrt_up;
     use geom_core::Bounds;
     use geom_core::interval::certification::Certification;
-    use geom_core::interval::norm_sup;
+    use geom_core::interval::{norm_sup, sqrt_up};
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, Tol};
 

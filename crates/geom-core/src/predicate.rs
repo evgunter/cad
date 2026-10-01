@@ -745,6 +745,16 @@ impl Margin<f64> {
     pub fn lift<T: crate::real::Real>(self) -> Margin<T> {
         Margin(T::from_f64(self.0))
     }
+
+    /// Door: [`Margin::over_lever`]'s dimensional argument, for a
+    /// certified LOWER-bound measure over an UPPER-bound lever, whose
+    /// quotient is itself claimed from below. The quotient rounds down
+    /// ([`div_down`](crate::interval::div_down)); a quotient rounded to
+    /// nearest can land above the real one, the side that certifies a
+    /// margin the geometry does not have.
+    pub fn over_lever_down(measure: f64, lever: f64) -> Self {
+        Self(crate::interval::div_down(measure, lever))
+    }
 }
 
 /// A certified **upper** bound on a speed — metres per parameter unit.
