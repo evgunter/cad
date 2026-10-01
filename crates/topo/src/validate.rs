@@ -152,10 +152,12 @@
 //!     never outlives its face
 //!     ([`ValidationError::LeakedNullFaceRecord`]), and every loop key
 //!     a record names resolves
-//!     ([`ValidationError::StaleNullFaceLoop`]). Deliberately
-//!     minimal and referential-only — attribute semantics are the
-//!     surgery ops' contract, and tier 2 bans null entities at rest
-//!     outright (see `crate::null`).
+//!     ([`ValidationError::StaleNullFaceLoop`]) and is its face's
+//!     outer loop or one of its rings
+//!     ([`ValidationError::StaleNullFaceOwnership`]). Deliberately
+//!     minimal — which role each loop plays is the surgery ops'
+//!     contract, and tier 2 bans null entities at rest outright (see
+//!     `crate::null`).
 //!
 //! The harness is deliberately a plain function plus an error enum,
 //! **not a trait**: there is exactly one notion of body validity per
@@ -1884,13 +1886,23 @@ pub enum ValidationError {
     /// record names a loop key that does not resolve in the loop
     /// arena — a loop-killing operator ran without scrubbing the
     /// record (the same leak rule as `LeakedNullFaceRecord`, applied
-    /// to the record's named loops). Referential-only by the ratified
-    /// posture: *which* loops the record names is semantics, not
-    /// checked at tier 1.
+    /// to the record's named loops).
     StaleNullFaceLoop {
         /// The face whose record is stale.
         face: FaceKey,
         /// The named loop key that no longer resolves.
+        named_loop: LoopKey,
+    },
+    /// **Tier 1, pass 13.** A null-face record names a live loop that
+    /// is neither its face's outer loop nor one of its rings — an op
+    /// moved the loop off the face without dropping the record. A null
+    /// face is one face's two coincident loops (`crate::null`), so the
+    /// record describes none. Which role each loop plays is not checked
+    /// here.
+    StaleNullFaceOwnership {
+        /// The face whose record is stale.
+        face: FaceKey,
+        /// The named loop, live but not the face's own.
         named_loop: LoopKey,
     },
     /// **Tier 2 (M3 PR 1).** A null edge at rest: the edge's curve
@@ -3300,6 +3312,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "a construction record on face {face:?} names loop {named_loop:?}, which \
                  no longer exists. {DEFECT}"
+            ),
+            Self::StaleNullFaceOwnership { face, named_loop } => write!(
+                f,
+                "a construction record on face {face:?} names loop {named_loop:?}, which \
+                 that face no longer holds. {DEFECT}"
             ),
             Self::NullEdgeAtRest { edge } => write!(
                 f,
@@ -8543,16 +8560,23 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         }
     }
     for (face_key, record) in body.null_faces.iter() {
-        if !body.faces.contains_key(face_key) {
+        let face = body.faces.get(face_key);
+        if face.is_none() {
             errors.push(ValidationError::LeakedNullFaceRecord { face: face_key });
         }
-        // Review flag (c): the record's named loops must also resolve —
-        // referential-only (a record naming killed loops is the same
-        // leak as a record outliving its face); which loops they are
-        // stays unexamined at tier 1.
+        // The record's named loops must resolve (a record naming a
+        // killed loop is the same leak as a record outliving its face),
+        // and be its face's own: a null face is one face's two
+        // coincident loops. Which role each plays stays unexamined.
         for named_loop in record.loops() {
             if !body.loops.contains_key(named_loop) {
                 errors.push(ValidationError::StaleNullFaceLoop {
+                    face: face_key,
+                    named_loop,
+                });
+            } else if face.is_some_and(|f| f.outer != named_loop && !f.rings.contains(&named_loop))
+            {
+                errors.push(ValidationError::StaleNullFaceOwnership {
                     face: face_key,
                     named_loop,
                 });

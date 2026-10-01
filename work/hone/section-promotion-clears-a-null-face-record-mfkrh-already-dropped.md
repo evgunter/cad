@@ -38,3 +38,21 @@ because the files are CLEAVE/HONE ground.
 Delete both clears, or replace each with a `debug_assert!` that the
 record is already gone. `splitting/reassembly.rs`'s oracle test mirrors
 the split's promotion inline and carries the same clear.
+
+## Module docs that claim promotion reads the record
+
+PR 3618's review (Q5) found two module-doc claims that the record
+drives promotion. Neither promotion reads it. Each reads the roles from
+its own pipeline struct, and after `mfkrh` the record is gone anyway:
+
+- `splitting::finish`'s module docs (`crates/topo/src/splitting/finish.rs`,
+  "so promotion reads the record, never the loop list"): the section
+  loop reads `section.above_loop` off `CompletedSection`
+  (`splitting::join`), never `null_face_pair`;
+- `boolean::finish`'s module docs (`crates/topo/src/boolean/finish.rs`,
+  "Which promoted/remaining face is the IN copy is read from the
+  `NullFacePair::Boolean` loop roles"): `promote_solid` reads
+  `CompletedPolygonPair` (`boolean::join`), never `null_face_pair`.
+
+The fix rewords each to name the struct it reads, in the same change
+that deletes the clears.

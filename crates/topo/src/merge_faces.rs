@@ -1107,15 +1107,15 @@ impl EstablishedFact {
 /// surgery: the kind census ([`Body::merge_kind`]) on a face whose
 /// surface key does not resolve, and the adjacency test
 /// ([`Body::planes_declared_equal`]) on a face, vertex or point it
-/// cannot resolve. The rest belong to operators this
-/// door does not call: the attachment and split gates
-/// (`set_edge_curve`, `split_edge`), the make-side sites (`mev`,
-/// `mef`), `kvfs`, `kfmrh`'s cross-solid form, `movefac`'s ownership
-/// proof, the shell-move door and the null-face door. That is not a third arm: an arm the
-/// door cannot reach cannot be pinned, and a classification nothing can
-/// distinguish is documentation, which is what this table is. No
-/// count of the remainder is stated here; the match below is the
-/// census.
+/// cannot resolve. The rest belong to operators this door does not
+/// call: the attachment and split gates (`set_edge_curve`,
+/// `split_edge`), the make-side sites (`mev`, `mef`), `kvfs`,
+/// `kfmrh`'s cross-solid form, `movefac`'s ownership proof, the
+/// shell-move door and the null-face door. That is not a third arm: an
+/// arm the door cannot reach cannot be pinned, and a classification
+/// nothing can distinguish is documentation, which is what this table
+/// is. No count of the remainder is stated here; the match below is
+/// the census.
 ///
 /// The match producing this is exhaustive on purpose, like the enum's
 /// own: a new [`EulerOpError`] variant does not compile until someone

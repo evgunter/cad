@@ -23,7 +23,8 @@
 //! representable only *by type*, and the type is transient:
 //!
 //! - **Tier 1 accepts** null entities (mid-op states are legal, as for
-//!   every other scaffolding shape — empty loops, struts).
+//!   every other scaffolding shape — empty loops, struts), checking
+//!   only that a null-face record's loops are live and its face's own.
 //! - **Tier 2 refuses** them at rest, by name
 //!   ([`crate::ValidationError::NullEdgeAtRest`] /
 //!   [`crate::ValidationError::NullFaceAtRest`]): a body carrying null
@@ -299,11 +300,12 @@ impl<T: Real> Body<T> {
     /// say it instead: the record names its loops by explicit key
     /// (F9), not by outer-vs-ring designation.
     ///
-    /// Ownership is checked here and not at tier 1: a named loop may
-    /// still be re-homed mid-sequence, and the op that moves it off its
-    /// face drops the record rather than refusing, as the op that
-    /// removes it does (module docs), so tier 1's record pass stays
-    /// referential. Tier 2 refuses marked faces at rest
+    /// Every op that removes a named loop, or moves it off its face,
+    /// drops the record rather than refusing (module docs), so no op
+    /// leaves a record naming a loop its face does not hold, and tier 1
+    /// checks ownership too
+    /// ([`crate::ValidationError::StaleNullFaceOwnership`]). Tier 2
+    /// refuses marked faces at rest
     /// ([`crate::ValidationError::NullFaceAtRest`]).
     ///
     /// # Errors
@@ -560,6 +562,35 @@ mod tests {
         );
     }
 
+    /// Pass 13's ownership check: a record naming a live loop its face
+    /// does not hold is reported typed (`StaleNullFaceOwnership`),
+    /// naming each such loop and not the face's own. The door refuses
+    /// the record ([`the_door_refuses_a_record_naming_a_loop_not_the_faces_own`]),
+    /// so it is built on the crate-internal map, modelling an op that
+    /// moved a named loop off its face and kept the record.
+    #[test]
+    fn stale_null_face_ownership_reported() {
+        let cube = declined_cube::<f64>(Tol::witness());
+        let mut body = cube.body;
+        let (f1, f2) = (cube.mefs[0].face, cube.mefs[1].face);
+        let outer1 = body.get_face(f1).unwrap().outer;
+        let outer2 = body.get_face(f2).unwrap().outer;
+        body.null_faces.insert(
+            f1,
+            NullFacePair::Boolean {
+                in_copy: outer1,
+                out_copy: outer2,
+            },
+        );
+        assert_eq!(
+            validate(&body),
+            Err(vec![ValidationError::StaleNullFaceOwnership {
+                face: f1,
+                named_loop: outer2,
+            }])
+        );
+    }
+
     /// The first face with exactly one ring, its outer loop and the
     /// ring.
     fn ringed_face(body: &Body<f64>) -> (FaceKey, LoopKey, LoopKey) {
@@ -581,12 +612,18 @@ mod tests {
 
     /// **A kill drops each record naming the loop it removes, and stays
     /// `Ok`.** A null face is one face's two coincident loops (module
-    /// docs), so a record whose loop dies no longer describes one. This
-    /// row and the `kvfs` one mark a face with another face's loop,
-    /// which the door refuses, so they build the record on the
-    /// crate-internal map: the drop reads every face's record, not only
-    /// the dying loop's face's. Here the declined cube's seventh
-    /// half-edge is killed, a third loop's face naming its loop.
+    /// docs), so a record whose loop dies no longer describes one. Here
+    /// the declined cube's seventh half-edge is killed, a third loop's
+    /// face naming its loop.
+    ///
+    /// `kef`'s dying loop is its face's only loop, so with the door's
+    /// ownership check no reachable record but that face's own names
+    /// it, and the face's own dies with the face. This row and the
+    /// `kvfs` and `kfmrh` ones therefore build the record on the
+    /// crate-internal map, a state no public door builds and tier 1
+    /// refuses ([`stale_null_face_ownership_reported`]), and stay as
+    /// defence in depth: the drop reads every face's record, not only
+    /// the dying loop's face's.
     #[test]
     fn kef_drops_each_record_naming_the_loop_it_removes() {
         let mut body = declined_cube::<f64>(Tol::witness()).body;
@@ -614,7 +651,9 @@ mod tests {
     }
 
     /// [`kef_drops_each_record_naming_the_loop_it_removes`]'s `kvfs`
-    /// row: a segment's face marked naming a lone solid's loop.
+    /// row: a segment's face marked naming a lone solid's loop. The
+    /// lone loop is its face's only loop, so this is defence in depth on
+    /// a state only the crate-internal map builds, as the `kef` row is.
     #[test]
     fn kvfs_drops_each_record_naming_the_loop_it_removes() {
         let tol = Tol::witness();
@@ -706,10 +745,77 @@ mod tests {
         assert_eq!(validate(&body), Ok(()), "ring_move");
     }
 
+    /// **A drop is keyed on the loop, not the face.** A ring of the
+    /// marked face that the record does not name dies by `mekr`, or
+    /// leaves by `mfkrh` or `ring_move`, and the record stands: its two
+    /// loops are still the face's own. From the PR 3618 review's probe.
+    #[test]
+    fn ops_on_an_unnamed_ring_of_the_marked_face_keep_the_record() {
+        let tol = Tol::witness();
+        let crate::fixtures::OpsTwoRingFace {
+            body: base,
+            face,
+            outer,
+            hole,
+            tip,
+        } = crate::fixtures::ops_two_ring_face(tol);
+        let pair = NullFacePair::Split {
+            above_loop: outer,
+            below_loop: hole,
+        };
+        let mut marked = base;
+        marked.set_null_face_pair(face, pair).unwrap();
+        let mut body = marked.clone();
+        let site = crate::MekrSite::EmptyRing {
+            target: first_of(&body, outer),
+            ring: tip,
+        };
+        body.mekr_chord(site, tol).unwrap();
+        assert_eq!(body.null_face_pair(face), Some(&pair), "mekr keeps");
+        assert_eq!(validate(&body), Ok(()), "mekr");
+        let mut body = marked.clone();
+        body.mfkrh_plug(tip, true).unwrap();
+        assert_eq!(body.null_face_pair(face), Some(&pair), "mfkrh keeps");
+        assert_eq!(validate(&body), Ok(()), "mfkrh");
+        let mut body = marked;
+        let shell = body.get_face(face).unwrap().shell;
+        let to = body
+            .faces()
+            .find(|&(f, data)| f != face && data.shell == shell)
+            .unwrap()
+            .0;
+        body.ring_move(tip, to).unwrap();
+        assert_eq!(body.null_face_pair(face), Some(&pair), "ring_move keeps");
+        assert_eq!(validate(&body), Ok(()), "ring_move");
+    }
+
+    /// **A `ring_move` within one face stays a deep no-op**, the record
+    /// naming the ring included: the ring does not leave its face. From
+    /// the PR 3618 review's probe.
+    #[test]
+    fn ring_move_within_one_face_is_a_deep_no_op() {
+        let crate::fixtures::OpsTwoRingFace {
+            mut body,
+            face,
+            outer,
+            hole,
+            ..
+        } = crate::fixtures::ops_two_ring_face(Tol::witness());
+        let pair = NullFacePair::Split {
+            above_loop: outer,
+            below_loop: hole,
+        };
+        body.set_null_face_pair(face, pair).unwrap();
+        let before = deep_snapshot(&body);
+        body.ring_move(hole, face).unwrap();
+        assert_eq!(deep_snapshot(&body), before, "ring_move within one face");
+    }
+
     /// [`mfkrh_drops_the_record_naming_the_ring_it_promotes`]'s `kfmrh`
     /// row: `f2`'s outer, re-homed onto `f1`, named by a third face's
     /// record built on the crate-internal map (a ring-free `f2` holds
-    /// one loop, so no record the door accepts names it).
+    /// one loop, so no record the door accepts names it). Defence in
+    /// depth on a state no public door builds, as the `kef` row is.
     #[test]
     fn kfmrh_drops_the_record_naming_the_loop_it_demotes() {
         let cube = declined_cube::<f64>(Tol::witness());

@@ -117,7 +117,7 @@ use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::euler_ring::MekrSite;
 use crate::fixtures::{
     KillAnchorFault, assert_kill_refuses, deep_snapshot, kill_anchor_faults, ops_genus2,
-    ops_holed_box, ops_ring_bridge, ops_strut_cube,
+    ops_holed_box, ops_ring_bridge, ops_strut_cube, ops_two_ring_face,
 };
 use crate::null::NullFacePair;
 use crate::test_support_fixtures::declined_cube;
@@ -1757,15 +1757,19 @@ fn null_records_maintained(
 /// valid body [`FIXTURES`], [`BESIDE_A_LONE_VERTEX`],
 /// [`RING_ABOUT_AN_EMPTY_OUTER`], [`EMPTY_RING_BESIDE_A_CYCLE`],
 /// [`TWO_EMPTY_LOOPS`], [`TWO_SHELLS_OF_ONE_SOLID`],
-/// [`NULL_SCAFFOLDING`], the genus-2 body and the holed box build, every
+/// [`NULL_SCAFFOLDING`], the genus-2 body, the holed box and its
+/// two-ring face build, every
 /// [`anchor_calls`] call, through each door its operator has
 /// ([`AnchorCall::run_twin`]), and `movefac` at every shell, refuses
 /// nothing that reports a torn arena
 /// ([`EulerOpError::reports_tier1_corruption`]). An enumeration, not a
 /// sample. Every ringed face is marked as a null face
 /// ([`mark_ringed_faces`]), and each `Ok`, and `mfkrh` and `ring_move`
-/// at every marked ring, keeps exactly the records whose loops stay on
-/// their face ([`null_records_maintained`]).
+/// (to every face of its shell, its own included) at every ring of a
+/// marked face, keeps exactly the records whose loops stay on their
+/// face ([`null_records_maintained`]). The two-ring face's second ring
+/// is one no record names, so a drop keyed on the face rather than the
+/// loop reds here.
 ///
 /// Each proof sits late in its plan, so a sweep whose calls all refused
 /// earlier would pass having asked none of them; the floors say each
@@ -1776,11 +1780,13 @@ fn null_records_maintained(
 /// nothing, and each kill emptied a loop somewhere, the write whose
 /// proof reads every member: `kev` at the segment, `kef` at the circle
 /// (the `Lone` inverse), and `kemr` at the strut from its tip; and a
-/// record stood somewhere, and fell to `mekr`, `mfkrh` and `ring_move`.
+/// record stood somewhere, and fell to `mekr`; and `mfkrh` and
+/// `ring_move` each moved off a marked face a ring its record names and
+/// one it does not, and a `ring_move` within a marked face ran.
 #[test]
 fn valid_fixtures_never_refuse_a_kill_anchor() {
     let tol = Tol::witness();
-    let bodies: [(&str, BuildFixture); 13] = [
+    let bodies: [(&str, BuildFixture); 14] = [
         FIXTURES[0],
         FIXTURES[1],
         FIXTURES[2],
@@ -1794,6 +1800,7 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
         NULL_SCAFFOLDING[1],
         ("ops_genus2", ops_genus2),
         ("ops_holed_box", |tol| ops_holed_box(tol).body),
+        ("ops_two_ring_face", |tol| ops_two_ring_face(tol).body),
     ];
     // Per operator: calls run to `Ok` through the first door, kills
     // that emptied a loop, and calls run to `Ok` through the twin.
@@ -1803,10 +1810,12 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
     let mut mekr_sites = [0usize; 4];
     let mut kfmrh_fusions = 0usize;
     let mut movefacs = 0usize;
-    // Null-face records kept and dropped by the anchor calls, then
-    // dropped by `mfkrh` and `ring_move`.
+    // Null-face records kept and dropped by the anchor calls; the rings
+    // `mfkrh` and `ring_move` moved off a marked face, [unnamed, named]
+    // by its record; and the `ring_move`s within a marked face.
     let mut records = [0usize; 2];
-    let mut moved_off = [0usize; 2];
+    let mut moves = [[0usize; 2]; 2];
+    let mut same_face_moves = 0usize;
     for (fixture, build) in bodies {
         let mut body = build(tol);
         mark_ringed_faces(&mut body);
@@ -1894,24 +1903,32 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
                 Err(_) => {}
             }
         }
-        // The moves off a face `anchor_calls` does not make: each
-        // marked ring promoted by `mfkrh`, and moved by `ring_move` to
-        // every other face of its shell.
+        // The moves `anchor_calls` does not make, at every ring of a
+        // marked face, named or not: `mfkrh` promoting it, and
+        // `ring_move` to every face of its shell, its own included.
         for (face, record) in body.null_faces() {
-            let [_, ring] = record.loops();
-            let mut trial = body.clone();
-            if trial.mfkrh_plug(ring, true).is_ok() {
-                let [_, dropped] = null_records_maintained(&body, &trial, || {
-                    format!("mfkrh({ring:?}) on {fixture}")
-                });
-                moved_off[0] += dropped;
-            }
-            let shell = body.get_face(face).map(|data| data.shell);
-            for (to, data) in body.faces() {
+            let data = body.get_face(face).expect("a record's face resolves");
+            for &ring in &data.rings {
+                let named = usize::from(record.loops().contains(&ring));
                 let mut trial = body.clone();
-                if to != face && Some(data.shell) == shell && trial.ring_move(ring, to).is_ok() {
-                    let context = || format!("ring_move({ring:?}, {to:?}) on {fixture}");
-                    moved_off[1] += null_records_maintained(&body, &trial, context)[1];
+                if trial.mfkrh_plug(ring, true).is_ok() {
+                    null_records_maintained(&body, &trial, || {
+                        format!("mfkrh({ring:?}) on {fixture}")
+                    });
+                    moves[0][named] += 1;
+                }
+                for (to, to_data) in body.faces() {
+                    let mut trial = body.clone();
+                    if to_data.shell == data.shell && trial.ring_move(ring, to).is_ok() {
+                        null_records_maintained(&body, &trial, || {
+                            format!("ring_move({ring:?}, {to:?}) on {fixture}")
+                        });
+                        if to == face {
+                            same_face_moves += 1;
+                        } else {
+                            moves[1][named] += 1;
+                        }
+                    }
                 }
             }
         }
@@ -1923,8 +1940,13 @@ fn valid_fixtures_never_refuse_a_kill_anchor() {
         records[1]
     );
     assert!(
-        moved_off.iter().all(|&n| n > 0),
-        "`mfkrh` and `ring_move` dropped {moved_off:?} null-face records on the valid bodies"
+        moves.iter().flatten().all(|&n| n > 0),
+        "`mfkrh` and `ring_move` moved [unnamed, named] rings {moves:?} off a marked face \
+         on the valid bodies"
+    );
+    assert!(
+        same_face_moves > 0,
+        "no `ring_move` within a marked face ran to Ok on the valid bodies"
     );
     for (op, [ok, emptied, twin]) in ANCHOR_OPS.iter().zip(ran) {
         assert!(ok > 0, "no `{op}` ran to Ok on the valid bodies: {ran:?}");

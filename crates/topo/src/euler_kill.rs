@@ -408,7 +408,8 @@ pub struct KefResult {
 
 /// Every key minted by one [`Body::mfkrh`] call. Nothing is killed: the
 /// promoted ring survives as the new face's outer loop, keeping its key
-/// and its D5 birth record.
+/// and its D5 birth record. A null-face record naming the ring is
+/// dropped ([`Body::mfkrh`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MfkrhCreated {
     /// The new face (outer loop = the promoted ring; same shell as the
@@ -589,11 +590,13 @@ impl<T: Decide> Body<T> {
     /// Euler vector: `(v −1, e 0, f −1, h 0, r 0, s −1)` — arena deltas
     /// −1 solid, −1 shell, −1 face, −1 loop, −1 vertex.
     ///
-    /// **Minting order**: nothing is minted. **Kill order** (D9, exact,
-    /// the reverse of `mvfs`'s spine minting): face, loop, shell, solid,
-    /// vertex (each with its provenance entry), then the face's surface
-    /// iff orphaned and the vertex's point iff orphaned (geometry
-    /// hygiene, module docs).
+    /// **Minting order**: nothing is minted. **Kill order** (D9, exact, the
+    /// reverse of `mvfs`'s spine minting): face, loop, shell, solid, vertex
+    /// (each with its provenance entry; the face with its null-face record,
+    /// the loop with every null-face record naming it, as a null-face
+    /// record lives only while its face holds both loops it names —
+    /// [`crate::null`]), then the face's surface iff orphaned and the
+    /// vertex's point iff orphaned (geometry hygiene, module docs).
     ///
     /// # Precondition check order
     ///
@@ -688,11 +691,11 @@ impl<T: Decide> Body<T> {
         // vertex, then orphaned geometry.
         self.faces.remove(face);
         self.face_provenance.remove(face);
-        // A null-face record never outlives its face, nor a loop it
-        // names (crate::null).
-        self.null_faces.remove(face);
         self.loops.remove(loop_key);
         self.loop_provenance.remove(loop_key);
+        // A null-face record lives only while its face holds both loops
+        // it names (crate::null).
+        self.null_faces.remove(face);
         self.drop_null_face_records_naming(loop_key);
         self.shells.remove(shell);
         self.shell_provenance.remove(shell);
@@ -1303,10 +1306,12 @@ impl<T: Decide> Body<T> {
     /// −2 half-edges, −1 edge, −1 face, −1 loop.
     ///
     /// **Minting order**: nothing is minted. **Kill order** (D9, exact):
-    /// `he`, its mate, the edge, the dying loop, the dying face (each
-    /// with its provenance entry), then the edge's curve iff orphaned
-    /// and the face's surface iff orphaned (usually shared, hence kept —
-    /// module docs).
+    /// `he`, its mate, the edge, the dying loop, the dying face (each with
+    /// its provenance entry; the face with its null-face record, the loop
+    /// with every null-face record naming it, as a null-face record lives
+    /// only while its face holds both loops it names — [`crate::null`]),
+    /// then the edge's curve iff orphaned and the face's surface iff
+    /// orphaned (usually shared, hence kept — module docs).
     ///
     /// **Re-anchoring** (unconditional, module docs): the surviving loop
     /// re-anchors at `next(mate)` when that survives, else `next(he)`;
@@ -1681,8 +1686,8 @@ impl<T: Decide> Body<T> {
         self.loop_provenance.remove(l1);
         self.faces.remove(f1);
         self.face_provenance.remove(f1);
-        // A null-face record never outlives its face, nor a loop it
-        // names (crate::null).
+        // A null-face record lives only while its face holds both loops
+        // it names (crate::null).
         self.null_faces.remove(f1);
         self.drop_null_face_records_naming(l1);
         let Some(shell_data) = self.get_shell_mut(shell) else {
@@ -1769,10 +1774,11 @@ impl<T: Decide> Body<T> {
     /// kill; genus is derived, not stored).
     ///
     /// **Minting order** (D9, exact): surface (only for
-    /// [`FaceSurface::New`]), face. Nothing is killed.
-    /// The new face is appended to the shell's face list; the ring
-    /// leaves its former face's ring list (`retain`, order-preserving
-    /// for the others).
+    /// [`FaceSurface::New`]), face. Nothing is killed. The new face is
+    /// appended to the shell's face list; the ring leaves its former face's
+    /// ring list (`retain`, order-preserving for the others), and every
+    /// null-face record naming it is dropped, as a null-face record lives
+    /// only while its face holds both loops it names ([`crate::null`]).
     ///
     /// # Precondition check order
     ///

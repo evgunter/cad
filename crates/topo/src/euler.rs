@@ -6741,8 +6741,9 @@ mod tests {
 /// disposition: the helper whose scan reads the naming field when a
 /// kill removes the record it names, checked against that helper's
 /// body — a proof that refuses before the kill, or, for the null-face
-/// records a kill maintains rather than refuses over, the drop in its
-/// mutation phase. A relation `tier1` gains, or a variant of either
+/// records a kill, or a move of a loop off its face, maintains rather
+/// than refuses over, the drop in its mutation phase. A relation
+/// `tier1` gains, or a variant of either
 /// prefix the enum gains that `tier1` does not construct and
 /// `NOT_BODY_RELATIONS` does not place, reds here until it is given
 /// one.
@@ -6773,7 +6774,7 @@ mod removal_census {
     use Disposition::Read;
 
     /// One disposition per relation `tier1` checks, in its pass order.
-    const RELATIONS: [(&str, Disposition); 19] = [
+    const RELATIONS: [(&str, Disposition); 20] = [
         (
             "DanglingTopology: Solid -> Shell",
             Read("require_shell_unnamed", &["data.shells.contains"]),
@@ -6857,6 +6858,10 @@ mod removal_census {
         ),
         (
             "StaleNullFaceLoop: face, named_loop",
+            Read("drop_null_face_records_naming", &["pair.loops().contains"]),
+        ),
+        (
+            "StaleNullFaceOwnership: face, named_loop",
             Read("drop_null_face_records_naming", &["pair.loops().contains"]),
         ),
     ];

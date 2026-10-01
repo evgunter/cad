@@ -1192,6 +1192,67 @@ pub(crate) fn ops_holed_box(tol: Tol) -> OpsHoledBox {
     }
 }
 
+/// Key bundle for [`ops_two_ring_face`].
+pub(crate) struct OpsTwoRingFace {
+    pub body: Body<f64>,
+    /// The face holding both rings.
+    pub face: FaceKey,
+    pub outer: LoopKey,
+    /// The hole's ring.
+    pub hole: LoopKey,
+    /// The `Empty` ring the strut's tip leaves.
+    pub tip: LoopKey,
+}
+
+/// [`ops_holed_box`]'s ringed face given a second ring: a strut grown
+/// from its outer loop's first corner a tenth of the way toward the
+/// cap's centre `(0.5, 0.5)`, then killed from its tip by `kemr`,
+/// leaves the tip an `Empty` ring beside the hole's. The one valid body
+/// here with a face whose ring a null-face record on its outer and
+/// other ring does not name. Construction from the PR 3618 review's
+/// probe (`two_ring_face`).
+pub(crate) fn ops_two_ring_face(tol: Tol) -> OpsTwoRingFace {
+    let mut body = ops_holed_box(tol).body;
+    let (face, outer, hole) = body
+        .faces()
+        .find_map(|(f, data)| match data.rings[..] {
+            [ring] => Some((f, data.outer, ring)),
+            _ => None,
+        })
+        .expect("the holed box has a face with one ring");
+    let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the holed box's ringed face has a cycle outer loop")
+    };
+    let start = body.get_half_edge(first).unwrap().start;
+    let p = *body
+        .get_point(body.get_vertex(start).unwrap().point)
+        .unwrap();
+    let tip = Point3::new(p.x + 0.1 * (0.5 - p.x), p.y + 0.1 * (0.5 - p.y), p.z);
+    let site = MevSite::Fan {
+        he1: first,
+        he2: first,
+    };
+    let strut = body.mev_line(site, tip, tol).unwrap();
+    let tip = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
+    assert!(
+        matches!(
+            body.get_loop(tip).unwrap().boundary,
+            LoopBoundary::Empty { .. }
+        ),
+        "`kemr` from the tip leaves the tip an `Empty` ring"
+    );
+    let data = body.get_face(face).unwrap();
+    assert_eq!((data.outer, &data.rings[..]), (outer, &[hole, tip][..]));
+    assert_eq!(crate::validate::validate(&body), Ok(()));
+    OpsTwoRingFace {
+        body,
+        face,
+        outer,
+        hole,
+        tip,
+    }
+}
+
 /// Builds the genus-2 double-hole body: [`ops_holed_box`] plus a
 /// triangular through-hole drilled front → back
 /// ([`crate::test_support_fixtures::drill_hole`] again, entering at the

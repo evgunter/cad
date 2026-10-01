@@ -180,9 +180,9 @@ pub struct Body<T: Real> {
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
     // Null-face annotations (F9): typed loop-role attributes on null
     // (section-polygon) faces, parallel to the face arena like the
-    // provenance maps — a record never outlives its face, nor a loop it
-    // names staying on it (kill-op hygiene; the validator makes leaks
-    // loud). See `crate::null`.
+    // provenance maps. A record lives only while its face holds both
+    // loops it names (kill-op hygiene; the validator makes leaks loud).
+    // See `crate::null`.
     pub(crate) null_faces: SecondaryMap<FaceKey, NullFacePair>,
     // D5 provenance, parallel to the topology arenas (see
     // `crate::provenance` for the SecondaryMap-vs-inline rationale).
@@ -508,12 +508,11 @@ impl<T: Real> Body<T> {
     }
 
     /// Drops every null-face record naming `r#loop`, whichever face
-    /// carries it. A null face is one face's two coincident loops
-    /// ([`crate::null`]), so a record whose loop dies, or leaves its
-    /// face, no longer describes one: every op that removes a loop or
-    /// moves it off its face calls this in its mutation phase, as F9's
-    /// kill-op hygiene. Maintenance, not a refusal, so the op stays
-    /// `Ok`.
+    /// carries it. A null-face record lives only while its face holds
+    /// both loops it names ([`crate::null`]), so every op that removes a
+    /// loop or moves it off its face calls this in its mutation phase,
+    /// as F9's kill-op hygiene. Maintenance, not a refusal, so the op
+    /// stays `Ok`.
     pub(crate) fn drop_null_face_records_naming(&mut self, r#loop: LoopKey) {
         self.null_faces
             .retain(|_, pair| !pair.loops().contains(&r#loop));
