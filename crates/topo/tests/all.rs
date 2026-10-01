@@ -223,6 +223,8 @@ mod review_m3_pr55;
 mod review_m3_pr6;
 #[path = "review_m4_pr2_transform.rs"]
 mod review_m4_pr2_transform;
+#[path = "review_cleave_nurbs_lane.rs"]
+mod review_cleave_nurbs_lane;
 #[path = "review_m6_2_probes.rs"]
 mod review_m6_2_probes;
 #[path = "review_m9_1_probes.rs"]
