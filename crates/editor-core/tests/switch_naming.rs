@@ -18,7 +18,7 @@ use editor_core::{
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
     evaluate,
 };
-use geom_core::{Arc2, Tol};
+use geom_core::Tol;
 
 /// A quad whose LAST authored corner x is a document parameter: at
 /// x0 = 0.5 that corner (0.5, 1) is the lexicographic minimum; at
@@ -379,7 +379,8 @@ fn hole_circle_anchor_recovers_reversal() {
         let p_seg = a.segment(c) as usize;
         // Canonical segment c is program segment p_seg traversed
         // BACKWARD: it starts at the program segment's END vertex and
-        // carries the NEGATED bulge — bit-exact both.
+        // carries the program segment's carrier with its sweep NEGATED
+        // — bit-exact all.
         let p_end = (p_seg + 1) % n as usize;
         assert_eq!(
             verts[c as usize].x.to_bits(),
@@ -387,28 +388,27 @@ fn hole_circle_anchor_recovers_reversal() {
             "canonical seg {c} starts at program vertex {p_end}"
         );
         let canonical = pv.validated.loops()[1].segments()[c as usize];
-        assert_eq!(
-            canonical.bulge.to_bits(),
-            (-program.bulges()[p_seg]).to_bits(),
-            "canonical seg {c} carries program seg {p_seg}'s negated bulge"
-        );
-        // … and its canonical sweep is the program segment's, negated.
-        let (
-            profile::SegmentKind::Arc {
-                arc: Arc2 { sweep, .. },
-                ..
-            },
-            profile::Segment::Arc(Arc2 {
-                sweep: program_sweep,
-                ..
-            }),
-        ) = (canonical.kind, program.segments()[p_seg])
+        let (profile::SegmentKind::Arc { arc, .. }, profile::Segment::Arc(stored)) =
+            (canonical.kind, program.segments()[p_seg])
         else {
             panic!("a circle's segments are arcs");
         };
         assert_eq!(
-            sweep.to_bits(),
-            (-program_sweep).to_bits(),
+            (
+                arc.centre.x.to_bits(),
+                arc.centre.y.to_bits(),
+                arc.radius.to_bits()
+            ),
+            (
+                stored.centre.x.to_bits(),
+                stored.centre.y.to_bits(),
+                stored.radius.to_bits()
+            ),
+            "canonical seg {c} carries program seg {p_seg}'s carrier, copied"
+        );
+        assert_eq!(
+            arc.sweep.to_bits(),
+            (-stored.sweep).to_bits(),
             "canonical seg {c} carries program seg {p_seg}'s negated sweep"
         );
     }

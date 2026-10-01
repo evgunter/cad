@@ -124,8 +124,8 @@ fn main() {
         let chord = last - first;
         let len = chord.norm();
         let surface = ImplicitSurface::Cylinder {
-            point: [first.x, first.y, first.z],
-            axis: [chord.x, chord.y, chord.z],
+            point: first.to_array(),
+            axis: chord.to_array(),
             radius: 0.0,
         };
         let coords = curve.certified_coords();

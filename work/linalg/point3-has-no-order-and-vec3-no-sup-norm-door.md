@@ -2,11 +2,11 @@
 id: point3-has-no-order-and-vec3-no-sup-norm-door
 kind: issue
 title: Point3 has no order and Vec3 no sup-norm door — the two spellings the tour lift sweep could not route through a door
-status: open
+status: closed
 opened: 2026-09-11
 priority: P1
 cost: E
-design: true
+closed: 2026-10-01
 ---
 
 
@@ -45,3 +45,25 @@ Neither blocks anything: the one consumer is a demo site that works
 today through tuples and says so. Filed so the site's reason has a
 durable home, since a demo working around a library gap in silence is
 exactly what `memories/demo-purpose.md` forbids.
+
+## Closed (2026-10-01)
+
+**Sup norm.** Closed by #3710: `Vec2`/`Vec3::norm_inf`, the max-abs
+norm, NaN-poisoning. It is named apart from `interval::norm_sup`, which
+is a bound on the Euclidean norm. Hand-written chains that do not yet
+use it are listed in `hand-chebyshev-chains-are-not-yet-on-norm-inf`.
+
+**Order.** There is no order. A designer pair weighed the question
+(see the log, 2026-10-01). The two started split, and on
+reconciliation they converged on the rule `linalg.rs` already states
+under "Deliberate omissions":
+
+- `Point2`/`Point3` carry no order, no equality and no f64 comparator.
+- Nothing in production needs a point order. The demo's sort did no
+  work.
+- The sites that sort clouds and zip them are a hazard, filed as
+  `work/tint/sorted-clouds-are-zipped-under-a-tolerance-across-a-sort-tie`.
+
+The omission bullet gains one sentence: clouds are compared by matching
+under a tolerance. `diechamfer` now matches by `norm_inf` and does not
+sort; its narrated numbers are unchanged.

@@ -10,8 +10,8 @@
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use profile::{
-    Decision, Open, Profile, ProfileError, ProfileLoop, RawLoop, SketchPlane, Start,
-    ValidatedProfile,
+    ClosedLoop, ConstructedProfile, Decision, Open, Profile, ProfileError, ProfileLoop, RawLoop,
+    SketchPlane, Start, ValidatedProfile, replay_guided, replay_recording,
 };
 
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -22,6 +22,11 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 
 /// The lune through the `.cusp()` door: the kiss is canonical joint 2.
 fn lune() -> ProfileLoop<f64> {
+    lune_closed().into()
+}
+
+/// [`lune`] with the program that built it.
+fn lune_closed() -> ClosedLoop<f64> {
     let tol = Tol::witness();
     Open.at(Point2::new(0.0, 4.0))
         .angle(-std::f64::consts::FRAC_PI_2, tol)
@@ -35,7 +40,6 @@ fn lune() -> ProfileLoop<f64> {
         .cusp()
         .tangent_arc_to(Start, tol)
         .unwrap()
-        .into()
 }
 
 /// The same lune authored RAW and wound the other way (clockwise), so
@@ -137,16 +141,25 @@ fn the_lift_carries_the_cusps() {
 /// reproduces the record and refuses one that disagrees.
 #[test]
 fn the_guided_pass_compares_the_cusps_against_the_record() {
-    let p = Profile::new(SketchPlane::xy(), vec![lune()]);
+    // The guided door takes a loop the guided replay built, so the lune
+    // goes through its own program: recorded at f64 (pass 1), then
+    // replayed guided by that record.
+    let program = lune_closed().program;
+    let (pass1, record) = replay_recording(&program, Tol::witness()).unwrap();
+    let guided_loop = replay_guided(&program, &record, Tol::witness()).unwrap();
+    let p = ConstructedProfile::new(SketchPlane::xy(), vec![pass1]);
+    let replayed = ConstructedProfile::new(SketchPlane::xy(), vec![guided_loop]);
     let (recorded, mut canonical) = p.validate_recording(Tol::witness()).unwrap();
     assert_eq!(canonical.loops[0].cusp_joints, vec![2]);
-    let guided = p.validate_guided(Tol::witness(), &canonical).unwrap();
+    let guided = replayed
+        .validate_guided(Tol::witness(), &canonical)
+        .unwrap();
     assert_eq!(
         guided.loops()[0].cusp_joints(),
         recorded.loops()[0].cusp_joints()
     );
     canonical.loops[0].cusp_joints.clear();
-    match p.validate_guided(Tol::witness(), &canonical) {
+    match replayed.validate_guided(Tol::witness(), &canonical) {
         Err(ProfileError::Structure(r)) => {
             assert_eq!(r.decision, Decision::CuspJoints { loop_: 0 });
         }

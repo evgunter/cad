@@ -61,6 +61,14 @@
 //! re-resolution; root order is unnamed there), and it is pinned by
 //! test rather than left implicit.
 //!
+//! # Labels follow their nodes
+//!
+//! A node label (DESIGN.md Band 1, "Node labels") is keyed by the node,
+//! so it moves with the node: split labels each cut node's copy in the
+//! part as the original was, inline labels each spliced node as its
+//! part-side original was, and the instance a split leaves behind is a
+//! new node with no label.
+//!
 //! # Names re-anchor across the seam (the bridge, both directions)
 //!
 //! Split rewrites every remainder-side reference to a cut entity —
@@ -113,10 +121,9 @@ use crate::names::{
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
-use crate::program::{ProfileDoc, ProfilePayload as _, ProfileProgram};
+use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
 use crate::sentence::{PASS_A_RESOLVER, Recourse};
-use crate::step_mint::StepMint;
 use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
@@ -175,108 +182,76 @@ impl InlineError {
     }
 }
 
-/// **A step the insert door minted other than as precomputed**: the
-/// source document's step, the id the refactoring predicted for it,
-/// and the id the carried profile holds after its insert (`None` where
-/// it holds none there).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StepMapDivergence {
-    /// The step, in the source document.
-    pub step: StepId,
-    /// The id the step map holds for it.
-    pub precomputed: Option<StepId>,
-    /// The id the insert minted for it.
-    pub minted: Option<StepId>,
-}
-
-impl core::fmt::Display for StepMapDivergence {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let id = |s: Option<StepId>| s.map_or_else(|| "none".to_owned(), |s| s.to_string());
-        write!(
-            f,
-            "the profile step {} was predicted to be re-minted as {} and was minted as \
-             {}, which is a kernel bug",
-            self.step,
-            id(self.precomputed),
-            id(self.minted)
-        )
-    }
-}
-
-/// **The step map checked against what the inserts minted**: every
-/// profile of `source` that `node_map` carries into `target`, step by
-/// step in loop then step order, holds the id `step_map` predicted.
-/// The first step that does not is the divergence.
-fn step_map_check(
-    source: &ProfileDoc,
-    node_map: &NodeMap,
-    step_map: &StepMap,
-    target: &ProfileDoc,
-) -> Result<(), StepMapDivergence> {
-    for (&old, &new) in node_map {
-        let Some(Node::Profile(carried)) = source.node(old) else {
-            continue;
-        };
-        let minted: Vec<StepId> = match target.node(new) {
-            Some(Node::Profile(p)) => p.ids.iter().flatten().copied().collect(),
-            _ => Vec::new(),
-        };
-        for (k, &step) in carried.ids.iter().flatten().enumerate() {
-            let precomputed = step_map.get(&step).copied();
-            let got = minted.get(k).copied();
-            if precomputed.is_none() || precomputed != got {
-                return Err(StepMapDivergence {
-                    step,
-                    precomputed,
-                    minted: got,
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
-/// The step map a refactoring's inserts will mint, precomputed: every
-/// profile among `nodes`, in the order they are inserted and under the
-/// id `node_map` gives it, has its steps minted from `mint` by the insert
-/// door's own minting ([`crate::ProfilePayload::mint_step_ids`]) — the
-/// same canonical bytes, so the same ids — which [`step_map_check`]
-/// confirms once the inserts are done. A profile whose plane or node
-/// `node_map` does not carry ends the map there: its insert refuses
-/// under its own name.
+/// **The carried nodes, inserted one at a time**: each of `olds`, a
+/// node of `source`, is remapped through the maps the inserts before it
+/// built and inserted into `target`, and maps to the id the insert door
+/// minted for it; a profile's steps map to the ids the door minted for
+/// them. The maps are read off the door, never predicted, so they
+/// cannot disagree with what it minted.
+///
+/// A name the maps lack whose missing id belongs to a node still to
+/// come is a FORWARD reference (a Declare or a blend selection rebound
+/// onto a later node): no order of inserts satisfies it, and it refuses
+/// as the insert door would, [`EditError::DeclareNamesMissingNode`],
+/// spelled in `source`'s ids. Every other miss is `miss`'s.
 ///
 /// # Errors
 ///
-/// The mint's refusal, as the insert would report it.
-fn step_map_of<'a>(
-    nodes: impl Iterator<Item = (RecipeNodeId, &'a Node<ProfileProgram>)>,
-    node_map: &NodeMap,
-    mint: &StepMint,
-) -> Result<StepMap, EditError> {
-    let mut mint = mint.clone();
-    let mut map = StepMap::new();
-    for (old, node) in nodes {
-        let Node::Profile(p) = node else { continue };
-        let (Some(&id), Some(&plane)) = (node_map.get(&old), node_map.get(&p.plane)) else {
-            break;
+/// `edit` over the insert door's refusal; `miss` over a remap miss.
+fn carry<E>(
+    source: &ProfileDoc,
+    olds: &[RecipeNodeId],
+    target: &mut Recording,
+    (tol, reach): (Tol, &dyn crate::mate::MateReach),
+    edit: impl Fn(EditError) -> E,
+    miss: impl Fn(RecipeNodeId, RemapMiss) -> E,
+) -> Result<(NodeMap, StepMap), E> {
+    let mut node_map = NodeMap::new();
+    let mut step_map = StepMap::new();
+    for (k, &old) in olds.iter().enumerate() {
+        let Some(node) = source.node(old) else {
+            continue;
         };
-        let mut carried = ProfileProgram {
-            plane,
-            loops: p.loops.clone(),
-            ids: Vec::new(),
+        let later = &olds[k..];
+        let forward = |missing: &Unmapped| match *missing {
+            Unmapped::Node(n) => later.contains(&n),
+            Unmapped::Step(step) => later.iter().any(|n| {
+                matches!(source.node(*n), Some(Node::Profile(p))
+                    if p.ids.iter().flatten().any(|s| *s == step))
+            }),
         };
-        carried
-            .mint_step_ids(id, &mut mint)
-            .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
-        map.extend(
-            p.ids
-                .iter()
-                .flatten()
-                .copied()
-                .zip(carried.ids.iter().flatten().copied()),
-        );
+        let carried = match remap_node(node, &node_map, &step_map) {
+            Ok(carried) => carried,
+            Err(RemapMiss::Name { name, missing }) if forward(&missing) => {
+                return Err(edit(EditError::DeclareNamesMissingNode { name: *name }));
+            }
+            Err(other) => return Err(miss(old, other)),
+        };
+        let new = target
+            .apply(DocEdit::InsertNode { node: carried }, tol, reach)
+            .map_err(&edit)?
+            .unwrap_or_else(|| unreachable!("an accepted insert mints its node"));
+        node_map.insert(old, new);
+        if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc.node(new)) {
+            let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
+            if shape(&from.ids) != shape(&to.ids) {
+                unreachable!(
+                    "the insert door mints one id per authored step, so a carried profile's step \
+                     ids have its source's shape: carried {:?}, source {:?}",
+                    shape(&to.ids),
+                    shape(&from.ids)
+                );
+            }
+            step_map.extend(
+                from.ids
+                    .iter()
+                    .flatten()
+                    .copied()
+                    .zip(to.ids.iter().flatten().copied()),
+            );
+        }
     }
-    Ok(map)
+    Ok((node_map, step_map))
 }
 
 /// Why [`split`] refused. Typed and specific (spec D-2): every arm
@@ -446,12 +421,6 @@ pub enum SplitError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
-    /// The part document's insert door minted a cut profile's step
-    /// under an id other than the one the split precomputed for it —
-    /// a construction bug in this module, surfaced typed: every name
-    /// the split rewrote through its step map would spell the wrong
-    /// step.
-    StepMapDiverged(StepMapDivergence),
 }
 
 impl core::fmt::Display for SplitError {
@@ -585,7 +554,6 @@ impl core::fmt::Display for SplitError {
                 error.problem(),
                 ReplayTail(error, Replay::SplitRemainder)
             ),
-            Self::StepMapDiverged(d) => write!(f, "split: {d}"),
         }
     }
 }
@@ -699,10 +667,6 @@ pub enum InlineError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
-    /// The host's insert door minted a spliced profile's step under an
-    /// id other than the one the inline precomputed for it — the same
-    /// construction bug as [`SplitError::StepMapDiverged`].
-    StepMapDiverged(StepMapDivergence),
 }
 
 impl core::fmt::Display for InlineError {
@@ -771,7 +735,6 @@ impl core::fmt::Display for InlineError {
                 error.problem(),
                 ReplayTail(error, Replay::Inline)
             ),
-            Self::StepMapDiverged(d) => write!(f, "inline: {d}"),
         }
     }
 }
@@ -871,6 +834,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SetMembersOnNonList { .. }
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::StepIdsRefused { .. }
+            | EditError::NodeIdCollides { .. }
             | EditError::TooFewMembers { .. }
             | EditError::DeleteWouldDangle { .. }
             | EditError::UnknownSlot { .. }
@@ -926,7 +890,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PlacementAxis { .. }
             | EditError::NonFiniteAlignment { .. }
             | EditError::UpdateOnNonInstance { .. }
-            | EditError::PinUnchanged { .. } => defect(f),
+            | EditError::PinUnchanged { .. }
+            | EditError::LabelUnchanged { .. } => defect(f),
         }
     }
 }
@@ -1320,7 +1285,7 @@ fn remap_node(
         //
         // Its step ids do NOT cross: the other document's insert door
         // mints its own, and the names that spell them cross through
-        // the step map precomputed from that minting (`step_map_of`).
+        // the step map read off that minting ([`carry`]).
         Node::Profile(p) => Node::Profile(ProfileProgram {
             plane: id(p.plane)?,
             loops: p.loops.clone(),
@@ -1806,29 +1771,6 @@ pub fn split(
             NameCarrier::Store { name } => classify(name)?,
         }
     }
-    // The deterministic id remap: cut nodes in document order mint
-    // part ids 0, 1, 2, … (D9 — two runs agree byte for byte).
-    let node_map: NodeMap = doc
-        .order()
-        .iter()
-        .filter(|id| cut.contains(id))
-        .enumerate()
-        .map(|(i, &old)| (old, RecipeNodeId(i as u64)))
-        .collect();
-    // The same for the cut profiles' steps: the part's insert door
-    // mints them from the empty document's mint, in insertion order.
-    let step_map = step_map_of(
-        doc.order()
-            .iter()
-            .filter(|id| cut.contains(id))
-            .filter_map(|id| doc.node(*id).map(|node| (*id, node))),
-        &node_map,
-        &StepMint::empty(),
-    )
-    .map_err(|error| SplitError::PartEdit {
-        error: Box::new(error),
-    })?;
-
     // ---- The part document, as recorded edits from empty ----
     // The part side's edits are inserts into a document being built —
     // a Join at most, never a moved root — so they lever through the
@@ -1862,30 +1804,54 @@ pub fn split(
             )?;
         }
     }
-    for &old in doc.order().iter().filter(|id| cut.contains(id)) {
-        let Some(node) = doc.node(old) else { continue };
-        let node = remap_node(node, &node_map, &step_map).map_err(|miss| match miss {
+    // The cut nodes in document order, each under the id the part's
+    // insert door mints for it (D9 — two runs agree byte for byte).
+    let olds: Vec<RecipeNodeId> = doc
+        .order()
+        .iter()
+        .filter(|id| cut.contains(id))
+        .copied()
+        .collect();
+    let (node_map, step_map) = carry(
+        doc,
+        &olds,
+        &mut part,
+        (tol, &part_reach),
+        |error| SplitError::PartEdit {
+            error: Box::new(error),
+        },
+        |old, miss| match miss {
             RemapMiss::Input(input) => SplitError::PartEdit {
                 error: Box::new(EditError::UnresolvedInput { input }),
             },
             RemapMiss::Name { name, missing } => SplitError::reaches(old, name, missing),
-        })?;
-        part_apply(&mut part, DocEdit::InsertNode { node })?;
-    }
-    step_map_check(doc, &node_map, &step_map, &part.doc).map_err(SplitError::StepMapDiverged)?;
+        },
+    )?;
     // Witness DATA copies VERBATIM while node ids remap: sound because
     // a witness datum is sketch-self-relative — it selects among the
     // owning profile's own solution branches and embeds no other
     // node's identity, so there is no cross-id-space reference for the
     // remap to miss. A future witness vocabulary that embeds foreign
     // stable names must remap here or refuse.
-    for (&old, &new) in &node_map {
-        if let Some(witness) = doc.witness(old) {
+    for &old in &olds {
+        if let (Some(&new), Some(witness)) = (node_map.get(&old), doc.witness(old)) {
             part_apply(
                 &mut part,
                 DocEdit::ReWitness {
                     node: new,
                     witness: witness.clone(),
+                },
+            )?;
+        }
+    }
+    // A label follows the node it names into the part.
+    for &old in &olds {
+        if let (Some(&new), Some(label)) = (node_map.get(&old), doc.label(old)) {
+            part_apply(
+                &mut part,
+                DocEdit::SetLabel {
+                    node: new,
+                    label: Some(label.clone()),
                 },
             )?;
         }
@@ -2235,30 +2201,6 @@ pub fn inline(
     }
     wrapped.sort();
     wrapped.dedup();
-    // The id remap is precomputed from the mint counter: parameter
-    // edits mint nothing, so the part's nodes land on consecutive ids
-    // starting at the host's next mint, in part document order — which
-    // is what lets payloads with FORWARD name references (a rebound
-    // Declare) remap before their targets are inserted.
-    let node_map: NodeMap = part
-        .order()
-        .iter()
-        .enumerate()
-        .map(|(i, &old)| (old, RecipeNodeId(doc.next_id + i as u64)))
-        .collect();
-    // The part's profile steps are minted from the host's mint, which
-    // inserts of the part's nodes alone extend.
-    let step_map = step_map_of(
-        part.order()
-            .iter()
-            .filter_map(|id| part.node(*id).map(|node| (*id, node))),
-        &node_map,
-        doc.step_mint(),
-    )
-    .map_err(|error| InlineError::Edit {
-        error: Box::new(error),
-    })?;
-
     let mut current = Recording::start(doc.clone());
     let step =
         |current: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), InlineError> {
@@ -2288,29 +2230,46 @@ pub fn inline(
             )?,
         }
     }
-    for &old in part.order() {
-        let Some(node) = part.node(old) else { continue };
-        let node = remap_node(node, &node_map, &step_map).map_err(|miss| match miss {
+    // The part's nodes in its document order, each under the id the
+    // host's insert door mints for it.
+    let (node_map, step_map) = carry(
+        &part,
+        part.order(),
+        &mut current,
+        (tol, &reach),
+        |error| InlineError::Edit {
+            error: Box::new(error),
+        },
+        |_, miss| match miss {
             RemapMiss::Input(input) => InlineError::Edit {
                 error: Box::new(EditError::UnresolvedInput { input }),
             },
             RemapMiss::Name { name, missing } => InlineError::stranded(name, missing),
-        })?;
-        step(&mut current, DocEdit::InsertNode { node })?;
-    }
-    step_map_check(&part, &node_map, &step_map, &current.doc)
-        .map_err(InlineError::StepMapDiverged)?;
+        },
+    )?;
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
     // relative and embeds no other node's identity (see split's
     // witness loop).
-    for (&old, &new) in &node_map {
-        if let Some(witness) = part.witness(old) {
+    for &old in part.order() {
+        if let (Some(&new), Some(witness)) = (node_map.get(&old), part.witness(old)) {
             step(
                 &mut current,
                 DocEdit::ReWitness {
                     node: new,
                     witness: witness.clone(),
+                },
+            )?;
+        }
+    }
+    // A label follows the node it names into the host.
+    for &old in part.order() {
+        if let (Some(&new), Some(label)) = (node_map.get(&old), part.label(old)) {
+            step(
+                &mut current,
+                DocEdit::SetLabel {
+                    node: new,
+                    label: Some(label.clone()),
                 },
             )?;
         }

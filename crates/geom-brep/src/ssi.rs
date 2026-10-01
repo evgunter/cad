@@ -1103,7 +1103,7 @@ impl SsiDomain {
         let fields = [
             (
                 DomainField::Center,
-                [c.x, c.y, c.z].into_iter().find(|v| !v.is_finite()),
+                c.to_array().into_iter().find(|v| !v.is_finite()),
             ),
             (DomainField::HalfExtent, positive_finite(self.half_extent)),
             (DomainField::Extent, positive_finite(self.extent)),
@@ -1488,9 +1488,9 @@ pub fn cylinder_sphere_ssi(
         // hand back a duplicate `SsiBranch` (two carriers for one
         // component, and an exhaustiveness receipt that double-counts
         // the same tube). Refine first, then test.
-        let state = [seed.x, seed.y, seed.z];
+        let state = seed.to_array();
         let landed = march::newton_refine::<2, 3, _>(&sys, state, ctx.tol);
-        let probe = landed.map_or(*seed, |x| Point3::new(x[0], x[1], x[2]));
+        let probe = landed.map_or(*seed, Point3::from_array);
         if tubes
             .iter()
             // The band, not the marcher: this box decides whether two
@@ -1916,13 +1916,7 @@ pub fn idealized_trace_r3(
         tol: MarchTol::from_band(band),
         max_steps: SSI_MAX_STEPS,
     };
-    let trace = march_both::<2, 3, _>(
-        &sys,
-        [seed.x, seed.y, seed.z],
-        ctx,
-        StepperMode::Idealized,
-        band,
-    )?;
+    let trace = march_both::<2, 3, _>(&sys, seed.to_array(), ctx, StepperMode::Idealized, band)?;
     let pts = trace_points::<2, 3, _>(&sys, &trace);
     Ok((pts, trace.end))
 }

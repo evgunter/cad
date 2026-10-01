@@ -58,15 +58,19 @@ fn x4_disjoint_boolean_over_a_filleted_body_meets_the_plane_tangency_arm() {
         Tol::witness(),
     );
     match out {
-        Err(topo::BooleanError::FallbackExtentUnsupported { what, .. }) => {
-            assert!(
-                what.contains("tangent"),
+        Err(topo::BooleanError::Escalated {
+            decision: topo::BooleanDecision::Sphere(topo::SphereQuestion::AgainstPlane),
+            diag,
+        }) => {
+            assert_eq!(
+                diag.predicate,
+                Some("bool_sphere_extent_gap"),
                 "the trimmed-group arm has retired; what stops this fixture is the \
-                 plane-carrier tangency the fillet itself creates: {what}"
+                 plane-carrier tangency the fillet itself creates"
             );
         }
         other => panic!(
-            "expected FallbackExtentUnsupported on a disjoint operand, got: {:?}",
+            "expected the sphere's tangency against a plane on a disjoint operand, got: {:?}",
             other.map(|_| "Ok(..)")
         ),
     }

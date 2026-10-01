@@ -274,7 +274,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::EmptyPlacementList { node }
 
         | EditError::NonFiniteAlignment { node }
-        | EditError::UpdateOnNonInstance { node } => EditPayload {
+        | EditError::UpdateOnNonInstance { node }
+        | EditError::LabelUnchanged { node, label: _ } => EditPayload {
             node: Some(*node),
             ..none
         },
@@ -284,6 +285,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::MeasureMalformed { node, fault: _ }
         | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
             node: Some(*node),
+            ..none
+        },
+        // The id the insert drew: the node it would have been.
+        EditError::NodeIdCollides { id } => EditPayload {
+            node: Some(*id),
             ..none
         },
         EditError::UnresolvedInput { input } => EditPayload {

@@ -805,9 +805,9 @@ fn resolve_side<P: crate::ProfilePayload>(
         unreachable!("readback::face_pose fixes u_ref for every carrier it answers")
     };
     Ok(AuthoredFrame {
-        origin: [pose.origin.x, pose.origin.y, pose.origin.z],
-        axis: [pose.axis.x, pose.axis.y, pose.axis.z],
-        reference: [u_ref.x, u_ref.y, u_ref.z],
+        origin: pose.origin.to_array(),
+        axis: pose.axis.to_array(),
+        reference: u_ref.to_array(),
     })
 }
 
@@ -1444,14 +1444,34 @@ fn solve_group<P: crate::ProfilePayload>(
         group.iter().enumerate().map(|(i, &id)| (id, i)).collect();
     let mut neighbours: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
     // The tree edge between two instances: the FIRST member pair
-    // relating them, in pair-key order (deterministic). Every other
+    // relating them, in the order `Member`'s key states with every node
+    // read as its position in the document — so the members the author
+    // placed first win, whatever ids the mint gave them. Every other
     // pair between the same two is a non-tree edge and stays
     // declaring.
+    let placed = s.doc.positions();
+    let at = |id: RecipeNodeId| placed.get(&id).copied().unwrap_or(usize::MAX);
+    let rank = |m: &Member| {
+        (
+            at(m.instance),
+            m.copy
+                .iter()
+                .map(|&(node, index)| (at(node), index))
+                .collect::<Vec<_>>(),
+            at(m.at),
+        )
+    };
+    let mut pairs: Vec<(&Member, &Member)> = by_pair
+        .keys()
+        .filter(|(x, _)| position.contains_key(&x.instance))
+        .map(|(x, y)| (x, y))
+        .collect();
+    pairs.sort_by_cached_key(|&(x, y)| {
+        let (rx, ry) = (rank(x), rank(y));
+        if rx <= ry { (rx, ry) } else { (ry, rx) }
+    });
     let mut edge_of: BTreeMap<(RecipeNodeId, RecipeNodeId), (&Member, &Member)> = BTreeMap::new();
-    for ((x, y), _) in by_pair
-        .iter()
-        .filter(|((x, _), _)| position.contains_key(&x.instance))
-    {
+    for (x, y) in pairs {
         if x.instance == y.instance {
             continue;
         }

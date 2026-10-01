@@ -33,7 +33,7 @@ fn an_asymmetric_fused_pocket_replays_at_f64() {
         )
         .expect("the fused pocket constructs at f64");
     let lp = built.loop_;
-    profile::Profile::new(SketchPlane::xy(), vec![lp.clone()])
+    profile::Profile::new(SketchPlane::xy(), vec![lp.clone().into_loop()])
         .validate(Tol::witness())
         .expect("and validates");
     assert!(lp.vertices().len() >= 3, "a pocket, not a degenerate loop");
@@ -86,11 +86,13 @@ fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
         .zip(iv.loop_.vertices())
         .enumerate()
     {
-        for (what, exact, enc) in [
-            ("x", a.x, b.x),
-            ("y", a.y, b.y),
-            ("bulge", f.loop_.bulges()[k], iv.loop_.bulges()[k]),
-        ] {
+        let mut channels = vec![("x", a.x, b.x), ("y", a.y, b.y)];
+        if let (profile::Segment::Arc(e), profile::Segment::Arc(i)) =
+            (f.loop_.segments()[k], iv.loop_.segments()[k])
+        {
+            channels.push(("sweep", e.sweep, i.sweep));
+        }
+        for (what, exact, enc) in channels {
             let w = enc.hi() - enc.lo();
             assert!(
                 w <= 1e-12,
@@ -129,7 +131,7 @@ fn a_true_tangency_classifies_as_an_exact_fit_through_the_public_door() {
         )
         .expect("the knife-edge fit constructs at f64: the margin is bit-zero");
     let lp = built.loop_;
-    profile::Profile::new(SketchPlane::xy(), vec![lp])
+    profile::Profile::new(SketchPlane::xy(), vec![lp.into_loop()])
         .validate(Tol::witness())
         .expect("and validates as a closed loop");
 }

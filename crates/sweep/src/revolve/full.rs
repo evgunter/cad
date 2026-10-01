@@ -107,11 +107,12 @@ pub(super) fn build_full<T: Decide>(
                 },
             )],
         };
-        let inserted = topo::insert_void(&mut out.body, out.solid, hole.body, &evidence, tol)
-            .map_err(|source| RevolveError::VoidInsertion {
+        let inserted = topo::insert_void(&mut out.body, out.solid, hole.body, &evidence).map_err(
+            |source| RevolveError::VoidInsertion {
                 loop_index: li,
                 source,
-            })?;
+            },
+        )?;
         // Re-key the hole's handles into the result body (the graft's
         // bridge is the ONLY bridge; a miss is graft corruption).
         let desync = |_| RevolveError::VoidInsertion {

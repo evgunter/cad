@@ -2,10 +2,9 @@
 id: svd-sigma-folds-re-spell-real-min-max
 kind: issue
 title: Svd::sigma_min and sigma_max hand-roll the NaN-propagating fold Real::min and Real::max already are
-status: open
+status: closed
 opened: 2026-10-01
-priority: P4
-cost: E
+closed: 2026-10-01
 ---
 
 
@@ -26,3 +25,11 @@ for the NaN-propagating fold. `geom-brep/src/ssi.rs`'s
 `nan_propagating_max` (the ℝ⁴ seeding guard's chart-speed fold) is a
 third copy of the same thing; that PR left it in place because the
 chart-speed guards are under a separate design.
+
+## Closed (2026-10-01)
+
+Closed by #3710. The folds now read `fold(±∞, Real::min/max)`. A
+per-position NaN row pins them.
+
+The fold can now choose differently between `+0` and `−0`. That
+difference is unreachable: σ is a `sqrt` of a sum seeded at `+0`.
