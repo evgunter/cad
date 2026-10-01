@@ -7,6 +7,8 @@ opened: 2026-10-01
 priority: P1
 cost: M
 design: true
+needs_ev: true
+branch: emit/fold-discarded-member
 ---
 
 
