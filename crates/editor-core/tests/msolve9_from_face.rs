@@ -116,9 +116,9 @@ fn mate(
 }
 
 /// **The item's document**: a post and a block in a store, the block
-/// instantiated after the post (so the post is the gauge), and the
-/// block SEATED on the post's cap — the post side names the cap FACE,
-/// the block side is its own origin frame. Returns the assembly, the
+/// instantiated after the post with no offset (so the post is the
+/// root), and the block SEATED on the post's cap — the post side
+/// names the cap FACE, the block side is its own origin frame. Returns the assembly, the
 /// two instances and their parts' bodies, the mate, the store's
 /// options and the post document as stored.
 struct Seat {
@@ -143,7 +143,10 @@ fn seat(label: &str, post_height: f64) -> Seat {
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, post_i) = insert(doc, Node::instantiate_part(post_ref));
-    let (doc, block_i) = insert(doc, Node::instantiate_part(block_ref));
+    // The block carries no offset: the mate door places the FIRST
+    // operand's group on the second's, so with the post first the
+    // block's empty offset keeps the post the root it seats on.
+    let (doc, block_i) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, mate) = step_with(
         doc,
         DocEdit::InsertNode {
@@ -469,7 +472,7 @@ fn resolve_through_the_solve(
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(part_ref));
-    let (doc, b) = insert(doc, Node::instantiate_part(block_ref));
+    let (doc, b) = insert(doc, fixture::mated_instance(block_ref));
     let node = Node::Mate {
         a: fixture::head(in_part(a, part_body, CapEnd::End)),
         b: fixture::head(in_part(b, block_body, CapEnd::Start)),
