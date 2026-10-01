@@ -863,7 +863,7 @@ fn a_reported_appearance_strand_is_still_clearable() {
 /// same way the payload half does**: by being recomputable. The store
 /// round-trips with the document, so the same delete against the
 /// loaded value reports the same keys — a stranded key's dead minting
-/// node is below the mint counter and the save validator accepts it.
+/// node is in the mint log and the save validator accepts it.
 #[test]
 fn a_round_tripped_document_reports_the_same_appearance_strands() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_round_trip", Tol::witness());

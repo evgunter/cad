@@ -101,12 +101,13 @@ fn an_order_swap_changes_only_the_rim_name() {
         .iter()
         .map(|(n, _)| format!("{n:?}"))
         .collect();
+    // Up to the shell's own id: the two shells are two inserts.
     let names_b: std::collections::BTreeSet<String> = eb
         .value(sb)
         .unwrap()
         .name_table
         .iter()
-        .map(|(n, _)| format!("{n:?}"))
+        .map(|(n, _)| format!("{:?}", crate::fixture::renoded(n, sb, sa)))
         .collect();
     let only_a: Vec<_> = names_a.difference(&names_b).collect();
     let only_b: Vec<_> = names_b.difference(&names_a).collect();
@@ -131,7 +132,7 @@ fn an_order_swap_changes_only_the_rim_name() {
         only_b,
         vec![&format!(
             "{:?}",
-            rim(sb, editor_core::band_pi(pot, vessel::mouth(&b.doc, pot)))
+            rim(sa, editor_core::band_pi(pot, vessel::mouth(&b.doc, pot)))
         )]
     );
 }

@@ -68,8 +68,9 @@ pub struct Member {
 }
 
 /// **The member key, written out.** `Member` is the `BTreeMap` key
-/// `by_pair` and `edge_of` are built on and the order the spanning
-/// tree picks its edges by, so the ordering is stated rather than
+/// `by_pair` and `edge_of` are built on, and its order, with every node
+/// read as its position in the document, is the order the spanning
+/// tree picks its edges by; so the ordering is stated rather than
 /// derived: `(instance, copy, at)`, with the OPERAND last and the copy
 /// chain compared lexicographically.
 ///
@@ -933,7 +934,10 @@ mod tests {
                 },
             },
         );
-        doc.next_id = MATE.0 + 1;
+        doc.mint = doc
+            .mint
+            .clone()
+            .logged([AXIS, FRAME2, T1, T2, PATTERN, DANGLING, MATE].map(crate::Minted::Node));
         (doc, body)
     }
 
