@@ -40,3 +40,39 @@ boundary edges the trim does NOT replace).
 whose carrier is neither a line nor a circle (or is uncertified), and
 leaves that pair to the same sampled screen alone — so a NURBS boundary
 edge of a ladder host carries the same one-sided gap.
+
+## Measured (`band/annulus-host-outer-metered`)
+
+The finding holds, and on more than the host. On main before this
+branch, each of these passed predicate 2's screen and carved a
+tier-3-valid body whose band spans the cut (rows in
+`crates/sweep/tests/band_annulus_host_boundary.rs`):
+
+- a revolved washer notched from the bore side, the outer rim's plane
+  host carrying the notch's corners past its trim at `−0.074`;
+- the same washer notched from outside, the bore rim's host carrying
+  the notch inside its trim at `−0.0115` (the trim lies OUTSIDE that
+  rim, so the near reach decides, not the far);
+- a cone–cylinder shaft whose cylinder HOST a 45° cut leaves an ellipse
+  `0.0064` past its trim;
+- the same shaft with the cylinder as the rim's MATE: the mate's outer
+  boundary was metered by the screen alone too, on ladder and annulus
+  rims both.
+
+The ladder walk's skipped carriers are reachable: a tilted cut leaves a
+cylinder support an `Ellipse` edge, and a STEP import can leave a plane
+support a NURBS one.
+
+## Closed by (`band/annulus-host-outer-metered`)
+
+`ring_clearance_pass`'s arm (b) walks every distinct host AND mate face
+of every closed rim, ladder or annulus, and meters each outer-cycle
+edge the carve does not replace (the rim's arcs, and the seam or
+meridian each support drops into a rim vertex) against that face's trim
+under `fillet3_ring_clearance`: the distance from the trim centre on a
+plane, the height along the axis on a cylinder, cone or sphere, decided
+on the trim's far side from the rim. Lines and circles go through
+`piece_distance` / `piece_along`; any other carrier through
+`whole_carrier_reach` (sound, can only refuse more —
+`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`);
+an uncertified edge refuses typed. Nothing is skipped.

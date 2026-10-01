@@ -164,6 +164,8 @@ mod verbs_shell;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
+#[path = "band_annulus_host_boundary.rs"]
+mod band_annulus_host_boundary;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
