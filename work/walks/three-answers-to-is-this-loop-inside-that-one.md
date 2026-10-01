@@ -44,7 +44,7 @@ the boundary case:
    widens the divergence this row tracks: `ring_nesting` and
    `boolean::contfp` now dispatch on the loop's shape, `rehome_rings`
    still does not
-   (`work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
+   (`work/cleave/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
    **2026-09-25 (ATREST-12): one instrument again, and no shape
    dispatch** — `splitting::containment::point_in_carrier_loop` (the
    walk that reads each edge on its own carrier, ATREST-9) on every

@@ -2,7 +2,7 @@
 id: reach
 kind: program
 title: REACH — curved operand reach, merge-door and join reach, and the at-rest census
-status: ready
+status: active
 opened: 2026-09-20
 area: kernel
 prefix: reach/
@@ -34,7 +34,8 @@ PARALLEL: GERM (cone and torus), CONTACT (touches and overlaps), ZIP
 (join, rest and merge), BOXES (one fact decided in several places),
 PIN (the guards and preconditions) and this remainder. REACH keeps its
 band 6000-6099. Every row moved by `git mv` with its id, body and
-history unchanged.
+history unchanged. The rows that arrived after that cut went to CLEAVE
+and HONE at REACH's first sitting (2026-10-01), leaving the six.
 
 Charter, lanes and posture: `work/reach/plan.md`; narrative in
 `work/reach/log.md`.

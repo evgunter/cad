@@ -5,7 +5,7 @@ title: A shell with every vertex on the other operand's boundary exhausts the un
 status: open
 opened: 2026-09-25
 priority: P0
-cost: D
+cost: M
 refs: [two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted, union-refuses-in-some-member-orders-and-publishes-in-others]
 ---
 

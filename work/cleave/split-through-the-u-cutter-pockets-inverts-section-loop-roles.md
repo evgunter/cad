@@ -5,7 +5,7 @@ title: a split of the U-cutter subtract at x = 3 evaluates, then its half fails 
 status: open
 opened: 2026-09-25
 priority: P0
-cost: D
+cost: M
 ---
 
 
