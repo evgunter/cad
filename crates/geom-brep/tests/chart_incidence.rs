@@ -15,7 +15,7 @@
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
 use geom_brep::{PcurveCertifyError, UncoveredClass, chart_pcurve};
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 
 /// The right circular cone of half-angle `alpha` about `+z` with its
 /// apex at the origin.
@@ -55,7 +55,9 @@ fn section(alpha: f64, h: f64, theta: f64) -> (Point3<f64>, Vec3<f64>, Vec3<f64>
 }
 
 /// A tilted plane section of a cone lies on it, and is uncovered; the
-/// same ellipse moved off it is a carrier off the chart.
+/// same ellipse moved off it by `2·K·ε` — just past the sliver, so a
+/// meter loose by more than a factor of two would excuse it — is a
+/// carrier off the chart.
 #[test]
 fn a_cone_section_is_uncovered_and_a_moved_one_is_off_the_chart() {
     let alpha = 0.5;
@@ -80,17 +82,86 @@ fn a_cone_section_is_uncovered_and_a_moved_one_is_off_the_chart() {
         ),
         "a cone section is uncovered: {got:?}"
     );
+    let shift = 2.0 * Tol::witness().k() * eps();
     let moved = Curve3::Ellipse {
-        center: centre + Vec3::new(0.0, 1e-3, 0.0),
+        center: centre + axis * shift,
         axis,
         major,
         minor,
         u_ref,
     };
+    let dist = off_cone(&moved, alpha);
+    assert!(
+        dist > Tol::witness().k() * eps(),
+        "the move is past the sliver: {dist:e}"
+    );
     let got = chart_pcurve(&moved, &cone(alpha), band());
     assert!(
         matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
         "a moved section is off the cone: {got:?}"
+    );
+}
+
+/// The cone incidence margin, `|k₀| + |(k₁, k₂)| + |(k₃, k₄)|` over
+/// `2·sin α·z_min`, read through one harmonic group at a time: each row
+/// builds a conic off the cone whose residual lives in ONE group, at
+/// `5·K·ε` — past the sliver — with every other group inside `ε`, so a
+/// margin that dropped that group would call it uncovered.
+#[test]
+fn each_harmonic_group_of_the_cone_residual_decides_alone() {
+    let (e, k) = (eps(), Tol::witness().k());
+    let off = |what: &str, carrier: Curve3<f64>, alpha: f64| {
+        let got = chart_pcurve(&carrier, &cone(alpha), band());
+        assert!(
+            matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            "{what}: {got:?}"
+        );
+    };
+    // k₀ alone: a circle ⊥ the axis of the wrong radius, centred 2·K·ε
+    // off the axis so the rim's centring gate sends it to the test.
+    // `k₀ ≈ cos²α·2ρ·δρ`, `k₁ = 2·cos²α·w·a` stays under ε.
+    let alpha = 1.55_f64;
+    let rho = alpha.tan();
+    let d_rho = 5.0 * k * e * 2.0 * alpha.sin() / (alpha.cos().powi(2) * 2.0 * rho);
+    off(
+        "k0: a wrong radius",
+        Curve3::Circle {
+            center: Point3::new(2.0 * k * e, 0.0, 1.0),
+            axis: Vec3::unit_z(),
+            radius: rho + d_rho,
+            u_ref: Vec3::unit_x(),
+        },
+        alpha,
+    );
+    // (k₁, k₂) alone: the right radius, centred δ off the axis — the
+    // first harmonic is `2·cos²α·δ·ρ`, k₀ = `cos²α·δ²` is second
+    // order, and the margin reads `δ·cos α`.
+    let alpha = 0.5_f64;
+    let delta = 5.0 * k * e / alpha.cos();
+    off(
+        "k1,k2: an off-axis rim",
+        Curve3::Circle {
+            center: Point3::new(delta, 0.0, 1.0),
+            axis: Vec3::unit_z(),
+            radius: alpha.tan(),
+            u_ref: Vec3::unit_x(),
+        },
+        alpha,
+    );
+    // (k₃, k₄) alone: an ellipse ⊥ the axis, centred on it, with
+    // `A² + B² = 2ρ²` (so k₀ = 0) and `A² − B² = 2s` (k₃ = cos²α·s).
+    let rho = alpha.tan();
+    let s = 5.0 * k * e * 2.0 * alpha.sin() / alpha.cos().powi(2);
+    off(
+        "k3,k4: an ellipse round the axis",
+        Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 1.0),
+            axis: Vec3::unit_z(),
+            major: (rho * rho + s).sqrt(),
+            minor: (rho * rho - s).sqrt(),
+            u_ref: Vec3::unit_x(),
+        },
+        alpha,
     );
 }
 

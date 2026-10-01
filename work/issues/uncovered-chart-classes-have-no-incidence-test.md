@@ -1,7 +1,7 @@
 ---
 id: uncovered-chart-classes-have-no-incidence-test
 kind: issue
-title: Three uncovered chart_pcurve classes have no incidence test, so an off-chart carrier among them is excused as uncovered
+title: Four uncovered chart_pcurve classes have no incidence test, so an off-chart carrier among them is excused as uncovered
 status: open
 opened: 2026-10-01
 ---

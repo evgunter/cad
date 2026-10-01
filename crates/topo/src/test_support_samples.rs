@@ -278,8 +278,8 @@ fn certify_errors() -> Vec<CertifyError> {
     let key = geom_brep::SurfaceKey::default();
     let mut v = vec![
         CertifyError::ChartImageUnavailable {
-            chart: "cone",
-            carrier: "ellipse",
+            chart: geom_brep::SurfaceKind::Cone,
+            carrier: geom_brep::CurveKind::Ellipse,
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
@@ -334,7 +334,9 @@ fn certify_errors() -> Vec<CertifyError> {
 
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
     let mut v = vec![
-        PcurveCertifyError::UnsupportedChart { chart: "torus" },
+        PcurveCertifyError::UnsupportedChart {
+            chart: geom_brep::SurfaceKind::Torus,
+        },
         PcurveCertifyError::UnsupportedCarrier {
             chart: geom_brep::SurfaceKind::Torus,
             carrier: geom_brep::CurveKind::Circle,

@@ -1246,8 +1246,8 @@ pub enum PcurveCertifyError {
     /// This is a *routing decision*, permanent until a PR moves it —
     /// never a runtime fallback (C5).
     UnsupportedChart {
-        /// The surface kind, named.
-        chart: &'static str,
+        /// The surface kind.
+        chart: crate::SurfaceKind,
     },
     /// The carrier can lie on the chart, but no lane images this
     /// (chart, carrier) pair yet: valid input the kernel has not built
@@ -1430,11 +1430,12 @@ impl core::fmt::Display for PcurveCertifyError {
         match self {
             Self::UnsupportedChart { chart } => write!(
                 f,
-                "pcurve certification: no {chart}-chart lane covers this pcurve — every \
+                "pcurve certification: no {}-chart lane covers this pcurve — every \
                  analytic chart certifies its closed-form (Harmonic) classes, a NURBS \
                  chart routes through its description-driven \
                  iso/fitted lanes instead of this door, and an image outside the chart's \
-                 harmonic family belongs to the fitted lane where one exists"
+                 harmonic family belongs to the fitted lane where one exists",
+                chart.name()
             ),
             Self::UnsupportedCarrier {
                 chart,
@@ -2890,7 +2891,7 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
             "azimuth_lever: a {} chart has no azimuth, and every caller asks on a \
              periodic chart only",
-            chart_name(surface)
+            crate::SurfaceKind::of(surface).name()
         ),
     }
 }
@@ -3071,7 +3072,7 @@ fn run_harmonic_checks<T: Decide>(
         unreachable!("run_harmonic_checks: both callers match `Pcurve::Harmonic` to reach it")
     };
     // ---- Check 1: the certified lane. ----
-    let chart = chart_name(surface);
+    let chart = crate::SurfaceKind::of(surface);
     // The closed-form lane is the analytic charts'; a spline chart —
     // the payload's or an approximating surface's fit — goes through
     // the fitted lane instead.
@@ -3309,7 +3310,7 @@ fn run_spiric_checks<T: Decide>(
             why: "the carrier is not a spiric, so no spiric image is its own",
         });
     };
-    let chart = chart_name(surface);
+    let chart = crate::SurfaceKind::of(surface);
     let esc = |check: PcurveCheck| {
         move |cause| PcurveCertifyError::Escalated {
             check,
@@ -3624,19 +3625,6 @@ fn run_spiric_checks<T: Decide>(
         },
         ssi: None,
     })
-}
-
-/// The chart kind, named — shared by both lanes' refusal texts.
-pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
-    match surface {
-        Surface::Plane { .. } => "plane",
-        Surface::Cylinder { .. } => "cylinder",
-        Surface::Cone { .. } => "cone",
-        Surface::Sphere { .. } => "sphere",
-        Surface::Torus { .. } => "torus",
-        Surface::Nurbs(_) => "Nurbs",
-        Surface::Approx(_) => "Approx",
-    }
 }
 
 /// Why a chart kind has no surface-level sup pair — the refusal
@@ -4410,7 +4398,7 @@ fn run_iso_arc_checks<T: Decide>(
     // being refused as an unimplemented chart.
     let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
-            chart: chart_name(surface),
+            chart: crate::SurfaceKind::of(surface),
         });
     };
     if surface.is_placeholder_chart() {
@@ -4789,7 +4777,7 @@ fn run_iso_checks<T: Decide>(
     // being refused as an unimplemented chart.
     let Some(payload) = surface.spline_chart() else {
         return Err(PcurveCertifyError::UnsupportedChart {
-            chart: chart_name(surface),
+            chart: crate::SurfaceKind::of(surface),
         });
     };
     if surface.is_placeholder_chart() {
@@ -5870,13 +5858,13 @@ pub fn chart_pcurve<T: Decide>(
             }
         }
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "Nurbs (representable-unimplemented)",
+            chart: crate::SurfaceKind::Nurbs,
         }),
         // The closed-form pcurve mint is the analytic charts'. An
         // approximating surface's chart is a spline's, so it has no
         // harmonic image to mint — the fitted lane owns it.
         Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "Approx (fitted chart — no closed-form image)",
+            chart: crate::SurfaceKind::Approx,
         }),
     }
 }
@@ -6087,10 +6075,10 @@ fn spiric_chart_pcurve<T: Decide>(
             Err(verdict.refusal(surface, carrier))
         }
         Surface::Nurbs(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "Nurbs (representable-unimplemented)",
+            chart: crate::SurfaceKind::Nurbs,
         }),
         Surface::Approx(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "Approx (fitted chart — no closed-form image)",
+            chart: crate::SurfaceKind::Approx,
         }),
     }
 }
@@ -6107,18 +6095,29 @@ fn spiric_chart_pcurve<T: Decide>(
 /// - `k₁ = 2(cos²α·w·a − w_z·a_z)`, `k₂ = 2(cos²α·w·b − w_z·b_z)`
 /// - `k₃ = (cos²α·(|a|² − |b|²) − (a_z² − b_z²))/2`, `k₄ = cos²α·a·b − a_z·b_z`
 ///
-/// zero for every `t` exactly when all five are. `Q` factors as the
-/// distance to the cone times `|p_r|·cos α + |p_z|·sin α`, which is
-/// `2·sin α·|p_z|` on the cone, so each coefficient is metered over
-/// the lever `2·sin α·|w_z|` — the conic's centre height. A conic
-/// centred at the apex's own height is no section of one nappe (an
-/// ellipse's centre lies inside its nappe), so that refuses first,
-/// and the lever is never zero.
+/// zero for every `t` exactly when all five are, and
+/// `sup_t |Q| ≤ |k₀| + |(k₁, k₂)| + |(k₃, k₄)|` (each harmonic pair's
+/// amplitude) — the ONE margin decided, so it bounds the residual at
+/// every point at once.
+///
+/// With `r = |p_r|`, `z = |p·â|`: `Q = (r·cos α − z·sin α)(r·cos α + z·sin α)`,
+/// the first factor the distance `d` to the cone and the second
+/// `2·z·sin α + d`. Along the conic `z ≥ z_min = |w_z| − |(a_z, b_z)|`,
+/// so `|d| ≤ sup|Q| / (2·sin α·z_min − |d|)`: the margin is metered over
+/// the lever `2·sin α·z_min`, which reads the distance to within a
+/// factor `1 + O(ε/z_min)` — at the conic's LOWEST point, not its
+/// centre, where an elongated section's reading would be loose by
+/// `z_centre/z_min`.
+///
+/// `z_min > 0` is decided first (`pcurve_cone_chart_nappe`): a conic
+/// that reaches the apex's height leaves its nappe, and the apex plane
+/// meets the cone only at the apex, so no circle or ellipse on the
+/// cone does. The lever is then never zero.
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::Escalated`] when the height or a coefficient
-/// lands in the sliver band.
+/// [`PcurveCertifyError::Escalated`] when `z_min` or the margin lands
+/// in the sliver band.
 fn cone_conic_incidence<T: Decide>(
     form: Harmonic3<T>,
     w: Vec3<T>,
@@ -6126,48 +6125,47 @@ fn cone_conic_incidence<T: Decide>(
     half_angle: T,
     band: Band,
 ) -> Result<NoImage, PcurveCertifyError> {
-    let wz = w.dot(axis);
-    match decide("pcurve_cone_chart_nappe", Margin::of(wz), band).map_err(winding_escalated)? {
-        Sign::Positive | Sign::Negative => {}
-        Sign::Zero => {
+    let (a, b) = (form.a, form.b);
+    let (wz, az, bz) = (w.dot(axis), a.dot(axis), b.dot(axis));
+    let amplitude = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
+    let z_min = wz.abs() - amplitude(az, bz);
+    match decide("pcurve_cone_chart_nappe", Margin::of(z_min), band).map_err(winding_escalated)? {
+        Sign::Positive => {}
+        Sign::Zero | Sign::Negative => {
             return Ok(NoImage::OffChart(
-                "a conic centred at the apex's height is no section of one nappe: the \
-                 apex plane meets the cone only at the apex",
+                "the conic reaches the apex's height, and the apex plane meets the cone only \
+                 at the apex",
             ));
         }
     }
-    let (a, b) = (form.a, form.b);
-    let (az, bz) = (a.dot(axis), b.dot(axis));
     let c2 = half_angle.cos().powi(2);
     let two = T::from_f64(2.0);
     let half = T::from_f64(0.5);
-    let lever = two * half_angle.sin() * wz.abs();
-    for coefficient in [
-        c2 * (w.dot(w) + (a.dot(a) + b.dot(b)) * half)
-            - wz.powi(2)
-            - (az.powi(2) + bz.powi(2)) * half,
+    let k0 = c2 * (w.dot(w) + (a.dot(a) + b.dot(b)) * half)
+        - wz.powi(2)
+        - (az.powi(2) + bz.powi(2)) * half;
+    let (k1, k2) = (
         (c2 * w.dot(a) - wz * az) * two,
         (c2 * w.dot(b) - wz * bz) * two,
+    );
+    let (k3, k4) = (
         (c2 * (a.dot(a) - b.dot(b)) - (az.powi(2) - bz.powi(2))) * half,
         c2 * a.dot(b) - az * bz,
-    ] {
-        match decide(
-            "pcurve_cone_chart_incident",
-            Margin::over_lever(coefficient, lever),
-            band,
-        )
-        .map_err(winding_escalated)?
-        {
-            Sign::Zero => {}
-            Sign::Positive | Sign::Negative => {
-                return Ok(NoImage::OffChart(
-                    "the conic's points are not on the cone (its implicit residual along the \
-                     carrier is not zero)",
-                ));
-            }
-        }
+    );
+    let sup = k0.abs() + amplitude(k1, k2) + amplitude(k3, k4);
+    match decide(
+        "pcurve_cone_chart_incident",
+        Margin::over_lever(sup, two * half_angle.sin() * z_min),
+        band,
+    )
+    .map_err(winding_escalated)?
+    {
+        Sign::Zero => Ok(NoImage::Uncovered(UncoveredClass::ConeSection)),
+        Sign::Positive | Sign::Negative => Ok(NoImage::OffChart(
+            "the conic's points are not on the cone (its implicit residual along the carrier is \
+             not zero)",
+        )),
     }
-    Ok(NoImage::Uncovered(UncoveredClass::ConeSection))
 }
 
 /// A spiric met with a chart that is neither its own torus nor its own
