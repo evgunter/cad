@@ -239,7 +239,18 @@ and CHROME; triaged 2026-10-01:**
     refusal, and whether the solve should ask the gather's predicate),
     specced after MSOLVE-11.
 
-The exit walk waits on 10–12, 14–16 and 17–21: the program closes when the
+**Filed by MSOLVE-9's fix pass, triaged 2026-10-01:**
+
+22. **`a-face-frame-cannot-turn-its-roll`** (P1): a face frame's roll
+    is its carrier's `u_ref`, and the coset table refuses a clocking
+    rider on a frame coincidence, so a mate the tool authors cannot be
+    turned about its axis at all; item 16's half (2) lives here now.
+    Re-priced M with a design question (an in-face angle beside the
+    name, or a rider the table decides on the coincidence row), so two
+    designers weigh it before any lane builds it; CHROME's affordance
+    sits on whichever word lands.
+
+The exit walk waits on 10–12, 14–16 and 17–22: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
 (with the witness and the `MateFault` note), the face-resolved frame
 and the static clocking refusal are in.

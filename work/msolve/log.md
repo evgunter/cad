@@ -885,3 +885,14 @@ carries REACH's eps-scaled rows, `889b7f043`); every ruling survived
 the merge, checked against the diff.
 Spec deleted with a note in `docs/doc-ledger/msolve-9-spec.md`.
 Next: MSOLVE-11 dispatches from main.
+
+## 2026-10-01 — MSOLVE-9 merged; roll row placed; MSOLVE-11 dispatches
+
+PR 2934 merged at `9ccc89346`. The state-sync commit `1ab031f9a`
+touched only docs, the tracker and one test-file comment, on the green
+head `a9c620d94`, so it merged without a fresh run. The lane that had
+merged a week of main had finished its work (`a9c620d94`) and was
+stopped. `a-face-frame-cannot-turn-its-roll` is now plan item 22, and
+its legacy `D` is re-priced M with `design: true`: two designers weigh
+how a face frame's roll is turned before any lane builds it. Next:
+MSOLVE-11 from main with item 20's three riders, single full review.
