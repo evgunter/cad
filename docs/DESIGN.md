@@ -1236,6 +1236,17 @@ these. All are shipped in `editor-core` except where noted:
   the document layer keyed by stable names — never arena keys — survive
   recompute via post-pass resolution and report losses loudly;
   appearance-only edits recompute zero nodes.
+- **Node labels**: a node's human label is document data — a map from
+  node id to label beside the node, never inside it, so it is in
+  neither the id's mint nor any content key. One edit sets or clears
+  it; it is not unique and never identity (references hold ids, and
+  nothing resolves a label). Kernel sentences speak a node as its
+  kind, label and tag, `Extrude "base plate" (3fa9c1d2a0b1)`, or kind
+  and tag when it has none; the label is read off the document when
+  the sentence is made, never from a value the evaluation memo reuses.
+  The kernel mints no label; the viewer's create forms propose an
+  editable "Kind N", stored only when the person commits it. Faces and
+  bodies carry the same `Label` text as an appearance attribute.
 
 ### Band 2 — the interactive application (a second, kernel-sized project)
 

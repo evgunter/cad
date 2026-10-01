@@ -711,6 +711,7 @@ fn nurbs_bump() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .expect("the block has a top face");
+    // Lifts both refusals: the bump's net is the fixture; the top edges stay the lines they were.
     body.set_face_surface_stranding_for_tests(
         top,
         topo::FaceSurface::New {
@@ -766,8 +767,8 @@ fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
 ///
 /// ∪ never reaches the guard today: the join's role resolution probes
 /// the clamp's regions against the bump block, and point-in-solid has
-/// no NURBS arm, so ∪ refuses there first (and the volume backstop's
-/// closed form, which has no NURBS arm either, stands behind it). The
+/// no NURBS arm, so ∪ refuses there first (and the volume backstop
+/// stands behind it). The
 /// row pins that refusal, so the day containment serves NURBS it goes
 /// red and says whether the guard is what refuses. ∩ and ∖ refuse at
 /// the revert roster, which has no NURBS.

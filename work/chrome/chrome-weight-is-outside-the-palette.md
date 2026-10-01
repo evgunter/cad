@@ -9,6 +9,10 @@ priority: P4
 cost: E
 ---
 
+## Question (answered by Ev, 2026-10-01)
+
+Should the theme contract cover the chrome's loud/quiet tone split? The feature tree tells the row to act on (`Tone::Actionable`, the palette colour `unresolved`) from a quiet row (`Tone::Advisory`, egui's weak text). `theme.rs`'s dichromacy carve-out exempts the actionable colour from the colourblind-safe claim because badges carry their own words. The choice is whether the salience the tone split carries is the theme's to supply and to check.
+
 Found by CHROME's style lane on PR 1769; judged a class question by the
 fix pass on that PR rather than a missing assertion in it.
 
@@ -110,3 +114,16 @@ against the tree rather than taken from the other row's summary:
 The census in the section above stays dead and still owes a
 re-derivation by subject before anyone acts; `app.rs` now has **one**
 `.color(chrome(` and it is inside `toned`.
+
+## Ev's answer (2026-10-01, on PR 3608)
+
+> sure, sounds good
+
+The ruling is the converged recommendation:
+- Rename `Theme::unresolved` to `actionable`. `pane::headless::Voices` reads it from the theme the draw was handed.
+- Rewrite `theme.rs`'s dichromacy carve-out, and `frame::Tone`'s REDUNDANT paragraph, to separate two claims:
+  - **meaning**, which the badge's words carry, so colour is not part of the claim;
+  - **salience**, which a `ColorblindSafe` theme promises: its actionable colour stays apart from plain and quiet text under the three dichromacies.
+- Add a test in `tests/theme.rs` that holds the salience claim. It reads egui's per-polarity `Visuals` as inputs: the panel, plain text, and weak text composited over the panel.
+- Add no new fields to `Theme`.
+- Fix the dangling "ratified in `crates/viewer/README.md`" pointer in `theme.rs`'s module doc.

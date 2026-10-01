@@ -2,10 +2,13 @@
 id: union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant
 kind: issue
 title: boolean: a union with a definitely tilted cylinder boss refuses ClassificationInvariant (the volume backstop) where a frontier refusal is due
-status: open
+status: closed
 opened: 2026-09-08
 priority: P0
 cost: H
+closed: 2026-10-01
+pr: 3611
+branch: reach/volume-backstop
 ---
 
 
@@ -75,3 +78,27 @@ lune refuses identically, so the wedge arm is not involved; a notch in
 the lune's flat wall (`square(0, 3, 0.2)`) builds and gathers.
 Measured with a throwaway probe in `crates/editor-core/tests/m10_2_measure.rs`,
 not committed.
+
+## Closed (2026-10-01, PR 3611)
+
+The volume backstop measured through the closed-form mass-properties
+lane, which refuses faces trimmed by an ellipse arc, or by rulings and
+a circle. It mapped that refusal to `ClassificationInvariant`.
+
+- **What the backstop does now:** it measures at certifying scalars
+  through the certified quadrature (`AtRestPolicy::gate_volume_backstop`).
+  It refines past the reporting round until the margin's sign is
+  decided, and refuses `VolumeUndecided` when the range is still open
+  beyond the band at the last round. A dual runs nothing (DL3).
+- **The repros:** the tilted boss (four poses) and the oblique rod cut
+  now build. The notched half-disk refuses honestly as `VolumeUnmeasured`,
+  and the missing measurement is PROPS's
+  `a-notched-cylinder-wall-has-no-volume-measurement`.
+- **Residue, each in its own file:**
+  - QUAD's `quadrature-convergence-test-escalates-instead-of-refining`
+    (an order-dependent refusal);
+  - QUAD's `quadrature-interval-floor-grows-with-the-body-past-the-band`
+    (correct results refused at kilometre scale);
+  - PROPS's `not-iso-rectangle-names-off-surface-edges-and-inventory-gaps-alike`;
+  - CONTACT's `at-infinity-probe-measures-in-closed-form-only` (the
+    `axis_lap` sibling).

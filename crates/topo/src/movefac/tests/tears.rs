@@ -16,10 +16,12 @@ test_utils::gated_to![
 use geom_core::Tol;
 use test_utils::fuzz::Rng;
 
-use super::{claimed_components, detached_digons, misread};
+use super::{claimed_components, misread};
 use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopBoundary, LoopKey, ShellKey};
-use crate::fixtures::{ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube};
+use crate::fixtures::{
+    detached_digons, ops_genus2, ops_holed_box, ops_ring_bridge, ops_strut_cube,
+};
 use crate::test_support_fixtures::declined_cube;
 
 /// A link the labelling reads, torn live-but-foreign: a `next` its

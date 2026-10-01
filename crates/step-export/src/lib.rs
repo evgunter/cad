@@ -48,10 +48,16 @@
 //!
 //! The writer's printers are the two closed matches in `writer.rs`,
 //! one per kernel geometry enum. **Every arm is an exact native AP214
-//! entity** — the whole point of writing this in-house was to export
-//! analytic geometry *as* analytic geometry, never as a B-spline
+//! entity, with exactly one exception the file itself declares** — the
+//! whole point of writing this in-house was to export analytic
+//! geometry *as* analytic geometry rather than as a B-spline
 //! approximation, which is the carrier story truck-stepio could not
-//! serve:
+//! serve. The exception is `Curve3::Spiric`: a bicircular quartic of
+//! genus 1 has no rational parameterization, so AP214 has no entity
+//! for it at all, and the writer emits an APPROXIMATING cubic whose
+//! bound the header's `FILE_DESCRIPTION` states (the row below, and
+//! `writer.rs`'s `spiric_spline`). Read "exact" in the tables as the
+//! rule, and that one row as the declared exception:
 //!
 //! | kernel `Surface` | AP214 entity | exact? |
 //! |---|---|---|
@@ -69,6 +75,7 @@
 //! | `Line` | `LINE` (unit `VECTOR`) | yes, identity |
 //! | `Circle` | `CIRCLE` | yes, identity |
 //! | `Ellipse` | `ELLIPSE` | yes, identity |
+//! | `Spiric` | `B_SPLINE_CURVE_WITH_KNOTS` (export-only cubic interpolant) | **no — the one approximation**: AP214 has no entity for a bicircular quartic, so the arm fits a cubic through the carrier's own `v` samples and the header states the bound it met; past the node cap it refuses typed |
 //! | `Nurbs` | `B_SPLINE_CURVE_WITH_KNOTS`, or the `RATIONAL_B_SPLINE_CURVE` complex instance when any weight ≠ 1 | yes, structure for structure |
 //!
 //! "Identity" is meant literally: each kernel frame `(origin, axis,
@@ -223,6 +230,11 @@ mod volume;
 mod writer;
 
 pub use real::fmt_real;
+// The spiric lane's export-only fit, as a door rather than a private
+// method: the certificate the file states rests on this spline's
+// agreement with the carrier at its own nodes, and a premise no row
+// can reach is a premise nothing measures.
+pub use writer::spiric_export_spline;
 
 /// Typed export failure (closed enum, D4 ¶3). Every variant names the
 /// offending entity or value — the writer never panics and never
