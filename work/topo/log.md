@@ -5808,3 +5808,30 @@ premises (D2 row 4).
 - **Merged:** `7410cc68eb` from head `16bee7bbc5`.
 - **CI:** run 36861620526 passed, and the PR was clean when merged.
 - **Filed on SHELL and HONE:** the receipt's two walk rows.
+
+## PR 3513: main merged twice, one text pass before merge (2026-10-01)
+
+The merge lane merged main into PR 3513 twice: `490e3195d0`, then
+`1b897ca943`.
+- **CI:** run 36862468347 passed, and the PR is clean.
+- **NF-1:** I checked it myself. All 126 lines fix pass 6 added to
+  `dihedral.rs` survive at head, and main's `MustCarryDescription` sits
+  beside them.
+
+Main's sphere work brought three `BooleanError::coincidence` sites, and
+the lane gave each a named decision:
+- `bool_connect` raises `Coincidence(Section, Moot)`;
+- a new `SphereRoots`, lever-alone with `ByArm`;
+- a new `ArcSphereRoots`, lever-alone with `ByRung`.
+
+I accept all three. Lever-alone is always D4-compliant, and no executed
+row backs a tolerance offer at these sites yet.
+
+**Held for one pass:** `SpheresMeet`'s doc and `Display` still say the
+join has no curved × curved arm. On main it now has a sphere-pair arm,
+and the scan is reached only when the spheres meet off every edge. That
+is this PR's own defect class, so the text is fixed here rather than
+filed. The same lane was resumed to:
+- rewrite the text to what holds;
+- check that the lever is still true;
+- add the three new sites to the per-site table.
