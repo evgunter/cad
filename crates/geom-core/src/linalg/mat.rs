@@ -958,9 +958,17 @@ mod tests {
             stored,
             "cols order"
         );
-        assert_eq!(m.to_cols_array(), stored, "to_cols_array inverts from_cols_array");
+        assert_eq!(
+            m.to_cols_array(),
+            stored,
+            "to_cols_array inverts from_cols_array"
+        );
         // Applying the matrix to e₂ reads the second column — the
         // stored layout agrees with the map's own meaning.
-        assert_eq!((m * Vec3::unit_y()).to_array(), stored[1], "second column is the image of e₂");
+        assert_eq!(
+            (m * Vec3::unit_y()).to_array(),
+            stored[1],
+            "second column is the image of e₂"
+        );
     }
 }

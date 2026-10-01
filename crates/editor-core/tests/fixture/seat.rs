@@ -82,13 +82,10 @@ pub fn seat_map(
 /// The largest absolute difference between two rigid maps, over all
 /// twelve numbers.
 pub fn map_gap(x: &Affine3<f64>, y: &Affine3<f64>) -> f64 {
-    let cols = |m: &Affine3<f64>| [m.linear.c0, m.linear.c1, m.linear.c2, m.translation];
-    let (cx, cy) = (cols(x), cols(y));
-    (0..4)
-        .flat_map(|i| {
-            let (u, v) = (cx[i], cy[i]);
-            [(u.x - v.x).abs(), (u.y - v.y).abs(), (u.z - v.z).abs()]
-        })
+    x.cols()
+        .into_iter()
+        .zip(y.cols())
+        .map(|(u, v)| (u - v).norm_sup())
         .fold(0.0_f64, f64::max)
 }
 

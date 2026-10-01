@@ -1810,7 +1810,11 @@ mod tests {
         );
         let w = Vec2::from_array([7.0, 8.0]);
         assert_eq!((w.x, w.y), (7.0, 8.0), "Vec2::from_array order");
-        assert_eq!(Vec2::new(9.0, 10.0).to_array(), [9.0, 10.0], "Vec2::to_array order");
+        assert_eq!(
+            Vec2::new(9.0, 10.0).to_array(),
+            [9.0, 10.0],
+            "Vec2::to_array order"
+        );
 
         let odd = [
             -0.0,
@@ -1818,7 +1822,11 @@ mod tests {
             f64::from_bits(0xfff4_0000_0000_0001),
         ];
         let bits = |a: [f64; 3]| a.map(f64::to_bits);
-        assert_eq!(bits(Vec3::from_array(odd).to_array()), bits(odd), "Vec3 round trip");
+        assert_eq!(
+            bits(Vec3::from_array(odd).to_array()),
+            bits(odd),
+            "Vec3 round trip"
+        );
         let [a, b, _] = odd;
         assert_eq!(
             Vec2::from_array([a, b]).to_array().map(f64::to_bits),
@@ -1839,7 +1847,11 @@ mod tests {
             (Vec3::new(-0.0, 0.0, -0.0), 0.0),
         ] {
             assert_eq!(v.norm_sup(), want, "Vec3::norm_sup of {v:?}");
-            assert_eq!(v.norm_witness().to_bits(), v.norm_sup().to_bits(), "witness is the sup-norm");
+            assert_eq!(
+                v.norm_witness().to_bits(),
+                v.norm_sup().to_bits(),
+                "witness is the sup-norm"
+            );
         }
         for (v, want) in [(Vec2::new(-7.0, 3.0), 7.0), (Vec2::new(3.0, -7.0), 7.0)] {
             assert_eq!(v.norm_sup(), want, "Vec2::norm_sup of {v:?}");
@@ -1849,10 +1861,16 @@ mod tests {
             Vec3::new(1.0, f64::NAN, 2.0),
             Vec3::new(1.0, 2.0, f64::NAN),
         ] {
-            assert!(v.norm_sup().is_nan(), "a NaN component poisons Vec3::norm_sup: {v:?}");
+            assert!(
+                v.norm_sup().is_nan(),
+                "a NaN component poisons Vec3::norm_sup: {v:?}"
+            );
         }
         for v in [Vec2::new(f64::NAN, 1.0), Vec2::new(1.0, f64::NAN)] {
-            assert!(v.norm_sup().is_nan(), "a NaN component poisons Vec2::norm_sup: {v:?}");
+            assert!(
+                v.norm_sup().is_nan(),
+                "a NaN component poisons Vec2::norm_sup: {v:?}"
+            );
         }
     }
 }

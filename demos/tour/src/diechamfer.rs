@@ -61,7 +61,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{CurveKind, CurveKindSet, EdgeKey, chamfer_edges, fillet_edges, query};
 use pncad::topo::Body;
 
@@ -97,12 +97,15 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// test-support feature — a demo that linked test scaffolding to save
 /// twenty lines would stop being an outside consumer, which is the
 /// one property these scenes exist to have.
-fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
-    let mut pts: Vec<(f64, f64, f64)> = body
+///
+/// Sorted as coordinate arrays because `Point3` carries no order — a
+/// library gap, `work/linalg/point3-has-no-order-and-vec3-no-sup-norm-door.md`.
+fn sorted_points(body: &Body<f64>) -> Vec<[f64; 3]> {
+    let mut pts: Vec<[f64; 3]> = body
         .vertices()
         .filter_map(|(k, _)| body.get_vertex(k))
         .filter_map(|v| body.get_point(v.point))
-        .map(|p| (p.x, p.y, p.z))
+        .map(|p| p.to_array())
         .collect();
     pts.sort_by(|a, b| a.partial_cmp(b).expect("finite coordinates"));
     pts
@@ -122,11 +125,10 @@ fn feet_agreement(filleted: &Body<f64>, chamfered: &Body<f64>) -> (f64, usize) {
         let (near, gap) = got
             .iter()
             .map(|g| {
-                let d = (g.0 - w.0)
-                    .abs()
-                    .max((g.1 - w.1).abs())
-                    .max((g.2 - w.2).abs());
-                (g, d)
+                (
+                    g,
+                    (Point3::from_array(*g) - Point3::from_array(*w)).norm_sup(),
+                )
             })
             .min_by(|a, b| a.1.partial_cmp(&b.1).expect("finite"))
             .expect("a nearest foot");

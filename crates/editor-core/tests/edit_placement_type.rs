@@ -79,14 +79,11 @@ fn point_bits<T: geom_core::Decide>(
 }
 
 fn f64_bits(p: &Point3<f64>) -> [u64; 3] {
-    [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
+    p.to_array().map(f64::to_bits)
 }
 
-fn affine_bits(a: &Affine3<f64>) -> Vec<u64> {
-    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .flat_map(|c| [c.x.to_bits(), c.y.to_bits(), c.z.to_bits()])
-        .collect()
+fn affine_bits(a: &Affine3<f64>) -> [u64; 12] {
+    a.components().map(f64::to_bits)
 }
 
 fn motion(p: &Placement) -> Affine3<f64> {

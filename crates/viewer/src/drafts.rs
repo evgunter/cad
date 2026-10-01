@@ -931,10 +931,7 @@ impl Drafts {
                 };
                 DatumSpec::AxisInPlane {
                     plane,
-                    origin: notation.point_literals([
-                        self.datum_in_frame_origin.x,
-                        self.datum_in_frame_origin.y,
-                    ])?,
+                    origin: notation.point_literals(self.datum_in_frame_origin.to_array())?,
                     direction: scalars2(self.datum_in_frame_direction)?,
                 }
             }

@@ -278,7 +278,7 @@ pub fn loop_program(
         ProfileShape::Circle { centre, radius } => loop_program(
             &ProfileShape::Path {
                 steps: vec![Step::Circle {
-                    centre: Point2::new(centre[0], centre[1]),
+                    centre: Point2::from_array(*centre),
                     radius: *radius,
                 }],
             },
@@ -1708,7 +1708,7 @@ fn flatten(
         // an arc — so a loop with no bulges at all reaches none of
         // them and a polygon drawn through a point that is nowhere is
         // exactly what this module says it refuses.
-        let place = [from.x, from.y];
+        let place = from.to_array();
         if !drawable(place) {
             return Err(index);
         }

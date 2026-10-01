@@ -515,7 +515,11 @@ mod tests {
         );
         let q = Point2::from_array([7.0, 8.0]);
         assert_eq!((q.x, q.y), (7.0, 8.0), "Point2::from_array order");
-        assert_eq!(Point2::new(9.0, 10.0).to_array(), [9.0, 10.0], "Point2::to_array order");
+        assert_eq!(
+            Point2::new(9.0, 10.0).to_array(),
+            [9.0, 10.0],
+            "Point2::to_array order"
+        );
 
         let odd = [-0.0, f64::from_bits(0x7ff8_0000_dead_beef), 5.0];
         assert_eq!(

@@ -70,12 +70,8 @@ fn authored(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> profile::S
 
 /// Every component of a placement, as raw bits — the comparison an
 /// approximate one would let through.
-fn bits(p: &profile::SketchPlane<f64>) -> Vec<u64> {
-    let a = &p.placement;
-    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .flat_map(|v| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()])
-        .collect()
+fn bits(p: &profile::SketchPlane<f64>) -> [u64; 12] {
+    p.placement.components().map(f64::to_bits)
 }
 
 fn assert_same_plane(
