@@ -49,7 +49,8 @@ class Gauges(unittest.TestCase):
         self.dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.dir, True)
         self.ws = Workspace(self.dir)
-        (_, self.post_ref), (_, self.shelf_ref) = bench_scene.parts(self.ws)
+        (post_doc, self.post_ref), (_, self.shelf_ref) = bench_scene.parts(self.ws)
+        self.post_cap = bench_scene.part_cap(post_doc, CapEnd.End)
 
     def face(self, doc, node, side):
         return bench_scene.instance_face(self.ws, doc, node, side)
@@ -63,7 +64,7 @@ class Gauges(unittest.TestCase):
             post,
             self.face(doc, post, CapEnd.End),
             ContactClass.Rest,
-            bench_scene.seat(*bench_scene.STAND_SEATS[0]),
+            bench_scene.seat(*bench_scene.STAND_SEATS[0], post_cap=self.post_cap),
         )
 
     def test_a_gauge_under_a_gauge_places_by_the_composed_chain(self):

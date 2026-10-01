@@ -540,7 +540,10 @@ class TestBenchStand(BenchWorkspace):
             shelf_i,
             s_bottom,
             ContactClass.Rest,
-            bench_scene.seat(*bench_scene.STAND_SEATS[1]),
+            bench_scene.seat(
+                *bench_scene.STAND_SEATS[1],
+                post_cap=bench_scene.part_cap(self.post, CapEnd.End),
+            ),
         )
         doc.regauge_then_mate(remate, resolver=self.ws)
         self.assertEqual(
@@ -1924,6 +1927,10 @@ class TestMateFrameFromFace(BenchWorkspace):
         doc = Doc(label)
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        # The shelf carries no offset: a mate places its FIRST
+        # operand's group on its second's, so with the post first the
+        # shelf's empty offset keeps the post the root it seats on.
+        doc.apply(DocEdit.set_offset(shelf_i, None))
         a_top = self.instance_face(doc, post_i, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         alignment = Alignment(
