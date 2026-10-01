@@ -2,13 +2,14 @@
 id: kev-merge-rebases-carriers-names-a-door-and-no-geometric-lever
 kind: issue
 title: MergeRebasesCarriers names the describing kill door and no geometric lever (D4 ¶1 (i))
-status: review
+status: closed
 pr: 3621
 branch: topo/euler-corruption-ends-one-way
 opened: 2026-10-01
 priority: P4
 cost: E
 refs: [kevs-fan-merge-needs-a-re-describing-kill-door, set-face-surface-passes-a-swap-off-the-faces-own-boundary, 3598]
+closed: 2026-10-01
 ---
 
 ## What
