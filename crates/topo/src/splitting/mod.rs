@@ -681,16 +681,17 @@ pub(crate) fn through_the_join<T: geom_core::Decide>(
 /// mirror's distinct failure is not reported), at the cost of up to
 /// three pipeline runs.
 ///
-/// **The rerun also receives one-sided tangencies.** A plane touching
-/// the solid along an edge from the run's above side closes a zero-area
-/// polygon too, and the refusal cannot say which of the two it is, so
-/// the mirrored run is tried for both. A tangency alone refuses again
-/// there. A tangency whose contact meets a real section elsewhere
-/// would, in the mirrored run, join that contact into the real
-/// section's loop as a zero-width spur of positive net area — a
-/// success with a slit in both halves — and the join refuses it
+/// **The rerun also receives one-sided grazes of curved faces.** A
+/// plane tangent to a cylinder's wall closes a zero-area polygon too,
+/// and the refusal cannot say which of the two it is, so the mirrored
+/// run is tried for both. (A plane tangent along a convex edge never
+/// gets here: rule (b) classifies the edge with its material.) A graze
+/// alone refuses again there. A graze whose contact meets a real
+/// section elsewhere would, in the mirrored run, join that contact into
+/// the real section's loop as a zero-width spur of positive net area —
+/// a success with a slit in both halves — and the join refuses it
 /// ([`SplitJoinError::SectionSpur`]), so the direct run's
-/// `DegenerateSection` surfaces. A tangency whose mirrored run
+/// `DegenerateSection` surfaces. A graze whose mirrored run
 /// completes the join and then refuses
 /// [`SplitFinishError::SectionCusp`] surfaces THAT refusal:
 /// the mirror resolved the direct run's degenerate polygon, so the
@@ -703,8 +704,8 @@ pub(crate) fn through_the_join<T: geom_core::Decide>(
 /// # Errors
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole —
-/// including the one-sided-tangency degenerate section/side refusals
-/// (no degenerate body is ever emitted), and
+/// including the degenerate section/side refusals of a curved face's
+/// one-sided graze (no degenerate body is ever emitted), and
 /// [`SplitFinishError::SectionCusp`] from either run.
 pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &Body<T>,

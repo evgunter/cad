@@ -72,9 +72,9 @@ pub struct Section<T: Real> {
 /// # Errors
 ///
 /// [`SplitError`] — the reduce/join stages' typed refusals pass
-/// through unchanged: in particular a pure-tangency section REFUSES
-/// (`DegenerateSection`, exactly as [`super::split`] does) rather
-/// than reporting a degenerate zero-area trace.
+/// through unchanged: in particular a zero-area section (a curved
+/// face's graze) REFUSES (`DegenerateSection`, exactly as
+/// [`super::split`] does) rather than reporting a degenerate trace.
 pub fn plane_section<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,

@@ -49,10 +49,10 @@
 //! resolves them by membership of the minted above-copy vertex set,
 //! certifies the polygon's area definitely-positive
 //! (**`split_section_area`**, margin 2·A/P) — a zero-area section
-//! polygon is the one-sided tangency residue PR 2's adjudication
-//! record promised to refuse here, typed
-//! [`SplitJoinError::DegenerateSection`] — refuses a positive-area
-//! polygon carrying a tangent contact as a zero-width spur
+//! polygon (a below-side pinch, or a curved face's one-sided graze)
+//! is refused typed, [`SplitJoinError::DegenerateSection`] — refuses
+//! a positive-area polygon carrying a grazing contact as a zero-width
+//! spur
 //! ([`SplitJoinError::SectionSpur`], `split_section_spur`;
 //! `Sweep::refuse_section_spur`), and writes the F9 record.
 
@@ -459,7 +459,7 @@ impl<T: Decide> Sweep<T> {
     /// Certify the completed polygon's area definitely positive
     /// (margin 2·|A|/P — mean width in meters, profile's
     /// `loop_orientation` lever-arm story); Zero ⇒ the degenerate
-    /// one-sided-tangency section, refused typed.
+    /// section of a pinch or a curved face's graze, refused typed.
     ///
     /// **Conic boundary edges (M5 PR 5)**: the vertex shoelace below is
     /// exact for straight chords and stays BIT-IDENTICAL for all-planar
