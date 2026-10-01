@@ -2,7 +2,8 @@
 id: pcurve-p2-spec-says-edge-nurbs-throws-the-image-away
 kind: issue
 title: PCURVE-P2-SPEC says edge_nurbs THROWS IT AWAY; the image is the certificate's input and the advice it gives was already taken
-status: open
+status: closed
+closed: 2026-10-01
 opened: 2026-09-11
 priority: P4
 cost: E
@@ -80,3 +81,9 @@ at the edit rather than copying the ones above — they are frozen at
 `d6a9b948`. If the spec is due for deletion under
 `docs/DOC-LEDGER.md`'s spec lifecycle before anyone would read it
 again, saying so and closing this row is an equally good answer.
+
+## Closed (2026-10-01)
+
+The sentence left with the spec: `docs/PCURVE-P2-SPEC.md` is deleted at
+TRIM's close, superseded by TRIM-1/2/3's delivered specs, and its
+ledger note (`docs/doc-ledger/pcurve-p2-spec.md`) records this finding.

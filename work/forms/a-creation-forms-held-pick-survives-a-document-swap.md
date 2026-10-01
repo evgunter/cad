@@ -54,3 +54,15 @@ unit. That is this row.
 Two forms already hold a pick this way and every new form is another.
 `work/README.md`'s P1 band: a special case that should be handled
 uniformly, before more things are built on it.
+
+## One instance closed (AUTH-10, 2026-09-30)
+
+`Drafts::datum_face` is now dropped when a document replaces the one it
+was picked in (`Drafts::document_replaced`, called from
+`ViewerApp::perform_batch` for a committed `Open` or `NewDocument`),
+because AUTH-10 made the viewport MARK it: a stale (node, name) would
+have lit, and the button committed against, a same-numbered face of the
+new document. `Drafts::datum_frame` (and any other held node pick on
+`Drafts`) still carries the hazard, and the choice among the shapes
+above is still this row's — the one-field reset is shape 1 taken for
+the pick that is drawn, not a ruling for the rest.

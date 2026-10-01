@@ -25,9 +25,8 @@ use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame_keeping, square, step};
 use geom_core::Tol;
 
-/// A one-block part: a unit square extruded 1 tall, so its extrude is
-/// the fixture's `PART_BODY`.
-fn part(label: &str) -> ProfileDoc {
+/// A one-block part: a unit square extruded 1 tall, and its body.
+fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, _, profile) = on_frame_keeping(
         doc,
@@ -36,14 +35,13 @@ fn part(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
         },
-    );
-    doc
+    )
 }
 
 /// A local block in the host: its frame, profile and extrude, as the
@@ -101,7 +99,8 @@ fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     }
 }
 
-/// A host with one kept instance of `doc_ref` mated to a local block:
+/// A host with one kept instance of `doc_ref`, whose body is
+/// `part_body`, mated to a local block:
 /// the mate welds nothing before the split (its far end is no member)
 /// and welds the kept instance to the new part instance after it. The
 /// insert door refuses a head that resolves to no member, so the mate
@@ -110,15 +109,17 @@ fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
 fn kept_instance_mated_to_a_local_block(
     label: &str,
     doc_ref: DocRef,
+    part_body: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId, BTreeSet<RecipeNodeId>) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, kept) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, cut, body) = local_block(doc, 3.0);
     let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
-        mate(in_part(kept, CapEnd::Start), local_cap(body)),
+        mate(in_part(kept, part_body, CapEnd::Start), local_cap(body)),
         editor_core::MateSide::B,
         kept,
+        part_body,
     );
     assert_eq!(
         clusters(&doc),
@@ -138,8 +139,8 @@ fn kept_instance_mated_to_a_local_block(
 #[test]
 fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
     let mut store = PartStore::new();
-    let doc_ref = store.insert(part("eval4-r1-part"), Tol::witness());
-    let (doc, kept, cut) = kept_instance_mated_to_a_local_block("eval4-r1", doc_ref);
+    let (doc_ref, part_body) = store.insert_part(part("eval4-r1-part"), Tol::witness());
+    let (doc, kept, cut) = kept_instance_mated_to_a_local_block("eval4-r1", doc_ref, part_body);
     let out = split(
         &doc,
         &cut,
@@ -175,13 +176,16 @@ fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
 #[test]
 fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remainder() {
     let mut store = PartStore::new();
-    let doc_ref = store.insert(part("eval4-r2-part"), Tol::witness());
+    let (doc_ref, part_body) = store.insert_part(part("eval4-r2-part"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("eval4-r2"), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, joint) = insert(
         doc,
-        mate(in_part(a, CapEnd::End), in_part(b, CapEnd::Start)),
+        mate(
+            in_part(a, part_body, CapEnd::End),
+            in_part(b, part_body, CapEnd::Start),
+        ),
     );
     let (doc, _) = step(
         doc,
@@ -240,8 +244,8 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
 #[test]
 fn inline_records_the_split_its_re_anchoring_performs() {
     let mut store = PartStore::new();
-    let doc_ref = store.insert(part("eval4-r3-part"), Tol::witness());
-    let (doc, kept, cut) = kept_instance_mated_to_a_local_block("eval4-r3", doc_ref);
+    let (doc_ref, part_body) = store.insert_part(part("eval4-r3-part"), Tol::witness());
+    let (doc, kept, cut) = kept_instance_mated_to_a_local_block("eval4-r3", doc_ref, part_body);
     let out = split(
         &doc,
         &cut,

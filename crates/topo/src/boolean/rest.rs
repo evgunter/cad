@@ -81,7 +81,7 @@ use super::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation};
 use super::combine::graft_solid;
 use super::ops::{
     Descendants, KeyView, declared_surface_pairs, describe_minted_edges, gate, graft_rows,
-    merge_rows, remap_carried, remap_contacts, volume_backstop,
+    merge_rows, remap_carried, remap_contacts,
 };
 use super::plane_eq::{PlaneEqError, PlaneIdentity, PlaneRelation};
 use super::reduce::{face_oriented_source, face_plane};
@@ -253,6 +253,9 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // ---- 6. Graft B whole (disjoint interiors: nothing discarded),
     // then glue every patch pair in BFS order. ----
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
+    // The contact patches are the faces this union discards; A's keys
+    // are the result's, so its rows are taken here, before the zip.
+    let mut discards = patch_discards(&red.a, &a_patch, Operand::A, &|u, w| Ok((u, w)))?;
     // The zip, the merge and the closing mint are one door's surgery
     // (`crate::surgery`): tier 1 is paid once, over the body `gate`
     // below certifies, rather than once per operator. The guard owns
@@ -262,6 +265,16 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut body = zipped.begin_surgery();
     let solid = single_solid(&body).map_err(|_| desync("REST lane: operand A not one solid"))?;
     let graft = graft_solid(&mut body, solid, &red.b, tol)?;
+    let graft_end = |v: VertexKey| {
+        graft
+            .vertices
+            .get(v)
+            .copied()
+            .ok_or_else(|| desync("REST lane: a patch vertex is missing from the graft"))
+    };
+    discards.extend(patch_discards(&red.b, &b_patch, Operand::B, &|u, w| {
+        Ok((graft_end(u)?, graft_end(w)?))
+    })?);
 
     // Result-key views of the correspondence and the patch pairs.
     let mut vmap: SecondaryMap<VertexKey, VertexKey> = SecondaryMap::new();
@@ -342,7 +355,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let body = zipped;
     gate(&body)?;
-    volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
+    T::gate_volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -358,6 +371,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_a: a_fragments,
         face_fragments_b: b_fragments,
         reduction_contacts,
+        discards,
     };
     Ok(Some(BooleanResult::Body(BooleanBody {
         body,
@@ -365,6 +379,23 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
         contacts,
         naming,
     })))
+}
+
+/// One operand's discarded faces (`boolean::discard`): its contact
+/// patch, removed as interior by the glue. A patch face borders a kept
+/// face along a seam segment, whose ends `result_ends` maps into result
+/// keys.
+fn patch_discards<T: Decide>(
+    body: &Body<T>,
+    patch: &[FaceKey],
+    operand: Operand,
+    result_ends: &dyn Fn(VertexKey, VertexKey) -> Result<(VertexKey, VertexKey), BooleanError>,
+) -> Result<Vec<super::DiscardRow>, BooleanError> {
+    let kept_across = |f: FaceKey| !patch.contains(&f);
+    patch
+        .iter()
+        .map(|&f| super::discard::discard_row(body, f, operand, &kept_across, result_ends))
+        .collect()
 }
 
 // ---------------------------------------------------------------
@@ -1779,7 +1810,7 @@ fn slit_zip<T: Decide>(
             ed.he_plus
         }
     };
-    body.kef(fb_half)
+    body.kef_minting(fb_half, tol)
         .map_err(|_| desync("REST lane: run kef refused"))?;
     for &he in run.iter().skip(1) {
         // The shared vertex with the previous (now dead) run edge is
@@ -1886,7 +1917,7 @@ fn slit_zip<T: Decide>(
                 let ring = loop_of(body, ring_half)?;
                 body.mfkrh(ring, FaceSurface::Inherit)
                     .map_err(|_| desync("REST lane: band run mfkrh refused"))?;
-                body.kef(ring_half)
+                body.kef_minting(ring_half, tol)
                     .map_err(|_| desync("REST lane: band run kef refused"))?;
             }
         }
@@ -1985,7 +2016,7 @@ fn zip_folded<T: Decide>(
             report
                 .seam_edges
                 .push(if b_edges.contains_key(e0) { e1 } else { e0 });
-            body.kef(b_half)
+            body.kef_minting(b_half, tol)
                 .map_err(|_| desync("REST lane: final slit kef refused"))?;
             break;
         }
@@ -2043,7 +2074,7 @@ fn zip_folded<T: Decide>(
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
         report.vertex_merges.push((eb, sa));
         report.seam_edges.push(edge_of(body, ha)?);
-        body.kef(hb)
+        body.kef_minting(hb, tol)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
     Ok(())

@@ -2143,6 +2143,12 @@ class MeasureExpr:
     `Doc.apply` after it. The refusal is LiteralError, carrying the
     mismatch's own tag as `kind`.
 
+    A measurement nests at most 128 levels, the bound it shares with
+    `Expr`, a value leaf counting as the expression it holds; a
+    constructor that would nest deeper refuses (`kind`
+    `"nested_too_deep"`), so a flat chain of more than 128 terms
+    refuses.
+
     No `__hash__`, for `Expr`'s reason: equality is an IEEE comparison
     of the literals inside, so `0.0` and `-0.0` are equal trees whose
     bit patterns are not.
@@ -2166,7 +2172,9 @@ class MeasureExpr:
     def sub(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr: ...
     @staticmethod
     def neg(a: MeasureExpr) -> MeasureExpr:
-        """Negation — any dimension, and total."""
+        """Negation — any dimension. Refuses (LiteralError, `kind`
+        `"nested_too_deep"`) only a tree that would nest deeper than an
+        expression may, as every constructor here does."""
 
     @staticmethod
     def mul(a: MeasureExpr, b: MeasureExpr) -> MeasureExpr:
@@ -2677,6 +2685,12 @@ class Expr:
     a rendering, not your original string. `params` names the document
     parameters it references, which is what tells you when a value you
     displayed has gone stale.
+
+    An expression nests at most 128 levels along its longest chain
+    from the root to a leaf; a constructor that would nest deeper
+    refuses (`kind` `"nested_too_deep"`). The operators associate to
+    the left, so a flat chain of more than 128 terms refuses, and the
+    same terms grouped (`(a + b) + (c + d)`) nest less.
 
     Unhashable on purpose. Equality is the kernel's `PartialEq`, an
     IEEE comparison of the literals inside, so `0.0` and `-0.0` are
@@ -3660,6 +3674,13 @@ class Doc:
         is not. Note the `2.0`: a bare integer is an exact `count`,
         and dividing a length by one needs an explicit promotion, so
         the decimal is what makes the divisor dimensionless.
+
+        An expression nests at most 128 levels along its longest chain
+        from the root to a leaf, and a text nested deeper refuses
+        `variant == "dimension"`, `kind == "nested_too_deep"`. The
+        operators associate to the left, so a flat chain of more than
+        128 terms (`"a + b + ..."`) refuses; the same terms grouped
+        (`"(a + b) + (c + d)"`) nest less. Brackets alone nest nothing.
 
         Raises ParseError, carrying `variant` and the byte offset
         `pos`."""

@@ -158,14 +158,8 @@ where
         doc: &doc,
         eval: &ev1,
     };
-    out.push((
-        "flip-vanish",
-        resolve_with_prior(new, prior, &ranked, Tol::witness()),
-    ));
-    out.push((
-        "cascade",
-        resolve_with_prior(new, prior, &inst, Tol::witness()),
-    ));
+    out.push(("flip-vanish", resolve_with_prior(new, prior, &ranked)));
+    out.push(("cascade", resolve_with_prior(new, prior, &inst)));
 
     // ---- Scenario B: pattern count shrink (StructuralParam). ----
     let (doc3, _) = step(
@@ -186,7 +180,6 @@ where
             },
             prior,
             &inst,
-            Tol::witness(),
         ),
     ));
 

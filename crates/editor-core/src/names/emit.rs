@@ -39,7 +39,8 @@ use crate::node::RecipeNodeId;
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
-///    [`Self::SeamLineSides`] and [`Self::MemberEdgeTied`], reached from
+///    [`Self::SeamLineSides`], [`Self::MemberEdgeTied`] and
+///    [`Self::SplitReference`], reached from
 ///    recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
@@ -109,9 +110,8 @@ pub enum NamingError {
     /// that a sentence cannot supply: WHICH edge.
     ///
     /// **Unguardable from this crate, and the reason is WRITER
-    /// ACCESS.** Both chases (`emit_topo`'s `chase_edge_to_table` and
-    /// `chase_b`) advance only on `Body::edge_provenance`, which is
-    /// `pub(crate)` to `topo`: `Body::split_edge` records the parent on
+    /// ACCESS.** A lineage chase advances only on
+    /// `Body::edge_provenance`, which is `pub(crate)` to `topo`: `Body::split_edge` records the parent on
     /// a child it has just minted, so a chain is strictly decreasing in
     /// age in the arena that wrote it; a graft forwards it injectively
     /// (each source key to its own result key, live or dead on
@@ -321,6 +321,24 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
+    /// A group ranked along a seam line's `n_a × n_b`, where a side has
+    /// no one oriented plane: its carrier is curved, or a tie leaves it
+    /// as several faces on different carriers.
+    ///
+    /// The recipe is legal and the body sound; the naming has no rule
+    /// for a curved reference or for choosing among tied ones, so this
+    /// is a missing rule and not an [`Self::Emission`].
+    SplitReference {
+        /// The group being ranked along the seam line: the seam's
+        /// pieces, or the pieces or crossings of an edge that lies on it.
+        group: Box<StableName>,
+        /// The side without a plane, by the name the seam records it
+        /// under.
+        reference: Box<StableName>,
+        /// Whether the reference's carrier is curved; otherwise a tie
+        /// leaves it on several carriers.
+        curved: bool,
+    },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -417,6 +435,22 @@ impl core::fmt::Display for RimShare {
 // op variants unaltered (`NodeErrorKind`'s Display note, D2), this is
 // editor-core's OWN error: rendering it IS the op's vocabulary, and
 // there is no other path by which it reaches a human.
+impl NamingError {
+    /// [`Self::SplitReference`]: the one spelling every seam ranker
+    /// refuses with.
+    pub(crate) fn split_reference(
+        group: &StableName,
+        reference: &StableName,
+        curved: bool,
+    ) -> Self {
+        Self::SplitReference {
+            group: Box::new(group.clone()),
+            reference: Box::new(reference.clone()),
+            curved,
+        }
+    }
+}
+
 impl core::fmt::Display for NamingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -525,6 +559,20 @@ impl core::fmt::Display for NamingError {
                  ranked along it, because a tie stands where one edge is needed (the member ties \
                  that name to several edges, or two of its pieces were tied)",
                 member.0
+            ),
+            Self::SplitReference {
+                group,
+                reference,
+                curved,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: the pieces of the {group} cannot be told apart against the \
+                 plane of the {reference}, {}",
+                if *curved {
+                    "whose carrier is not a plane"
+                } else {
+                    "which a tie leaves as several faces on different carriers"
+                }
             ),
             Self::Band(error) => write!(
                 f,
@@ -1651,10 +1699,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: crate::names::discriminate::SIDE_OF,
+                    predicate: crate::names::discriminate::ORDER_ALONG,
                     source: escalation(),
                 },
-                vec!["the side of a cut"],
+                vec!["the order of two pieces along an edge"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {
@@ -1762,6 +1810,26 @@ mod display_tests {
                 },
                 vec!["0.0000000015", "0.000000001", "below 2"],
             ),
+            (
+                NamingError::SplitReference {
+                    group: Box::new(StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(41),
+                        path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
+                    }),
+                    reference: Box::new(StableName {
+                        kind: EntityKind::Face,
+                        node: RecipeNodeId(43),
+                        path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
+                    }),
+                    curved: true,
+                },
+                vec![
+                    "face name minted by node 41",
+                    "face name minted by node 43",
+                    "not a plane",
+                ],
+            ),
         ];
         // **The one place a variant's CATEGORY is written down**, and
         // it is a match, so a variant added without choosing one does
@@ -1791,7 +1859,8 @@ mod display_tests {
                 | NamingError::MergedChordOffRim { .. }
                 | NamingError::MergedChordConstituents { .. }
                 | NamingError::SeamLineSides { .. }
-                | NamingError::MemberEdgeTied { .. } => Some(UNRULED_FRAMING),
+                | NamingError::MemberEdgeTied { .. }
+                | NamingError::SplitReference { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_)
                 | NamingError::NarrowBand { .. }
                 | NamingError::Escalated { .. } => None,
@@ -1816,6 +1885,7 @@ mod display_tests {
                 NamingError::MemberEdgeTied { .. } => 14,
                 NamingError::NarrowBand { .. } => 15,
                 NamingError::MergedChordConstituents { .. } => 16,
+                NamingError::SplitReference { .. } => 17,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

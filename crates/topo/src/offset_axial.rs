@@ -207,9 +207,9 @@ use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSp
 use geom_core::k_stats::decide;
 use geom_core::{Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
+use crate::attach::Rechart;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
-use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
 use crate::offset_together::ChartMove;
 use crate::replace_face::ReplaceFaceError;
@@ -600,7 +600,7 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     // adopted on is the door's own whole-body check.
     let mut staged = body.clone();
     let mut work = staged.begin_surgery();
-    let mut minted: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();
+    let mut charts: Vec<Rechart<T>> = Vec::new();
     for m in moves {
         let Some(&first) = m.faces.first() else {
             return Err(ReplaceFaceError::EmptyGroup);
@@ -616,55 +616,13 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
             Ok(_) => {}
             Err(source) => return Err(ReplaceFaceError::Escalated { source }),
         }
-        // An offset moves the chart along its own normal, so every face
-        // keeps the side its material lies on.
-        let sense = work.get_face(first).ok_or(ReplaceFaceError::Corrupt)?.sense;
-        let new_key = work
-            .set_face_surface(
-                first,
-                FaceSurface::New {
-                    surface: c.new.clone(),
-                    sense,
-                },
-            )
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        for &member in &m.faces[1..] {
-            let sense = work
-                .get_face(member)
-                .ok_or(ReplaceFaceError::Corrupt)?
-                .sense;
-            work.set_face_surface(
-                member,
-                FaceSurface::Shared {
-                    key: new_key,
-                    sense,
-                },
-            )
-            .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
-        }
-        minted.push((c.old_key, new_key));
+        charts.push(crate::replace_face::offset_rechart(
+            &work,
+            c.new.clone(),
+            &m.faces,
+        )?);
     }
-    for (vertex, point) in &moved {
-        let old_point = work
-            .get_vertex(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point;
-        let new_point = work.add_point(*point);
-        work.get_vertex_mut(*vertex)
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .point = new_point;
-        work.remove_point_if_orphaned(old_point);
-    }
-    for (edge, mut spec) in specs {
-        for (old, new) in &minted {
-            spec.description = crate::replace_face::remap_description(spec.description, *old, *new);
-        }
-        work.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ReplaceFaceError::Op {
-                edge: Some(edge),
-                error,
-            })?;
-    }
+    crate::replace_face::move_points_then_rechart(&mut work, &moved, charts, &specs, tol)?;
     // Every edge OF THE SCOPE was re-described, and the charts here DO
     // mint pcurve rows (a cylinder, a cone and a sphere all do), so this
     // pass is load-bearing rather than the planar door's inert one. It

@@ -2,12 +2,12 @@
 id: torus-meters-blocker-is-the-arithmetic-or-c9s-root-rule
 kind: issue
 title: CURVED-SPIRIC-DESIGN says an outward-rounded sqrt in the certification scalar retires the torus; Interval has one now, so is the torus blocker the arithmetic or C9's no-root rule?
-status: open
+status: closed
+closed: 2026-10-01
 opened: 2026-09-29
 priority: P3
 cost: M
 design: true
-needs_ev: true
 branch: curved/c9-sqrt
 pr: 3517
 ---
@@ -69,3 +69,11 @@ files already take private outward-rounded square roots
 (`props/quad.rs:sqrt_enclosure`, `offset_meters.rs:sqrt_up/sqrt_down`,
 `mesh/src/chords.rs`), so the clause and the tree disagree today. The
 `[ev]` PR states the question by editing C9.
+
+## Closed (2026-10-01)
+
+Ev approved PR #3517: C9's operation list admits `√` (IEEE-754 correctly
+rounded, outward) and still no transcendental. The torus's certificate
+needs no root either way (`work/chart/torus-certificate-runs-root-free-through-its-quartic.md`);
+the door and the retirement of the three private roots is
+`work/linalg/certification-gains-a-sqrt-door.md`.

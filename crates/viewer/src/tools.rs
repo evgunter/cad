@@ -3,8 +3,8 @@
 //! Every modal tool here holds picks in tool state and commits exactly
 //! one ACTION — one history state, one undo (G1's preview-vs-commit
 //! rule; the mate tool set the shape and the creation tools took it).
-//! For every tool but the duplicate tool that action is one `DocEdit`;
-//! the duplicate tool's is three, recorded as one. They all consume the SAME
+//! For most tools that action is one `DocEdit`; the duplicate tool's
+//! is three and a declaring boolean's two, each recorded as one. They all consume the SAME
 //! selection stream, which is what makes the one-at-a-time rule a rule
 //! rather than a preference: with two open, one click fills a seat in
 //! each, and the picks a user believes they are making are not the
@@ -51,7 +51,7 @@ vocabulary! {
     /// notice are addressed in.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ToolKind {
-        /// The mate tool (GUI-4): two face picks.
+        /// The mate tool: two face picks.
         Mate,
         /// The revolve tool: a profile and an axis.
         Revolve,
@@ -86,18 +86,21 @@ vocabulary! {
 }
 
 impl ToolKind {
-    /// The tool's name, for sentences and buttons.
+    /// **The tool's name, and its one home**: the bare noun its
+    /// sentences ([`Self::says`]), its activation button
+    /// ([`Self::button`]) and its commit button ([`Self::commit`]) are
+    /// composed from.
     pub fn label(self) -> &'static str {
         match self {
-            Self::Mate => "mate tool",
-            Self::Revolve => "revolve tool",
-            Self::Boolean => "boolean tool",
-            Self::Split => "split tool",
-            Self::Transform => "transform tool",
-            Self::Pattern => "pattern tool",
-            Self::Blend => "blend tool",
-            Self::Part => "projection tool",
-            Self::Duplicate => "duplicate tool",
+            Self::Mate => "mate",
+            Self::Revolve => "revolve",
+            Self::Boolean => "boolean",
+            Self::Split => "split",
+            Self::Transform => "transform",
+            Self::Pattern => "pattern",
+            Self::Blend => "blend",
+            Self::Part => "projection",
+            Self::Duplicate => "duplicate",
         }
     }
 
@@ -106,7 +109,21 @@ impl ToolKind {
     /// said it (a refusal at a commit button) or the frame did (a lost
     /// pick). Two spellings of this prefix is how the two drift.
     pub fn says(self, what: &impl core::fmt::Display) -> String {
-        format!("{}: {what}", self.label())
+        format!("{} tool: {what}", self.label())
+    }
+
+    /// **The words on the button that opens this tool**: its name,
+    /// capitalised, as a tool, with the ellipsis of a button that opens
+    /// a panel rather than acting.
+    pub fn button(self) -> String {
+        let name = self.label();
+        let (first, rest) = name.split_at(name.chars().next().map_or(0, char::len_utf8));
+        format!("{}{rest} tool…", first.to_uppercase())
+    }
+
+    /// The words on the button that commits this tool's edit.
+    pub fn commit(self) -> String {
+        format!("Commit {}", self.label())
     }
 
     /// **What the cursor may pick while this tool is open** — an open
@@ -144,8 +161,7 @@ impl ToolKind {
     pub fn commits(self, op: &SessionOp) -> bool {
         match self {
             // The mate tool closes at its own click, before the op is
-            // performed, which is the shipped GUI-4 behaviour and not
-            // this rule's to change.
+            // performed: the mate panel's rule, not this one's.
             Self::Mate => false,
             Self::Revolve
             | Self::Boolean
@@ -213,7 +229,8 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
-        | SessionOp::AddInstance { .. } => None,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. } => None,
     }
 }
 

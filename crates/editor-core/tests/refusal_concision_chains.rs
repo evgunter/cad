@@ -124,7 +124,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "lifting the rim back onto a designated open face refused",
     ),
     ("Shell/Insert", "inserting the cavity refused"),
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     (
         "Split/Reduce/CrossingInsertion",
         "inserting the plane crossing on edge EdgeKey    refused",
@@ -148,7 +148,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
         "Profile/RayCastingExhausted",
         "containment of loop 1 in loop 0",
     ),
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     (
         "Split/Join/SectionInvariant",
         "curved-section invariant at face FaceKey",
@@ -357,7 +357,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
-    // work/reach/reach-refusals-short-of-the-shape-guard.md
+    // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
     "Boolean/Join/CutInvariant",
     "Boolean/Join/Euler",
@@ -2755,9 +2755,9 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, FlipSource, NamingError, ParamBoxError,
-        ParamName, PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId,
-        StableName, TieWitness,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, ParamName,
+        PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
+        TieWitness,
     };
     use geom_core::Sign;
     use payloads::*;
@@ -2904,8 +2904,8 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "name_frag_side_of",
-                source: named("name_frag_side_of"),
+                predicate: "name_frag_order_along",
+                source: named("name_frag_order_along"),
             },
         ),
     ];
@@ -2919,7 +2919,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                         predicate: "side_of_plane",
                         from: Sign::Positive,
                         to: Sign::Negative,
-                        source: FlipSource::VerdictLog,
                     },
                     last_good: None,
                 },

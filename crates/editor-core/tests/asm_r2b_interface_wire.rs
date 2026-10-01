@@ -55,6 +55,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     };
     host = push(&host, Node::instantiate_part(doc_ref));
     host = push(&host, Node::instantiate_part(doc_ref));
+    let (first, second) = (host.order()[0], host.order()[1]);
     let sited = |node, cap| SitedFace {
         at: node,
         name: face(node, cap),
@@ -67,8 +68,8 @@ fn doc_with_a_crossing() -> ProfileDoc {
     host = push(
         &host,
         Node::Mate {
-            a: sited(RecipeNodeId(0), CapEnd::End),
-            b: sited(RecipeNodeId(1), CapEnd::Start),
+            a: sited(first, CapEnd::End),
+            b: sited(second, CapEnd::Start),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: frame,
@@ -82,7 +83,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(RecipeNodeId(0), CapEnd::End),
+            outer: face(first, CapEnd::End),
             // The `inner` is spelled in the PART's id space, and the
             // value is chosen to make that visible: `RecipeNodeId(7)`
             // is not a live node of this document at all, so a wire

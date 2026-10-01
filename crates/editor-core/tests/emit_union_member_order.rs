@@ -21,9 +21,8 @@
 //!   orders and a later step's cut of a whole seam in others, and no
 //!   name binds a different entity in any two orders;
 //! - two declared-flush members and a bar across both, in both orders
-//!   of the flush pair: the bar's cap fragments carry their `SideOf`
-//!   partners in member-space name order, so each fragment has one
-//!   name.
+//!   of the flush pair: the bar's cap pieces carry their `Borders`
+//!   walls in member space, so each piece has one name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
@@ -127,27 +126,30 @@ fn reordering_a_unions_two_members_rebinds_no_name() {
 ///
 /// The rib's caps meet the slab's top in two chains of two edges each.
 /// The slab's top has outward normal +z; the rib's end cap −y, its start
-/// cap +y. In canonical (name) order the slab's face comes first, so
-/// the end-cap chain runs along +z × −y = +x and the start-cap chain
-/// along +z × +y = −x. Each rank names the edge at that place along
-/// its chain, in both member orders.
+/// cap +y. Where canonical (name) order puts the slab's face first, the
+/// end-cap chain runs along +z × −y = +x and the start-cap chain along
+/// +z × +y = −x, and the other way round where it puts the rib's
+/// first. Each rank names the edge at that place along its chain, in
+/// both member orders.
 #[test]
 fn a_unions_seam_chain_is_ranked_along_the_canonical_pair() {
     for swap in [false, true] {
         let (ev, u, [slab, rib]) = union_of(slab_rib, swap);
         let top = member_face(u, slab, fname(slab, RoleSeg::Cap(CapEnd::End)));
         let body = body_of(&ev, u);
-        for (cap, rank, x) in [
-            (CapEnd::End, 0, (0.5, 1.0)),
-            (CapEnd::End, 1, (2.0, 2.5)),
-            (CapEnd::Start, 0, (2.0, 2.5)),
-            (CapEnd::Start, 1, (0.5, 1.0)),
+        // With the slab's face first; the rib's first reverses each
+        // chain, which swaps its two ranks.
+        for (cap, rank, x, reversed) in [
+            (CapEnd::End, 0, (0.5, 1.0), (2.0, 2.5)),
+            (CapEnd::End, 1, (2.0, 2.5), (0.5, 1.0)),
+            (CapEnd::Start, 0, (2.0, 2.5), (0.5, 1.0)),
+            (CapEnd::Start, 1, (0.5, 1.0), (2.0, 2.5)),
         ] {
             let rib_cap = member_face(u, rib, fname(rib, RoleSeg::Cap(cap)));
-            let (a, b) = if top <= rib_cap {
-                (top.clone(), rib_cap)
+            let (a, b, x) = if top <= rib_cap {
+                (top.clone(), rib_cap, x)
             } else {
-                (rib_cap, top.clone())
+                (rib_cap, top.clone(), reversed)
             };
             let n = StableName {
                 kind: EntityKind::Edge,
@@ -435,19 +437,19 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     }
 }
 
-/// **A fragment's `SideOf` partners are in name order whatever the
-/// member order** (the `abys` witness of
+/// **A fragment's `Borders` walls are one spelling whatever the member
+/// order** (the `abys` witness of
 /// `name-ordered-positions-in-a-path-have-no-single-home`).
 ///
 /// `a` and `b` overlap in x and are declared flush; the bar `y` crosses
-/// both, so `y`'s start cap is cut into two fragments told apart by
-/// their side of `a`'s and `b`'s faces. The pair emitter writes the
-/// partners sorted in the FOLD's space, where the first member is the
-/// A side; the collapse has to sort them again in member space. In
-/// `[a, b, y]` and `[b, a, y]` every face fragment carries the same
-/// name and binds the same face.
+/// both, so `y`'s start cap is cut into two pieces told apart by the
+/// walls of `a` and `b` each borders. The pair emitter writes the walls
+/// in the FOLD's space, where the first member is the A side; the
+/// union names them again in member space. In `[a, b, y]` and
+/// `[b, a, y]` every face piece carries the same name and binds the
+/// same face.
 #[test]
-fn a_fragments_side_of_partners_are_one_order_in_every_member_order() {
+fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
     use crate::docm7_union_declare::{declared_union, flush_pairs};
     let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
         .into_iter()
@@ -463,13 +465,13 @@ fn a_fragments_side_of_partners_are_one_order_in_every_member_order() {
             let ev = run(&doc);
             bindings(&ev, u)
                 .into_iter()
-                .filter(|(n, _)| n.contains("SideOf"))
+                .filter(|(n, _)| n.contains("Borders"))
                 .collect()
         })
         .collect();
     assert!(
         !tables[0].is_empty(),
-        "no fragment carries a SideOf, so the row pins nothing"
+        "no fragment carries a Borders, so the row pins nothing"
     );
     assert_eq!(
         tables[0], tables[1],

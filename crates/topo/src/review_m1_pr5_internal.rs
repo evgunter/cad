@@ -236,9 +236,6 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
 /// row is the only other reader; this table stays this guard's.
 pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // ---- Sugar: delegates to an asserting operator. ----
-    ("mev_line", "derives the spec, then calls `mev`"),
-    ("mef_chord", "derives the spec, then calls `mef`"),
-    ("mekr_chord", "derives the spec, then calls `mekr`"),
     ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
     (
         "insert_void",
@@ -263,6 +260,16 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "declares the tier-1 postcondition directly (a surface swap can orphan a key): \
          swept here when the setter IS the door, left to the door's close inside a \
          surgery scope",
+    ),
+    (
+        "set_face_surface_stranding_for_tests",
+        "the failure-injection twin of `set_face_surface`: the same door with its \
+         stranding refusal taken out, so the same postcondition",
+    ),
+    (
+        "set_face_surfaces_describing",
+        "declares the tier-1 postcondition directly, on `set_face_surface`'s terms: its \
+         swaps and re-descriptions can orphan keys",
     ),
     (
         "set_edge_curve",

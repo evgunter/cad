@@ -530,9 +530,9 @@ impl SceneMesh {
     /// `focus` with [`SceneMesh::FLAG_FOCUS`].
     ///
     /// **Why the marking is a per-corner attribute and not a shader
-    /// uniform**, which is how the selected and hovered patches are
-    /// marked: those are one patch each, so an id fits in a uniform
-    /// slot; a focus is a SET, of no bounded size, and the only place a
+    /// uniform**, which is how the selected, hovered and held patches
+    /// are marked: those are a few patches of a fixed count, so their
+    /// ids fit uniform slots; a focus is a SET, of no bounded size, and the only place a
     /// set of that shape can be tested per fragment without new GPU
     /// plumbing is the vertex data the picture is already carrying.
     ///

@@ -73,6 +73,8 @@ mod bool4r1_probes;
 mod bool4r2_base_probe;
 #[path = "bool4r2_probes.rs"]
 mod bool4r2_probes;
+#[path = "boolean_discards.rs"]
+mod boolean_discards;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]

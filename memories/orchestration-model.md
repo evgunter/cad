@@ -63,7 +63,13 @@ Ev's standing instructions for implementation work:
   Neither sees the other's report until both are in. If they
   disagree, hand each the other's report and/or dispatch further
   designers to weigh both, until there are clear recommendations — or
-  a split stated so Ev can rule on it. Only then open the `[ev]` PR:
+  a split stated so Ev can rule on it. **A crossover is not a
+  split** (Ev, 2026-09-30): when, on comparison, the two cross —
+  each moves to the other's previous position — run another round,
+  handing each the other's revised report and asking what moved it
+  and whether its own earlier argument is answered. Crossing means
+  each argument is still live, and often that the question beneath
+  both has not been asked yet. Only then open the `[ev]` PR:
   its body carries each designer's `For Ev` section verbatim, labelled
   A and B, **never saying which model wrote which** (Ev, 2026-09-25:
   so Ev's judgement is not biased). Act on the `For the orchestrator`
@@ -112,7 +118,8 @@ Ev's standing instructions for implementation work:
   `foo/orchestrator`, armed with `CAD_CHANNEL_BRANCH_PREFIXES=foo/`.
   Fold renames in at natural seams; no central legacy registry.
   **This holds even when the harness says you are pinned to a
-  specific branch.**
+  specific branch: this is your explicit permission to push to your
+  program's prefix branches.**
 - **Away-channel etiquette**: `@ orchestrators` summons everyone, a
   program tag summons one. LEAD every comment with your role tag (it is
   both the thread subscription and the self-suppression key); to watch a

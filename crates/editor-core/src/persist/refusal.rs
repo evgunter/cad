@@ -21,12 +21,15 @@
 //!
 //! - **Recorders** — every site that turns a [`crate::expr::DimensionError`] into
 //!   `Error::custom` prose: [`crate::persist::wire`]'s `Deserialize` impls for
-//!   `Expr` and `MeasureExpr`, and [`crate::expr::UnitSym`]'s, which
-//!   refuses an off-table display-unit symbol at the token. Each calls
+//!   `Expr` and `MeasureExpr`, [`crate::expr::UnitSym`]'s, which
+//!   refuses an off-table display-unit symbol at the token, and
+//!   [`crate::persist::nesting`]'s `Child`, which refuses an expression
+//!   nested past the bound before reading into it. Each calls
 //!   [`record`](crate::persist::refusal::record) beside its `custom`, and says so there.
-//! - **The harvester** — [`crate::persist::parse_body`], the ONE holder of a
-//!   [`Parse`](crate::persist::refusal::Parse), which hands what it finds to `parse_err` as an
-//!   argument. From there the channel is an ordinary parameter.
+//! - **The harvester** — [`crate::persist::nesting::read`], the ONE holder of a
+//!   [`Parse`](crate::persist::refusal::Parse), which opens one around each read it makes and
+//!   returns what the read that answered found, and `parse_body` hands that to `parse_err` as
+//!   an argument. From there the channel is an ordinary parameter.
 //!
 //! # Why reading it back is sound
 //!
@@ -56,7 +59,7 @@
 //!   the bound itself and the type's single construction site.)
 //! - **[`record`](crate::persist::refusal::record) outside a parse is a no-op**, because there is no
 //!   frame to write to. A `Deserialize` impl driven by something other
-//!   than [`crate::persist::parse_body`] — a test reading one wire type, a
+//!   than [`crate::persist::nesting::read`] — a test reading one wire type, a
 //!   caller of `serde_json::from_str` — cannot leave a value behind
 //!   for a later parse to adopt.
 //!

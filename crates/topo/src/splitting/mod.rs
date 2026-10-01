@@ -614,6 +614,23 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
     Ok((red, completed, fragments))
 }
 
+/// **The direct split run through its join**: the scratch body as the
+/// join leaves it, every null edge killed, before the finish and the
+/// closing mint. Test vocabulary (`topo::test_support`), for the rows
+/// that read the rows a face carries at that point.
+///
+/// # Errors
+///
+/// The reduction's or the join's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn through_the_join<T: geom_core::Decide>(
+    operand: &Body<T>,
+    plane: &SplitPlane<T>,
+    tol: Tol,
+) -> Result<Body<T>, SplitError> {
+    Ok(split_scratch(operand, plane, tol)?.0.body)
+}
+
 /// **`split`** — plane-splitting of a solid (ch. 14 end to end):
 /// reduce ([`split_reduce`]) → join (`splitconnect`) → finish
 /// (`splitfinish`), composed functionally. The operand is never

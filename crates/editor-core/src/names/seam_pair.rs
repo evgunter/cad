@@ -75,7 +75,7 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
-        | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
+        | RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::OrderAlong { .. })
         | name_free_seg!() => Head::Stop,
     }
 }
@@ -104,13 +104,16 @@ pub(super) fn seam_vertex_parents(name: &StableName) -> Option<(&StableName, &St
 /// The `Seam` a `kind` name is minted as, through the wrappers [`head`]
 /// lists as `Through`: the one walk both answers above take.
 fn seam_through(name: &StableName, kind: EntityKind) -> Option<(&StableName, &StableName)> {
-    if name.kind != kind {
-        return None;
-    }
-    match head(name.path.first()?) {
-        Head::Seam(a, b) => Some((a, b)),
-        Head::Merged(_) | Head::Stop => None,
-        Head::Through(inner) => seam_through(inner, kind),
+    let mut at = name;
+    loop {
+        if at.kind != kind {
+            return None;
+        }
+        match head(at.path.first()?) {
+            Head::Seam(a, b) => return Some((a, b)),
+            Head::Merged(_) | Head::Stop => return None,
+            Head::Through(inner) => at = inner,
+        }
     }
 }
 
@@ -119,14 +122,18 @@ fn seam_through(name: &StableName, kind: EntityKind) -> Option<(&StableName, &St
 /// the wrappers [`head`] passes through, or a merged face with such a
 /// constituent.
 pub(crate) fn face_descends_from(n: &StableName, x: &StableName) -> bool {
-    if n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path) {
-        return true;
+    let mut names = vec![n];
+    while let Some(n) = names.pop() {
+        if n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path) {
+            return true;
+        }
+        match n.path.first().map(head) {
+            Some(Head::Through(p)) => names.push(p),
+            Some(Head::Merged(cs)) => names.extend(cs.iter().rev()),
+            Some(Head::Seam(..) | Head::Stop) | None => {}
+        }
     }
-    match n.path.first().map(head) {
-        Some(Head::Through(p)) => face_descends_from(p, x),
-        Some(Head::Merged(cs)) => cs.iter().any(|c| face_descends_from(c, x)),
-        Some(Head::Seam(..) | Head::Stop) | None => false,
-    }
+    false
 }
 
 /// Which of a seam edge's two faces, named `n0` and `n1`, is the pair's

@@ -746,7 +746,7 @@ fn gap<T: Decide>(
 
 /// **Evaluates a whole measured expression, and refuses a non-finite
 /// result** — [`crate::expr::eval`]'s two-part shape, deliberately
-/// mirrored: a recursive `Real` core with no decisions in it, then the
+/// mirrored: a `Real` core with no decisions in it, then the
 /// ONE ruled door on the final value.
 ///
 /// The door is not a second implementation. It is
@@ -775,11 +775,11 @@ pub(crate) fn eval_measure<T: Decide>(
     crate::expr::refuse_non_finite(value).map_err(PrimitiveRefusal::NonFinite)
 }
 
-/// The recursive core: the primitives against the resolved carriers,
-/// the arithmetic in between, and the value leaves read off the vector
-/// the node's leaf stage already evaluated. No decisions inside —
-/// poison FLOWS through values per the kernel policy, and the single
-/// refusal door is [`eval_measure`]'s.
+/// The core: the primitives against the resolved carriers, the
+/// arithmetic in between, and the value leaves read off the vector the
+/// node's leaf stage already evaluated. No decisions inside — poison
+/// FLOWS through values per the kernel policy, and the single refusal
+/// door is [`eval_measure`]'s.
 ///
 /// Both vectors arrive INDEX-ALIGNED with this walk — the carriers
 /// with the node's references, the leaves with
@@ -787,7 +787,65 @@ pub(crate) fn eval_measure<T: Decide>(
 /// resolves a name or re-evaluates an expression: resolution ran once,
 /// leaf evaluation ran once, and the content key saw exactly the
 /// values this arithmetic sees.
+///
+/// The walk keeps its own stack, as [`crate::expr::eval`]'s does: it
+/// meets the leaves in pre-order, first child first, which is the order
+/// both vectors are in, and combines each operator once its operands
+/// are valued, so how deep the expression nests costs the thread's
+/// stack nothing.
 fn eval_measure_inner<T: Decide>(
+    root: &MeasureExpr,
+    carriers: &[Carrier<T>],
+    leaves: &[T],
+    cursor: &mut usize,
+    clearances: &[T],
+    clearance_cursor: &mut usize,
+    band: Band,
+) -> Result<T, PrimitiveRefusal> {
+    use crate::tree::{Operands as O, Visit};
+    crate::tree::fold(
+        root,
+        |expr| {
+            Ok(match expr.kind() {
+                MeasureKind::Primitive(_) | MeasureKind::Value(_) => Visit::Value(leaf_value(
+                    expr,
+                    carriers,
+                    leaves,
+                    cursor,
+                    clearances,
+                    clearance_cursor,
+                    band,
+                )?),
+                MeasureKind::Neg(a) => Visit::One(a),
+                MeasureKind::Add(a, b)
+                | MeasureKind::Sub(a, b)
+                | MeasureKind::Mul(a, b)
+                | MeasureKind::Div(a, b)
+                | MeasureKind::Min(a, b)
+                | MeasureKind::Max(a, b) => Visit::Two(a, b),
+            })
+        },
+        |expr, operands| {
+            Ok(match (expr.kind(), operands) {
+                (MeasureKind::Neg(_), O::One(a)) => -a,
+                (MeasureKind::Add(..), O::Two(a, b)) => a + b,
+                (MeasureKind::Sub(..), O::Two(a, b)) => a - b,
+                (MeasureKind::Mul(..), O::Two(a, b)) => a * b,
+                (MeasureKind::Div(..), O::Two(a, b)) => a / b,
+                (MeasureKind::Min(..), O::Two(a, b)) => a.min(b),
+                (MeasureKind::Max(..), O::Two(a, b)) => a.max(b),
+                _ => unreachable!(
+                    "a leaf is valued when visited, and an operator combined from as many \
+                     operands as it has children"
+                ),
+            })
+        },
+    )
+}
+
+/// A leaf's value: a primitive against its carriers, or the next value
+/// leaf off the vector.
+fn leaf_value<T: Decide>(
     expr: &MeasureExpr,
     carriers: &[Carrier<T>],
     leaves: &[T],
@@ -796,28 +854,6 @@ fn eval_measure_inner<T: Decide>(
     clearance_cursor: &mut usize,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
-    let binary =
-        |a: &MeasureExpr, b: &MeasureExpr, cursor: &mut usize, clearance_cursor: &mut usize| {
-            let x = eval_measure_inner(
-                a,
-                carriers,
-                leaves,
-                cursor,
-                clearances,
-                clearance_cursor,
-                band,
-            )?;
-            let y = eval_measure_inner(
-                b,
-                carriers,
-                leaves,
-                cursor,
-                clearances,
-                clearance_cursor,
-                band,
-            )?;
-            Ok::<(T, T), PrimitiveRefusal>((x, y))
-        };
     match expr.kind() {
         MeasureKind::Primitive(p) => {
             let [ia, ib] = p.refs();
@@ -881,38 +917,46 @@ fn eval_measure_inner<T: Decide>(
                 ),
             }
         }
-        MeasureKind::Neg(a) => Ok(-eval_measure_inner(
-            a,
-            carriers,
-            leaves,
-            cursor,
-            clearances,
-            clearance_cursor,
-            band,
-        )?),
-        MeasureKind::Add(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x + y)
+        MeasureKind::Neg(_)
+        | MeasureKind::Add(..)
+        | MeasureKind::Sub(..)
+        | MeasureKind::Mul(..)
+        | MeasureKind::Div(..)
+        | MeasureKind::Min(..)
+        | MeasureKind::Max(..) => {
+            unreachable!("an operator is combined by the walk, never valued as a leaf")
         }
-        MeasureKind::Sub(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x - y)
-        }
-        MeasureKind::Mul(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x * y)
-        }
-        MeasureKind::Div(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x / y)
-        }
-        MeasureKind::Min(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x.min(y))
-        }
-        MeasureKind::Max(a, b) => {
-            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
-            Ok(x.max(y))
-        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    /// The measurement evaluator and the measurement's `Drop` cost the
+    /// stack nothing per level: a million levels evaluate and free on
+    /// the wasm32 stack.
+    #[test]
+    fn the_measurement_walk_and_drop_keep_their_own_stack() {
+        test_utils::own_thread::on_the_smallest_stack(|| {
+            let leaf = MeasureExpr::value(crate::expr::Expr::count(0));
+            let deep = crate::tree::raw_chain(leaf, 1_000_000, crate::measure::raw_neg);
+            let (mut cursor, mut clearance_cursor) = (0, 0);
+            let band = Band::new(1e-9, 1e-6).expect("a valid band");
+            let value = eval_measure_inner::<f64>(
+                &deep,
+                &[],
+                &[2.5],
+                &mut cursor,
+                &[],
+                &mut clearance_cursor,
+                band,
+            );
+            assert_eq!(value.ok(), Some(-2.5));
+            assert_eq!(cursor, 1, "the one value leaf is read once");
+            drop(deep);
+        });
     }
 }
