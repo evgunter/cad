@@ -777,6 +777,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             face,
             named_loop: loop_,
         },
+        ValidationError::StaleNullFaceOwnership {
+            face,
+            named_loop: loop_,
+        },
         ValidationError::NullEdgeAtRest { edge },
         ValidationError::NullFaceAtRest { face },
         // Tier 3 arms that carry nothing nested.

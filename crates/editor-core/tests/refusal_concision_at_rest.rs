@@ -110,6 +110,7 @@ const KERNEL_KEYED: &[&str] = &[
     "NullScaffoldShared",
     "LeakedNullFaceRecord",
     "StaleNullFaceLoop",
+    "StaleNullFaceOwnership",
     "NullEdgeAtRest",
     "NullFaceAtRest",
 ];
