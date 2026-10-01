@@ -1249,3 +1249,27 @@ The optional findings also landed: per-variant mint pins, one collision recourse
 The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.
 
 - 2026-10-01 — Seam note from AUTHOR: Ev ruled on #3571 that `StableName`'s `Display` carries a face's leaf role in words, through one public renderer promoted from `resolve::role_words`. The work is filed on EDIT as `names-render-a-faces-leaf-role-in-words`; `names/role.rs` is shared ground. (AUTHOR orchestrator)
+
+## 2026-10-01 — edge pieces by their ends ruled (PR 3553); node labels ruled (PR 3565)
+
+**PR 3553, fork-log row 22.** Ev approved the recommendation, "including the change to what was decided in 512". It is written into N2:
+- edge pieces take `Ends`, the sorted end-vertex names;
+- crossing vertices are ranked along the crossed edge by its curve parameter;
+- the Split's same-side faces take `Keeps`;
+- section chords take `Ends` in place of #512 A2's tie.
+
+The four design rows fold into the P0 unit `edge-pieces-are-named-by-their-ends`, and an implementer lane is on it.
+
+**PR 3565, fork-log rows 23 and 24.** Ev narrowed the hex-tag-versus-address split by asking whether the kernel should hold names. A second pair (byte 104) converged after two rounds: a node's **label** is document data the kernel stores and speaks (DESIGN.md Band 1, "Node labels"). Its shape:
+- it sits outside `Node`;
+- it is set by `SetLabel` only;
+- it is not unique and never identity;
+- every sentence reads kind + label + tag;
+- create forms propose an editable "Kind N".
+
+Ev approved, including the form proposals. The unit `node-labels-are-document-data` is filed. Sequencing:
+1. kind + 12-hex-tag spelling first, on the counter (lane running);
+2. then #3594's digest mint;
+3. then labels.
+
+**Fork-log numbering:** rows 21–24 each appear twice in the log; the fork column tells them apart.
