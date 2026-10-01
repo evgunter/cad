@@ -1045,3 +1045,32 @@ the plan, not only reading it. Three of the rows are now MSOLVE-12
 (plan item 23), dispatched on Opus with a single full review. The
 fourth, the null-payload spelling, is blocked on item 22 (plan item
 24).
+
+## 2026-10-01 — MSOLVE-12 fix pass
+
+The review of `fc5ea8dca` came back APPROVE-WITH-FIXES, with no MAJOR,
+and C1–C5 held. The fix pass took the nine rulings:
+
+- **R1.** A lever at or below the band's zero threshold decides no
+  angle. It is refused as `LeverRefusal::BelowZeroBand` at `intersect`
+  and at the rider's roll, before any division, with the reviewer's
+  probe pinned as a row. That guard closes
+  `plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard`.
+- **R2.** The table's verdict hands the translation stage the sine or
+  cosine it decided, and the stage divides by that alone. The shapes a
+  verdict called parallel or perpendicular are solved with no division.
+- **R3.** `PoseOutOfRange` names held and added, and the tree blames
+  both.
+- **R4.** C2 builds every pair around a known point, with cylinders and
+  a skew pair added.
+- **R5–R9.** `unreachable!` for the impossible arm; `undecided`'s prose;
+  the Display's distance sentence; the body's claim about
+  representatives corrected; the harness copy disclosed and the loader's
+  K derived.
+
+Friction: the first round's census missed that a lever below the zero
+band makes `parallel` and `perpendicular` both answer yes. The census
+swept arms from 1 m up, so the bottom of the lever's range was never
+probed. A sweep over a levered decision owes the arms at and under the
+band's own thresholds.
+

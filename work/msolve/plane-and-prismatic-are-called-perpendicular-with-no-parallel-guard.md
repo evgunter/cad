@@ -2,8 +2,11 @@
 id: plane-and-prismatic-are-called-perpendicular-with-no-parallel-guard
 kind: issue
 title: The coset table calls a planar and a prismatic perpendicular with no parallel guard, so below the zero band a direction along the normal reads as a slide in the plane
-status: open
+status: closed
 opened: 2026-10-01
+parent: MSOLVE-12
+pr: 3698
+closed: 2026-10-01
 priority: P3
 cost: E
 ---
@@ -38,3 +41,19 @@ clocking rider. The public `coset::intersect` takes any `Arm`,
 Entry 3 asks `parallel(d, n)` first, as entry 2 does (`Trivial` when
 parallel: a translation along the normal is never in the plane). Or
 the lever gets a floor, which ERROR-DESIGN E3 declined.
+
+## Closed (2026-10-01, PR 3698)
+
+Closed by MSOLVE-12's fix pass, on both of its counts.
+
+- **The verdict.** `Arm::decides_over` (`crates/editor-core/src/mate/coset.rs`)
+  refuses an arm at or below `band.zero()` as
+  `LeverRefusal::BelowZeroBand`. `intersect` asks it before the table,
+  so a direction along the normal is never called perpendicular for
+  want of a lever. The rider's roll asks it too. The row is
+  `msolve12_honest_translation::a_lever_inside_the_zero_band_decides_no_angle`:
+  a plane with an in-plane cylinder at arms 0 to the zero threshold,
+  in both orders, through the public `coset::intersect`.
+- **The division.** A slide the table calls perpendicular is now solved
+  as named, with no division: the anchor's foot on the held plane.
+  The only divisor left is the number a verdict decided away from zero.
