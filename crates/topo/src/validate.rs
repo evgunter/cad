@@ -451,6 +451,18 @@ pub(crate) fn decide_reported<T: Decide>(
     geom_core::k_stats::decide_reported(name, margin, band)
 }
 
+/// The gate for a side read off a sign that has no side at zero, whose
+/// decided zero escalates with its decided margin
+/// ([`geom_core::k_stats::decide_nonzero_reported`]): the refusal is on
+/// the frame's escalation log beside the verdict.
+pub(crate) fn decide_nonzero_reported<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
+    geom_core::k_stats::decide_nonzero_reported(name, margin, band)
+}
+
 /// **What a census refusal is ABOUT** — the whole of the subject the
 /// refusing arm was examining.
 ///
@@ -2147,8 +2159,12 @@ impl fmt::Display for StaleDeclaration {
 /// paragraph and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WedgeCheck {
-    /// The first-order wedge between the faces' tangent planes, with the
-    /// folded lever arm it is metered at: a crease or a smooth join.
+    /// The folded lever arm the first-order wedge is metered at: whether
+    /// the edge is long enough, for how its faces curve, to read an
+    /// angle over ([`geom_brep::DIHEDRAL_ARM`]).
+    Arm,
+    /// The first-order wedge between the faces' tangent planes, metered
+    /// at a definitely positive arm: a crease or a smooth join.
     Dihedral,
     /// On a definitely-smooth edge, whether the faces separate at second
     /// order (the surfaces determine the locus) or not.
@@ -2161,9 +2177,24 @@ pub enum WedgeCheck {
 }
 
 impl WedgeCheck {
+    /// The check a first-order wedge escalation names, by the rung of
+    /// [`geom_brep::classify_dihedral`] that escalated: its arm is a
+    /// length, which ends as one ([`WedgeCheck::Arm`]), and its reading
+    /// the wedge's angle ([`WedgeCheck::Dihedral`]).
+    const fn of_rung(rung: geom_brep::LeverRung) -> Self {
+        match rung {
+            geom_brep::LeverRung::Arm => Self::Arm,
+            geom_brep::LeverRung::Reading => Self::Dihedral,
+        }
+    }
+
     /// What could not be decided, in the words of a person at the viewer.
     fn lead(self) -> &'static str {
         match self {
+            Self::Arm => {
+                "whether an edge is long enough, for how its faces curve, to measure the angle \
+                 between them is too close to call at this tolerance"
+            }
             Self::Dihedral => {
                 "the angle between two faces at an edge is too close to call at this \
                  tolerance (a sliver)"
@@ -2183,6 +2214,9 @@ impl WedgeCheck {
     fn ending(self, cause: &Indeterminate) -> Cow<'static, str> {
         let arm = RefusedArm::Undecided(cause);
         match self {
+            Self::Arm => geom_brep::DIHEDRAL_ARM
+                .recourse(arm, Reading::AtRest)
+                .into(),
             Self::Dihedral => WEDGE.recourse(arm, Reading::AtRest).into(),
             Self::SecondOrder => SEPARATION.recourse(arm, Reading::AtRest).into(),
             // A split along the edge, or a side read after the decisions
@@ -2536,6 +2570,10 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         }
         CertCheck::Transversality => {
             "its faces meet too nearly tangentially to decide at this tolerance"
+        }
+        CertCheck::TransversalityArm => {
+            "it is too short, for how its faces curve, to measure the angle between them at this \
+             tolerance"
         }
         CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
             "its faces curve apart too little to decide where it runs at this tolerance"
@@ -5716,10 +5754,10 @@ pub(crate) fn tier3_local_checks_marked<
                 match classify_dihedral(s_plus, s_minus, p, extent, band) {
                     Ok(DihedralClass::Transverse) => all_smooth = false,
                     Ok(DihedralClass::Smooth) => all_transverse = false,
-                    Err(cause) => {
+                    Err(geom_brep::LeverEscalation { rung, diag: cause }) => {
                         errors.push(ValidationError::SliverDihedral {
                             edge: edge_key,
-                            check: WedgeCheck::Dihedral,
+                            check: WedgeCheck::of_rung(rung),
                             cause,
                         });
                         escalated = true;
@@ -6388,10 +6426,11 @@ pub(crate) fn tier3_local_checks_marked<
     // second, vaguer report of the same defect.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
+        let normal = plane_chart_normal(body, face.surface);
         for &ring in &face.rings {
-            match ring_outer_contact(body, face.outer, ring, band) {
+            match ring_outer_contact_about(body, face.outer, ring, normal, band) {
                 RingOuterVerdict::Disjoint => {
-                    let Some(normal) = nesting_normal(body, face.surface) else {
+                    let Some(normal) = normal else {
                         continue; // the nesting residue, enumerated above
                     };
                     match ring_nesting(body, face.outer, ring, normal, band) {
@@ -6481,6 +6520,24 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
     ring: LoopKey,
+    band: Band,
+) -> RingOuterVerdict {
+    let normal = body
+        .get_loop(outer)
+        .and_then(|l| body.get_face(l.face))
+        .and_then(|f| plane_chart_normal(body, f.surface));
+    ring_outer_contact_about(body, outer, ring, normal, band)
+}
+
+/// [`ring_outer_contact`] for two loops in the plane with `normal`,
+/// whatever face they bound — the split's section loops, read before
+/// their faces wear the section plane. `None` is the recorded residue
+/// of a face with no plane: the edge-pair arm sees nothing.
+pub(crate) fn ring_outer_contact_about<T: Decide>(
+    body: &Body<T>,
+    outer: LoopKey,
+    ring: LoopKey,
+    normal: Option<geom_core::Vec3<T>>,
     band: Band,
 ) -> RingOuterVerdict {
     let (Some(ring_cycle), Some(outer_cycle)) =
@@ -6666,7 +6723,7 @@ pub(crate) fn ring_outer_contact<T: Decide>(
             });
         }
     }
-    ring_outer_meeting(body, outer, ring, &ring_cycle, &outer_cycle, band)
+    ring_outer_meeting(body, outer, ring, normal, &ring_cycle, &outer_cycle, band)
 }
 
 /// Check 9's arm 2 for one pair: the edge under `he` if the vertex
@@ -6745,8 +6802,9 @@ fn edge_trim<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: 
 ///   against both edges' trims ([`window`]) — a line's by its span, an
 ///   arc's by distances to its ends and to its two apexes.
 ///
-/// Both run in the plane of `outer`'s face and are silent off one: a
-/// non-planar face has no plane to intersect in, and an `Ellipse`,
+/// Both run in the plane with `normal` (`outer`'s face's, under
+/// [`ring_outer_contact`]) and are silent without one: a non-planar
+/// face has no plane to intersect in, and an `Ellipse`,
 /// `Spiric` or `Nurbs` edge has no closed-form meeting point here.
 /// Those are check 9's recorded residue.
 ///
@@ -6758,15 +6816,12 @@ fn ring_outer_meeting<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
     ring: LoopKey,
+    normal: Option<geom_core::Vec3<T>>,
     ring_cycle: &[HalfEdgeKey],
     outer_cycle: &[HalfEdgeKey],
     band: Band,
 ) -> RingOuterVerdict {
-    let normal = body
-        .get_loop(outer)
-        .and_then(|l| body.get_face(l.face))
-        .and_then(|f| body.surfaces.get(f.surface));
-    let Some(&Surface::Plane { normal, .. }) = normal else {
+    let Some(normal) = normal else {
         return RingOuterVerdict::Disjoint; // the recorded residue: no plane
     };
 
@@ -7219,12 +7274,13 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
     }
 }
 
-/// The chart normal check 9's nesting arm walks a face's outer loop
-/// in, or `None` where the arm is silent — the whole of its gate,
-/// read off one face.
+/// The normal of a planar chart: the plane check 9's edge-meeting
+/// arms ([`ring_outer_contact`]) and its nesting arm walk a face's
+/// loops in, or `None` where both are silent — the whole of their
+/// gate, read off one face.
 ///
 /// One condition: the surface is a `Plane`, because there is
-/// otherwise no plane for the walk to run in. The outer loop's CLASS
+/// otherwise no plane for the arms to run in. The outer loop's CLASS
 /// is not gated on: [`crate::splitting::containment::point_in_carrier_loop`] reads
 /// every edge on its own carrier and answers every class it has a
 /// crossing row for, and says so itself where it has none (`None`,
@@ -7233,7 +7289,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
 ///
 /// The normal is handed over without `Face::sense` folded in: the
 /// walk's verdict is invariant under its sign.
-fn nesting_normal<T: Real>(
+fn plane_chart_normal<T: Real>(
     body: &Body<T>,
     surface: crate::geometry::SurfaceKey,
 ) -> Option<geom_core::Vec3<T>> {
@@ -7273,7 +7329,7 @@ enum RingNestingVerdict {
 }
 
 /// Does `ring` lie inside the region `outer` bounds, both loops of one
-/// planar face whose chart normal [`nesting_normal`] read as `normal`?
+/// planar face whose chart normal [`plane_chart_normal`] read as `normal`?
 ///
 /// The ring's VERTICES are the queries, in cycle order, and the walk
 /// takes the first definite verdict it reaches — `Out` reports, `In`
@@ -7358,7 +7414,7 @@ enum RingNestingVerdict {
 /// loop is the same defect as any other ring outside it.
 ///
 /// Run only on a `(outer, ring)` pair [`ring_outer_contact`] has
-/// cleared, and only behind [`nesting_normal`]; the banner at check 9
+/// cleared, and only behind [`plane_chart_normal`]; the banner at check 9
 /// states both and enumerates what they leave out.
 fn ring_nesting<T: Decide>(
     body: &Body<T>,
@@ -9697,6 +9753,24 @@ mod tests {
                     .to_owned(),
             ),
             (
+                "wedge arm, in band",
+                sliver(WedgeCheck::Arm, in_band),
+                "whether an edge is long enough, for how its faces curve, to measure the angle \
+                 between them is too close to call at this tolerance. Recourse: move the \
+                 geometry so that edge is clearly longer, and its faces curve less tightly \
+                 there, or, if this length or the gap its faces open is intended, tighten the \
+                 tolerance below 5e-10 m"
+                    .to_owned(),
+            ),
+            (
+                "wedge arm, zero band",
+                sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
+                "Recourse: move the geometry so that edge is clearly longer, and its faces curve \
+                 less tightly there, or, if this length or the gap its faces open is intended, \
+                 tighten the tolerance below 5e-11 m"
+                    .to_owned(),
+            ),
+            (
                 "wedge, straddling",
                 sliver(WedgeCheck::Dihedral, straddles),
                 "Recourse: move the geometry so the faces meet either clearly creased or clearly \
@@ -9867,6 +9941,59 @@ mod tests {
         for (row, error, ending) in rows {
             let text = error.to_string();
             assert!(text.ends_with(&ending), "{row}: {text}");
+        }
+    }
+
+    /// **The wedge check reads the rung the dihedral escalated on**:
+    /// `classify_dihedral`'s real escalations, taken through
+    /// [`WedgeCheck::of_rung`] as the edge loop takes them, end as the
+    /// rung's own decision. An in-band arm and the cone apex's decided
+    /// zero arm name the edge's length and bend, never an angle; a
+    /// near-tangent wedge keeps the angle. (PR 3513's second fix pass:
+    /// the mapping had no row, so sending the arm to `Dihedral` survived.)
+    #[test]
+    fn a_dihedral_escalation_ends_as_the_rung_it_escalated_on() {
+        use geom_core::Vec3;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let plane = |normal: Vec3<f64>, u_ref| Surface::Plane {
+            origin: Point3::origin(),
+            normal,
+            u_ref,
+        };
+        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
+        let wall = plane(Vec3::unit_x(), Vec3::unit_y());
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: std::f64::consts::FRAC_PI_6,
+            u_ref: Vec3::unit_x(),
+        };
+        let theta = 3.0 * Tol::witness().get().eps;
+        let tilted = plane(Vec3::new(theta.sin(), 0.0, theta.cos()), Vec3::unit_y());
+        let in_band_arm = (band.zero() + band.escalate()) / 2.0;
+        let rows = [
+            ("an in-band arm", &floor, &wall, in_band_arm, true),
+            ("the cone apex", &cone, &floor, 1.0, true),
+            ("a near-tangent wedge", &floor, &tilted, 1.0, false),
+        ];
+        for (row, s1, s2, extent, arm) in rows {
+            let escalation = classify_dihedral(s1, s2, Point3::origin(), extent, band)
+                .expect_err("each pose escalates");
+            let text = ValidationError::SliverDihedral {
+                edge: EdgeKey::default(),
+                check: WedgeCheck::of_rung(escalation.rung),
+                cause: escalation.diag,
+            }
+            .to_string();
+            let reads_the_arm = text.contains("whether an edge is long enough")
+                && text.contains("move the geometry so that edge is clearly longer")
+                && !text.contains("angle is intended");
+            let reads_the_angle = text.contains("the angle between two faces at an edge");
+            assert_eq!(
+                (reads_the_arm, reads_the_angle),
+                (arm, !arm),
+                "{row}: {text}"
+            );
         }
     }
 
@@ -10440,7 +10567,9 @@ mod tests {
             let gated: Vec<(FaceKey, LoopKey, LoopKey)> = body
                 .faces
                 .iter()
-                .filter(|(_, f)| !f.rings.is_empty() && nesting_normal(&body, f.surface).is_some())
+                .filter(|(_, f)| {
+                    !f.rings.is_empty() && plane_chart_normal(&body, f.surface).is_some()
+                })
                 .map(|(k, f)| (k, f.outer, f.rings[0]))
                 .collect();
             ringed += gated.len();
@@ -10686,7 +10815,7 @@ mod tests {
             let (body, face) = lamina_with_ring(&outer, &ring, tol);
             let f = body.get_face(face).unwrap();
             assert!(
-                nesting_normal(&body, f.surface).is_some(),
+                plane_chart_normal(&body, f.surface).is_some(),
                 "{name}: the gate must be OPEN or the row asserts nothing"
             );
             assert!(
@@ -10974,7 +11103,7 @@ mod tests {
                 "{name}: one outward arc over four vertices is the ArcParity class"
             );
             let f = body.get_face(face).unwrap();
-            let normal = nesting_normal(&body, f.surface).expect("a planar face");
+            let normal = plane_chart_normal(&body, f.surface).expect("a planar face");
             let ring_loop = f.rings[0];
             let first = loop_cycle_of(&body, ring_loop).unwrap()[0];
             let rp = vertex_point(&body, body.get_half_edge(first).unwrap().start).unwrap();
@@ -11212,7 +11341,7 @@ mod tests {
             ),
             "three arcs of one circle are the disc class"
         );
-        let normal = nesting_normal(&body, body.get_face(face).unwrap().surface).unwrap();
+        let normal = plane_chart_normal(&body, body.get_face(face).unwrap().surface).unwrap();
         (body, outer_loop, normal, r)
     }
 
@@ -11304,7 +11433,7 @@ mod tests {
             ),
             "one circle on every outer edge is the disc class"
         );
-        let normal = nesting_normal(&body, f.surface).expect("the gate opens");
+        let normal = plane_chart_normal(&body, f.surface).expect("the gate opens");
         // Strictly between ε and K·ε for any K > 1.
         let in_band = tol.eps() * tol.k().sqrt();
         for (name, at) in [

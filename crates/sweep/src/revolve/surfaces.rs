@@ -88,9 +88,8 @@ pub(super) fn revolved_strut_spec<T: Real>(
 ) -> EdgeCurveSpec<T> {
     let center = frame.foot3(point);
     let rim = q - center;
-    // **The revolve's rim identity**, the same theorem at the same
-    // guarantee as the swept arc's (`swept::register_rim_identity`
-    // carries the argument): `center` is the FOOT of the perpendicular
+    // **The revolve's rim identity** (`swept::register_rim_identity`
+    // carries why it is registered): `center` is the FOOT of the perpendicular
     // from the sketch point to the axis and `radius` is that point's
     // radial extent from the same axis, both placed by the same rigid
     // `frame.place`, so `‖q − center‖ = radius` at every parameter
