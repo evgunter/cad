@@ -87,6 +87,8 @@ mod parser;
 mod per_part_gate_policy;
 #[path = "perf12_census_goldens.rs"]
 mod perf12_census_goldens;
+#[path = "placed_m7_8_instance.rs"]
+mod placed_m7_8_instance;
 #[path = "poleguard.rs"]
 mod poleguard;
 #[path = "probe_dup.rs"]

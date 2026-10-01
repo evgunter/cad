@@ -1936,11 +1936,16 @@ class TestMateFrameFromFace(BenchWorkspace):
         evaluate(doc, resolver=self.ws).value(mate)
         before = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(before.origin[2].meters, POST_HEIGHT, places=12)
-        # The post grows on disk; the reference moves; the shelf comes
-        # up with the cap, by exactly the height change.
-        taller = bench_scene.post(height=POST_HEIGHT + 0.1)
-        self.ws.resave(taller)
-        for edit in pncad.update_references(doc, self.post.id, content_pin(taller)):
+        # The post grows on disk, edited in place so its cap keeps the
+        # name the frame holds; the reference moves; the shelf comes up
+        # with the cap, by exactly the height change.
+        self.post.apply(
+            DocEdit.set_param(
+                self.post.roots[0], "distance", Expr.length_in(POST_HEIGHT + 0.1, m)
+            )
+        )
+        self.ws.resave(self.post)
+        for edit in pncad.update_references(doc, self.post.id, content_pin(self.post)):
             doc.apply(edit, resolver=self.ws)
         evaluate(doc, resolver=self.ws).value(mate)
         after = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)

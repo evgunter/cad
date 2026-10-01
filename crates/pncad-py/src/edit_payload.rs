@@ -286,6 +286,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(*node),
             ..none
         },
+        // The id the insert drew: the node it would have been.
+        EditError::NodeIdCollides { id } => EditPayload {
+            node: Some(*id),
+            ..none
+        },
         EditError::UnresolvedInput { input } => EditPayload {
             input: Some(*input),
             ..none

@@ -268,8 +268,8 @@ fn two_roots_draw_under_disjoint_ids_and_every_patch_is_named() {
         );
     }
     assert_eq!(
-        nodes.into_iter().collect::<Vec<_>>(),
-        vec![a, b],
+        nodes,
+        std::collections::BTreeSet::from([a, b]),
         "both roots are drawn and no third node appears"
     );
     assert_eq!(ids.key_of(IdMap::NOTHING), None, "0 stays reserved");
