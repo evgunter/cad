@@ -5,8 +5,9 @@ title: the mate solve accepts a document whose gather refuses PlacedUnderTwoRoot
 status: open
 opened: 2026-09-24
 priority: P1
-cost: D
+cost: M
 refs: [3142]
+design: true
 ---
 
 Filed by GATHER's two-roots lane (branch `gather/two-roots-refusal`),

@@ -41,7 +41,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     // rides a LAST instance, behind the two mate ends and the mate
     // itself. That is the shape a split leaves behind.
     let mut host = ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness());
-    // Inserts alone — a Join at most, never a moved gauge — so the
+    // Inserts alone — a Join at most, never a moved root — so the
     // reach is never asked and the refusing one serves.
     let push = |doc: &ProfileDoc, node| {
         apply(
@@ -60,11 +60,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
         at: node,
         name: face(node, cap),
     };
-    let frame = MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     host = push(
         &host,
         Node::Mate {
@@ -72,7 +68,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
             b: sited(second, CapEnd::Start),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: frame,
+                a: frame.clone(),
                 b: frame,
                 primitive: MatePrimitive::FrameCoincidence,
                 sense: AxisSense::Aligned,

@@ -266,6 +266,22 @@ pub enum EllipseInvalid {
     Escalated(Indeterminate),
 }
 
+impl EllipseInvalid {
+    /// What an [`Self::Escalated`] constructor predicate was deciding,
+    /// in words — the one spelling every door that renders this
+    /// escalation states. A predicate the constructor does not decide
+    /// reads as [`geom_core::UNNAMED_DECISION`], which the refusal
+    /// guard flags as no subject.
+    #[must_use]
+    pub fn escalated_subject(diag: &Indeterminate) -> &'static str {
+        match diag.predicate {
+            Some("ellipse_axes_distinct") => "whether the curve is a circle or an ellipse",
+            Some("ellipse_minor_positive") => "whether the curve's minor semi-axis is positive",
+            _ => geom_core::UNNAMED_DECISION,
+        }
+    }
+}
+
 impl core::fmt::Display for EllipseInvalid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -287,9 +303,9 @@ impl core::fmt::Display for EllipseInvalid {
             ),
             Self::Escalated(diag) => write!(
                 f,
-                "ellipse construction escalated: {} — the configuration sits too close to \
-                 the circular coincidence to name a kind; construct the Circle carrier, \
-                 or {} (D4)",
+                "ellipse construction: {} is undecided ({}) — construct the Circle \
+                 carrier, or {} (D4)",
+                Self::escalated_subject(diag),
                 diag.payload(),
                 geom_core::COINCIDENCE_RECOURSE
             ),

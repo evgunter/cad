@@ -129,7 +129,7 @@ use geom_core::{Band, Indeterminate, KERNEL_LIMIT_LAST_RESORT, Margin, Point3, R
 
 use crate::recourse::{Reading, Refused, RefusedArm, SizedDecision, StoredDefinite};
 
-pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
+pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb, SsiTube};
 pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
 };
@@ -197,8 +197,21 @@ pub const SSI_MAX_FIT_SAMPLES: usize = 1200;
 pub enum SsiOperand<'a, T: geom_core::Real> {
     /// An analytic surface: implicit residuals and `compose` hulls.
     Analytic(&'a Surface<T>),
-    /// A NURBS surface: certified foot points and chart hulls.
-    Nurbs(&'a NurbsSurface<T>),
+    /// A NURBS surface: certified foot points and chart hulls, carried
+    /// with the chart speeds its tube pad crosses into chart units by.
+    Nurbs(ChartedNurbs<'a, T>),
+}
+
+impl<'a, T: geom_core::CertifiedBounds> SsiOperand<'a, T> {
+    /// A NURBS operand, its chart speeds minted ([`ChartedNurbs::mint`]).
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::ChartSpeed`], naming the axis whose speed is zero or
+    /// not finite.
+    pub fn nurbs(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
+        ChartedNurbs::mint(surface).map(Self::Nurbs)
+    }
 }
 
 /// The two lengths a rung-3 certificate is stated over: the lever arm
@@ -416,6 +429,14 @@ pub enum SsiError {
         /// What is missing, in the caller's terms.
         what: &'static str,
     },
+    /// A NURBS operand's chart cannot carry a length in metres into its
+    /// parameters: a chart speed along one axis is zero or has no finite
+    /// bound, or the chart is constant across the traced locus. Refused
+    /// by the axis it lands on.
+    ChartSpeed(ChartSpeedRefusal),
+    /// Limb 3's chart tube cannot be probed at any rung: the window
+    /// fact it names does not depend on the pad.
+    TubeDegenerate(TubeDegeneracy),
     /// The caller routed the wrong kinds into an arm.
     WrongLane {
         /// What the arm expects.
@@ -594,6 +615,8 @@ impl core::fmt::Display for SsiError {
             Self::UnsupportedCertificate { what } => {
                 write!(f, "ssi: {what}")
             }
+            Self::ChartSpeed(r) => write!(f, "ssi: {}", r.what()),
+            Self::TubeDegenerate(d) => write!(f, "ssi: {}", d.what()),
             Self::WrongLane { expected } => write!(
                 f,
                 "ssi: wrong dispatch lane — this arm traces {expected} (caller bug)"
@@ -672,6 +695,8 @@ impl SsiError {
             | Self::FootPointInconclusive { .. }
             | Self::Fit(_)
             | Self::UnsupportedCertificate { .. }
+            | Self::ChartSpeed(_)
+            | Self::TubeDegenerate(_)
             | Self::WrongLane { .. }
             | Self::Escalated(_)
             | Self::Band(_)
@@ -707,6 +732,142 @@ impl core::fmt::Display for OperandDatum {
             Self::Field(datum) => f.write_str(datum.name()),
             Self::ControlPoint(index) => write!(f, "control point {index}"),
         }
+    }
+}
+
+/// A parameter axis of a NURBS operand's chart.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChartAxis {
+    /// The first parameter.
+    U,
+    /// The second parameter.
+    V,
+}
+
+/// Why a NURBS operand's chart cannot carry a length in metres into its
+/// parameters ([`SsiError::ChartSpeed`]).
+///
+/// The chart speed over the wall's domain is minted once per axis
+/// ([`ChartedNurbs::mint`]); a floor or a tube pad crosses into chart
+/// units by dividing by it, so both a zero and a non-finite speed leave
+/// nothing to divide by. Neither refining the search nor narrowing the
+/// tube cures either, so each refuses at the mint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChartSpeedRefusal {
+    /// The certified chart speed along `axis` is zero: the wall is
+    /// constant along that axis, a degenerate chart.
+    Zero {
+        /// The axis.
+        axis: ChartAxis,
+    },
+    /// The chart speed along `axis` has no finite certified bound: its
+    /// derivative bound overflowed or was refused.
+    NotFinite {
+        /// The axis.
+        axis: ChartAxis,
+    },
+}
+
+impl ChartSpeedRefusal {
+    /// The refusal's sentence, without the `ssi:` prefix — what
+    /// [`SsiError`]'s `Display` renders and what a lane that reports it
+    /// in its own vocabulary carries.
+    #[must_use]
+    pub fn what(self) -> &'static str {
+        match self {
+            Self::Zero { axis: ChartAxis::U } => {
+                "the NURBS wall is constant along u — its certified chart speed along u is \
+                 zero, a degenerate chart — so no length in metres can be translated into \
+                 its parameter domain"
+            }
+            Self::Zero { axis: ChartAxis::V } => {
+                "the NURBS wall is constant along v — its certified chart speed along v is \
+                 zero, a degenerate chart — so no length in metres can be translated into \
+                 its parameter domain"
+            }
+            Self::NotFinite { axis: ChartAxis::U } => {
+                "there is no finite bound on the NURBS wall's chart speed along u — its \
+                 derivative bound overflowed or is refused — so no length in metres can be \
+                 translated into its parameter domain"
+            }
+            Self::NotFinite { axis: ChartAxis::V } => {
+                "there is no finite bound on the NURBS wall's chart speed along v — its \
+                 derivative bound overflowed or is refused — so no length in metres can be \
+                 translated into its parameter domain"
+            }
+        }
+    }
+}
+
+/// Why limb 3's chart tube cannot be probed at any rung
+/// ([`SsiError::TubeDegenerate`]): a fact about one span window of the
+/// traced pcurve that does not depend on the pad, so no narrower tube
+/// cures it and the ladder refuses at the first rung that meets it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TubeDegeneracy {
+    /// The wall's certified chart stretch transverse to the pcurve is
+    /// zero over a window: the wall is constant across the locus there.
+    /// A narrower window lies inside this one, where the stretch bound
+    /// is zero as well.
+    WallConstantAcrossLocus,
+    /// The pcurve's tangent at a span midpoint is zero or not finite, so
+    /// it names no direction to read the wall across. The tangent is the
+    /// pcurve's alone, whatever the pad.
+    PcurveTangentUnusable,
+}
+
+impl TubeDegeneracy {
+    /// The refusal's sentence, without the `ssi:` prefix.
+    #[must_use]
+    pub fn what(self) -> &'static str {
+        match self {
+            Self::WallConstantAcrossLocus => {
+                "the uniqueness tube cannot be probed: the NURBS wall is constant across the \
+                 traced locus over a span of its pcurve (its certified chart stretch \
+                 transverse to the pcurve is zero), which no narrower tube cures"
+            }
+            Self::PcurveTangentUnusable => {
+                "the uniqueness tube cannot be probed: the traced pcurve's tangent at a span \
+                 midpoint is zero or not finite, so it names no direction to read the wall \
+                 across, which no narrower tube cures"
+            }
+        }
+    }
+}
+
+/// A NURBS operand together with its chart speeds, minted once over
+/// its whole domain ([`ChartedNurbs::mint`]). The fields are private:
+/// the only way to hold one is to have minted it from the surface it
+/// carries.
+#[derive(Clone, Copy, Debug)]
+pub struct ChartedNurbs<'a, T: geom_core::Real> {
+    surface: &'a NurbsSurface<T>,
+    speeds: enclose::ChartSpeeds,
+}
+
+impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
+    /// Mints the wall's `{u, v}` chart speeds over its domain.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::ChartSpeed`], naming the axis whose speed is zero or
+    /// not finite.
+    pub fn mint(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
+        let speeds = NurbsBoxes::new(surface).chart_speeds()?;
+        Ok(Self { surface, speeds })
+    }
+}
+
+impl<'a, T: geom_core::Real> ChartedNurbs<'a, T> {
+    /// The surface.
+    #[must_use]
+    pub fn surface(&self) -> &'a NurbsSurface<T> {
+        self.surface
+    }
+
+    /// The chart speeds it was minted with.
+    pub(crate) fn speeds(&self) -> enclose::ChartSpeeds {
+        self.speeds
     }
 }
 
@@ -881,12 +1042,34 @@ fn fit_branch(
 }
 
 /// The ℝ³ box chain of a certified branch — the tubes the accounting
-/// pass consumes.
+/// pass consumes. A branch with no spatial tube banks nothing, which
+/// only makes the accounting harder.
 fn branch_tubes(branch: &SsiBranch) -> Vec<Box3> {
-    let Curve3::Nurbs(ref c) = branch.carrier else {
+    let (Curve3::Nurbs(c), SsiTube::Spatial { radius }) =
+        (&branch.carrier, branch.certificate.tube)
+    else {
         return Vec::new();
     };
-    certify::tube_boxes(c, branch.certificate.tube_radius)
+    certify::tube_boxes(c, radius)
+}
+
+/// The chart windows of a certified plane × NURBS branch — the tubes
+/// the chart accounting pass consumes: [`certify::chart_tube_windows`]
+/// at the pad the certificate recorded, so accounting banks the region
+/// limb 3 proved and no other. A branch with no chart tube, or whose
+/// pcurve has a refused hull, banks nothing, which only makes the
+/// accounting harder.
+fn branch_chart_tubes(branch: &SsiBranch) -> Vec<UvRect> {
+    let (Some(pc), SsiTube::Chart { pad_u, pad_v, .. }) =
+        (&branch.pcurve_b, branch.certificate.tube)
+    else {
+        return Vec::new();
+    };
+    certify::chart_tube_windows(pc, (pad_u, pad_v))
+        .into_iter()
+        .flatten()
+        .map(|w| w.rect)
+        .collect()
 }
 
 /// The march's transversality decision (`ssi_transversality`):
@@ -1167,9 +1350,10 @@ fn finish_r3(
 /// [`SsiLimb::HullSup`] when the fitted pair's real between-samples
 /// deviation lands in the band (an inflected wall can genuinely earn
 /// this — module docs), [`SsiError::FitSampleBudget`] at tolerances
-/// whose sample demand exceeds the fit budget, and
+/// whose sample demand exceeds the fit budget,
 /// [`SsiError::OperandNotFinite`] for a plane or wall that is not
-/// finite.
+/// finite, and [`SsiError::ChartSpeed`] for a wall whose chart speed
+/// along an axis is zero or has no finite bound.
 pub fn plane_nurbs_ssi(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
@@ -1209,41 +1393,16 @@ pub fn plane_nurbs_ssi(
     };
     let root = UvRect { u: ud, v: vd };
 
-    // The chart floors: meters ÷ a certified chart-speed bound, so a
-    // floor stated in meters means the same thing in both lanes.
-    let nb = NurbsBoxes::new(wall);
-    let du = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, true);
-    let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
-    let speed = nan_propagating_max(du.speed_sup(), dv.speed_sup());
-    // A speed OUTSIDE the positive-finite class can never translate a
-    // floor: `floor / ∞` is exactly zero — a floor no cell can ever
-    // reach — so a non-finite speed would let the sweep run to its
-    // cell budget and answer in this guard's place with the wrong
-    // diagnosis. Positive finite is NECESSARY, not sufficient: a
-    // finite speed of ~1e150 passes here and drives the translated
-    // floors to ~1e-152, where the budget still answers — the
-    // finite-but-unusable window is issue 1238's.
-    if !speed.is_finite() {
-        return Err(SsiError::UnsupportedCertificate {
-            what: "the NURBS wall's certified chart speed is not finite — its \
-                   derivative bound overflowed or is refused — so no floor in \
-                   meters can be translated into its parameter domain",
-        });
-    }
-    if speed <= 0.0 {
-        return Err(SsiError::UnsupportedCertificate {
-            what: "the NURBS wall's certified chart speed is zero, so no floor in \
-                   meters can be translated into its parameter domain",
-        });
-    }
-    // Tagged only now, past the two guards: the rate pair is a
-    // dimension-and-direction tag, not a positivity witness, and this
-    // lane's reading of a zero or non-finite rate is its own (above).
-    // The direction is SUP — `mag` is an upper bound on each
-    // derivative box — and dividing a metre floor by it UNDER-states
-    // the parameter reach, which is the safe side of a floor and of a
-    // tube pad alike.
-    let speed = geom_core::SupSpeed::new(speed);
+    // The wall's chart speeds, minted once per axis; the mint refuses
+    // a zero or non-finite axis by name. The chart floors are metres ÷
+    // the larger of the two, so a floor stated in metres means the same
+    // thing in both lanes, and dividing by a sup UNDER-states the
+    // parameter reach — the safe side of a floor. A finite speed of
+    // ~1e150 still drives the translated floors to ~1e-152, where the
+    // budget answers: the finite-but-unusable window is issue 1238's.
+    let charted = ChartedNurbs::mint(wall)?;
+    let speed = charted.speeds().max();
+    let wall_op = SsiOperand::Nurbs(charted);
 
     // ---- seeds ----
     let seeds = exhaust::seed_chart_plane(wall, p0, normal, root, speed, domain.seed_floor())?;
@@ -1277,13 +1436,8 @@ pub fn plane_nurbs_ssi(
             Err(SsiError::SeedRefinementFailed { .. }) => continue,
             Err(e) => return Err(e),
         };
-        let branch = finish_r4(&sys, &trace, plane, wall, &domain, ctx.tol, band)?;
-        if let Some(ref pc) = branch.pcurve_b {
-            // The tube the CERTIFICATE earned, in chart units — the
-            // same region limb 3 proved one-arc-ness over.
-            let pad = speed.to_param(branch.certificate.tube_radius);
-            tubes.extend(pcurve_windows(pc, pad, pad));
-        }
+        let branch = finish_r4(&sys, &trace, plane, &wall_op, &domain, ctx.tol, band)?;
+        tubes.extend(branch_chart_tubes(&branch));
         branches.push(branch);
     }
 
@@ -1296,58 +1450,11 @@ pub fn plane_nurbs_ssi(
     })
 }
 
-/// The chart lane's uniqueness tube, as the accounting pass sees it:
-/// **one padded rectangle per span** of the pcurve.
-///
-/// Per span, deliberately — not one rectangle around the whole pcurve.
-/// The accounting pass counts a cell as "accounted" when the cell lies
-/// inside a tube, and a single bounding box of a curve that wanders
-/// across its domain contains vast regions the curve never enters. That
-/// would silently account for cells nobody proved anything about, which
-/// is exactly the failure this whole obligation exists to prevent. The
-/// per-span chain is also precisely the region limb 3's chart form
-/// proved a single arc over, so the two agree by construction.
-fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
-    let coords = p.certified_coords();
-    let kv = p.knots();
-    let mut out = Vec::new();
-    // One pair per coordinate channel, minted once outside the span
-    // walk: the coordinates and the knots come from the same curve, so
-    // the count relation is `NurbsCurve2::new`'s fact. A pair that
-    // failed to mint banks no window at all — the same direction as a
-    // window this pass cannot bound (below).
-    let (Some(cu), Some(cv)) = (kv.with_coeffs(&coords[0]), kv.with_coeffs(&coords[1])) else {
-        return out;
-    };
-    for index in kv.first_span()..=kv.last_span() {
-        // Emptiness check and window construction are one step; both
-        // channels share the vector, so both refuse the same indices.
-        let (Some(wu), Some(wv)) = (cu.span(index), cv.span(index)) else {
-            continue;
-        };
-        let hu = wu.hull();
-        let hv = wv.hull();
-        if !hu.is_certified() || !hv.is_certified() {
-            // A window this pass cannot bound is not banked. Dropping
-            // it only ever SHRINKS the accounted set, so the accounting
-            // pass gets strictly harder: the failure direction is the
-            // typed refusal, never a false `Ok`. A tube is a claim, and
-            // an unbounded hull supports none.
-            continue;
-        }
-        out.push(UvRect {
-            u: (hu.lo() - pad_u, hu.hi() + pad_u),
-            v: (hv.lo() - pad_v, hv.hi() + pad_v),
-        });
-    }
-    out
-}
-
 fn finish_r4(
     sys: &ParametricPairR4<'_>,
     trace: &Trace<4>,
     plane: &Surface<f64>,
-    wall: &NurbsSurface<f64>,
+    wall: &SsiOperand<'_, f64>,
     domain: &SsiDomain,
     tol: MarchTol,
     band: Band,
@@ -1369,7 +1476,7 @@ fn finish_r4(
         &carrier,
         pb.as_ref(),
         &SsiOperand::Analytic(plane),
-        &SsiOperand::Nurbs(wall),
+        wall,
         TubeScale::uniform(domain.extent),
         band,
     )?;
@@ -1563,47 +1670,6 @@ pub fn idealized_trace_r3(
     )?;
     let pts = trace_points::<2, 3, _>(&sys, &trace);
     Ok((pts, trace.end))
-}
-
-/// `max` that PROPAGATES NaN — `f64::max` returns the non-NaN operand,
-/// so a lone refused fold input (a refused box's `mag` reads NaN) would
-/// be dropped before any guard with an `is_finite`/`is_nan` arm could
-/// see it.
-///
-/// At its one call site (the seeding guard's chart-speed fold) the
-/// difference from `f64::max` is defensive rather than reachable
-/// today: a refused derivative box needs a zero-touching weight hull
-/// or a malformed net — both refused at construction — and an
-/// OVERFLOWED box saturates its `mag` to `+∞`, which both folds hand
-/// to the same not-finite refusal. The pin below is therefore on this
-/// helper by name; the reachability argument lives here so that a
-/// future producer of a one-sided refusal (a new box source, a widened
-/// constructor) finds the fold already stated as load-bearing.
-fn nan_propagating_max(a: f64, b: f64) -> f64 {
-    if a.is_nan() || b.is_nan() {
-        f64::NAN
-    } else {
-        a.max(b)
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::panic)]
-mod fold_tests {
-    use super::nan_propagating_max;
-
-    /// Red under the exact corruption a review executed: reverting the
-    /// fold to `f64::max`, which drops a lone NaN — every ssi row
-    /// stayed green under that revert, so the fold's contract gets its
-    /// own executable pin.
-    #[test]
-    fn the_chart_speed_fold_propagates_a_lone_nan() {
-        assert!(nan_propagating_max(f64::NAN, 1.0).is_nan());
-        assert!(nan_propagating_max(1.0, f64::NAN).is_nan());
-        assert!(nan_propagating_max(f64::NAN, f64::NAN).is_nan());
-        assert_eq!(nan_propagating_max(1.0, 2.0), 2.0);
-        assert_eq!(nan_propagating_max(f64::INFINITY, 1.0), f64::INFINITY);
-    }
 }
 
 #[cfg(test)]

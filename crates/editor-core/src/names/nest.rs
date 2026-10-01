@@ -381,7 +381,9 @@ impl RoleSeg {
                 f(Shared(edge));
                 band.iter().for_each(|n| f(Owned(n)));
             }
-            RoleSeg::Fragment(Qualifier::Borders(walls)) => walls.iter().for_each(|n| f(Owned(n))),
+            RoleSeg::Fragment(
+                Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls),
+            ) => walls.iter().for_each(|n| f(Owned(n))),
             RoleSeg::Fragment(Qualifier::OrderAlong { .. }) | super::name_free_seg!() => {}
         }
     }
@@ -429,7 +431,9 @@ impl RoleSeg {
                 f(Shared(edge));
                 band.iter_mut().for_each(|n| f(Owned(n)));
             }
-            RoleSeg::Fragment(Qualifier::Borders(walls)) => {
+            RoleSeg::Fragment(
+                Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls),
+            ) => {
                 walls.iter_mut().for_each(|n| f(Owned(n)));
             }
             RoleSeg::Fragment(Qualifier::OrderAlong { .. }) | super::name_free_seg!() => {}
@@ -1823,6 +1827,8 @@ pub(super) mod tests {
                 R::Seam { a: r(a), b: r(b) },
                 R::Merged(vec![a.clone(), b.clone()]),
                 R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
+                R::Fragment(Qualifier::Keeps(vec![a.clone(), b.clone()])),
+                R::Fragment(Qualifier::Ends(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
                 R::SplitBody(SplitHalf::Below),
                 R::SectionFace {

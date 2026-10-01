@@ -31,10 +31,10 @@
 //!   fallback's probe verdicts as the door's containment evidence.
 //!
 //! When operand boundaries do not intersect, classification falls back
-//! to per-shell vertex-in-solid containment
-//! ([`point_in_solid`], F8's ray
-//! design promoted to 3-D), probing non-contact vertices against the
-//! pristine other operand.
+//! to per-shell containment against the pristine other operand: the
+//! uncut-shell witness ([`super::shell_witness`]) probes the shell's
+//! points with [`super::solid_contain::point_in_solid`] (F8's ray design
+//! promoted to 3-D) until one lies off the other boundary.
 //!
 //! # The merge output stage (F7)
 //!
@@ -104,11 +104,10 @@ use super::BooleanDecision;
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
-use super::finish::{contact_skip_set, kept_side, setopfinish};
+use super::finish::{kept_side, setopfinish};
 use super::join::bool_connect;
-use super::solid_contain::{
-    PointInSolidError, SolidContainment, closed_sphere_group, point_in_solid,
-};
+use super::shell_witness::{contact_skip_set, shell_side};
+use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::zip_seam;
 use super::{
@@ -2709,16 +2708,16 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// Per-shell classification of one operand's clone against the other
-/// pristine operand (containment fallback; contact vertices skipped,
-/// `OnBoundary` probes advanced past).
+/// pristine operand (containment fallback), by the uncut-shell witness
+/// ([`super::shell_witness`]).
 ///
-/// **The vertex probe below is the WITNESS, not the certificate**
-/// (M5 S13). A curved boundary can leave the other solid strictly
-/// between its vertices (the S12 finding), so for the sphere class
-/// the answer is only sound because [`sphere_extent_scan`] ran first
-/// and certified every sphere-involved boundary pair disjoint (or
-/// re-cut / refused): a connected shell whose surface avoids the
-/// other boundary lies in one component, and the witness names it.
+/// **The witness is not the certificate** (M5 S13). A curved boundary
+/// can leave the other solid strictly between a shell's witnesses (the
+/// S12 finding), so for the sphere class the answer is only sound
+/// because [`sphere_extent_scan`] ran first and certified every
+/// sphere-involved boundary pair disjoint (or re-cut / refused): a
+/// connected shell whose surface avoids the other boundary lies in one
+/// component, and the witness names it.
 fn classify_shells<T: Decide>(
     body: &Body<T>,
     other: &Body<T>,
@@ -2727,47 +2726,15 @@ fn classify_shells<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<Vec<(ShellKey, SideCode)>, BooleanError> {
-    let corrupt = || BooleanError::JoinDesync {
-        what: "fallback operand clone is not walkable",
-    };
     let skip = contact_skip_set(contacts, operand);
-    let mut out = Vec::new();
-    for (shell, shell_data) in body.shells() {
-        let mut verdict = None;
-        'probe: for &face in &shell_data.faces {
-            let face_data = body.get_face(face).ok_or_else(corrupt)?;
-            for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-                let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(corrupt)?.boundary
-                else {
-                    continue;
-                };
-                for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-                    let v = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-                    if skip.contains_key(v) {
-                        continue;
-                    }
-                    let q = *body
-                        .get_vertex(v)
-                        .and_then(|vd| body.get_point(vd.point))
-                        .ok_or_else(corrupt)?;
-                    match point_in_solid(other, q, band, tol).map_err(BooleanError::Containment)? {
-                        SolidContainment::In => {
-                            verdict = Some(SideCode::In);
-                            break 'probe;
-                        }
-                        SolidContainment::Out => {
-                            verdict = Some(SideCode::Out);
-                            break 'probe;
-                        }
-                        SolidContainment::OnBoundary => continue,
-                    }
-                }
-            }
-        }
-        let side = verdict.ok_or(BooleanError::Containment(PointInSolidError::RayExhausted))?;
-        out.push((shell, side));
-    }
-    Ok(out)
+    body.shells()
+        .map(|(shell, _)| {
+            Ok((
+                shell,
+                shell_side(body, shell, other, &skip, operand, band, tol)?,
+            ))
+        })
+        .collect()
 }
 
 /// The containment fallback (F8): no crossings — classify whole

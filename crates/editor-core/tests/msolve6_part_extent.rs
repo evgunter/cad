@@ -135,11 +135,7 @@ fn instances(
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// A frame coincidence between `a`'s top cap and `b`'s bottom cap,
@@ -285,7 +281,7 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
     let (_, fault) = at_the_store(
         &doc,
         &opts,
-        clocked((ids[0], body), (ids[1], body), alignment),
+        clocked((ids[0], body), (ids[1], body), alignment.clone()),
     )
     .expect_err("a quarter-turn rider contradicts the coincidence");
     let MateFault::Contradictory {
@@ -300,10 +296,10 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
     };
     assert_eq!(*theta, core::f64::consts::FRAC_PI_2);
     let r = reaches(&doc, &opts, &ids);
-    let expected = (r[0] + r[1]) + alignment.lever_arm();
+    let expected = (r[0] + r[1]) + fixture::datum_lever(&alignment);
     assert_eq!(*arm, expected, "the lever is the formula, bit for bit");
     // And the datum's own term is what the formula says it is.
-    assert_eq!(alignment.lever_arm(), 0.1_f64.hypot(1.0) + 0.2);
+    assert_eq!(fixture::datum_lever(&alignment), 0.1_f64.hypot(1.0) + 0.2);
 }
 
 // ---- A3: the lever decides at the parts' scale ----
@@ -343,7 +339,7 @@ fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) 
     );
     let alignment = coincidence(frame([0.0, 0.0, 2.0 * half]), frame([0.0; 3]), theta);
     let r = reaches(&doc, &opts, &ids);
-    let arm = (r[0] + r[1]) + alignment.lever_arm();
+    let arm = (r[0] + r[1]) + fixture::datum_lever(&alignment);
     let band = Band::linear(Tol::witness()).expect("the band");
     // The verdict is reached where the mate is authored: an admitted
     // rider enters and the solve places the pair; a refused one
@@ -427,7 +423,7 @@ fn a3_a_10m_part_tilted_1e_8_is_refused_at_its_scale() {
 /// **A part that does not resolve faults the mate `Unleverable`,
 /// carrying the `PartFault` unaltered** — and the blast radius is
 /// pinned: the mate faults (it used to stay `Determining`), and its
-/// cluster's instances carry the mate fault, in the resolver's voice.
+/// group's instances carry the mate fault, in the resolver's voice.
 #[test]
 fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
     // The part lives in ANOTHER store: the reference is well formed
@@ -482,7 +478,7 @@ fn a4_an_unresolvable_part_faults_the_mate_in_the_resolvers_voice() {
         "the resolver's own classification, unaltered: {part:?}"
     );
     assert_eq!(poses.role(mate), Some(MateRole::Refused));
-    // The blast radius: every instance in the cluster carries the
+    // The blast radius: every instance in the group carries the
     // fault, and the evaluation fails them in the mate's voice.
     assert_eq!(poses.fault(ids[0]), Some(fault));
     assert_eq!(poses.fault(lost), Some(fault));
@@ -766,6 +762,14 @@ impl MateReach for Counting<'_> {
     fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
         self.0.set(self.0.get() + 1);
         self.1.reach(part)
+    }
+
+    fn face_pose(
+        &self,
+        part: &editor_core::DocRef,
+        face: &editor_core::FaceName,
+    ) -> Result<topo::readback::Pose<f64>, editor_core::FacePoseRefusal> {
+        self.1.face_pose(part, face)
     }
 }
 
@@ -1731,7 +1735,7 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
         },
     );
     let band = Band::linear(Tol::witness()).expect("band");
-    let datum = coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), 0.0).lever_arm();
+    let datum = fixture::datum_lever(&coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), 0.0));
     let r_large = {
         let (re, _) = step(
             doc.clone(),
@@ -1845,7 +1849,7 @@ fn a6_a_logged_edit_has_one_wire_shape_and_its_rows_round_trip() {
     assert_eq!(back, with);
 }
 
-/// **A whole-cluster split levers through the part it is minting**
+/// **A whole-group split levers through the part it is minting**
 /// (the `WithPart` resolver composed with the caller's), and with no
 /// resolver at all refuses typed — `Unresolved` on the new instance,
 /// in the resolver's own voice, never a frame nothing decided.
@@ -1870,7 +1874,7 @@ fn a6_a_split_levers_through_the_part_in_hand_and_refuses_typed_without_a_resolv
         Tol::witness(),
         opts.resolver.as_ref(),
     )
-    .expect("a whole-cluster cut splits through the part in hand");
+    .expect("a whole-group cut splits through the part in hand");
     let none = split(
         &doc,
         &cut,

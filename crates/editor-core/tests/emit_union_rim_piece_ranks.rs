@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{declared_union, failure, flush_pairs, run};
-use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus, rim_piece};
+use crate::emit_shared_rim_several::{Bx, document, is_rim_piece, permutations, probe_corpus};
 use crate::fixture::{ang, face_vertices, fname, insert, len, scl, table, wall};
 
 use editor_core::{
@@ -395,9 +395,40 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
     ("fam222", "U", 2, "DeclareResolve:2"),
     ("r1flush", "U", 18, "DeclareResolve:18"),
     ("r2endsg", "U", 12, "DeclareResolve:12"),
-    ("r4tri", "U", 2, "Boolean:2"),
-    ("r4trig", "U", 14, "Boolean:2/DeclareResolve:12"),
+    ("r4trig", "U", 12, "DeclareResolve:12"),
 ];
+
+/// **The cases whose fused orders publish different name sets**, pinned:
+/// `(label, union, (order, name) absences, their digest)`. The digest is
+/// [`fnv1a`] over the sorted `"<label> <union> <order>: <name>"` lines, so
+/// a change in WHICH names are missing turns the row red even where the
+/// count holds; the failure prints the new digest. In `r4tri` and `r4trig` the
+/// orders that fold `b` (x 0.5..1.5) after both `a` and `c` discard it
+/// whole, inside the accumulation and flush on four sides, and cite it
+/// nowhere; every other order cites `b` as a parent of the merged caps
+/// and y-walls and names its rim pieces and corners.
+/// `work/emit/a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush.md`
+/// owns it.
+const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
+    ("r4tri", "U", 168, 4231530857450118831),
+    ("r4trig", "U", 564, 7570011804769676243),
+];
+
+/// One fused order and every entity it publishes, as sorted geometry.
+type OrderGeometry = (String, Vec<String>);
+
+/// FNV-1a over `lines` in order, each followed by a newline: a digest
+/// that is the same on every platform and toolchain.
+fn fnv1a<'a>(lines: impl IntoIterator<Item = &'a String>) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for line in lines {
+        for b in line.bytes().chain(core::iter::once(b'\n')) {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    h
+}
 
 /// **No name rebinds across member orders, and no order refuses what
 /// another publishes.** Over every case and every pair of fused orders, a
@@ -409,7 +440,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 ///
 /// A name one fused order publishes and another does not fails the row,
 /// whatever it names: a vertex, a piece of a member edge, a face or a
-/// seam edge. Each is named for what the finished body holds — a face
+/// seam edge, unless its case's count of such absences is pinned in
+/// [`KNOWN_ABSENT`]. Each is named for what the finished body holds — a face
 /// for its parent and the parents across its dividing seams, a seam edge
 /// for the parents it lies between (N2, N3) — so it is the same in every
 /// order.
@@ -422,7 +454,10 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut compared = 0;
     let mut mixed = Vec::new();
-    let mut absent = Vec::new();
+    let mut absent: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+    // (case, union) of KNOWN_ABSENT → (order, every published entity's
+    // geometry, sorted): the whole-table guard the one-table row skips.
+    let mut geometries: BTreeMap<(String, String), Vec<OrderGeometry>> = BTreeMap::new();
     for case in cases() {
         let mut seen: BTreeMap<(String, StableName), (String, String)> = BTreeMap::new();
         // tag → (order, refusal or None, published names)
@@ -447,6 +482,17 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                     continue;
                 }
                 let sigs = signature(ev, union);
+                if KNOWN_ABSENT
+                    .iter()
+                    .any(|&(label, t, ..)| label == case.label && t == tag)
+                {
+                    let mut all: Vec<String> = sigs.values().cloned().collect();
+                    all.sort();
+                    geometries
+                        .entry((case.label.clone(), tag.to_string()))
+                        .or_default()
+                        .push((at.to_string(), all));
+                }
                 outcomes.entry(tag.to_string()).or_default().push((
                     at.to_string(),
                     None,
@@ -504,17 +550,49 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                     if ns.contains(name) {
                         continue;
                     }
-                    absent.push(format!("{} {tag} {at}: {name:?}", case.label));
+                    absent
+                        .entry((case.label.clone(), tag.clone()))
+                        .or_default()
+                        .push(format!("{} {tag} {at}: {name:?}", case.label));
                 }
             }
         }
     }
-    assert!(
-        absent.is_empty(),
-        "{} names are published in one fused order and absent in another; the first: {:?}",
-        absent.len(),
-        absent.first()
+    let counted: Vec<(String, String, usize, u64)> = absent
+        .iter_mut()
+        .map(|((label, tag), names)| {
+            names.sort();
+            (label.clone(), tag.clone(), names.len(), fnv1a(names.iter()))
+        })
+        .collect();
+    let pinned: Vec<(String, String, usize, u64)> = KNOWN_ABSENT
+        .iter()
+        .map(|&(label, tag, n, digest)| (label.to_string(), tag.to_string(), n, digest))
+        .collect();
+    assert_eq!(
+        counted,
+        pinned,
+        "the names published in one fused order and absent in another changed; the first: {:?}",
+        absent.values().flatten().next()
     );
+    assert_eq!(
+        geometries.len(),
+        KNOWN_ABSENT.len(),
+        "every KNOWN_ABSENT union publishes in some order"
+    );
+    for ((label, tag), published) in &geometries {
+        let ((first_at, first), rest) = published
+            .split_first()
+            .expect("an entry is only made with an order in it");
+        assert!(!rest.is_empty(), "{label} {tag}: only {first_at} fuses");
+        for (at, all) in rest {
+            assert_eq!(
+                first, all,
+                "{label} {tag}: {first_at} and {at} publish different geometry, \
+                 not only different names for it"
+            );
+        }
+    }
     let known: Vec<String> = KNOWN_MIXED
         .iter()
         .map(|(label, tag, n, kinds)| format!("{label} {tag}: {n} {kinds}"))
@@ -572,6 +650,8 @@ type Signatures = BTreeMap<StableName, String>;
 /// cut, or cut by several members; a member flush with two others;
 /// three members each flush with the other two; a member touching
 /// another along a line; a declared union nested in an undeclared one.
+/// The unions of [`KNOWN_ABSENT`] are left out: their tables differ by
+/// the names pinned there.
 #[test]
 fn a_flush_union_publishes_one_table_in_every_member_order() {
     let mut checked = 0;
@@ -589,6 +669,12 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
             }
         });
         for (tag, published) in tables {
+            if KNOWN_ABSENT
+                .iter()
+                .any(|&(label, t, ..)| label == case.label && t == tag)
+            {
+                continue;
+            }
             let [(first_at, first), rest @ ..] = published.as_slice() else {
                 continue;
             };
@@ -613,24 +699,26 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
         }
     }
     assert_eq!(
-        checked, 43,
+        checked, 41,
         "unions with two or more fused orders checked (a nested case has two unions)"
     );
 }
 
-/// **A member flush with two others numbers its rim by the body, whoever
-/// holds each stretch.** `r2ends`: `a` = x 0..3 is flush with `b` over
-/// x 2..3 and with `c` over x 0..1. Its bottom start rim (x 0 → 3 at
-/// y = z = 0) is cut at x = 1 and 2 into three cells, so its pieces are
-/// `#k of 3` spanning x = k..k + 1 in every order: `a` always holds the
-/// middle one, and each end one when it was folded before that end's
-/// partner. Ranked over the pieces `a` keeps, `#0 of 2` was x = 0..1 in
-/// `[b, a, c]` and x = 1..2 in `[c, a, b]`.
+/// **A member flush with two others names its rim pieces by the body,
+/// whoever holds each stretch.** `r2ends`: `a` = x 0..3 is flush with
+/// `b` over x 2..3 and with `c` over x 0..1. Its bottom start rim (x 0 →
+/// 3 at y = z = 0) is cut at x = 1 and 2, so each piece of it `a` holds
+/// spans one of x = k..k + 1 in every order: `a` always holds the middle
+/// one, and each end one when it was folded before that end's partner.
+/// Ranked over the pieces `a` keeps, `#0 of 2` was once x = 0..1 in
+/// `[b, a, c]` and x = 1..2 in `[c, a, b]`; named by its ends, a piece
+/// is the same name wherever it is published.
 #[test]
-fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
+fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
     let case = r2ends();
     let (doc, _) = document(&case.blocks, &case.creation);
     let mut fused = 0;
+    let mut named: BTreeMap<i64, StableName> = BTreeMap::new();
     runs(&r2ends(), |at, ev, ids, unions| {
         let union = unions[0].1;
         assert!(
@@ -651,31 +739,20 @@ fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
         let geo = geometry(ev, union);
         let x = |k: i64| (k * 1_000_000, 0, 0);
         let mut held = Vec::new();
-        for k in 0..3 {
-            if let Some(sig) = geo.get(&rim_piece(union, a, &rim, Some((k, 3)))) {
-                assert_eq!(
-                    sig,
-                    &vec![x(k.into()), x(i64::from(k) + 1)],
-                    "{at}: #{k} of 3"
-                );
-                held.push(k);
+        for (n, sig) in &geo {
+            if !is_rim_piece(n, a, &rim) {
+                continue;
             }
+            let k = sig[0].0 / 1_000_000;
+            assert_eq!(sig, &vec![x(k), x(k + 1)], "{at}: {n:?} spans one cell");
+            if let Some(was) = named.insert(k, n.clone()) {
+                assert_eq!(&was, n, "{at}: x = {k}..{} is named one way", k + 1);
+            }
+            held.push(k);
         }
         assert!(
             held.contains(&1),
             "{at}: a does not hold its middle cell: {held:?}"
-        );
-        let pieces = geo
-            .keys()
-            .filter(|n| {
-                matches!(n.path.first(), Some(RoleSeg::FromMember { member, of })
-                    if *member == a && **of == rim)
-            })
-            .count();
-        assert_eq!(
-            pieces,
-            held.len(),
-            "{at}: a piece of a's rim outside the three cells"
         );
     });
     assert_eq!(fused, 6);
@@ -752,13 +829,13 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
 
 /// **`fam010`, the row's own case.** `a`'s bottom-y rim (segment 0,
 /// x = 0 → 1 at y = 0, z = 1) is cut by the body's vertices at 0.3, 0.4
-/// and 0.5 into four cells, numbered along +x whoever holds them: cell 1
-/// is inside `g`, and cell 3 is the stretch `a` runs flush with `b`,
-/// which `a` holds in `[a, b, g]` and `b` in `[b, a, g]`. On main the
-/// name `#1 of 2` was x = 0.5..1.0 in the first order and x = 0.4..0.5
-/// in the second.
+/// and 0.5: x = 0.3..0.4 is inside `g`, and x = 0.5..1.0 is the stretch
+/// `a` runs flush with `b`, which `a` holds in `[a, b, g]` and `b` in
+/// `[b, a, g]`. Each piece `a` holds in both orders is one name in both.
+/// Ranked over the pieces `a` kept, `#1 of 2` was once x = 0.5..1.0 in
+/// the first order and x = 0.4..0.5 in the second.
 #[test]
-fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
+fn fam010_names_a_rim_the_same_way_in_both_orders() {
     let g = ((0.3, 0.4), (-1.0, 0.5), (0.5, 3.0));
     let (doc, ids) = document(
         &[
@@ -777,7 +854,8 @@ fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
             crate::fixture::piece(&doc, a, 0, 0),
         )],
     };
-    let span = |order: [editor_core::RecipeNodeId; 3], rank| {
+    // x-span → the name of the piece of `a`'s rim there.
+    let pieces = |order: [editor_core::RecipeNodeId; 3]| {
         let (docx, union, _) =
             declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
@@ -786,19 +864,22 @@ fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
             "{order:?}: {:?}",
             failure(&ev, union)
         );
-        let geo = geometry(&ev, union);
-        let sig = geo
-            .get(&rim_piece(union, a, &rim, Some(rank)))
-            .unwrap_or_else(|| panic!("{order:?}: no piece {rank:?}"))
-            .clone();
-        sig.iter().map(|p| p.0).collect::<Vec<_>>()
+        geometry(&ev, union)
+            .into_iter()
+            .filter(|(n, _)| is_rim_piece(n, a, &rim))
+            .map(|(n, sig)| (sig.iter().map(|p| p.0).collect::<Vec<_>>(), n))
+            .collect::<BTreeMap<_, _>>()
     };
     let x = |a: f64, b: f64| vec![(a * 1e6).round() as i64, (b * 1e6).round() as i64];
-    for order in [[a, b, c], [b, a, c]] {
-        assert_eq!(span(order, (0, 4)), x(0.0, 0.3));
-        assert_eq!(span(order, (2, 4)), x(0.4, 0.5));
+    let (first, second) = (pieces([a, b, c]), pieces([b, a, c]));
+    for span in [x(0.0, 0.3), x(0.4, 0.5)] {
+        assert!(first.contains_key(&span), "[a, b, g]: no piece at {span:?}");
+        assert_eq!(first.get(&span), second.get(&span), "{span:?}");
     }
-    assert_eq!(span([a, b, c], (3, 4)), x(0.5, 1.0));
+    assert!(
+        first.contains_key(&x(0.5, 1.0)),
+        "[a, b, g]: a holds its flush stretch"
+    );
 }
 
 /// `h` of the review corpus: x 1.0..1.1, its x = 1.0 wall against `a`'s

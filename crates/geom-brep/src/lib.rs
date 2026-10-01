@@ -86,9 +86,10 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DihedralClass, MaterialPairing, MaterialWedge, MustCarryVerdict, SecondOrder,
-    classify_dihedral, classify_material_pairing, classify_material_pairing_as, folded_lever_arm,
-    material_kappa_rel, must_carry_over_edge, tangent_second_order,
+    DihedralClass, MaterialPairing, MaterialWedge, MustCarryDescription, MustCarryRefusal,
+    MustCarryVerdict, SecondOrder, classify_dihedral, classify_material_pairing,
+    classify_material_pairing_as, folded_lever_arm, material_kappa_rel, must_carry_over_edge,
+    tangent_second_order,
 };
 pub use edge_nurbs::{
     CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
@@ -142,10 +143,10 @@ pub use props::{
     require_one_chart_branch,
 };
 pub use ssi::{
-    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS,
-    SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode,
-    certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
-    trace_plane_nurbs_uncertified,
+    ChartAxis, ChartSpeedRefusal, ChartedNurbs, ExhaustLane, Exhaustiveness, ExhaustivenessRefusal,
+    SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain, SsiError,
+    SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepperMode, TubeDegeneracy, certify_rung3,
+    cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

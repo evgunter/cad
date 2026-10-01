@@ -1343,13 +1343,13 @@ impl SitedRef {
 /// }
 ///
 /// fn alignment() -> editor_core::Alignment {
-///     let frame = editor_core::MateFrame {
-///         origin: [0.0, 0.0, 0.0],
-///         axis: [0.0, 0.0, 1.0],
-///         reference: [1.0, 0.0, 0.0],
-///     };
+///     let frame = editor_core::MateFrame::authored(
+///         [0.0, 0.0, 0.0],
+///         [0.0, 0.0, 1.0],
+///         [1.0, 0.0, 0.0],
+///     );
 ///     editor_core::Alignment {
-///         a: frame,
+///         a: frame.clone(),
 ///         b: frame,
 ///         primitive: editor_core::MatePrimitive::FrameCoincidence,
 ///         sense: editor_core::AxisSense::Aligned,
@@ -1396,13 +1396,13 @@ impl SitedRef {
 /// }
 ///
 /// fn alignment() -> editor_core::Alignment {
-///     let frame = editor_core::MateFrame {
-///         origin: [0.0, 0.0, 0.0],
-///         axis: [0.0, 0.0, 1.0],
-///         reference: [1.0, 0.0, 0.0],
-///     };
+///     let frame = editor_core::MateFrame::authored(
+///         [0.0, 0.0, 0.0],
+///         [0.0, 0.0, 1.0],
+///         [1.0, 0.0, 0.0],
+///     );
 ///     editor_core::Alignment {
-///         a: frame,
+///         a: frame.clone(),
 ///         b: frame,
 ///         primitive: editor_core::MatePrimitive::FrameCoincidence,
 ///         sense: editor_core::AxisSense::Aligned,
@@ -1530,7 +1530,7 @@ impl core::fmt::Display for InputFault {
             Self::Duplicate { input } => write!(
                 f,
                 "node {} is taken as an input twice — a node's inputs are pairwise distinct",
-                input.0
+                input
             ),
             Self::TooFew { found } => write!(
                 f,
@@ -1713,7 +1713,7 @@ pub enum PlacementRuleFault {
     },
     /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
     /// (A6). Admitting one is gated on the equivariance audit R4 owns,
-    /// exactly as for a cluster placement.
+    /// exactly as for a group placement.
     ImproperFrame {
         /// Its index in the placement list.
         index: usize,
@@ -2462,7 +2462,7 @@ pub enum Node<P> {
     /// [`Node::inputs`] is empty and the DAG has nothing to schedule
     /// ahead of it.
     ///
-    /// **No frame field.** A11 puts placement on the CLUSTER, and the
+    /// **No frame field.** A11 puts placement on the GROUP, and the
     /// registry holding it is document data ([`crate::Doc::placement`])
     /// — an instance carries no frame of its own, which is what makes
     /// zero-anchor and multi-anchor states unrepresentable rather than
@@ -2496,7 +2496,7 @@ pub enum Node<P> {
     /// operand down to its name's head yields the member the edge
     /// lands on, RECOMPUTED at need ([`crate::mate::reading_edges`])
     /// and never stored. A9's relative-freedom partition and A11's
-    /// placement clusters read consuming ∪ reading edges; A10's
+    /// placement groups read consuming ∪ reading edges; A10's
     /// invariants, maintenance and product gather read consuming
     /// edges only. Under consuming edges a mate is an isolated sink,
     /// so it is an ordinary NON-BODY root: listed like any other,
@@ -3368,6 +3368,10 @@ impl<P> Node<P> {
             // names its reading edges are recomputed from. The
             // operands they are read at are node ids, not names, and
             // are listed by [`Node::payload_read_sites`].
+            // The two heads, and not a `FromFace` frame's face: that
+            // name is a row of the PART's table, in the part's own id
+            // space, held here the way an instance's reference is —
+            // not a name this document minted, strands or remaps.
             Node::Mate { a, b, .. } => vec![a.name.as_ref(), b.name.as_ref()],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.

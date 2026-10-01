@@ -284,7 +284,10 @@ fn pick_index_error_says_only_that_its_root_was_not_indexed() {
             error: inner.clone(),
         }
         .to_string();
-        assert_eq!(outer, format!("root 7 could not be indexed: {inner}"));
+        assert_eq!(
+            outer,
+            format!("root 000000000007 could not be indexed: {inner}")
+        );
     }
 }
 
@@ -397,7 +400,7 @@ fn edge_names_refused_forwards_its_first_refusal() {
     assert_eq!(
         said,
         format!(
-            "the index names 11 of the 12 edges it draws on body 1 of node 4; the first it cannot: {fault}"
+            "the index names 11 of the 12 edges it draws on body 1 of node 000000000004; the first it cannot: {fault}"
         )
     );
     prose(&said, "EdgeNamesRefused");
