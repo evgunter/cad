@@ -2115,21 +2115,23 @@ fn run_azimuth_images<T: Decide>(
                             // index above: the branch wanted is the
                             // unique one in an OPEN interval, and the
                             // nearest one is exactly what carries no
-                            // information here. That puts this fold's
-                            // jump at an integer `q` — the entry azimuth
-                            // landing exactly on the previous exit —
-                            // where the open interval's two ends are
-                            // genuinely different answers and an
-                            // enclosure straddling it reports both. It
-                            // is a boundary of a half-open selection,
-                            // not a fold written around its own live
-                            // value, so it is recorded rather than
-                            // respelled.
+                            // information here.
+                            //
+                            // The selection jumps at an integer `q`: the
+                            // entry meridian leaving the pole along the
+                            // half-meridian the previous one arrived on
+                            // (a slit, or a wedge inside rounding). An
+                            // enclosure straddling the jump spans both
+                            // branches, `prev` and `prev ± τ`, so the
+                            // window it widens is at least a whole
+                            // period — what an exact slit reads anyway —
+                            // and every window reader declines a whole
+                            // period through its own period gate before
+                            // it reads the window as a region.
+                            let q = (prev - raw) / tau;
                             k = if advancing {
-                                let q = (prev - raw) / tau;
                                 q.floor() + T::one()
                             } else {
-                                let q = (prev - raw) / tau;
                                 T::zero() - (T::zero() - q).floor() - T::one()
                             };
                         }
