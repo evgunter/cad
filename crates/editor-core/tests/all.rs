@@ -473,6 +473,8 @@ mod placedunion_wire;
 mod product_gate_attribution;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
+#[path = "r2_place2_probes.rs"]
+mod r2_place2_probes;
 
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;

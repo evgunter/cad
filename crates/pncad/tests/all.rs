@@ -6483,3 +6483,48 @@ mod the_hollowed_box_through_the_facade {
         );
     }
 }
+
+/// place2-r2 probe: a SUB-ASSEMBLY holding an unplaced part, instanced
+/// in an outer document. Does the outer document's STEP export refuse
+/// naming the unplaced part, or write a world without it?
+#[test]
+fn r2_place2_probe_step_through_a_sub_assembly_with_an_unplaced_part() {
+    use pncad::document::DocEdit;
+    let dir = WsDir::new("r2-step-sub");
+    let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "r2-step-sub-part");
+    let (sub, ids) = asm2a_assembly("r2-step-sub-asm", doc_ref, 2);
+    let sub = pncad::document::apply(
+        &sub,
+        &DocEdit::SetOffset {
+            instance: ids[1],
+            offset: None,
+        },
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("an offset clears")
+    .doc;
+    let text = pncad::document::save(&sub, &[], Tol::witness()).expect("saves");
+    dir.write("sub.pncad", &text);
+    let sub_ref = pncad::document::DocRef {
+        id: sub.id(),
+        pin: pncad::document::content_pin(&sub, Tol::witness()).expect("pin"),
+    };
+    let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
+    let opts = StepOptions::default();
+    let ev_sub = asm2a_eval(&sub, &ws);
+    let sub_err = pncad::export::export_document_step(&ev_sub, &sub, &opts, Tol::witness());
+    assert!(
+        matches!(sub_err, Err(pncad::export::ExportError::Unplaced { .. })),
+        "the sub-assembly alone refuses: {sub_err:?}"
+    );
+    let (outer, _) = asm2a_assembly("r2-step-sub-outer", sub_ref, 1);
+    let ev = asm2a_eval(&outer, &ws);
+    let out = pncad::export::export_document_step(&ev, &outer, &opts, Tol::witness());
+    assert!(
+        out.is_err(),
+        "DEFECT: the outer document exports STEP without the sub-assembly's unplaced part \
+         ({} bytes), and nothing names it",
+        out.map(|s| s.len()).unwrap_or(0)
+    );
+}
