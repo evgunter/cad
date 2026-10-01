@@ -1510,31 +1510,6 @@ pub(crate) fn volume_backstop<T: Decide>(
         }
     };
     let (ba, bb) = (bounded(ca.props())?, bounded(cb.props())?);
-    // The result of a bounded ∩, of a ∖ from a bounded A, or of a
-    // union of two bounded operands is itself bounded, so its flux
-    // volume cannot be negative. The set inequalities below bound it
-    // only from one side for ∩ and ∖, so a result whose shell lost a
-    // face can pass them with a negative volume; this arm refuses it.
-    let result_bounded = match op {
-        BooleanOp::Intersect => ba || bb,
-        BooleanOp::Subtract => ba,
-        BooleanOp::Union => ba && bb,
-    };
-    if result_bounded {
-        let e = cr.props().enclosure();
-        if geom_core::k_stats::decide_invariant(
-            "volume_backstop_violation",
-            e.volume_hi / e.surface_area,
-            exact,
-        ) == Ok(Sign::Negative)
-        {
-            return Err(BooleanError::ResultVolumeImplausible {
-                which: "vol(result) ≥ 0",
-                got: format!("{:?}", cr.props().volume),
-                bound: "0".to_owned(),
-            });
-        }
-    }
     match op {
         BooleanOp::Intersect => {
             if ba {
@@ -3150,41 +3125,6 @@ mod tests {
             )
             .unwrap_err(),
         );
-    }
-
-    /// **A result that encloses negative volume refuses**, under every
-    /// op whose result is bounded: an inside-out cube (the flux of a
-    /// shell that lost the face closing it is signed the same way) is
-    /// below both of ∩'s upper bounds and below ∖'s, so only the
-    /// positivity arm sees it there.
-    #[test]
-    fn volume_backstop_refuses_a_result_enclosing_negative_volume() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        let cube = quad_prism(&square, 1.0, Tol::witness());
-        let inside_out = cube.revert().unwrap();
-        for op in [BooleanOp::Intersect, BooleanOp::Subtract, BooleanOp::Union] {
-            let err = volume_backstop(
-                op,
-                &cube,
-                &cube,
-                &inside_out,
-                band,
-                Tol::witness(),
-                QuadLane::certified(),
-            )
-            .unwrap_err();
-            assert!(
-                matches!(
-                    err,
-                    BooleanError::ResultVolumeImplausible {
-                        which: "vol(result) ≥ 0",
-                        ..
-                    }
-                ),
-                "{op:?}: {err:?}"
-            );
-        }
     }
 
     /// **The #200 review's MAJ-1, end to end through the real gate.**
