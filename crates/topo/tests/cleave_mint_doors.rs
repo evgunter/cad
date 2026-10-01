@@ -183,7 +183,7 @@ fn at_a_dual_set_edge_curve_refuses_the_class_naming_the_scalar() {
     assert_eq!(
         body.set_edge_curve(edge, spec, Tol::witness()),
         Err(EulerOpError::NurbsLaneUnsupported {
-            edge,
+            edge: Some(edge),
             scalar: Dual64::NAME,
         })
     );
@@ -216,9 +216,56 @@ fn at_a_dual_a_rechart_refuses_the_class_naming_the_scalar() {
         )
         .map(|_| ()),
         Err(EulerOpError::NurbsLaneUnsupported {
-            edge,
+            edge: Some(edge),
             scalar: Dual64::NAME,
         })
     );
     assert_eq!(body.get_face(wall_face).unwrap().surface, face.surface);
+}
+
+/// `kev_describing` killing the edge that leaves a wall corner off the
+/// wall, with the wall edge at that corner listed under its plane × NURBS
+/// spec. Returns the door's answer.
+fn kev_describing_the_class<T>() -> Result<(), EulerOpError>
+where
+    T: geom_core::Decide + topo::AtRestPolicy,
+{
+    let (mut body, edge, spec, wall_face) = bare_wall::<T>();
+    let e = body.get_edge(edge).unwrap().clone();
+    let corner = body.get_half_edge(e.he_plus).unwrap().start;
+    let (he, _) = body
+        .half_edges()
+        .find(|(k, h)| {
+            body.half_edge_end(*k) == Some(corner)
+                && body.face_of_half_edge(*k) != Some(wall_face)
+                && {
+                    let ed = body.get_edge(h.edge).unwrap();
+                    body.face_of_half_edge(ed.he_plus) != Some(wall_face)
+                        && body.face_of_half_edge(ed.he_minus) != Some(wall_face)
+                }
+        })
+        .map(|(k, h)| (k, h.clone()))
+        .unwrap();
+    body.kev_describing(he, &[(edge, spec)], Tol::witness())
+        .map(|_| ())
+}
+
+#[test]
+fn at_a_dual_kev_describing_refuses_the_class_naming_the_scalar() {
+    let dual = kev_describing_the_class::<Dual64>();
+    let (_, edge, _, _) = bare_wall::<Dual64>();
+    assert_eq!(
+        dual,
+        Err(EulerOpError::NurbsLaneUnsupported {
+            edge: Some(edge),
+            scalar: Dual64::NAME,
+        })
+    );
+    // The control: at f64 the lane is held, so the listed spec reaches
+    // its own checks and the answer is not the lane's absence.
+    let f = kev_describing_the_class::<f64>();
+    assert!(
+        !matches!(f, Err(EulerOpError::NurbsLaneUnsupported { .. })),
+        "{f:?}"
+    );
 }

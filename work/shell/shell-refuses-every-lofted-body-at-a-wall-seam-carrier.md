@@ -55,23 +55,36 @@ no operand until this lane exists AND O4's fitted-boundary refusal is
 answered. `encl_curved_loft_shell.rs` pins both boundaries so that
 either moving reds and hands the next lane the operand.
 
-## Also measured (CLEAVE, `edge-mint-doors-read-the-nurbs-lane-from-the-policy`, 2026-10-01)
+## Also measured (CLEAVE, `edge-mint-doors-read-the-nurbs-lane-from-the-policy`, PR 3720, 2026-10-01)
 
-The same site blocks the plane × NURBS (M7-8) class at `f64`, after the
-edge-mint doors started reading the lane off `AtRestPolicy`. On the
-M7-8 cube (`crates/topo/tests/fixture/m7_8.rs`, the unit cube whose
-`y = 0` face is a described NURBS net and whose four wall edges are
-plane × NURBS `Intersection`s on degree-1 NURBS carriers):
+The same site blocks the plane × NURBS (M7-8) class wherever a wall
+edge with a NURBS carrier must be re-anchored, and only there. Two
+bodies at `f64`, on the branch where the edge-mint doors read the lane
+off `AtRestPolicy`:
+
+**The M7-8 cube** (`crates/topo/tests/fixture/m7_8.rs`): all four wall
+edges, the vertical ones included, are plane × NURBS on degree-1
+NURBS carriers.
 
 | call | result |
 |---|---|
-| `replace_face_offset(top z = 1, +0.25)` | `CarrierLaneUnsupported { edge, what: "a re-anchored carrier that is neither a line nor a circle" }` |
-| `replace_face_offset(side x = 0, +0.25)` | the same |
+| `replace_face_offset(top z = 1, +0.25)` / `(side x = 0, +0.25)` | `CarrierLaneUnsupported { what: "a re-anchored carrier that is neither a line nor a circle" }` |
 | `replace_face_offset(back y = 1, +0.25)` (not adjacent to the wall) | `Ok`, the class intact |
-| `shell(0.1)`, `shell_open(0.1, [top])` | `ShellError::Face { error: CarrierLaneUnsupported { .. } }` on the same edge |
+| `shell(0.1)`, `shell_open(0.1, [top])` | `ShellError::Face { error: CarrierLaneUnsupported { .. } }` |
 
-Any face that meets the wall has wall edges ending at its corners, and
-those are re-anchored, so offset and shell reach neither the boundary
-transport of a plane × NURBS edge nor the lane-reading re-description
-(`set_face_surfaces_describing`) until `plan_reanchors` takes a NURBS
-carrier.
+**The imported, placed instance**
+(`crates/step-import/tests/placed_m7_8_instance.rs`): only the wall's
+two quadratic cap rims are of the class. Its vertical edges are not
+NURBS-carried, so offsetting a cap re-anchors nothing of the class and
+reaches the re-chart's mint.
+
+| call | on main | on PR 3720 |
+|---|---|---|
+| `replace_face_offset(cap, -0.25)` (both caps) | `RechartFalsifies { NurbsLaneNotSupplied }` | `Ok`, the class intact |
+| `replace_face_offset(cap, +0.25)` | `RechartFalsifies { NurbsLaneNotSupplied }` | `RechartFalsifies { PlaneNurbs(Limb { OnLocus, 0.25 }) }`: the wall's patch ends at the cap, so the moved plane misses it by exactly the offset, a correct refusal |
+| `replace_face_offset(a side face, +0.25)` | `CarrierLaneUnsupported` (re-anchoring a rim) | the same |
+| `shell(0.1)` | `Face { Op { RechartFalsifies { NurbsLaneNotSupplied } } }` | `Face { CarrierLaneUnsupported { .. } }` on a side face |
+
+So the re-anchoring lane is what still keeps offset and shell from the
+class on a body whose re-anchored edges are NURBS-carried; on the
+imported instance a cap offset already reaches it.

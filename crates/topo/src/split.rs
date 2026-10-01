@@ -298,8 +298,8 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
-        let cert1 = self.certify_edge_spec_for(edge, spec1, p_u, p_new, tol)?;
-        let cert2 = self.certify_edge_spec_for(edge, spec2, p_new, p_v, tol)?;
+        let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, tol)?;
+        let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, tol)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
         // stored chart row, restricted to the two children's
         // sub-intervals and re-certified. Read-only, so a refusal

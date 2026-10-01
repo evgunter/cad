@@ -1611,7 +1611,8 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
@@ -1709,7 +1710,8 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus → target … prev(target).
         let rows = self.plan_site_rows(
@@ -1795,7 +1797,8 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → ring … prev(ring) → he_minus.
         let rows = self.plan_site_rows(
@@ -1880,7 +1883,8 @@ impl<T: Decide> Body<T> {
         let (p_u, p_w) = self.check_anchors(u, w)?;
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // he_plus → he_minus.
         let rows = self.plan_site_rows(

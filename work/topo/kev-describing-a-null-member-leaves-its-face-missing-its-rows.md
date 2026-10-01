@@ -17,15 +17,15 @@ That unit makes a null edge's first description re-mint a minted
 face its halves are on through the site mint (`pcurves::site_rows`,
 selected by `StoredRows::remints`): every loop no other null edge
 holds open, and the whole face, whatever it misses, once no null edge
-is left on it. `Body::set_edge_curve_via`
+is left on it. `Body::set_edge_curve`
 (`crates/topo/src/attach.rs`) plans it
 (`null_description_rows`, through `pcurves::site_rows`) before it
-mutates, which covers `set_edge_curve`. `describe_at_rest` refuses a null edge
+mutates. `describe_at_rest` refuses a null edge
 (`NullScaffoldCurve`).
 
 `Body::kev_describing` (`crates/topo/src/euler_kill.rs`) is the one
 other door that writes a certified curve onto an existing edge
-(`replace_edge_curve`, bypassing `set_edge_curve_via`). A merged
+(`replace_edge_curve`, bypassing `set_edge_curve`). A merged
 member it lists may be a null edge — `kev_describing_gate` checks
 membership, adjacency and certification, not the curve's kind — and
 then the kill is that edge's first description, and the face its

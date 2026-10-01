@@ -166,10 +166,15 @@
 //! **uncertified spec** ([`geom_brep::EdgeCurveSpec`]: D2 intensional
 //! description + carrier cache + parameter interval) and run the D4 ¶2
 //! certification gate *before mutating*: the spec is certified against
-//! the edge's endpoint points and the body's surfaces
-//! (`EdgeCurve::certify`), and a failure is a typed
+//! the edge's endpoint points and the body's surfaces, with the plane ×
+//! NURBS lane the scalar's policy holds
+//! ([`crate::AtRestPolicy::nurbs_lane`]), and a failure is a typed
 //! [`EulerOpError::Certification`] with the body untouched (atomicity
-//! extends over the geometry gate). Face-minting operators take the new
+//! extends over the geometry gate). A spec of that class at a scalar
+//! holding no lane is [`EulerOpError::NurbsLaneUnsupported`] instead,
+//! at every door, the new-edge mints included: the operators accept any
+//! spec that certifies, so `mef` onto a shared chart or a strut `mev`
+//! can mint the class. Face-minting operators take the new
 //! face's surface as a [`FaceSurface`] spec (inherit the split face's
 //! key / mint a new [`Surface`] / share an existing key); the new
 //! face's `sense` is derived on the parent's chart and stated by the
@@ -272,6 +277,8 @@ use core::fmt;
 use geom::Surface;
 use geom_brep::recourse::Reading;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
+
+use crate::policy_lane::ByPolicy;
 use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
@@ -634,15 +641,17 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// `edge` is an `Intersection` of a plane and a described NURBS
+    /// The spec is an `Intersection` of a plane and a described NURBS
     /// wall (M7-8), whose certificate only the plane × NURBS lane
     /// derives, and this scalar's policy holds no lane
     /// ([`crate::AtRestPolicy::nurbs_lane`] answers `None`: a dual,
-    /// DL1). The doors that certify an existing edge read that policy,
-    /// so a lane missing there is the scalar's. The body is untouched.
+    /// DL1). Every Euler door takes its lane from that policy, so a lane
+    /// missing there is the scalar's. The body is untouched.
     NurbsLaneUnsupported {
-        /// The edge whose description is of the class.
-        edge: EdgeKey,
+        /// The existing edge whose description is of the class; `None`
+        /// where the door was minting a new edge (`mev`, `mef`, `mekr`
+        /// and the ring doors), which has no key yet.
+        edge: Option<EdgeKey>,
         /// The scalar the door ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
@@ -1232,10 +1241,11 @@ impl EulerOpError {
                 error.render(reading)
             ),
             Self::NurbsLaneUnsupported { edge, scalar } => format!(
-                "edge {edge:?} lies between a plane and a spline face, and its certificate \
-                 is derived through the plane x NURBS lane, which only a scalar with \
-                 certification rights holds; the {scalar} scalar does not. Recourse: run \
-                 the operation at a certifying scalar"
+                "{} lies between a plane and a spline face, and its certificate is derived \
+                 through the plane x NURBS lane, which only a scalar with certification \
+                 rights holds; the {scalar} scalar does not. Recourse: run the operation at \
+                 a certifying scalar",
+                edge.map_or_else(|| "the new edge".to_owned(), |e| format!("edge {e:?}"))
             ),
             Self::RebasedNullEdge { edge } => format!(
                 "the moved run re-bases one end of null edge {edge:?} and not the other, \
@@ -1525,8 +1535,8 @@ pub(crate) fn every_euler_op_error_once()
             error: CertifyError::Unimplemented,
         },
         EulerOpError::NurbsLaneUnsupported {
-            edge: ek,
-            scalar: "f64",
+            edge: Some(ek),
+            scalar: <geom_core::Dual64 as Real>::NAME,
         },
         EulerOpError::RebasedNullEdge { edge: ek },
         EulerOpError::MergeRebasesCarriers { edges: vec![ek] },
@@ -2432,8 +2442,13 @@ impl<T: Decide> Body<T> {
         // against old point → new point (D4 ¶2 at attachment), then
         // the moved run's own carriers against the endpoints the move
         // gives them.
-        let certified =
-            self.certify_edge_spec(curve.spec(false, plan.p_old, point), plan.p_old, point, tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(false, plan.p_old, point),
+            plan.p_old,
+            point,
+            tol,
+        )?;
         self.certify_rebased_run(&plan.run, point, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation). ----
         let rows = self.plan_site_rows(
@@ -2652,7 +2667,7 @@ impl<T: Decide> Body<T> {
         let (v, p_old) = self.mev_lone_plan(loop_key)?;
         // ---- Geometry gate (still no mutation). ----
         let certified =
-            self.certify_edge_spec(curve.spec(false, p_old, point), p_old, point, tol)?;
+            self.certify_edge_spec(None, curve.spec(false, p_old, point), p_old, point, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // the empty loop becomes `he_plus → he_minus`, first `he_plus`.
         let rows = self.plan_site_rows(
@@ -2857,7 +2872,7 @@ impl<T: Decide> Body<T> {
             ParentSide::With,
         )?;
         let carried = resolved.on_parent_chart;
-        let certified = self.certify_edge_spec(curve.spec(u1 == u2, p1, p2), p1, p2, tol)?;
+        let certified = self.certify_edge_spec(None, curve.spec(u1 == u2, p1, p2), p1, p2, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation).
         // The old loop becomes `he_plus` then he2's side, the new loop
         // `he_minus` then the run; both are re-anchored at the new half.
@@ -3010,7 +3025,7 @@ impl<T: Decide> Body<T> {
             ParentSide::With,
         )?;
         let certified =
-            self.certify_edge_spec(curve.spec(true, anchor, anchor), anchor, anchor, tol)?;
+            self.certify_edge_spec(None, curve.spec(true, anchor, anchor), anchor, anchor, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // each half is a one-half-edge loop of its own face.
         let carried = resolved.on_parent_chart;
@@ -3589,13 +3604,22 @@ impl<T: Decide> Body<T> {
     }
 
     /// The attachment gate (D4 ¶2 at operation time): certifies an
-    /// [`EdgeCurveSpec`] against the new edge's endpoint points, with
-    /// surface keys resolved from this body's arena and the plane ×
-    /// NURBS lane read off the scalar's policy
-    /// ([`crate::AtRestPolicy::nurbs_lane`]). Pure (no mutation) — ops
-    /// call it inside their precondition phase.
+    /// [`EdgeCurveSpec`] against its endpoint points, with surface keys
+    /// resolved from this body's arena and the plane × NURBS lane read
+    /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]).
+    /// `edge` is the existing edge the spec certifies (a re-description,
+    /// a split child, a merged member), `None` where the door mints a new
+    /// edge. Pure (no mutation) — ops call it inside their precondition
+    /// phase.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge` where the
+    /// spec is of the plane × NURBS class and the scalar holds no lane;
+    /// [`EulerOpError::Certification`] on every other refusal.
     pub(crate) fn certify_edge_spec(
         &self,
+        edge: Option<EdgeKey>,
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
         p_end: Point3<T>,
@@ -3607,41 +3631,17 @@ impl<T: Decide> Body<T> {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        EdgeCurve::certify_via(
+        crate::policy_lane::certify(
             spec,
             p_start,
             p_end,
             |k| self.surfaces.get(k).cloned(),
             band,
-            T::nurbs_lane(),
         )
-        .map_err(|error| EulerOpError::Certification { error })
-    }
-
-    /// [`Body::certify_edge_spec`] for a spec that certifies the
-    /// existing `edge` (a re-description, a split child, a merged
-    /// member): the lane came from the policy, so one not supplied is
-    /// refused [`EulerOpError::NurbsLaneUnsupported`] naming `edge`.
-    pub(crate) fn certify_edge_spec_for(
-        &self,
-        edge: EdgeKey,
-        spec: EdgeCurveSpec<T>,
-        p_start: Point3<T>,
-        p_end: Point3<T>,
-        tol: Tol,
-    ) -> Result<EdgeCurve<T>, EulerOpError>
-    where
-        T: crate::props::AtRestPolicy,
-    {
-        self.certify_edge_spec(spec, p_start, p_end, tol)
-            .map_err(|error| match error {
-                EulerOpError::Certification { error } => {
-                    lane_of_the_scalar::<T>(edge, error, |error| EulerOpError::Certification {
-                        error,
-                    })
-                }
-                other => other,
-            })
+        .map_err(|refusal| match refusal {
+            ByPolicy::NoLane { scalar } => EulerOpError::NurbsLaneUnsupported { edge, scalar },
+            ByPolicy::Refused(error) => EulerOpError::Certification { error },
+        })
     }
 
     /// `edge`'s two endpoint points, `he_plus` forward order (the
@@ -3833,9 +3833,16 @@ impl<T: Decide> Body<T> {
             let (p_start, p_end) = self.rebased_endpoints(edge_key, run, p_new)?;
             let surfaces = |k| self.surfaces.get(k).cloned();
             let recertify =
-                |start, end| curve.recertify_via(start, end, surfaces, band, T::nurbs_lane());
-            let Err(error) = recertify(p_start, p_end) else {
-                continue;
+                |start, end| crate::policy_lane::recertify(curve, start, end, surfaces, band);
+            let error = match recertify(p_start, p_end) {
+                Ok(_) => continue,
+                Err(ByPolicy::NoLane { scalar }) => {
+                    return Err(EulerOpError::NurbsLaneUnsupported {
+                        edge: Some(edge_key),
+                        scalar,
+                    });
+                }
+                Err(ByPolicy::Refused(error)) => error,
             };
             if is_endpoint_residual(error) {
                 // The carrier misses an endpoint AFTER the move. Ask
@@ -3843,16 +3850,14 @@ impl<T: Decide> Body<T> {
                 // identical answer means it already missed one, so
                 // this move is not what made it false.
                 let (now_start, now_end) = self.rebased_endpoints(edge_key, &[], p_new)?;
-                if recertify(now_start, now_end).err() == Some(error) {
+                if recertify(now_start, now_end).err() == Some(ByPolicy::Refused(error)) {
                     continue;
                 }
             }
-            return Err(lane_of_the_scalar::<T>(edge_key, error, |error| {
-                EulerOpError::RebasedCarrier {
-                    edge: edge_key,
-                    error,
-                }
-            }));
+            return Err(EulerOpError::RebasedCarrier {
+                edge: edge_key,
+                error,
+            });
         }
         Ok(())
     }
@@ -4542,26 +4547,6 @@ pub(crate) fn require_halves(
         return Err(EulerOpError::NotSameEdge { he1, he2 });
     }
     Ok(())
-}
-
-/// `error` read at a door that took its plane × NURBS lane from the
-/// scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]): a lane not
-/// supplied there is the scalar's absence, refused as
-/// [`EulerOpError::NurbsLaneUnsupported`] naming `edge`; every other
-/// refusal is `otherwise`'s.
-pub(crate) fn lane_of_the_scalar<T: Real>(
-    edge: EdgeKey,
-    error: CertifyError,
-    otherwise: impl FnOnce(CertifyError) -> EulerOpError,
-) -> EulerOpError {
-    if error == CertifyError::NurbsLaneNotSupplied {
-        EulerOpError::NurbsLaneUnsupported {
-            edge,
-            scalar: T::NAME,
-        }
-    } else {
-        otherwise(error)
-    }
 }
 
 /// A loop's half-edges after a splice that inserts new halves, in walk

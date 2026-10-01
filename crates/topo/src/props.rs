@@ -2737,12 +2737,15 @@ pub trait AtRestPolicy: Decide {
 
     /// **This scalar's plane × NURBS lane, or `None` where it may not
     /// certify** — the ONE seam the `Some` comes from for an operation
-    /// generic over its scalar that certifies edge carriers: the
-    /// transform ([`crate::transform_rigid`]) and the Euler surface's
-    /// attachment gate, which every door that mints or re-describes an
-    /// edge runs ([`Body::set_edge_curve`],
-    /// [`Body::set_face_surfaces_describing`], [`Body::split_edge`], the
-    /// re-basing gate of a fan [`Body::mev`]).
+    /// generic over its scalar that certifies edge carriers, read
+    /// through `crate::policy_lane`: the transform
+    /// ([`crate::transform_rigid`]); the Euler surface's attachment gate,
+    /// which every door that mints or re-describes an edge runs — the
+    /// new-edge mints ([`Body::mev`], [`Body::mef`], [`Body::mekr`] and
+    /// the ring doors), [`Body::set_edge_curve`], [`Body::split_edge`]
+    /// and [`Body::kev_describing`]'s list; the re-chart
+    /// ([`Body::set_face_surfaces_describing`]); and the re-basing gate
+    /// of a fan `mev` and of the kill doors' merge.
     ///
     /// `None` is certification rights (DL1), the same fact as
     /// [`AtRestPolicy::fitted_lane`]'s: the certificate of an

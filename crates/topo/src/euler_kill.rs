@@ -1207,7 +1207,7 @@ impl<T: Decide> Body<T> {
             self.check_description_adjacent(edge, &spec.description)?;
             let (p_start, p_end) = self.rebased_endpoints(edge, &plan.fan, survivor_point()?)?;
             let curve = self
-                .certify_edge_spec_for(edge, spec.clone(), p_start, p_end, tol)
+                .certify_edge_spec(Some(edge), spec.clone(), p_start, p_end, tol)
                 .map_err(|e| match e {
                     EulerOpError::Certification { error } => {
                         EulerOpError::RebasedCarrier { edge, error }

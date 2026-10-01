@@ -1,7 +1,9 @@
-//! Reviewer rows for PR 3720 (CLEAVE unit 2): `mef` mints a plane ×
-//! NURBS edge directly, because `FaceSurface::Shared` puts its new face
-//! on a different surface from its parent, so the new edge's halves are
-//! on two surfaces and no adjacency gate runs at `mef`.
+//! **New-edge mints carry the plane × NURBS class** (a reviewer's rows):
+//! `mef` with `FaceSurface::Shared` puts its new face on a different
+//! surface from its parent, so the new edge's halves are on two surfaces,
+//! and a strut `mev` has no adjacency gate. At `f64` the policy's lane
+//! certifies the class through both, where main refused it; at a dual
+//! both refuse naming the scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -81,8 +83,7 @@ where
     (body, r)
 }
 
-/// At `f64` the policy's lane certifies the class through `mef`: a
-/// door the PR body says cannot carry it ("both halves in one face").
+/// At `f64` the policy's lane certifies the class through `mef`.
 #[test]
 fn review_mef_mints_the_plane_x_nurbs_class_at_f64() {
     let (body, r) = mef_the_class::<f64>();
@@ -97,22 +98,18 @@ fn review_mef_mints_the_plane_x_nurbs_class_at_f64() {
     assert_eq!(m7_8_edges(&body), 1, "mef minted one edge of the class");
 }
 
-/// At a dual the same `mef` is refused for the scalar's lack of a lane,
-/// yet answers the untyped `Certification { NurbsLaneNotSupplied }`
-/// rather than `NurbsLaneUnsupported { scalar }`.
+/// At a dual the same `mef` refuses for the scalar's lack of a lane,
+/// naming the scalar; the new edge has no key yet.
 #[test]
-fn review_mef_at_a_dual_refuses_the_class_untyped() {
+fn review_mef_at_a_dual_refuses_the_class_naming_the_scalar() {
     let (_, r) = mef_the_class::<Dual64>();
-    let err = r.map(|_| ()).unwrap_err();
-    eprintln!("mef at Dual64: {err:?}");
     assert_eq!(
-        err,
-        EulerOpError::Certification {
-            error: geom_brep::CertifyError::NurbsLaneNotSupplied
-        },
-        "the scalar is the cause, but the refusal does not name it"
+        r.map(|_| ()),
+        Err(EulerOpError::NurbsLaneUnsupported {
+            edge: None,
+            scalar: Dual64::NAME,
+        })
     );
-    let _ = Dual64::NAME;
 }
 
 /// A strut `mev` into the wall face whose spec is the plane × NURBS
@@ -177,13 +174,12 @@ where
 #[test]
 fn review_mev_strut_reaches_the_lane_at_both_scalars() {
     let f = mev_the_class::<f64>().map(|_| ());
-    let d = mev_the_class::<Dual64>().map(|_| ());
-    eprintln!("mev strut at f64: {f:?}\nmev strut at Dual64: {d:?}");
-    assert!(f.is_ok(), "f64: {f:?}");
+    assert!(f.is_ok(), "a strut of the class at f64: {f:?}");
     assert_eq!(
-        d,
-        Err(EulerOpError::Certification {
-            error: geom_brep::CertifyError::NurbsLaneNotSupplied
+        mev_the_class::<Dual64>().map(|_| ()),
+        Err(EulerOpError::NurbsLaneUnsupported {
+            edge: None,
+            scalar: Dual64::NAME,
         })
     );
 }

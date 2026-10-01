@@ -187,6 +187,7 @@ pub mod offset_nappe;
 pub mod offset_together;
 pub mod param_source;
 pub mod pcurves;
+pub(crate) mod policy_lane;
 pub mod props;
 pub mod provenance;
 pub mod query;

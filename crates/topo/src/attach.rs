@@ -384,19 +384,19 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge });
             }
             let (p_start, p_end) = self.edge_endpoints(edge)?;
-            let curve = EdgeCurve::certify_via(
-                spec.clone(),
-                p_start,
-                p_end,
-                resolve(sides),
-                band,
-                T::nurbs_lane(),
-            )
-            .map_err(|error| {
-                crate::euler::lane_of_the_scalar::<T>(edge, error, |error| {
-                    EulerOpError::RechartFalsifies { edge, error }
-                })
-            })?;
+            let curve =
+                crate::policy_lane::certify(spec.clone(), p_start, p_end, resolve(sides), band)
+                    .map_err(|refusal| match refusal {
+                        crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                            EulerOpError::NurbsLaneUnsupported {
+                                edge: Some(edge),
+                                scalar,
+                            }
+                        }
+                        crate::policy_lane::ByPolicy::Refused(error) => {
+                            EulerOpError::RechartFalsifies { edge, error }
+                        }
+                    })?;
             written.push((edge, sides, curve));
         }
 
@@ -880,7 +880,7 @@ impl<T: Decide> Body<T> {
         let (p_start, p_end) = self.edge_endpoints(edge)?;
         self.check_description_adjacent(edge, &curve.description)?;
 
-        let certified = self.certify_edge_spec_for(edge, curve, p_start, p_end, tol)?;
+        let certified = self.certify_edge_spec(Some(edge), curve, p_start, p_end, tol)?;
         let rows = self.null_description_rows(edge, &certified, tol)?;
 
         // ---- Mutation (infallible from here on). ----
