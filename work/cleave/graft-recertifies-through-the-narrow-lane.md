@@ -128,8 +128,8 @@ The two designers converged after one reconciliation round.
 
 This applies H5 ruling 3 (PR 2701) to the one lane that predates it. No
 ratified text changes. The `real.rs` M7-8 paragraph is agent-written,
-and it is re-worded to match the new code. The design pages count the
-policy's doors ("three doors, one policy"); they move to four in the
-same change. Collapsing the mint doors (`set_edge_curve` reading the
+and it is re-worded to match the new code. `AtRestPolicy`'s rustdoc counts
+its doors ("three doors, one policy"); that moves to four in the same
+change. Collapsing the mint doors (`set_edge_curve` reading the
 policy) is a second unit, sized separately: the bound raise reaches 46
 call sites.
