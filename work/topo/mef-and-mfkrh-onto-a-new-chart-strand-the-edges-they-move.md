@@ -2,7 +2,7 @@
 id: mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move
 kind: issue
 title: mef and mfkrh onto a chart of their own, and the loop-moving kills, leave the edges they move described against the chart those edges left
-status: open
+status: review
 opened: 2026-09-30
 priority: P3
 cost: M
