@@ -37,13 +37,13 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
 use pncad::quantity::{WrittenAngle, WrittenLength};
 use viewer::props;
+use viewer::props::Notation;
 use viewer::revolvetool::RevolveTool;
 use viewer::seats::{Seat, SeatError, SeatEvent};
 use viewer::session::{
     DatumSpec, DocSession, FaceSelection, Hovered, NodeKindWanted, ProfilePlane, ProfileShape,
     Refusal, Selection, SessionOp, Step,
 };
-use viewer::sketch::Notation;
 
 /// The ring demo's constants (`demos/tour/src/ring.rs`): mean radius,
 /// tube outer radius, bore radius.
@@ -1107,7 +1107,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         "the panel row remembers the form's unit, with no picker touched"
     );
     assert_eq!(
-        props::field_text(&row),
+        props::field_text(&row, Notation::DEFAULT),
         "10",
         "and the field reads 10, not 0.01"
     );
@@ -1177,7 +1177,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         .find(|row| row.slot == SlotId::RevolveAngle)
         .expect("the revolve has an angle");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("deg"));
-    assert_eq!(props::field_text(&row), "90");
+    assert_eq!(props::field_text(&row, Notation::DEFAULT), "90");
 }
 
 /// **From nothing to a boss on a picked face, headlessly** — the

@@ -433,6 +433,19 @@ pub enum CurveData<'a, T: Real> {
 }
 
 impl<T: Real> Curve3<T> {
+    /// Whether the carrier bends — every kind but `Line`. Matched
+    /// exhaustively, so a new kind decides here: a curved span's chord
+    /// midpoint is off it, and its chord is not its extent.
+    pub fn is_curved(&self) -> bool {
+        match self {
+            Curve3::Line { .. } => false,
+            Curve3::Circle { .. }
+            | Curve3::Ellipse { .. }
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_) => true,
+        }
+    }
+
     /// **The carrier's stored data** — the one walk of the analytic
     /// kinds' fields, which each reader that visits them field by field
     /// folds with its own question (a poison read, a hash key), and the
@@ -851,6 +864,12 @@ impl<T: SpanLocate> Curve3<T> {
             }
             Curve3::Nurbs(n) => n.eval(t),
         }
+    }
+
+    /// The point at [`crate::mid_param`]`(t0, t1)` — ON the curve
+    /// whatever its kind, where a curved span's chord midpoint is not.
+    pub fn mid_point(&self, t0: T, t1: T) -> Point3<T> {
+        self.eval(crate::mid_param(t0, t1))
     }
 
     /// The first derivative `dP/dt` at parameter `t`.
