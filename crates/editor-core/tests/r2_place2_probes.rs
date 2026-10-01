@@ -863,3 +863,119 @@ fn probe_sub_assembly_with_an_unplaced_group_crosses_the_seam() {
         }
     }
 }
+
+fn split_of(
+    p: &Parts,
+    doc: &ProfileDoc,
+    ids: &[RecipeNodeId],
+    label: &str,
+) -> Result<editor_core::SplitOutcome, editor_core::SplitError> {
+    editor_core::split(
+        doc,
+        &ids.iter().copied().collect(),
+        DocumentId::derive(label),
+        Tol::witness(),
+        p.opts().resolver.as_ref(),
+    )
+}
+
+/// The world placements of every instance, by solve, keyed by id.
+fn world_poses(doc: &ProfileDoc, o: &EvalOptions) -> Vec<(RecipeNodeId, Option<M>)> {
+    let poses = solve(doc, o, Tol::witness());
+    doc.order()
+        .iter()
+        .copied()
+        .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+        .map(|id| (id, poses.placement(doc, id).ok().map(|f| M::of(&f))))
+        .collect()
+}
+
+/// **A split whose cut holds a placed group's two instances but NOT
+/// the placing mate that holds them together.** A4: "the cut is a
+/// union of whole groups, so a placing mate never crosses it".
+#[test]
+fn probe_split_leaving_the_placing_mate_behind() {
+    let p = parts("r2-split-mate");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r2-split-mate"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(
+        doc,
+        base,
+        Some(Placement::literal(&Frame::translation([4.0, 0.0, 0.0]))),
+    );
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let before = world_poses(&doc, &o);
+    match split_of(&p, &doc, &[base, top], "r2-split-mate-part") {
+        Err(e) => eprintln!("split refuses: {e:?} — {e}"),
+        Ok(out) => {
+            let mut store = p.store.clone();
+            let part_ref = store.insert(out.part.clone(), Tol::witness());
+            let _ = part_ref;
+            let po = with_resolver(store.clone());
+            let part_poses = solve(&out.part, &o, Tol::witness());
+            let part_unplaced: Vec<_> = out
+                .part
+                .order()
+                .iter()
+                .filter_map(|&id| part_poses.unplaced(id).map(|c| (id, c)))
+                .collect();
+            let ev = run(&out.remainder, &po);
+            let mate_err = ev.node_error(mate).map(|e| e.to_string());
+            panic!(
+                "DEFECT?: split admitted a cut that leaves its group's placing mate behind. \
+                 before {before:?}; part unplaced {part_unplaced:?}; remainder mate: {mate_err:?}; \
+                 remainder instance error {:?}",
+                ev.node_error(out.instance).map(|e| e.to_string())
+            );
+        }
+    }
+}
+
+/// **Inline-of-split on the verbatim shape** (a cut of two placed
+/// groups on the world): every instance's world pose returns.
+#[test]
+fn probe_inline_of_split_verbatim_round_trip() {
+    let p = parts("r2-rt");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r2-rt"), Tol::witness());
+    let (doc, b1) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(
+        doc,
+        b1,
+        Some(Placement::literal(&Frame::translation([4.0, 0.0, 0.0]))),
+    );
+    let (doc, t1) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, m1) = insert(doc, seat(head(p.top_cap(t1)), head(p.base_cap(b1))));
+    let (doc, b2) = insert(doc, Node::instantiate_part(p.base));
+    let doc = set_offset(
+        doc,
+        b2,
+        Some(Placement::literal(
+            &Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.7, [-9.0, 2.0, 0.0], fixture::band())
+                .unwrap(),
+        )),
+    );
+    let before: Vec<M> = [b1, t1, b2]
+        .iter()
+        .map(|&i| M::of(&solve(&doc, &o, Tol::witness()).placement(&doc, i).unwrap()))
+        .collect();
+    let out = split_of(&p, &doc, &[b1, t1, m1, b2], "r2-rt-part").expect("verbatim");
+    let mut store = p.store.clone();
+    let _ = store.insert(out.part.clone(), Tol::witness());
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store.clone());
+    let back = editor_core::inline(&out.remainder, out.instance, &resolver, Tol::witness())
+        .expect("inline of the verbatim split");
+    let po = with_resolver(store);
+    let poses = solve(&back.doc, &po, Tol::witness());
+    for (i, old) in [b1, t1, b2].iter().enumerate() {
+        let new = back.node_map[&out.node_map[old]];
+        let got = M::of(&poses.placement(&back.doc, new).unwrap());
+        assert!(
+            got.dist(&before[i]) <= 1e-12,
+            "DEFECT: {old:?} moved over inline(split): {got:?} vs {:?}",
+            before[i]
+        );
+    }
+}
