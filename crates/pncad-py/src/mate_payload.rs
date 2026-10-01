@@ -64,13 +64,15 @@
 //! `FrameError::Band` as well as through `Band` itself.
 
 use pncad::document::{
-    Clash, DocumentId, Lever, LeverRefusal, MateFault, MateSide, RecipeNodeId, Subgroup,
+    Clash, DocumentId, Lever, LeverRefusal, MateFault, MateSide, OffsetCheck, RecipeNodeId,
+    Subgroup,
 };
 use pncad::geom_core::{BandError, FrameError, Indeterminate};
 
 use crate::escalation::escalation;
 use crate::tags::{
     band_error_tag, band_field_tag, frame_error_tag, lever_refusal_tag, node_error_tag,
+    offset_check_tag,
 };
 
 /// What one [`MateFault`] arm carries, every field present.
@@ -92,8 +94,12 @@ pub struct MateFaultPayload {
     /// every node failure crosses with
     /// ([`crate::tags::node_error_tag`]).
     pub error: Option<&'static str>,
-    /// The instance a self-mate names twice.
+    /// The instance a self-mate names twice, an unleverable mate's
+    /// part is out of reach for, or whose checked offset faulted.
     pub instance: Option<RecipeNodeId>,
+    /// The root of a faulted checked offset's group: the member whose
+    /// offset places the group the solve placed the instance in.
+    pub root: Option<RecipeNodeId>,
     /// The instance an under-determined tree mate extended FROM.
     pub parent: Option<RecipeNodeId>,
     /// The instance it failed to place.
@@ -175,7 +181,7 @@ impl MateFaultPayload {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 30] {
+    pub fn presence(&self) -> [(&'static str, bool); 31] {
         let Self {
             mate,
             side,
@@ -183,6 +189,7 @@ impl MateFaultPayload {
             placer,
             error,
             instance,
+            root,
             parent,
             child,
             residual,
@@ -215,6 +222,7 @@ impl MateFaultPayload {
             ("placer", placer.is_some()),
             ("error", error.is_some()),
             ("instance", instance.is_some()),
+            ("root", root.is_some()),
             ("parent", parent.is_some()),
             ("child", child.is_some()),
             ("residual", residual.is_some()),
@@ -259,6 +267,7 @@ impl MateFaultPayload {
         placer: None,
         error: None,
         instance: None,
+        root: None,
         parent: None,
         child: None,
         residual: None,
@@ -510,5 +519,50 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload {
             instance: Some(*instance),
             ..none
         },
+        // A checked offset (A11 (2)): the instance stating it is the
+        // subject and names no mate. A refuted one carries the
+        // predicate and its measured clash as a contradiction does.
+        MateFault::OffsetDisagrees {
+            instance,
+            root,
+            predicate,
+            clash,
+        } => {
+            let (lever_tilt, lever_residual, lever_arm) = match clash {
+                Clash::Levered(Lever::Roll { radians, arm }) => (Some(*radians), None, Some(*arm)),
+                Clash::Levered(Lever::Residual { value, arm }) => (None, Some(*value), Some(*arm)),
+                Clash::Structural | Clash::Length { .. } => (None, None, None),
+            };
+            MateFaultPayload {
+                instance: Some(*instance),
+                root: Some(*root),
+                predicate: Some(predicate),
+                clash: clash.deviation(),
+                lever_tilt,
+                lever_residual,
+                lever_arm,
+                ..none
+            }
+        }
+        // Why it could not be checked is the inner word; each cause
+        // carries what its own arm elsewhere carries.
+        MateFault::OffsetUnchecked { instance, cause } => {
+            let base = MateFaultPayload {
+                instance: Some(*instance),
+                inner_variant: Some(offset_check_tag(cause)),
+                ..none
+            };
+            match &**cause {
+                // The node whose placement did not evaluate, and the
+                // evaluation's word for why, as a placer's.
+                OffsetCheck::Placement { node, error } => MateFaultPayload {
+                    placer: Some(*node),
+                    error: Some(node_error_tag(error.kind().class())),
+                    ..base
+                },
+                OffsetCheck::Unleverable(_) => base,
+                OffsetCheck::Indeterminate(diag) => with_escalation(base, diag),
+            }
+        }
     }
 }

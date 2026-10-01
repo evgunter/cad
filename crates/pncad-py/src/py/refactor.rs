@@ -237,6 +237,76 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             instance: i,
             ..
         } => (none(), none(), none(), id(g), id(i), none(), none(), none()),
+        // The gauge a cut holds, or the one a cut instance's chain names
+        // that was deleted, is the `node`; the instance it is about is
+        // `instance`.
+        E::CutHoldsGauge { gauge } => (
+            id(gauge),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::DeadGaugeReference { instance, gauge } => (
+            id(gauge),
+            none(),
+            none(),
+            none(),
+            id(instance),
+            none(),
+            none(),
+            none(),
+        ),
+        // Two anchors: the earlier cut instances' gauge rides `node` and
+        // this instance's `input`, each `None` for the world.
+        E::TwoAnchors {
+            instance,
+            first,
+            second,
+        } => (
+            first.as_ref().map_or_else(none, id),
+            none(),
+            second.as_ref().map_or_else(none, id),
+            none(),
+            id(instance),
+            none(),
+            none(),
+            none(),
+        ),
+        E::UnplacedAlone { group } => (
+            none(),
+            none(),
+            none(),
+            id(group),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The mate is the subject; which side crosses is in the message.
+        E::WouldStartPlacing { mate } | E::MateFrameCrosses { mate, .. } => (
+            id(mate),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::HoistedMemberOffset { instance } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            id(instance),
+            none(),
+            none(),
+            none(),
+        ),
         E::UncutParamReference {
             param: p,
             cut_node,
@@ -563,6 +633,55 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
             id(r),
+            none(),
+            none(),
+        ),
+        // The instance is the subject: why it cannot be spliced is the
+        // variant, and an unplaced one's cause is in the message.
+        E::MatePlaced { instance } | E::Unplaced { instance, .. } | E::NeedsAGauge { instance } => {
+            (
+                id(instance),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+                none(),
+            )
+        }
+        // A node of the referenced document, in its own id space: it
+        // rides `root`, the part-side slot, as the plain-geometry root
+        // does.
+        E::PartDeadGauge { node: n } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            id(n),
+            none(),
+            none(),
+        ),
+        E::MateFrameCrosses { mate, .. } => (
+            id(mate),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The earlier mate is the subject; the one that reads another
+        // inner instance rides `by`.
+        E::MatePairSplits { first, second } => (
+            id(first),
+            id(second),
+            none(),
+            none(),
+            none(),
+            none(),
             none(),
             none(),
         ),

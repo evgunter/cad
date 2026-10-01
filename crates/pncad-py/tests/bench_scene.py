@@ -61,6 +61,7 @@ from pncad import (
     NamePat,
     Node,
     PatternKind,
+    Placement,
     SegPat,
     SegTag,
     Selector,
@@ -205,10 +206,11 @@ def seat(a_frame, b_frame, primitive=None):
     )
 
 
-#: The stand's two mates, as (a seat, b seat) in document order: the
-#: root post's top to the shelf's underside, then the shelf's
-#: underside to the far post's top.
-STAND_SEATS = ((POST_SEAT, SEAT_A), (SEAT_B, POST_SEAT))
+#: The stand's two mates, as (a seat, b seat) in document order, each
+#: naming the part it moves first — a placing mate places its first
+#: operand's group on its second's: the shelf's underside to the root
+#: post's top, then the far post's top to the shelf's underside.
+STAND_SEATS = ((SEAT_A, POST_SEAT), (POST_SEAT, SEAT_B))
 
 
 # ---- The assembly documents ----
@@ -237,12 +239,14 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     # The post is laid on its SIDE: a rotation, which is why the frame
     # stores a general linear part and not a translation.
     doc.apply(
-        DocEdit.set_placement(
+        DocEdit.set_offset(
             post_i,
-            Frame.rotate_then_translate(
-                (0.0, 1.0, 0.0),
-                -math.pi / 2 * pncad.rad,
-                ((FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
+            Placement.literal(
+                Frame.rotate_then_translate(
+                    (0.0, 1.0, 0.0),
+                    -math.pi / 2 * pncad.rad,
+                    ((FLAT_PACK_GAP + POST_HEIGHT) * m, 0 * m, 0 * m),
+                )
             ),
         )
     )
@@ -255,9 +259,11 @@ def layout(post_ref, shelf_ref, posts=Node.pattern):
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
     doc.apply(
-        DocEdit.set_placement(
+        DocEdit.set_offset(
             shelf_i,
-            Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m)),
+            Placement.literal(
+                Frame.translation((FLAT_PACK_GAP * m, FLAT_PACK_SHELF_Y * m, 0 * m))
+            ),
         )
     )
     return doc, post_i, family, shelf_i
@@ -267,15 +273,16 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     """The assembled bench: a post at each end of the shelf, the shelf
     SEATED on them by mates.
 
-    Only the root post carries an authored frame — placement lives on
-    the group, and the mates place the rest. Answers the document,
+    Only the root post keeps an offset — each mate names the part it
+    moves first, and the mate door clears that part's offset. Answers the document,
     its three instances and its two mates, each in document order.
     """
     doc = Doc(STAND_LABEL)
     post_a = doc.insert(Node.instantiate_part(post_ref))
     doc.apply(
-        DocEdit.set_placement(
-            post_a, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m))
+        DocEdit.set_offset(
+            post_a,
+            Placement.literal(Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m))),
         )
     )
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref))
@@ -285,12 +292,12 @@ def stand(store, post_ref, shelf_ref, primitive=None, class_=ContactClass.Rest):
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)
     mate_1 = doc.insert(
         Node.mate(
-            post_a, a_top, shelf_i, s_bottom, class_, seat(*STAND_SEATS[0], primitive)
+            shelf_i, s_bottom, post_a, a_top, class_, seat(*STAND_SEATS[0], primitive)
         )
     )
     mate_2 = doc.insert(
         Node.mate(
-            shelf_i, s_bottom, post_b, b_top, class_, seat(*STAND_SEATS[1], primitive)
+            post_b, b_top, shelf_i, s_bottom, class_, seat(*STAND_SEATS[1], primitive)
         )
     )
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)

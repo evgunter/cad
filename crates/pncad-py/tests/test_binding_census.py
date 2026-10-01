@@ -646,14 +646,20 @@ BOUND_AS = {
     # consumer matching the class of a refusal that is neither `Clone`
     # nor `PartialEq`.
     "ProductErrorKind": "ProductError.variant",
-    # The four cluster-record acts are one arm of `Maintenance`, the
-    # row `Doc.last_maintenance` answers in, and they cross as that
-    # row's tag and payload attributes rather than as a class of their
-    # own: Python reads `r.variant == "join"` and `r.absorbed_frame`
-    # off the same object it reads a strand off. The `NodeErrorKind`
-    # row's shape — a curated enum flattened onto its carrier's
-    # attribute.
-    "ClusterMaintenance": "Maintenance.variant",
+    # The placement vocabulary of A11 (2): the compound door is a
+    # `Doc` method, as every acting door is; an unplaced group's cause
+    # and an instance's space are what `SolvedPoses.unplaced` answers
+    # (`None` is the world); the pose door's refusal raises from
+    # `SolvedPoses.placement`; why a checked offset went unchecked is
+    # the fault's `inner_variant`; and the gauge chain, and whether two
+    # instances share a gauge reference, are read off `Doc.gauge`.
+    "regauge_then_mate": "Doc.regauge_then_mate",
+    "Unplaced": "SolvedPoses.unplaced",
+    "Space": "SolvedPoses.unplaced",
+    "PoseRefusal": "SolvedPoses.placement",
+    "OffsetCheck": "MateFault.inner_variant",
+    "gauge_chain": "Doc.gauge",
+    "places": "Doc.gauge",
     # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
     # `StepImport::Solid::coherence` hands a Rust caller the kernel's
     # report whole and its discriminants are closed enums meant to be
@@ -2263,12 +2269,9 @@ NOT_BOUND = {
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     # Python's document keeps no edit log: `Doc.save` writes an empty
-    # log and `load` replays below the wrapper, so the logged entry
-    # (an edit with the cluster-maintenance rows it performed) and the
-    # replay door that re-applies those rows have no Python shape to
-    # bind.
-    "LoggedEdit": SHAPE,
-    "apply_logged": SHAPE,
+    # log and `load` replays below the wrapper, so the replay door has
+    # no Python shape to bind.
+    "apply_replayed": SHAPE,
     "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
@@ -3346,7 +3349,7 @@ MEMBERS_BOUND_AS = {
     # `test_document.py`'s
     # `test_deleting_the_consumer_reports_the_declaration_it_orphaned`
     # is the Python program that makes one appear.
-    "Maintenance::Cluster": "Maintenance.variant",
+    "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::OrphanedDeclare": "Maintenance.variant",
@@ -3410,7 +3413,11 @@ MEMBERS_BOUND_AS = {
     "EditError::MetaNotSet": "EditError.variant",
     "EditError::RebindMetadataCollision": "EditError.variant",
     "EditError::Roots": "EditError.variant",
-    "EditError::PlacementOnNonInstance": "EditError.variant",
+    "EditError::OffsetOnNonInstance": "EditError.variant",
+    "EditError::GaugeOnNonPlaced": "EditError.variant",
+    "EditError::GaugeNotLive": "EditError.variant",
+    "EditError::NotAGauge": "EditError.variant",
+    "EditError::GaugeCycle": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
@@ -3421,8 +3428,6 @@ MEMBERS_BOUND_AS = {
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
-    "EditError::MaintenanceRefused": "EditError.variant",
-    "EditError::MaintenanceUnrecorded": "EditError.variant",
     "EvalError::UnknownParam": "EvalError.variant",
     "EvalError::ParamDimensionMismatch": "EvalError.variant",
     "EvalError::CountExprInContinuousEval": "EvalError.variant",
@@ -3443,6 +3448,12 @@ MEMBERS_BOUND_AS = {
     "InlineError::PartCarriesMetadata": "InlineError.variant",
     "InlineError::ParamConflict": "InlineError.variant",
     "InlineError::UnplaceableFrame": "InlineError.variant",
+    "InlineError::MatePlaced": "InlineError.variant",
+    "InlineError::Unplaced": "InlineError.variant",
+    "InlineError::NeedsAGauge": "InlineError.variant",
+    "InlineError::PartDeadGauge": "InlineError.variant",
+    "InlineError::MateFrameCrosses": "InlineError.variant",
+    "InlineError::MatePairSplits": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
@@ -3462,6 +3473,8 @@ MEMBERS_BOUND_AS = {
     "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
     "MateFault::SelfMate": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
+    "MateFault::OffsetDisagrees": "MateFault.variant",
+    "MateFault::OffsetUnchecked": "MateFault.variant",
     "MeasureNodeFault::RefIndexOutOfRange": "MeasureNodeFault.variant",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
@@ -3522,7 +3535,6 @@ MEMBERS_BOUND_AS = {
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::Dimension": "PersistError.variant",
     "PersistError::EditReplay": "PersistError.variant",
-    "PersistError::MaintenanceFrame": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
@@ -3566,6 +3578,13 @@ MEMBERS_BOUND_AS = {
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::OperandSeveredFromMate": "SplitError.variant",
     "SplitError::TornGroup": "SplitError.variant",
+    "SplitError::CutHoldsGauge": "SplitError.variant",
+    "SplitError::TwoAnchors": "SplitError.variant",
+    "SplitError::DeadGaugeReference": "SplitError.variant",
+    "SplitError::UnplacedAlone": "SplitError.variant",
+    "SplitError::WouldStartPlacing": "SplitError.variant",
+    "SplitError::MateFrameCrosses": "SplitError.variant",
+    "SplitError::HoistedMemberOffset": "SplitError.variant",
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",

@@ -536,6 +536,13 @@ impl Placement {
         )
     }
 
+    /// The empty chain: the identity, and the unit of `compose` — the
+    /// offset an inserted instance carries on the world.
+    #[staticmethod]
+    fn identity() -> Self {
+        Self(d::Placement::IDENTITY)
+    }
+
     /// One literal step: exactly `frame`, bit for bit.
     #[staticmethod]
     fn literal(frame: &Frame) -> Self {
