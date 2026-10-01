@@ -1600,3 +1600,16 @@ Ev's ruling:
 The names-layer half is filed on EDIT as `names-render-a-faces-leaf-role-in-words` (P1). AUTHOR's `face-pick-cannot-name-which-face` stays open as the viewer half (one composer, five sites, the offer hover mark), blocked on it.
 
 Fork-log row 23's decision half is filled in. Both designers had agreed on their first reports. Mapping: A=Opus, B=Fable.
+
+## 2026-10-01 — Ev ruled #3587 (declaration on a live boolean): A2
+
+Ev asked whether `Declare` is used anywhere else, with A2 conditional on "no". I checked and answered on the PR: its value is read only through the Boolean/Union declare edge. The rest is bookkeeping, separate-node machinery, or constructors, and Python's declare API changes shape. Recorded as A2.
+
+The work is filed on EDIT as `declared-pairs-are-a-booleans-own-payload` (P1, H). AUTHOR's two rows stay open as the viewer half, blocked on it: the plain commit, the row control, and the door judge retiring.
+
+Fork-log row 24's decision half is filled in. Ev took B's first recommendation; A converged on it. Mapping: A=Fable, B=Opus.
+
+**All three of this program's `[ev]` forks are now ruled.** Each leaves AUTHOR a viewer unit blocked on an EDIT row:
+- `the-create-pane-has-no-extrude-side`;
+- `face-pick-cannot-name-which-face`;
+- the boolean pair.
