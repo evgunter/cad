@@ -28,7 +28,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, OrthoFrame, Point3, Real, Sign, UnitVec3Error, Vec3};
 
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use crate::dihedral::decide;
@@ -3330,6 +3330,12 @@ fn fold_chain<T: Decide>(
 /// Chart orientation of the anchor meridian: `v` winds right-handed
 /// about `−τ̂` at its minor center, so `dv/dt = −orient`. Definite by
 /// construction (the `Zero` arm refuses typed).
+///
+/// `τ̂ = â × ρ̂` is the frame [`OrthoFrame::from_axis_and_reference`]
+/// mints about the torus axis with the meridian centre's offset as the
+/// reference, so both lengths are decided under `props_meridian_radial`
+/// before the orientation is: a meridian centred on the axis has no
+/// radial, and refuses as that.
 fn torus_meridian_orient<T: Decide>(
     m0: &TorusMeridian<T>,
     center: Point3<T>,
@@ -3337,9 +3343,22 @@ fn torus_meridian_orient<T: Decide>(
     minor: T,
     band: Band,
 ) -> Result<Sign, PropsError> {
-    let w = m0.c_c - center;
-    let rho_hat = (w - axis * w.dot(axis)).normalize();
-    let tau = axis.cross(rho_hat);
+    let frame = OrthoFrame::from_axis_and_reference(
+        center,
+        axis,
+        m0.c_c - center,
+        "props_meridian_radial",
+        band,
+    )
+    .map_err(|e| match e.error {
+        UnitVec3Error::Escalated(cause) => PropsError::Escalated { cause },
+        UnitVec3Error::Degenerate
+        | UnitVec3Error::NonFiniteLength
+        | UnitVec3Error::UnderflowedLength => PropsError::NotIsoRectangle {
+            what: "props_meridian_radial",
+        },
+    })?;
+    let tau = frame.v().get();
     let orient = classify(
         "props_meridian_orient",
         Margin::levered(m0.n_c.dot(tau), minor),

@@ -253,3 +253,5 @@ mod pcurve_spiric;
 mod r2_mesh7_door_probes;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
+#[path = "torus_meridian_radial.rs"]
+mod torus_meridian_radial;
