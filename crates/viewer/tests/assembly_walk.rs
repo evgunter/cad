@@ -72,7 +72,7 @@ fn the_exit_demo_walk() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 3);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
@@ -153,10 +153,10 @@ fn the_exit_demo_walk() {
         post_top.node, bench.post_b,
         "the probed post is picked where it is drawn"
     );
-    tool.pick(post_top.clone());
+    tool.pick(session.doc(), post_top.clone());
     let shelf_bottom = common::displayed_face_at(&session, &index, &asm::under_shelf());
     assert_eq!(shelf_bottom.node, bench.shelf_i);
-    tool.pick(shelf_bottom.clone());
+    tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 
     // ── 7. The ADMITTED CLASS, exposed through the kernel's own
@@ -298,7 +298,7 @@ fn the_exit_demo_walk() {
     );
     let rows = reopened.tree_rows();
     assert_eq!(rows.len(), 4, "three instances and the mate");
-    assert!(rows.iter().any(|row| row.kind == "Mate"));
+    assert!(rows.iter().any(|row| row.spoken.kind() == Some("Mate")));
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

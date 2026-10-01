@@ -164,7 +164,7 @@ impl core::fmt::Display for ResolveError {
                 "the {} name's minting node {} is no longer in the document ({edit}) — \
                  the repair is an explicit rebind",
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
         }
     }
@@ -475,7 +475,7 @@ impl core::fmt::Display for Cutter<'_> {
             None => write!(f, "no role")?,
         }
         if leaf.node != self.0.node {
-            write!(f, ", minted by node {}", leaf.node.0)?;
+            write!(f, ", minted by node {}", leaf.node)?;
         }
         write!(f, ")")
     }
@@ -505,7 +505,7 @@ fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
     use crate::names::{ProfileEdgeRef, SectionCircle};
     match e {
         ProfileEdgeRef::Piece { step, role } => {
-            format!("the {role} of the profile step minted #{}", step.0)
+            format!("the {role} of the profile step {}", step)
         }
         ProfileEdgeRef::Section { circle, role } => format!(
             "the {role} of the {} circle",
@@ -732,12 +732,12 @@ impl core::fmt::Display for UpstreamCause {
                 f,
                 "{} flipped from {from} to {to} at node {}",
                 FlipSubject(predicate),
-                at.0
+                at
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
                 "a structural parameter changed at node {} (slot {})",
-                node.0,
+                node,
                 param.label()
             ),
             Self::RecipeEdit { edit } => write!(f, "the recipe changed ({edit})"),
@@ -789,7 +789,7 @@ impl core::fmt::Display for Diagnosis {
                 f,
                 "at node {}, the piece of its face nearest it now no longer borders {} \
                  and borders {} it did not",
-                node.0,
+                node,
                 Walls(gone),
                 Walls(new)
             ),
@@ -803,13 +803,13 @@ impl core::fmt::Display for Diagnosis {
                 "at node {}, the group this fragment's parent was divided into held \
                  {was} entities in the last-good run and holds {now} now; {cutters}; and \
                  no verdict flip was found that explains the change",
-                node.0
+                node
             ),
             Self::StructuralParam { node, param } => write!(
                 f,
                 "a structural parameter changed on the derivation path (node {}, slot \
                  {})",
-                node.0,
+                node,
                 param.label()
             ),
             // A SITE of difference, not a claim that an edit happened
@@ -837,7 +837,7 @@ impl core::fmt::Display for Diagnosis {
                 f,
                 "{cause}, upstream of node {}, the name's minting node, but not on its \
                  derivation path",
-                node.0
+                node
             ),
         }
     }
@@ -903,13 +903,13 @@ pub enum RecipeEditRef {
 impl core::fmt::Display for RecipeEditRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeDeleted { node } => write!(f, "node {} was deleted", node.0),
-            Self::NodeInserted { node } => write!(f, "node {} was inserted", node.0),
+            Self::NodeDeleted { node } => write!(f, "node {} was deleted", node),
+            Self::NodeInserted { node } => write!(f, "node {} was inserted", node),
             // A difference statement, not an edit claim — this arm is
             // the diff fallback's site vocabulary.
-            Self::NodeChanged { node } => write!(f, "node {}'s payload differs", node.0),
+            Self::NodeChanged { node } => write!(f, "node {}'s payload differs", node),
             Self::ForeignNode { node } => {
-                write!(f, "node {} was never minted by this document", node.0)
+                write!(f, "node {} was never minted by this document", node)
             }
         }
     }

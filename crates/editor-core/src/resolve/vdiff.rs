@@ -650,6 +650,13 @@ impl VerdictVector {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VerdictVectorKey(pub u128);
 
+/// The key's bits in hex, as a goldened report spells it.
+impl core::fmt::LowerHex for VerdictVectorKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::LowerHex::fmt(&self.0, f)
+    }
+}
+
 fn sign_tag(s: Sign) -> u8 {
     sign_ix(s) as u8 + 1
 }
