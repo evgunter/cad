@@ -157,19 +157,40 @@ pub(crate) struct Readout {
     reach: f64,
     /// The spacing of adjacent floats there, in the lane's units.
     gap: f64,
+    /// What bounds the reach.
+    bound: ReachBound,
     /// The residual noise, in metres.
     noise: f64,
 }
 
+/// What bounds how far a march's states reach from zero
+/// ([`SettlingRefusal::bound`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReachBound {
+    /// The operands: the states lie on them, nearer zero than the
+    /// domain's far side.
+    Geometry,
+    /// The caller's domain: no operand box bounds the states nearer.
+    Domain,
+}
+
 impl Readout {
-    /// The residual evaluated at coordinates in `reach`, with `ulps` of
-    /// their spacing as noise.
-    pub(crate) fn spatial(reach: Box3, ulps: f64) -> Self {
-        let (reach, gap) = exhaust::coordinate_gap(reach);
+    /// The residual evaluated at coordinates in the caller's `domain`,
+    /// cut down to the box the `operands` lie in where one bounds them,
+    /// with `ulps` of their spacing as noise.
+    pub(crate) fn spatial(domain: Box3, operands: Option<Box3>, ulps: f64) -> Self {
+        let (whole, _) = exhaust::coordinate_gap(domain);
+        let (reach, gap) = exhaust::coordinate_gap(operands.map_or(domain, |o| domain.meet(o)));
+        let bound = if reach < whole {
+            ReachBound::Geometry
+        } else {
+            ReachBound::Domain
+        };
         Self {
             lane: ExhaustLane::R3,
             reach,
             gap,
+            bound,
             noise: ulps * gap,
         }
     }
@@ -187,6 +208,7 @@ impl Readout {
             lane: ExhaustLane::Chart { speed },
             reach,
             gap,
+            bound: ReachBound::Geometry,
             noise,
         }
     }
@@ -205,6 +227,8 @@ pub struct SettlingRefusal {
     pub reach: f64,
     /// The spacing of adjacent floats there, in the lane's units.
     pub gap: f64,
+    /// What bounds the reach: on the chart lane, always the geometry.
+    pub bound: ReachBound,
     /// The residual the march can settle to there, in metres.
     pub settle: f64,
     /// The run's tolerance, in metres.
@@ -245,6 +269,7 @@ impl MarchTol {
                 lane: readout.lane,
                 reach: readout.reach,
                 gap: readout.gap,
+                bound: readout.bound,
                 settle,
                 tolerance: meters,
             }));
@@ -309,6 +334,9 @@ pub const SSI_NEWTON_TOL: f64 = 1.0e-2;
 /// the threaded cylinder × sphere at ε = 1e-9, states settled to 0.47ε
 /// certify and states settled to 0.93ε escalate limb 2; the plane ×
 /// wall at ε = 1e-12 reads the same (0.45ε certifies, 0.91ε escalates).
+/// The headroom below it is the fixture's, not a bound: a rational wall
+/// (weights 1, 1.05, 0.97, 1) at 500 m and ε = 1e-12, settled to 0.45ε,
+/// reads limb 2 at 0.92ε, 8% inside the band.
 pub const SSI_SETTLE_MAX: f64 = 0.5;
 
 /// A quadric pair's residual noise, in ulps of its coordinates: twice
@@ -316,9 +344,11 @@ pub const SSI_SETTLE_MAX: f64 = 0.5;
 /// reach to 1e6 m at ε = 1e-9 with one ulp.
 pub const SSI_QUADRIC_NOISE_ULPS: f64 = 2.0;
 
-/// A spline pair's residual noise, in ulps of its coordinates: twice
-/// the measured need. The plane × wall at 20–1000 m and ε = 1e-12 loses
-/// its branch settling to two ulps and settles at four.
+/// A spline pair's residual noise, in ulps of its coordinates. The
+/// plane × certifiable wall of `tests/m5_pr7_ssi.rs` at 20–1000 m and
+/// ε = 1e-12 loses its branch settling to two ulps and settles at four;
+/// across further walls the need measured 4 to 6 ulps, so this is 1.3
+/// to 2 times the measured need, not a bound.
 pub const SSI_SPLINE_NOISE_ULPS: f64 = 8.0;
 
 /// Hoffmann's "keep the higher contributions small" (p. 215) as a named
@@ -1050,7 +1080,7 @@ where
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        Box3, LocalSystem, MarchContext, MarchTol, NormalPair, Readout, SSI_NEWTON_TOL,
+        Box3, LocalSystem, MarchContext, MarchTol, NormalPair, ReachBound, Readout, SSI_NEWTON_TOL,
         SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SsiError, StepFault, StepperMode, TraceDecision,
         TransversalityData, march,
     };
@@ -1062,6 +1092,7 @@ mod tests {
     fn read_at(x: f64, r: f64) -> Readout {
         Readout::spatial(
             Box3::around(Point3::new(x, 0.0, 0.0), r),
+            None,
             SSI_QUADRIC_NOISE_ULPS,
         )
     }
@@ -1329,8 +1360,20 @@ mod tests {
         ];
         for (sys, mode, guard) in rows {
             match march(&sys, [0.0, 0.0, 0.0], unit_ctx(band), mode, 1.0, band) {
-                Err(SsiError::Escalated { decision, .. }) => {
+                Err(ref e @ SsiError::Escalated { decision, .. }) => {
                     assert_eq!(decision, guard, "the poisoned operand's guard");
+                    // A poisoned margin names no lever of the decision's:
+                    // the arm gate ends as transversality's unreadable
+                    // margin, the rest as the kernel's defect.
+                    let ending = e.ending(crate::recourse::Reading::Build).unwrap();
+                    if guard == TraceDecision::TransversalityArm {
+                        assert!(
+                            ending.ends_with(geom_core::UNREADABLE_MARGIN_NOTE),
+                            "{guard:?}: {ending}"
+                        );
+                    } else {
+                        assert_eq!(ending, geom_core::KERNEL_DEFECT_ENDING, "{guard:?}");
+                    }
                 }
                 other => panic!("expected {guard:?} to escalate, got {other:?}"),
             }
@@ -1408,10 +1451,16 @@ mod tests {
             match MarchTol::decoupled(bad, reaching(1.0)) {
                 Err(SsiError::InvalidMarchTol { value }) => {
                     assert!(value.is_nan() || value == bad, "{value:e} vs {bad:e}");
-                    let msg = format!("{}", SsiError::InvalidMarchTol { value });
+                    let msg =
+                        SsiError::InvalidMarchTol { value }.render(crate::recourse::Reading::Build);
                     assert!(
-                        msg.contains("MarchTol::from_band"),
-                        "the recourse sentence: {msg}"
+                        msg.contains("not a usable length")
+                            && msg.ends_with(
+                                "Recourse: name a march tolerance that is a positive finite \
+                                 length"
+                            )
+                            && !msg.contains("MarchTol"),
+                        "the caller's knob: {msg}"
                     );
                 }
                 other => panic!("expected a typed refusal for {bad:e}, got {other:?}"),
@@ -1454,10 +1503,26 @@ mod tests {
                 panic!("expected the settling door, got {minted:?}");
             };
             assert!(matches!(r.lane, ExhaustLane::R3), "{r:?}");
+            assert_eq!(r.bound, ReachBound::Domain, "no operand box: {r:?}");
             assert!(
                 r.reach > 1.0e8 && r.gap > 1.0e-8 && r.settle > SSI_SETTLE_MAX * band.zero(),
                 "{r:?}"
             );
         }
+    }
+
+    /// **The reach is where the states can be**: a domain reaching
+    /// `1e8` m around an operand box at the origin reads at the box, and
+    /// names the geometry as what bounds it.
+    #[test]
+    fn the_readout_reads_where_the_operands_bound_the_states() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let wide = Box3::around(Point3::new(0.0, 0.0, 0.0), 1.0e8);
+        let unit = Box3::around(Point3::new(0.0, 0.0, 0.0), 1.0);
+        let r = Readout::spatial(wide, Some(unit), SSI_QUADRIC_NOISE_ULPS);
+        assert_eq!(r.bound, ReachBound::Geometry, "{r:?}");
+        assert!(r.reach <= 1.0 + 1.0e-12, "{r:?}");
+        let tol = MarchTol::from_band(band, r).unwrap();
+        assert_eq!(tol.settling(), SSI_NEWTON_TOL * band.zero());
     }
 }

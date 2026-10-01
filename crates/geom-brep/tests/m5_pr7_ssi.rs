@@ -3252,6 +3252,77 @@ fn a_far_quadric_pair_past_what_its_coordinates_resolve_refuses_by_scale() {
     assert!(r.reach > 1.0e8 && r.gap > 1.0e-8, "{r:?}");
 }
 
+/// **An oversized domain around geometry at the origin settles where
+/// the geometry is**, not at the domain's far corner: the march's
+/// states lie on the operands, so the readout's reach is the domain cut
+/// down to the bounded operand's box (the sphere's here). Both loops
+/// certified at the merge base with these half-extents.
+#[test]
+fn a_wide_slab_around_a_quadric_pair_at_the_origin_settles_where_the_pair_is() {
+    let b = band_at(1.0e-9);
+    for half_extent in [3.0e6, 6.0e6] {
+        let d = SsiDomain {
+            half_extent,
+            ..slab()
+        };
+        let out = ssi::cylinder_sphere_ssi(&threaded_cylinder(), &sphere(), d, b)
+            .unwrap_or_else(|e| panic!("half-extent {half_extent:e} m: {e:?}"));
+        assert_eq!(out.branches.len(), 2, "half-extent {half_extent:e} m");
+    }
+}
+
+/// The spline lane's twin: the readout's reach is the plane window cut
+/// down to the wall's control hull.
+#[test]
+fn a_wide_window_around_a_wall_at_the_origin_settles_where_the_wall_is() {
+    let b = band_at(1.0e-12);
+    let d = SsiDomain {
+        half_extent: 1000.0,
+        ..wall_domain()
+    };
+    let out = ssi::plane_nurbs_ssi(&cutting_plane(), &certifiable_wall(), d, b)
+        .expect("certified at the merge base: the wall sits at the origin");
+    assert_eq!(out.branches.len(), 1);
+}
+
+/// **Where no operand is bounded, the domain is what reaches, and the
+/// refusal names it.** The threaded cylinder against a plane through
+/// it, both unbounded, traced over a 3e6 m domain at ε = `1e-9`: the
+/// states may lie anywhere in it, so the march settles to the domain's
+/// spacing and refuses naming the domain, with the domain as a lever.
+#[test]
+fn a_domain_no_operand_bounds_refuses_naming_the_domain() {
+    use geom_brep::ReachBound;
+    use geom_brep::recourse::Reading;
+
+    let b = band_at(1.0e-9);
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.5),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let d = SsiDomain {
+        half_extent: 3.0e6,
+        ..slab()
+    };
+    let r = ssi::idealized_trace_r3(
+        &threaded_cylinder(),
+        &plane,
+        Point3::new(0.11, 0.0, 0.5),
+        d,
+        b,
+    );
+    let Err(ref err @ SsiError::SettlingUnresolvable(s)) = r else {
+        panic!("expected the settling door, got {r:?}");
+    };
+    assert_eq!(s.bound, ReachBound::Domain, "{s:?}");
+    let shown = err.render(Reading::Build);
+    assert!(
+        shown.contains("where the domain reaches") && shown.contains("Recourse: name a domain"),
+        "{shown}"
+    );
+}
+
 /// **A plane × NURBS wall far from the origin traces and certifies
 /// where its coordinates resolve the march, and refuses by its scale
 /// past that**, never "lost the branch". The spline lane settles to

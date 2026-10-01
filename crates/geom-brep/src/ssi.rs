@@ -138,15 +138,14 @@ pub use exhaust::{
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
 };
 pub use march::{
-    BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_QUADRIC_NOISE_ULPS,
-    SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION, SSI_STEP_MAX, SettlingRefusal,
-    StepFault, StepperMode,
+    BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
+    SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
+    SSI_STEP_MAX, SettlingRefusal, StepFault, StepperMode,
 };
 
 use enclose::{Box3, NurbsBoxes};
 use exhaust::{RateClause, SweepFloor, UvRect};
 use march::{MarchContext, MarchTol, Readout, Trace, march_both, trace_points};
-
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
 /// The two chart-parameter sample sequences of an ℝ⁴ trace — the
@@ -627,9 +626,14 @@ impl core::fmt::Display for SsiError {
                     lane,
                     reach,
                     gap,
+                    bound,
                     settle,
                     tolerance,
                 } = *r;
+                let what = match bound {
+                    ReachBound::Geometry => "geometry",
+                    ReachBound::Domain => "domain",
+                };
                 write!(
                     f,
                     "ssi: the march can settle a state no finer than {settle:e} m, not well \
@@ -638,7 +642,7 @@ impl core::fmt::Display for SsiError {
                 match lane {
                     ExhaustLane::R3 => write!(
                         f,
-                        "where the geometry reaches {reach:e} m from zero, adjacent coordinates \
+                        "where the {what} reaches {reach:e} m from zero, adjacent coordinates \
                          are {gap:e} m apart"
                     ),
                     ExhaustLane::Chart { speed } => write!(
@@ -791,7 +795,7 @@ impl core::fmt::Display for SsiError {
             Self::InvalidMarchTol { value } => write!(
                 f,
                 "ssi: the marcher's step tolerance {value:e} m is not a usable length \
-                 (finite and > 0); derive it from the run band with `MarchTol::from_band`"
+                 (finite and > 0)"
             ),
             Self::MarchTolMismatch { marched, band_zero } => write!(
                 f,
@@ -839,6 +843,9 @@ impl SsiError {
             // Only a certifying door edited to march at another tolerance
             // reaches it.
             Self::MarchTolMismatch { .. } => defect_ending(reading).to_owned(),
+            Self::InvalidMarchTol { .. } => {
+                "Recourse: name a march tolerance that is a positive finite length".to_owned()
+            }
             Self::OperandNotFinite { operand, datum } => {
                 format!("Recourse: give the {operand} a finite {datum}")
             }
@@ -857,9 +864,10 @@ impl SsiError {
             // The same decision as a floor too fine for its domain: the
             // geometry's scale, decided exactly.
             Self::SettlingUnresolvable(r) => {
-                let scale = match r.lane {
-                    ExhaustLane::R3 => exhaust::R3_SCALE,
-                    ExhaustLane::Chart { .. } => exhaust::CHART_SCALE,
+                let scale = match (r.lane, r.bound) {
+                    (ExhaustLane::R3, ReachBound::Geometry) => exhaust::R3_SCALE,
+                    (ExhaustLane::R3, ReachBound::Domain) => DOMAIN_SCALE,
+                    (ExhaustLane::Chart { .. }, _) => exhaust::CHART_SCALE,
                 };
                 scale.recourse(RefusedArm::SignCertain, reading)
             }
@@ -902,8 +910,7 @@ impl SsiError {
             | Self::UnsupportedCertificate { .. }
             | Self::TubeDegenerate(_)
             | Self::WrongLane { .. }
-            | Self::Band(_)
-            | Self::InvalidMarchTol { .. } => return None,
+            | Self::Band(_) => return None,
         })
     }
 
@@ -1433,6 +1440,9 @@ impl TraceDecision {
     /// - The return passes on every definite sign too, so only where an
     ///   untrusted marched sample landed against the seed refuses it,
     ///   which no lever the caller holds moves: the last resort.
+    /// - Where the step, the closure angle or the open end read a
+    ///   poisoned margin, no lever of theirs is what refused: the march's
+    ///   own arithmetic went unreadable, which is the kernel's.
     #[must_use]
     pub fn ending(self, cause: &Indeterminate, reading: Reading) -> String {
         let arm = RefusedArm::Undecided(cause);
@@ -1441,6 +1451,11 @@ impl TraceDecision {
                 crate::certify::recourse(CertCheck::Transversality, arm, reading)
             }
             Self::PairTangency => PAIR_TANGENCY.recourse(arm, reading),
+            Self::StepProgress | Self::ClosureTangent | Self::BranchOpenEnd
+                if cause.margin.is_invalid() =>
+            {
+                defect_ending(reading).to_owned()
+            }
             Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain, reading),
             Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain, reading),
             Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain, reading),
@@ -1448,6 +1463,18 @@ impl TraceDecision {
         }
     }
 }
+
+/// The march's settling against a domain that reaches further from zero
+/// than its coordinates resolve, where no operand bounds the states
+/// nearer ([`ReachBound::Domain`]).
+const DOMAIN_SCALE: SizedDecision = SizedDecision {
+    lever: "name a domain around the feature traced, nearer the origin, or move the geometry \
+            nearer the origin, where its coordinates resolve the tolerance",
+    size: "scale",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 /// The open end (`ssi_branch_open_end`), refused only where a marched
 /// state lands within the band of the domain's boundary. The boundary
@@ -1623,7 +1650,7 @@ pub fn cylinder_sphere_ssi(
     // The march settles to what the slab's coordinates resolve.
     let account_floor = SweepFloor::r3(slab, domain.floor(band), FloorKind::Accounting)?;
     let seed_floor = SweepFloor::r3(slab, domain.seed_floor(), FloorKind::Seeding)?;
-    let tol = MarchTol::from_band(band, Readout::spatial(slab, SSI_QUADRIC_NOISE_ULPS))?;
+    let tol = MarchTol::from_band(band, quadric_readout(a, b, slab))?;
 
     // ---- seeds: the subdivision, asked for its seeding duty ----
     let seeds = exhaust::seed_r3(a, b, seed_floor)?;
@@ -1748,6 +1775,64 @@ fn finish_r3(
     })
 }
 
+/// **The quadric lane's readout**, at every door that marches an
+/// analytic pair: the domain's `slab`, cut down to the box of each
+/// operand that is bounded. Every state lies on both operands inside the
+/// slab, so their coordinates reach no further than that.
+fn quadric_readout(a: &Surface<f64>, b: &Surface<f64>, slab: Box3) -> Readout {
+    let operands = [a, b]
+        .into_iter()
+        .filter_map(analytic_box)
+        .reduce(Box3::meet);
+    Readout::spatial(slab, operands, SSI_QUADRIC_NOISE_ULPS)
+}
+
+/// The box an analytic surface lies in, where it is bounded.
+fn analytic_box(surface: &Surface<f64>) -> Option<Box3> {
+    match *surface {
+        Surface::Sphere { center, radius, .. } => Some(Box3::around(center, radius.abs())),
+        Surface::Torus {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(Box3::around(
+            center,
+            major_radius.abs() + minor_radius.abs(),
+        )),
+        _ => None,
+    }
+}
+
+/// **The spline lane's readout**, at every door that marches a plane ×
+/// NURBS pair: the plane's `window` cut down to the wall's control
+/// hull, where every state's residual is read, and the wall's chart
+/// `root`, through which Newton moves, whichever is louder.
+///
+/// The chart's spacing crosses into metres at the sup speed, which
+/// over-states its noise, so the march settles no finer than either
+/// resolves and may refuse a wall a slower axis would carry. On a
+/// rational wall the over-statement is larger: the sup speed grows with
+/// the wall's absolute coordinates
+/// (`work/ssi/rational-chart-sup-speed-grows-with-translation.md`).
+fn spline_readout(
+    window: Box3,
+    wall: &NurbsSurface<f64>,
+    root: UvRect,
+    speed: geom_core::SupSpeed<f64>,
+) -> Readout {
+    let hull = wall
+        .control()
+        .iter()
+        .map(|&p| Box3::between(p, p))
+        .reduce(Box3::hull);
+    Readout::spatial(window, hull, SSI_SPLINE_NOISE_ULPS).or_chart(
+        root,
+        speed,
+        SSI_SPLINE_NOISE_ULPS,
+    )
+}
+
 /// The ℝ³ box a plane chart's `±half` window spans: every state the ℝ⁴
 /// trace settles lies on the plane inside it.
 fn window_reach(chart: &Chart<'_>, half: f64) -> Box3 {
@@ -1829,17 +1914,7 @@ pub fn plane_nurbs_ssi(
     let wall_op = SsiOperand::Nurbs(charted);
     let account_floor = SweepFloor::chart(root, domain.floor(band), speed, FloorKind::Accounting)?;
     let seed_floor = SweepFloor::chart(root, domain.seed_floor(), speed, FloorKind::Seeding)?;
-    // The march settles to the louder of the plane window's ℝ³
-    // coordinates, where its residual is read, and the wall's chart,
-    // through which Newton moves. Crossing the chart's spacing at the
-    // sup speed over-states its noise: the march settles no finer than
-    // either resolves, and may refuse a wall a slower axis would carry.
-    let readout = Readout::spatial(window, SSI_SPLINE_NOISE_ULPS).or_chart(
-        root,
-        speed,
-        SSI_SPLINE_NOISE_ULPS,
-    );
-    let tol = MarchTol::from_band(band, readout)?;
+    let tol = MarchTol::from_band(band, spline_readout(window, wall, root, speed))?;
 
     // ---- seeds ----
     let seeds = exhaust::seed_chart_plane(wall, p0, normal, seed_floor)?;
@@ -1998,12 +2073,12 @@ pub fn trace_plane_nurbs_uncertified(
             expected: "a plane and a NURBS surface traced in ℝ⁴ on their charts",
         });
     };
-    let tol = MarchTol::decoupled(
-        march_tol,
-        Readout::spatial(window_reach(&chart_a, half), SSI_SPLINE_NOISE_ULPS),
-    )?;
+    let window = window_reach(&chart_a, half);
     let chart_b = Chart::Nurbs(wall);
     let ((pu, pv), (ud, vd)) = (chart_a.domain(), chart_b.domain());
+    let speed = ChartedNurbs::mint(wall)?.speeds().max();
+    let root = UvRect { u: ud, v: vd };
+    let tol = MarchTol::decoupled(march_tol, spline_readout(window, wall, root, speed))?;
     let sys = ParametricPairR4 {
         a: chart_a,
         b: chart_b,
@@ -2101,7 +2176,7 @@ pub fn idealized_trace_r3(
             [slab.z.lo(), slab.z.hi()],
         ],
         extent: domain.extent,
-        tol: MarchTol::from_band(band, Readout::spatial(slab, SSI_QUADRIC_NOISE_ULPS))?,
+        tol: MarchTol::from_band(band, quadric_readout(a, b, slab))?,
         max_steps: SSI_MAX_STEPS,
     };
     let trace = march_both::<2, 3, _>(

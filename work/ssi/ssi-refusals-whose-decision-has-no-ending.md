@@ -1,7 +1,7 @@
 ---
 id: ssi-refusals-whose-decision-has-no-ending
 kind: issue
-title: geom-brep: fourteen SsiError arms still end in no recourse (SsiError::ending gives None), each needing its decision named
+title: geom-brep: thirteen SsiError arms still end in no recourse (SsiError::ending gives None), each needing its decision named
 status: open
 opened: 2026-10-01
 ---
@@ -13,7 +13,7 @@ door's precondition".)
 ## What
 
 `geom_brep::SsiError::ending` (`crates/geom-brep/src/ssi.rs`) gives
-`None` for fourteen arms, so `SsiError::render` shows their payload
+`None` for thirteen arms, so `SsiError::render` shows their payload
 with no recourse at all. D4 ¶1 (i) wants one ending per decision; the
 standard in `work/chrome/error-and-check-text-overflows-its-region.md`
 says the recourse is the part never to drop, and that a dead end says
@@ -35,13 +35,12 @@ check, not a ruling):
 | `TubeDegenerate` | the wall is constant across the locus, or the pcurve tangent is unusable | geometry lever for the wall, defect for the pcurve |
 | `WrongLane` | the door was handed the wrong kinds | the caller's (pass the kinds the door traces) |
 | `Band(BandError)` | the band could not be built | the caller's knobs |
-| `InvalidMarchTol` | the uncertified door's march tolerance is not a length | the caller's knob; its `Display` also carries developer advice (`MarchTol::from_band`, a crate-private name) that belongs in rustdoc |
 
 `ChartSpeed`, `OperandNotFinite`, `DomainUnusable`, `FloorUnresolvable`, `SettlingUnresolvable`,
 `BranchUndersampled`, `StepCollapsed`, `StepUnusable`, `FitSampleBudget`,
 `TransversalityBand`, `PairTangent`, `SelfCrossingLocus`,
-`CertificateLimb`, `TubeStraddles`, `CertificateEscalated`, `Escalated`
-and `MarchTolMismatch` have endings.
+`CertificateLimb`, `TubeStraddles`, `CertificateEscalated`, `Escalated`,
+`MarchTolMismatch` and `InvalidMarchTol` have endings.
 
 ## Repair shape
 
