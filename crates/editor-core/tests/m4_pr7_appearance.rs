@@ -253,7 +253,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     assert!(!d.is_empty());
 
     // Replay from empty reproduces the appearance bit-identically.
-    let edits = vec![
+    let edits = [
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
@@ -270,7 +270,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             attr: red(),
         },
     ];
-    let replayed = ProfileDoc::replay(doc3.id(), &edits.to_vec(), Tol::witness()).unwrap();
+    let replayed = ProfileDoc::replay(doc3.id(), &edits, Tol::witness()).unwrap();
     assert!(replayed.bit_eq(&doc3));
 }
 

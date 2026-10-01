@@ -891,7 +891,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     let r = rod("set-program-log", &[CREASE]);
     // The log is the edits `rod` applied, so it mints the same ids.
     let (plane, profile_node, rod_node) = (r.doc.order()[0], r.profile, r.rod);
-    let edits = vec![
+    let edits = [
         DocEdit::InsertNode {
             node: fixture::xy_frame(),
         },

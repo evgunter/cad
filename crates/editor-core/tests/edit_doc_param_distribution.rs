@@ -486,7 +486,7 @@ fn the_annotation_edit_saves_replays_and_loads() {
             distribution: None,
         },
     ];
-    let text = save(&snapshot, &edits.to_vec(), Tol::witness()).expect("a legal log saves");
+    let text = save(&snapshot, edits.as_ref(), Tol::witness()).expect("a legal log saves");
     assert!(
         text.contains("SetDocParamDistribution") && text.contains("\"distribution\""),
         "the wire form is the derive's, symbol and all"
@@ -529,8 +529,7 @@ fn the_refusals_are_symmetric_across_apply_replay_save_and_load() {
         &[DocEdit::SetDocParamDistribution {
             name: p("wall"),
             distribution: Some(sigma()),
-        }
-        .into()],
+        }],
         Tol::witness(),
     )
     .expect("the legal log saves");
@@ -625,7 +624,7 @@ fn a_non_finite_offset_on_the_edit_refuses_at_the_persistence_door() {
             hi: 0.0,
         }),
     }];
-    match save(&doc, &edits.to_vec(), Tol::witness()).expect_err("save refuses") {
+    match save(&doc, edits.as_ref(), Tol::witness()).expect_err("save refuses") {
         PersistError::NonFinite { site } => {
             let shown = format!("{site:?}");
             assert!(

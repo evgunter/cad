@@ -814,7 +814,7 @@ fn the_placement_axis_refuses_in_its_own_voice() {
         Ok(editor_core::apply(
             &doc,
             &DocEdit::SetOffset {
-                instance: instance,
+                instance,
                 offset: Some(editor_core::Placement::literal(&frame)),
             },
             Tol::witness(),
