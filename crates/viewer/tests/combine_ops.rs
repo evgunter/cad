@@ -1719,30 +1719,35 @@ fn the_open_tool_consumes_the_selection_stream() {
 fn the_seat_line_names_the_roles() {
     let doc = Doc::empty_derived("seat-line", Tol::witness());
     let mut boolean = BooleanTool::new();
-    assert_eq!(seat_line(boolean.seats()), "no picks yet");
+    assert_eq!(seat_line(boolean.seats(), &doc), "no picks yet");
     boolean.pick(&doc, RecipeNodeId(3));
+    // The empty document holds neither pick, so each is spoken by its
+    // tag alone.
     assert_eq!(
-        seat_line(boolean.seats()),
-        "first operand: feature 3; second operand: —"
+        seat_line(boolean.seats(), &doc),
+        "first operand: node 000000000003; second operand: —"
     );
     let mut transform = TransformTool::new();
     transform.pick(&doc, RecipeNodeId(7));
-    assert_eq!(seat_line(transform.seats()), "transformed body: feature 7");
+    assert_eq!(
+        seat_line(transform.seats(), &doc),
+        "transformed body: node 000000000007"
+    );
 }
 
 /// **A dropped pick is called what the panel called it**: the drop
 /// notice names the seat and the pick in the words the seat line said
 /// them in on the frame before — read off [`seat_line`]'s own output,
 /// so a panel and a notice that came to call one held node two things
-/// (`feature 4` beside `node 4`) go red here — and the words are
-/// `feature N`, the ones [`tree::node_number`] spells.
+/// go red here — and a node the document does not hold is spoken by
+/// its tag, `node 000000000004`.
 #[test]
 fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     let doc = Doc::empty_derived("seat-drop", Tol::witness());
     let mut boolean = BooleanTool::new();
     boolean.pick(&doc, RecipeNodeId(3));
     boolean.pick(&doc, RecipeNodeId(4));
-    let line = seat_line(boolean.seats());
+    let line = seat_line(boolean.seats(), &doc);
     let events = boolean.reconcile(&doc);
     assert_eq!(events.len(), 2, "neither node is in the empty document");
     for event in &events {
@@ -1765,7 +1770,8 @@ fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
             node: RecipeNodeId(4),
         }
         .to_string(),
-        "the second operand pick (feature 4) is no longer in the document; the tool dropped it"
+        "the second operand pick (node 000000000004) is no longer in the document; the tool \
+         dropped it"
     );
 }
 

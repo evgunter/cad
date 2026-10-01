@@ -60,7 +60,7 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 3);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     let (doc, eval) = session.landed_pair().expect("landed");
@@ -454,7 +454,7 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
     let note = session
         .tree_rows()
         .into_iter()
-        .find(|row| row.kind == "Mate")
+        .find(|row| row.spoken.kind() == Some("Mate"))
         .expect("the mate row exists")
         .note
         .expect("a Tangent mate carries its standing note");

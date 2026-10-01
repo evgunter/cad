@@ -331,7 +331,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::RecipeNodeId;
+    use pncad::document::{RecipeNodeId, SpokenNode};
 
     use eframe::egui;
 
@@ -344,6 +344,7 @@ mod tests {
     use crate::pane::headless::{
         assert_under, find, landed, landed_voiced, painted, painted_after_clicking, painted_text,
     };
+    use crate::test_support::spoken;
     use crate::theme::Theme;
     use crate::tree;
     use crate::tree::{CarriedLine, RowStatus, TreeRow};
@@ -427,7 +428,7 @@ mod tests {
     fn frame_row(id: u64, pose: &str) -> TreeRow {
         TreeRow {
             id: RecipeNodeId(id),
-            kind: "Datum frame",
+            spoken: spoken(RecipeNodeId(id), Some("Datum frame")),
             pose: Some(pose.to_owned()),
             depth: 0,
             root: false,
@@ -476,7 +477,7 @@ mod tests {
     fn a_row_with_nothing_more_to_say_reads_as_its_kind() {
         let row = TreeRow {
             id: RecipeNodeId(1),
-            kind: "Extrude",
+            spoken: spoken(RecipeNodeId(1), Some("Extrude")),
             pose: None,
             depth: 0,
             root: true,
@@ -517,10 +518,10 @@ mod tests {
 
     /// A mate row refused because its placer (`feature 3`) did not
     /// derive, as `tree::rows` builds one: `Failed`, with the link.
-    fn placer_refused_row(repair_at: Option<RecipeNodeId>) -> TreeRow {
+    fn placer_refused_row(repair_at: Option<SpokenNode>) -> TreeRow {
         TreeRow {
             id: RecipeNodeId(7),
-            kind: "Mate",
+            spoken: spoken(RecipeNodeId(7), Some("Mate")),
             pose: None,
             depth: 0,
             root: false,
@@ -605,9 +606,12 @@ mod tests {
     #[test]
     fn a_failed_rows_link_to_the_node_to_repair_selects_it() {
         let placer = RecipeNodeId(3);
-        let row = placer_refused_row(Some(placer));
-        let link = tree::link_wording(placer);
-        assert_eq!(link, "see feature 3", "the chrome's one spelling of a node");
+        let row = placer_refused_row(Some(spoken(placer, Some("Datum frame"))));
+        let link = tree::link_wording(spoken(placer, Some("Datum frame")));
+        assert_eq!(
+            link, "see Datum frame 000000000003",
+            "the node as the document speaks it"
+        );
         assert_eq!(clicking(&row, &link), Some(placer));
         assert_eq!(
             clicking(&row, FAILURE),
@@ -642,7 +646,7 @@ mod tests {
     #[test]
     fn a_poisoned_rows_pointer_selects_the_row_it_names() {
         let through = RecipeNodeId(7);
-        let pointer = tree::downstream_wording(through);
+        let pointer = tree::downstream_wording(spoken(through, Some("Fillet")));
         let row = TreeRow {
             status: RowStatus::Poisoned {
                 through,
@@ -1094,12 +1098,12 @@ mod tests {
             other => panic!("the premise: `min_clearance` has no value at f64: {other:?}"),
         };
         let row = fixture.row(fixture.unavailable);
-        let pointer = tree::link_wording(fixture.clearance);
+        let pointer = format!("see Measure {:012x}", fixture.clearance.0);
         let drawn = painted(|ui| feature_row_drawn(ui, &row));
         assert_eq!(
             drawn,
             vec![
-                format!("Assertion {GLYPH_ROOT}"),
+                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.unavailable.0),
                 state_of(&fixture, fixture.unavailable).to_owned(),
                 pointer.clone()
             ],
@@ -1129,9 +1133,12 @@ mod tests {
         assert_eq!(
             drawn,
             vec![
-                format!("Assertion {GLYPH_ROOT}"),
+                format!("Assertion {:012x} {GLYPH_ROOT}", fixture.poisoned.0),
                 "POISONED".to_owned(),
-                tree::downstream_wording(fixture.failed)
+                format!(
+                    "upstream failure at Measure {:012x} — that row carries the cause",
+                    fixture.failed.0
+                )
             ],
         );
     }
@@ -1157,7 +1164,7 @@ mod tests {
     fn instance_row() -> TreeRow {
         TreeRow {
             id: RecipeNodeId(4),
-            kind: "InstantiatePart",
+            spoken: spoken(RecipeNodeId(4), Some("InstantiatePart")),
             pose: Some(crate::test_support::PART_FILE.to_owned()),
             depth: 0,
             root: false,
@@ -1202,12 +1209,12 @@ mod tests {
     #[test]
     fn a_row_that_is_no_instance_draws_no_toggle() {
         let row = TreeRow {
-            kind: "Extrude",
+            spoken: spoken(RecipeNodeId(4), Some("Extrude")),
             pose: None,
             ..instance_row()
         };
         let drawn = painted(|ui| feature_row_drawn(ui, &row));
-        assert_eq!(drawn, vec!["Extrude".to_owned()], "{drawn:?}");
+        assert_eq!(drawn, vec!["Extrude 000000000004".to_owned()], "{drawn:?}");
         let with = painted(|ui| feature_row_drawn(ui, &instance_row()));
         assert!(
             with.iter().any(|text| text == "shown"),

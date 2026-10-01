@@ -1845,19 +1845,23 @@ mod tests {
     /// FEATURE, which is what every other panel calls a node.
     #[test]
     fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
-        let painted =
-            |state: &MateToolState| painted_text(|ui| mate_picks_row(ui, state, &Theme::DEFAULT));
+        // The picks' nodes are not in this document, so each is spoken
+        // as a bare tag.
+        let doc = Doc::<ProfileProgram>::empty_derived("mate-row", Tol::witness());
+        let painted = |state: &MateToolState| {
+            painted_text(|ui| mate_picks_row(ui, state, &doc, &Theme::DEFAULT))
+        };
         assert_eq!(painted(&MateToolState::Idle), "no picks yet");
         assert_eq!(
             painted(&MateToolState::One(face_on(3))),
-            "pick a: face of feature 3; pick b: —"
+            "pick a: face of node 000000000003; pick b: —"
         );
         assert_eq!(
             painted(&MateToolState::Two {
                 a: face_on(3),
                 b: face_on(5),
             }),
-            "pick a: face of feature 3; pick b: face of feature 5"
+            "pick a: face of node 000000000003; pick b: face of node 000000000005"
         );
     }
 
@@ -1868,18 +1872,19 @@ mod tests {
     fn the_boolean_panel_says_which_operand_each_pick_is() {
         let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
         let mut tool = BooleanTool::new();
-        let painted =
-            |tool: &BooleanTool| painted_text(|ui| seats_row(ui, tool.seats(), &Theme::DEFAULT));
+        let painted = |tool: &BooleanTool| {
+            painted_text(|ui| seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT))
+        };
         assert_eq!(painted(&tool), "no picks yet");
         tool.pick(&doc, RecipeNodeId(3));
         assert_eq!(
             painted(&tool),
-            "first operand: feature 3; second operand: —"
+            "first operand: node 000000000003; second operand: —"
         );
         tool.pick(&doc, RecipeNodeId(5));
         assert_eq!(
             painted(&tool),
-            "first operand: feature 3; second operand: feature 5"
+            "first operand: node 000000000003; second operand: node 000000000005"
         );
     }
 
@@ -2633,6 +2638,7 @@ mod declared_union {
                 ui,
                 &mut held,
                 (session.generation(), op, tool),
+                session.doc(),
                 &mut ops,
                 &Theme::DEFAULT,
             );
@@ -2704,10 +2710,10 @@ mod declared_union {
             painted,
             format!(
                 "declare this contact and commit the boolean?\n\
-                 a face of {} against a face of {} — {} contact\n\
+                 a face of Extrude {:012x} against a face of Extrude {:012x} — {} contact\n\
                  Declare\nDecline",
-                tree::node_number(block),
-                tree::node_number(boss),
+                block.0,
+                boss.0,
                 ContactClass::Rest.name()
             )
         );

@@ -161,7 +161,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     // an author goes and fixes is one click from the words, and it is
     // the only link any row draws beside a `Poisoned` pointer.
     assert_eq!(
-        row.repair_at,
+        row.repair_at.map(|at| at.id()),
         Some(pattern),
         "the mate's row links to the placer"
     );
@@ -290,7 +290,7 @@ fn mate_fault(ev: &Evaluation<f64>, mate: RecipeNodeId) -> MateFault {
 fn assert_no_row_links(rows: &[tree::TreeRow]) {
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .filter_map(|row| row.repair_at.map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(linking, Vec::new(), "no row links to a node to repair");
 }
@@ -529,7 +529,7 @@ fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
     );
     let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
         .iter()
-        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .filter_map(|row| row.repair_at.map(|at| (row.id, at.id())))
         .collect();
     assert_eq!(
         linking,

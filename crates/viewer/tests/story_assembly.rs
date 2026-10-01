@@ -294,7 +294,7 @@ fn the_windmill_story() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 2);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
@@ -517,7 +517,7 @@ fn the_windmill_story() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     assert!(
-        session.tree_rows().iter().any(|row| row.kind == "Mate"),
+        session.tree_rows().iter().any(|row| row.spoken.kind() == Some("Mate")),
         "the mate has a row"
     );
     assert_eq!(

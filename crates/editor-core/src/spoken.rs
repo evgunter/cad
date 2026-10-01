@@ -88,6 +88,13 @@ pub struct SpokenNode {
 }
 
 impl SpokenNode {
+    /// A spoken node with no document behind it, for a fixture that
+    /// builds by hand what a document would say.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn forged(id: RecipeNodeId, kind: Option<&'static str>) -> Self {
+        Self { id, kind }
+    }
+
     /// The node this sentence names.
     #[must_use]
     pub fn id(&self) -> RecipeNodeId {

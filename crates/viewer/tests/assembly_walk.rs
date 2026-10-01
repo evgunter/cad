@@ -72,7 +72,7 @@ fn the_exit_demo_walk() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 3);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
@@ -312,7 +312,7 @@ fn the_exit_demo_walk() {
     );
     let rows = reopened.tree_rows();
     assert_eq!(rows.len(), 4, "three instances and the mate");
-    assert!(rows.iter().any(|row| row.kind == "Mate"));
+    assert!(rows.iter().any(|row| row.spoken.kind() == Some("Mate")));
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

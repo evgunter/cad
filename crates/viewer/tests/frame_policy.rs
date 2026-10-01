@@ -640,6 +640,9 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
 /// Unfalsifiable before: a badge had no subject to get wrong.
 #[test]
 fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
+    // The badges here carry no node, so the document they speak in
+    // holds none.
+    let nodeless: Doc<ProfileProgram> = Doc::empty_derived("badges", Tol::witness());
     let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
@@ -677,7 +680,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             "a scene the rebuild refused ends when a rebuild lands",
         ),
         (
-            frame::index_badge(Some(&build), None),
+            frame::index_badge(Some(&build), &nodeless, None),
             frame::Subject::Display,
             "a held pick-index refusal ends when a build lands",
         ),
@@ -757,7 +760,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     );
     assert_eq!(
         frame::unindexed_refusal(&pickcache::NotIndexed::Building).subject(),
-        frame::index_badge(Some(&build), None)
+        frame::index_badge(Some(&build), &nodeless, None)
             .expect("a held refusal badges")
             .subject(),
         "and one seam does not speak with two voices: the click it \
@@ -779,7 +782,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     // rest of the family's.
     assert_eq!(frame::scene_badge(None), None, "a scene that built");
     assert_eq!(
-        frame::index_badge(None, None),
+        frame::index_badge(None, &nodeless, None),
         None,
         "a cache holding no refusal"
     );
@@ -814,12 +817,12 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
         .expect_err("a poisoned root refuses the index");
-    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on feature {}, which failed — {consequence}",
+            "pick index: waits on Extrude {:012x}, which failed — {consequence}",
             extrude.0
         ),
         "the row the tree blames, not the root the build refused on"
@@ -865,12 +868,12 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     session.pump();
     let refusal = common::index_at(&session, common::plate_delta())
         .expect_err("one failed root refuses the whole index");
-    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on feature {}, which failed — {consequence}",
+            "pick index: waits on Extrude {:012x}, which failed — {consequence}",
             broken.0
         )
     );
@@ -879,8 +882,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         badge.detail(),
         Some(
             format!(
-                "pick index: root {0} could not be indexed: pick: node {0} failed, so it has \
-                 no value — fix the node's own failure",
+                "pick index: root {0:012x} could not be indexed: pick: node {0:012x} failed, so \
+                 it has no value — fix the node's own failure",
                 broken.0
             )
             .as_str()
@@ -895,10 +898,10 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         node: RecipeNodeId(3),
         body: 0,
     };
-    let badge = frame::index_badge(Some(&own), session.evaluation()).expect("it badges");
+    let badge = frame::index_badge(Some(&own), session.doc(), session.evaluation()).expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(badge.label(), format!("pick index: {own}"));
-    let unread = frame::index_badge(Some(&refusal), None).expect("it badges");
+    let unread = frame::index_badge(Some(&refusal), session.doc(), None).expect("it badges");
     assert_eq!(unread.tone(), frame::Tone::Actionable);
     assert_eq!(unread.label(), format!("pick index: {refusal}"));
 
@@ -918,13 +921,13 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         node: absent,
         error: NodePickError::Standing(NodeStanding::NotEvaluated { node: absent }),
     };
-    let badge = frame::index_badge(Some(&never_ran), session.evaluation()).expect("it badges");
+    let badge = frame::index_badge(Some(&never_ran), session.doc(), session.evaluation()).expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),
-        "pick index: root 99 could not be indexed: pick: node 99 has no result in this \
-         evaluation: the run was canceled before it reached the node — re-evaluate the \
-         document to completion"
+        "pick index: root 000000000063 could not be indexed: pick: node 000000000063 has no \
+         result in this evaluation: the run was canceled before it reached the node — \
+         re-evaluate the document to completion"
     );
 }
 
@@ -957,7 +960,7 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     else {
         panic!("the root is Failed in the evaluation, not poisoned: {refusal:?}");
     };
-    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+    let badge = frame::index_badge(Some(&refusal), session.doc(), session.evaluation())
         .expect("a refusal the cache holds is still badged");
     assert_eq!(
         (*root, *failed),
@@ -968,7 +971,7 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on feature {}, which failed — until the index builds, no pick \
+            "pick index: waits on Mate {:012x}, which failed — until the index builds, no pick \
              is answered and the picture is not redrawn",
             offender.0
         ),
@@ -3474,6 +3477,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::B,
+                node: viewer::test_support::spoken(RecipeNodeId(3), None),
                 pick: FaceSelection {
                     name: face.clone(),
                     node: RecipeNodeId(3),
