@@ -106,7 +106,7 @@ use geom_core::{Margin, Sign};
 
 use crate::names::borders::Obstacles;
 use crate::names::defer::{TieRows, mint_candidates};
-use crate::names::discriminate::{ON_MEMBER_EDGE, band};
+use crate::names::discriminate::{ON_MEMBER_EDGE, ON_SEAM_LINE, band};
 use crate::names::emit::{
     Incidence, NamingError, check_total, edge_ends, ent, face_half_edges, rims_between,
     vertex_point,
@@ -927,11 +927,11 @@ fn rank_along_seam<T: geom_core::Decide>(
             for &e in &g.edges {
                 let (v0, v1) = edge_ends(body, e)?;
                 for v in [v0, v1] {
-                    on &= seg.on_line(vertex_point(body, v)?, ON_MEMBER_EDGE, bnd)?;
+                    on &= seg.on_line(vertex_point(body, v)?, ON_SEAM_LINE, bnd)?;
                 }
             }
             for &p in &points {
-                on &= seg.on_line(p, ON_MEMBER_EDGE, bnd)?;
+                on &= seg.on_line(p, ON_SEAM_LINE, bnd)?;
             }
             on.then_some((first, &g.base))
         }

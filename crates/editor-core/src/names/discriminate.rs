@@ -37,6 +37,14 @@ pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 /// ladder reads a family flip on the path as the name's own.
 pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
 
+/// The on-seam-line predicate's name (`emit_union::rank_along_seam`):
+/// whether a union seam's pieces, and the crossings of it a vertex group
+/// holds, lie on one straight line.
+///
+/// **In the [`FAMILY`]**: its verdicts decide whether the group is
+/// ranked along that line or tied, so they enter the names.
+pub(crate) const ON_SEAM_LINE: &str = "name_frag_on_seam_line";
+
 /// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
 /// whether a boolean's chord between two merged faces lies within the
 /// rim its key's side reads it through to.
@@ -59,6 +67,7 @@ pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
     match predicate {
         ORDER_ALONG => Some("the order of two crossings along an edge"),
         ON_MEMBER_EDGE => Some("a point's place along an edge"),
+        ON_SEAM_LINE => Some("whether a point lies on a seam's line"),
         CHORD_ON_RIM => Some("whether a chord lies on its rim"),
         _ => None,
     }

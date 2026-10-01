@@ -1741,16 +1741,12 @@ impl<T: Decide> Segment<T> {
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<OnSegment, NamingError> {
+        if !self.on_line(p, predicate, bnd)? {
+            return Ok(OnSegment::Off);
+        }
         let sign = |m: Margin<T>| {
             decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { predicate, source })
         };
-        let off = sign(Margin::over_lever(
-            (p - self.q0).cross(self.d).norm(),
-            self.len,
-        ))?;
-        if off != Sign::Zero {
-            return Ok(OnSegment::Off);
-        }
         let past0 = sign(Margin::over_lever((p - self.q0).dot(self.d), self.len))?;
         let past1 = sign(Margin::over_lever((self.q1 - p).dot(self.d), self.len))?;
         Ok(match (past0, past1) {
