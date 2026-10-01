@@ -291,9 +291,21 @@ pub fn first_node_id(node: &Node<ProfileProgram>) -> RecipeNodeId {
 }
 
 /// **A spoken node built by hand**: what a document holding `id` as a
-/// `kind` would say (`None`: a document that does not hold it), for a
-/// fixture that builds a row by hand rather than through a document.
+/// `kind` with no label would say (`None`: a document that does not
+/// hold it), for a fixture that builds a row by hand rather than
+/// through a document.
 #[must_use]
 pub fn spoken(id: RecipeNodeId, kind: Option<&'static str>) -> crate::SpokenNode {
-    crate::SpokenNode::forged(id, kind)
+    crate::SpokenNode::forged(id, kind, None)
+}
+
+/// [`spoken`] for a node the document holds as a `kind` labelled
+/// `label`.
+#[must_use]
+pub fn spoken_labelled(
+    id: RecipeNodeId,
+    kind: &'static str,
+    label: crate::Label,
+) -> crate::SpokenNode {
+    crate::SpokenNode::forged(id, Some(kind), Some(label))
 }

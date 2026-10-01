@@ -175,6 +175,19 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   belong to one section, and are named by that section's own locators. If a
   value edit changes which pieces pair, the old wall's name vanishes. It
   does not follow `k` to the new pairing.
+- **Swept walls over a run.** Extrude and revolve build one wall per run of
+  profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
+  wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds
+  the run: its piece locators in authored order, a one-piece run spelled as
+  one locator; a run that wraps through the loop's start begins at its first
+  piece after the start vertex. `LateralEdge` and `BandRim` are minted only
+  where an entity exists, so a station inside a run has none; rims and cap
+  vertices stay per piece. A run wall is not a merge and never `Merged`.
+  Covers and offers (N3) read one constituents view shared by every role
+  that holds a set (`Merged`, `LoftWall`, a run wall): `Lateral([p0, p1])`
+  covers `Lateral([p0])`, so a selection made before a station was inserted
+  is offered the run wall, and an edit that breaks a run offers its pieces'
+  walls.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:

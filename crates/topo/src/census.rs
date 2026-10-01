@@ -2046,7 +2046,7 @@ fn ee_cross_backed<T: Decide>(
                 undecided.push(crate::invalid_margin::invalid(band, "material_wedge_side"));
                 continue;
             }
-            Err(cause) => {
+            Err(geom_brep::LeverEscalation { diag: cause, .. }) => {
                 undecided.push(cause);
                 continue;
             }

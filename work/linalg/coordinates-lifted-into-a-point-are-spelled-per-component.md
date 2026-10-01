@@ -2,10 +2,11 @@
 id: coordinates-lifted-into-a-point-are-spelled-per-component
 kind: issue
 title: Whether geom_core should carry a public literal constructor (a point or vector at T from f64 coordinates) below pncad::authoring's p2/p3/v2/v3 — a question for the owner of geom-core's public surface
-status: open
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: D
+closed: 2026-10-01
 ---
 
 
@@ -153,3 +154,18 @@ the coordinate. Twenty-two of `sweep`'s suites lift through a local
 `fn iv`, so their `p2`/`p3`/`v3` never spell `from_f64` at a coordinate
 and were invisible to it — the blind spot the row itself disclosed ("a
 coordinate lifted into a named local"), at the scale of a whole binary.
+
+## Closed (2026-10-01) — no door
+
+The same designer pair converged on not adding the door, for these
+reasons:
+
+- `map` is the one lift door on every leaf type.
+- `Point3::new` is a `const fn`, so an f64 fixture can be written once
+  and lifted whole. A `T`-level constructor could not be `const`.
+- A generic `from_f64` would be a second spelling of `map`, and its
+  only consumers would be tests. It also would not serve `sweep`'s
+  monomorphic helpers, which would need a turbofish.
+- `pncad::authoring`'s `p2`/`p3`/`v2`/`v3` stay the one f64-first seam.
+
+This is reversible the day a production consumer appears.

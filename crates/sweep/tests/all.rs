@@ -109,6 +109,8 @@ mod pis_arc_capped_poses;
 mod pis_cut_cavity;
 #[path = "placeholder_chart_boundary.rs"]
 mod placeholder_chart_boundary;
+#[path = "pole_slit_window.rs"]
+mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -206,6 +208,8 @@ mod contact_edge_must_carry;
 mod contained_flush_cylinder;
 #[path = "contfp_reads_arcs_on_their_carriers.rs"]
 mod contfp_reads_arcs_on_their_carriers;
+#[path = "copied_carriers_at_interval.rs"]
+mod copied_carriers_at_interval;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
 #[path = "euler_site_row_frontiers.rs"]

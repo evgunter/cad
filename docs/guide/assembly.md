@@ -72,9 +72,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -98,7 +98,7 @@ assert store.resolve(shelf_ref).id == shelf.id
 
 # The shelf legitimately changes: same part, new content, new pin.
 thicker = prism("bench-shelf", 0.9, 0.30, 0.08)
-assert thicker.id == shelf.id, "same label, same part"
+assert thicker.id == shelf.id, "same seed, same part"
 assert content_pin(thicker) != content_pin(shelf)
 store.resave(thicker)
 
@@ -196,9 +196,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -445,9 +445,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -535,9 +535,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -651,9 +651,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -800,9 +800,9 @@ POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -999,9 +999,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))
@@ -1115,9 +1115,9 @@ from pncad import (
 )
 
 
-def prism(label, width, depth, height):
+def prism(seed, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
-    doc = Doc(label)
+    doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, Expr.length_in(height, m)))

@@ -367,7 +367,7 @@ fn one_sided_tangency_refused_typed() {
     let err = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(
         err,
-        SplitError::Join(SplitJoinError::DegenerateSection { .. })
+        topo::SectionError::Split(SplitError::Join(SplitJoinError::DegenerateSection { .. }))
     ));
 }
 
@@ -437,12 +437,13 @@ fn plane_section_slicing() {
     let before = format!("{:?}", fx.body);
     let section = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(format!("{:?}", fx.body), before, "operand untouched");
-    assert_eq!(section.polygons.len(), 3);
+    assert_eq!(section.regions.len(), 3);
+    assert!(section.regions.iter().all(|r| r.holes.is_empty()));
     let (u, v) = (section.u_ref.unwrap(), section.v_ref.unwrap());
     // The frame is in-plane and orthonormal (exact for these axes).
     assert_eq!(u.dot(section.plane.normal), 0.0);
     assert_eq!(v.dot(section.plane.normal), 0.0);
-    for poly in &section.polygons {
+    for poly in section.regions.iter().map(|r| &r.outline) {
         assert_eq!(poly.points.len(), poly.uv.len());
         assert!(poly.points.len() >= 4);
         for (p, q) in poly.points.iter().zip(&poly.uv) {
@@ -454,21 +455,22 @@ fn plane_section_slicing() {
     }
     // Total section area = the y = 1 material cross-section: the
     // notched block's slice is x ∈ [0,4] ∪ [4,6] ∪ [7,8], z ∈ [0,1].
+    // Outlines wind counter-clockwise, so the signed areas sum to it.
     let mut total = 0.0;
-    for poly in &section.polygons {
+    for poly in section.regions.iter().map(|r| &r.outline) {
         let mut twice = 0.0;
         for i in 0..poly.uv.len() {
             let a = poly.uv[i];
             let b = poly.uv[(i + 1) % poly.uv.len()];
             twice += a.x * b.y - b.x * a.y;
         }
-        total += (twice / 2.0).abs();
+        total += twice / 2.0;
     }
     assert!((total - 7.0).abs() < 1e-12);
 
-    // A plane that misses the body: zero polygons, typed success.
+    // A plane that misses the body: zero regions, typed success.
     let empty = plane_section(&fx.body, &plane_y(9.0), Tol::witness()).unwrap();
-    assert!(empty.polygons.is_empty());
+    assert!(empty.regions.is_empty());
     assert!(empty.u_ref.is_none());
 }
 
@@ -595,9 +597,9 @@ fn interval_lane_acceptance() {
     assert_eq!(body_of(&r.above).shells().count(), 3);
     assert_eq!(body_of(&r.below).shells().count(), 1);
 
-    // Slicing: three polygons, corners on the plane (containment).
+    // Slicing: three regions, corners on the plane (containment).
     let s = plane_section(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 3);
+    assert_eq!(s.regions.len(), 3);
 
     // One-sided tangency refuses typed on this lane too.
     let fx = prism::<Interval>(

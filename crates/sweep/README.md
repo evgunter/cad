@@ -37,6 +37,21 @@ chamfers) is registered in `docs/KERNEL-VERBS.md`; the canal blend is
 | The open bands: the plane–plane band with its trihedral corners, the ruled band with its transverse cut-off | `crates/sweep/src/blend/open/planar.rs`, `crates/sweep/src/blend/open/ruled.rs` |
 | Birth records (`BlendNaming`) the document layer turns into names | `crates/sweep/src/blend/naming.rs` |
 
+## Walls: one per run
+
+A *run* is a maximal chain of adjacent profile pieces the lowering's
+cosurface verdict puts on one carrier — collinear lines, cocircular
+same-turn arcs — however the author wrote them (a declared straight
+continuation, a station kept on a side, a raw collinear polygon). Extrude
+and revolve build ONE wall per run on every carrier kind, so no sweep mints
+a same-key adjacency for a merge to undo. The one exception is a run that
+is the whole closed loop (a circle): it keeps its canonical cut (C12.5).
+A station inside a run stays a vertex wherever a cap carries the profile
+(extrude's caps, a partial revolve's wedge caps), splitting the rim or
+meridian chain into collinear edges; in a full revolve it has no entity.
+Loft builds one wall per corresponding segment pair: across sections
+nothing declares two walls one surface, and the station pins the ruling.
+
 ## Blend vocabulary (BLEND-VOCAB-DESIGN V1–V4)
 
 The fillet and the chamfer are one request over the same bodies, judged

@@ -55,11 +55,12 @@ take `face.outer`. Nothing compares ring against ring, so ring-ring
 contact goes as unchecked as ring-in-ring nesting.
 
 This now has a producer. The split nests every section hole into the
-face that encloses it (`crates/topo/src/splitting/finish.rs`,
-`nest_hole_sections`), so two holes whose sections touch could land as
-two touching rings of one face. The nesting guards against that itself:
-a hole joins a face only when it is decided disjoint from every ring
-the face already holds. Tier 3 has no such guard, so it would not catch
+face that encloses it (the rule is `section_loops::nest` in
+`crates/topo/src/splitting/section_loops.rs`; the split applies it in
+`finish.rs`, `nest_hole_sections`), so two holes whose sections touch
+could land as two touching rings of one face. `nest_hole_sections`
+guards against that itself: a hole joins a face only when it is
+decided disjoint from every ring the face already holds. Tier 3 has no such guard, so it would not catch
 a producer that skipped the check.
 
 The taker's ring-vs-ring arm should decide contact as well as nesting,

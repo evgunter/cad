@@ -52,7 +52,8 @@ use geom_core::Tol;
 /// witness adoption, never a silent write-back (SOLVER-DESIGN W4);
 /// `SetTolerance`, the recorded ε; and the appearance and metadata
 /// pairs (`SetAppearance`/`ClearAppearance`,
-/// `SetAppearanceMeta`/`ClearAppearanceMeta`, spec D7). Each arm's own
+/// `SetAppearanceMeta`/`ClearAppearanceMeta`, spec D7), and
+/// `SetLabel`, a node's label. Each arm's own
 /// doc states what it does and what it refuses; every refusal is a
 /// typed [`EditError`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -468,6 +469,25 @@ pub enum DocEdit<P> {
         /// prior document, which still carries the prior pin.
         new_pin: crate::ident::ContentPin,
     },
+    /// **Set or clear a node's label** (DESIGN.md Band 1, "Node
+    /// labels"): `Some` replaces whatever label the node had, `None`
+    /// clears it. The label is document data beside the node, so this
+    /// edit moves no content key and recomputes nothing; it does move
+    /// the content pin, as a recolour does.
+    ///
+    /// Refuses a node that is not live ([`EditError::UnknownNode`]),
+    /// and an edit that would leave the label as it is
+    /// ([`EditError::LabelUnchanged`]).
+    ///
+    /// A labelled creation is an [`DocEdit::InsertNode`] and then this
+    /// edit, committed together: the insert carries no label, because
+    /// what it carries is what the node's id is minted from.
+    SetLabel {
+        /// The node to label.
+        node: RecipeNodeId,
+        /// The new label, `None` to clear it.
+        label: Option<crate::Label>,
+    },
 }
 
 impl<P> DocEdit<P> {
@@ -526,6 +546,7 @@ impl<P> DocEdit<P> {
             | Self::SetAppearanceMeta { .. }
             | Self::ClearAppearanceMeta { .. }
             | Self::SetRoots { .. }
+            | Self::SetLabel { .. }
             | Self::UpdateReference { .. } => false,
         }
     }
@@ -568,6 +589,7 @@ impl<P> DocEdit<P> {
             | Self::SetAppearanceMeta { .. }
             | Self::ClearAppearanceMeta { .. }
             | Self::SetRoots { .. }
+            | Self::SetLabel { .. }
             | Self::UpdateReference { .. } => false,
         }
     }
@@ -1409,6 +1431,15 @@ pub enum EditError {
         node: RecipeNodeId,
         /// The pin both sides carry.
         pin: crate::ident::ContentPin,
+    },
+    /// A `SetLabel` that would leave the node's label as it is: the
+    /// same text again, or a clear of a node with none. Refused rather
+    /// than recorded, so a log's label edit always moved a label.
+    LabelUnchanged {
+        /// The node.
+        node: RecipeNodeId,
+        /// The label it already has, `None` for none.
+        label: Option<crate::Label>,
     },
 }
 
@@ -2318,6 +2349,13 @@ impl EditError {
                         geom_core::KERNEL_DEFECT_ENDING
                     ),
                 }
+            }
+            Self::LabelUnchanged { node, label } => {
+                match label {
+                    Some(label) => write!(f, "node {node} is already labelled \"{label}\"")?,
+                    None => write!(f, "node {node} has no label to clear")?,
+                }
+                tail.recourse(f, format_args!("offer a label other than the one it has"))
             }
             Self::MaintenanceUnrecorded { gauge } => write!(
                 f,
@@ -3620,6 +3658,8 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // name live instantiate nodes, an invariant the save
             // validator re-checks.
             new.placements.remove(id);
+            // And its label: the store's keys name live nodes.
+            new.labels.remove(id);
             // The mint log keeps the id: ids are never reused (D3).
             EditRecord {
                 minted: None,
@@ -4074,6 +4114,25 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             EditRecord {
                 minted: None,
                 structural: true,
+            }
+        }
+        DocEdit::SetLabel { node, label } => {
+            if !new.nodes.contains_key(node) {
+                return Err(EditError::UnknownNode { id: *node });
+            }
+            if new.labels.get(node) == label.as_ref() {
+                return Err(EditError::LabelUnchanged {
+                    node: *node,
+                    label: label.clone(),
+                });
+            }
+            match label {
+                Some(label) => new.labels.insert(*node, label.clone()),
+                None => new.labels.remove(node),
+            };
+            EditRecord {
+                minted: None,
+                structural: false,
             }
         }
         DocEdit::UpdateReference { node, new_pin } => {

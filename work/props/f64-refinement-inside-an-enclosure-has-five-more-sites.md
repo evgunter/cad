@@ -2,8 +2,9 @@
 id: f64-refinement-inside-an-enclosure-has-five-more-sites
 kind: issue
 title: An f64 knot refinement (or an f64-rounded insertion ratio) inside an enclosure: five more sites of TESS-2's class
-status: open
+status: review
 opened: 2026-09-22
+pr: 3524
 ---
 
 
@@ -47,7 +48,7 @@ call under `crates/*/src`, then reading what each result feeds.
 | `crates/geom/src/curves/nurbs.rs`, `rational_speed_lower_bound` | 1 | `refine_knots` in `f64` at `RATIONAL_METER_SPLITS`, then `rational_span_scan`'s hulls in the evaluation scalar `T`. At `T = Interval` the answer is an enclosure of the refined-`f64` curve's speed, and the meter's claim is about the described curve |
 | `crates/geom-brep/src/props/quad.rs`, the `QUAD2_REFINE_SPANS` net refinement | 2 | `refine_plan` with unit weights, applied to `RVec3` ring coefficients through `ring_lerp` with the plan's `f64` `λ` lifted as a ring point |
 | `crates/geom-brep/src/props/quad.rs`, the chart-image refinement | 2 | `refine_plan` with the image's real weights, applied to `RPt2` ring brackets through a locally-written lerp with the plan's `f64` `λ` |
-| `crates/geom-core/src/spline/compose.rs`, `insert_once_ring` | ratio enclosed, but the LERP form | `α` is already an outward-rounded ring quotient here, so this site is sound. What it loses is WIDTH: `c_{j−1} + (c_j − c_{j−1})·α` reads `c_{j−1}` twice, so an interval coefficient's dust enters with coefficient `1 + α` and a fold of insertions multiplies it up per step. TESS-2 measured 355 ulps against 16 for the convex form `β·c_{j−1} + α·c_j` over 30 insertions, and the quarter cylinder's structurally-zero `S_vv` came out at 8.8e-11 with the lerp form against 7.0e-13 with the convex one — 126x. `to_bezier_spans` inserts to FULL multiplicity, so its fold is `p` deep per interior knot and it is the site where this costs most |
+| `crates/geom-core/src/spline/compose.rs`, `insert_once_ring` — **CLOSED by PR 3524** | ratio enclosed, but the LERP form | `α` is already an outward-rounded ring quotient here, so this site is sound. What it loses is WIDTH: `c_{j−1} + (c_j − c_{j−1})·α` reads `c_{j−1}` twice, so an interval coefficient's dust enters with coefficient `1 + α` and a fold of insertions multiplies it up per step. TESS-2 measured 355 ulps against 16 for the convex form `β·c_{j−1} + α·c_j` over 30 insertions, and the quarter cylinder's structurally-zero `S_vv` came out at 8.8e-11 with the lerp form against 7.0e-13 with the convex one — 126x. `to_bezier_spans` inserts to FULL multiplicity, so its fold is `p` deep per interior knot and it is the site where this costs most |
 
 Two more sites refine in `f64` before a certificate and are NOT
 classified here, because whether their claim is about the described
@@ -173,3 +174,36 @@ which parks on this row. Re-baselines a landing here owes: the four
 "must refuse below 1e-9" pins (`m8_4_intersection_iso.rs`'s
 `seam_at_eps` and `review_probes_m8_4.rs`'s probe_e) flip, because the
 seam then attaches.
+
+## Site 5 is closed (PR 3524, PROPS convex-insertion unit)
+
+`insert_once_ring`'s window arm combines `c_{i−1}·β + c_i·α` with both
+barycentric ratios formed as ring quotients of the knots they are made
+of — `β = (U_{i+p} − u)/Δ`, NOT `1 − α`. Containment is argued from the
+outward rounding of the two quotients and tested against exact rational
+arithmetic (`the_ring_fold_encloses_the_exact_refined_net`, 487
+comparisons over seven families chosen to break it); the width is pinned
+against an allowance linear in the fold's depth
+(`the_convex_form_does_not_inflate_the_fold`: 4.7 ulps of the
+coefficient scale against the lerp form's 473.7, at degree 6 over 80
+insertions).
+
+**The other four sites are untouched and this row stays open for them.**
+Sites 1 and 2 (spelling 1, `f64` refinement then lift) and the two
+`quad.rs` sites (spelling 2, rounded ratio) are different defects with
+different fixes.
+
+What the fix moved, with digits, and ENCL's two parked rows measured
+against it: `work/encl/log.md`, 2026-09-30. The shape sweep that closed
+site 5 also filed
+`the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice`.
+
+**The SSI measurement above predates the site-5 fix.** It was taken on
+`main` while PR 3524 was in review, so its 1.69e-12 m and its N3 growth
+are the LERP form's numbers. The convex form changes them, and by how
+much is SSI's to re-take — flagged here rather than re-derived, because
+the m8_4 seam is not this program's ground. What PR 3524 did measure on
+that seam is the eps boundary moving from 1e-9 to 1e-13, recorded with
+its consequence in
+`work/tint/the-plane-nurbs-seam-refusal-cell-is-below-every-gated-eps-row.md`.
+

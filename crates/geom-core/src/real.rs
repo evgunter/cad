@@ -164,6 +164,39 @@ pub enum SymRegistration {
     Unwitnessed,
 }
 
+impl SymRegistration {
+    /// **What a registrant does with the door's answer**, by arm, in
+    /// one place for every registrant.
+    ///
+    /// - [`SymRegistration::Contradicted`] is the EXACT witness's proof
+    ///   that `what` is false on the values the registrant built, and is
+    ///   loud: either the registrant's theorem is false for the
+    ///   configuration it was handed, or an upstream enclosure does not
+    ///   contain its real. Live in release (the arm's own doc).
+    /// - [`SymRegistration::Disputed`] is an inexact witness's refusal,
+    ///   counted in the session's receipt and never asserted on.
+    /// - Every other arm is a record, a no-op, or nothing to record, and
+    ///   none of them is a defect.
+    ///
+    /// Exhaustive by hand, so a new arm is a compile error here.
+    pub fn handle(self, what: &str) {
+        match self {
+            Self::Contradicted => debug_assert!(
+                !matches!(self, Self::Contradicted),
+                "the EXACT witness separated {what}: either the registrant's theorem is \
+                 false for the configuration it was handed, or an upstream enclosure does \
+                 not contain its real"
+            ),
+            Self::Disputed
+            | Self::Recorded
+            | Self::Already
+            | Self::Witnessed
+            | Self::Unwitnessed
+            | Self::Cyclic => {}
+        }
+    }
+}
+
 /// **What a comparison at this scalar PROVES** — the property that
 /// decides, per lane scalar, whether a disagreement between the value
 /// channel and a symbolic form is a soundness defect or a dispute.
