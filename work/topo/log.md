@@ -5871,3 +5871,28 @@ Rulings:
 Brief: `mefchart-fix-brief.md`, on the rebase target with its no-delete
 rule. The kef/kfmrh `[ev]` PR still waits on this merge, because PR 3673
 carries the row.
+
+## PR 3513: the text pass delivered, rows closed (2026-10-01)
+
+`SpheresMeet` now says what holds in all four places: the spheres meet
+off every edge, so the join's sphere-pair arm has no chord to run.
+- **The lever is kept.** Apart and nested still pass, per sweep
+  `offer_rows` `apart_*`/`nested_*`. "Cross an edge" was correctly not
+  added: `seam_crossing_pairs_reach_the_join` builds along the polar axis
+  but refuses `SectionNotPolar` off it, so it is not a pass in general.
+- **The table:** three rows added for the new sites.
+- **Main merged a third time** (`2b028c15c2`): `k_stats` keeps main's
+  `decide_negative` beside this branch's gate. CI run 36874169931
+  passed, and the PR is clean.
+
+I closed the three rows on the branch (`fa330e3b82`). Merge waits for CI
+on that commit.
+
+Left as is: `sweep/tests/m5_s13_pips.rs:293`'s doc comment still says the
+join has no curved × curved arm. It is main's text, in a test, outside
+this PR's fence.
+
+Branch hazard noted: closing the rows with `checkout -B` in a second
+worktree moved the branch the lane's worktree had checked out. Nothing
+was lost, since the lane's index equals its pushed head. Next time,
+close rows in the lane's own worktree, or detached.
