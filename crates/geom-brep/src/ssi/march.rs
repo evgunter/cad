@@ -104,7 +104,7 @@
 //!   in band.
 
 use geom_core::linalg::svd::Svd;
-use geom_core::{Band, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Margin, Point3, Real, Sign, Vec3};
 
 use crate::dihedral::{decide, decide_positive};
 
@@ -316,9 +316,11 @@ pub(crate) type NormalPair = (Vec3<f64>, Vec3<f64>);
 pub(crate) trait TransversalityData<const N: usize> {
     /// Unit normals of the two operands at the state.
     fn normals(&self, x: &[f64; N]) -> NormalPair;
-    /// The folded curvature lever arm at the state, in meters
-    /// (`f64::MAX` where no curvature bounds it — the plane identity).
-    fn lever_arm(&self, x: &[f64; N]) -> f64;
+    /// The folded curvature lever arm at the state, in meters, never
+    /// longer than `extent` (the run's scale bounds it where no
+    /// curvature does). A poisoned operand makes the arm poison, so the
+    /// arm guard escalates rather than levering against the sibling's.
+    fn lever_arm(&self, x: &[f64; N], extent: f64) -> f64;
 }
 
 /// March one branch from `seed` (module docs).
@@ -364,7 +366,7 @@ where
         // ---- 2. ssi_transversality (the σ₂ sliver band ⇒ C7) ----
         let (n1, n2) = sys.normals(&x);
         let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-        let arm = sys.lever_arm(&x).min(ctx.extent);
+        let arm = sys.lever_arm(&x, ctx.extent);
         decide_positive("ssi_transversality_arm", Margin::of(arm), band)
             .map_err(SsiError::Escalated)?;
         let transversality = Margin::levered(sin_theta, arm);
@@ -450,12 +452,15 @@ where
                 let n3 = norm(&d3);
                 // (a) Hoffmann's relative heuristic: |h²κ/2| ≤ ρ·h and
                 //     |h³‖d₃‖/6| ≤ ρ·h.
-                let h_quad = if kappa > 0.0 {
+                // Each bound is unbounded only at an exact zero, so a
+                // poisoned κ or ‖d₃‖ carries through `h` to the step
+                // guard instead of falling to the `h_max` bound.
+                let h_quad = if kappa != 0.0 {
                     2.0 * SSI_STEP_RELATIVE / kappa
                 } else {
                     f64::INFINITY
                 };
-                let h_cub = if n3 > 0.0 {
+                let h_cub = if n3 != 0.0 {
                     (6.0 * SSI_STEP_RELATIVE / n3).sqrt()
                 } else {
                     f64::INFINITY
@@ -464,7 +469,7 @@ where
                 // κ and ‖d₃‖ are in state units; the curvature that
                 // governs the 3-D fit is κ/speed², so convert once.
                 let kappa3d = kappa / (speed * speed);
-                let h_fit = if kappa3d > 0.0 {
+                let h_fit = if kappa3d != 0.0 {
                     // ¼ power as TWO square roots, not `powf(0.25)`:
                     // `f64::sqrt` is IEEE-correctly-rounded and so is
                     // its composition, while `powf` is a libm routine
@@ -480,7 +485,7 @@ where
                     f64::INFINITY
                 };
                 let h_max = (SSI_STEP_MAX * ctx.extent) / speed;
-                let h = h_quad.min(h_cub).min(h_fit).min(h_max);
+                let h = [h_cub, h_fit, h_max].into_iter().fold(h_quad, Real::min);
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
                     *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
@@ -726,7 +731,7 @@ where
     for (i, s) in scales.iter().enumerate() {
         let lo = (x[i] - ctx.domain[i][0]) * s;
         let hi = (ctx.domain[i][1] - x[i]) * s;
-        worst = worst.min(lo).min(hi);
+        worst = Real::min(Real::min(worst, lo), hi);
     }
     worst
 }
@@ -872,14 +877,29 @@ mod tests {
     use geom_core::{Band, Point3, Vec3};
 
     /// A two-plane system in ℝ³ whose locus is the `x` axis, with the
-    /// chart speed dictated by the row. The residual is exact at the
-    /// seed, the Jacobian is constant, and the two normals meet at a
-    /// right angle with an unbounded lever arm — so the only thing a
-    /// march over this system can refuse on is the speed, and the
-    /// refusal it produces is the speed guard's own.
+    /// chart speed, the order-2 right-hand side and the `x` coordinate
+    /// scale dictated by the row. The residual is exact at the seed,
+    /// the Jacobian is constant, and the two normals meet at a right
+    /// angle with the extent as the lever arm — so the only thing a
+    /// march over this system can refuse on is the one value the row
+    /// spoils, and the refusal it produces names that value's guard.
     struct FixedSpeedR3 {
         /// Meters per unit of the march parameter.
         speed: f64,
+        /// Both components of the order-2 right-hand side.
+        rhs2: f64,
+        /// Meters per unit of the `x` coordinate.
+        x_scale: f64,
+    }
+
+    impl FixedSpeedR3 {
+        fn at_speed(speed: f64) -> Self {
+            Self {
+                speed,
+                rhs2: 0.0,
+                x_scale: 1.0,
+            }
+        }
     }
 
     impl LocalSystem<2, 3> for FixedSpeedR3 {
@@ -892,7 +912,7 @@ mod tests {
         }
 
         fn rhs2(&self, _x: &[f64; 3], _d1: &[f64; 3]) -> [f64; 2] {
-            [0.0, 0.0]
+            [self.rhs2, self.rhs2]
         }
 
         fn rhs3(&self, _x: &[f64; 3], _d1: &[f64; 3], _d2: &[f64; 3]) -> [f64; 2] {
@@ -904,7 +924,7 @@ mod tests {
         }
 
         fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
-            [1.0, 1.0, 1.0]
+            [self.x_scale, 1.0, 1.0]
         }
 
         fn tangent_speed(&self, _x: &[f64; 3], _d: &[f64; 3]) -> f64 {
@@ -917,8 +937,8 @@ mod tests {
             (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
         }
 
-        fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
-            f64::MAX
+        fn lever_arm(&self, _x: &[f64; 3], extent: f64) -> f64 {
+            extent
         }
     }
 
@@ -949,7 +969,7 @@ mod tests {
             max_steps: 64,
         };
         for speed in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -1.0] {
-            let sys = FixedSpeedR3 { speed };
+            let sys = FixedSpeedR3::at_speed(speed);
             match march(
                 &sys,
                 [0.0, 0.0, 0.0],
@@ -972,6 +992,50 @@ mod tests {
                     diag.predicate
                 ),
                 other => panic!("expected the speed guard for {speed:e}, got {other:?}"),
+            }
+        }
+    }
+
+    /// **A poisoned value reaches the guard that decides it**, rather
+    /// than being folded away by a `min` that keeps the other operand.
+    /// Each row poisons one input of a guarded fold and pins the
+    /// escalation by that guard's name: a poisoned curvature (the
+    /// order-2 right-hand side) through the step-size fold to
+    /// `ssi_step_progress`, and a poisoned coordinate scale through the
+    /// domain-margin fold to `ssi_branch_open_end`.
+    #[test]
+    fn a_poisoned_fold_operand_escalates_at_its_own_guard() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let ctx = MarchContext::<3> {
+            domain: [[-1.0, 1.0], [-1.0, 1.0], [-1.0, 1.0]],
+            extent: 1.0,
+            tol: MarchTol::from_band(band),
+            max_steps: 64,
+        };
+        let rows = [
+            (
+                FixedSpeedR3 {
+                    rhs2: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Realized,
+                "ssi_step_progress",
+            ),
+            (
+                FixedSpeedR3 {
+                    x_scale: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Idealized,
+                "ssi_branch_open_end",
+            ),
+        ];
+        for (sys, mode, guard) in rows {
+            match march(&sys, [0.0, 0.0, 0.0], ctx, mode, 1.0, band) {
+                Err(SsiError::Escalated(diag)) => {
+                    assert_eq!(diag.predicate, Some(guard), "the poisoned operand's guard");
+                }
+                other => panic!("expected {guard} to escalate, got {other:?}"),
             }
         }
     }
