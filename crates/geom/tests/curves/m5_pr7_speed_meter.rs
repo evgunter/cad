@@ -110,7 +110,7 @@ fn the_meter_lower_bounds_the_real_speed() {
             "this carrier crosses a full unit in x under chord-length \
              parameterization, so its speed cannot sit near zero",
         )
-        .dominates(
+        .dominates_up_to(
             1e-12,
             &format!(
                 "the meter and `deriv` are two evaluation paths for the same \

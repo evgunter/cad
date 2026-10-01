@@ -1035,8 +1035,9 @@ BOUND_AS = {
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
     # `malformed_body`, `no_extent`, `no_finite_bound`,
-    # `not_an_instance`). The instance it is about crosses as
-    # `MateFault.instance`, and a face that cannot be bounded names its
+    # `not_an_instance`), or why the lever the two form is out of the
+    # format's range (`out_of_range`). The instance a part's refusal is
+    # about crosses as `MateFault.instance`, and a face that cannot be bounded names its
     # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
     # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
@@ -1290,9 +1291,6 @@ BOUND_AS = {
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "StepMap": "SplitOutcome.step_map",
-    # What a `StepMapDiverged` refusal carries; the arm crosses as its
-    # tag word.
-    "StepMapDivergence": "SplitError.variant",
     # A profile's pieces cross as opaque text, one per canonical
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
@@ -2556,7 +2554,9 @@ NOT_BOUND = {
     # there is no tag to split, none to pin, and nothing for a Python
     # caller to branch on. Not a `gap:` either: the debt is the blend
     # door being unprojected, which is #1479's row and not a missing
-    # binding for these four types.
+    # binding for these types. `BlendDecision` (`Escalated`'s decision)
+    # joined them on the same terms.
+    "BlendDecision": INTERIOR,
     "BlendSite": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanDeclarations": INTERIOR,
@@ -3389,6 +3389,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
+    "EditError::NodeIdCollides": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
@@ -3474,7 +3475,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
-    "InlineError::StepMapDiverged": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Frame": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
@@ -3605,7 +3605,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::Pin": "SplitError.variant",
     "SplitError::PartEdit": "SplitError.variant",
     "SplitError::RemainderEdit": "SplitError.variant",
-    "SplitError::StepMapDiverged": "SplitError.variant",
     "StepImportError::Syntax": "StepImportError.variant",
     "StepImportError::DanglingReference": "StepImportError.variant",
     "StepImportError::WrongEntityType": "StepImportError.variant",

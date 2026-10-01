@@ -131,10 +131,10 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    EditError, EvalError, FaceRefusal, FrameFault, InlineError, InterfaceCrossing, LeverRefusal,
-    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
+    EditError, EvalError, FacePoseRefusal, FaceRefusal, FrameFault, InlineError, InterfaceCrossing,
+    LeverRefusal, Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
     MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
-    PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal,
+    PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
     RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
     SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, UpdateError,
 };
@@ -536,6 +536,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
+        EditError::NodeIdCollides { .. } => "node_id_collides",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -1180,6 +1181,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetProgramOnNonProfile { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
+        EditError::NodeIdCollides { .. } => None,
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1514,6 +1516,7 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
+        TransformError::NurbsLaneUnsupported { .. } => "nurbs_lane_unsupported",
         TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
@@ -1690,36 +1693,55 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
 /// The stable tag for a face refusal — the inner arm of
 /// [`mate_fault_tag`]'s `mate_face_unresolved`: why a `FromFace`
 /// frame's face answered no pose through the mated part's own
-/// evaluation.
+/// evaluation. The reach's own refusal is spelled by its own map
+/// ([`face_pose_refusal_tag`]).
 ///
 /// The map is exhaustive rather than a constant so a new way for a
 /// face to refuse arrives here as a compile error.
 pub fn face_refusal_tag(refusal: &FaceRefusal) -> &'static str {
     match refusal {
-        FaceRefusal::PartUnresolved { .. } => "part_unresolved",
-        FaceRefusal::NoSuchName { .. } => "no_such_name",
-        FaceRefusal::Ambiguous { .. } => "ambiguous",
-        FaceRefusal::NotAFace { .. } => "not_a_face",
-        FaceRefusal::Readback { .. } => "readback",
-        FaceRefusal::Unpinned { .. } => "unpinned",
+        FaceRefusal::Reach { refusal, .. } => face_pose_refusal_tag(refusal),
         FaceRefusal::NotAnInstance { .. } => "not_an_instance",
     }
 }
 
+/// The stable tag for the reach's refusal of a face's pose, which a
+/// [`FaceRefusal`] carries. Exhaustive, as every map here is.
+pub fn face_pose_refusal_tag(refusal: &FacePoseRefusal) -> &'static str {
+    match refusal {
+        FacePoseRefusal::PartUnresolved { .. } => "part_unresolved",
+        FacePoseRefusal::NoSuchName => "no_such_name",
+        FacePoseRefusal::Ambiguous { .. } => "ambiguous",
+        FacePoseRefusal::NotAFace { .. } => "not_a_face",
+        FacePoseRefusal::Readback(_) => "readback",
+        FacePoseRefusal::Unpinned => "unpinned",
+    }
+}
+
 /// The stable tag for a lever refusal — the inner arm of
-/// [`mate_fault_tag`]'s `mate_unleverable`: why one of the mated
-/// parts' reach was not in hand, so no lever could be formed.
+/// [`mate_fault_tag`]'s `mate_unleverable`: why no lever could be
+/// formed. A part's reach not in hand is spelled by the reach's own
+/// map ([`reach_refusal_tag`]).
 ///
 /// The map is exhaustive rather than a constant so a new way to
 /// refuse a lever arrives here as a compile error.
 pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
     match refusal {
-        LeverRefusal::PartUnresolved { .. } => "part_unresolved",
-        LeverRefusal::FaceUnbounded { .. } => "face_unbounded",
-        LeverRefusal::MalformedBody { .. } => "malformed_body",
-        LeverRefusal::NoExtent { .. } => "no_extent",
-        LeverRefusal::NoFiniteBound { .. } => "no_finite_bound",
+        LeverRefusal::Reach { refusal, .. } => reach_refusal_tag(refusal),
         LeverRefusal::NotAnInstance { .. } => "not_an_instance",
+        LeverRefusal::OutOfRange { .. } => "out_of_range",
+    }
+}
+
+/// The stable tag for the reach's refusal of a part's extent, which a
+/// [`LeverRefusal`] carries. Exhaustive, as every map here is.
+pub fn reach_refusal_tag(refusal: &ReachRefusal) -> &'static str {
+    match refusal {
+        ReachRefusal::PartUnresolved { .. } => "part_unresolved",
+        ReachRefusal::FaceUnbounded { .. } => "face_unbounded",
+        ReachRefusal::MalformedBody { .. } => "malformed_body",
+        ReachRefusal::NoExtent => "no_extent",
+        ReachRefusal::NoFiniteBound => "no_finite_bound",
     }
 }
 
@@ -1799,7 +1821,7 @@ pub fn program_fault_tag(fault: &ProgramFault) -> &'static str {
 pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",
-        SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
+        SnapshotError::NodeNotMinted { .. } => "node_not_minted",
         SnapshotError::StepIds { .. } => "step_ids",
         SnapshotError::MintLogOrder { .. } => "mint_log_order",
         SnapshotError::NameStepNotMinted { .. } => "name_step_not_minted",
@@ -2325,7 +2347,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
-        SplitError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2351,7 +2372,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
-        InlineError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 

@@ -59,7 +59,7 @@ use geom_core::Tol;
 #[serde(deny_unknown_fields)]
 pub enum DocEdit<P> {
     /// Insert a node; the new [`RecipeNodeId`] is minted from the
-    /// document's monotone counter and returned in the
+    /// document's mint chain ([`crate::Mint`]) and returned in the
     /// [`EditRecord`]. Input refs must resolve to EXISTING nodes —
     /// which is also why insertion can never create a cycle.
     InsertNode {
@@ -784,6 +784,14 @@ pub enum EditError {
         /// What is wrong with the ids.
         fault: crate::program::StepIdFault,
     },
+    /// The id an `InsertNode` drew from the document's mint chain is
+    /// one the mint log already holds (`names/README.md`, N1). An
+    /// honest log cannot reach it short of a 64-bit digest collision;
+    /// a log a file was edited to hold can.
+    NodeIdCollides {
+        /// The id drawn.
+        id: RecipeNodeId,
+    },
     /// A list input left with fewer than two entries. A union of one
     /// body is that body and a loft through one section is not a skin:
     /// either is a node whose meaning is its own input, spelled as an
@@ -1123,8 +1131,8 @@ pub enum EditError {
         name: StableName,
     },
     /// A `Rebind` whose SOURCE name's node was never minted by this
-    /// document (ids are monotone and never reused, so an id at or
-    /// above the mint counter is a typo or a foreign name — refused;
+    /// document (ids are never reused, so an id the mint log does not
+    /// hold is a typo or a foreign name — refused;
     /// a deleted-but-once-lived node is ALLOWED, that is the
     /// `NodeGone` repair case).
     RebindUnknownName {
@@ -1653,7 +1661,7 @@ impl EditError {
             //
             // **The frame does not name `node`, and must not.**
             // `check_node_inputs` is reached from `InsertNode` with
-            // `RecipeNodeId(new.next_id)` — an id that does not exist
+            // the id the mint drew for it — an id that does not exist
             // and never will if the edit is refused — and from
             // `SetMembers` with a live one. This rendering cannot tell
             // which, so a sentence naming that id tells a person to go
@@ -1710,6 +1718,13 @@ impl EditError {
                     node
                 )?;
                 step_ids_recourse(f, tail, fault)
+            }
+            Self::NodeIdCollides { id } => {
+                write!(
+                    f,
+                    "the node id {id} this insert mints is already in the document's mint log"
+                )?;
+                tail.ending(f, geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
             Self::TooFewMembers { found, .. } => {
                 write!(
@@ -2297,7 +2312,11 @@ impl EditError {
                 )?;
                 match fault {
                     Some(fault) => write!(f, "refused: {fault}"),
-                    None => write!(f, "recorded no pose for it and no fault"),
+                    None => write!(
+                        f,
+                        "recorded no pose for it and no fault. {}",
+                        geom_core::KERNEL_DEFECT_ENDING
+                    ),
                 }
             }
             Self::MaintenanceUnrecorded { gauge } => write!(
@@ -2658,7 +2677,7 @@ fn settle_step_ids(
     old: &[Vec<StepId>],
     new: &[crate::program::LoopProgram],
     ids: &[Vec<Option<StepId>>],
-    mint: &mut crate::StepMint,
+    mint: &mut crate::Mint,
 ) -> Result<(Vec<Vec<StepId>>, std::collections::BTreeSet<StepId>), EditError> {
     use crate::program::{StepIdFault, program_index};
     let refuse = |fault| EditError::StepIdsRefused { node, fault };
@@ -2687,16 +2706,7 @@ fn settle_step_ids(
             }
         }
     }
-    let minted = mint
-        .mint(
-            &crate::step_mint::MintingEdit::SetProgram {
-                node,
-                loops: new,
-                ids,
-            },
-            ids,
-        )
-        .map_err(refuse)?;
+    let minted = mint.set_program(node, new, ids).map_err(refuse)?;
     Ok((minted, dropped))
 }
 
@@ -2942,7 +2952,7 @@ fn check_name_steps<P>(doc: &Doc<P>, name: &StableName) -> Result<(), EditError>
     match name
         .piece_steps()
         .into_iter()
-        .find(|s| !doc.step_mint.has_minted(*s))
+        .find(|s| !doc.mint.has_step(*s))
     {
         None => Ok(()),
         Some(step) => Err(EditError::NameStepNeverMinted {
@@ -3501,7 +3511,15 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     return Err(EditError::ReadSiteMissingNode { at });
                 }
             }
-            let id = RecipeNodeId(new.next_id);
+            // N1: the node's id is minted from the document's mint
+            // chain, extended by the node as the edit states it, and
+            // then every authored step's, from the same chain. Minting
+            // extends a mint held aside, so a refusal further down
+            // leaves the document's untouched.
+            let mut mint = new.mint.clone();
+            let id = mint
+                .insert(node)
+                .map_err(|crate::NodeIdCollides { id }| EditError::NodeIdCollides { id })?;
             check_node_inputs(id, node)?;
             check_declare_input(&new, id, node)?;
             // ASM-R2a D-1, through `Node::has_non_finite_alignment` —
@@ -3523,14 +3541,12 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     }
                 })?;
             }
-            // N1: every authored step is minted its id here, from the
-            // document's mint chain.
             let mut node = node.clone();
             if let Node::Profile(p) = &mut node {
-                p.mint_step_ids(id, &mut new.step_mint)
+                p.mint_step_ids(&mut mint)
                     .map_err(|fault| EditError::StepIdsRefused { node: id, fault })?;
             }
-            new.next_id += 1;
+            new.mint = mint;
             new.nodes.insert(id, node.clone());
             new.order.push(id);
             check_acyclic(&new)?;
@@ -3604,7 +3620,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // name live instantiate nodes, an invariant the save
             // validator re-checks.
             new.placements.remove(id);
-            // next_id is NOT decremented: ids are never reused (D3).
+            // The mint log keeps the id: ids are never reused (D3).
             EditRecord {
                 minted: None,
                 structural: true,
@@ -3662,7 +3678,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // rather than the program. Minting extends a mint held
             // aside, so a refusal further down leaves the document's
             // untouched.
-            let mut mint = new.step_mint.clone();
+            let mut mint = new.mint.clone();
             let (minted, dropped) = settle_step_ids(*node, old_ids, loops, ids, &mut mint)?;
             let Some(rewritten) = payload.with_program(loops.clone(), minted) else {
                 return Err(EditError::SetProgramOnNonProfile { node: *node });
@@ -3683,7 +3699,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     refusal: Box::new(refusal),
                 })?;
             new.nodes.insert(*node, probe);
-            new.step_mint = mint;
+            new.mint = mint;
             // DM7: a name on a kept step keeps denoting its pieces and
             // is not touched; a name on a dropped step denotes nothing
             // from here on, and the door says so.
@@ -4098,8 +4114,13 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     // `SetPlacement` holds a cluster frame to (`Frame::admission_fault`).
     // Checked over the whole document rather than per arm because a
     // structural slot edit can reach a bad state from a node that was
-    // consistent before.
-    for (&node, n) in &new.nodes {
+    // consistent before; in document order, so where one edit breaks
+    // two nodes the refusal names the one placed first.
+    for (&node, n) in new
+        .order
+        .iter()
+        .filter_map(|id| Some((id, new.nodes.get(id)?)))
+    {
         let listed = |index| FrameSite::Listed { index };
         match n.placement_rule_fault(tol) {
             None => {}

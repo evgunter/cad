@@ -139,7 +139,8 @@
 //! — a lever arm that must be definitely positive, a discriminant that
 //! must be definitely nonzero, an aggregate that must be a measurement
 //! at all — states that condition by choosing a GATE door
-//! ([`decide_positive`], [`decide_nonzero`], [`gate_measured`]) instead
+//! ([`decide_positive`], [`decide_negative`], [`decide_nonzero`],
+//! [`gate_measured`]) instead
 //! of reading a sign out of [`decide`] and rejecting it in private. The
 //! rejection is then minted and recorded by `record_escalation`, the
 //! one place this channel is minted, so the frame holds it for the same
@@ -627,6 +628,29 @@ pub fn decide_positive<T: Decide>(
 ) -> Result<(), Indeterminate> {
     classify_gated(name, margin.value(), band, |sign| {
         (sign == Sign::Positive).then_some(())
+    })
+}
+
+/// **The mirrored gate**: [`decide_positive`] for a predicate whose
+/// question is only validly posed when the margin is DEFINITELY
+/// NEGATIVE — a signed reading whose sign other code interprets, so
+/// the margin cannot be negated to reach [`decide_positive`] without
+/// flipping what every consumer of the recorded sign reads (a
+/// straight corner's `cos θ`, whose sized recourse passes on a
+/// negative margin). Same posture, same recording.
+///
+/// # Errors
+///
+/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
+/// otherwise, for a definite non-negative sign, an [`Indeterminate`]
+/// carrying [`MarginKind::Invalid`](crate::MarginKind::Invalid) under `name`.
+pub fn decide_negative<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    classify_gated(name, margin.value(), band, |sign| {
+        (sign == Sign::Negative).then_some(())
     })
 }
 
@@ -1428,6 +1452,10 @@ impl Real for Probe {
     fn copysign(self, sign: Self) -> Self {
         Self(Real::copysign(self.0, sign.0))
     }
+
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        Self(Real::select_le_zero(self.0, when_le.0, when_gt.0))
+    }
 }
 
 /// `Probe` brackets itself exactly, like `f64` (it IS an f64 with a
@@ -1535,6 +1563,26 @@ mod tests {
             tokens.len(),
             before,
             "two outcomes share a token, so a CSV reader cannot tell them apart: {tokens:?}"
+        );
+    }
+
+    /// The decision door at the recording scalar delegates to `f64`
+    /// exactly — `Probe` IS an `f64` with a recorder attached, and a
+    /// door that answered differently under `--features probe` would be
+    /// precisely the divergence the delegation exists to prevent. The
+    /// door records nothing: it is a value operation, not a predicate.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn select_le_zero_delegates_to_f64_and_records_nothing() {
+        let bracket = Bracket::open();
+        for d in [-1.0f64, -0.0, 0.0, 1.0, f64::NAN] {
+            let got = Real::select_le_zero(Probe(d), Probe(7.0), Probe(9.0));
+            let want = <f64 as Real>::select_le_zero(d, 7.0, 9.0);
+            assert_eq!(got.0.to_bits(), want.to_bits(), "at d = {d}");
+        }
+        assert!(
+            bracket.finish().verdicts.is_empty(),
+            "the door is not a predicate"
         );
     }
 

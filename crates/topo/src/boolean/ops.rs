@@ -2477,14 +2477,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             operand: x_is,
                                             face,
                                             what: "two sphere boundaries meet (neither \
-                                                   separated nor strictly nested) — the \
-                                                   sphere×sphere section is the exact \
-                                                   closed-form Circle and the germ frame \
-                                                   names it, but the JOIN has no arm for a \
-                                                   curved×curved germ pair: its arc-side \
-                                                   rule needs a chart the pair does not \
-                                                   have, and a crossing found here would \
-                                                   pierce a curved face first",
+                                                   separated nor strictly nested) while the \
+                                                   crossing layer found no edge crossing a \
+                                                   face: whatever the two spheres share \
+                                                   lies off every edge, the join's \
+                                                   sphere-pair arm had no chord to run, and \
+                                                   this scan, which reads the SURFACES, \
+                                                   cannot certify the shell disjoint from \
+                                                   the other boundary",
                                         });
                                     }
                                 }
@@ -2824,13 +2824,12 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                         .map(|&s| (s, voids::VoidContainment::Probed(SolidContainment::In)))
                         .collect(),
                 };
-                voids::insert_void(&mut body, solid, b_body, &evidence, tol)
+                voids::insert_void(&mut body, solid, b_body, &evidence)
                     .map_err(|e| match e {
                         voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
                         voids::VoidInsertError::Corrupt { what } => {
                             BooleanError::JoinDesync { what }
                         }
-                        voids::VoidInsertError::Recertify(c) => BooleanError::GraftRecertify(c),
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
                         | voids::VoidInsertError::ForeignShell { .. }

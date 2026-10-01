@@ -536,8 +536,7 @@ pub fn straddle_seat(tol: Tol) -> StraddleSeat {
     // [2] is (0.9, 0.30) → (0, 0.30), the plane y = 0.30.
     let post_side_x030 = post.side_faces[3];
     let mut body = post.body;
-    let keys =
-        crate::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).expect("the straddle graft");
+    let keys = crate::graft_disjoint_all_keyed(&mut body, &shelf.body).expect("the straddle graft");
     StraddleSeat {
         post_top: post.top_face,
         post_side_x030,

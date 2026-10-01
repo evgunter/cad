@@ -331,8 +331,8 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
     );
     assert!(
         refusal.to_string().contains(&format!(
-            "the repair is upstream, at node {:012x}",
-            s.failed.0
+            "the repair is upstream, at node {}",
+            test_utils::refusal::tag(s.failed.0)
         )),
         "{refusal}"
     );
@@ -441,7 +441,7 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
     assert!(
         refusal
             .to_string()
-            .contains(&format!("at node {:012x}", s.failed.0)),
+            .contains(&format!("at node {}", test_utils::refusal::tag(s.failed.0))),
         "{refusal}"
     );
 }
@@ -543,7 +543,7 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 11] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        23,
+        24,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder",
     ),
     (

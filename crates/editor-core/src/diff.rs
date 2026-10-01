@@ -20,7 +20,8 @@ pub enum NodeChange {
 /// The structural difference between two documents (spec D7).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct DocDiff {
-    /// Node-level changes, ascending by id (deterministic).
+    /// Node-level changes in document order: `self`'s nodes as `self`
+    /// orders them, then the added ones as `other` orders them.
     pub nodes: Vec<NodeChange>,
     /// Doc-param names added, removed, or changed (value or
     /// dimension), ascending.
@@ -31,7 +32,8 @@ pub struct DocDiff {
     /// Whether recorded ε differs (bit comparison; ε edits are PR 6).
     pub epsilon_changed: bool,
     /// Nodes whose recorded witness datum was added, removed, or
-    /// changed (M4 PR 4; witness bytes are exact data), ascending.
+    /// changed (M4 PR 4; witness bytes are exact data), in the order
+    /// [`Self::nodes`] uses.
     pub witnesses: Vec<RecipeNodeId>,
     /// Whether the metadata maps differ.
     pub metadata_changed: bool,
@@ -57,7 +59,10 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     /// Node-granular structural diff, `self` → `other` (spec D7).
     pub fn diff(&self, other: &Doc<P>) -> DocDiff {
         let mut nodes = Vec::new();
-        for (&id, node) in &self.nodes {
+        for &id in &self.order {
+            let Some(node) = self.nodes.get(&id) else {
+                continue;
+            };
             match other.nodes.get(&id) {
                 None => nodes.push(NodeChange::Removed(id)),
                 // BIT comparison (review non-blocker): diff is the
@@ -67,14 +72,11 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
                 Some(_) => {}
             }
         }
-        for &id in other.nodes.keys() {
+        for &id in &other.order {
             if !self.nodes.contains_key(&id) {
                 nodes.push(NodeChange::Added(id));
             }
         }
-        nodes.sort_by_key(|c| match *c {
-            NodeChange::Added(id) | NodeChange::Removed(id) | NodeChange::Changed(id) => id,
-        });
         let mut params = Vec::new();
         for (name, p) in &self.params {
             if !other
@@ -92,19 +94,13 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
         }
         params.sort();
         params.dedup();
-        let mut witnesses = Vec::new();
-        for (&id, w) in &self.witnesses {
-            if other.witnesses.get(&id) != Some(w) {
+        let witness_moved = |id: &RecipeNodeId| self.witnesses.get(id) != other.witnesses.get(id);
+        let mut witnesses: Vec<RecipeNodeId> = Vec::new();
+        for &id in self.order.iter().chain(&other.order) {
+            if witness_moved(&id) && !witnesses.contains(&id) {
                 witnesses.push(id);
             }
         }
-        for &id in other.witnesses.keys() {
-            if !self.witnesses.contains_key(&id) {
-                witnesses.push(id);
-            }
-        }
-        witnesses.sort_unstable();
-        witnesses.dedup();
         DocDiff {
             nodes,
             params,

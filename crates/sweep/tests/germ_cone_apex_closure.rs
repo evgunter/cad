@@ -339,7 +339,7 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
     let frustum = revolve(&validated(vec![frustum]), axis_y(), Revolution::Full, tol)
         .unwrap()
         .body;
-    topo::graft_disjoint(&mut body, &frustum, tol).expect("the frustum is disjoint");
+    topo::graft_disjoint(&mut body, &frustum).expect("the frustum is disjoint");
     let bands: Vec<FaceKey> = cone_faces(&body)
         .into_iter()
         .filter(|&f| f != tip)

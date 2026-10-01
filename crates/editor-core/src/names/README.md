@@ -15,7 +15,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the product's two-roots check and the mate member walk) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
-| N1's profile step ids: the mint chain and mint log (`StepMint`) | `crates/editor-core/src/step_mint.rs`; `StepId` in `crates/editor-core/src/node.rs` |
+| N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
 | N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
@@ -27,8 +27,9 @@ the name↔entity table and re-resolution is a lookup, never a match.
 
 **N1 — A stable name is a derivation path.** `StableName { kind, node, path }`:
 a runtime `EntityKind` (Body, Face, Edge, Vertex — bodies are first-class), the
-minting `RecipeNodeId` (from the document's monotone counter at insertion; never
-positional, never reused), and `RolePath = Vec<RoleSeg>`. `RoleSeg` is one closed
+minting `RecipeNodeId` (minted at insertion from the document's mint chain, as
+a step id is below; never positional, never reused), and
+`RolePath = Vec<RoleSeg>`. `RoleSeg` is one closed
 enum grouped by op: extrude (`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`,
 ...), boolean (`FromA`, `FromB`, `FromMember { member, of }`, `Seam`, `Merged`,
 `Fragment`), split
@@ -63,24 +64,29 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   (`ProfileProgram::ids`). It is minted when the step is authored, by
   `InsertNode` or `SetProgram`, from the document's mint chain: a digest
   the document carries, which each minting edit extends by that edit's
-  canonical bytes. The steps one edit mints take the extended chain's
+  canonical bytes. An `InsertNode`'s bytes are its node as the edit
+  states it, which holds its inputs' and names' ids but not its own; the
+  insert then extends the chain once more and takes the node's
+  `RecipeNodeId` from it. The steps one edit mints take the chain's next
   digests, one per step in authored order; an id is the first 64 bits of
-  its digest. So an id is a function of the
-  edit sequence that minted it:
+  its digest. So a node's or a step's id is a function of the edit
+  sequence that minted it:
   - the same sequence of edits from one value mints the same ids (D9);
   - two documents that branch from one value — an undo followed by a
     different edit, or two edits applied to one base — mint different ids
-    for their different steps, so a name carried from one branch into the
-    other spells a step that branch never minted and denotes nothing
-    there, rather than another step. A parent's name held across a pin
-    update between two such versions resolves `Vanished`.
+    for their different nodes and steps, so a name carried from one
+    branch into the other spells a node or a step that branch never
+    minted and denotes nothing there, rather than another one. A
+    parent's name on a step one such version minted, held across a pin
+    update to the other, resolves `Vanished`.
 
   Like a `RecipeNodeId`, a step id is never positional and never reused,
   and it is unique across the whole document. The document keeps every
-  id it has minted in its mint log, dropped steps' included, and a mint
-  whose id is already in the log is refused. The load door checks the
-  three things minting makes true: one id per authored step, every id in
-  the mint log, and no id standing for two steps. A name may spell only a step the document has minted: the doors
+  id it has minted, node and step, in one mint log, deleted nodes' and
+  dropped steps' included, and a mint whose id is already in the log is
+  refused. The load door checks what minting makes true: every node's id
+  in the mint log, one id per authored step, every step's id in the mint
+  log, and no id standing for two steps. A name may spell only a step the document has minted: the doors
   that write a name (`InsertNode`, `Rebind`, `SetAppearance`,
   `SetAppearanceMeta`) refuse one the mint log does not hold, and so does
   the load door.
