@@ -4,9 +4,8 @@ kind: issue
 title: viewer: below a 400-point window the toolbar's theme picker, and below the message floor its canceled line, are drawn past the panel
 status: open
 opened: 2026-09-29
-priority: P3
+priority: P4
 cost: M
-design: true
 refs: [the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window]
 ---
 
@@ -77,3 +76,25 @@ The ruling is the recommendation both designers converged on:
 - **Windows:** the Checks window and the part chooser get `hscroll`. The Checks window derives its width the way the part chooser does, replacing `default_width(420)`.
 - **Tests:** `NARROW` retires as a contract. The holds become a sweep from 120 to 1280 points, plus a check that nothing in a `horizontal_wrapped` row ends past its region at any width.
 - **No zoom clamp.**
+
+## Partial work (2026-10-01)
+
+The lane for Ev's ruling on #3607 was stopped when the row moved to
+POLISH. Its work is on `chrome/width-contract` (head `9326ac5d12`), with
+#3607's branch merged in. No PR was opened. That branch's copy of this
+row still reads `dispatched`; the copy here is the live one, and a
+successor merging the branch keeps this one.
+
+Done on the branch:
+- `toolbar_ui` sits in one horizontal `ScrollArea`, at least
+  `message_floor` wide (172.6 points). The status row's own scroll
+  area and the `panel_width` workaround are gone.
+- The theme picker is a `menu_button` over `Theme::ALL`.
+- `widgets::window_width` sizes the Checks window and the part chooser,
+  never below the floor.
+- A sweep holds the toolbar from 120 to 1280 points. It goes red with
+  the old `ComboBox`.
+
+Left to do: the README re-wording, clippy, CI and the PR. One more
+point needs a decision: the Checks window now takes the toolbar's width,
+which is nearly the whole screen at 1280 points. It is untested.

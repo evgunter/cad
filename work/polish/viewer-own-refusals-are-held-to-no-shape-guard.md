@@ -4,6 +4,8 @@ kind: issue
 title: chrome: the viewer's own Refusal arms are held to no refusal-shape guard
 status: open
 opened: 2026-09-29
+priority: P4
+cost: M
 ---
 
 
