@@ -361,6 +361,13 @@ impl ViewerBehavior<'_> {
     /// `DocSession::slot_rows` refuses to produce them. Two places
     /// would be two policies.
     pub(crate) fn standing_ui(&mut self, ui: &mut egui::Ui, standing: &Standing) {
+        self.drafts.rename_shown_for(match standing {
+            Standing::Node {
+                node,
+                present: true,
+            } => Some(*node),
+            _ => None,
+        });
         match standing {
             Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {

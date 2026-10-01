@@ -84,7 +84,8 @@ impl StepId {
 }
 
 /// **A recipe node as a person reads it**: its kind noun, its label
-/// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`), its kind and
+/// and its tag (`Extrude "base plate" (3fa9c1d2a0b1)`, with a `"` or
+/// `\` in the label escaped by a `\`), its kind and
 /// tag when it has no label (`Extrude 3fa9c1d2a0b1`), or
 /// `node 3fa9c1d2a0b1` for an id the document does not hold.
 ///
@@ -147,7 +148,18 @@ impl SpokenNode {
 impl fmt::Display for SpokenNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match (self.kind, &self.label) {
-            (Some(kind), Some(label)) => write!(f, "{kind} \"{label}\" ({})", self.id),
+            (Some(kind), Some(label)) => {
+                write!(f, "{kind} \"")?;
+                // The quote and the escape are escaped, so a label
+                // holding `"` cannot read as the end of the quotation.
+                for ch in label.as_str().chars() {
+                    if matches!(ch, '"' | '\\') {
+                        f.write_str("\\")?;
+                    }
+                    write!(f, "{ch}")?;
+                }
+                write!(f, "\" ({})", self.id)
+            }
             (kind, _) => write!(f, "{} {}", kind.unwrap_or("node"), self.id),
         }
     }

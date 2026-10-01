@@ -1773,15 +1773,6 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// **The commit/cancel row every combining tool ends with**, and
-    /// the one place their two halves of the close rule live.
-    ///
-    /// The op is QUEUED and the tool is not closed here: the
-    /// application closes it when the op actually commits
-    /// (`perform_batch`), so a refusal at the session door leaves the
-    /// held picks in place to correct instead of costing all of them.
-    /// Cancel closes immediately, being the door that means "drop
-    /// these picks".
     /// **The kind noun of the node a tool's commit creates** —
     /// `node_kind_noun`'s word, which its proposed label counts by. The
     /// pattern and blend tools create one of two kinds, by the choice
@@ -1870,6 +1861,15 @@ impl ViewerBehavior<'_> {
         }
     }
 
+    /// **The commit/cancel row every combining tool ends with**, and
+    /// the one place their two halves of the close rule live.
+    ///
+    /// The op is QUEUED and the tool is not closed here: the
+    /// application closes it when the op actually commits
+    /// (`perform_batch`), so a refusal at the session door leaves the
+    /// held picks in place to correct instead of costing all of them.
+    /// Cancel closes immediately, being the door that means "drop
+    /// these picks".
     pub(crate) fn tool_commit_row(
         &mut self,
         ui: &mut egui::Ui,

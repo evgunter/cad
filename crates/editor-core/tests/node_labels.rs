@@ -283,6 +283,12 @@ fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
     );
     assert_eq!(labelled.spoken(extrude).label(), Some(&label("base plate")));
     assert_eq!(doc.spoken(extrude).to_string(), format!("Extrude {t}"));
+    let quoted = set_label(doc.clone(), extrude, Some(r#"Bolt "M6" \ 2"#));
+    assert_eq!(
+        quoted.spoken(extrude).to_string(),
+        format!(r#"Extrude "Bolt \"M6\" \\ 2" ({t})"#),
+        "a quote and a backslash in the label are escaped"
+    );
     let (gone, _) = step(labelled, DocEdit::DeleteNode { id: extrude });
     assert_eq!(gone.spoken(extrude).to_string(), format!("node {t}"));
 }

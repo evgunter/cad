@@ -769,6 +769,20 @@ impl Drafts {
         }
     }
 
+    /// **The rename field is showing `shown`'s label** (`None`: no
+    /// rename field is showing). A rename typed for any other node is
+    /// dropped, so it can neither reappear on a later visit nor commit
+    /// against a node it was not typed for.
+    pub(crate) fn rename_shown_for(&mut self, shown: Option<RecipeNodeId>) {
+        if self
+            .label_text
+            .as_ref()
+            .is_some_and(|(typed_for, _)| Some(*typed_for) != shown)
+        {
+            self.label_text = None;
+        }
+    }
+
     /// **A creation landed**: the label its form held is spent, so the
     /// next creation of that kind proposes afresh. The form is found by
     /// the kind noun of the last node the action minted — the noun a
@@ -1127,6 +1141,23 @@ mod tests {
         assert_eq!(drafts.profile_shape, None, "the shape still rests");
     }
 
+    /// A rename draft survives only while its own node's field shows.
+    #[test]
+    fn a_rename_draft_is_dropped_when_the_pane_moves_off_its_node() {
+        let (typed_for, other) = (RecipeNodeId(3), RecipeNodeId(4));
+        let mut drafts = Drafts {
+            label_text: Some((typed_for, "lid".to_owned())),
+            ..Drafts::default()
+        };
+        drafts.rename_shown_for(Some(typed_for));
+        assert!(drafts.label_text.is_some(), "kept while its node shows");
+        drafts.rename_shown_for(Some(other));
+        assert_eq!(drafts.label_text, None, "dropped on another node");
+        drafts.label_text = Some((typed_for, "lid".to_owned()));
+        drafts.rename_shown_for(None);
+        assert_eq!(drafts.label_text, None, "dropped with no node shown");
+    }
+
     /// A labelled creation settles its form as the bare creation does,
     /// and spends the label draft of the kind it minted — only once it
     /// has landed, and only that kind's.
@@ -1279,15 +1310,6 @@ mod tests {
         )
     }
 
-    /// **Every seat a datum fills can be filled from the add-datum
-    /// form.** Each choice the form offers is lowered from its default
-    /// drafts, with a frame picked, and every datum seat must admit at
-    /// least one of the nodes that produces — the question the seat's
-    /// own gate asks of a pick.
-    ///
-    /// The picked ids are arbitrary: `admits` reads the node's kind,
-    /// and whether an id names the kind its seat wants is the
-    /// add-datum door's question.
     /// **A datum choice's noun is the kind of the node it lowers to**:
     /// the add-datum form's proposed label counts by
     /// [`DatumKindChoice::noun`], so it has to be `node_kind_noun`'s
@@ -1322,6 +1344,15 @@ mod tests {
         ));
     }
 
+    /// **Every seat a datum fills can be filled from the add-datum
+    /// form.** Each choice the form offers is lowered from its default
+    /// drafts, with a frame picked, and every datum seat must admit at
+    /// least one of the nodes that produces — the question the seat's
+    /// own gate asks of a pick.
+    ///
+    /// The picked ids are arbitrary: `admits` reads the node's kind,
+    /// and whether an id names the kind its seat wants is the
+    /// add-datum door's question.
     #[test]
     fn every_datum_seat_is_fillable_from_the_add_datum_form() {
         let authorable: Vec<_> = DatumKindChoice::ALL

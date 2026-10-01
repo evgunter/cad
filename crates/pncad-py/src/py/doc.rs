@@ -728,13 +728,6 @@ pub(crate) fn piece_text(piece: &pncad::select::ProfileEdgeRef) -> PyResult<Stri
     })
 }
 
-/// Read a stable name back from [`name_text`]'s output.
-///
-/// Text that is not a name at all is a boundary `ValueError` — the
-/// same class of refusal as a string where a `SketchPlane` belongs,
-/// with no kernel refusal to forward. A WELL-FORMED name that denotes
-/// nothing in this document refuses at the kernel's own door
-/// (`fillet_selection_resolve`), which is where that belongs.
 /// A text as a label, or the label rule's refusal at the call that
 /// offered it.
 fn label_from_text(py: Python<'_>, text: &str) -> PyResult<d::Label> {
@@ -742,6 +735,13 @@ fn label_from_text(py: Python<'_>, text: &str) -> PyResult<d::Label> {
         .map_err(|fault| boundary_edit_err(py, BoundaryEdit::Label(&fault), fault.to_string()))
 }
 
+/// Read a stable name back from [`name_text`]'s output.
+///
+/// Text that is not a name at all is a boundary `ValueError` — the
+/// same class of refusal as a string where a `SketchPlane` belongs,
+/// with no kernel refusal to forward. A WELL-FORMED name that denotes
+/// nothing in this document refuses at the kernel's own door
+/// (`fillet_selection_resolve`), which is where that belongs.
 pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName> {
     pncad::prelude::StableName::from_json(text).map_err(|err| {
         pyo3::exceptions::PyValueError::new_err(format!(
