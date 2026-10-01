@@ -303,7 +303,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         // own arena, with no shared key and no `GeomSource`.
         let (mut a_body, mut b_body) = (a.body, b.body);
         a_body
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 a.top_face,
                 FaceSurface::New {
                     surface: surface.clone(),
@@ -312,7 +312,7 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
             )
             .unwrap();
         b_body
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 b.bottom_face,
                 FaceSurface::New {
                     surface: surface.clone(),

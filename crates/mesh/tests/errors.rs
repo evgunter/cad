@@ -354,7 +354,7 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     fn poison(body: &mut Body<f64>, which: usize, surface: Surface<f64>) -> FaceKey {
         let (fk, face) = body.faces().nth(which).expect("a face at that index");
         let sense = face.sense;
-        body.set_face_surface(fk, FaceSurface::New { surface, sense })
+        body.set_face_surface_stranding_for_tests(fk, FaceSurface::New { surface, sense })
             .expect("the surface swap is accepted");
         fk
     }

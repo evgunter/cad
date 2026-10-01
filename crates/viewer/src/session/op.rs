@@ -812,6 +812,21 @@ pub enum SessionOp {
         /// Which document in the open document's own directory.
         id: DocumentId,
     },
+    /// **Accept the updated version of the part `id` names**, at every
+    /// instance of it: the edits `pncad::workspace::update_to_store`
+    /// answers — one `DocEdit::UpdateReference` per site whose pin
+    /// moves — committed as one action, so one undo.
+    ///
+    /// The pin is minted at the commit from the store's content, as
+    /// [`SessionOp::AddInstance`]'s is, so an offer drawn before the
+    /// part's file changed again accepts the version on disk now. What
+    /// the store or the elaboration refuses — no file for the id, or
+    /// every reference already on the version the store holds — is
+    /// refused in their own words ([`Refusal::Workspace`]).
+    AcceptPartVersion {
+        /// Which part, by the identity every reference to it carries.
+        id: DocumentId,
+    },
 }
 
 /// **Which VALUE drag an operation names**: the slot or the document
@@ -1051,7 +1066,8 @@ impl SessionOp {
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
-            | Self::AddInstance { .. } => None,
+            | Self::AddInstance { .. }
+            | Self::AcceptPartVersion { .. } => None,
         }
     }
 
@@ -1256,7 +1272,8 @@ impl SessionOp {
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
-            | Self::AddInstance { .. } => false,
+            | Self::AddInstance { .. }
+            | Self::AcceptPartVersion { .. } => false,
         }
     }
 
@@ -1372,7 +1389,8 @@ impl SessionOp {
             | Self::AddChamfer { .. }
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
-            | Self::AddInstance { .. } => true,
+            | Self::AddInstance { .. }
+            | Self::AcceptPartVersion { .. } => true,
         }
     }
 }
@@ -1380,8 +1398,8 @@ impl SessionOp {
 /// What an operation did.
 #[derive(Debug, Default)]
 pub struct OpOutcome {
-    /// The edits that entered the history — at most one per op, and
-    /// exactly one for a gesture's whole drag.
+    /// The edits that entered the history, in the order they applied
+    /// — exactly one for a gesture's whole drag.
     pub committed: Vec<DocEdit<ProfileProgram>>,
     /// The edits evaluated against scratch state and NOT recorded.
     pub previewed: Vec<DocEdit<ProfileProgram>>,

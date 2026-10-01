@@ -391,9 +391,12 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
 }
 
 /// SURVIVES: re-pointing a face's surface AFTER intrinsic upgrades is
-/// detected at tier 3 (DescriptionNotAdjacent + PlanarFaceResidual),
-/// and the old surface is ANCHORED by the edge descriptions (its key
-/// still resolves — no DanglingDescription, no silent reap).
+/// refused by the surface setter, naming the four edges it would
+/// strand, with the body untouched. Forced through the failure-injection
+/// door, the state is detected at tier 3 (DescriptionNotAdjacent +
+/// PlanarFaceResidual), and the old surface is ANCHORED by the edge
+/// descriptions (its key still resolves — no DanglingDescription, no
+/// silent reap).
 #[test]
 fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
     let t = common::geometric_cube::<f64>(Tol::witness());
@@ -409,14 +412,33 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    body.set_face_surface(
-        t.seed.face,
-        FaceSurface::New {
-            surface: shifted,
-            sense: true,
-        },
-    )
-    .unwrap();
+    let swap = || FaceSurface::New {
+        surface: shifted.clone(),
+        sense: true,
+    };
+    let rim: Vec<_> = body
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve).and_then(topo::CurveGeom::certified).map(|c| c.description()),
+                Some(EdgeDescription::Intersection { s1, s2, .. }) if *s1 == old_surface || *s2 == old_surface
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(rim.len(), 4, "the cap's four rim edges name its plane");
+    // The refusal names the four. That it writes nothing is pinned deep
+    // (every arena row and every next key) by
+    // `attach::tests::a_swap_that_strands_an_edge_refuses_naming_every_one_and_writes_nothing`:
+    // the deep snapshot is crate-private, and a derived `Debug` of the
+    // body does not see the key slots a refusal could consume.
+    assert_eq!(
+        body.set_face_surface(t.seed.face, swap()),
+        Err(EulerOpError::RechartStrandsDescriptions { edges: rim }),
+    );
+
+    body.set_face_surface_stranding_for_tests(t.seed.face, swap())
+        .unwrap();
 
     // Anchoring: the old plane is still referenced by four Intersection
     // descriptions, so it must survive the orphan sweep.

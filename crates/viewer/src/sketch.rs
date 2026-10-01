@@ -2513,10 +2513,15 @@ mod tests {
             Step::At(Point2::new(0.0, 0.0)),
             line_to(0.01, 0.01),
             line_to(0.02, 0.0),
-            line_to(0.01, 1.0e-9),
+            // One ε off the start: inside the band at every ε the CI's
+            // matrix runs (`1e-9` at the default ε).
+            line_to(0.01, Tol::witness().eps()),
         ];
         let mut banded_short = two_legs(0.0, 0.0);
-        banded_short.push(line_to(0.001_000_000_4, 0.001));
+        // 0.4ε off the diagonal through the start: inside the band at
+        // every ε the CI's matrix runs, as `previewed`'s
+        // `Tol::witness()` reads it (`0.0010000004` at the default ε).
+        banded_short.push(line_to(0.001 + 0.4 * Tol::witness().eps(), 0.001));
         let square = test_support::square_vertices();
         let two = || vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]];
         for (steps, vertices, closes) in [

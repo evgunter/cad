@@ -1417,7 +1417,7 @@ mod tests {
         let along = (p1 - p0) * (1.0 / diagonal);
         let theta = (b.zero() + b.escalate()) / 2.0 / diagonal;
         let up = Vec3::new(0.0, 0.0, 1.0);
-        body.set_face_surface(
+        body.set_face_surface_stranding_for_tests(
             half.face,
             crate::euler::FaceSurface::New {
                 surface: crate::Surface::Plane {

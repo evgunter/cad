@@ -189,10 +189,10 @@ pub(crate) fn declare_offer_rows(
     }
     let mut declined = false;
     ui.horizontal(|ui| {
-        if ui.button("Declare").clicked() {
+        if ui.button(DeclareOffer::ACCEPT_LABEL).clicked() {
             ops.push(offer.accept());
         }
-        declined = ui.button("Decline").clicked();
+        declined = ui.button(DeclareOffer::DECLINE_LABEL).clicked();
     });
     if declined {
         *held = None;
@@ -2709,7 +2709,12 @@ mod declared_union {
             )
         );
 
-        let (_, held, ops) = panel(&session, offer.clone(), op, Some("Declare"));
+        let (_, held, ops) = panel(
+            &session,
+            offer.clone(),
+            op,
+            Some(DeclareOffer::ACCEPT_LABEL),
+        );
         assert_eq!(
             held.as_ref(),
             Some(&offer),
@@ -2756,7 +2761,12 @@ mod declared_union {
         let (mut session, block, boss) = scene(tol);
         let tool = holding(&session, block, boss);
         let (_, offer) = refused_union(&mut session, tool);
-        let (_, held, ops) = panel(&session, offer, (BooleanOp::Union, tool), Some("Decline"));
+        let (_, held, ops) = panel(
+            &session,
+            offer,
+            (BooleanOp::Union, tool),
+            Some(DeclareOffer::DECLINE_LABEL),
+        );
         assert_eq!(held, None, "the offer is dropped");
         assert!(ops.is_empty(), "and nothing is queued: {ops:?}");
     }
