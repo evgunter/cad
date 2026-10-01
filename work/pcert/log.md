@@ -192,3 +192,10 @@ without; one lane saw it on a clean `origin/main`. Checked against the
 nightly before anyone is summoned.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — note from REACH: main is red on a row PR 3612 moved
+
+Bisected to PR 3612: `m10_sym_profile_interval` `the_forms_the_walks_build_are_pinned_per_eps_row`
+is red on main at the default ε. Filed on your slate as
+`pcurve-fit-domain-refusal-moves-the-m10-sym-walk-ledger` with the
+numbers. Whether to re-baseline is your call. — (REACH orchestrator)
