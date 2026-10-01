@@ -1896,8 +1896,11 @@ pub(crate) enum SplitRowError {
 ///
 /// The chart `window` each restriction certifies against is the face's
 /// own, hulled from the rows that face already stores ([`stored_rows`],
-/// shared with [`validate_pcurves`]); a restriction's chart box can
-/// only shrink, so the face's window after the split is inside the one
+/// shared with [`validate_pcurves`]). This is check 5 doing real
+/// work — the window holds the PARENT's box, not the children's — and
+/// each child passes because [`Pcurve::chart_box`] is
+/// restriction-monotone (a sub-span's box lies in the span's), which
+/// also puts the face's window after the split inside the one
 /// certified against here. It is derived **once per face**: an edge's
 /// two halves usually bound two different faces, and a seam edge whose
 /// halves bound one face pays for one walk.
@@ -2224,13 +2227,13 @@ type GeneralDoor<'a, T, K> = &'a dyn Fn(
 /// minting pass) and [`site_rows`] (the Euler operators' site mint), so
 /// the rows the two write for one walk are one set of bits.
 ///
-/// **Check 5 is vacuous on every caller.** The window IS the hull of
-/// exactly the boxes checked against it, so no minted pcurve can
-/// escape it, and [`validate_pcurves`] re-derives its window the same
-/// self-referential way. Check 5 is a precondition the caller
-/// supplies, not a check that fires on any path this crate walks; what
-/// the precondition buys is stated once, at `geom_brep::PcurveCache`'s
-/// module docs. The vacuity at mint is deliberate: a freshly derived
+/// **Check 5 is vacuous on both callers of this pass.** The window IS
+/// the hull of exactly the boxes checked against it, so no minted
+/// pcurve can escape it, and [`validate_pcurves`] re-derives its window
+/// the same self-referential way. The crate's one non-tautological
+/// caller is [`split_cache`], whose halves pass by the box's
+/// restriction monotonicity; what the precondition buys is stated
+/// once, at `geom_brep::PcurveCache`'s module docs. The vacuity at mint is deliberate: a freshly derived
 /// face has no independent prior notion of its own trim region, and
 /// inventing one (say, the loop's vertex box) would refuse legitimate
 /// faces whose boundary arcs bulge past their endpoints. The window
@@ -3077,11 +3080,12 @@ fn chart_edge<T: Decide>(
                 slack: cache.certificate().envelope,
             })
         }
-        // The closed-form image is exact in its family, so its span
-        // enclosure IS the certified box and the slack is zero. At a
-        // POINT scalar the span hull is poison, the box is poison, and
-        // the outside test certifies nothing against it — which is the
-        // safe direction.
+        // The closed-form image is exact in its family, so the slack is
+        // zero and the image's enclosure is the image evaluated over
+        // the span's enclosure — the interval natural extension, not
+        // `chart_box`. At a POINT scalar the span hull is poison, the
+        // enclosure is poison, and the outside test certifies nothing
+        // against it — which is the safe direction.
         _ => Ok(ChartEdge::Envelope {
             a,
             b,

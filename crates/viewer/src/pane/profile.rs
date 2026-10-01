@@ -37,7 +37,7 @@ impl ViewerBehavior<'_> {
     /// [`crate::sketch::held_loops`], committed whole by
     /// [`SessionOp::EditProfile`] ([`edit_door_ui`]).
     ///
-    /// Returns `false`, having said why in the unresolved colour, when
+    /// Returns `false`, having said why in the actionable colour, when
     /// the editor cannot hold this profile (an argument an expression
     /// drives): the caller shows the slot rows instead, which can. When
     /// it returns `true` the caller still offers the slot rows, folded
@@ -771,8 +771,8 @@ mod tests {
     /// held the commit.
     fn drawn(preview: &Result<ProfilePreview, PreviewError>) -> (Vec<Landed>, Voices, bool) {
         let mut held = None;
-        let (painted, voices) = landed_voiced(|ui| {
-            held = Some(preview_verdict(ui, Theme::DEFAULT, Some(preview)));
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            held = Some(preview_verdict(ui, *theme, Some(preview)));
         });
         (painted, voices, held.expect("the verdict was drawn"))
     }
@@ -850,7 +850,7 @@ mod tests {
             let (painted, voices, held) = drawn(&refused);
             assert_eq!(
                 find(&painted, &error.to_string()).ink,
-                Some(voices.unresolved),
+                Some(voices.actionable),
                 "{error}"
             );
             assert!(held, "{error} holds the commit");
@@ -860,7 +860,7 @@ mod tests {
     /// **A refused step's loop draws, and the form says the refusal
     /// loud.** The `arc_fillet_arc` the form hands an author who picks
     /// it after two legs is refused on arrival; what is said under the
-    /// step list is that refusal in the unresolved voice, holding the
+    /// step list is that refusal in the actionable voice, holding the
     /// commit — never the unfinished chain's quiet sentence, though the
     /// loop drawn does not close.
     ///
@@ -883,7 +883,7 @@ mod tests {
         let (painted, voices, held) = drawn(&cut);
         assert_eq!(
             find(&painted, &refused.to_string()).ink,
-            Some(voices.unresolved),
+            Some(voices.actionable),
             "{refused}"
         );
         assert!(
@@ -1035,7 +1035,7 @@ mod tests {
         let (painted, voices, held) = drawn(&crossing);
         assert_eq!(
             find_opening(&painted, "does not validate: ").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert!(held, "an invalid profile holds the commit");
 

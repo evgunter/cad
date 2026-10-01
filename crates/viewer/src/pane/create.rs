@@ -2334,8 +2334,8 @@ mod tone_tests {
         offered: Result<Vec<PartEntry>, Refusal>,
     ) -> (Vec<Landed>, Voices) {
         let chooser = PartChooser::opened(PartCensus::taken(dir.map(PathBuf::from), offered));
-        landed_voiced(|ui| {
-            part_listing(ui, &Theme::DEFAULT, &chooser);
+        landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            part_listing(ui, theme, &chooser);
         })
     }
 
@@ -2346,7 +2346,7 @@ mod tone_tests {
         let (painted, voices) = listed(None, Err(Refusal::NoDocumentDirectory));
         assert_eq!(
             find_opening(&painted, "save the document first").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert_eq!(
             painted.len(),
@@ -2364,7 +2364,7 @@ mod tone_tests {
         let (painted, voices) = listed(Some("/parts"), Ok(Vec::new()));
         assert_eq!(
             find_opening(&painted, "this directory holds no documents at all").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
     }
@@ -2407,8 +2407,7 @@ mod tone_tests {
     /// pick included; one about a seat not yet answerable is quiet.
     #[test]
     fn a_face_frame_fault_takes_the_voice_the_fault_gives_it() {
-        let (painted, voices) = landed_voiced(|ui| {
-            let theme = &Theme::DEFAULT;
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
             face_frame_fault(
                 ui,
                 theme,
@@ -2430,15 +2429,15 @@ mod tone_tests {
         });
         assert_eq!(
             find_opening(&painted, "a sketch frame is read off a PLANAR face").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert_eq!(
             find_opening(&painted, "feature 4's value is several bodies").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert_eq!(
             find_opening(&painted, "that face does not resolve: ").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert_eq!(
             find_opening(&painted, "the document has not evaluated yet").ink,
@@ -2450,8 +2449,8 @@ mod tone_tests {
     /// a second time** by the form; one the selection is not about is.
     #[test]
     fn a_stale_latched_face_is_said_once_in_the_pane() {
-        let (said_once, _) = landed_voiced(|ui| {
-            face_frame_fault(ui, &Theme::DEFAULT, &unresolved(), true);
+        let (said_once, _) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            face_frame_fault(ui, theme, &unresolved(), true);
         });
         assert!(
             said_once.is_empty(),
@@ -2459,10 +2458,10 @@ mod tone_tests {
             said_once.iter().map(|l| &l.text).collect::<Vec<_>>()
         );
         // Only `Unresolved` is the selection's to say.
-        let (planar, _) = landed_voiced(|ui| {
+        let (planar, _) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
             face_frame_fault(
                 ui,
-                &Theme::DEFAULT,
+                theme,
                 &FaceFrameFault::NotPlanar {
                     carrier: SurfaceKind::Cylinder,
                 },
@@ -2544,21 +2543,13 @@ mod tone_tests {
     /// the form waiting for one is quiet.
     #[test]
     fn a_withheld_profile_button_says_why_in_the_reasons_own_voice() {
-        let (painted, voices) = landed_voiced(|ui| {
-            withheld_line(
-                ui,
-                &Theme::DEFAULT,
-                Withheld::Refused("the bore is too wide"),
-            );
-            withheld_line(
-                ui,
-                &Theme::DEFAULT,
-                Withheld::Waiting("choose a shape to add"),
-            );
+        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+            withheld_line(ui, theme, Withheld::Refused("the bore is too wide"));
+            withheld_line(ui, theme, Withheld::Waiting("choose a shape to add"));
         });
         assert_eq!(
             find(&painted, "the bore is too wide").ink,
-            Some(voices.unresolved)
+            Some(voices.actionable)
         );
         assert_eq!(
             find(&painted, "choose a shape to add").ink,
