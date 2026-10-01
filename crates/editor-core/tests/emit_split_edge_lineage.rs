@@ -149,6 +149,31 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_ranks_its_crossing
         (first[0] - second[0]).abs() > 0.5,
         "the two crossings are the two ends of the chord at y = 0.2: {first:?} {second:?}"
     );
+    // Rank 0 is the crossing first along the rim as the extrude stores
+    // it: on a semicircle the chord from the start grows along the arc,
+    // so it is the crossing nearer the rim's start.
+    let ext_body = crate::corpus::body_of(&ev, ext);
+    let rim_edge = ext_body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| {
+            ev.value(ext)
+                .unwrap()
+                .name_table
+                .name_of(&editor_core::EntityRef {
+                    body: 0,
+                    key: EntityKey::Edge(e),
+                })
+                .is_some_and(|n| rim(n))
+        })
+        .expect("the extrude's start rim Piece(0)");
+    let start = point(ext_body, crate::fixture::ends(ext_body, rim_edge)[0]);
+    let from_start = |c: [f64; 3]| ((c[0] - start.x).powi(2) + (c[1] - start.y).powi(2)).sqrt();
+    assert!(
+        from_start(first) < from_start(second),
+        "rank 0 is the crossing first along the rim's stored direction: {first:?} {second:?} \
+         from {start:?}"
+    );
 }
 
 /// **A plane crossing a cylinder's wall twice names the wall's two

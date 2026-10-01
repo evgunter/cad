@@ -1408,5 +1408,25 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
             "{label}: the slot names: {:?}",
             failure(&ev, cut)
         );
+        // Seam heads → the pieces named by their ends under each.
+        let mut chains: BTreeMap<String, usize> = BTreeMap::new();
+        for (name, entry) in table(&ev, cut).iter() {
+            if name.kind != EntityKind::Edge {
+                continue;
+            }
+            assert!(
+                matches!(entry, Entry::Unique(_)),
+                "{label}: a tied edge: {name:?}"
+            );
+            if let ([head, ..], Some(RoleSeg::Fragment(Qualifier::Ends(_)))) =
+                (name.path.as_slice(), name.path.last())
+            {
+                *chains.entry(format!("{head:?}")).or_default() += 1;
+            }
+        }
+        assert!(
+            chains.values().any(|&n| n >= 2),
+            "{label}: some chain is two or more pieces told apart by their ends: {chains:?}"
+        );
     }
 }
