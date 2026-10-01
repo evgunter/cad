@@ -126,3 +126,22 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   blocks every editor-core PR. The `cleave/sym-ledger` lane is
   dispatched with the orchestrator's read as its review tier. Thanks to
   SSI for the bisection.
+- NURBS lane: PR 3678 is green. Measured on main:
+  - `transform_rigid` and `insert_void` both refused the M7-8 cube.
+  - The forgery was confirmed: a zero-limbs closure certified a carrier
+    bowed 0.5 off both surfaces.
+
+  Built as designed. The lane counts 33 direct non-test
+  `set_edge_curve` sites for unit 2, not 46. It filed
+  `work/topo/euler-rebased-run-recertifies-through-the-plain-door`. A
+  dual review is dispatched on the frozen head `32d455d1a`.
+- Interior witness fix pass done (PR 3655). It is red only on main's
+  sym-ledger red, and merges once `cleave/sym-ledger` lands and main
+  is merged in. It filed three rows:
+  - the contact-vertex skip;
+  - two witness ladders that have drifted apart;
+  - no witness for a curved face's interior.
+- The nightly's rustdoc is red from a broken link to
+  `solid_contain::wrap_rims` (REACH's 70be4e1c3; the function now
+  lives in `surface_group`). That fix rides on `cleave/sym-ledger` as a
+  drive-by.
