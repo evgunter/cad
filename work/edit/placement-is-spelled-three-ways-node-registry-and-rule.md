@@ -2,9 +2,7 @@
 id: placement-is-spelled-three-ways-node-registry-and-rule
 kind: issue
 title: Placement is spelled three ways — a DAG node, a document registry row, and a pattern rule — and the three disagree on whether a placement can be parametric
-status: review
-pr: 3676
-branch: edit/placement-gauges
+status: spec
 opened: 2026-09-21
 priority: P0
 cost: H
@@ -291,3 +289,11 @@ The dual review's union, as the orchestrator ruled it. PR 3676's body holds each
 - **Recourses** of `MatePlaced`, `NeedsAGauge`, `UnplaceableFrame` and `PartDeadGauge` are honourable; `refusal_concision_refactor.rs` guards every split and inline arm (older arms filed: `work/edit/split-and-inline-refusals-short-of-the-shape-guard.md`).
 - **Also:** the hoisted root's parameters stay in the host; `gauge`/`offset` are required on the wire; gauge references are reading edges; `DocEdit::InsertNode` boxes its node; one space fact (`Space`), one frame-rule predicate.
 
+
+## Merged (P2-core, 2026-10-01, PR 3676)
+
+- Merged `a772283dd` after the dual review (DR-34: tally 5, MAJOR found by both) and the fix pass.
+- Main was merged in three more times before the merge.
+- It merged over one red of main's at ε 1e-6, `sweep reach_volume_backstop::an_open_sign…` (REACH P0), with Ev's leave.
+- The spec's P2 section now records the rulings as built.
+- Next is P2-split (`placement-split-and-inline-at-a-gauge-are-refused-until-p2-split`), an L unit and a concurrent dual under the protocol at `7cb05367e`. P3 goes to the viewer owner's slate.
