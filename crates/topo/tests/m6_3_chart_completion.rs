@@ -288,7 +288,7 @@ mod certified {
     /// route's honesty is what this row asserts and it is unmoved —
     /// the bound still lands inside the open sliver band, and the
     /// three arms below still partition ε the same way.
-    const HULL_SUP_AT_INTERVAL: f64 = 1.7985010297969555e-12;
+    const HULL_SUP_AT_INTERVAL: f64 = 1.0164301818350718e-12;
 
     /// This route is **honest at every ε**, and which of three things
     /// that means depends on where ε sits relative to

@@ -2655,6 +2655,16 @@ mod tests {
     /// The row measures the two readings on ONE composite, so the
     /// only thing that differs between them is the expression under
     /// test.
+    ///
+    /// **The sup CELL is `(21, 6)`, not `(21, 12)`, since
+    /// `insert_once_ring` took the convex insertion form.** The sup's
+    /// VALUE is unmoved to the four digits these rows pin — the cell
+    /// that carries it moved, because the Bézier decomposition's
+    /// insertion width no longer compounds per insertion and so no
+    /// longer concentrates at the high end of each direction. The
+    /// componentwise readings on that cell moved in the third digit
+    /// with it (`1.5798e-8`, `3.2219e-4`, `3.1059e-4` and a ratio of
+    /// `18.872` before).
     #[test]
     fn the_sign_witness_floors_norm_e_where_the_components_straddle_zero() {
         let base = quarter_cylinder();
@@ -2681,7 +2691,7 @@ mod tests {
         assert_eq!((cert.rounds, cert.cells), (4, 308));
         let comp = Composite::build(&base, &fit, d).unwrap();
         let (su, sv, sup) = sup_cell(&comp, reg.floor, d, ELow::Witness);
-        assert_eq!((su, sv), (21, 12));
+        assert_eq!((su, sv), (21, 6));
         assert!(near(sup, 1.7072e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
@@ -2700,15 +2710,15 @@ mod tests {
         // by the regularity floor, not by `‖E‖`.
         let (dist_c, tau_c, t3_c, e_mig, sup_c) =
             decompose(&comp, su, sv, reg.floor, d, ELow::Componentwise);
-        assert!(near(e_mig, 1.5798e-8), "componentwise floor is {e_mig:e}");
-        assert!(near(sup_c, 3.2219e-4) && near(dist_c, 9.3763e-6) && near(t3_c, 3.1059e-4));
+        assert!(near(e_mig, 1.5814e-8), "componentwise floor is {e_mig:e}");
+        assert!(near(sup_c, 3.2189e-4) && near(dist_c, 9.3762e-6) && near(t3_c, 3.1030e-4));
         assert!(near(tau_c, tau), "τ moved: {tau_c:e} against {tau:e}");
         assert!(
             t3_c > 0.96 * sup_c,
             "the componentwise reading's sup is not its τ²/‖E‖ term"
         );
         assert!(
-            near(sup_c / sup, 18.872),
+            near(sup_c / sup, 18.855),
             "the bound moved by {}",
             sup_c / sup
         );
@@ -2717,7 +2727,7 @@ mod tests {
         // over the one it replaces, and the row measures that rather
         // than resting on the argument.
         let worst = no_cell_loosens(&comp, reg.floor, d);
-        assert!(near(worst, 18.872), "the widest cell gain is {worst}");
+        assert!(near(worst, 18.855), "the widest cell gain is {worst}");
 
         // One round finer — the grid the `1e-9` request stops on at
         // the sample cap. The cells are small enough that the
@@ -2728,7 +2738,7 @@ mod tests {
         assert_eq!((cert5.rounds, cert5.cells), (5, 364));
         let comp5 = Composite::build(&base, &fit5, d).unwrap();
         let (su5, sv5, sup5) = sup_cell(&comp5, reg.floor, d, ELow::Witness);
-        assert_eq!((su5, sv5), (21, 12));
+        assert_eq!((su5, sv5), (21, 6));
         let (dist5, tau5, t35, e_lo5, _) = decompose(&comp5, su5, sv5, reg.floor, d, ELow::Witness);
         assert!(near(sup5, 3.7544e-7), "cap-grid sup is {sup5:e}");
         assert!(near(e_lo5, 8.3071e-7) && near(dist5, 1.2216e-7) && near(t35, 4.7996e-8));

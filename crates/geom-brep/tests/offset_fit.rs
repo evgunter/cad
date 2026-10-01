@@ -598,7 +598,7 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 /// gained nothing" on a loop that was given one weaker step sends the
 /// caller to the wrong knob.
 ///
-/// The bumpy patch at `d = 1e-4` is that shape at an unreachable
+/// The bumpy patch at `d = -1e-5` is that shape at an unreachable
 /// `1e-15`: it exhausts the budget on a round whose bound ROSE. The
 /// other side of the ordering — a second non-improving round wearing
 /// the stall's face — is
@@ -617,33 +617,41 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 /// (`BestBound`'s recourse claim), so a request whose
 /// tolerance an earlier round already met certifies ON that round and
 /// hands back exactly the bound this run stepped off. The ladder read
-/// back that way, at `d = 1e-4`:
+/// back that way, at `d = -1e-5` (rounds 0 and 1 carry no finite bound
+/// at all, so no tolerance stops on them):
 ///
 /// ```text
-/// round 0   1.8219683e-5   (144 cells)
-/// round 1   6.5173320e-8   (224 cells)
-/// round 5   6.0173058e-9   (782 cells)
-/// round 6   8.3524739e-9   — the budget face, HIGHER than round 5
+/// round 2   1.5486840e-5   (192 cells)
+/// round 3   3.3778872e-6   (252 cells)
+/// round 4   1.4857180e-6   (450 cells)
+/// round 5   5.9970628e-10  (754 cells, grid 29x32)
+/// round 6   1.8241931e-7   — the budget face, HIGHER than round 5
 /// ```
 ///
-/// **Re-read when certification arithmetic became the backend's**
-/// (rounds 1, 5 and 6 were `6.5173322e-8`, `6.0173184e-9` and
-/// `1.0707700e-8`): the retired arithmetic padded one representable step outward on
-/// every operation of `cell_bound`'s assembly and the backend pads
-/// only where the operation is inexact, so every rung came in tighter
-/// and round 0 by less than its own printed precision. The SHAPE the
-/// row is about is unmoved — round 6 is still higher than round 5, and
-/// still the lone non-improving round.
+/// **The SUBJECT was re-found when `insert_once_ring` took the convex
+/// insertion form**, not re-pinned. The row stood on the bumpy patch at
+/// `d = 1e-4`, whose round 6 rose to `8.3524739e-9` over round 5's
+/// `6.0173058e-9`; the convex form took the compounding insertion width
+/// out of the deeper grid's hulls, and that request's round 6 now
+/// IMPROVES, to `1.4808214e-9`. A monotone ladder is not the shape this
+/// row is about, so a number move would have left the row green over a
+/// loop that was no longer its subject. `d = -1e-5` was found by
+/// sweeping `d` over 1e-9..1e-1 on both signs on the bumpy patch and on
+/// the quarter cylinder at an unreachable `1e-15`, and taking a request
+/// whose refusal is the budget's face with `LastRound::DidNotImprove`.
 ///
 /// Round 6 is the non-improving one, and it is a LONE one: round 5
 /// came in under `1e-8` where round 4 did not, so round 5 improved,
 /// so the marking that built round 6's grid was the directional one
 /// rather than the both-directions fallback — which is the admission
-/// set the stall's refusal wants and does not have here.
+/// set the stall's refusal wants and does not have here. (The stall
+/// guard firing would have made this refusal `RefinementStalled`, so
+/// the budget's face is itself evidence the guard's two-round
+/// admission set was not met.)
 #[test]
 fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let base = bumpy_patch();
-    let refusal = fit_offset_at(&base, 1e-4, 1e-15, band());
+    let refusal = fit_offset_at(&base, -1e-5, 1e-15, band());
     let (achieved, last_round, best) = match &refusal {
         Err(OffsetFitError::BudgetExhausted {
             budget,
@@ -656,7 +664,7 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
             assert_eq!(*budget, OFFSET_FIT_BUDGET);
             assert!(achieved.is_finite() && achieved > tolerance);
             assert!(
-                (achieved - 8.3524739e-9).abs() < achieved * 1e-5,
+                (achieved - 1.8241931e-7).abs() < achieved * 1e-5,
                 "the budget face carries {achieved:e}"
             );
             eprintln!(
@@ -670,10 +678,10 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let msg = refusal.err().map(|e| e.to_string()).unwrap_or_default();
     // The round the budget face stepped off, read back through the
     // door. `1e-8` is met by round 5 and by no round before it.
-    let (prev_fit, prev) = fit_offset_at(&base, 1e-4, 1e-8, band())
+    let (prev_fit, prev) = fit_offset_at(&base, -1e-5, 1e-8, band())
         .unwrap_or_else(|e| panic!("the round before the budget face refused: {e}"));
     assert!(
-        prev.rounds == 5 && (prev.hull_sup - 6.0173058e-9).abs() < prev.hull_sup * 1e-5,
+        prev.rounds == 5 && (prev.hull_sup - 5.9970628e-10).abs() < prev.hull_sup * 1e-5,
         "the ladder moved: round {} carries {:e}",
         prev.rounds,
         prev.hull_sup
@@ -726,16 +734,20 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
 }
 
 /// **What the floor on `‖E‖` reaches on a non-analytic base.** The
-/// bumpy patch at `d = 1e-6` certifies at `5.059e-10` on the third
-/// round's 609 cells — three orders below `|d|`, on a patch with no
+/// bumpy patch at `d = 1e-6` certifies at `1.400e-10` on the third
+/// round's 609 cells — four orders below `|d|`, on a patch with no
 /// closed form to check against, which is why the row pins the
 /// digits rather than a ratio.
 ///
-/// **Re-pinned when certification arithmetic became a newtype over the backend**
-/// (`7.6102e-10` before): interval arithmetic padded one representable step
-/// outward on every operation of `cell_bound`'s assembly and the
-/// backend pads only where the operation is inexact, so the same
-/// certificate on the same 609 cells comes in a third tighter.
+/// **Re-pinned twice, both times tighter on the same 609 cells.** When
+/// certification arithmetic became a newtype over the backend
+/// (`7.6102e-10` before), the retired arithmetic's unconditional
+/// one-step outward pad per operation of `cell_bound`'s assembly went
+/// away. When `insert_once_ring` took the convex insertion form
+/// (`5.0593e-10` before), the Bézier decomposition stopped reading each
+/// coefficient twice, so the width it carried into the hulls stopped
+/// compounding per insertion — a 3.6x tightening, the largest of the
+/// two.
 #[test]
 fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
     let base = bumpy_patch();
@@ -743,7 +755,7 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
         .unwrap_or_else(|e| panic!("the bumpy patch refused a 1e-9 request: {e}"));
     assert_eq!((cert.rounds, cert.cells), (3, 609));
     assert!(
-        (cert.hull_sup - 5.0593e-10).abs() < cert.hull_sup * 1e-3,
+        (cert.hull_sup - 1.39976e-10).abs() < cert.hull_sup * 1e-3,
         "the bumpy patch certifies at {:e}",
         cert.hull_sup
     );
@@ -758,15 +770,19 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
 /// face says there is no number, and prints none.
 ///
 /// One decade up the face is not reached: `d = 1e-7` certifies at
-/// `5.8508e-7` on the fifth round's 1144 cells. The row pins that
+/// `5.8284e-7` on the fifth round's 1144 cells. The row pins that
 /// boundary, because the two faces are one decade apart and a change
 /// that moved either would otherwise move it silently.
 ///
-/// **Re-pinned when certification arithmetic became a newtype over the backend**
-/// (`5.8550e-7` before): the retired unconditional one-step pad per
-/// operation is gone from `cell_bound`'s assembly. The boundary this
-/// row draws is unmoved — `1e-8` and `1e-9` still never become
-/// finite, and this decade still certifies.
+/// **Re-pinned twice.** When certification arithmetic became a newtype
+/// over the backend (`5.8550e-7` before), the retired unconditional
+/// one-step pad per operation went out of `cell_bound`'s assembly; and
+/// when `insert_once_ring` took the convex insertion form (`5.8508e-7`
+/// before), the Bézier decomposition stopped multiplying each
+/// coefficient's dust up per insertion. The boundary this row draws is
+/// unmoved under both — `1e-8` and `1e-9` still never become finite,
+/// this decade still certifies, and it certifies on the same 1144
+/// cells.
 #[test]
 fn a_bound_that_never_became_finite_refuses_with_no_number() {
     let base = quarter_cylinder(1.0, 1.0);
@@ -774,7 +790,7 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
         .unwrap_or_else(|e| panic!("d = 1e-7 no longer certifies: {e}"));
     assert_eq!((cert.rounds, cert.cells), (5, 1144));
     assert!(
-        (cert.hull_sup - 5.8508e-7).abs() < 5e-11,
+        (cert.hull_sup - 5.82838e-7).abs() < 5e-11,
         "d = 1e-7 certifies at {:e}",
         cert.hull_sup
     );
@@ -852,7 +868,7 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 /// unreachable one refuses typed rather than reporting a number it
 /// cannot support. `1e-9` is the second half — the fit's own absolute
 /// accuracy does not reach it, and the grid the bound wants exceeds
-/// the sample cap first, at `achieved = 3.754e-7`. That bound is
+/// the sample cap first, at `achieved = 3.7536e-7`. That bound is
 /// carried by `τ` (`2.05e-7` of it), the tangential term, which
 /// divides by the regularity floor rather than by `‖E‖`.
 #[test]
@@ -901,7 +917,7 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
         }) => {
             assert_eq!(rounds, 5);
             assert!(
-                (achieved - 3.7544e-7).abs() < 5e-11,
+                (achieved - 3.75359e-7).abs() < 5e-11,
                 "the cap stop carries {achieved:e}"
             );
             eprintln!(
