@@ -6,7 +6,6 @@ status: spec
 opened: 2026-09-21
 priority: P0
 cost: H
-needs_ev: true
 ---
 
 Filed by the AUTHOR orchestrator at Ev's direction (in chat,
