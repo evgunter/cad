@@ -125,6 +125,11 @@ fn every_rewritten_boolean_refusal_renders_within_the_budget() {
                 "{name} offers a tolerance no smaller one honours: {text}"
             ));
         }
+        if A_TOLERANCE_PASSES.contains(&name) && !text.contains("tolerance below") {
+            problems.push(format!(
+                "{name} drops the tolerance a smaller one honours: {text}"
+            ));
+        }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
@@ -132,12 +137,14 @@ fn every_rewritten_boolean_refusal_renders_within_the_budget() {
 /// The rows whose refusal no smaller tolerance passes, so a sentence
 /// that offers one spends words on a false offer: two spheres that
 /// definitely cross (`SpheresMeet`'s negative verdict) cross at every
-/// tolerance, and a decided zero on the crossing side is decided
-/// crossing below it; the Boolean cannot yet join either.
-const NO_TOLERANCE_PASSES: &[&str] = &[
-    "SpheresMeet",
-    "SpheresMeet (touching, crossed by the zero band)",
-];
+/// tolerance, and the Boolean cannot yet join them.
+const NO_TOLERANCE_PASSES: &[&str] = &["SpheresMeet"];
+
+/// The rows whose refusal a smaller tolerance passes, so the sentence
+/// owes the value: a nesting clearance within the zero band is decided
+/// nested below it (executed: `sweep`'s `offer_rows`,
+/// `nested_in_the_zero_band`).
+const A_TOLERANCE_PASSES: &[&str] = &["SpheresMeet (touching, nested within the zero band)"];
 
 /// Every rewritten arm, rendered the way the viewer renders a failed node.
 fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
@@ -396,12 +403,12 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "SpheresMeet (touching, crossed by the zero band)",
+            "SpheresMeet (touching, nested within the zero band)",
             BooleanError::SpheresMeet {
                 operand: Operand::A,
                 face,
                 verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
-                    margin: MarginDiag::value(-0.5 * band.zero()),
+                    margin: MarginDiag::value(0.5 * band.zero()),
                     band,
                 }),
             },
