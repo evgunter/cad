@@ -5754,7 +5754,7 @@ fn sphere_general_circle<T: Decide>(
     let lever = radius + radius;
     let two = T::from_f64(2.0);
     for coefficient in [
-        w.dot(w) + form.a.dot(form.a) - radius * radius,
+        w.dot(w) + form.a.dot(form.a) - radius.powi(2),
         w.dot(form.a) * two,
         w.dot(form.b) * two,
     ] {
