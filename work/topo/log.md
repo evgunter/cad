@@ -5158,3 +5158,58 @@ Euler files.
 
 Disk fell to 3.9 GB. Clearing merged units' scratch brought it back to
 4.4 GB, with no lane's target touched.
+
+## PR 3513 fr4: NOT-MERGEABLE-AS-IS; the offer ruling refined; fix pass 5 (2026-10-01)
+
+The focused review ran on the frozen head `6abcaad80e`, where CI is
+green. It built its own poses and followed each chain at 0.9×.
+
+**Held on the reviewer's geometry (T1):**
+- `vtxfac` (×9, plus one T2 through `CrossingInsertion`);
+- `SectorSide` (×8);
+- spheres (×8);
+- `EdgeOnPlane`, `PierceCurvature`, `CoplanarNeighbours`;
+- the site lanes.
+
+**Failed:**
+- **MAJOR-1, a regression.** `vtxfac`'s new decided-tilt arm offers
+  "declare" where a declared `Rest` is contradicted. That includes the
+  lane's own pose.
+- **MAJOR-2.** `Rim` is F3 at its only door (dome × tube, `Tangent`).
+  The harness case calls `shared_rim` directly.
+- **MAJOR-3.** `VertexOnFace`, `Neighbours(Parallel)` and
+  `EdgeOnCurvedFace` each decide their own question at 0.9×. The op
+  then meets `Containment`, whose old unvalued "declare… or lower the
+  tolerance" menu is CONTACT's filed row
+  (`work/contact/contain-escalation-carries-no-decision.md`).
+- **MAJOR-4.** `VertexOnFace` is F1 at a turned-corner pose. It offers
+  the first vertex's margin, not the binding one.
+- **MINORs:**
+  - `LeverArm(Seam)` quotes the arm and not sinθ·arm;
+  - withdrawn arms keep levers that do not pass;
+  - a declared `Rest` at an in-band tilt meets `Containment`;
+  - the census cannot see a site re-keyed under an existing decision
+    (MY5), or an inflated `vtxfac` value (MY1).
+
+**Ruling refined (orchestrator).** The T2 rule (2026-09-30) asked each
+offer to promise the op's outcome. A per-decision offer cannot know
+what the op meets next, and four rounds show that reading is not
+reachable locally. D4 ¶1 (i)'s ratified words are "a smaller ε decides
+**it**": the decision. The rule returns to that text, which is mine to
+revise because it was my stricter-than-literal reading.
+- An offer is true when, at 0.9× the offer, its own decision no longer
+  refuses (not F1), no defect is reached (not F2), and the op is not one
+  that no ε gets past (not F3).
+- Every refusal met further along must tell its own true story. That is
+  each refusal's own obligation, not the earlier offer's.
+- So MAJOR-3 is `Containment`'s defect, CONTACT's row, and gets this
+  review's evidence.
+- F1 and F3 stay defects in this unit, as does every regression.
+
+**Fix pass 5** fixes MAJOR-1, MAJOR-2 and MAJOR-4, and `Seam` (quote
+the reading, or withdraw). It makes every withdrawn arm's lever true
+(or ends it as the frontier it is) and closes the census's two blind
+spots. It also adds the reviewer's failing poses as harness cases.
+
+**Verification** is a re-run of fr4's own probe set and chain executor
+on the new head, rather than a sixth full review.
