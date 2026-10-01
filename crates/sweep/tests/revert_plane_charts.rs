@@ -443,3 +443,39 @@ fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
         "involution"
     );
 }
+
+/// Reviewer probe (CLEAVE PR 3678, lane r2): the void door's carried
+/// certificates are the ones a re-certifying graft would have minted,
+/// bit for bit (`Certificate`'s `Debug` form, its D9 identity), on the
+/// drum's reverted cavity — so the bridge swap moves no stored bit.
+#[test]
+fn rr2_carried_cavity_certificates_equal_a_fresh_recertification() {
+    let body = collinear_cap_drum();
+    let cavity = door_cavity(&body, T);
+    let evidence = void_evidence(&cavity);
+    let mut out = body.clone();
+    let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
+    let ins = topo::insert_voids(&mut out, &solids, cavity.clone(), &evidence, tol()).unwrap();
+    let band = Band::linear(tol()).unwrap();
+    let mut compared = 0;
+    for (ek, _) in cavity.edges() {
+        let dk = ins.edge(ek).unwrap();
+        let e = out.get_edge(dk).unwrap();
+        let Some(topo::CurveGeom::Certified(c)) = out.get_curve_geom(e.curve) else {
+            continue;
+        };
+        let p = |v| *out.get_point(out.get_vertex(v).unwrap().point).unwrap();
+        let start = p(out.get_half_edge(e.he_plus).unwrap().start);
+        let end = p(out.half_edge_end(e.he_plus).unwrap());
+        let fresh = c
+            .recertify_nurbs_lane(start, end, |k| out.get_surface(k).cloned(), band)
+            .unwrap();
+        assert_eq!(
+            format!("{:?}", c.certificate()),
+            format!("{fresh:?}"),
+            "edge {dk:?}"
+        );
+        compared += 1;
+    }
+    assert!(compared > 0);
+}

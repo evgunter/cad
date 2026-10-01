@@ -308,3 +308,6 @@ mod replace_face_band_probes;
 mod certified_enclosure_impl_census;
 #[path = "split_tangent_spur.rs"]
 mod split_tangent_spur;
+
+#[path = "cleave_nurbs_lane_r2_probes.rs"]
+mod cleave_nurbs_lane_r2_probes;
