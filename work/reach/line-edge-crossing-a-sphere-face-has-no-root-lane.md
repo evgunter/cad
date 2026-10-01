@@ -2,7 +2,9 @@
 id: line-edge-crossing-a-sphere-face-has-no-root-lane
 kind: issue
 title: A line edge straddling a sphere face has no root lane in the reduction (lily wall probe 12 stops here)
-status: open
+status: review
+pr: 3659
+branch: reach/sphere-union-sphere
 opened: 2026-10-01
 refs: [full-period-wall-has-no-containment-verdict, sphere-union-sphere-refuses-though-the-section-is-closed-form]
 ---
