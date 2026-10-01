@@ -295,18 +295,6 @@ fn pi_bracket() -> Interval {
 /// conservative direction.
 const ENCLOSE_DEPTH: usize = 8;
 
-fn ring_sqrt(x: Interval) -> Interval {
-    if !x.is_certified() || x.hi() < 0.0 {
-        return Interval::refused();
-    }
-    let lo = if x.lo() <= 0.0 {
-        0.0
-    } else {
-        x.lo().sqrt().next_down()
-    };
-    Interval::from_bounds(lo, x.hi().sqrt().next_up())
-}
-
 fn ring_abs(x: Interval) -> Interval {
     if !x.is_certified() || x.lo() >= 0.0 {
         x
@@ -370,7 +358,9 @@ fn enclose_indet(
         enclose_form_deep(f, params, atoms, depth + 1)
     };
     let out = match atom.op {
-        SymOp::Sqrt => ring_sqrt(arg(0)?),
+        // A root atom has a real value only where its argument is
+        // non-negative, and that is the fact the clamp states.
+        SymOp::Sqrt => arg(0)?.clamped_to(0.0, f64::INFINITY).sqrt(),
         SymOp::Abs => ring_abs(arg(0)?),
         SymOp::Min => ring_min(arg(0)?, arg(1)?),
         SymOp::Max => ring_max(arg(0)?, arg(1)?),
