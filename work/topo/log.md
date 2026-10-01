@@ -5033,3 +5033,27 @@ PR 3570 route of the same shape as N1: `require_vertex_unnamed` refuses
 an Empty loop's anchor naming the removed vertex as `LoopCycleBroken`.
 It is a different relation, but it is the same kept-names-removed
 question, so the variant unification belongs with that row.
+
+## PR 3592 merged; the null-face row dispatched (2026-10-01)
+
+PR 3592 had gone `dirty` against main when REACH's rows moved to
+`work/hone/`, so no CI ran on the commit closing its rows. I merged
+main (comment-path changes only) at `5a0666b0f2`. CI run 36808550901
+went green, and the PR merged at `22fc777e1b`. That closes the
+half-edge, kfmrh and movefac rows.
+
+**The null-face ruling, refined before dispatch.** `set_null_face_pair`'s
+docs (M3 PR 1) leave loop ownership unchecked because surgery re-homes
+loops mid-sequence. A set-time check alone would therefore not close
+the `kef` witness, so the mechanism rests on the loop's death:
+- every op that removes a loop drops each record naming it (F9's
+  hygiene, read for a null face's two loops);
+- the door checks ownership at set time; both production callers pass
+  their own outer loop and ring;
+- re-homing ops drop the record only if a measurement shows no
+  production sequence reads it afterwards, and otherwise the lane
+  stops and reports.
+
+Dispatched on the rebase target, branch
+`topo/null-face-record-dies-with-its-loops`. The brief is
+`nullface-impl-brief.md`.
