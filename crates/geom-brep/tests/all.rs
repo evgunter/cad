@@ -255,6 +255,8 @@ mod pcurve_mirror_v;
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
+#[path = "review_general_circle_probes.rs"]
+mod review_general_circle_probes;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
 #[path = "torus_meridian_radial.rs"]
