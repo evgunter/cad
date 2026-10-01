@@ -76,7 +76,6 @@
 //! value because the planar side has no chart to compute one from.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
-use geom_core::spline::SpanLocate;
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3,
 };
@@ -1699,11 +1698,9 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// channel that is exactly `α + β·t` (it writes `pa.x = pb.x = 0` and
 /// `pl.x = β ∈ {−1, 0, +1}` in both of its arms), so the two endpoint
 /// evaluations ARE the range — this is closed-form structure, not a
-/// sampled bound. The trigonometric amplitudes ride along as an
-/// explicit conservative widening that is exactly zero for every
-/// pcurve this lane derives (the PR 6 snap-slack idiom: the term keeps
-/// the statement true if the family ever widens, and costs nothing on
-/// the ship path).
+/// sampled bound. It is read off [`Pcurve::harmonic_span_box`], whose
+/// trigonometric widening is exactly zero for every pcurve this lane
+/// derives and keeps the statement true if the family ever widens.
 ///
 /// **The closed-form lane only, and it says so with `None`.** The join
 /// lane reads a chart image's azimuth through its harmonic amplitudes;
@@ -1718,14 +1715,8 @@ fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
 /// carrier before a fitted image can reach this function — and it is
 /// written anyway because the cyl×sphere join window (banked past M6,
 /// M6-PLAN: "chase the lift") is exactly what would make it live.
-fn chart_azimuth_range<T: SpanLocate>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
-    let Pcurve::Harmonic { pa, pb, .. } = *p else {
-        return None;
-    };
-    let amp = pa.x.abs() + pb.x.abs();
-    let u0 = p.eval(t0).x;
-    let u1 = p.eval(t1).x;
-    Some((u0.min(u1) - amp, u0.max(u1) + amp))
+fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
+    p.harmonic_span_box(t0, t1).map(|b| (b.u_min, b.u_max))
 }
 
 /// The divided face's **azimuth window** on its own chart: the hull of

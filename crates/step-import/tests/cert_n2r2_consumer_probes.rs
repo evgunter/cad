@@ -169,13 +169,11 @@ fn n2r2_class3_chart_stretch_sup_inf_interval() {
         show(inf.sup_v),
         show(inf.area_inf)
     );
-    // Placeholder at Interval for comparison.
+    // Placeholder at Interval for comparison: it has no sup pair.
     let ph = Surface::<Interval>::nurbs_placeholder();
-    let sp = geom_brep::chart_stretch_sup(&ph).unwrap();
     eprintln!(
-        "[class 3 Interval placeholder] sup_u={} sup_v={}",
-        show(sp.0.get()),
-        show(sp.1.get())
+        "[class 3 Interval placeholder] sup={:?}",
+        geom_brep::chart_stretch_sup(&ph)
     );
 }
 

@@ -5950,6 +5950,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "split_vertex_orbit",
             "stale_contact_declaration",
             "stale_null_face_loop",
+            "stale_null_face_ownership",
             "tangent_not_intrinsic",
             "transverse_not_intrinsic",
             "uncertifiable_surface",

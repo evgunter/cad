@@ -189,8 +189,9 @@ impl<T: Real> FittedLane<T> {
     /// # Errors
     ///
     /// [`PcurveCertifyError::FittedCertificate`] when a foot point of
-    /// the schedule will not converge or the interpolation is
-    /// degenerate.
+    /// the schedule will not converge or the interpolation refuses;
+    /// [`PcurveCertifyError::CarrierDomain`] when the image cannot be
+    /// re-expressed on the carrier's own domain.
     pub fn general_image(
         self,
         carrier: &NurbsCurve3<T>,
