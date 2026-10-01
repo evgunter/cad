@@ -5,6 +5,7 @@ title: A Failed row links to no node for AxisInDifferentPlane, EmptyOperand and 
 status: closed
 closed: 2026-10-01
 branch: chrome/repair-readout
+pr: 3635
 opened: 2026-09-29
 priority: P4
 cost: E
@@ -49,7 +50,7 @@ The ruling is the recommendation both designers reached after two rounds:
 - **New: an empty readout.** An `Ok` boolean that is `BooleanValue::Empty`, or a split with an empty side, draws "empty" or "above half empty" in the row's value slot (`TreeRow::measured`, widened to say what an `Ok` value says). This also covers an empty root. A pattern's count gets no readout.
 - **Not ruled.** The separable idea of moving the "slot refused" answer into `editor-core` as a method on `NodeErrorKind` / `MateFault` is left to the implementer's judgement.
 
-## Closed — the four arms link nowhere, and an empty value says so (#chrome/repair-readout)
+## Closed — the four arms link nowhere, and an empty value says so (#3635)
 
 Done as ruled. `tree::repair_named` answers the four arms with
 `WrongOperand` under one comment, and `TreeRow::repair_at`'s doc says
