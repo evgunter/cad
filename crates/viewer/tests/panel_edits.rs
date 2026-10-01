@@ -320,7 +320,7 @@ fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
                 found,
             },
         )) => {
-            assert_eq!(node, extrude);
+            assert_eq!(node.id(), extrude);
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(expected, Dimension::Length);
             assert_eq!(found, Dimension::Count);

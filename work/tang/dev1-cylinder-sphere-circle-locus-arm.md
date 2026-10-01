@@ -8,6 +8,7 @@ github: 974
 refs: [971, 967]
 priority: P1
 cost: H
+design: true
 ---
 
 ## From GitHub issue 974

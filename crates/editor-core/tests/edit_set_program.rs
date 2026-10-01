@@ -473,8 +473,8 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::Strand {
-            node: fillet,
-            name: crease.clone(),
+            node: r.doc.spoken(fillet),
+            name: r.doc.spoken_name(&crease),
         }],
         "the crease's name strands, spelled as it was"
     );
@@ -568,7 +568,9 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     let applied = accepted(&doc, profile, vec![straight_after], keep);
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::StrandedAppearance { name: arc.clone() }],
+        vec![Maintenance::StrandedAppearance {
+            name: doc.spoken_name(&arc)
+        }],
         "the paint on the dropped step's arc strands"
     );
     let ev = fixture::run(&applied.doc, &EvalOptions::default());
@@ -617,7 +619,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::NameStepNeverMinted { name, step }) => {
-            assert_eq!((name, step), (unminted.clone(), next));
+            assert_eq!((name, step), (reshaped.spoken_name(&unminted), next));
         }
         other => panic!("a never-minted step refuses typed, got {other:?}"),
     };
@@ -665,10 +667,12 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys() {
         applied.maintenance,
         vec![
             Maintenance::Strand {
-                node: frame,
-                name: right.clone(),
+                node: doc.spoken(frame),
+                name: doc.spoken_name(&right),
             },
-            Maintenance::StrandedAppearance { name: right },
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(&right)
+            },
         ]
     );
 }
@@ -1066,7 +1070,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     };
     let step_fault = |text: String, node: RecipeNodeId| match refused(text) {
         editor_core::SnapshotError::StepIds { node: at, fault } => {
-            assert_eq!(at, node);
+            assert_eq!(at.id(), node);
             fault
         }
         other => panic!("a step-id refusal, got {other:?}"),
@@ -1835,11 +1839,13 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
     let (doc, blend) = insert(doc, Node::fillet(loft, len(0.05), edges.collect()));
     let report = |n: &StableName| {
         if n.kind == EntityKind::Face {
-            Maintenance::StrandedAppearance { name: n.clone() }
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(n),
+            }
         } else {
             Maintenance::Strand {
-                node: blend,
-                name: n.clone(),
+                node: doc.spoken(blend),
+                name: doc.spoken_name(n),
             }
         }
     };

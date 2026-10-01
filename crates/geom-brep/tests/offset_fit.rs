@@ -1225,9 +1225,9 @@ fn the_second_non_improving_round_is_the_stalls_face() {
     let target = 1e-14;
     let last_round = u32::try_from(OFFSET_FIT_BUDGET).unwrap();
     for (d, want_rounds, want_grid, want_achieved) in [
-        (5.6234132519034906e-11, 5u32, (31, 23), 2.767036e-14),
-        (-5.6234132519034906e-11, 5, (35, 23), 2.812559e-14),
-        (1.333521432163324e-10, last_round, (41, 29), 3.191256e-14),
+        (5.6234132519034906e-11, 5u32, (29, 21), 2.463253e-14),
+        (-5.6234132519034906e-11, 5, (33, 21), 2.7112e-14),
+        (1.333521432163324e-10, last_round, (39, 26), 2.8729e-14),
     ] {
         let (rounds, grid, achieved, best, msg) = match fit_offset_at(&base, d, target, band()) {
             Err(

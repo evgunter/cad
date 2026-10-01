@@ -337,7 +337,8 @@ const ROSTER: &[Site] = &[
         subject: "impl<T: Bounds> CircleFrame<T>",
         why: Selection(
             "an arc's closed-form extremes (`distance`, `along`). `misses` reads the \
-             stored window's brackets to SELECT, per extreme, between the arc's two ends \
+             stored window's and the angle's brackets, asking `geom::periodic_window_may_hold`, \
+             to SELECT, per extreme, between the arc's two ends \
              and the whole circle's value; the result is a margin `ring_clearance` \
              decides, and the branch is the value channel's (a dual's bracket is its \
              value's). The branch is locally constant everywhere off the switch, and AT \
@@ -367,6 +368,16 @@ const ROSTER: &[Site] = &[
              segment's clamped foot is `max`/`min` arithmetic with no bracket read, and a \
              circle's reads are `CircleFrame`'s above, whose DL5(b) disposition this \
              inherits",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "old_misses",
+        why: Payload(
+            "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
+             the f64 and interval lanes are compared against one spelling: the former \
+             `CircleFrame::misses` predicate, whose bracket reads become the bool one \
+             `assert_eq!` compares and stop",
         ),
     },
     Site {

@@ -2613,11 +2613,11 @@ fn edit_inner_variant_tags_are_stable() {
     // ways the D7 producer convention was broken.
     assert_eq!(
         pair(&EditError::MetaUnversioned {
-            name: StableName {
+            name: pncad::document::SpokenName::absent(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(7),
                 path: vec![RoleSeg::OutputBody],
-            },
+            }),
             key: "fit".to_owned(),
             error: MetaVersionError::VersionNotInt,
         }),
@@ -2627,7 +2627,7 @@ fn edit_inner_variant_tags_are_stable() {
     // `PlacementRule` does one carrier over.
     assert_eq!(
         pair(&EditError::Roots(RootFault::Duplicate {
-            root: RecipeNodeId(1)
+            root: pncad::document::SpokenNode::absent(RecipeNodeId(1))
         })),
         ("root_duplicate", None)
     );
@@ -2668,10 +2668,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     let id = |n: u64| RecipeNodeId(n);
     let sp = |n: u64| pncad::document::SpokenNode::absent(id(n));
     let param = || ParamName::from_static("bore");
-    let named = || StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId(7),
-        path: vec![RoleSeg::OutputBody],
+    let named = || {
+        pncad::document::SpokenName::absent(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(7),
+            path: vec![RoleSeg::OutputBody],
+        })
     };
     let carries = |err: &E, want: &[&str]| {
         assert_eq!(
@@ -3025,15 +3027,19 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     assert_eq!(payload.path, Some(&[0u8, 1][..]));
 
     // ---- the product-root invariants ----
-    carries(&E::Roots(RootFault::NotLive { root: id(1) }), &["node"]);
-    carries(&E::Roots(RootFault::Duplicate { root: id(1) }), &["node"]);
-    carries(&E::Roots(RootFault::Uncovered { node: id(1) }), &["node"]);
-    carries(
-        &E::Roots(RootFault::Ancestor {
-            ancestor: id(1),
-            descendant: id(2),
-        }),
-        &["node", "referenced_by"],
+    carries(&E::Roots(RootFault::NotLive { root: sp(1) }), &["node"]);
+    carries(&E::Roots(RootFault::Duplicate { root: sp(1) }), &["node"]);
+    carries(&E::Roots(RootFault::Uncovered { node: sp(1) }), &["node"]);
+    let ancestor = E::Roots(RootFault::Ancestor {
+        ancestor: sp(1),
+        descendant: sp(2),
+    });
+    carries(&ancestor, &["node", "referenced_by"]);
+    let payload = edit_payload(&ancestor);
+    assert_eq!(
+        (payload.node, payload.referenced_by),
+        (Some(id(1)), Some(id(2))),
+        "the machine channel carries the spoken nodes' ids"
     );
 
     // ---- the arms that carry a nested refusal, and the empty one ----
@@ -4343,8 +4349,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     use crate::tags::{edit_error_tag, snapshot_error_tag};
     use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
 
-    let node = RecipeNodeId(5);
-    let spoken = pncad::document::SpokenNode::absent(node);
+    let spoken = pncad::document::SpokenNode::absent(RecipeNodeId(5));
     let name = || ParamName::from_static("width");
 
     let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
@@ -4357,7 +4362,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
                 slot: SlotId::Radius,
             },
             SnapshotError::SlotUnknownDocParam {
-                node,
+                node: spoken.clone(),
                 slot: SlotId::Radius,
                 name: name(),
             },
@@ -4373,7 +4378,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
                 referenced: Dimension::Angle,
             },
             SnapshotError::SlotDocParamDimension {
-                node,
+                node: spoken.clone(),
                 slot: SlotId::Radius,
                 name: name(),
                 declared: Dimension::Length,
@@ -4387,7 +4392,10 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
                 name: name(),
                 node: spoken.clone(),
             },
-            SnapshotError::PayloadUnknownDocParam { node, name: name() },
+            SnapshotError::PayloadUnknownDocParam {
+                node: spoken.clone(),
+                name: name(),
+            },
         ),
         (
             "payload",
@@ -4399,7 +4407,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
                 referenced: Dimension::Angle,
             },
             SnapshotError::PayloadDocParamDimension {
-                node,
+                node: spoken.clone(),
                 name: name(),
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
@@ -5704,6 +5712,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assertion_target",
             "dangling_input",
             "declare_input",
+            "duplicate_input",
             "epsilon_invalid",
             "forward_input",
             "input_list",
@@ -6096,6 +6105,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // them different is what made the three-door divergence in
     // `PersistError`'s `EditReplay` projection invisible.
     ("dimension", 3),
+    // One fact at two doors: `Node::input_fault`'s `Duplicate`, named
+    // by the edit door and the load door alike.
+    ("duplicate_input", 2),
     ("edge", 2),
     ("empty", 2),
     ("empty_boolean", 2),

@@ -233,3 +233,4 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   Refusals no longer name a remote witness. The contact-skip row closed
   with it. Filed `point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`
   (P2), for the 26-in-band `wide_wedge` case.
+- 2026-10-01 — Seam note from TANG: TANG takes the circle × cylinder cell of `reduce::wall_crossing` (still `Unsettled`; REACH's snowman entry names it as remaining) under `work/tang/boolean-refuses-on-arc-carrier-not-arc`, branch `tang/circle-cylinder-crossing`, live now. It edits `crates/topo/src/boolean/reduce.rs` and should call `circle_torus::half_angle_roots` rather than re-spell it. If you have this cell in flight, say so on `work/tang/log.md`. (TANG orchestrator)

@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-01
 priority: P3
 cost: M
-refs: [interval-orthonormal-basis-sign-hull]
+refs: [2468]
 ---
 
 ## What was found (PR #2468's review, filed by LINALG's merge lane, 2026-10-01)

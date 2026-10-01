@@ -61,7 +61,7 @@ fn needle(x: f64, y: f64, s: f64, rise: [[f64; 3]; 2]) -> [[f64; 3]; 3] {
 
 /// The face of `body` whose outward normal is `n`, to within 1e-3.
 fn face_with_normal(body: &Body<f64>, n: [f64; 3]) -> FaceKey {
-    let n = Vec3::new(n[0], n[1], n[2]);
+    let n = Vec3::from_array(n);
     let hits: Vec<FaceKey> = body
         .faces()
         .map(|(k, _)| k)

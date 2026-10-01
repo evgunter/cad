@@ -11,9 +11,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, Label, LoggedEdit, Node,
-    PersistError, ProfileDoc, RecipeNodeId, SnapshotError, content_pin, evaluate, inline, load,
-    save, split,
+    CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, LoggedEdit,
+    Maintenance, Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SitedRef, SnapshotError,
+    SplitError, content_pin, evaluate, inline, load, save, split,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
@@ -221,9 +221,51 @@ fn the_load_door_refuses_a_blank_label_and_a_label_on_a_dead_node() {
     let dead = text.replace(&entry, &format!("{}: \"lid\"", key(gone)));
     match load(&dead, tol) {
         Err(PersistError::Snapshot(SnapshotError::LabelOnMissingNode { node })) => {
-            assert_eq!(node, gone);
+            assert_eq!(node, editor_core::SpokenNode::absent(gone));
         }
         other => panic!("a label on a dead node refuses LabelOnMissingNode, got {other:?}"),
+    }
+}
+
+/// The load door speaks a node from the document it judges: a file
+/// whose `order` runs backwards refuses with its nodes' kinds and
+/// labels, read off the parsed document, and an id that document does
+/// not hold reads as a node.
+#[test]
+fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-speak", tol);
+    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("outline"));
+    let doc = set_label(doc, extrude, Some("base \"plate\""));
+    let text = save(&doc, &[], tol).expect("saves");
+    let (header, body) = text.split_once('\n').expect("a header line, then the body");
+    let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    v["snapshot"]["order"]
+        .as_array_mut()
+        .expect("the file carries its order")
+        .reverse();
+    match load(&format!("{header}\n{v}\n"), tol) {
+        Err(PersistError::Snapshot(SnapshotError::ForwardInput { node, input })) => {
+            assert!(
+                [profile, extrude].contains(&node.id()),
+                "a labelled node is refused"
+            );
+            assert_eq!(node, doc.spoken(node.id()), "the refused node");
+            assert_eq!(input, doc.spoken(input.id()), "its input");
+            let said = if node.id() == extrude {
+                format!("Extrude \"base \\\"plate\\\"\" ({})", tag(extrude.0))
+            } else {
+                format!("Profile \"outline\" ({})", tag(profile.0))
+            };
+            let sentence =
+                PersistError::Snapshot(SnapshotError::ForwardInput { node, input }).to_string();
+            assert!(
+                sentence.contains(&format!("{said} takes input from")),
+                "the sentence speaks the node with its label: {sentence}"
+            );
+        }
+        other => panic!("a backwards order refuses ForwardInput, got {other:?}"),
     }
 }
 
@@ -394,5 +436,372 @@ fn a_set_members_refusal_names_the_labelled_union_it_rewrites() {
             tag(left.0)
         )),
         "{twice}"
+    );
+}
+
+/// **A delete's report speaks from the document the door was handed.**
+/// The stranded name's minting node is the one the delete removed, so
+/// only the document before the edit still holds its label: a row
+/// spoken from the document the edit leaves would say `node <tag>`.
+/// The surviving carrier and an orphaned declaration are spoken the
+/// same way, label and all.
+#[test]
+fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
+    let doc = ProfileDoc::empty_derived("node-labels-strand", Tol::witness());
+    let (doc, [_, _, kept]) = block(doc, 0.0);
+    let (doc, [_, _, victim]) = block(doc, 4.0);
+    let named = fixture::fname(victim, fixture::wall(&doc, victim, 0));
+    let (doc, carrier) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::FaceFrame {
+            at: kept,
+            face: named.clone(),
+            spin: fixture::ang(0.0),
+        }),
+    );
+    let doc = set_label(doc, victim, Some("base plate"));
+    let doc = set_label(doc, carrier, Some("mount"));
+
+    let applied = editor_core::apply(
+        &doc,
+        &DocEdit::DeleteNode { id: victim },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a name is not an edge, so the delete lands");
+    let [Maintenance::Strand { node, name }] = applied.maintenance.as_slice() else {
+        panic!("one strand, got {:?}", applied.maintenance);
+    };
+    assert_eq!((node.id(), name.name()), (carrier, &named));
+    assert_eq!(
+        name.minter().label(),
+        Some(&label("base plate")),
+        "the minting node is spoken from the document that still held it"
+    );
+    assert_eq!(
+        applied.maintenance[0].to_string().split(';').next(),
+        Some(
+            format!(
+                "Datum frame (on face) \"mount\" ({}) carries a face name minted by Extrude \
+                 \"base plate\" ({})",
+                tag(carrier.0),
+                tag(victim.0)
+            )
+            .as_str()
+        ),
+    );
+}
+
+/// **A root refusal at the edit door speaks both roots with their
+/// labels**, and its recourse names the one to drop the same way.
+#[test]
+fn a_root_refusal_speaks_the_labelled_roots_and_its_recourse_does_too() {
+    let doc = ProfileDoc::empty_derived("node-labels-roots", Tol::witness());
+    let (doc, [_, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("sketch"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let refused = refusal(
+        &doc,
+        DocEdit::SetRoots {
+            roots: vec![profile, extrude],
+        },
+    );
+    let EditError::Roots(RootFault::Ancestor {
+        ancestor,
+        descendant,
+    }) = &refused
+    else {
+        panic!("an ancestor pair refuses, got {refused:?}");
+    };
+    assert_eq!(
+        (ancestor, descendant),
+        (&doc.spoken(profile), &doc.spoken(extrude))
+    );
+    let (p, e) = (tag(profile.0), tag(extrude.0));
+    let text = refused.to_string();
+    assert!(
+        text.starts_with(&format!(
+            "product root Profile \"sketch\" ({p}) is an ancestor of product root Extrude \
+             \"base plate\" ({e})"
+        )),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!("drop Profile \"sketch\" ({p}) from the root list")),
+        "{text}"
+    );
+}
+
+/// **A name an edit refusal forwards speaks its minting node** as the
+/// document holds it.
+#[test]
+fn a_forwarded_name_speaks_its_labelled_minting_node() {
+    let doc = ProfileDoc::empty_derived("node-labels-name", Tol::witness());
+    let (doc, [_, _, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let unreferenced = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
+    let refused = refusal(
+        &doc,
+        DocEdit::Rebind {
+            from: unreferenced.clone(),
+            to: fixture::fname(extrude, fixture::wall(&doc, extrude, 1)),
+        },
+    );
+    assert_eq!(
+        refused,
+        EditError::RebindNoReferences {
+            name: doc.spoken_name(&unreferenced)
+        }
+    );
+    assert!(
+        refused.to_string().contains(&format!(
+            "face name minted by Extrude \"base plate\" ({})",
+            tag(extrude.0)
+        )),
+        "{refused}"
+    );
+}
+
+/// **The load door speaks the node it refuses with its label.** The
+/// validator judges a deserialized document whose labels have already
+/// passed `Label::new` and the live-key rule, so a root refusal there
+/// speaks from it like the edit door's does. The craft drops one of
+/// two tips from the root list, stranding that tip's whole chain.
+#[test]
+fn a_load_root_refusal_speaks_the_labelled_node_from_the_file() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-load-roots", tol);
+    let (doc, [_, _, kept]) = block(doc, 0.0);
+    let (doc, lost) = block(doc, 5.0);
+    let doc = lost
+        .iter()
+        .fold(doc, |doc, &id| set_label(doc, id, Some("stranded")));
+    let text = save(&doc, &[], tol).expect("the honest document saves");
+    let honest = format!(
+        "\"roots\": [\n      {},\n      {}\n    ]",
+        kept.0, lost[2].0
+    );
+    assert!(
+        text.contains(&honest),
+        "the save's root list is the two tips"
+    );
+    let crafted = text.replace(&honest, &format!("\"roots\": [\n      {}\n    ]", kept.0));
+    let refused = match load(&crafted, tol) {
+        Err(PersistError::Snapshot(SnapshotError::Roots(fault))) => fault,
+        other => panic!("a crafted uncovered document refuses, got {other:?}"),
+    };
+    let RootFault::Uncovered { node } = &refused else {
+        panic!("the stranded chain is uncovered, got {refused:?}");
+    };
+    assert!(lost.contains(&node.id()), "{node}");
+    assert_eq!(node.label(), Some(&label("stranded")), "{node}");
+    assert!(
+        refused
+            .to_string()
+            .contains(&format!("\"stranded\" ({})", tag(node.id().0))),
+        "{refused}"
+    );
+}
+
+/// **A severing split speaks both ends of the edge** from the document
+/// being split, labels and all, and says which side each is on by its
+/// role: neither end's id is printed in decimal.
+#[test]
+fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
+    let doc = ProfileDoc::empty_derived("node-labels-severed", Tol::witness());
+    let (doc, [frame, profile, extrude]) = block(doc, 0.0);
+    let doc = set_label(doc, profile, Some("sketch"));
+    let doc = set_label(doc, extrude, Some("base plate"));
+    let refused = split(
+        &doc,
+        &BTreeSet::from([frame, profile]),
+        DocumentId::derive("node-labels-severed-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect_err("the kept extrude's input is cut");
+    let SplitError::SeveredEdge {
+        consumer, input, ..
+    } = &refused
+    else {
+        panic!("the edge is severed, got {refused:?}");
+    };
+    assert_eq!(
+        (consumer, input),
+        (&doc.spoken(extrude), &doc.spoken(profile))
+    );
+    let text = refused.to_string();
+    assert_eq!(
+        text,
+        format!(
+            "split: the cut severs the edge from Extrude \"base plate\" ({}) to its input \
+             Profile \"sketch\" ({}). The consumer is kept and the input is cut, but a cut \
+             must be closed under inputs and consumers",
+            tag(extrude.0),
+            tag(profile.0)
+        )
+    );
+    for id in [extrude, profile] {
+        assert!(
+            !text.contains(&id.0.to_string()),
+            "{id:?} in decimal: {text}"
+        );
+    }
+}
+
+/// **A split's forward reference speaks its name from the document
+/// being split.** The name is spelled in that document's ids, which
+/// the part being rebuilt does not hold, and the recourse sends the
+/// reader there; spoken from the part it would lose its label.
+#[test]
+fn a_split_forward_reference_speaks_from_the_document_being_split() {
+    let (doc, late, c) = forward_reference("node-labels-forward");
+    let cut: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let refused = split(
+        &doc,
+        &cut,
+        DocumentId::derive("node-labels-forward-part"),
+        Tol::witness(),
+        None,
+    )
+    .expect_err("the part cannot be rebuilt in document order");
+    let SplitError::PartEdit { error } = &refused else {
+        panic!("the replay refuses, got {refused:?}");
+    };
+    assert_eq!(
+        **error,
+        EditError::DeclareNamesMissingNode {
+            name: doc.spoken_name(&late)
+        }
+    );
+    assert!(
+        refused.to_string().contains(&format!(
+            "face name minted by Extrude \"late block\" ({})",
+            tag(c.0)
+        )),
+        "{refused}"
+    );
+}
+
+/// **An inline's forward reference speaks its name from the part**,
+/// whose ids it is spelled in and where its recourse sends the reader:
+/// the host the replay writes holds no node of it.
+#[test]
+fn an_inline_forward_reference_speaks_from_the_part() {
+    let tol = Tol::witness();
+    let (part_doc, late, c) = forward_reference("node-labels-inline-forward");
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part_doc.clone(), tol);
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty_derived("node-labels-inline-forward-host", tol);
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let refused = inline(&host, inst, &resolver, tol).expect_err("the part splices in order");
+    let InlineError::Edit { error } = &refused else {
+        panic!("the replay refuses, got {refused:?}");
+    };
+    assert_eq!(
+        **error,
+        EditError::DeclareNamesMissingNode {
+            name: part_doc.spoken_name(&late)
+        }
+    );
+    assert!(
+        refused.to_string().contains(&format!(
+            "face name minted by Extrude \"late block\" ({})",
+            tag(c.0)
+        )),
+        "{refused}"
+    );
+}
+
+/// A document holding a Declare whose `b` side was rebound onto the
+/// wall of a block inserted after it, labelled `late block`: the
+/// rebound name and that block's extrude.
+fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, [_, _, a]) = block(doc, 0.0);
+    let (doc, [_, _, b]) = block(doc, 0.5);
+    let (wa, wb) = (fixture::wall(&doc, a, 0), fixture::wall(&doc, b, 0));
+    let early = fixture::fname(b, wb);
+    let (doc, _) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(a, fixture::fname(a, wa)),
+            SitedRef::new(b, early.clone()),
+        )]),
+    );
+    let (doc, [_, _, c]) = block(doc, 0.5);
+    let late = fixture::fname(c, fixture::wall(&doc, c, 0));
+    let (doc, _) = step(
+        doc,
+        DocEdit::Rebind {
+            from: early,
+            to: late.clone(),
+        },
+    );
+    (set_label(doc, c, Some("late block")), late, c)
+}
+
+/// **An inline refusal speaks each node from the document that holds
+/// it**: the instance and its consumer from the host, the part's root
+/// from the part, each with the label that document gives it.
+#[test]
+fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_part() {
+    let tol = Tol::witness();
+    let part_doc = ProfileDoc::empty_derived("node-labels-inline-part", tol);
+    let (part_doc, [_, _, body]) = block(part_doc, 0.0);
+    let part_doc = set_label(part_doc, body, Some("bracket"));
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part_doc, tol);
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty_derived("node-labels-inline-host", tol);
+    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let host = set_label(host, inst, Some("left bracket"));
+
+    let (placed, _) = step(
+        host.clone(),
+        DocEdit::SetPlacement {
+            node: inst,
+            frame: editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        },
+    );
+    let refused = inline(&placed, inst, &resolver, tol).expect_err("a placed plain part");
+    let InlineError::UnplaceableFrame { root } = &refused else {
+        panic!("the frame is not expressible, got {refused:?}");
+    };
+    assert_eq!(
+        (root.id(), root.label()),
+        (body, Some(&label("bracket"))),
+        "the root is the part's, spoken from the part"
+    );
+    assert!(
+        refused.to_string().contains(&format!(
+            "the part's root Extrude \"bracket\" ({})",
+            tag(body.0)
+        )),
+        "{refused}"
+    );
+
+    let (consumed, by) = insert(
+        host,
+        Node::transform(
+            inst,
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
+    );
+    let consumed = set_label(consumed, by, Some("offset"));
+    let refused = inline(&consumed, inst, &resolver, tol).expect_err("a consumed instance");
+    assert_eq!(
+        refused.to_string(),
+        format!(
+            "inline: InstantiatePart \"left bracket\" ({}) is consumed by Transform \"offset\" \
+             ({}) — the recipe cannot rewire a consumer onto a spliced product",
+            tag(inst.0),
+            tag(by.0)
+        )
     );
 }

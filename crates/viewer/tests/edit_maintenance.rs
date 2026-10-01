@@ -25,8 +25,8 @@ use test_utils::refusal::tagged;
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
     Datum, Dimension, Doc, DocEdit, DocParam, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, StepArg,
-    cascade_delete_order,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, SpokenName,
+    SpokenNode, StepArg, cascade_delete_order,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
@@ -150,13 +150,13 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     let named = wall(&doc, victim, 0, 0);
     let (doc, carrier) = frame_on(&doc, kept, named.clone());
 
+    let expected = vec![Maintenance::Strand {
+        node: doc.spoken(carrier),
+        name: doc.spoken_name(&named),
+    }];
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::DeleteNode { node: victim };
     let outcome = session.perform(op.clone());
-    let expected = vec![Maintenance::Strand {
-        node: carrier,
-        name: named,
-    }];
     assert_eq!(outcome.maintenance, expected);
     assert_line_words(&line_after(&outcome, op), &expected);
     assert!(
@@ -197,7 +197,7 @@ fn a_strand_on_a_declaration_rides_beside_a_refusal() {
     let strand = outcome
         .maintenance
         .iter()
-        .find(|row| matches!(row, Maintenance::Strand { node, .. } if *node == declare))
+        .find(|row| matches!(row, Maintenance::Strand { node, .. } if node.id() == declare))
         .expect("the delete strands the declaration's name for the member");
 
     // Nothing else says it: the delete lands and no row fails.
@@ -235,19 +235,21 @@ fn a_strand_on_a_declaration_rides_beside_a_refusal() {
 fn every_maintenance_row_rides_beside_a_refusal() {
     use viewer::session::{Refusal, Step};
 
-    let face = |node: u64| StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId(tagged(node)),
-        path: vec![],
+    let face = |node: u64| {
+        SpokenName::absent(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(tagged(node)),
+            path: vec![],
+        })
     };
     let rows = [
         Maintenance::Strand {
-            node: RecipeNodeId(tagged(3)),
+            node: SpokenNode::absent(RecipeNodeId(tagged(3))),
             name: face(7),
         },
         Maintenance::StrandedAppearance { name: face(8) },
         Maintenance::OrphanedDeclare {
-            declare: RecipeNodeId(tagged(5)),
+            declare: SpokenNode::absent(RecipeNodeId(tagged(5))),
         },
     ];
     let notices: Vec<frame::Message> = rows
@@ -307,10 +309,12 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
     let doc = paint(&doc, &painted);
     let doc = paint(&doc, &wall(&doc, kept, 0, 0));
 
+    let expected = vec![Maintenance::StrandedAppearance {
+        name: doc.spoken_name(&painted),
+    }];
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::DeleteNode { node: victim };
     let outcome = session.perform(op.clone());
-    let expected = vec![Maintenance::StrandedAppearance { name: painted }];
     assert_eq!(
         outcome.maintenance, expected,
         "the deleted node's key, and not the kept block's"
@@ -350,10 +354,12 @@ fn a_delete_that_orphans_a_declaration_reaches_the_line() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-orphan", Tol::witness());
     let (doc, union, declare) = declared_union(&doc);
 
+    let expected = vec![Maintenance::OrphanedDeclare {
+        declare: doc.spoken(declare),
+    }];
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::DeleteNode { node: union };
     let outcome = session.perform(op.clone());
-    let expected = vec![Maintenance::OrphanedDeclare { declare }];
     assert_eq!(outcome.maintenance, expected);
     assert_line_words(&line_after(&outcome, op), &expected);
 }
@@ -382,7 +388,9 @@ fn a_cascade_reports_nothing_its_own_later_steps_took_back() {
     .expect("the union's delete lands");
     assert_eq!(
         step.maintenance,
-        vec![Maintenance::OrphanedDeclare { declare }],
+        vec![Maintenance::OrphanedDeclare {
+            declare: doc.spoken(declare),
+        }],
         "the premise: the cascade's first step reports the orphan"
     );
 
@@ -595,8 +603,8 @@ fn a_cluster_act_is_carried_but_not_worded() {
         Maintenance::Cluster(pncad::document::ClusterMaintenance::Drop { gauge, frame: None });
     assert_eq!(frame::maintenance_notice(&act), None);
     let strand = Maintenance::Strand {
-        node: RecipeNodeId(tagged(3)),
-        name: StableName {
+        node: SpokenNode::absent(RecipeNodeId(tagged(3))),
+        name: SpokenName::absent(StableName {
             kind: EntityKind::Face,
             node: gauge,
             path: vec![RoleSeg::Lateral(
@@ -606,7 +614,7 @@ fn a_cluster_act_is_carried_but_not_worded() {
                 }
                 .into(),
             )],
-        },
+        }),
     };
     assert_eq!(
         frame::maintenance_notice(&strand).map(|notice| notice.text().to_owned()),
