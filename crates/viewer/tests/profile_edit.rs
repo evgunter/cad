@@ -25,8 +25,9 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};
+use viewer::props::Notation;
 use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
-use viewer::sketch::{self, HeldRefusal, Notation};
+use viewer::sketch::{self, HeldRefusal};
 
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {

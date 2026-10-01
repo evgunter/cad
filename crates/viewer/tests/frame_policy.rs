@@ -28,6 +28,7 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
+use pncad::quantity::{M, MM};
 use pncad::select::{ContactClass, HitTestError, NodePickError, UnnamedEntity};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
@@ -717,7 +718,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             "and the gather's verdict on the landed pair",
         ),
         (
-            frame::delta_badge(Some(&budget)),
+            frame::delta_badge(Some(&budget), M),
             frame::Subject::Display,
             "the budget's δ ends when the picture is drawn at another",
         ),
@@ -1238,7 +1239,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
          checked-and-found-something are different answers, and the \
          window is where that distinction is drawn"
     );
-    assert_eq!(frame::delta_badge(None), None, "the user's own δ");
+    assert_eq!(frame::delta_badge(None, M), None, "the user's own δ");
     assert_eq!(frame::product_badge(None), None);
     assert_eq!(
         frame::prefs_badge(None),
@@ -1398,7 +1399,7 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
 
     let fitted = FittedDelta::as_requested(DisplayTolerance::new(1.0e-3).expect("a positive δ"));
     assert_eq!(
-        frame::delta_badge(Some(&fitted)),
+        frame::delta_badge(Some(&fitted), M),
         None,
         "a fit with nothing to say is the second half of this badge's \
          `None`, and it used to be a second condition at the call site"
@@ -1495,7 +1496,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
             frame::at_rest_badge(Some(&AtRestBadge::Certified { minted: 0 })),
         ),
         ("product", frame::product_badge(Some(&collision))),
-        ("δ", frame::delta_badge(Some(&budget))),
+        ("δ", frame::delta_badge(Some(&budget), M)),
         (
             "preferences",
             frame::prefs_badge(Some(&Absent.unusable().expect("this store keeps nothing"))),
@@ -3604,5 +3605,39 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
          not in the document \u{2022} hide: a hide was dropped with the instance it was on — \
          node 000000000005 is not in the document \u{2022} free move: the drag in flight was ended — node \
          000000000006 is not in the document"
+    );
+}
+
+/// **The δ badge reads in the working notation's length unit**, the
+/// label and the sentence behind it both: the same budget δ is
+/// `1 mm` in a millimetre notation and `0.001 m` in a metre one, so a
+/// badge that kept a fixed unit reds on one of the two.
+#[test]
+fn the_delta_badge_reads_in_the_working_length_unit() {
+    let budget = FittedDelta {
+        delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
+        requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
+        predicted: 1_000,
+        requested_cost: Some(9_000_000),
+        probe_triangles: 137_000,
+        largest_probe: 125_000,
+        stop: scene::ProbeStop::Converged,
+    };
+    let in_mm = frame::delta_badge(Some(&budget), MM).expect("this state badges");
+    assert_eq!(in_mm.label(), "δ 1 mm chosen");
+    assert!(
+        in_mm
+            .detail()
+            .is_some_and(|detail| detail.starts_with("opened at δ = 1 mm: 0.001 mm needs")),
+        "{:?}",
+        in_mm.detail()
+    );
+    let in_m = frame::delta_badge(Some(&budget), M).expect("this state badges");
+    assert_eq!(in_m.label(), "δ 0.001 m chosen");
+    assert!(
+        in_m.detail()
+            .is_some_and(|detail| detail.starts_with("opened at δ = 0.001 m: 0.000001 m needs")),
+        "{:?}",
+        in_m.detail()
     );
 }

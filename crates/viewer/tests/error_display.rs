@@ -154,15 +154,26 @@ fn camera_op_renders_as_the_move_it_is() {
 
 #[test]
 fn scene_error_names_the_counts_it_carries() {
-    let delta = SceneError::InvalidDisplayTolerance { delta: -1.0 }.to_string();
-    assert!(delta.contains("-1"), "{delta}");
+    let delta = SceneError::InvalidDisplayTolerance {
+        delta: -1.0,
+        unit: pncad::quantity::MM,
+    }
+    .to_string();
+    assert!(
+        delta.contains("-1 mm"),
+        "the δ in the unit it was written in: {delta}"
+    );
     prose(&delta, "InvalidDisplayTolerance");
 
     // The second δ arm, whose whole point is that it is NOT the first:
     // the value it names is a finite, strictly positive length, and
     // what it lacks is a millimetre reading.
-    let coarse = SceneError::DisplayToleranceOverflowsMillimetres { delta: 1.0e306 }.to_string();
-    assert!(coarse.contains("1e306"), "{coarse}");
+    let coarse = SceneError::DisplayToleranceOverflowsMillimetres {
+        delta: 1.0e306,
+        unit: pncad::quantity::M,
+    }
+    .to_string();
+    assert!(coarse.contains("1e306 m"), "{coarse}");
     assert!(
         coarse.contains("millimetre"),
         "the arm says what the δ lacks, not that it is not a length: {coarse}"

@@ -25,7 +25,7 @@ use crate::generation::Generation;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
-use crate::props::render_number;
+use crate::props::{Notation, render_number};
 use crate::seats::{Seats, seat_line};
 use crate::session::{
     DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp,
@@ -866,11 +866,11 @@ impl ViewerBehavior<'_> {
                     &mut self.drafts.datum_frame,
                     names,
                 );
-                let unit = self.drafts.length_unit.def();
+                let unit = self.notation.length.def();
                 ui.horizontal(|ui| {
                     ui.label("origin");
                     point_fields(ui, unit, &mut self.drafts.datum_in_frame_origin);
-                    length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
+                    length_picker(ui, "datum_origin", &mut self.notation.length);
                 });
                 ui.horizontal(|ui| {
                     ui.label("direction");
@@ -917,9 +917,10 @@ impl ViewerBehavior<'_> {
         // KIND — the two picking kinds want different things from
         // different places, so one sentence for the form would be
         // false of whichever is not showing.
-        let datum = self
-            .drafts
-            .datum_spec(seat.as_ref().and_then(|seat| seat.as_ref().ok()));
+        let datum = self.drafts.datum_spec(
+            seat.as_ref().and_then(|seat| seat.as_ref().ok()),
+            *self.notation,
+        );
         let unpicked = matches!(datum, Ok(None));
         if unpicked && let Some(wanted) = kind.unmet_seat() {
             crate::widgets::message_toned(ui, wanted, &self.theme, Tone::Advisory);
@@ -983,11 +984,11 @@ impl ViewerBehavior<'_> {
             ui.label("spin");
             unit_field(
                 ui,
-                self.drafts.angle_unit.def(),
+                self.notation.angle.def(),
                 ANGLE_DRAG_SPEED,
                 &mut self.drafts.datum_spin,
             );
-            angle_picker(ui, "datum_spin", &mut self.drafts.angle_unit);
+            angle_picker(ui, "datum_spin", &mut self.notation.angle);
         });
         // What the number MEANS, said where it is typed: the origin
         // and the normal are the face's, so this rotation is the whole
@@ -1005,11 +1006,11 @@ impl ViewerBehavior<'_> {
             unit_vec3_row(
                 ui,
                 label,
-                self.drafts.length_unit.def(),
+                self.notation.length.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.datum_origin,
             );
-            length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
+            length_picker(ui, "datum_origin", &mut self.notation.length);
         });
     }
 
@@ -1113,7 +1114,7 @@ impl ViewerBehavior<'_> {
             // a shape nobody picked, and no preview in the viewport.
             None => withholds.push(Withheld::Waiting("choose a shape to add")),
             Some(ShapeKind::Circle) => {
-                let unit = self.drafts.length_unit.def();
+                let unit = self.notation.length.def();
                 ui.horizontal(|ui| {
                     ui.label("centre");
                     unit_field(
@@ -1130,7 +1131,7 @@ impl ViewerBehavior<'_> {
                     );
                     ui.label("radius");
                     unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_radius);
-                    length_picker(ui, "profile_circle", &mut self.drafts.length_unit);
+                    length_picker(ui, "profile_circle", &mut self.notation.length);
                 });
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.drafts.profile_bored, "with bore");
@@ -1146,7 +1147,7 @@ impl ViewerBehavior<'_> {
                 ));
             }
             Some(ShapeKind::Rectangle) => {
-                let unit = self.drafts.length_unit.def();
+                let unit = self.notation.length.def();
                 ui.horizontal(|ui| {
                     ui.label("width");
                     unit_field(
@@ -1162,21 +1163,21 @@ impl ViewerBehavior<'_> {
                         FIELD_DRAG_SPEED,
                         &mut self.drafts.profile_extent[1],
                     );
-                    length_picker(ui, "profile_rectangle", &mut self.drafts.length_unit);
+                    length_picker(ui, "profile_rectangle", &mut self.notation.length);
                 });
             }
             Some(ShapeKind::Path) => {
                 notation_row(
                     ui,
                     "path",
-                    &mut self.drafts.length_unit,
-                    &mut self.drafts.angle_unit,
+                    &mut self.notation.length,
+                    &mut self.notation.angle,
                 );
                 if let Some(row) = path_steps_ui(
                     ui,
                     "path",
                     self.session.tol(),
-                    (self.drafts.length_unit.def(), self.drafts.angle_unit.def()),
+                    (self.notation.length.def(), self.notation.angle.def()),
                     &mut self.drafts.profile_path,
                 ) {
                     row.apply(&mut self.drafts.profile_path);
@@ -1222,7 +1223,10 @@ impl ViewerBehavior<'_> {
             // Lowered HERE rather than in the session: the notation is
             // the form's, and a literal that forgot it between the two
             // is exactly the gap this carries across.
-            match (self.drafts.profile_plane, self.drafts.profile_programs()) {
+            match (
+                self.drafts.profile_plane,
+                self.drafts.profile_programs(*self.notation),
+            ) {
                 (Some(plane), Ok(loops)) => {
                     self.ops.push(SessionOp::AddProfile { plane, loops });
                 }
@@ -1257,11 +1261,11 @@ impl ViewerBehavior<'_> {
             ui.label("distance");
             unit_field(
                 ui,
-                self.drafts.length_unit.def(),
+                self.notation.length.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.extrude_distance,
             );
-            length_picker(ui, "extrude_distance", &mut self.drafts.length_unit);
+            length_picker(ui, "extrude_distance", &mut self.notation.length);
         });
         match self.session.selection().node() {
             Some(node) => {
@@ -1269,7 +1273,7 @@ impl ViewerBehavior<'_> {
                     .button(format!("{EXTRUDE} {}", self.session.doc().spoken(node)))
                     .clicked()
                 {
-                    match self.drafts.length(self.drafts.extrude_distance) {
+                    match self.notation.length_literal(self.drafts.extrude_distance) {
                         Ok(distance) => self.ops.push(SessionOp::AddExtrude {
                             profile: node,
                             distance,
@@ -1316,14 +1320,14 @@ impl ViewerBehavior<'_> {
             ui.label("angle");
             unit_field(
                 ui,
-                self.drafts.angle_unit.def(),
+                self.notation.angle.def(),
                 ANGLE_DRAG_SPEED,
                 &mut self.drafts.revolve_angle,
             );
-            angle_picker(ui, "revolve_angle", &mut self.drafts.angle_unit);
+            angle_picker(ui, "revolve_angle", &mut self.notation.angle);
         });
-        self.tool_commit_row(ui, ToolKind::Revolve, |drafts| {
-            Ok(tool.op(drafts.angle(drafts.revolve_angle)?)?)
+        self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
+            Ok(tool.op(notation.angle_literal(drafts.revolve_angle)?)?)
         });
     }
 
@@ -1361,7 +1365,7 @@ impl ViewerBehavior<'_> {
                 Tone::Advisory,
             );
         }
-        self.tool_commit_row(ui, ToolKind::Boolean, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Boolean, |drafts, _| {
             Ok(tool.op(drafts.boolean_op)?)
         });
         declare_offer_rows(
@@ -1388,7 +1392,7 @@ impl ViewerBehavior<'_> {
             ToolKind::Split.says(&"pick the body, then the datum plane"),
         );
         seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
-        self.tool_commit_row(ui, ToolKind::Split, |_| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Split, |_, _| Ok(tool.op()?));
     }
 
     /// The transform tool's panel: one body pick plus the placement
@@ -1406,11 +1410,11 @@ impl ViewerBehavior<'_> {
             unit_vec3_row(
                 ui,
                 "translation",
-                self.drafts.length_unit.def(),
+                self.notation.length.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.transform_translation,
             );
-            length_picker(ui, "transform_translation", &mut self.drafts.length_unit);
+            length_picker(ui, "transform_translation", &mut self.notation.length);
         });
         vec3_row(
             ui,
@@ -1422,17 +1426,17 @@ impl ViewerBehavior<'_> {
             ui.label("rotation angle");
             unit_field(
                 ui,
-                self.drafts.angle_unit.def(),
+                self.notation.angle.def(),
                 ANGLE_DRAG_SPEED,
                 &mut self.drafts.transform_angle,
             );
-            angle_picker(ui, "transform_angle", &mut self.drafts.angle_unit);
+            angle_picker(ui, "transform_angle", &mut self.notation.angle);
         });
-        self.tool_commit_row(ui, ToolKind::Transform, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Transform, |drafts, notation| {
             Ok(tool.op(
-                drafts.lengths(drafts.transform_translation)?,
+                notation.length_literals(drafts.transform_translation)?,
                 scalars(drafts.transform_axis)?,
-                drafts.angle(drafts.transform_angle)?,
+                notation.angle_literal(drafts.transform_angle)?,
             )?)
         });
     }
@@ -1491,11 +1495,11 @@ impl ViewerBehavior<'_> {
                     ui.label("spacing");
                     unit_field(
                         ui,
-                        self.drafts.length_unit.def(),
+                        self.notation.length.def(),
                         FIELD_DRAG_SPEED,
                         &mut self.drafts.pattern_spacing,
                     );
-                    length_picker(ui, "pattern_spacing", &mut self.drafts.length_unit);
+                    length_picker(ui, "pattern_spacing", &mut self.notation.length);
                 });
             }
             PatternKindChoice::Circular => {
@@ -1503,26 +1507,28 @@ impl ViewerBehavior<'_> {
                     ui.label("step");
                     unit_field(
                         ui,
-                        self.drafts.angle_unit.def(),
+                        self.notation.angle.def(),
                         ANGLE_DRAG_SPEED,
                         &mut self.drafts.pattern_step,
                     );
-                    angle_picker(ui, "pattern_step", &mut self.drafts.angle_unit);
+                    angle_picker(ui, "pattern_step", &mut self.notation.angle);
                 });
             }
         }
-        self.tool_commit_row(ui, ToolKind::Pattern, |drafts| match drafts.pattern_kind {
-            PatternKindChoice::Linear => Ok(tool.linear_op(
-                drafts.pattern_output,
-                drafts.pattern_count,
-                scalars(drafts.pattern_direction)?,
-                drafts.length(drafts.pattern_spacing)?,
-            )?),
-            PatternKindChoice::Circular => Ok(tool.circular_op(
-                drafts.pattern_output,
-                drafts.pattern_count,
-                drafts.angle(drafts.pattern_step)?,
-            )?),
+        self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
+            match drafts.pattern_kind {
+                PatternKindChoice::Linear => Ok(tool.linear_op(
+                    drafts.pattern_output,
+                    drafts.pattern_count,
+                    scalars(drafts.pattern_direction)?,
+                    notation.length_literal(drafts.pattern_spacing)?,
+                )?),
+                PatternKindChoice::Circular => Ok(tool.circular_op(
+                    drafts.pattern_output,
+                    drafts.pattern_count,
+                    notation.angle_literal(drafts.pattern_step)?,
+                )?),
+            }
         });
     }
 
@@ -1564,7 +1570,7 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.part_half,
             &mut self.drafts.part_instance,
         );
-        self.tool_commit_row(ui, ToolKind::Part, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Part, |drafts, _| {
             Ok(match drafts.part_select {
                 PartSelectChoice::Half => tool.half_op(drafts.part_half)?,
                 PartSelectChoice::Instance => tool.instance_op(drafts.part_instance)?,
@@ -1590,7 +1596,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
         seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
-        self.tool_commit_row(ui, ToolKind::Duplicate, |_| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Duplicate, |_, _| Ok(tool.op()?));
     }
 
     /// The blend tool's panel: activation, the freeze sentence, the
@@ -1632,11 +1638,11 @@ impl ViewerBehavior<'_> {
             ui.label(self.drafts.blend_kind.size_label());
             unit_field(
                 ui,
-                self.drafts.length_unit.def(),
+                self.notation.length.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.blend_size,
             );
-            length_picker(ui, "blend_size", &mut self.drafts.length_unit);
+            length_picker(ui, "blend_size", &mut self.notation.length);
         });
         self.blend_commit_row(ui, count);
     }
@@ -1711,7 +1717,7 @@ impl ViewerBehavior<'_> {
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Blend.commit()).clicked() {
-                match self.drafts.length(self.drafts.blend_size) {
+                match self.notation.length_literal(self.drafts.blend_size) {
                     Ok(size) => {
                         let op: Option<Result<SessionOp, BlendError>> =
                             self.tools.blend().map(|tool| match self.drafts.blend_kind {
@@ -1764,12 +1770,12 @@ impl ViewerBehavior<'_> {
         &mut self,
         ui: &mut egui::Ui,
         kind: ToolKind,
-        op: impl FnOnce(&Drafts) -> Result<SessionOp, CommitFault>,
+        op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(kind.commit()).clicked() {
-                match op(self.drafts) {
+                match op(self.drafts, *self.notation) {
                     Ok(op) => self.ops.push(op),
                     Err(error) => {
                         self.notices
