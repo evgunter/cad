@@ -175,8 +175,11 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 /// - **The certified lane is not a superset or a subset of either.**
 ///   It refuses the washer at `(1e-6, 1e9)` and `(1e-9, 1e6)` where
 ///   every point lane builds it (the enclosure straddles the band where
-///   the point does not), and it builds the triangle everywhere,
-///   including the cells where both point lanes refuse it.
+///   the point does not), and it builds the triangle and the stadium
+///   everywhere, including the cells where both point lanes refuse
+///   them. The stadium's is rule G's (`SymRules::canonical_root`):
+///   with it shut, the stadium refuses on `Surface1Residual` from
+///   `3.7e7` out at `1e-9`.
 #[rustfmt::skip]
 const TABLE: [[Cell; 4]; 3] = [
     // ε = 1e-6: nothing refuses anywhere, except the certified lane's
@@ -193,15 +196,15 @@ const TABLE: [[Cell; 4]; 3] = [
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "MappedSource", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["built", "MappedSource", "built"], 0), exact: lane(["Surface1Residual", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["Surface1Residual", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["built", "MappedSource", "built"], 0), exact: lane(["built", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["built", "EndpointEnd", "built"], 0) },
     ],
     // ε = 1e-12: every placement off the origin disputes.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["Surface1Residual", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["Surface1Residual", "EndpointEnd", "built"], 0) },
-        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["Surface1Residual", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["built", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["built", "EndpointEnd", "built"], 0) },
+        Cell { bare: lane(["Surface2Residual", "MappedSource", "MappedSource"], 0), inexact: lane(["Surface2Residual", "MappedSource", "MappedSource"], 2), exact: lane(["built", "EndpointEnd", "built"], 0) },
     ],
 ];
 

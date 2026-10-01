@@ -118,6 +118,22 @@ pub fn face(name: StableName) -> editor_core::FaceName {
     editor_core::FaceName::new(name).expect("the fixture names a face")
 }
 
+/// **The authored vectors of a frame a row authored** — the projection
+/// every row that forms a lever or reads a witness by hand takes, for
+/// a frame it knows is [`editor_core::MateFrame::Authored`].
+pub fn authored(frame: &editor_core::MateFrame) -> &editor_core::AuthoredFrame {
+    frame
+        .authored_vectors()
+        .expect("the row authored this frame's vectors")
+}
+
+/// **The datum's own lever term** for an alignment whose two sides are
+/// authored vectors: `Alignment::lever_arm` over the frames the solve
+/// would resolve them to, which for an authored side are its own.
+pub fn datum_lever(alignment: &editor_core::Alignment) -> f64 {
+    alignment.lever_arm(authored(&alignment.a), authored(&alignment.b))
+}
+
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
 /// wrapper, the segment a pattern's table puts round every master
 /// name it emits. Nest the calls for a nested copy.
@@ -179,7 +195,7 @@ pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
 /// Applies an edit, returning the new doc and any minted id.
 ///
-/// Through the REFUSING reach: an edit that moves a cluster's gauge
+/// Through the REFUSING reach: an edit that moves a group's root
 /// on a mated document mints a frame from the parts' extent and
 /// refuses here — a row that deletes a mate or an instance of a mated
 /// document steps through [`step_with`] and the store's own reach.
@@ -222,12 +238,14 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
 
 /// **The insert door's verdict on a mate**, through `reach`: the door
 /// asks the solve's own per-mate admission — a frame with no definite
-/// direction, the table's gaps, a rider on a coincidence decided over
-/// the mated parts' extent — so a mate the solve refuses on its own
-/// datum comes out of the door as its fault. `Ok` is the document
-/// with the mate and its id; `Err` the id the door named and the
-/// solve's fault. A rider needs the store's reach; everything else
-/// decides on the datum alone, so [`RefusingReach`] serves.
+/// direction, the table's gaps, a `FromFace` side resolved from the
+/// part's own face, a rider on a coincidence decided over the mated
+/// parts' extent — so a mate the solve refuses on its own datum comes
+/// out of the door as its fault. `Ok` is the document with the mate
+/// and its id; `Err` the id the door named and the solve's fault. A
+/// face side and a rider need the store's reach, since both read the
+/// parts; everything else decides on the datum alone, so
+/// [`RefusingReach`] serves.
 pub fn at_the_door(
     doc: &ProfileDoc,
     reach: &dyn MateReach,
@@ -264,7 +282,7 @@ pub fn door_refusal(
 /// a deleted operand — and this is the shortest road to a head on
 /// LIVE geometry. The mate enters with that head on copy 1 of a scratch
 /// pattern over `anchor`, the instance its OTHER head stands on — two
-/// members over one instance, so it welds nothing and no cluster
+/// members over one instance, so it welds nothing and no group
 /// moves — then `DocEdit::Rebind` moves the head onto the name `node`
 /// spells for it (the name-repair door checks that its target is
 /// live, not that a member stands there), and the scratch pattern is
@@ -1426,7 +1444,9 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()
         }
-        RoleSeg::Fragment(Qualifier::Borders(v)) => v.iter().collect(),
+        RoleSeg::Fragment(Qualifier::Borders(v) | Qualifier::Keeps(v) | Qualifier::Ends(v)) => {
+            v.iter().collect()
+        }
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })
         | RoleSeg::OutputBody
         | RoleSeg::Cap(_)

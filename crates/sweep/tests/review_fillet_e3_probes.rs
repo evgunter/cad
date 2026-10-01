@@ -43,7 +43,12 @@ mod certified {
             .expect_err("a value between zero and escalate is indeterminate");
         // Decided: a thin bracket definitely below zero, through a
         // producer that builds a `ClassifiedMargin`.
-        let decided = match ring_clearance(FaceKey::default(), Interval::from_f64(-0.05), band) {
+        let decided = match ring_clearance(
+            FaceKey::default(),
+            sweep::blend::Convexity::Convex,
+            Interval::from_f64(-0.05),
+            band,
+        ) {
             Err(BlendError::RingClearance { margin, .. }) => margin,
             other => panic!("expected RingClearance, got {other:?}"),
         };

@@ -87,8 +87,8 @@ fn two_transforms_of_one_extrude_refuse_naming_the_extrude_and_both_roots() {
     assert_eq!(err.kind(), ProductErrorKind::PlacedUnderTwoRoots);
     let message = err.to_string();
     for needle in [
-        format!("node {}'s body", extrude.0),
-        format!("two roots, {} and {}", t1.0, t2.0),
+        format!("node {:012x}'s body", extrude.0),
+        format!("two roots, {:012x} and {:012x}", t1.0, t2.0),
     ] {
         assert!(
             message.contains(&needle),
@@ -180,7 +180,7 @@ fn one_half_under_two_roots_refuses_naming_the_half() {
     let err = product(&doc, &ev, Tol::witness()).expect_err("one half under two roots");
     assert!(
         err.to_string()
-            .contains(&format!("the above half of node {}", split.0)),
+            .contains(&format!("the above half of node {:012x}", split.0)),
         "{err}"
     );
     assert_eq!(
@@ -253,10 +253,10 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
     let (doc, first) = pick(doc);
     let (doc, second) = pick(doc);
     let ev = run(&doc);
-    let err = product(&doc, &ev, Tol::witness()).expect_err("instance 1 twice");
+    let err = product(&doc, &ev, Tol::witness()).expect_err("instance 000000000001 twice");
     assert!(
         err.to_string()
-            .contains(&format!("instance `1` of node {}", pattern.0)),
+            .contains(&format!("instance `1` of node {:012x}", pattern.0)),
         "{err}"
     );
     assert_eq!(
@@ -359,16 +359,8 @@ fn seat(a: editor_core::SitedFace, b: editor_core::SitedFace) -> Node<editor_cor
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame {
-                origin: [1.0, 1.0, BASE_HEIGHT],
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
-            b: MateFrame {
-                origin: [0.0, 0.0, 0.0],
-                axis: [0.0, 0.0, -1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
+            a: MateFrame::authored([1.0, 1.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,

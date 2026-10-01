@@ -34,7 +34,7 @@ use viewer::session::{
     DatumSpec, DocSession, FaceFrameFault, FaceSelection, NodeKindWanted, ProfilePlane, Refusal,
     SessionOp, admits, face_frame_seat,
 };
-use viewer::{sketch, tree};
+use viewer::sketch;
 
 /// A 20 mm square box, 10 mm tall, through the document door — the
 /// body every row here picks a face on.
@@ -92,7 +92,7 @@ fn a7_the_viewer_takes_a_derived_frame_by_value() {
         !admits(Some(node), NodeKindWanted::Plane),
         "and only the frame seat"
     );
-    assert_eq!(tree::node_kind(node), "Datum frame (on face)");
+    assert_eq!(doc.spoken(frame).kind(), Some("Datum frame (on face)"));
     assert!(
         sketch::frames(&doc).contains(&frame),
         "the plane picker lists it"

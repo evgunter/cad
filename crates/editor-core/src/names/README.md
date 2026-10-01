@@ -16,8 +16,8 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
 | N1's profile step ids: the mint chain and mint log (`StepMint`) | `crates/editor-core/src/step_mint.rs`; `StepId` in `crates/editor-core/src/node.rs` |
-| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, the ranking predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
-| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, a junction's lines, a union seam's sides), and what ordering a union seam does to its ranks | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
+| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
+| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
@@ -375,7 +375,13 @@ GROUP-SIZE rung (`resolve::group_resized`, whose docs say why a fragment name
 can vanish with no flip) needs a prior run: when the last-good table at the
 minting node carried the name, and the group its emitter divided the
 fragment's parent into held `was` entities there and holds `now ≠ was` in the
-current run, the diagnosis is `GroupResized { node, was, now, cutters }`. The group is
+current run, the diagnosis is `GroupResized { node, was, now, cutters }`. An
+edge piece's `Ends` holds no count, so a cut elsewhere on its parent, by a face
+that does not already cross it, leaves the piece's name as it was. A crossing
+keeps an ordinal, so a second crossing by a face that already crosses the parent
+renames the first crossing, and with it every piece whose `Ends` cite it. The
+rung meets an edge piece where its own ends moved or were renamed, or its group
+stopped being divided. The group is
 the one the emitter formed, read from the record it keeps beside the table
 (`names::FragmentGroups`, not persisted), not re-derived from the names: it
 counts the distinct entities of the node's output descended from the parent

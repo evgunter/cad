@@ -1800,7 +1800,6 @@ fn ef_overlap_cells<T: Decide>(
             }
         }
     }
-    let half = T::from_f64(0.5);
     for i in 0..cuts.len() - 1 {
         let (a, b) = (cuts[i], cuts[i + 1]);
         if !matches!(
@@ -1809,7 +1808,7 @@ fn ef_overlap_cells<T: Decide>(
         ) {
             continue; // empty/degenerate cell (escalations via sort/gap)
         }
-        let mid = e.p0 + e.dir * ((a + b) * half);
+        let mid = e.p0 + e.dir * geom::mid_param(a, b);
         if contain(body, f, mid, band, errors) != Some(FaceContainment::In) {
             // Out: no overlap here. OnEdge: a collinear boundary rest —
             // the edge-edge overlap pass's finding. OnVertex: degenerate
@@ -2118,7 +2117,7 @@ fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
     let s1 = s0 + eb.len * eb.dir.dot(ea.dir);
     let lo = s0.min(s1).max(T::zero());
     let hi = s0.max(s1).min(ea.len);
-    ea.p0 + ea.dir * ((lo + hi) * T::from_f64(0.5))
+    ea.p0 + ea.dir * geom::mid_param(lo, hi)
 }
 
 /// Non-parallel pair: the lines meet (gap zero) strictly inside both
@@ -2237,13 +2236,12 @@ fn ee_collinear_lane<T: Decide>(
     let backed = ee_bound_backed(ea, eb, lo, geo, declared, band, errors)
         && ee_bound_backed(ea, eb, hi, geo, declared, band, errors);
     if !backed {
-        let half = T::from_f64(0.5);
         errors.push(ValidationError::UndeclaredContact {
             contact: CensusContact::EdgeEdgeOverlap {
                 a: ea.key,
                 b: eb.key,
             },
-            witness: witness(ea.p0 + ea.dir * ((lo + hi) * half)),
+            witness: witness(ea.p0 + ea.dir * geom::mid_param(lo, hi)),
         });
     }
 }

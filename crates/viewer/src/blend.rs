@@ -147,11 +147,10 @@ impl BlendTarget {
 impl core::fmt::Display for BlendTarget {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self { node, body } = self;
-        // The NODE half through the crate's one spelling of it
-        // ([`crate::tree::node_number`]), so a blend refusal and a
-        // picker entry call the same feature the same thing. The body
-        // half is this scope's own and has no other home.
-        write!(f, "{} body {body}", crate::tree::node_number(*node))
+        // The NODE half is the node's tag: a target is a value with no
+        // document at hand. The body half is this scope's own and has
+        // no other home.
+        write!(f, "node {node} body {body}")
     }
 }
 
