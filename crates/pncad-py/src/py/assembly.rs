@@ -305,7 +305,7 @@ impl MintedDeclaration {
     }
 
     fn __repr__(&self) -> String {
-        format!("MintedDeclaration(mate={})", self.0.mate.0)
+        format!("MintedDeclaration(mate={})", self.0.mate.full())
     }
 }
 
@@ -508,7 +508,7 @@ impl MintRefusal {
         format!(
             "MintRefusal({:?}, mate={})",
             self.variant(),
-            self.0.mate().0
+            self.0.mate().full()
         )
     }
 }
@@ -558,7 +558,7 @@ impl CarriedRefusal {
     fn __repr__(&self) -> String {
         format!(
             "CarriedRefusal(mate={}, of={})",
-            self.0.refusal.mate().0,
+            self.0.refusal.mate().full(),
             self.0.route.of
         )
     }
@@ -611,7 +611,8 @@ impl CarriedDeclaration {
     fn __repr__(&self) -> String {
         format!(
             "CarriedDeclaration(mate={}, of={})",
-            self.0.declaration.mate.0, self.0.route.of
+            self.0.declaration.mate.full(),
+            self.0.route.of
         )
     }
 }

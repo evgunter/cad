@@ -793,6 +793,59 @@ fn torus_curvature_bound<T: Real>(
     Some(d2_second / (two * minor_radius))
 }
 
+/// The sphere's linearized residual along a circle carrier, which is a
+/// pure first harmonic: `c₀ + A₁cos(θ − φ)` with `φ = atan2(e_v, e_u)`.
+///
+/// `|C(θ) − c|² = |e|² + ρ² + 2ρ(e·û cos θ + e·v̂ sin θ)` with
+/// `e = C₀ − c`, and `û ⊥ v̂` unit makes the `θ`-dependence exactly one
+/// harmonic, so `[c₀ − A₁, c₀ + A₁]` is the residual's EXACT range — the
+/// one home of this algebra, read by the whole-turn range here and by
+/// the boolean's circle × sphere root door.
+#[derive(Debug, Clone, Copy)]
+pub struct CircleSphereHarmonic<T> {
+    /// The constant term, metres of residual.
+    pub c0: T,
+    /// The amplitude `A₁ ≥ 0`, metres of residual.
+    pub a1: T,
+    /// `e·û`, the phase's cosine component (metres).
+    pub e_u: T,
+    /// `e·v̂`, the phase's sine component (metres).
+    pub e_v: T,
+    /// The sum of the magnitudes the harmonics are built from (m²,
+    /// before the `2r` division) — the scale their rounding is charged
+    /// against.
+    pub terms: T,
+}
+
+/// [`CircleSphereHarmonic`] for the circle
+/// `center + radius·(u_ref cos θ + (axis × u_ref) sin θ)` against the
+/// sphere `(s_center, s_radius)`. Frame precondition as for
+/// [`circle_arc_residual_range`]: `axis` and `u_ref` unit and mutually
+/// orthogonal, unchecked. Total arithmetic.
+#[must_use]
+pub fn circle_sphere_harmonic<T: Real>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    s_center: Point3<T>,
+    s_radius: T,
+) -> CircleSphereHarmonic<T> {
+    let two = T::from_f64(2.0);
+    let e = center - s_center;
+    let (e_u, e_v) = (e.dot(u_ref), e.dot(axis.cross(u_ref)));
+    let offset = (e_u.powi(2) + e_v.powi(2)).sqrt();
+    let c0 = e.norm_squared() + radius.powi(2);
+    let a1 = two * radius * offset;
+    CircleSphereHarmonic {
+        c0: (c0 - s_radius.powi(2)) / (two * s_radius),
+        a1: a1 / (two * s_radius),
+        e_u,
+        e_v,
+        terms: c0 + s_radius.powi(2) + a1,
+    }
+}
+
 /// The composed residual's harmonic decomposition in RESIDUAL units:
 /// `(c₀, A₁, A₂)` of `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)`. The whole-turn
 /// range and the curvature bound are both views of this one algebra
@@ -827,13 +880,8 @@ fn circle_residual_harmonics<T: Real>(
             radius: r,
             ..
         } => {
-            // |C(θ) − sc|² = |e|² + R_c² + 2R_c(e·û cosθ + e·v̂ sinθ):
-            // û ⊥ v̂ unit makes the θ-dependence a pure first
-            // harmonic, so the range below is EXACT.
-            let e = center - sc;
-            let c0 = e.norm_squared() + radius.powi(2);
-            let a1 = two * radius * amp(e.dot(u), e.dot(v));
-            Some(((c0 - r.powi(2)) / (two * r), a1 / (two * r), T::zero()))
+            let h = circle_sphere_harmonic(center, axis, radius, u_ref, sc, r);
+            Some((h.c0, h.a1, T::zero()))
         }
         Surface::Cylinder {
             origin,

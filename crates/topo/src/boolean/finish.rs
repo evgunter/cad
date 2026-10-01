@@ -25,9 +25,9 @@
 //! then "does the right thing", pinned by the ∖ acceptance trace).
 //! Shells carrying section faces classify by them (mixed ⇒ typed
 //! error); uncut shells (components the other body never touched —
-//! e.g. an operand void away from the seam) classify by
-//! [`point_in_solid`] against the *pristine* other operand, skipping
-//! declared-contact vertices.
+//! e.g. an operand void away from the seam) classify by the uncut-shell
+//! witness ([`super::shell_witness`]) against the *pristine* other
+//! operand.
 
 use geom_core::{Band, Decide};
 use slotmap::SecondaryMap;
@@ -35,10 +35,10 @@ use slotmap::SecondaryMap;
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, discard_row};
 use super::join::CompletedPolygonPair;
-use super::solid_contain::{PointInSolidError, SolidContainment, point_in_solid};
-use super::{BooleanError, BooleanOp, BooleanReduction, ContactRecords, Operand, SideCode};
+use super::shell_witness::{contact_skip_set, shell_side};
+use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
+use crate::entity::{FaceKey, ShellKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::splitting::finish::{carve, single_solid};
 use geom_core::Tol;
@@ -116,8 +116,8 @@ fn promote_solid<T: Decide>(
 }
 
 /// Classifies one distributed shell: section-face seeds first (mixed ⇒
-/// typed error), else a containment probe of a non-contact vertex
-/// against the pristine other operand.
+/// typed error), else the uncut-shell witness against the pristine
+/// other operand.
 #[allow(clippy::too_many_arguments)]
 fn classify_shell<T: Decide>(
     body: &Body<T>,
@@ -148,67 +148,7 @@ fn classify_shell<T: Decide>(
     if let Some(s) = side {
         return Ok(s);
     }
-    // Uncut component: containment probe (deterministic walk order).
-    for &face in &shell_data.faces {
-        let face_data = body
-            .get_face(face)
-            .ok_or_else(|| desync("shell face no longer resolves"))?;
-        for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-            let loop_data = body
-                .get_loop(l)
-                .ok_or_else(|| desync("shell loop no longer resolves"))?;
-            let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            for he in body
-                .loop_cycle(first)
-                .ok_or_else(|| desync("shell loop not walkable"))?
-            {
-                let v = body
-                    .get_half_edge(he)
-                    .ok_or_else(|| desync("shell half-edge no longer resolves"))?
-                    .start;
-                if skip.contains_key(v) {
-                    continue;
-                }
-                let q = *body
-                    .get_vertex(v)
-                    .and_then(|vd| body.get_point(vd.point))
-                    .ok_or_else(|| desync("shell vertex has no point"))?;
-                match point_in_solid(other, q, band, tol).map_err(BooleanError::Containment)? {
-                    SolidContainment::In => return Ok(SideCode::In),
-                    SolidContainment::Out => return Ok(SideCode::Out),
-                    SolidContainment::OnBoundary => continue,
-                }
-            }
-        }
-    }
-    Err(BooleanError::Containment(PointInSolidError::RayExhausted))
-}
-
-/// The declared-contact vertex skip set of one operand.
-pub(super) fn contact_skip_set(
-    contacts: &ContactRecords,
-    operand: Operand,
-) -> SecondaryMap<VertexKey, ()> {
-    let mut skip = SecondaryMap::new();
-    for c in &contacts.vv {
-        skip.insert(
-            match operand {
-                Operand::A => c.a,
-                Operand::B => c.b,
-            },
-            (),
-        );
-    }
-    let list = match operand {
-        Operand::A => &contacts.a_on_b,
-        Operand::B => &contacts.b_on_a,
-    };
-    for c in list {
-        skip.insert(c.vertex, ());
-    }
-    skip
+    shell_side(body, shell, other, skip, operand, band, tol)
 }
 
 /// Distributes, classifies, and selects one solid's kept shells;

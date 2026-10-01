@@ -948,8 +948,8 @@ pub enum EulerOpError {
     /// the kill does not leave lone or another loop's lone vertex
     /// ([`Body::kef`], [`Body::kev`],
     /// [`Body::kemr`]); or an `Empty` loop that [`Body::kvfs`] or
-    /// [`Body::mekr`]'s `Empty` ring sites remove is claimed by a
-    /// half-edge.
+    /// [`Body::mekr`]'s `Empty` ring sites remove, or that
+    /// [`Body::movefac`]'s labelling reaches, is claimed by a half-edge.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -1085,8 +1085,9 @@ pub enum EulerOpError {
     /// `owner`, or neither. Raised for a face the labelling labels,
     /// whether a seed from the shell's list or a neighbour reached
     /// across an edge, that the shell does not list or whose `shell` is
-    /// another (`owner` is the shell), and for a loop a face lists
-    /// whose `face` is another (`owner` is the face).
+    /// another (`owner` is the shell), for a loop a face lists whose
+    /// `face` is another, and for the loop a mate lies in whose `face`
+    /// does not list it (`owner` is the face).
     NotOwned {
         /// The record the labelling took as `owner`'s.
         child: EntityId,

@@ -286,7 +286,7 @@ fn the_windmill_story() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 2);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
@@ -441,8 +441,8 @@ fn the_windmill_story() {
     let tower_top = common::displayed_face_at(&session, &index, &asm::down_at(0.0, 0.0));
     assert_eq!(tower_top.node, tower_i);
     let mut tool = MateTool::new();
-    tool.pick(hub_bottom.clone());
-    tool.pick(tower_top);
+    tool.pick(session.doc(), hub_bottom.clone());
+    tool.pick(session.doc(), tower_top);
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
@@ -504,7 +504,10 @@ fn the_windmill_story() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     assert!(
-        session.tree_rows().iter().any(|row| row.kind == "Mate"),
+        session
+            .tree_rows()
+            .iter()
+            .any(|row| row.spoken.kind() == Some("Mate")),
         "the mate has a row"
     );
     assert_eq!(
@@ -587,8 +590,8 @@ fn the_windmill_story() {
     assert_ne!(front_wall.name, back_wall.name, "two distinct walls");
 
     let mut tool = MateTool::new();
-    tool.pick(sail_a_bottom.clone());
-    tool.pick(front_wall.clone());
+    tool.pick(session.doc(), sail_a_bottom.clone());
+    tool.pick(session.doc(), front_wall.clone());
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         tool.proposal(doc, eval, asm::seat_choice())
@@ -635,8 +638,8 @@ fn the_windmill_story() {
     };
 
     let mut tool = MateTool::new();
-    tool.pick(sail_b_bottom.clone());
-    tool.pick(back_wall.clone());
+    tool.pick(session.doc(), sail_b_bottom.clone());
+    tool.pick(session.doc(), back_wall.clone());
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool

@@ -3,8 +3,8 @@
 //! and push the served door onto shapes the unit's suite did not touch:
 //! a pair of annulus rims whose SHARED support is a PLANE CAP (not a
 //! revolution wall), a four-rim request whose sharing closes a CYCLE
-//! through two caps and two walls, and the mixed-arm reachability
-//! measurement reproduced through the public boolean door.
+//! through two caps and two walls, and a pip sunk into a revolve's cap
+//! through the public boolean door.
 //!
 //! Probe rows, not unit rows: they pin what the review MEASURED, and a
 //! future door that widens or narrows any of it should flip them
@@ -267,37 +267,39 @@ fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
     partition_check(&body, &out);
 }
 
-/// **P5 — the mixed-arm unreachability measurement, reproduced.** The
-/// PR's stated fence: the only public construction of a plane face
-/// carrying both a pip ring and a revolution-wall cycle is a boolean of
-/// a ball against a revolve, and the operand gate refuses it. Here: a
-/// die-style pip ball sunk into the zone's top cap, through the public
-/// `subtract` door.
+/// **P5 — the pip-on-a-revolve-cap fixture builds.** A die-style pip
+/// ball sunk into the zone's top cap through the public `subtract`
+/// door: the review measured it refusing at the curved pierce door, and
+/// the crossing layer's circle × sphere lane now decides the ball's
+/// meridians against the zone's sphere face (wholly inside it — no
+/// crossing), so the subtract builds a cap face carrying a pip ring
+/// inside its revolution-wall outer cycle. The mixed ladder + annulus
+/// fence that face could feed is rowed by
+/// `ring_clearance_forms::the_bosss_two_rims_refuse_together_and_compose_sequentially`.
 #[test]
-fn r2_p5_the_mixed_fixture_still_refuses_at_the_boolean_door() {
-    use topo::boolean::{BooleanError, subtract};
+fn r2_p5_the_pip_on_a_revolve_cap_builds() {
+    use topo::boolean::subtract;
     let zone_body = zone();
     // A pole-touching ball of radius 0.12, revolved at the origin then
     // translated onto the cap: center (1.15, 1.07, 0), so it dips
     // 0.05 below the cap plane y = 1 — a die pip's shape.
-    let rb = 0.12f64;
+    let (rb, dip) = (0.12f64, 0.05f64);
     let ball = revolved_about_y(
         vec![v(0.0, -rb, 1.0), v(0.0, rb, 0.0)],
         Revolution::Full,
         tol(),
     );
-    let map = geom_core::Affine3::translation(Vec3::new(1.15, 1.0 + rb - 0.05, 0.0));
+    let map = geom_core::Affine3::translation(Vec3::new(1.15, 1.0 + rb - dip, 0.0));
     let placed = topo::transform_rigid(&ball, &map, tol()).expect("a rigid translate");
-    match subtract(&zone_body, &placed, tol()) {
-        Err(BooleanError::CurvedPierceUnsupported { .. }) => {}
-        Err(other) => panic!(
-            "the pip-on-a-revolve-cap fixture refuses, but not at the curved-pierce \
-             frontier the PR measured: {other:?} — re-examine the mixed-arm \
-             reachability claim"
-        ),
-        Ok(_) => panic!(
-            "the pip-on-a-revolve-cap fixture BUILT: the mixed ladder+annulus arm is \
-             reachable through the public doors and its refusal fence needs a row"
-        ),
-    }
+    let out = subtract(&zone_body, &placed, tol())
+        .unwrap_or_else(|e| panic!("the pip-on-a-revolve-cap subtract builds, got {e:?}"));
+    let body = &out.body().expect("material remains").body;
+    validate_geometric(body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
+    let pip = core::f64::consts::PI * dip.powi(2) * (3.0 * rb - dip) / 3.0;
+    let want = volume(&zone_body) - pip;
+    let got = volume(body);
+    assert!(
+        (got - want).abs() <= 1e-9 * want,
+        "the zone less one spherical cap of height {dip}: {want}, got {got}"
+    );
 }

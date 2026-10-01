@@ -10,7 +10,7 @@
 //!
 //! # The solve is TOTAL, so its faults are VALUES
 //!
-//! [`solve_document`] never raises. A refusing cluster must not fail
+//! [`solve_document`] never raises. A refusing group must not fail
 //! an unrelated one, so the refusal is recorded per node and read back
 //! through [`SolvedPoses::fault`] as a [`MateFault`] value. The one
 //! door that RAISES is [`SolvedPoses::placement`], which must answer
@@ -973,7 +973,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
 }
 
 /// The document's solved poses: each instance's pose relative to its
-/// cluster gauge, each mate's role, and the per-node refusals.
+/// group root, each mate's role, and the per-node refusals.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct SolvedPoses(d::SolvedPoses);
 
@@ -983,7 +983,7 @@ impl SolvedPoses {
     /// for it.
     ///
     /// Recorded against the refusing MATE and against every instance
-    /// in its cluster that consequently has no pose — a refusal
+    /// in its group that consequently has no pose — a refusal
     /// reaches the nodes it actually affects and no further.
     fn fault(&self, node: &NodeId) -> Option<MateFault> {
         self.0.fault(node.0).cloned().map(MateFault)
@@ -994,35 +994,35 @@ impl SolvedPoses {
         self.0.role(mate.0).map(MateRole::from_kernel)
     }
 
-    /// An instance's cluster gauge, `None` if the node is not a live
-    /// instance. A singleton cluster is its own gauge.
-    fn gauge(&self, instance: &NodeId) -> Option<NodeId> {
-        self.0.gauge(instance.0).map(NodeId)
+    /// An instance's group root, `None` if the node is not a live
+    /// instance. A singleton group is its own root.
+    fn root(&self, instance: &NodeId) -> Option<NodeId> {
+        self.0.root(instance.0).map(NodeId)
     }
 
-    /// An instance's pose RELATIVE TO ITS CLUSTER GAUGE. The gauge's
+    /// An instance's pose RELATIVE TO ITS GROUP ROOT. The root's
     /// own entry is the identity, bit-exactly.
     fn relative(&self, instance: &NodeId) -> Option<Frame> {
         self.0.relative(instance.0).map(Frame)
     }
 
-    /// **The instance's world placement**: the cluster's recorded
+    /// **The instance's world placement**: the group's recorded
     /// frame composed onto the solved relative pose.
     ///
-    /// A singleton cluster returns its recorded frame VERBATIM — the
+    /// A singleton group returns its recorded frame VERBATIM — the
     /// mate-less document's placement is bit-for-bit what it was
     /// before mates existed.
     ///
     /// `doc` is read for its placement registry, and it must be the
     /// document this solve is OF: passing a different one would
-    /// compose this document's relative poses onto that one's cluster
+    /// compose this document's relative poses onto that one's group
     /// frames, which is not a pose of either. The door refuses that
     /// first — a `SolvedPoses` carries the id of the document
     /// `solve_document` solved, and a mismatch raises `MateError`
     /// with tag `mate_poses_of_another_document` before any frame is
     /// read.
     ///
-    /// Raises `MateError` when the instance's cluster did not solve.
+    /// Raises `MateError` when the instance's group did not solve.
     fn placement(
         &self,
         py: Python<'_>,
@@ -1042,9 +1042,9 @@ impl SolvedPoses {
 
 /// Solve the document's mates: the per-pair coset fold along a
 /// deterministic spanning tree, yielding every instance's pose
-/// relative to its cluster gauge and every mate's role.
+/// relative to its group root and every mate's role.
 ///
-/// **Total — this never raises.** A refusing cluster must not fail an
+/// **Total — this never raises.** A refusing group must not fail an
 /// unrelated one, so refusals are recorded per node and read back
 /// through `SolvedPoses.fault`.
 ///
@@ -1074,29 +1074,29 @@ pub(crate) fn solve_document(
     SolvedPoses(d::solve_document(&doc.inner, &reach, tol))
 }
 
-/// The **placement clusters**: instances coupled by mates, each
-/// listed with its cluster's members in document order.
+/// The **placement groups**: instances coupled by mates, each
+/// listed with its group's members in document order.
 ///
 /// The partition placement is keyed by. A mate-less document's
-/// clusters are all singletons, which is why placement stayed
+/// groups are all singletons, which is why placement stayed
 /// per-instance before mates existed.
 #[pyfunction]
-pub(crate) fn clusters(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
-    d::clusters(&doc.inner)
+pub(crate) fn groups(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
+    d::groups(&doc.inner)
         .into_iter()
         .map(|c| c.into_iter().map(NodeId).collect())
         .collect()
 }
 
-/// An instance's cluster GAUGE: the document-order-first instance of
-/// its cluster, whose recorded frame places the whole cluster.
+/// An instance's group ROOT: the document-order-first instance of
+/// its group, whose recorded frame places the whole group.
 ///
-/// Answers the instance itself for a node that is not in any cluster,
+/// Answers the instance itself for a node that is not in any group,
 /// which is the kernel's own total shape — a singleton is its own
-/// gauge and a non-instance has no cluster to be second in.
+/// root and a non-instance has no group to be second in.
 #[pyfunction]
-pub(crate) fn gauge_of(doc: &super::doc::Doc, instance: &NodeId) -> NodeId {
-    NodeId(d::gauge_of(&doc.inner, instance.0))
+pub(crate) fn root_of(doc: &super::doc::Doc, instance: &NodeId) -> NodeId {
+    NodeId(d::root_of(&doc.inner, instance.0))
 }
 
 /// The **reading edges**: for each mate, the instantiate node each of
@@ -1117,7 +1117,7 @@ pub(crate) fn reading_edges(doc: &super::doc::Doc) -> Vec<(NodeId, NodeId)> {
 /// The **relative-freedom partition**: components over consuming ∪
 /// reading edges, so mates couple what they constrain.
 ///
-/// Coarser than `clusters`, which partitions instances alone.
+/// Coarser than `groups`, which partitions instances alone.
 #[pyfunction]
 pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
     d::relative_freedom_components(&doc.inner)
@@ -1314,8 +1314,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ClassAdmission>()?;
     m.add_class::<Maintenance>()?;
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
-    m.add_function(wrap_pyfunction!(clusters, m)?)?;
-    m.add_function(wrap_pyfunction!(gauge_of, m)?)?;
+    m.add_function(wrap_pyfunction!(groups, m)?)?;
+    m.add_function(wrap_pyfunction!(root_of, m)?)?;
     m.add_function(wrap_pyfunction!(reading_edges, m)?)?;
     m.add_function(wrap_pyfunction!(relative_freedom_components, m)?)?;
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;

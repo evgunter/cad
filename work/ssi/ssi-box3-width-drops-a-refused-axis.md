@@ -4,6 +4,9 @@ kind: issue
 title: ssi/enclose: Box3::width folds its three axes with f64::max, so a refused axis drops out of the sweep's floor test
 status: open
 opened: 2026-10-01
+priority: P2
+cost: E
+rides_with: ssi-chart-speed-usability-boundary
 ---
 
 

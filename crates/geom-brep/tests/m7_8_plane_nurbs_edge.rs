@@ -50,11 +50,11 @@ fn the_stated_carrier_certifies_against_both_surfaces() {
         .expect("the true locus certifies");
     println!(
         "M7-8 quarter-cylinder ruling: on_locus_max = {:e} m, hull_sup = {:e} m, \
-         tube_radius = {:e} m, tube_transversality = {:e} m over {} boxes, \
+         tube = {:?}, tube_transversality = {:e} m over {} boxes, \
          min sin θ = {:e}",
         limbs.on_locus_max,
         limbs.hull_sup,
-        limbs.tube_radius,
+        limbs.tube,
         limbs.tube_transversality,
         limbs.tube_boxes,
         limbs.min_sin_theta,

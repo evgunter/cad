@@ -732,7 +732,7 @@ fn sweep_chart_plane(
             + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
         if !phi.is_certified() {
             // The one measured route here is weight underflow: the
-            // seeding guard refuses every net whose homogeneous
+            // chart-speed mint refuses every net whose homogeneous
             // arithmetic leaves the finite range before this sweep
             // runs, so that cause is named nowhere below.
             return Err(SsiError::UnsupportedCertificate {

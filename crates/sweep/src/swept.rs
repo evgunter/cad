@@ -106,13 +106,13 @@ pub(crate) fn decide<T: Decide>(
 /// direction never enters; callers pass a canonical turn, never a swept
 /// one.
 ///
-/// Total by design. `Zero` is unreachable for a classified arc (a zero
-/// turn classifies as a line) and takes the convex arm, the
-/// [`turn_axis`] posture — decided here once rather than at each
-/// consumer, which is the reason this is a function and not a rule
-/// each verb spells for itself.
+/// Total by design: the turn is read through [`turn_negates`], so a
+/// `Zero` turn (unreachable for a classified arc) takes the convex arm
+/// exactly when [`turn_axis`] takes the positive one. Decided here once
+/// rather than at each consumer, which is the reason this is a
+/// function and not a rule each verb spells for itself.
 pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
-    !matches!(canonical_turn, Sign::Negative)
+    !turn_negates(canonical_turn)
 }
 
 /// The sketch-level chord data this module's lowering reads from a
@@ -287,15 +287,16 @@ pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, sweep: T, turn: Sign
     let nhat = Vec2::new(T::zero() - u.y, u.x);
     let mid = a.lerp(b, T::from_f64(0.5));
     let sagitta = len * T::from_f64(0.5) * (arc_span(turn, sweep) * T::from_f64(0.25)).tan();
-    let bow = match turn {
-        Sign::Positive | Sign::Zero => sagitta,
-        Sign::Negative => T::zero() - sagitta,
+    let bow = if turn_negates(turn) {
+        T::zero() - sagitta
+    } else {
+        sagitta
     };
     mid - nhat * bow
 }
 
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
-/// decided turn (a clockwise turn negates, as in `turn_axis`).
+/// decided turn, read by [`turn_negates`].
 ///
 /// The turn is the profile's certified sign of the sweep, so this is
 /// `|sweep|` to the bit at `f64` and `|sweep|`'s enclosure at
@@ -305,20 +306,32 @@ pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, sweep: T, turn: Sign
 /// would be an opaque atom. [`register_span_identity`] is stated about
 /// this span.
 pub(crate) fn arc_span<T: Real>(turn: Sign, sweep: T) -> T {
-    match turn {
-        Sign::Positive | Sign::Zero => sweep,
-        Sign::Negative => T::zero() - sweep,
+    if turn_negates(turn) {
+        T::zero() - sweep
+    } else {
+        sweep
     }
 }
 
+/// **The crate's one reading of a turn**: `true` for a clockwise
+/// (`Negative`) turn. [`turn_axis`], [`arc_span`], [`arc_apex`],
+/// [`centre_on_material_side`] and `revolve::tube`'s circle traversal
+/// all read it here, so `Zero` — unreachable for a classified arc, whose
+/// turn is a certified non-zero sign — takes the positive arm in every
+/// one of them at once. Total rather than loud for that reason: no
+/// consumer can part from another on it.
+pub(crate) fn turn_negates(turn: Sign) -> bool {
+    matches!(turn, Sign::Negative)
+}
+
 /// The turn-signed carrier axis (crate docs): `+normal` for a
-/// counterclockwise segment, `−normal` for a clockwise one. `Zero` is
-/// unreachable for classified arcs (a zero turn classified as a line);
-/// kept total by taking the positive arm.
+/// counterclockwise segment, `−normal` for a clockwise one, by
+/// [`turn_negates`].
 pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
-    match turn {
-        Sign::Positive | Sign::Zero => normal,
-        Sign::Negative => Vec3::zero() - normal,
+    if turn_negates(turn) {
+        Vec3::zero() - normal
+    } else {
+        normal
     }
 }
 
@@ -755,7 +768,8 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::{Bounds, Interval};
+    use geom_core::sym::{session_counts, with_session};
+    use geom_core::{Bounds, Interval, ParamSymbol, Sym, SymBudget};
 
     /// **The cap apex stays at the chord's scale at `Interval`.** Over
     /// the shallow-arc grid (chord `L` ∈ {1e-3, 1, 50}, bulge down to
@@ -789,6 +803,154 @@ mod tests {
                      chord's own scale"
                 );
             }
+        }
+    }
+
+    fn budget() -> SymBudget {
+        SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        }
+    }
+
+    /// How the tier answers a residual at the scalar door: the scalar's
+    /// own `Decide::sign_within` on the residual (no recorder funnel, so
+    /// no predicate name joins the crate's roster), read off the
+    /// session's receipt.
+    fn how<T: Decide>(m: T) -> &'static str {
+        let band = Band::linear(Tol::witness()).expect("the witness tolerance has a linear band");
+        let before = session_counts().expect("inside a session");
+        let _ = m.sign_within(band);
+        let after = session_counts().expect("inside a session");
+        if after.registered > before.registered {
+            "registered"
+        } else if after.sign_gated > before.sign_gated {
+            "sign_gated"
+        } else if after.symbolic_zero > before.symbolic_zero {
+            "theorem"
+        } else {
+            "numeric"
+        }
+    }
+
+    /// One arc at the bulge `bulge` (a form) with the turn `turn`, on
+    /// the chord `(0, 0) → (2, 0)`, lowered through
+    /// [`placed_segment_spec`] at the identity placement. The sweep is
+    /// the lowering's `4·atan b`, and the centre and radius are the
+    /// sagitta closed forms, so the two registrants the arm runs state
+    /// true identities.
+    fn lowered<T: Real>(bulge: T, turn: Sign) -> EdgeCurveSpec<T> {
+        let lit = T::from_f64;
+        let (a, b) = (
+            Point2::new(lit(0.0), lit(0.0)),
+            Point2::new(lit(2.0), lit(0.0)),
+        );
+        let len = lit(2.0);
+        let apothem = len * (lit(1.0) - bulge * bulge) / (lit(4.0) * bulge);
+        let radius = (len * (lit(1.0) + bulge * bulge) / (lit(4.0) * bulge)).abs();
+        let seg = SweptSeg {
+            a,
+            b,
+            kind: SegmentKind::Arc {
+                arc: Arc2 {
+                    centre: Point2::new(lit(1.0), apothem),
+                    radius,
+                    sweep: lit(4.0) * bulge.atan(),
+                },
+                turn,
+            },
+            canonical_vertex: 0,
+            canonical_segment: 0,
+        };
+        let q = |p: Point2<T>| Point3::new(p.x, p.y, lit(0.0));
+        placed_segment_spec(
+            &seg,
+            Affine3::identity(),
+            Vec3::new(lit(0.0), lit(0.0), lit(1.0)),
+            q(a),
+            q(b),
+            Tol::witness(),
+        )
+    }
+
+    /// The carrier's samples against the pushforward's, at `s = i/8`:
+    /// the carrier at `t = s·param_end` about the turn-signed axis, the
+    /// pushforward (`SketchSegment::eval`) at `s·θ`, `θ` the sweep the
+    /// description carries. About `−n` the carrier turns by `−t` in the
+    /// sketch plane, so its sine enters with the turn's sign. Per
+    /// sample, how the tier answers the cosine and the sine.
+    fn samples<T: Decide>(
+        spec: &EdgeCurveSpec<T>,
+        turn: Sign,
+    ) -> Vec<(&'static str, &'static str)> {
+        let lit = T::from_f64;
+        let EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
+            segment: SketchSegment::Arc { arc, .. },
+            ..
+        }) = spec.description
+        else {
+            panic!("an arc lowers to a placed arc segment");
+        };
+        let theta = arc.sweep;
+        let sigma = lit(if turn_negates(turn) { -1.0 } else { 1.0 });
+        (0..=8)
+            .map(|i| {
+                let s = lit(f64::from(i) / 8.0);
+                let t = spec.param_start + (spec.param_end - spec.param_start) * s;
+                let (st, ct) = t.sin_cos();
+                let sin = (s * theta).sin();
+                let cos = lit(1.0) - lit(2.0) * (s * theta * lit(0.5)).sin().powi(2);
+                (how(ct - cos), how(sigma * st - sin))
+            })
+            .collect()
+    }
+
+    /// **The carrier's span meets the pushforward's as a THEOREM at a
+    /// parameter bulge of either sign**, at `Sym<f64>` (a point) and at
+    /// `Sym<Interval>` (a box that keeps the sign). The span is the
+    /// stored sweep signed by the decided turn ([`arc_span`]), so the
+    /// carrier and the pushforward read the one `atan b` atom and rule D
+    /// folds both. Spelled through `abs` (`|sweep|`), the carrier mints
+    /// an atom related to `atan b` only through the sign of `b`, and the
+    /// sine stays numeric — so this row reds if the carrier's span goes
+    /// back to `abs`. Per scalar, three arcs: a positive parameter
+    /// bulge, a negative one, and the reversal of the positive one (the
+    /// bulge `0 − b`, the turn flipped: `swept_segments`' involution).
+    #[test]
+    fn the_carriers_span_meets_the_pushforwards_at_a_parameter_bulge_of_either_sign() {
+        let cases: [(&str, bool, bool, Sign); 3] = [
+            ("b > 0", false, false, Sign::Positive),
+            ("b < 0", true, false, Sign::Negative),
+            ("0 − b, b > 0 (reversed)", false, true, Sign::Negative),
+        ];
+        for (name, negative, reversed, turn) in cases {
+            let at = |b: f64| if negative { -b } else { b };
+            let (rows, counts) = with_session(budget(), || {
+                let b = Sym::<f64>::param(ParamSymbol::of("bulge"), at(0.7));
+                let bulge = if reversed { Sym::zero() - b } else { b };
+                samples(&lowered(bulge, turn), turn)
+            });
+            assert!(
+                rows.iter().all(|r| *r == ("theorem", "theorem")),
+                "Sym<f64>, {name}: every sample's cosine and sine must be a theorem: \
+                 {rows:?} ({counts:?})"
+            );
+            let (lo, hi) = if negative {
+                (-0.77, -0.63)
+            } else {
+                (0.63, 0.77)
+            };
+            let (rows, counts) = with_session(budget(), || {
+                let b =
+                    Sym::<Interval>::param(ParamSymbol::of("bulge"), Interval::from_bounds(lo, hi));
+                let bulge = if reversed { Sym::zero() - b } else { b };
+                samples(&lowered(bulge, turn), turn)
+            });
+            assert!(
+                rows.iter().all(|r| *r == ("theorem", "theorem")),
+                "Sym<Interval> over [{lo}, {hi}], {name}: every sample's cosine and sine \
+                 must be a theorem: {rows:?} ({counts:?})"
+            );
         }
     }
 }
