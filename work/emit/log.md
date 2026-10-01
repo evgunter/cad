@@ -1422,3 +1422,15 @@ Also, save runs the same validator, and `EditReplay` already spoke labels at loa
 - `viewer-refusals-speak-the-node`
 - `memoized-refusals-speak-inner-nodes-through-the-frame`
 - `a-cluster-act-speaks-its-gauges-by-tag`
+## 2026-10-01 — union parents link in member space (PR 3734, ruled)
+
+**Ruling.** Ev approved the fork-log row 37 recommendation:
+- A union links two member faces when their pair is declared coincident (or shares a source), same-oriented, and consumed by that pair's own judgement.
+- Linking is transitive.
+- A finished face takes the parent of the member faces it descends from, whatever the fold kept.
+
+**Effect.** This replaces N2's union-parent sentences from PR 3222.
+
+**Designers.** A started from a per-step kernel record and moved to B's siting, adding the "consumed" condition. B took that condition in round 2.
+
+**Next.** The build has been dispatched, on the row `a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush`.
