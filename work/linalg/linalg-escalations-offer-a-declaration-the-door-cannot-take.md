@@ -2,10 +2,11 @@
 id: linalg-escalations-offer-a-declaration-the-door-cannot-take
 kind: issue
 title: linalg: a direction or frame escalation offers the declare menu at frame and mate doors, which take no declaration
-status: open
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: E
+closed: 2026-10-01
 ---
 
 
@@ -43,3 +44,16 @@ Render the payload with a subject ("whether a direction has any
 length", which is the words `NodeErrorKind::Escalated` already uses) and
 `geom_core::NO_DECLARATION_RECOURSE` or the site's own lever. See
 `sweep::blend::BlendError::Escalated`'s `Display` for the shape.
+
+## Closed (2026-10-01)
+
+Closed by #3710.
+
+`UnitVec3Error::Escalated` and both arms of `FrameError::Degenerate`
+now render three things: a subject (the new
+`geom_core::DIRECTION_LENGTH_SUBJECT`, one literal where there used to
+be four), the payload, and `NO_DECLARATION_RECOURSE`. They no longer
+render the declare menu.
+
+The review confirmed that no door taking a declaration renders these
+variants.
