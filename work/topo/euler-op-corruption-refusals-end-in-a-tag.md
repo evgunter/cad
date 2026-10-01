@@ -2,7 +2,9 @@
 id: euler-op-corruption-refusals-end-in-a-tag
 kind: issue
 title: EulerOpError's tier-1 corruption refusals end in a '(malformed body)' tag, not the shared kernel-defect ending
-status: open
+status: review
+pr: 3621
+branch: topo/euler-corruption-ends-one-way
 opened: 2026-09-30
 refs: [loop-cycle-broken-display-names-one-of-its-causes]
 priority: P3
