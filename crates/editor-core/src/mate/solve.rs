@@ -1325,7 +1325,10 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     // tree's parent first, and the parent is wherever the root rule
     // put the root, so where both parts are missing the two doors may
     // name different ones; each names a part the mate needs.
-    let (first, second) = if wa.member.instance <= wb.member.instance {
+    // Document order is the order list's, not the ids': an id is a
+    // digest (N1), so comparing two says nothing about which came first.
+    let at = |id: RecipeNodeId| doc.order().iter().position(|&n| n == id);
+    let (first, second) = if at(wa.member.instance) <= at(wb.member.instance) {
         (&wa.member, &wb.member)
     } else {
         (&wb.member, &wa.member)

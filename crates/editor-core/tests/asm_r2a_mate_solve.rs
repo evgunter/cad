@@ -442,7 +442,7 @@ fn row4a_a_mate_insert_joins_two_groups_clearing_as_root_offset() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::OffsetCleared {
-            instance: ids[0],
+            instance: doc.spoken(ids[0]),
             offset: a_offset,
         }],
         "the door clears the moved group's root offset and says so"
@@ -531,8 +531,8 @@ fn row4c_deleting_the_root_unplaces_the_survivor() {
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::Strand {
-            node: mate_node,
-            name: in_part(ids[0], body, CapEnd::Start),
+            node: doc.spoken(mate_node),
+            name: doc.spoken_name(&in_part(ids[0], body, CapEnd::Start)),
         }],
         "the strand is the whole report: no frame is recorded"
     );
@@ -1395,7 +1395,7 @@ fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
         )
         .expect_err("the head names no node");
     assert!(
-        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.node == ghost),
+        matches!(&err, EditError::DeclareNamesMissingNode { name } if name.name().node == ghost),
         "{err:?}"
     );
 }
@@ -1524,7 +1524,9 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
     .unwrap_err();
     assert_eq!(
         err,
-        EditError::NameUnresolvedInEvaluation { name: bogus },
+        EditError::NameUnresolvedInEvaluation {
+            name: doc.spoken_name(&bogus)
+        },
         "the mate head is checkable, so it is checked"
     );
 }

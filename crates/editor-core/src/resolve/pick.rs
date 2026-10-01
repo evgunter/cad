@@ -3154,8 +3154,8 @@ mod tests {
             assert_eq!(span.t, 2.0, "triangle {i} answers the midpoint at t = 2");
             let at = ray.origin + ray.dir * span.t;
             assert_eq!(
-                [at.x, at.y, at.z].map(f64::to_bits),
-                [midpoint.x, midpoint.y, midpoint.z].map(f64::to_bits),
+                at.to_array().map(f64::to_bits),
+                midpoint.to_array().map(f64::to_bits),
                 "triangle {i}'s answer places the hit at the shared edge's midpoint"
             );
             assert!(

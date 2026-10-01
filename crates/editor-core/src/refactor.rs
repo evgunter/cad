@@ -233,7 +233,9 @@ fn carry<E>(
         let mut carried = match remap_node(node, &node_map, &step_map, &regauge) {
             Ok(carried) => carried,
             Err(RemapMiss::Name { name, missing }) if forward(&missing) => {
-                return Err(edit(EditError::DeclareNamesMissingNode { name: *name }));
+                return Err(edit(EditError::DeclareNamesMissingNode {
+                    name: source.spoken_name(&name),
+                }));
             }
             Err(other) => return Err(miss(old, other)),
         };

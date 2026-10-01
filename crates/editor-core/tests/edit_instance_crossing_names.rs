@@ -232,7 +232,8 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => assert_eq!(
-            name, outer,
+            name.name(),
+            &outer,
             "the refusal names the crossing's `outer`, which is the reference that died"
         ),
         other => panic!("a record naming a dead node must refuse at the insert door: {other:?}"),
@@ -377,7 +378,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
         .maintenance
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand { node, name } => Some((*node, name.clone())),
+            Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::OrphanedDeclare { .. } => None,

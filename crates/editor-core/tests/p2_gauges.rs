@@ -299,7 +299,7 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::OffsetCleared {
-            instance: top,
+            instance: doc.spoken(top),
             offset: Placement::IDENTITY,
         }],
         "the first operand's root gave up its offset, and the edit says so"

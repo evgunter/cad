@@ -2196,7 +2196,9 @@ pub fn apply_with_names<T: Decide>(
         // Checkable = the minting node evaluated Ok. (Node existence
         // itself is apply's own door.)
         if eval.value(name.node).is_some() && lookup(eval, name).is_none() {
-            return Err(EditError::NameUnresolvedInEvaluation { name: name.clone() });
+            return Err(EditError::NameUnresolvedInEvaluation {
+                name: doc.spoken_name(name),
+            });
         }
     }
     crate::edit::apply(doc, edit, tol, reach)

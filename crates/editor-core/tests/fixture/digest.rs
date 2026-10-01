@@ -124,7 +124,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
 pub fn feed_body(feed: &mut impl FnMut(&[u8]), body: &Body<f64>) {
     // Points: bits, then the provenance stamp on the same key.
     for (key, p) in body.points() {
-        for c in [p.x, p.y, p.z] {
+        for c in p.to_array() {
             feed(&c.to_bits().to_be_bytes());
         }
         feed(format!("{key:?}<-{:?}", body.point_source(key)).as_bytes());

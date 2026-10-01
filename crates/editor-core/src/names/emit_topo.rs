@@ -2260,14 +2260,14 @@ mod tests {
     fn segment(p: [f64; 3], q: [f64; 3]) -> (Body<f64>, EdgeKey) {
         let mut body = Body::<f64>::new();
         let born = body
-            .mvfs(Point3::new(p[0], p[1], p[2]), true)
+            .mvfs(Point3::from_array(p), true)
             .expect("mvfs births a lone vertex");
         let edge = body
             .mev_line(
                 topo::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
-                Point3::new(q[0], q[1], q[2]),
+                Point3::from_array(q),
                 Tol::witness(),
             )
             .expect("mev on an empty loop grows it by one edge")

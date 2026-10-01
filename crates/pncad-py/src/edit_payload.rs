@@ -477,7 +477,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The step and the counter cross in the message; the name is
         // what the caller wrote and repairs.
         | EditError::NameStepNeverMinted { name, .. } => EditPayload {
-            name: Some(name),
+            name: Some(name.name()),
             ..none
         },
         // A rebind's two ENTITY kinds. `from` is a Python keyword, so
@@ -490,7 +490,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         EditError::RebindAppearanceCollision { name, kind }
         | EditError::AppearanceNotSet { name, kind } => EditPayload {
-            name: Some(name),
+            name: Some(name.name()),
             kind: Some(attr_kind_tag(kind)),
             ..none
         },
@@ -501,7 +501,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             key,
             error: _,
         } => EditPayload {
-            name: Some(name),
+            name: Some(name.name()),
             key: Some(key),
             ..none
         },
@@ -510,7 +510,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // and a `str` where the other is a tuple of child indices, so
         // it is spelled apart rather than folded.
         EditError::MetaNonFinite { name, key, path } => EditPayload {
-            name: Some(name),
+            name: Some(name.name()),
             key: Some(key),
             value_path: Some(path),
             ..none
@@ -550,19 +550,19 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // under the same node roles every other arm uses.
         EditError::Roots(fault) => match fault {
             RootFault::NotLive { root } | RootFault::Duplicate { root } => EditPayload {
-                node: Some(*root),
+                node: Some(root.id()),
                 ..none
             },
             RootFault::Uncovered { node } => EditPayload {
-                node: Some(*node),
+                node: Some(node.id()),
                 ..none
             },
             RootFault::Ancestor {
                 ancestor,
                 descendant,
             } => EditPayload {
-                node: Some(*ancestor),
-                referenced_by: Some(*descendant),
+                node: Some(ancestor.id()),
+                referenced_by: Some(descendant.id()),
                 ..none
             },
         },

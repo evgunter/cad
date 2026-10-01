@@ -40,7 +40,7 @@ fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
                 let start = body.get_half_edge(he).expect("a half-edge").start;
                 let vertex = body.get_vertex(start).expect("a vertex");
                 let pt = *body.get_point(vertex.point).expect("a point");
-                for (i, c) in [pt.x, pt.y, pt.z].into_iter().enumerate() {
+                for (i, c) in pt.to_array().into_iter().enumerate() {
                     out[i].0 = out[i].0.min(c);
                     out[i].1 = out[i].1.max(c);
                 }

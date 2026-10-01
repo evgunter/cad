@@ -184,13 +184,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let pose_b =
         face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the underside has a pose");
     close(
-        [pose_a.origin.x, pose_a.origin.y, pose_a.origin.z],
-        [pose_b.origin.x, pose_b.origin.y, pose_b.origin.z],
+        pose_a.origin.to_array(),
+        pose_b.origin.to_array(),
         1e-9,
         "the picked faces' origins coincide once solved",
     );
     close(
-        [pose_a.axis.x, pose_a.axis.y, pose_a.axis.z],
+        pose_a.axis.to_array(),
         [-pose_b.axis.x, -pose_b.axis.y, -pose_b.axis.z],
         1e-9,
         "the picked faces' chart axes meet opposed once solved",

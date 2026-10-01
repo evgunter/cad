@@ -786,7 +786,9 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     .unwrap_err();
     assert_eq!(
         err,
-        editor_core::EditError::NameUnresolvedInEvaluation { name: bogus }
+        editor_core::EditError::NameUnresolvedInEvaluation {
+            name: doc.spoken_name(&bogus)
+        }
     );
     // The forward-reference carve-out: a name on a node the supplied
     // evaluation has NOT seen passes through (resolution happens at
@@ -856,7 +858,9 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     .unwrap_err();
     assert_eq!(
         err,
-        editor_core::EditError::NameUnresolvedInEvaluation { name: bogus }
+        editor_core::EditError::NameUnresolvedInEvaluation {
+            name: doc.spoken_name(&bogus)
+        }
     );
 }
 

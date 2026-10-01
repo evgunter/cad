@@ -2480,8 +2480,9 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::FaceFrameNotPlanar { carrier } => write!(
                 f,
-                "the derived frame's face lies on a {} carrier, not a plane — a sketch frame \
+                "the derived frame's face lies on {} {} carrier, not a plane — a sketch frame \
                  needs a planar face",
+                crate::sentence::article(carrier.name()),
                 carrier.name()
             ),
             Self::FaceFrameReadback { error } => write!(
@@ -2986,7 +2987,11 @@ pub(crate) mod leaf {
                     }
                     other => Err((
                         id,
-                        format!("node evaluated to a {}, not a measure", other.kind_name()),
+                        format!(
+                            "node evaluated to {} {} value, not a measure",
+                            crate::sentence::article(other.kind_name()),
+                            other.kind_name()
+                        ),
                     )),
                 },
                 Err(standing) => Err(ev.node_error(id).map_or_else(

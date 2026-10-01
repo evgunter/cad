@@ -316,3 +316,11 @@ pub fn spoken_labelled(
 ) -> crate::SpokenNode {
     crate::SpokenNode::forged(id, Some(kind), Some(label))
 }
+
+/// `name` as a sentence speaks it with its minting node spoken as
+/// `minter` says, which must name the same node.
+#[must_use]
+pub fn spoken_name(name: crate::StableName, minter: crate::SpokenNode) -> crate::SpokenName {
+    assert_eq!(name.node, minter.id(), "the minter is the name's own node");
+    crate::SpokenName::forged(name, minter)
+}

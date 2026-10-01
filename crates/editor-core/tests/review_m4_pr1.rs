@@ -511,7 +511,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     );
     match res {
         Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.node, phantom, "refusal names the typo'd id");
+            assert_eq!(name.name().node, phantom, "refusal names the typo'd id");
         }
         other => panic!("phantom StableName.node must be refused, got {other:?}"),
     }

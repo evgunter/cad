@@ -606,7 +606,7 @@ fn the_mate_door_clears_a_checked_offset_in_the_moving_group_too() {
         .maintenance
         .iter()
         .filter_map(|row| match row {
-            editor_core::Maintenance::OffsetCleared { instance, .. } => Some(*instance),
+            editor_core::Maintenance::OffsetCleared { instance, .. } => Some(instance.id()),
             _ => None,
         })
         .collect();
@@ -721,8 +721,9 @@ fn a_measure_reused_across_an_offset_clear_refuses_across_spaces() {
     );
 }
 
-/// **Every saved document in the tree loads**, and each frozen
-/// older-build golden refuses typed — the instance keys being required
+/// **Every saved document in the tree loads** (or, at a process ε
+/// other than the one it records, refuses at D4's seam), and each
+/// frozen older-build golden refuses typed — the instance keys being required
 /// on the wire moves none of them, since none holds an instance.
 #[test]
 fn every_saved_document_in_the_tree_loads_or_refuses_typed() {
@@ -745,8 +746,21 @@ fn every_saved_document_in_the_tree_loads_or_refuses_typed() {
         let r = editor_core::load(&text, Tol::witness());
         if f.contains("bool13") {
             assert!(r.is_err());
-        } else {
-            assert!(r.is_ok(), "{f}");
+            continue;
+        }
+        match r {
+            Ok(_) => {}
+            // D4's seam, before any replay: a document authored at
+            // another ε refuses at this process's ε, typed — the load
+            // door's answer on the other ε rows, not this row's subject.
+            Err(editor_core::PersistError::ToleranceConflict { document, process }) => {
+                assert_ne!(
+                    document, process,
+                    "{f}: the seam refuses only a real conflict"
+                );
+                assert_eq!(process, Tol::witness().eps(), "{f}");
+            }
+            Err(e) => panic!("{f}: {e}"),
         }
     }
 }

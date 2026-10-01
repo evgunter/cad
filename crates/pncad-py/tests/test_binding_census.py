@@ -2249,7 +2249,10 @@ NOT_BOUND = {
     # `NodeId`'s and `StepId`'s repr, which prints the full id
     # (`FullId`); and its kind word is `Doc.node_kind`, the snake_case
     # vocabulary `src/node_kind.rs` keeps apart from the chrome's noun.
+    # A spoken name is the same: its sentence rides inside the error,
+    # and its machine spelling is the opaque name text.
     "FullId": SHAPE,
+    "SpokenName": SHAPE,
     "SpokenNode": SHAPE,
     "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's

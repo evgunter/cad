@@ -107,7 +107,7 @@ pub use editor_core::{
 
 // How a sentence names a node: the kind noun and tag a person reads, and
 // the full-width id a machine channel prints.
-pub use editor_core::{FullId, SpokenNode, node_kind_noun};
+pub use editor_core::{FullId, SpokenName, SpokenNode, node_kind_noun};
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
 // kernel stores and speaks, never identity.

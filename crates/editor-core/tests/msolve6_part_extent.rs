@@ -924,7 +924,7 @@ fn a6_only_a_mate_inserts_rider_asks_the_store() {
         )
         .expect("a joining mate inserts");
     assert!(
-        matches!(applied.maintenance[..], [editor_core::Maintenance::OffsetCleared { instance, .. }] if instance == b),
+        matches!(&applied.maintenance[..], [editor_core::Maintenance::OffsetCleared { instance, .. }] if instance.id() == b),
         "{:?}",
         applied.maintenance
     );

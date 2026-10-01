@@ -742,7 +742,7 @@ fn a_tube_is_minted_and_built_from_prelude_names_alone() {
     // The axis is kept as the frame's `w` and the reference yields to
     // it: the raw `(0, 0, 3)` comes back as exactly the unit z axis,
     // and the raw reference's on-axis component is gone.
-    let xyz = |v: Vec3<f64>| [v.x, v.y, v.z];
+    let xyz = |v: Vec3<f64>| v.to_array();
     assert_eq!(xyz(frame.w().get()), [0.0, 0.0, 1.0]);
     assert_eq!(xyz(frame.u().get()), [1.0, 0.0, 0.0]);
     let major = 1.0;

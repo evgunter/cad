@@ -71,8 +71,8 @@ fn a_strand_a_later_rebind_repairs_is_not_reported() {
     assert_eq!(
         alone,
         vec![Maintenance::Strand {
-            node: carrier,
-            name: named.clone(),
+            node: doc.spoken(carrier),
+            name: doc.spoken_name(&named),
         }]
     );
     let (repaired, each, _) = net_of(
@@ -133,7 +133,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     assert_eq!(
         alone,
         vec![Maintenance::StrandedAppearance {
-            name: painted.clone()
+            name: doc.spoken_name(&painted)
         }]
     );
     let (cleared, _, _) = net_of(
@@ -163,7 +163,12 @@ fn an_orphan_a_later_edit_consumes_or_deletes_is_not_reported() {
     let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
 
     let (alone, _, _) = net_of(&doc, vec![DocEdit::DeleteNode { id: union }]);
-    assert_eq!(alone, vec![Maintenance::OrphanedDeclare { declare: decl }]);
+    assert_eq!(
+        alone,
+        vec![Maintenance::OrphanedDeclare {
+            declare: doc.spoken(decl)
+        }]
+    );
     let (reconsumed, _, _) = net_of(
         &doc,
         vec![

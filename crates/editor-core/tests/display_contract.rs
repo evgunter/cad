@@ -25,7 +25,7 @@ use editor_core::{
     ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
     SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
-use editor_core::{Mispaired, NameLookupError, NodeStanding, SpokenNode};
+use editor_core::{Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
 use test_utils::refusal::tagged;
 
@@ -135,6 +135,12 @@ fn face_name() -> StableName {
         node: RecipeNodeId(tagged(7)),
         path: vec![RoleSeg::Cap(CapEnd::End)],
     }
+}
+
+/// [`face_name`] as a sentence speaks it over a document holding its
+/// minting node as an extrude.
+fn spoken_face_name() -> SpokenName {
+    editor_core::test_support::spoken_name(face_name(), held(7, "Extrude"))
 }
 
 /// A stable name renders as its kind plus its minting node — the half
@@ -380,7 +386,9 @@ fn declare_error_display_names_its_content_not_its_struct() {
         // states its own recourse: the caller passed findings, and the
         // edit door's "name an entity" is about a node nobody wrote.
         (
-            DeclareError::Edit(EditError::DeclareNamesMissingNode { name: face_name() }),
+            DeclareError::Edit(EditError::DeclareNamesMissingNode {
+                name: SpokenName::absent(face_name()),
+            }),
             vec![
                 "the document edit refused",
                 "refers to a node that is not live",
@@ -1208,10 +1216,13 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::Roots(RootFault::Ancestor {
-                ancestor: RecipeNodeId(tagged(1)),
-                descendant: RecipeNodeId(tagged(2)),
+                ancestor: SpokenNode::absent(RecipeNodeId(tagged(1))),
+                descendant: SpokenNode::absent(RecipeNodeId(tagged(2))),
             }),
-            vec!["product root"],
+            vec![
+                "product root node 000000000001 is an ancestor of product root node \
+                 000000000002",
+            ],
         ),
         (
             SnapshotError::NotAGauge {
@@ -2784,23 +2795,25 @@ test_utils::f6_variants! {
 /// declaration lost (its reader) rather than what was deleted.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
-    let gauge = RecipeNodeId(tagged(3));
-    let other = RecipeNodeId(tagged(5));
     let cases = [
         (
             Maintenance::OffsetCleared {
-                instance: gauge,
+                instance: held(3, "InstantiatePart"),
                 offset: editor_core::Placement::IDENTITY,
             },
-            vec!["instance 000000000003's group", "offset was cleared"],
+            vec![
+                "InstantiatePart 000000000003's group",
+                "InstantiatePart 000000000003's offset was cleared",
+            ],
         ),
         (
             Maintenance::Strand {
-                node: other,
-                name: face_name(),
+                node: held(5, "Datum frame (on face)"),
+                name: spoken_face_name(),
             },
             vec![
-                "node 000000000005 carries a face name minted by node 000000000007",
+                "Datum frame (on face) 000000000005 carries a face name minted by Extrude \
+                 000000000007",
                 // The row is made by two edits — a delete and a
                 // reshaping — and the sentence names what either
                 // removed without claiming which.
@@ -2810,17 +2823,22 @@ fn maintenance_display_says_what_the_edit_did() {
             ],
         ),
         (
-            Maintenance::StrandedAppearance { name: face_name() },
+            Maintenance::StrandedAppearance {
+                name: spoken_face_name(),
+            },
             vec![
-                "the appearance store holds an attachment under a face name minted by node 000000000007",
+                "the appearance store holds an attachment under a face name minted by Extrude \
+                 000000000007",
                 "this edit removed what it denoted",
                 "rebound or cleared",
             ],
         ),
         (
-            Maintenance::OrphanedDeclare { declare: other },
+            Maintenance::OrphanedDeclare {
+                declare: held(5, "Declare"),
+            },
             vec![
-                "node 000000000005 declares contacts",
+                "Declare 000000000005 declares contacts",
                 "deleted the last node that consumed it",
                 // What it lost is a CONSUMER. "nothing reads it"
                 // would be false — the same delete re-roots the
@@ -2987,21 +3005,24 @@ fn a_step_id_fault_names_the_id_or_the_count() {
     );
     assert_f6(
         &EditError::NameStepNeverMinted {
-            name: StableName {
-                kind: EntityKind::Edge,
-                node: RecipeNodeId(tagged(3)),
-                path: vec![RoleSeg::RimEdge(
-                    CapEnd::End,
-                    editor_core::ProfileEdgeRef::Piece {
-                        step: StepId(tagged(9)),
-                        role: editor_core::PieceRole::Leg,
-                    },
-                )],
-            },
+            name: editor_core::test_support::spoken_name(
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(tagged(3)),
+                    path: vec![RoleSeg::RimEdge(
+                        CapEnd::End,
+                        editor_core::ProfileEdgeRef::Piece {
+                            step: StepId(tagged(9)),
+                            role: editor_core::PieceRole::Leg,
+                        },
+                    )],
+                },
+                held(3, "Extrude"),
+            ),
             step: StepId(tagged(9)),
         },
         &[
-            "edge name minted by node 000000000003",
+            "edge name minted by Extrude 000000000003",
             "profile step id 000000000009",
             "never minted",
             "mint log does not hold it",
