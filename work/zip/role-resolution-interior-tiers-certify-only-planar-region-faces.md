@@ -106,3 +106,11 @@ The rows are
 `declared_rounded_continuations_inside_a_wall_refuse_typed` in
 `crates/sweep/tests/reach_continuation.rs`. The sharp outline builds
 all three ops on the same poses.
+
+CLEAVE #3716 resolved this reproducer. On PR 3657 with `origin/main`
+merged in, none of the six refuses `SectionLoopMixed`. Five build at the
+oracle, valid at tier 3 and 3′. The flush-top intersect builds the right
+body, but the volume backstop then refuses it on a rounding tie
+(`work/reach/volume-backstop-refuses-a-closed-form-rounding-tie.md`).
+The row is now
+`declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`.

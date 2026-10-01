@@ -36,8 +36,15 @@ continuations). The union refuses `FallbackExtentUnsupported` at
 `boolean/ops.rs` `section_extent_pass` (the no-crossings path: the
 second plate's edges all lie on the first's walls, so no crossing layer
 event exists, and that pass exempts no declared pair by design). The
-oracle is the first plate's volume, 24 − (4 − π)/4. Subtract and
-intersect reach the join instead and refuse `SectionLoopMixed` at the
-chord-midpoint anchor
-(`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces.md`).
-Pinned by `declared_rounded_continuations_inside_a_wall_refuse_typed`.
+oracle is the first plate's volume, 24 − (4 − π)/4.
+
+After `origin/main` was merged into PR 3657 with CLEAVE's #3716, the
+subtract and intersect of these poses no longer refuse at the join.
+Five of the six build at the oracle, half the thick plate's volume,
+valid at tier 3 and 3′. The flush-top intersect refuses
+`ResultVolumeImplausible` on a two-ulp rounding tie
+(`work/reach/volume-backstop-refuses-a-closed-form-rounding-tie.md`).
+The union still refuses `FallbackExtentUnsupported` in all three poses,
+and so does the stacked pose's subtract and intersect (the repro above,
+re-measured on the same merge). Pinned by
+`declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect`.

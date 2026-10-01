@@ -692,33 +692,38 @@ fn a_declared_continuation_across_a_rabbet_step_refuses_its_union() {
 }
 
 /// **A declared rounded continuation that lies inside the other's wall
-/// refuses typed in every op.** The rounded plate and a plate of the
-/// same outline half as thick, sunk inside it or flush with its top or
-/// bottom, so the thin plate's walls (fillets included) lie inside the
-/// thick one's. Undeclared, each op refuses `UndeclaredCoincidence`;
-/// with every finding declared, the union refuses
-/// `FallbackExtentUnsupported` (no crossing event exists, and that pass
-/// exempts no declared pair:
-/// `work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`)
-/// and subtract and intersect refuse `Join(SectionLoopMixed)` (the role
-/// probe at a fillet's chord midpoint:
-/// `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces.md`).
-/// No text calls the legal input a kernel bug.
+/// builds its subtract and intersect, and refuses its union typed.**
+/// The rounded plate and a plate of the same outline half as thick,
+/// sunk inside it or flush with its top or bottom, so the thin plate's
+/// walls (fillets included) lie inside the thick one's. Undeclared,
+/// each op refuses `UndeclaredCoincidence`. With every finding
+/// declared, subtract and intersect build at box arithmetic in z over
+/// the outline's area `24 − (4 − π)·R²`: half the thick plate's volume
+/// each, the sunk subtract as two plates of a quarter unit (twenty
+/// faces). The union refuses `FallbackExtentUnsupported`: no crossing
+/// event exists, and that pass exempts no declared pair
+/// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
+/// The flush-top intersect, whose result is the thin plate itself,
+/// refuses `ResultVolumeImplausible` on a two-ulp tie between two
+/// closed-form volumes
+/// (`work/reach/volume-backstop-refuses-a-closed-form-rounding-tie.md`);
+/// it is the one refusal here whose text still calls the legal input a
+/// kernel defect.
 #[test]
-fn declared_rounded_continuations_inside_a_wall_refuse_typed() {
+fn declared_rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
     let none = BooleanDeclarations::default();
     let a = plate(rounded(R), 0.0);
-    for (label, z0) in [
-        ("sunk inside", 0.25),
-        ("flush top", 0.5),
-        ("flush bottom", 0.0),
+    let half = area(4.0) / 2.0;
+    for (label, z0, subtract_faces, intersect_builds) in [
+        ("sunk inside", 0.25, 20, true),
+        ("flush top", 0.5, 10, false),
+        ("flush bottom", 0.0, 10, true),
     ] {
         let b = extruded(sketch_at(z0), vec![rounded(R)], 0.5, tol());
         let (rest, cont) = findings(&a, &b);
         assert!(rest.coincident_faces.is_empty(), "{label}: no Rest pair");
         let d = with(&rest, &cont);
         for (op_name, op) in OPS {
-            let label = format!("{label}, {op_name}");
             let undeclared = op(&a, &b, &none, tol()).expect_err("undeclared refuses");
             assert!(
                 matches!(
@@ -728,21 +733,37 @@ fn declared_rounded_continuations_inside_a_wall_refuse_typed() {
                         ..
                     }
                 ),
-                "{label}, undeclared: {undeclared:?}"
+                "{label}, {op_name}, undeclared: {undeclared:?}"
             );
-            let err = op(&a, &b, &d, tol()).expect_err("declared, it refuses");
-            let typed = if op_name == "union" {
-                matches!(err, BooleanError::FallbackExtentUnsupported { .. })
-            } else {
-                matches!(
-                    err,
-                    BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-                )
-            };
-            assert!(typed, "{label}: {err:?}");
+        }
+        let err = topo::union_with(&a, &b, &d, tol()).expect_err("the union refuses");
+        assert!(
+            matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
+            "{label}, union: {err:?}"
+        );
+        assert!(
+            !err.to_string().contains("kernel"),
+            "{label}, union: a legal input is no kernel bug: {err}"
+        );
+        builds(
+            &format!("{label}, subtract"),
+            topo::subtract_with(&a, &b, &d, tol()),
+            half,
+            subtract_faces,
+        );
+        let intersect = topo::intersect_with(&a, &b, &d, tol());
+        if intersect_builds {
+            builds(&format!("{label}, intersect"), intersect, half, 10);
+        } else {
             assert!(
-                !err.to_string().contains("kernel"),
-                "{label}: a legal input is no kernel bug: {err}"
+                matches!(
+                    intersect,
+                    Err(BooleanError::ResultVolumeImplausible {
+                        which: "vol(A ∩ B) ≤ vol(B)",
+                        ..
+                    })
+                ),
+                "{label}, intersect: {intersect:?}"
             );
         }
     }
