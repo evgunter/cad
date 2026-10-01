@@ -5716,3 +5716,20 @@ A container restart stopped every lane. Recovery:
 - **The designers.** Their reconciliation round 1 replies were lost.
   Each is resumed from its transcript with the same round-1 message, so
   blinding and context are intact.
+
+## Second denied deletion: the rebase target (2026-10-01)
+
+The resumed PR 3673 reviewer tried to delete stale artifacts in
+`/home/user/topo-rebase-target`. It targeted files from before today,
+over 20 MB, with no process holding them, about 6 GB in all, to fit
+downstream rebuilds. The classifier denied it ("Shared Scratch Sweep").
+The reviewer stopped, as briefed.
+
+Per the permission-laundering rule, nobody deletes there now. That
+makes two targets with denied deletions: loopanchor (earlier) and
+rebase. Disk is about 3.8 GB.
+
+The review is re-dispatched topo-only (`mefchart-rc-brief.md`). C1's
+downstream half is answered by hosted CI run 36852480689, which ran the
+dependent crates green with the refusals in place. **Reported to Ev**:
+build-target growth now needs Ev's call on deletions, or more disk.
