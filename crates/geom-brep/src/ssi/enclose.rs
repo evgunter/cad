@@ -415,8 +415,14 @@ pub(super) fn chart_transverse_margin(
     if !stretch.is_finite() || stretch <= 0.0 {
         return None;
     }
+    // A lower bound over an upper bound is a lower bound only if the
+    // quotient rounds down: to nearest, it can land above the real one.
     let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
-    Some(margin)
+    Some(if margin > 0.0 {
+        margin.next_down()
+    } else {
+        margin
+    })
 }
 
 /// The certified distance of an enclosure from zero: `0` when it

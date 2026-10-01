@@ -1747,6 +1747,121 @@ mod tests {
         );
     }
 
+    /// Veltkamp's split: `a = hi + lo` exactly, each half 26 bits wide.
+    fn split(a: f64) -> (f64, f64) {
+        let c = 134_217_729.0 * a;
+        let hi = c - (c - a);
+        (hi, a - hi)
+    }
+
+    /// Dekker's product, `a·b = p + e` exactly, in correctly rounded
+    /// operations alone (no fused multiply-add). Exact away from
+    /// overflow and underflow, which the rows below stay clear of.
+    fn two_prod(a: f64, b: f64) -> (f64, f64) {
+        let p = a * b;
+        let ((ah, al), (bh, bl)) = (split(a), split(b));
+        (p, ((ah * bh - p) + ah * bl + al * bh) + al * bl)
+    }
+
+    /// `r` against the EXACT `sup ‖·‖` over a box with side magnitudes
+    /// `m`, i.e. the sign of `r² − Σ mᵢ²` in ℝ: the eight error-free
+    /// terms are summed by Shewchuk's grow-expansion, whose components
+    /// are nonoverlapping and ascending, so the largest nonzero one
+    /// carries the sign of the whole.
+    fn cmp_with_exact_norm(r: f64, m: [f64; 3]) -> core::cmp::Ordering {
+        let (rp, re) = two_prod(r, r);
+        let mut terms = vec![rp, re];
+        for x in m {
+            let (p, e) = two_prod(x, x);
+            terms.extend([-p, -e]);
+        }
+        let mut expansion: Vec<f64> = Vec::new();
+        for t in terms {
+            let mut q = t;
+            let mut next = Vec::with_capacity(expansion.len() + 1);
+            for c in expansion {
+                let (sum, residual) = crate::exact::two_sum(q, c);
+                next.push(residual);
+                q = sum;
+            }
+            next.push(q);
+            expansion = next;
+        }
+        let top = expansion.iter().rev().find(|c| **c != 0.0).copied();
+        top.unwrap_or(0.0).total_cmp(&0.0)
+    }
+
+    fn mags(v: &[Interval; 3]) -> [f64; 3] {
+        v.map(|i| i.lo().abs().max(i.hi().abs()))
+    }
+
+    /// **A real cell where round-to-nearest was below the norm.** The
+    /// sides are bit for bit `NurbsBoxes::deriv_box` of `S_u` over the
+    /// whole domain of `m5_pr7_ssi.rs`'s `certifiable_wall`: the
+    /// chart-speed box `plane_nurbs_ssi`'s floors and limb 3's tube pad
+    /// both divide by. The `f64` fold those sites shipped,
+    /// `√(Σ mag²)` rounded to nearest at every step, reads
+    /// `1.130884609498246` there, which is BELOW the exact norm; the
+    /// outward reading is at or above it.
+    #[test]
+    fn norm_sup_is_above_the_exact_norm_on_a_cell_a_rounded_fold_is_below() {
+        let side = |lo: u64, hi: u64| iv(f64::from_bits(lo), f64::from_bits(hi));
+        let v = [
+            side(4_607_407_598_781_385_931, 4_607_407_598_781_385_934),
+            side(4_595_653_203_753_948_938, 4_601_237_667_291_888_354),
+            iv(0.0, 0.0),
+        ];
+        let m = mags(&v);
+        let fold = (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt();
+        assert_eq!(
+            fold, 1.130_884_609_498_246,
+            "the witness is the cell it names"
+        );
+        assert_eq!(
+            cmp_with_exact_norm(fold, m),
+            core::cmp::Ordering::Less,
+            "the rounded fold {fold:e} must sit below the exact norm, or this is no witness"
+        );
+        let sup = norm_sup(&v);
+        assert_ne!(
+            cmp_with_exact_norm(sup, m),
+            core::cmp::Ordering::Less,
+            "norm_sup {sup:e} is below the exact norm"
+        );
+    }
+
+    /// A refused side answers NaN, not a root of its endpoints.
+    #[test]
+    fn norm_sup_of_a_refused_enclosure_is_nan() {
+        let refused = Interval::from_f64(f64::NAN);
+        assert!(norm_sup(&[iv(1.0, 2.0), refused, iv(0.0, 0.0)]).is_nan());
+    }
+
+    proptest! {
+        /// `norm_sup` is never below the exact `sup ‖·‖` of the box —
+        /// a counterexample search over boxes whose sides differ in
+        /// scale by up to 2⁸⁰, far from overflow and underflow, so the
+        /// comparison is exact.
+        #[test]
+        fn norm_sup_is_never_below_the_exact_norm(
+            raw in proptest::array::uniform6(-1.0..1.0f64),
+            scale in proptest::array::uniform3(-40i32..40),
+        ) {
+            let side = |a: f64, b: f64, e: i32| {
+                let k = 2f64.powi(e);
+                iv((a * k).min(b * k), (a * k).max(b * k))
+            };
+            let v = [
+                side(raw[0], raw[1], scale[0]),
+                side(raw[2], raw[3], scale[1]),
+                side(raw[4], raw[5], scale[2]),
+            ];
+            let m = mags(&v);
+            let sup = norm_sup(&v);
+            prop_assert_ne!(cmp_with_exact_norm(sup, m), core::cmp::Ordering::Less, "{:?}", m);
+        }
+    }
+
     proptest! {
         /// Inclusion monotonicity, unary: x ⊆ y ⇒ f(x) ⊆ f(y) — the
         /// defining property of interval extensions, over every unary

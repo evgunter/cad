@@ -1194,4 +1194,76 @@ mod tests {
             "{escalation:?}"
         );
     }
+
+    /// **A refused cell refuses the patch's chart speed.** One cell
+    /// whose `S_u` enclosure is refused, beside a healthy one, in both
+    /// orders: the fold answers NaN for `sup ‖S_u‖`, the lever NaN with
+    /// it, and the predicate escalates. Red under the inherent
+    /// `f64::max`, which returns the healthy cell's speed and so
+    /// certifies a lever over the cells it could read.
+    #[test]
+    fn a_refused_cell_poisons_the_chart_speed_fold() {
+        let p =
+            |x: f64, y: f64, z: f64| [Interval::point(x), Interval::point(y), Interval::point(z)];
+        let healthy = PatchCell {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+            s_u: p(1.0, 0.0, 0.0),
+            s_v: p(0.0, 1.0, 0.0),
+            s_uu: p(0.0, 0.0, 0.0),
+            s_uv: p(0.0, 0.0, 0.0),
+            s_vv: p(0.0, 0.0, 0.0),
+        };
+        let refused = PatchCell {
+            u: (1.0, 2.0),
+            s_u: [
+                Interval::refused(),
+                Interval::point(0.0),
+                Interval::point(0.0),
+            ],
+            ..healthy
+        };
+        for (order, cells) in [
+            ("refused last", [healthy, refused]),
+            ("refused first", [refused, healthy]),
+        ] {
+            let reg = patch_regularity(&cells);
+            assert!(
+                reg.speed_u.get().is_nan(),
+                "{order}: sup ‖S_u‖ = {:e} dropped the refused cell",
+                reg.speed_u.get()
+            );
+            assert!(
+                reg.speed_v.get().is_finite(),
+                "{order}: the healthy axis must stay readable"
+            );
+            assert!(
+                reg.speed_lever().get().is_nan(),
+                "{order}: the lever dropped the refused axis"
+            );
+            assert!(
+                matches!(
+                    offset_normal_floor(&reg, band()),
+                    Err(MeterError::Escalated { .. })
+                ),
+                "{order}: a refused lever must escalate"
+            );
+        }
+        // The lever folds the two axes on the type: a NaN on either
+        // side survives, whichever side it is on.
+        for (su, sv) in [(f64::NAN, 1.0), (1.0, f64::NAN)] {
+            let reg = PatchRegularity {
+                floor: 1.0,
+                sup: 1.0,
+                speed_u: SupSpeed::new(su),
+                speed_v: SupSpeed::new(sv),
+                sine_floor: 0.0,
+                cells: 1,
+            };
+            assert!(
+                reg.speed_lever().get().is_nan(),
+                "speed_lever({su:e}, {sv:e}) dropped the NaN"
+            );
+        }
+    }
 }
