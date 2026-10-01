@@ -1278,21 +1278,22 @@ fn side_surface<T: Decide>(
     let rank = |k: usize| (k + n - origin) % n;
     if rank(j) > 0 {
         // The prev join: segment j continues segment j − 1's carrier.
-        if pair[j] {
-            if let Some(f) = faces[(j + n - 1) % n] {
-                let key = face_surface_key(body, f)?;
-                return Ok(FaceSurface::Shared { key, sense });
-            }
+        if pair[j]
+            && let Some(f) = faces[(j + n - 1) % n]
+        {
+            let key = face_surface_key(body, f)?;
+            return Ok(FaceSurface::Shared { key, sense });
         }
         // The wrap run: segments j, j+1, … up to the last minted chain
         // onto the `origin` wall through the wrap join (`pair[origin]`),
         // so segment j belongs to that wall's carrier even though its
         // prev join is fresh.
-        if pair[origin] && ((rank(j) + 1)..n).all(|r| pair[(origin + r) % n]) {
-            if let Some(f) = faces[origin] {
-                let key = face_surface_key(body, f)?;
-                return Ok(FaceSurface::Shared { key, sense });
-            }
+        if pair[origin]
+            && ((rank(j) + 1)..n).all(|r| pair[(origin + r) % n])
+            && let Some(f) = faces[origin]
+        {
+            let key = face_surface_key(body, f)?;
+            return Ok(FaceSurface::Shared { key, sense });
         }
     }
     let end = run.end(n);

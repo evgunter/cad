@@ -3,7 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::corpus::{self, body_of, cup, eval, failures, vessel};
+use crate::corpus::{self, body_of, cup, eval, failures};
 use crate::fixture;
 
 use editor_core::{
@@ -38,17 +38,6 @@ fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
         Some(NodeResult::Failed(e)) => e.kind,
         other => panic!("expected a refusal at {node:?}, got {other:?}"),
     }
-}
-
-/// Names in a table, sorted, with the `Rim` rows stripped.
-fn names_minus_rim(t: &editor_core::NameTable) -> Vec<StableName> {
-    let mut v: Vec<StableName> = t
-        .iter()
-        .filter(|(n, _)| !matches!(n.path.first(), Some(RoleSeg::Rim(_))))
-        .map(|(n, _)| n.clone())
-        .collect();
-    v.sort();
-    v
 }
 
 /// P1b — two designated faces on DISTINCT charts: the order carries no

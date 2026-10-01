@@ -5,7 +5,7 @@
 use crate::corpus;
 use crate::fixture;
 
-use corpus::{body_of, cup, eval, failures, vessel};
+use corpus::{body_of, cup, eval, failures};
 use editor_core::{
     DocEdit, EntityKind, Node, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName,
     apply, evaluate,
