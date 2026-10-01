@@ -74,3 +74,69 @@ reverse) re-takes, with BOTH units in:
 ## Home
 
 SYM. Filed at SYM-12's fix pass (2026-09-21).
+
+## Measured at the merge (LINALG, `props/sign-hull` + `main`, 2026-10-01)
+
+Release, ε = 1e-9. The differential is `f_shut` (rule F's two arms
+shut, rule G and the read ON — added to `m10_10_evidence_interval`'s
+`rules_named`), because on this tree `no_f` (`without_rule_f`) shuts
+rule G and the decision read with F and so measures three rules at once.
+
+**The eight documents: nothing moves.**
+
+- Splits at the nominal, `f_shut` → shipped: identical predicate by
+  predicate on seven documents — plate `[811, 0, 140, 462]`, bracket
+  `[1105, 21, 144, 783]`, annulus `[328, 0, 140, 209]`, link
+  `[545, 0, 108, 509]`, segment boss `[375, 2, 96, 233]`, D-tab literal
+  `[571, 0, 84, 422]`, D-tab parameter `[571, 0, 80, 426]`. The pad's
+  split was not taken: the shape report's render of it was killed at
+  388 s on a 15 GB box.
+- Ceilings and the over-band set at ceiling + δ: identical on all
+  eight, to every printed digit. Brackets (·ε): plate 2.6306e8 ..
+  2.6316e8, bracket 3.8716e2 .. 3.8731e2, annulus 8.4161e8 .. 8.4193e8,
+  pad 2.4999e3 .. 2.5008e3, link 4.9313e2 .. 4.9332e2, segment boss
+  7.2665e8 .. 7.2694e8, D-tab literal 5.6110e8 .. 5.6131e8, D-tab
+  parameter 3.5218e2 .. 3.5232e2.
+
+So `definite_quadratic`'s wider denominator clause opens no `abs` atom
+the narrower one declined, on any of the eight.
+
+**The one-sided documents: rule F reaches nothing, because the basis
+mints no `copysign`.** `Vec3::orthonormal_basis` on this branch is the
+axis-order construction; the `copysign(1, n.z)` the negative arm was
+built to read is gone. With `f_shut` as the off dial the ladder
+(`sym12_phase1_the_one_sided_documents_ladder`) reads the same receipt
+at both dials on every document, both lifts: start cap, `FlipZ`, end
+cap, `tiltNZ`, `tilt-v` `604 / 272 gated / 446` (`Pinned`) and
+`572 / 400 gated / 510` (`Guided`, certifies); `tiltUV` `604 / 30 /
+688` (`Pinned`) and `540 / 0 / 292` refusing `carrier_endpoint_start`
+(`Guided`). The start cap and `FlipZ` read the end cap's receipt to the
+count, at both lifts, with or without the arm. `Guided` ceilings
+(`half`): start cap 4.2034e-3, `FlipZ` and end cap 1.5536e-3, `tiltNZ`
+and `tilt-v` 1.4445e-3.
+
+**What does move is the decision read** (`no_reads` as the off dial):
+with it shut, `Pinned` reads `876 / 0 / 446` on those five (the
+theorems the shipped tier counts as 604 + 272 gated), the start cap's
+`Guided` certifies on 972 theorems, and `FlipZ`, the end cap, `tiltNZ`
+and `tilt-v` refuse `Guided` on `newell_plane_residual` — the read is
+what carries them past the Newell wall, and also what relabels
+theorems as `sign_gated`
+(`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`).
+Rule G (`no_g`) costs `tiltUV`'s `Pinned` 92 numeric decisions
+(596 → 688).
+
+**What is NOT clean, and why this item stays open.** The gating row
+`m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm`
+reds: it pins the Duff-era mechanism — F off refuses
+`carrier_endpoint_end` `28/0/0/1`, F on takes it to `33/0/0/0` and
+stops on the Newell straddle `32/0/0/1`. On the merged tree F off
+(`without_rule_f`) reads `25/0/0/1` (start cap) and `24/0/0/1`
+(`FlipZ`), and the shipped tier certifies both with
+`carrier_endpoint_end` `[32, 16, 0, 0]` and `newell_plane_residual`
+`[24, 24, 0, 0]`. `sym12_a_negative_nz_the_arm_folds_and_does_not_reach`
+(evidence) likewise: `FlipX` at `half = 2e-3` refuses on the shipped
+tier at a wall join, not the Newell straddle. Nothing went down — the
+documents certify where `main` refused — but the row's subject (the
+arm reaching the start cap) no longer exists, and re-aiming SYM's
+gating pin is SYM's call, not the merge's.
