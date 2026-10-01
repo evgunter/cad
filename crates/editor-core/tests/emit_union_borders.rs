@@ -14,9 +14,10 @@
 //! A boss standing on one piece, a notch in one, a feature on one piece
 //! aligned with a divider elsewhere: each is an obstacle bordering one
 //! piece, so none is cited. Further rows hold a tie that nothing divides
-//! as a tie, a split's names under an edit that moves its divider, a
-//! curved divider to the pair boolean's own answer, and a merged wall a
-//! slot divides.
+//! as a tie, a split's names under an edit that moves its divider, the
+//! names of a tie's divided candidate under an edit that moves the
+//! divider onto the other, a curved divider to the pair boolean's own
+//! answer, and a merged wall a slot divides.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -1119,6 +1120,81 @@ fn a_split_keeps_its_names_when_the_splitting_feature_moves() {
         );
     }
     assert!(checked > 0);
+}
+
+/// **A divider is a discriminator among a tie's candidates, so an edit
+/// that moves it onto the other candidate moves each name with its
+/// role** (N2's repair by a discriminator, N4's narrowing; ratified on
+/// PR 3523). A bar at x 2.9..3.1, y 0.8..1.7 crosses the lower of the
+/// tied-prongs block's two tied slot ceilings and splits it: its pieces
+/// are named by the bar wall each borders, and the upper ceiling, now
+/// the tie's only whole candidate, keeps the bare tied name narrowed to
+/// `Unique`. Moving the bar 1.5 up in y makes it cross the upper ceiling
+/// instead, and the names follow: the two `Borders` pieces now lie on
+/// the upper ceiling and the bare name on the lower, in both member
+/// orders. (The slot floors, which nothing divides, stay tied.) Changing this is changing that ruling, so it re-baselines on
+/// purpose.
+#[test]
+fn a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it() {
+    const LOWER: f64 = 1.25;
+    const UPPER: f64 = 2.75;
+    let (doc, sub) = tied_prongs();
+    let (doc, bar) = block(doc, (2.9, 3.1), (0.8, 1.7), 2.5, 1.0);
+    let (doc, tr) = movable(doc, bar);
+    let labels = BTreeMap::from([(sub, "sub"), (tr, "bar")]);
+    for order in permutations(&[0, 1]) {
+        let (doc1, u) = union_of(doc.clone(), &[sub, tr], &order);
+        let doc2 = moved(doc1.clone(), tr, Axis3::Y, 1.5);
+        let mut by_role = Vec::new();
+        for (at, d) in [("before", &doc1), ("after", &doc2)] {
+            let ev = run(d);
+            assert!(
+                failure(&ev, u).is_none(),
+                "{order:?} {at}: {:?}",
+                failure(&ev, u)
+            );
+            let c = face_centroids(&ev, u);
+            let mut role: BTreeMap<String, (StableName, f64)> = BTreeMap::new();
+            let ceiling = from_tied(&ev, u, sub)
+                .into_iter()
+                .filter(|(n, _)| label(&ev, &labels, &parent_of(n)) == "sub:z=3.00");
+            for (n, tied) in ceiling {
+                assert!(!tied, "{order:?} {at}: {n:?} is still tied");
+                let key = match n.path.last() {
+                    Some(RoleSeg::Fragment(Qualifier::Borders(walls))) => walls
+                        .iter()
+                        .map(|w| label(&ev, &labels, w))
+                        .collect::<Vec<_>>()
+                        .join("+"),
+                    _ => "bare".to_owned(),
+                };
+                let y = c[&n][1];
+                assert!(
+                    role.insert(key.clone(), (n, y)).is_none(),
+                    "{order:?} {at}: two faces under {key}"
+                );
+            }
+            assert_eq!(
+                role.keys().map(String::as_str).collect::<Vec<_>>(),
+                ["bar:x=2.90", "bar:x=3.10", "bare"],
+                "{order:?} {at}: the faces descending from the tie"
+            );
+            by_role.push(role);
+        }
+        for (key, want) in [
+            ("bar:x=2.90", [LOWER, UPPER]),
+            ("bar:x=3.10", [LOWER, UPPER]),
+            ("bare", [UPPER, LOWER]),
+        ] {
+            let (n0, y0) = &by_role[0][key];
+            let (n1, y1) = &by_role[1][key];
+            assert_eq!(n0, n1, "{order:?}: the edit renamed {key}");
+            assert!(
+                (y0 - want[0]).abs() < 1e-9 && (y1 - want[1]).abs() < 1e-9,
+                "{order:?}: {key} lies at y {y0} before and {y1} after, not {want:?}"
+            );
+        }
+    }
 }
 
 /// A cylinder of radius 0.3 about the axis through `c` along `x × y`,
