@@ -161,7 +161,7 @@ pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_secon
 pub use curves::{
     ComposeError, Curve3, CurveData, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3,
-    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain, mid_param,
     spiric_curvature_sup, spiric_f_range, spiric_radial,
 };
 pub use datum::{AnalyticData, DatumValue};

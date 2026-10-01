@@ -1674,7 +1674,7 @@ enum Anchor {
     /// The half-edge's start vertex (the M3 PR 5 anchor).
     Vertex,
     /// The half-edge's chord midpoint (issue #93).
-    EdgeMidpoint,
+    ChordMidpoint,
     /// The point halfway ALONG a curved half-edge (its carrier at
     /// the parameter midpoint); a straight edge offers none, its
     /// chord midpoint having been probed by the tier before. A
@@ -1749,7 +1749,7 @@ impl Anchor {
 /// - [`Anchor::Vertex`] (issue #93, the A×Z finding, keeps the
 ///   original M3 PR 5 anchor first, so a pose it resolves sees a
 ///   bit-identical predicate stream);
-/// - [`Anchor::EdgeMidpoint`], the CHORD midpoint of each region edge
+/// - [`Anchor::ChordMidpoint`], the CHORD midpoint of each region edge
 ///   (`lerp` at ½, the [`super::ops`] witness-point precedent), for
 ///   regions bounded entirely by seam vertices (all `OnBoundary`)
 ///   whose non-seam edges' interiors classify definitively. Seam-chord
@@ -1867,7 +1867,7 @@ fn resolve_roles_geometric<T: Decide>(
                     };
                     let cands: Vec<geom_core::Point3<T>> = match anchor {
                         Anchor::Vertex => vec![start],
-                        Anchor::EdgeMidpoint => vec![start.lerp(end_of(rhe)?, T::from_f64(0.5))],
+                        Anchor::ChordMidpoint => vec![start.lerp(end_of(rhe)?, T::from_f64(0.5))],
                         Anchor::EdgeOnCarrier => {
                             curved_edge_midpoint(body, rhe)?.into_iter().collect()
                         }
@@ -1977,7 +1977,7 @@ fn resolve_roles_geometric<T: Decide>(
     if let Some(roles) = resolve(Anchor::Vertex)? {
         return Ok(roles);
     }
-    if let Some(roles) = resolve(Anchor::EdgeMidpoint)? {
+    if let Some(roles) = resolve(Anchor::ChordMidpoint)? {
         return Ok(roles);
     }
     if let Some(roles) = resolve(Anchor::EdgeOnCarrier)? {

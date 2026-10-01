@@ -208,7 +208,7 @@ fn split_at_midpoint(
     mint: &mut dyn FnMut() -> u64,
 ) -> (u64, u64, u64) {
     let spec = &solid.edges[&edge];
-    let tm = (spec.t0 + spec.t1) / 2.0;
+    let tm = geom::mid_param(spec.t0, spec.t1);
     split_at_param(solid, edge, tm, mint)
 }
 

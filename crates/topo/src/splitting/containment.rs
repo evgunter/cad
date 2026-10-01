@@ -1013,10 +1013,9 @@ pub(crate) fn carrier_loop<T: Decide>(
             } => {
                 let inner = major_radius - minor_radius;
                 let speed = minor_radius * inner / (inner.powi(2) - offset.powi(2)).sqrt();
-                let half = T::from_f64(0.5);
                 LoopEdge::Unrowed {
-                    center: carrier.eval((t0 + t1) * half),
-                    reach: speed * (t1 - t0).abs() * half,
+                    center: carrier.mid_point(t0, t1),
+                    reach: speed * (t1 - t0).abs() * T::from_f64(0.5),
                 }
             }
             // Positive weights put a NURBS curve inside its control

@@ -989,14 +989,6 @@ pub struct EdgeCurve<T: Real> {
 }
 
 impl<T: Decide> EdgeCurve<T> {
-    /// The carrier point at the middle of the certified parameter
-    /// interval — a point ON the edge, interior to it, whatever the
-    /// carrier kind (a curved edge's chord midpoint is not on it).
-    pub fn mid_point(&self) -> Point3<T> {
-        self.carrier
-            .eval(self.param_start + (self.param_end - self.param_start) * T::from_f64(0.5))
-    }
-
     /// Certifies `spec` against the edge's endpoint points and the
     /// owning body's surfaces, returning the certified carrier.
     ///
@@ -1040,7 +1032,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///      residual `|w·v_ref|`, wrong-side excess `max(0, −w·u_ref)`.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
-    ///    `|carrier((t₀+t₁)/2) − witness| ≤ ε`
+    ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
     ///    ([`CertCheck::WitnessMidpoint`]): the witness contract is
     ///    that the stored witness IS the edge's mid-parameter point —
     ///    constructors mint it as `carrier(mid)` (the upgrade helpers'
@@ -1432,6 +1424,13 @@ impl<T: Real> EdgeCurve<T> {
 }
 
 impl<T: SpanLocate> EdgeCurve<T> {
+    /// The carrier point at the middle of the certified parameter
+    /// interval ([`Curve3::mid_point`]) — a point ON the edge, interior
+    /// to it, whatever the carrier kind.
+    pub fn mid_point(&self) -> Point3<T> {
+        self.carrier.mid_point(self.param_start, self.param_end)
+    }
+
     /// The two **uncertified child specs** of splitting this certified
     /// carrier at interior parameter `t` (M3 PR 1, for `split_edge`):
     /// the carrier is unchanged and the interval splits at `t`
@@ -1460,13 +1459,9 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     EdgeDescriptionSpec::Intersection {
                         s1: k1,
                         s2: k2,
-                        // The child's mid-parameter point, computed
-                        // exactly as the certification schedule's
-                        // middle sample (bitwise — zero
-                        // WitnessMidpoint residual).
-                        witness: self
-                            .carrier
-                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                        // The point the WitnessMidpoint pin reads:
+                        // zero residual by construction.
+                        witness: self.carrier.mid_point(ta, tb),
                     }
                 }
                 // TangentIntersection splits exactly as Intersection:
@@ -1476,9 +1471,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     EdgeDescriptionSpec::TangentIntersection {
                         s1: k1,
                         s2: k2,
-                        witness: self
-                            .carrier
-                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                        witness: self.carrier.mid_point(ta, tb),
                     }
                 }
                 EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1)),
@@ -2587,9 +2580,7 @@ fn run_checks<T: Decide>(
             band,
             &mut max_residual,
         )?;
-        let mid = spec
-            .carrier
-            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        let mid = spec.carrier.mid_point(t0, t1);
         check_residual(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
@@ -2615,9 +2606,7 @@ fn run_checks<T: Decide>(
             band,
             &mut max_residual,
         )?;
-        let mid = spec
-            .carrier
-            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        let mid = spec.carrier.mid_point(t0, t1);
         check_residual(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
@@ -2683,7 +2672,7 @@ mod tests {
     /// interval where the computed last sample misses `t₁` by an ulp,
     /// and the chart image's 33-point schedule passes through every
     /// certification sample bit for bit — the superset limb 1
-    /// re-projects on.
+    /// re-projects on. Its middle station is [`geom::mid_param`].
     #[test]
     fn the_schedule_assigns_its_ends_and_the_image_schedule_contains_the_certificates() {
         let (t0, t1) = (0.3_f64, 0.9_f64);
@@ -2705,6 +2694,11 @@ mod tests {
             sample_param(t0, t1, CERT_SAMPLES - 1).to_bits(),
             t1.to_bits(),
             "last end"
+        );
+        assert_eq!(
+            sample_param(t0, t1, (CERT_SAMPLES - 1) / 2).to_bits(),
+            geom::mid_param(t0, t1).to_bits(),
+            "the middle station is the mid-parameter the witness pin reads"
         );
     }
 

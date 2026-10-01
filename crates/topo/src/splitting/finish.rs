@@ -623,35 +623,35 @@ fn describe_section_boundary<T: Decide>(
             else {
                 return Err(corrupt());
             };
-            // Conic section chords (M5 PR 5) keep their certified
-            // carrier and interval — only the description upgrades
-            // (the witness re-minted at the carrier's mid-parameter,
-            // the witness contract); line chords keep the M3 path
-            // byte-identically. The dihedral witness/arm likewise use
-            // the carrier's honest mid-point and extent for conics
-            // (the chord collapses on near-closed arcs).
+            // A curved section edge keeps its certified carrier and
+            // interval — only the description upgrades, the witness
+            // re-minted at the carrier's mid-parameter (the witness
+            // contract) — and the dihedral reads that point and the
+            // carrier's extent (the chord collapses on near-closed
+            // arcs, and its midpoint is off the edge). A straight edge
+            // takes a fresh chord, whose midpoint is on it.
             let existing = body
                 .get_curve_geom(edge_data.curve)
                 .and_then(crate::null::CurveGeom::certified)
                 .cloned();
-            let conic = existing.as_ref().and_then(|c| match c.carrier() {
-                geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-                    let (t0, t1) = c.params();
-                    let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
-                    let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
-                    Some((c.clone(), mid, arm))
-                }
-                geom::Curve3::Line { .. }
+            let curved = existing.as_ref().and_then(|c| match c.carrier() {
+                geom::Curve3::Line { .. } => None,
+                geom::Curve3::Circle { .. }
+                | geom::Curve3::Ellipse { .. }
                 | geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_) => None,
+                | geom::Curve3::Nurbs(_) => {
+                    let (t0, t1) = c.params();
+                    let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
+                    Some((c.clone(), c.mid_point(), arm))
+                }
             });
-            let (witness, arm) = match &conic {
+            let (witness, arm) = match &curved {
                 Some((_, mid, arm)) => (*mid, *arm),
                 None => (p0.lerp(p1, T::from_f64(0.5)), p0.distance(p1)),
             };
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, arm, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
-                    let spec = match conic {
+                    let spec = match curved {
                         Some((curve, _, _)) => {
                             let (t0, t1) = curve.params();
                             geom_brep::EdgeCurveSpec {

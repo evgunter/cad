@@ -1722,9 +1722,8 @@ pub(super) fn describe_minted_edges<T: Decide>(
         let (witness, extent) = if curved {
             let c = existing.as_ref().ok_or_else(corrupt)?;
             let (t0, t1) = c.params();
-            let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
             (
-                mid,
+                c.mid_point(),
                 geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
             )
         } else {
