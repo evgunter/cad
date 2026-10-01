@@ -6149,9 +6149,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The same pair of doors for a gauge reference naming a non-gauge.
     ("not_a_gauge", 2),
     ("not_an_instance", 3),
-    // One predicate (`topo::check_rigid`), one word: the kernel's own
-    // refusal of a map, and a frame a document door refuses by it.
-    ("not_rigid", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
     ("part_unresolved", 3),
