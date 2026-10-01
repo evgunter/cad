@@ -813,7 +813,9 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     };
     assert_eq!(part, doc_ref);
     assert!(
-        fault.to_string().contains("face name minted by node 99"),
+        fault
+            .to_string()
+            .contains("face name minted by node 000000000063"),
         "the badge names the face: {fault}"
     );
 

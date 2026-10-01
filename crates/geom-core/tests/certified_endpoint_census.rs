@@ -301,11 +301,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi.rs",
-        8,
-        2,
-        "the 2 that ask are the pcurve window (`pcurve_windows` refuses both hulls by \
-         name before padding them). The other 6 are the two march contexts' slab \
-         corners, safe by construction: `SsiDomain::slab` is `Box3::around` of a \
+        6,
+        0,
+        "all 6 are the two march contexts' slab corners, safe by construction: `SsiDomain::slab` is `Box3::around` of a \
          `Point3<f64>` and an `f64` half-extent, and an `f64`'s refusal IS its NaN — \
          the crossing has no decoration channel to carry a refusal in, so a refused \
          slab reads NaN at both ends",
@@ -313,14 +311,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/ssi/certify.rs",
         11,
-        4,
-        "the 4 that ask are the transversality span-hull window (2: \
-         `probe_tube_chart` refuses either window \
-         hull by name before reading it — a refused hull is NaI, and a NaN window end \
-         would land on the first span), and two `T: Bounds` reads of the pcurve's \
-         tangent that share that function and count only by blind spot 2. The other \
-         7 are `T: Bounds` reads on the evaluation scalar and not certification \
-         endpoints at all — blind spot 1",
+        2,
+        "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
+         refuses either window hull by name before padding it — a refused hull is NaI, \
+         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
+         evaluation scalar and not certification endpoints at all — blind spot 1: two \
+         of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
+         a direction (structure, not a bound) and whose norm the probe refuses unless \
+         positive finite",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",

@@ -507,24 +507,24 @@ impl core::fmt::Display for RangeRefusal {
                  certify over"
             ),
             Self::UnknownNode { node } => {
-                write!(f, "this document has no node {}", node.0)
+                write!(f, "this document has no node {}", node)
             }
             Self::UnknownSlot { node, slot } => {
-                write!(f, "node {} carries no {} slot", node.0, slot.label())
+                write!(f, "node {} carries no {} slot", node, slot.label())
             }
             Self::StructuralSlot { node, slot } => write!(
                 f,
                 "the {} slot of node {} is structural (Count) — a structural slot selects \
                  between shapes and has no interval to certify over",
                 slot.label(),
-                node.0
+                node
             ),
             Self::SlotIsNotALiteral { node, slot } => write!(
                 f,
                 "the {} slot of node {} is driven by an expression, which naming it would \
                  shadow — certify the parameters that expression reads instead",
                 slot.label(),
-                node.0
+                node
             ),
             // Every derived edit re-writes a value the document already
             // holds, or declares one over a validated seed, so the edit
@@ -536,11 +536,13 @@ impl core::fmt::Display for RangeRefusal {
                 e.problem(),
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::SeedIsNotTheAnalyzedAxis { analyzed, asked } => write!(
+            Self::SeedIsNotTheAnalyzedAxis {
+                analyzed: (analyzed_lo, analyzed_hi),
+                asked: (asked_lo, asked_hi),
+            } => write!(
                 f,
-                "the analysis derived the axis [{}, {}] for this field, which is not the seed \
-                 [{}, {}] that was asked for",
-                analyzed.0, analyzed.1, asked.0, asked.1
+                "the analysis derived the axis [{analyzed_lo}, {analyzed_hi}] for this field, \
+                 which is not the seed [{asked_lo}, {asked_hi}] that was asked for",
             ),
             Self::MoreThanOneAxisVaries { varying } => write!(
                 f,
@@ -548,11 +550,10 @@ impl core::fmt::Display for RangeRefusal {
                  field, and a box over several is `drive`'s own answer"
             ),
             Self::Drive(e) => write!(f, "the drive refused: {e}"),
-            Self::LeavesAreNotAPartition { at } => write!(
+            Self::LeavesAreNotAPartition { at: (lo, hi) } => write!(
                 f,
-                "the drive's leaves do not tile the seed: [{}, {}] leaves a gap, overlaps a \
+                "the drive's leaves do not tile the seed: [{lo}, {hi}] leaves a gap, overlaps a \
                  neighbour, or varies off the field's axis",
-                at.0, at.1
             ),
         }
     }
@@ -586,12 +587,12 @@ pub struct DerivedRange {
 /// … that `doc` does not declare.
 ///
 /// Fresh, so the rewritten slot never reads a parameter the caller
-/// authored; one identifier (a fixed prefix, decimal digits and
+/// authored; one identifier (a fixed prefix, the node's full hex id and
 /// underscores), so the parser reads it back. The slot's label is not
 /// part of it: a label is prose for a person, and what a person is
 /// shown of the answer names the slot ([`CertifiedRange::field`]).
 fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> ParamName {
-    let base = format!("query_certified_range_{}", node.0);
+    let base = format!("query_certified_range_{}", node.full());
     let mut spelled = base.clone();
     let mut n = 0_usize;
     while doc.params().contains_key(spelled.as_str()) {
@@ -600,7 +601,7 @@ fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> ParamName {
     }
     match ParamName::new(spelled) {
         Ok(name) => name,
-        Err(fault) => unreachable!("a fixed prefix and decimal digits are one identifier: {fault}"),
+        Err(fault) => unreachable!("a fixed prefix and hex digits are one identifier: {fault}"),
     }
 }
 

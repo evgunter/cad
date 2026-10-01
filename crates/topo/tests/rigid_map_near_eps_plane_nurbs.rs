@@ -271,9 +271,15 @@ fn the_certificate_re_derives_within_rounding_under_the_map() {
         )
         .unwrap_or_else(|e| panic!("{name}: the image certifies at the loose band: {e}"));
         let rel = |a: f64, b: f64| ((a - b) / b).abs();
+        // The ladder rung, in metres: the chart pads beside it divide it
+        // by the frame's box-norm speeds, which a rotation may move.
+        let rung = |t: geom_brep::SsiTube<f64>| match t {
+            geom_brep::SsiTube::Chart { rung, .. } => rung,
+            other => panic!("{name}: the plane × NURBS lane proves a chart tube: {other:?}"),
+        };
         assert!(
             rel(image.on_locus_max, seated.on_locus_max) < 1e-6
-                && image.tube_radius == seated.tube_radius
+                && rung(image.tube) == rung(seated.tube)
                 && rel(image.tube_transversality, seated.tube_transversality) < 1e-6
                 && image.tube_boxes == seated.tube_boxes,
             "{name}: limb 1 and the tube are frame-invariant here"

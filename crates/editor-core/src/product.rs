@@ -281,11 +281,7 @@ struct SourceLine<'a> {
 
 impl crate::finding::Finding for SourceLine<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "root {} output {}",
-            self.source.node.0, self.source.output
-        )
+        write!(f, "root {} output {}", self.source.node, self.source.output)
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -336,18 +332,16 @@ impl Staged for ProductError {
                 second,
             } => {
                 let what = match select {
-                    None => format!("node {}'s body", placed.0),
+                    None => format!("node {}'s body", placed),
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Above)) => {
-                        format!("the above half of node {}", placed.0)
+                        format!("the above half of node {}", placed)
                     }
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
-                        format!("the below half of node {}", placed.0)
+                        format!("the below half of node {}", placed)
                     }
-                    Some(crate::node::PartSelect::Instance(i)) => format!(
-                        "instance `{}` of node {}",
-                        crate::expr::unparse(i),
-                        placed.0
-                    ),
+                    Some(crate::node::PartSelect::Instance(i)) => {
+                        format!("instance `{}` of node {}", crate::expr::unparse(i), placed)
+                    }
                 };
                 write!(
                     f,
@@ -355,7 +349,7 @@ impl Staged for ProductError {
                      a transform or part selection mints no name, so both \
                      would carry its names. Recourse: place it under one \
                      root, or union the two",
-                    first.0, second.0
+                    first, second
                 )
             }
             Self::NoBodyRoots => f.write_str(
@@ -375,21 +369,21 @@ impl Staged for ProductError {
                 f,
                 "root {}'s {} name (minted by node {}) collides in the \
                  product's name table",
-                node.0,
+                node,
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Naming { name, .. } => write!(
                 f,
                 "the {} name minted by node {} collides in the \
                  product's name table",
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Graft { node, source } => write!(
                 f,
                 "the kernel could not graft root {}'s body: {source}",
-                node.0
+                node
             ),
             Self::RootInvalid { findings } => {
                 // Findings arrive in gather order, so one root's outputs
@@ -413,10 +407,10 @@ impl Staged for ProductError {
                     }
                     Labels::Stripped => {
                         if let [root] = roots.as_slice() {
-                            write!(f, "root {} is not valid at rest:", root.0)?;
+                            write!(f, "root {} is not valid at rest:", root)?;
                         } else {
                             let named: Vec<String> =
-                                roots.iter().map(|r| r.0.to_string()).collect();
+                                roots.iter().map(ToString::to_string).collect();
                             write!(f, "roots {} are not valid at rest:", named.join(", "))?;
                         }
                         crate::finding::render_lines(
@@ -441,7 +435,7 @@ impl Staged for ProductError {
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
-                node.0
+                node
             ),
         }
     }
@@ -1478,7 +1472,7 @@ mod tests {
         };
         let carried = named(8, 6);
         assert!(
-            carried.contains("root 8") && carried.contains("node 6"),
+            carried.contains("root 000000000008") && carried.contains("node 000000000006"),
             "the per-root path names the root that carried and the node that minted: {carried}"
         );
         let merged = named(6, 6);
@@ -1487,7 +1481,7 @@ mod tests {
             "the final narrowing's collision has no one root to name, and must not invent one: {merged}"
         );
         assert!(
-            merged.contains("node 6"),
+            merged.contains("node 000000000006"),
             "it still names the node that minted the colliding name: {merged}"
         );
     }
