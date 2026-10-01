@@ -36,3 +36,20 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
     lane builds; `design: true` set on the row.
 - Held for wave 2 (four cores, one build mutex): the graft
   reachability measurement and the `rehome_rings` reproduction.
+- **Split tangency fork** weighed by the designer pair (design-fork row
+  33). Both reports reject the framing and agree: derive an in-plane
+  edge's side from convexity (`enters_material` on the two flanking
+  faces) in rule (b), with no declaration. That revises the second
+  half of Ev's 2026-09-24 ruling, so it went to Ev as PR 3642
+  (`needs_ev`). The derived rule is needed under either answer. Its
+  lane is held until the section-rings lane reports, because both work
+  in `splitting/`, and its merge waits on Ev's answer. Neither designer
+  executed its claim that the block ∪ slab repro then completes; the
+  lane measures that first.
+- Edge midpoint: PR 3645 is up and green, with style review dispatched.
+  The `finish.rs` `Spiric`/`Nurbs` chord arm was measured as latent
+  (`gate_operand` refuses those kinds first). The sweep went beyond the
+  row into sweep, step-import and ssi.
+- Wave 2: the `rehome_rings` reproduction and the graft reachability
+  measurement are dispatched to one lane, one after the other, each
+  with its own PR (`cleave/rehome-rings`, `cleave/graft-reach`).
