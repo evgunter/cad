@@ -118,14 +118,10 @@ pub enum TransformError {
     },
     /// The run's tolerance could not form a classification band.
     Band(BandError),
-    /// Re-certification of a mapped edge carrier failed. THREE causes
-    /// reach this arm, and the third is not about the caller's
-    /// geometry at all: the map is not an isometry at tolerance; or
-    /// the input body's geometry was already out of certification; or
-    /// the run's scalar holds no plane × NURBS lane (a dual) and the
-    /// body carries the M7-8 class, which certifies only through it —
-    /// [`CertifyError::NurbsLaneUnsupported`], naming the scalar. Read
-    /// the nested `source`, not this list, for which one it was.
+    /// Re-certification of a mapped edge carrier failed: the map is not
+    /// an isometry at tolerance, or the input body's geometry was
+    /// already out of certification. Read the nested `source` for which
+    /// check refused.
     Certify {
         /// The edge whose carrier failed.
         edge: EdgeKey,
@@ -166,6 +162,18 @@ pub enum TransformError {
     /// Where `Some` comes from, and what its absence means:
     /// [`crate::AtRestPolicy::offset_fit_lane`].
     ApproxLaneUnsupported {
+        /// The scalar the map ran at ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
+    },
+    /// An edge of the plane × described-NURBS class (M7-8) cannot be
+    /// re-certified at this scalar: its certificate is re-derived on
+    /// the moved pair through the plane × NURBS lane, and the scalar's
+    /// policy holds none ([`crate::AtRestPolicy::nurbs_lane`] answers
+    /// `None` — a dual, DL1). It is a fact about the scalar and not
+    /// about the body.
+    NurbsLaneUnsupported {
+        /// The edge whose carrier is of the class.
+        edge: EdgeKey,
         /// The scalar the map ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
@@ -227,6 +235,13 @@ impl core::fmt::Display for TransformError {
                  only {holders} holds that door (the fit is derived there alone). Recourse: \
                  move the body at {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
+            ),
+            Self::NurbsLaneUnsupported { scalar, .. } => write!(
+                f,
+                "an edge between a plane and a spline face cannot be moved at the {scalar} \
+                 scalar: its certificate is re-derived on the moved pair through the plane x \
+                 NURBS lane, and only a scalar with certification rights holds that lane. \
+                 Recourse: move the body at a certifying scalar"
             ),
             Self::ApproxRecertify { source } => write!(
                 f,
@@ -710,7 +725,18 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
         };
         let surfaces = |k| out.surfaces.get(k).cloned();
         let mapped = EdgeCurve::certify_via(spec, start, end, surfaces, band, T::nurbs_lane())
-            .map_err(|source| TransformError::Certify { edge: ek, source })?;
+            .map_err(|source| {
+                // The lane handed in is the policy's answer, so a lane not
+                // supplied here is the scalar's absence.
+                if source == CertifyError::NurbsLaneNotSupplied {
+                    TransformError::NurbsLaneUnsupported {
+                        edge: ek,
+                        scalar: T::NAME,
+                    }
+                } else {
+                    TransformError::Certify { edge: ek, source }
+                }
+            })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key);
     }

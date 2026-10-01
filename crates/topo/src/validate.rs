@@ -2448,8 +2448,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => {
             "its faces are not certainly crossing along it, so they do not fix where it runs"
         }
-        CertifyError::NurbsLaneUnsupported { .. } => {
-            "this scalar cannot certify an edge between a plane and a spline face"
+        CertifyError::NurbsLaneNotSupplied => {
+            "it lies between a plane and a spline face, and the check that ran was given no \
+             plane x NURBS lane, so nothing about it was checked"
         }
         CertifyError::Escalated { check, .. } => certify_undecided(*check),
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
@@ -2478,8 +2479,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 NOT_YET
             }
             CertifyError::Band(_) => TOLERANCE,
-            CertifyError::NurbsLaneUnsupported { .. } => {
-                "Recourse: check the body at a certifying scalar"
+            CertifyError::NurbsLaneNotSupplied => {
+                "Recourse: check the body through a door that holds the plane x NURBS lane, \
+                 at a certifying scalar"
             }
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::ResidualExceeded { .. }
@@ -5238,7 +5240,7 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// only through the certified plane × NURBS lane, so a caller that
 /// holds none does not re-derive that class and this battery SKIPS
 /// those edges rather than reporting them (the lane's absence is its
-/// own refusal, [`geom_brep::CertifyError::NurbsLaneUnsupported`]).
+/// own refusal, [`geom_brep::CertifyError::NurbsLaneNotSupplied`]).
 /// Every other carrier class is re-certified identically either way.
 ///
 /// `offset_fit` is check 1's re-derivation door for an `Approx` face
@@ -5458,7 +5460,7 @@ pub(crate) fn tier3_local_checks_marked<
         // **Read that at its true width, because it is wider than the
         // class it is about.** `recertify_via` is ONE call and check 2
         // is a whole-edge check: without the lane the description
-        // resolver refuses `NurbsLaneUnsupported` BEFORE the endpoint,
+        // resolver refuses `NurbsLaneNotSupplied` BEFORE the endpoint,
         // interval and chart-image checks run, so what a lane-free
         // caller does not get is every check-2 verdict on that edge —
         // a drifted endpoint on an M7-8 edge included — and not merely
@@ -5486,7 +5488,7 @@ pub(crate) fn tier3_local_checks_marked<
             band,
             nurbs_lane,
         ) {
-            Ok(_) | Err(geom_brep::CertifyError::NurbsLaneUnsupported { .. }) => {}
+            Ok(_) | Err(geom_brep::CertifyError::NurbsLaneNotSupplied) => {}
             Err(error) => errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,
                 error,

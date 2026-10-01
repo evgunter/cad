@@ -155,7 +155,7 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
     src: &Body<T>,
     tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solid_with(dst, dst_solid, src, Bridge::Recertify, tol)
+    graft_solids_with(dst, &[dst_solid], src, Bridge::Recertify { tol })
 }
 
 /// How a transplanted edge DESCRIPTION crosses into the destination's
@@ -180,26 +180,20 @@ pub(crate) fn graft_solid<T: geom_core::Decide>(
 ///   all (a rational NURBS wall certifies nowhere), or one only a
 ///   lane certifies (a plane × NURBS `Intersection`), at a scalar that
 ///   holds none.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Bridge {
-    /// Re-run the schedule against the destination (booleans).
-    Recertify,
+    /// Re-run the schedule against the destination (booleans), at the
+    /// band of `tol` — the one reader of a tolerance in the graft.
+    Recertify {
+        /// The run's tolerance.
+        tol: Tol,
+    },
     /// Rewrite the handles, keep the source's certificate (disjoint).
     RemapKeys,
 }
 
-/// [`graft_solid`] with the description bridge chosen explicitly.
-pub(crate) fn graft_solid_with<T: geom_core::Decide>(
-    dst: &mut Body<T>,
-    dst_solid: SolidKey,
-    src: &Body<T>,
-    bridge: Bridge,
-    tol: Tol,
-) -> Result<GraftMap, BooleanError> {
-    graft_solids_with(dst, &[dst_solid], src, bridge, tol)
-}
-
-/// [`graft_solid_with`] for a source holding N solids: `dst_solids`
+/// [`graft_solid`] for a source holding N solids, with the description
+/// bridge chosen explicitly: `dst_solids`
 /// names one destination solid per source solid, **positionally in the
 /// source's solid order** (slot order, D9), and the arity must match
 /// exactly — a source solid with no destination, or a destination with
@@ -214,9 +208,8 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
     dst_solids: &[SolidKey],
     src: &Body<T>,
     bridge: Bridge,
-    tol: Tol,
 ) -> Result<GraftMap, BooleanError> {
-    graft_solids_impl(dst, Targets::Existing(dst_solids), src, bridge, tol).map(|(map, _)| map)
+    graft_solids_impl(dst, Targets::Existing(dst_solids), src, bridge).map(|(map, _)| map)
 }
 
 /// [`graft_solids_with`] onto destination solids minted here, one per
@@ -227,9 +220,8 @@ pub(crate) fn graft_solids_minted<T: geom_core::Decide>(
     dst: &mut Body<T>,
     src: &Body<T>,
     bridge: Bridge,
-    tol: Tol,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
-    graft_solids_impl(dst, Targets::Minted, src, bridge, tol)
+    graft_solids_impl(dst, Targets::Minted, src, bridge)
 }
 
 /// Which destination solids a graft's source solids land in.
@@ -247,7 +239,6 @@ fn graft_solids_impl<T: geom_core::Decide>(
     targets: Targets<'_>,
     src: &Body<T>,
     bridge: Bridge,
-    tol: Tol,
 ) -> Result<(GraftMap, Vec<SolidKey>), BooleanError> {
     let corrupt = || BooleanError::JoinDesync {
         what: "graft source is not a well-formed body",
@@ -569,7 +560,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
         let Some(CurveGeom::Certified(curve)) = src.curves.get(k) else {
             continue;
         };
-        if bridge == Bridge::RemapKeys {
+        let Bridge::Recertify { tol } = bridge else {
             // Handles only, certificate verbatim (see `Bridge`).
             let remapped = curve
                 .with_remapped_surfaces(|sk| surfaces.get(sk).copied())
@@ -582,7 +573,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
             };
             *slot = CurveGeom::Certified(remapped);
             continue;
-        }
+        };
         let description = match *curve.description() {
             geom_brep::EdgeDescription::Intersection { s1, s2, witness } => {
                 geom_brep::EdgeDescriptionSpec::Intersection {

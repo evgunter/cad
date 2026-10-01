@@ -5875,6 +5875,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_map",
             "not_rigid",
             "null_scaffold",
+            "nurbs_lane_unsupported",
             "nurbs_placeholder",
             "pcurve",
         ],

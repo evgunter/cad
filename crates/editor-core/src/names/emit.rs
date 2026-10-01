@@ -1086,7 +1086,7 @@ mod pattern_tests {
             body.edges().map(|(k, _)| k).collect(),
             body.vertices().map(|(k, _)| k).collect(),
         );
-        topo::graft_disjoint(&mut body, &second, Tol::witness()).expect("a two-solid master");
+        topo::graft_disjoint(&mut body, &second).expect("a two-solid master");
         let fresh_f: Vec<_> = body
             .faces()
             .map(|(k, _)| k)

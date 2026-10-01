@@ -915,12 +915,13 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         if body.solids().next().is_none() {
             continue;
         }
-        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref(), tol).map_err(
-            |source| ProductError::Graft {
-                node: *node,
-                source: Box::new(source),
-            },
-        )?;
+        let keys =
+            topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref()).map_err(|source| {
+                ProductError::Graft {
+                    node: *node,
+                    source: Box::new(source),
+                }
+            })?;
         grafted.push((source, keys));
     }
 

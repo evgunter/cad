@@ -273,8 +273,8 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
 
 /// **The door that has no lane refuses the class, naming the lane.**
 /// `EdgeCurve::certify` — the `T: Decide` door — meets a described
-/// NURBS operand paired with a plane with `NurbsLaneUnsupported`,
-/// naming the scalar, and not with the `Unimplemented` a class no lane
+/// NURBS operand paired with a plane with `NurbsLaneNotSupplied`, and
+/// not with the `Unimplemented` a class no lane
 /// certifies gets. No path accepts the description without a
 /// certificate.
 #[test]
@@ -283,8 +283,8 @@ fn the_laneless_door_refuses_a_described_nurbs_operand_naming_the_lane() {
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
     match EdgeCurve::certify(spec, ends.0, ends.1, arena, band()) {
-        Err(CertifyError::NurbsLaneUnsupported { scalar }) => assert_eq!(scalar, "f64"),
-        other => panic!("the laneless door refuses naming the lane and the scalar: {other:?}"),
+        Err(CertifyError::NurbsLaneNotSupplied) => {}
+        other => panic!("the laneless door refuses naming the missing lane: {other:?}"),
     }
 }
 
@@ -294,7 +294,7 @@ fn the_laneless_door_refuses_a_described_nurbs_operand_naming_the_lane() {
 /// re-derive the class, and its refusal says so in a variant of its
 /// own. Both facts on one certified edge: the lane-injected
 /// re-derivation succeeds, and the lane-free one refuses
-/// `NurbsLaneUnsupported` rather than with anything about geometry.
+/// `NurbsLaneNotSupplied` rather than with anything about geometry.
 #[test]
 fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
@@ -316,7 +316,7 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
     );
 
     match edge.recertify_via(ends.0, ends.1, &arena, band(), None) {
-        Err(CertifyError::NurbsLaneUnsupported { .. }) => {}
+        Err(CertifyError::NurbsLaneNotSupplied) => {}
         other => panic!(
             "without the lane this class has no re-derivation at all, and the refusal names \
              the lane: {other:?}"
@@ -328,7 +328,7 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
 /// a reviewer probe, adopted, because it states the skip's true width.
 ///
 /// Check 2 calls `recertify_via` ONCE per edge, and without the lane the
-/// description resolver refuses `NurbsLaneUnsupported` before the
+/// description resolver refuses `NurbsLaneNotSupplied` before the
 /// endpoint, interval and chart-image checks run. So the skip is
 /// whole-edge: a defect with nothing to do with the plane × NURBS limbs
 /// — here an endpoint that drifted — is reported through the
@@ -361,14 +361,14 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
         "the endpoint drift is a real check-2 finding: {with_lane:?}"
     );
     assert!(
-        !matches!(with_lane, Err(CertifyError::NurbsLaneUnsupported { .. })),
+        !matches!(with_lane, Err(CertifyError::NurbsLaneNotSupplied)),
         "and it is NOT the lane's absence: {with_lane:?}"
     );
 
     let without = edge.recertify_via(drifted, ends.1, &arena, band(), None);
     println!("M7-8 lane-free skip: without_lane -> {without:?}");
     assert!(
-        matches!(without, Err(CertifyError::NurbsLaneUnsupported { .. })),
+        matches!(without, Err(CertifyError::NurbsLaneNotSupplied)),
         "without the lane the drift is the lane's absence and nothing else: {without:?}"
     );
 }

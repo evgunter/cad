@@ -1,7 +1,7 @@
 ---
 id: a-rigid-map-re-derives-the-plane-nurbs-edge-certificate-in-a-frame-that-moves-it
 kind: issue
-title: transform_rigid_via re-derives the plane x NURBS edge certificate in the new frame, and its componentwise box norms move under rotation, so an edge certified near its band can refuse after a rigid map
+title: transform_rigid re-derives the plane x NURBS edge certificate in the new frame, and its componentwise box norms move under rotation, so an edge certified near its band can refuse after a rigid map
 status: open
 opened: 2026-09-28
 priority: P3
@@ -19,9 +19,8 @@ The sweep for siblings of
 and refuses on it — met this one. **Inferred from the construction,
 not reproduced.**
 
-`topo::transform_rigid_via` re-certifies every mapped edge carrier
-through `EdgeCurve::certify_via` (`crates/topo/src/transform.rs`,
-`transform_rigid_via`). An `Intersection` edge between a plane and a
+`topo::transform_rigid` re-certifies every mapped edge carrier
+through `EdgeCurve::certify_via` (`crates/topo/src/transform.rs`). An `Intersection` edge between a plane and a
 described NURBS wall certifies through the injected lane,
 `geom_brep::plane_nurbs_limbs` (`crates/geom-brep/src/edge_nurbs.rs`),
 which delegates to the rung-3 SSI certificate. Parts of that
@@ -43,7 +42,7 @@ ambient-frame hulls.
 
 1. Reproduce: a plane × NURBS edge certified within a few percent of
    its band, moved by an oblique rotation through
-   `transform_rigid_via` with the lane injected. The `Approx` row's
+   `transform_rigid` (which reads the lane off `f64`'s policy). The `Approx` row's
    scale-to-land-near-ε construction
    (`crates/topo/tests/rigid_map_near_eps_approx.rs`) is the template.
 2. If it reproduces, the remedy is this lane's to choose. The `Approx`
@@ -62,7 +61,7 @@ wall, carrier the exact rational arc of radius `1 + δ` (a residual field
 of exactly `δ`, radial), seated at ±45° about the x axis, on a two-face
 lamina whose two edges both run the arc, minted through
 `set_edge_curve_nurbs_lane`. `δ = 0.783 ε` puts limb 2 at `0.9705 ε`
-(default ε). Through `transform_rigid_via` with the lane injected, the
+(default ε). Through `transform_rigid` at `f64`, the
 32 rotations of the `Approx` row's sweep: **24 refuse**, all on limb 2
 (`ssi_hull_sup_chart` in-band at `1.0006 … 1.1479 ε`, surfaced as
 `CertifyError::Escalated { check: PlaneNurbsHull }`); the 8
@@ -134,11 +133,3 @@ are frame-sensitive and points here. The same docs' two-class contract
 ("what can still refuse is authored VERDICT marginality") is
 ratified text (the PR #83 ruling) and is not re-worded here. This class
 is a third refusal it does not name.
-
-## Rename, 2026-10-01 (CLEAVE)
-
-`transform_rigid_via` is gone: `topo::transform_rigid` now reads the
-plane x NURBS lane from `AtRestPolicy::nurbs_lane()` and is the door
-this row's reproduction (`crates/topo/tests/rigid_map_near_eps_plane_nurbs.rs`)
-runs through. Nothing about the finding moves; at `f64` the two calls
-re-derive through the same lane.

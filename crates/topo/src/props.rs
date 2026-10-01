@@ -2746,9 +2746,9 @@ pub trait AtRestPolicy: Decide {
     /// is C9 certification arithmetic, and
     /// [`geom_brep::NurbsLane`]'s one constructor is bounded on
     /// [`geom_core::CertifiedBounds`]. An operation holding `None`
-    /// refuses that class typed with
-    /// [`geom_brep::CertifyError::NurbsLaneUnsupported`], naming the
-    /// scalar.
+    /// refuses that class typed, naming the scalar
+    /// ([`crate::TransformError::NurbsLaneUnsupported`] at the
+    /// transform).
     fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
@@ -3485,10 +3485,10 @@ mod face_list_door_tests {
         let skew = quad_prism(&[(0.0, 0.0), (2.0, 0.3), (1.7, 1.9), (-0.4, 1.2)], 0.7, tol);
         let tall = quad_prism(&[(3.0, 3.0), (3.5, 3.0), (3.5, 3.5), (3.0, 3.5)], 4.0, tol);
         let mut pair = unit.clone();
-        crate::instance::graft_disjoint(&mut pair, &tall, tol).unwrap();
+        crate::instance::graft_disjoint(&mut pair, &tall).unwrap();
         let mut trio = skew.clone();
-        crate::instance::graft_disjoint(&mut trio, &tall, tol).unwrap();
-        crate::instance::graft_disjoint(&mut trio, &unit, tol).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &tall).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &unit).unwrap();
         vec![
             ("unit", unit),
             ("skew", skew),

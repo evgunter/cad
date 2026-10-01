@@ -261,7 +261,7 @@ fn insert_voids_takes_the_reverted_drum_cavity() {
     let images_before = plane_images(&body).len() + plane_images(&cavity).len();
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &evidence, tol())
+    topo::insert_voids(&mut out, &solids, cavity, &evidence)
         .expect("the door grafts the reverted cavity");
     assert_eq!(out.shells().count(), 2, "outer + cavity");
     assert_eq!(
@@ -444,18 +444,18 @@ fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
     );
 }
 
-/// Reviewer probe (CLEAVE PR 3678, lane r2): the void door's carried
-/// certificates are the ones a re-certifying graft would have minted,
-/// bit for bit (`Certificate`'s `Debug` form, its D9 identity), on the
-/// drum's reverted cavity — so the bridge swap moves no stored bit.
+/// **The void door's carried certificates are the ones a fresh
+/// re-certification mints**, bit for bit (`Certificate`'s `Debug` form,
+/// its D9 identity), on the drum's reverted cavity: the claim
+/// `topo::boolean::voids`' module docs rest the carrying on.
 #[test]
-fn rr2_carried_cavity_certificates_equal_a_fresh_recertification() {
+fn carried_cavity_certificates_equal_a_fresh_recertification() {
     let body = collinear_cap_drum();
     let cavity = door_cavity(&body, T);
     let evidence = void_evidence(&cavity);
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    let ins = topo::insert_voids(&mut out, &solids, cavity.clone(), &evidence, tol()).unwrap();
+    let ins = topo::insert_voids(&mut out, &solids, cavity.clone(), &evidence).unwrap();
     let band = Band::linear(tol()).unwrap();
     let mut compared = 0;
     for (ek, _) in cavity.edges() {
@@ -468,7 +468,13 @@ fn rr2_carried_cavity_certificates_equal_a_fresh_recertification() {
         let start = p(out.get_half_edge(e.he_plus).unwrap().start);
         let end = p(out.half_edge_end(e.he_plus).unwrap());
         let fresh = c
-            .recertify_nurbs_lane(start, end, |k| out.get_surface(k).cloned(), band)
+            .recertify_via(
+                start,
+                end,
+                |k| out.get_surface(k).cloned(),
+                band,
+                Some(geom_brep::NurbsLane::certified()),
+            )
             .unwrap();
         assert_eq!(
             format!("{:?}", c.certificate()),

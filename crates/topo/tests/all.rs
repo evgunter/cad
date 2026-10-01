@@ -193,6 +193,8 @@ mod r1_mate8_probes;
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
 mod readback_sense_kind;
+#[path = "review_cleave_nurbs_lane.rs"]
+mod review_cleave_nurbs_lane;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -223,8 +225,6 @@ mod review_m3_pr55;
 mod review_m3_pr6;
 #[path = "review_m4_pr2_transform.rs"]
 mod review_m4_pr2_transform;
-#[path = "review_cleave_nurbs_lane.rs"]
-mod review_cleave_nurbs_lane;
 #[path = "review_m6_2_probes.rs"]
 mod review_m6_2_probes;
 #[path = "review_m9_1_probes.rs"]
@@ -312,6 +312,3 @@ mod replace_face_band_probes;
 mod certified_enclosure_impl_census;
 #[path = "split_tangent_spur.rs"]
 mod split_tangent_spur;
-
-#[path = "cleave_nurbs_lane_r2_probes.rs"]
-mod cleave_nurbs_lane_r2_probes;

@@ -502,7 +502,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
 fn the_body_recourse_names_a_single_solid_that_builds() {
     let mut two = cube(1.0, tol());
     let other = cube(1.0, tol());
-    topo::instance::graft_disjoint_all(&mut two, &other, tol()).expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
     let e = query::all_edges(&two);
     let err = refusal(&two, &e[..1], 0.1, "a two-solid body", false);
     assert!(

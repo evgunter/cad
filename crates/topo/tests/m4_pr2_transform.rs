@@ -153,224 +153,32 @@ fn non_rigid_maps_are_refused_at_the_door() {
 // ------------------------------------------------------------------ //
 // The M7-8 class: an `Intersection` between a plane and a DESCRIBED   //
 // NURBS wall — the one carrier class that certifies only through the  //
-// injected plane × NURBS lane.                                        //
+// plane × NURBS lane, which `f64`'s policy holds.                     //
 // ------------------------------------------------------------------ //
 
-/// A DESCRIBED (non-placeholder) degree-2 NURBS patch on the plane
-/// `y = 0`, u along +x, v along +z — the unit cube's front wall
-/// restated as a net rather than as the plane it exactly is, so the
-/// only thing separating it from that plane is that it is a
-/// `Surface::Nurbs`.
-fn nurbs_wall() -> geom::Surface<f64> {
-    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let ticks = [-1.0, 0.5, 2.0];
-    let (mut control, mut weights) = (Vec::new(), Vec::new());
-    for &x in &ticks {
-        for &z in &ticks {
-            control.push(Point3::new(x, 0.0, z));
-            weights.push(1.0);
-        }
-    }
-    let n = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
-    assert!(
-        !n.is_placeholder(),
-        "the wall is DESCRIBED — the placeholder is a different refusal"
-    );
-    geom::Surface::Nurbs(std::sync::Arc::new(n))
-}
-
-/// The unit cube with its front wall restated as a described NURBS net
-/// and that wall's four edges re-described as plane × NURBS
-/// `Intersection`s through `Body::set_edge_curve_nurbs_lane` — the
-/// M7-8 class, minted through the door that mints it.
-fn m7_8_cube() -> Body<f64> {
-    let cube = common::geometric_cube::<f64>(Tol::witness());
-    let mut body = cube.body;
-    let wall = body
-        .set_face_surface(
-            cube.mefs[1].face,
-            topo::FaceSurface::New {
-                surface: nurbs_wall(),
-                sense: true,
-            },
-        )
-        .unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    let mut lane_edges = 0;
-    for (edge_key, edge) in edges {
-        let s1 = common::face_surface_of_he(&body, edge.he_plus);
-        let s2 = common::face_surface_of_he(&body, edge.he_minus);
-        if s1 != wall && s2 != wall {
-            continue;
-        }
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
-        let p0 = *body
-            .get_point(body.get_vertex(start).unwrap().point)
-            .unwrap();
-        let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
-        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
-        ));
-        body.set_edge_curve_nurbs_lane(
-            edge_key,
-            geom_brep::EdgeCurveSpec {
-                description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    s1,
-                    s2,
-                    witness: p0.lerp(p1, 0.5),
-                },
-                carrier,
-                param_start: 0.0,
-                param_end: 1.0,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-        lane_edges += 1;
-    }
-    assert_eq!(lane_edges, 4, "the front wall has four M7-8 edges");
-    body
-}
-
-/// The number of check-2 findings the certified at-rest door raises on
-/// `body`. A described-NURBS face has no certified flux lane, so the
-/// composed door answers `VolumeUncomputable` at check 7 whatever
-/// happens at check 2; counting the edge-certification arm is what
-/// isolates the carrier question from that.
-fn edge_findings(body: &Body<f64>) -> usize {
-    match topo::validate_pseudomanifold(body, &topo::ContactRecords::default(), Tol::witness()) {
-        Ok(()) => 0,
-        Err(errs) => errs
-            .iter()
-            .filter(|e| matches!(e, topo::ValidationError::EdgeCertification { .. }))
-            .count(),
-    }
-}
-
-/// **A body the certified at-rest door calls valid is a body the
-/// kernel can move**, through the plain door: `f64` holds the plane ×
-/// NURBS lane, so the transform re-certifies the M7-8 class.
+/// **The M7-8 cube moves through the plain door at `f64`**, and every
+/// carrier re-certifies at rest after the map, the four wall edges
+/// included.
 #[test]
-fn an_m7_8_body_validates_at_rest_and_moves() {
-    let body = m7_8_cube();
+fn the_m7_8_cubes_carriers_certify_at_rest_before_and_after_a_move() {
+    use crate::fixture::m7_8::{edge_findings, m7_8_cube, m7_8_edges};
+    let body = m7_8_cube::<f64>();
     assert_eq!(
         edge_findings(&body),
         0,
-        "the certified at-rest door re-derives all four M7-8 certificates"
+        "the certified at-rest door re-derives every certificate"
     );
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0));
     let moved = transform_rigid(&body, &map, Tol::witness())
         .expect("an M7-8 body moves at a scalar that holds the lane");
+    assert_eq!(m7_8_edges(&moved), 4, "the class survives the map");
     assert_eq!(
         edge_findings(&moved),
         0,
-        "and re-derives all four certificates after the map"
+        "and re-derives every certificate after the map"
     );
-    // Topology and keys are untouched, exactly as for every other
-    // carrier class.
     assert_eq!(validate_closed(&moved), Ok(()));
     let before: Vec<_> = body.points().map(|(k, _)| k).collect();
     let after: Vec<_> = moved.points().map(|(k, _)| k).collect();
     assert_eq!(before, after, "point keys are stable across the map");
-}
-
-/// **At a dual the transform's per-edge certification refuses the
-/// class, naming the scalar.** `transform_rigid` certifies each mapped
-/// carrier through `EdgeCurve::certify_via` with
-/// `AtRestPolicy::nurbs_lane()`; this row makes that call at `Dual64`
-/// on one of the cube's M7-8 edges lifted to the dual. (No public door
-/// mints an M7-8 edge at a dual, so a whole `Body<Dual64>` of the class
-/// cannot be built from here; the refusal is read at the call the
-/// transform makes per edge.)
-#[test]
-fn at_a_dual_the_m7_8_class_refuses_naming_the_scalar() {
-    use geom_core::Dual64;
-    let body = m7_8_cube();
-    let lift = <Dual64 as geom_core::Real>::from_f64;
-    let (edge, curve) = body
-        .edges()
-        .find_map(|(_, e)| match body.get_curve_geom(e.curve) {
-            Some(topo::CurveGeom::Certified(c))
-                if matches!(c.carrier(), geom::Curve3::Nurbs(_)) =>
-            {
-                Some((e.clone(), c.clone()))
-            }
-            _ => None,
-        })
-        .expect("the cube carries M7-8 edges");
-    let geom_brep::EdgeDescription::Intersection { s1, s2, witness } = *curve.description() else {
-        panic!("an M7-8 edge is an Intersection");
-    };
-    let point = |v| {
-        body.get_point(body.get_vertex(v).unwrap().point)
-            .unwrap()
-            .map(lift)
-    };
-    let start = point(body.get_half_edge(edge.he_plus).unwrap().start);
-    let end = point(body.half_edge_end(edge.he_plus).unwrap());
-    let (t0, t1) = curve.params();
-    let spec = geom_brep::EdgeCurveSpec {
-        description: geom_brep::EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
-            witness: witness.map(lift),
-        },
-        carrier: curve.carrier().map_scalar(lift),
-        param_start: lift(t0),
-        param_end: lift(t1),
-    };
-    let surfaces = |k| body.get_surface(k).map(|s| s.map_scalar(lift));
-    let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let lane = <Dual64 as topo::AtRestPolicy>::nurbs_lane();
-    assert!(lane.is_none(), "a dual holds no plane x NURBS lane");
-    match geom_brep::EdgeCurve::certify_via(spec, start, end, surfaces, band, lane) {
-        Err(geom_brep::CertifyError::NurbsLaneUnsupported { scalar }) => {
-            assert_eq!(scalar, <Dual64 as geom_core::Real>::NAME);
-        }
-        other => panic!("a dual refuses the class naming the lane and the scalar: {other:?}"),
-    }
-}
-
-/// **The void door carries an M7-8 cavity's certificates.** The graft
-/// copies the cavity's geometry bit for bit, so the door transplants
-/// the certified carriers rather than re-certifying them — it makes no
-/// funnel decision at all — and the M7-8 class inserts like any other:
-/// the result's at-rest check 2 then re-derives every carrier, the four
-/// wall edges included.
-#[test]
-fn an_m7_8_cavity_inserts_through_the_void_door() {
-    let cavity = m7_8_cube();
-    let mut dst = brick((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), Tol::witness());
-    let (solid, _) = dst.solids().next().unwrap();
-    let evidence = topo::VoidEvidence {
-        shells: cavity
-            .shells()
-            .map(|(s, _)| {
-                (
-                    s,
-                    topo::VoidContainment::Carried {
-                        sign: geom_core::Sign::Positive,
-                    },
-                )
-            })
-            .collect(),
-    };
-    let bracket = geom_core::k_stats::Bracket::open();
-    topo::insert_void(&mut dst, solid, cavity, &evidence, Tol::witness())
-        .expect("an M7-8 cavity inserts");
-    let verdicts = bracket.finish().verdicts;
-    assert!(
-        verdicts.is_empty(),
-        "the door carries certificates and decides nothing; a re-certifying graft logs \
-         its checks: {verdicts:?}"
-    );
-    assert_eq!(dst.shells().count(), 2, "outer shell and the cavity");
-    assert_eq!(validate_closed(&dst), Ok(()));
-    assert_eq!(
-        edge_findings(&dst),
-        0,
-        "check 2 re-derives every transplanted carrier at rest"
-    );
 }

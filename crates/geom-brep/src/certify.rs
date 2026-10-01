@@ -323,22 +323,18 @@ pub enum CertifyError {
     /// C12.3 — the class the curved-boolean zip mints). The **plane ×
     /// NURBS** rung (M7-8): exactly one PLANE and one described NURBS
     /// wall, declare-and-check, through the [`NurbsLane`] — a caller
-    /// with none in hand gets [`CertifyError::NurbsLaneUnsupported`].
+    /// with none in hand gets [`CertifyError::NurbsLaneNotSupplied`].
     /// NURBS × NURBS has no certificate in this build.
     Unimplemented,
     /// An `Intersection` of a PLANE and a described NURBS wall (M7-8)
-    /// needed the plane × NURBS lane with **none in hand**. The lane is
-    /// absent either because the scalar may not certify (a dual, DL1:
-    /// the lane's limbs are certification arithmetic, C9) or because
-    /// the door the caller took supplies none ([`EdgeCurve::certify`],
-    /// [`EdgeCurve::recertify`]); this crate cannot tell which, and the
-    /// refusal says only what is true of both. It is raised before any
-    /// other check of the edge runs, so it says nothing about the
-    /// edge's geometry.
-    NurbsLaneUnsupported {
-        /// The scalar the check ran at ([`geom_core::Real::NAME`]).
-        scalar: &'static str,
-    },
+    /// reached a door that supplied **no plane × NURBS lane**
+    /// ([`EdgeCurve::certify`], [`EdgeCurve::recertify`], or a `_via`
+    /// door handed `None`). That is all this crate knows at the raising
+    /// site: whether the caller could have supplied one is the caller's
+    /// fact, which a caller that reads a scalar's policy states in its
+    /// own refusal. It is raised before any other check of the edge
+    /// runs, so it says nothing about the edge's geometry.
+    NurbsLaneNotSupplied,
     /// An `Intersection` description names one surface twice — a
     /// same-surface locus is a `Seam`, never an intersection.
     IntersectionSameSurface {
@@ -482,13 +478,11 @@ impl core::fmt::Display for CertifyError {
                  one plane and one described NURBS wall through the declare-and-check \
                  lane; NURBS x NURBS has no certificate"
             ),
-            Self::NurbsLaneUnsupported { scalar } => write!(
+            Self::NurbsLaneNotSupplied => write!(
                 f,
                 "an Intersection of a plane and a described NURBS wall certifies only through \
-                 the plane x NURBS lane, whose limbs are certification arithmetic (C9), and \
-                 none was in hand at the {scalar} scalar. A scalar without certification \
-                 rights (a dual) holds no lane: replay the body at a certifying scalar, or, if \
-                 the run is at one already, take a door that supplies the lane"
+                 the plane x NURBS lane, and the door this check ran through supplied none, so \
+                 nothing about the edge was checked"
             ),
             Self::IntersectionSameSurface { key } => write!(
                 f,
@@ -620,7 +614,7 @@ impl CertifyError {
             Self::PlaneNurbs(refusal) => return refusal.decision(),
             Self::UnresolvedSurface { .. }
             | Self::Unimplemented
-            | Self::NurbsLaneUnsupported { .. }
+            | Self::NurbsLaneNotSupplied
             | Self::IntersectionSameSurface { .. }
             | Self::SeamOnNonPeriodic
             | Self::TangentCertificateUnsupported
@@ -1069,7 +1063,11 @@ impl<T: Decide> EdgeCurve<T> {
     /// meters against `band`):
     ///
     /// 1. Implementedness: described surfaces resolve and are not
-    ///    `Nurbs`; a `Nurbs` carrier certifies only under an
+    ///    `Nurbs`, except the described NURBS wall of a plane × NURBS
+    ///    `Intersection` (M7-8, through the [`NurbsLane`] —
+    ///    [`CertifyError::NurbsLaneNotSupplied`] with none in hand) and
+    ///    the chart of an image the construction states; a `Nurbs`
+    ///    carrier certifies only under an
     ///    `Intersection` description (the rung-3 class, M5 PR 9 —
     ///    its span is metered through `speed_lower_bound`, gated
     ///    definitely-positive by `nurbs_span_meter`); `Intersection`'s
@@ -1136,7 +1134,7 @@ impl<T: Decide> EdgeCurve<T> {
     /// # Errors
     ///
     /// As [`EdgeCurve::certify`], plus the lane's own refusals when
-    /// one is injected; [`CertifyError::NurbsLaneUnsupported`] for an
+    /// one is injected; [`CertifyError::NurbsLaneNotSupplied`] for an
     /// edge of the M7-8 class with `None` in hand.
     pub fn certify_via(
         spec: EdgeCurveSpec<T>,
@@ -1177,13 +1175,13 @@ impl<T: Decide> EdgeCurve<T> {
 
     /// The shared re-certification body, with the plane × NURBS lane
     /// ([`NurbsLane`]) as its argument: `None` re-derives exactly what
-    /// [`EdgeCurve::recertify`] does and `Some` exactly what
-    /// [`EdgeCurve::recertify_nurbs_lane`] does.
+    /// [`EdgeCurve::recertify`] does and `Some` re-derives the plane ×
+    /// NURBS class through the lane.
     ///
     /// # Errors
     ///
     /// As [`EdgeCurve::recertify`], plus the lane's own refusals when
-    /// one is injected; [`CertifyError::NurbsLaneUnsupported`] for an
+    /// one is injected; [`CertifyError::NurbsLaneNotSupplied`] for an
     /// edge of the M7-8 class with `None` in hand, raised before any
     /// other check of that edge runs.
     pub fn recertify_via(
@@ -1210,7 +1208,7 @@ impl<T: Decide> EdgeCurve<T> {
 /// `Option<NurbsLane>` as an argument; `topo`'s operations fill it from
 /// the scalar's policy (`topo::AtRestPolicy::nurbs_lane`). A body
 /// holding `None` meets an `Intersection` of a plane and a described
-/// NURBS wall with [`CertifyError::NurbsLaneUnsupported`]: no door
+/// NURBS wall with [`CertifyError::NurbsLaneNotSupplied`]: no door
 /// accepts the description without the certificate.
 ///
 /// Its one constructor is [`NurbsLane::certified`], bounded on
@@ -1360,22 +1358,6 @@ impl<T: Decide + geom_core::CertifiedBounds> EdgeCurve<T> {
             band,
             Some(NurbsLane::certified()),
         )
-    }
-
-    /// [`EdgeCurve::recertify`] with the plane × NURBS lane wired in
-    /// — the at-rest pass for a body that may carry the M7-8 class.
-    ///
-    /// # Errors
-    ///
-    /// As [`EdgeCurve::certify_nurbs_lane`].
-    pub fn recertify_nurbs_lane(
-        &self,
-        start: Point3<T>,
-        end: Point3<T>,
-        surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
-        band: Band,
-    ) -> Result<Certificate<T>, CertifyError> {
-        self.recertify_via(start, end, surfaces, band, Some(NurbsLane::certified()))
     }
 }
 
@@ -2076,7 +2058,7 @@ fn run_checks<T: Decide>(
             // refusal is `Unimplemented`. The pair with no lane in hand
             // is refused here, before any other check of the edge.
             if let Some((plane, wall)) = plane_nurbs_pair(surfaces(s1), surfaces(s2)) {
-                let lane = lane.ok_or(CertifyError::NurbsLaneUnsupported { scalar: T::NAME })?;
+                let lane = lane.ok_or(CertifyError::NurbsLaneNotSupplied)?;
                 Resolved::PlaneNurbs {
                     plane,
                     wall,

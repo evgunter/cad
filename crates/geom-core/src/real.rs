@@ -1341,8 +1341,9 @@ pub mod bounds_allowlist {
     //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! exactly as before, and the two DOORS that name it carry
     //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) —
-    //! `geom_brep::certify`'s `certify_nurbs_lane`/`recertify_nurbs_lane`
-    //! impl block and `topo::euler`'s `set_edge_curve_nurbs_lane` door. Both
+    //! `geom_brep::certify`'s `certify_nurbs_lane` impl block (in the same
+    //! file as the lane's sealed value, `NurbsLane::certified`, at the same
+    //! bound) and `topo::euler`'s `set_edge_curve_nurbs_lane` door. Both
     //! files join this allowlist for that reason and no other; the
     //! per-file scope consequence is real and is the price of writing the
     //! obligation where a grep can read it, which is the whole point of
@@ -1367,7 +1368,7 @@ pub mod bounds_allowlist {
     //! declared forms) and every `_structural` door leaves empty — the M7-8
     //! class is then not re-derived and, being outside those doors'
     //! rights, not reported either (the lane's absence is its own
-    //! refusal, `CertifyError::NurbsLaneUnsupported`).
+    //! refusal, `CertifyError::NurbsLaneNotSupplied`).
     //! **The symbolic tier needs no arm of its own and gains none**:
     //! `Sym<T>` implements [`Bounds`](super::Bounds),
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) and

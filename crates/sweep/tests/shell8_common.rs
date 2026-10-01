@@ -38,7 +38,7 @@ pub(crate) fn beside_raw(
     let mut out = body.clone();
     let placed =
         topo::transform_rigid(other, &Affine3::translation(by), tol()).expect("a rigid map");
-    let key = topo::graft_disjoint(&mut out, &placed, tol()).expect("the placed copy grafts");
+    let key = topo::graft_disjoint(&mut out, &placed).expect("the placed copy grafts");
     (out, key)
 }
 

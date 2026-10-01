@@ -1,4 +1,4 @@
-//! Reviewer probe (CLEAVE, PR 3678, lane r2): a placed STEP instance
+//! **A placed STEP instance**
 //! whose NURBS wall meets planes (the M7-8 class the importer adopts
 //! through the lane) moves through `transform_rigid` at import.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -89,11 +89,11 @@ fn m7_8_cube() -> topo::Body<f64> {
 }
 
 /// The `work/exch/a-placed-step-instance-with-a-plane-nurbs-edge-refuses-at-transform`
-/// ask: a placed instance carrying the M7-8 class imports. With
-/// `transform_rigid`'s policy read reverted to `None` this refuses
-/// `Placement { Certify { NurbsLaneUnsupported { scalar: "f64" } } }`.
+/// ask: a placed instance carrying the M7-8 class imports. With the
+/// lane taken out of `transform_rigid` it refuses at `Placement`, on the
+/// wall's edges.
 #[test]
-fn rr2_placed_m7_8_instance_imports() {
+fn a_placed_m7_8_instance_imports() {
     let body = m7_8_cube();
     let text =
         step_export::step_string(&body, &step_export::StepOptions::default(), Tol::witness())
