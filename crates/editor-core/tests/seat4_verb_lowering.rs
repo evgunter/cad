@@ -207,27 +207,20 @@ fn both_blends_evaluate_in_one_document() {
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
 ///
-/// RE-BLESSED once more at the merge with `main` of 2026-09-19, and
-/// this one is a COMPOSITION rather than a third cause: main's
-/// `RoleSeg::CornerArc -> EndArc` (`8060537f7`) moved these two
-/// digests through the name table while this branch moved them
-/// through each planar carrier's stored `u_ref`. Both feed
-/// `digest(&ev)`, so the merged tree's number is neither side's — the
-/// conflict at this line had main's `0x0514…`/`0x131a…` against this
-/// branch's `0x7d42…`/`0x6ffa…`, and the value measured on the merged
-/// tree is a fourth pair. Neither re-bless is retracted; the
-/// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
-/// `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) stayed
-/// green across the merge, which is the locus receipt for the half
-/// this branch is answerable for.
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held.
+///
+/// The digest COMPOSES its inputs: a change to the name table and a
+/// change to each planar carrier's stored `u_ref` each move it, and
+/// together they give a value neither gives alone. So a merge that
+/// brings one of each re-measures here rather than picking a side; the
+/// id-free body rows above are the locus receipt either way.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x91d8_06d5_7561_4105_u64),
-        ("die_chamfer", 0x2ac7_0d65_6064_540f),
+        ("die_fillet", 0x9213_342b_e10e_9ad3_u64),
+        ("die_chamfer", 0xd0f3_a185_ca43_c5ff),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -324,15 +317,17 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
 /// Re-blessed again when step ids became digests of the document's mint
 /// chain: the names spell different ids, and the same id-free pins held.
+/// The two changes compose, as the blend row says.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x100c_c483_5f1c_4d3b_u64),
-        ("heat_sink", 0xd68c_866a_03dd_72e1),
-        ("kiss_carry", 0xa21d_7737_3ae7_b1ee),
+        ("crossing_slots", 0xf34e_9bc0_b058_d3e6_u64),
+        ("heat_sink", 0x1020_96ad_b1ca_6b9f),
+        ("kiss_carry", 0x5550_572b_247d_b6de),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -428,7 +423,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xeb0c_29dc_fd93_2da5,
+        got, 0x79dd_4511_b64b_23d9,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

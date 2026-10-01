@@ -64,7 +64,7 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `carrier_endpoint_start` 4 → 0 — and `carrier_matches_mapped_source`
 /// is 6 there under the ladder (8 with one attempt per rung), every one
 /// frozen. The carrier's span is spelled from the decided turn
-/// (`sweep`'s `turned_span`), so the decisions that stood on the sign
+/// (`sweep`'s `arc_span`), so the decisions that stood on the sign
 /// of `b` in the open, and those whose freeze stood on the bulk of the
 /// sign's second atom, are gone (`m10_bulge_renders.txt` attributes
 /// what is left). A 512-bit ring

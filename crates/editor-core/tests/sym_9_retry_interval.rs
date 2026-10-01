@@ -389,7 +389,7 @@ fn sym_9_what_each_retry_recovers() {
 /// rung) and `witness_on_surface_2` `[14, 0, 0, 2]` → `[16, 0, 0, 0]`.
 ///
 /// The link's row is the arc's span spelled from the decided turn
-/// (`sweep`'s `turned_span`): `[541, 0, 96, 465]` → `[545, 0, 108, 449]`
+/// (`sweep`'s `arc_span`): `[541, 0, 96, 465]` → `[545, 0, 108, 449]`
 /// without the ladder and `[553, 0, 96, 453]` → `[549, 0, 120, 433]`
 /// with it, retried 12 → 16, and the predicate with the ladder
 /// `[92, 0, 6, 10]` → `[88, 0, 8, 12]`. Eight of its theorems go to the
@@ -424,11 +424,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         ("r1_segment_boss", [375, 2, 96, 233], [375, 2, 96, 233], 0),
         (
             "r2_filleted_bracket",
-            [1104, 7, 144, 766],
-            [1104, 7, 150, 760],
+            [1105, 21, 144, 783],
+            [1105, 21, 150, 777],
             6,
         ),
-        ("r2_link", [545, 0, 108, 449], [549, 0, 120, 433], 16),
+        ("r2_link", [545, 0, 108, 509], [549, 0, 120, 493], 16),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -540,7 +540,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             d.numeric,
             d.retried
         ],
-        [1104, 7, 150, 760, 6],
+        [1105, 21, 150, 777, 6],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -560,7 +560,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
             b.numeric,
             b.retried
         ],
-        [1104, 7, 144, 766, 0]
+        [1105, 21, 144, 783, 0]
     );
     assert!(
         !bare.serialize().contains("retried="),

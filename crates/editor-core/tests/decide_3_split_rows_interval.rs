@@ -96,7 +96,7 @@ fn decide_3_no_predicate_loses_a_decision() {
             //
             // `carrier_matches_mapped_source` is the other side of the
             // arc's span spelled from the decided turn (`sweep`'s
-            // `turned_span`, DECIDE-5): the carrier's span meets the
+            // `arc_span`): the carrier's span meets the
             // pushforward's atom, so this predicate's door answers rise
             // under BOTH tiers — 40 to 60 with G shut, 40 to 50 with it
             // on — so ten decisions the G-shut tier sends through the
