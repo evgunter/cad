@@ -2587,14 +2587,14 @@ mod tests {
         )
         .expect("the opposite eye is a camera");
         let centre = framed.target();
-        let centre = [centre.x, centre.y, centre.z];
+        let centre = centre.to_array();
 
         let mut resources = egui_wgpu::CallbackResources::default();
         resources.insert(ViewportRenderer::new(&device, format));
         let mut seen = std::collections::BTreeSet::new();
         for (view, camera) in [("framed", &framed), ("behind", &behind)] {
             let eye = camera.eye();
-            let eye = [eye.x, eye.y, eye.z];
+            let eye = eye.to_array();
             let facing: Vec<(u32, [f64; 3])> = faces
                 .iter()
                 .copied()
@@ -2615,7 +2615,7 @@ mod tests {
                 .expect("the camera projects");
             let ndc = |p: [f64; 3]| {
                 camera
-                    .project(pncad::geom_core::Point3::new(p[0], p[1], p[2]), aspect)
+                    .project(pncad::geom_core::Point3::from_array(p), aspect)
                     .expect("the camera projects")
                     .expect("the cube is in front of the eye")
             };
@@ -2785,8 +2785,8 @@ mod tests {
                         },
                     )
                     .expect("a pixel of the target names a ray");
-                let origin = [ray.origin.x, ray.origin.y, ray.origin.z];
-                let dir = [ray.dir.x, ray.dir.y, ray.dir.z];
+                let origin = ray.origin.to_array();
+                let dir = ray.dir.to_array();
                 let t = (face[flat] - origin[flat]) / dir[flat];
                 let hit: [f64; 3] = std::array::from_fn(|a| origin[a] + t * dir[a]);
                 assert!(
