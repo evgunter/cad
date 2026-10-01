@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-14
 refs: [revert-does-not-mirror-plane-chart-images, revert-leaves-a-periodic-charts-loop-wrap-mid-chain]
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 Filed by the fix pass of `revert-does-not-mirror-plane-chart-images`
