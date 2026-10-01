@@ -628,22 +628,102 @@ fn plane_cone_axis_normal_circle() {
     }
 }
 
+/// The tilted plane×cone section is the exact ellipse, across the
+/// elliptic range of tilts for `α = 30°` (an ellipse while the tilt
+/// `φ < 60°`). The oracle is independent of the arm's Dandelin
+/// formulas: each generator line `apex + t·g(u)` is intersected with
+/// the plane directly, and every such point must satisfy the carrier's
+/// own ellipse equation in its frame. The semi-axes are also checked
+/// against the two in-plane generators' crossings (the major vertices)
+/// and the circle limit.
 #[test]
-fn plane_cone_generic_tilt_refuses_typed_r1() {
-    let cone = cone_z(core::f64::consts::FRAC_PI_6);
-    let plane = tilted_plane(0.4, Point3::new(0.0, 0.0, 5.0));
-    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
-    let SectionError::RoutesToGeneralRung { pair, why } = err else {
-        panic!("expected the R1 routing refusal, got {err:?}");
+fn plane_cone_tilted_is_the_exact_ellipse() {
+    let alpha = core::f64::consts::FRAC_PI_6;
+    let cone = cone_z(alpha);
+    let apex = Point3::new(0.0, 0.0, 1.0);
+    let q = Point3::new(0.0, 0.0, 4.0);
+    for phi in [1e-3f64, 0.2, 0.5, 0.9, 1.0] {
+        let plane = tilted_plane(phi, q);
+        let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+        let PlaneConeSection::TiltedEllipse(e) = s else {
+            panic!("phi {phi}: expected the ellipse, got {s:?}");
+        };
+        let Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } = e
+        else {
+            panic!("phi {phi}: the carrier is an ellipse");
+        };
+        let n = Vec3::new(phi.sin(), 0.0, phi.cos());
+        let v_ref = axis.cross(u_ref);
+        // Every generator's crossing lies on the carrier.
+        for i in 0..24 {
+            let u = f64::from(i) / 24.0 * core::f64::consts::TAU;
+            let g = Vec3::new(u.cos() * alpha.sin(), u.sin() * alpha.sin(), alpha.cos());
+            let t = (q - apex).dot(n) / g.dot(n);
+            assert!(t > 0.0, "phi {phi}: the ellipse lies on the +axis nappe");
+            let d = (apex + g * t) - center;
+            let lhs = (d.dot(u_ref) / major).powi(2) + (d.dot(v_ref) / minor).powi(2);
+            assert!((lhs - 1.0).abs() < 1e-12, "phi {phi}, u {u}: {lhs}");
+        }
+        // The major vertices are the in-plane generators' crossings:
+        // g± = (±sin α, 0, cos α) in the x–z plane holding axis and n.
+        let hit = |sx: f64| {
+            let g = Vec3::new(sx * alpha.sin(), 0.0, alpha.cos());
+            apex + g * ((q - apex).dot(n) / g.dot(n))
+        };
+        assert!(
+            ((hit(1.0) - hit(-1.0)).norm() - 2.0 * major).abs() < 1e-12,
+            "phi {phi}: major"
+        );
+        assert!(major > minor, "phi {phi}: the constructor's ordering");
+        // Residuals against both surfaces, at the carrier's own samples.
+        for i in 0..=16 {
+            let p = e.eval(f64::from(i) / 16.0 * core::f64::consts::TAU);
+            assert!(implicit_residual(&plane, p).abs() < 1e-12, "phi {phi}");
+            assert!(implicit_residual(&cone, p).abs() < 1e-12, "phi {phi}");
+        }
+    }
+    // The circle limit: at a small tilt both semi-axes approach the
+    // axis-normal circle's |h|·tan α = 3·tan 30°.
+    let s = plane_cone_section(&tilted_plane(1e-3, q), &cone, 1.0, band()).unwrap();
+    let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { major, minor, .. }) = s else {
+        panic!("expected the ellipse, got {s:?}");
     };
-    assert_eq!(pair, "plane×cone");
-    refusal_is_grounded(why, "plane x cone, generic tilt");
-    assert!(why.contains("PERMANENTLY"), "{why}");
-    // Unique to this note: the permanence has a REASON, and the reason
-    // is what a rewrite must not drop.
-    assert!(why.contains("parabola/hyperbola"), "{why}");
-    assert!(why.contains("The general rung is implemented"), "{why}");
-    assert!(why.contains("not waiting on it"), "{why}");
+    let rim = 3.0 * alpha.tan();
+    assert!((major - rim).abs() < 1e-5 && (minor - rim).abs() < 1e-5);
+}
+
+/// A plane parallel to a generator cuts a parabola and a steeper one a
+/// hyperbola: both refuse typed, naming the conic (R1). A tilt `3ε`
+/// past the parabola escalates on the conic-type trilean — never
+/// snapped to either side.
+#[test]
+fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
+    let alpha = core::f64::consts::FRAC_PI_6;
+    let cone = cone_z(alpha);
+    let q = Point3::new(0.0, 0.0, 4.0);
+    let parabola = core::f64::consts::FRAC_PI_2 - alpha;
+    for (phi, conic) in [(parabola, "PARABOLA"), (1.2, "HYPERBOLA")] {
+        let err = plane_cone_section(&tilted_plane(phi, q), &cone, 1.0, band()).unwrap_err();
+        let SectionError::RoutesToGeneralRung { pair, why } = err else {
+            panic!("phi {phi}: expected the R1 refusal, got {err:?}");
+        };
+        assert_eq!(pair, "plane×cone");
+        refusal_is_grounded(why, "plane x cone");
+        assert!(why.contains(conic), "phi {phi}: {why}");
+        assert!(why.contains("R1"), "phi {phi}: {why}");
+    }
+    let near = tilted_plane(parabola - 3.0 * eps(), q);
+    let err = plane_cone_section(&near, &cone, 1.0, band()).unwrap_err();
+    let SectionError::Escalated(diag) = err else {
+        panic!("expected escalation, got {err:?}");
+    };
+    assert_eq!(diag.predicate, Some("pn_conic_type"));
 }
 
 // ---------------------------------------------------------------------

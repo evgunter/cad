@@ -40,11 +40,11 @@
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
 //!   the pipelines execute it bit-identically); plane×cylinder's rim
 //!   case stays the rung-1 `Circle`.
-//! - **R1 is permanent until a PR moves it**: plane×cone generic tilt
-//!   routes to rung 3 *explicitly and permanently* — the conic trio
-//!   (parabola/hyperbola) does NOT land in M5, so the arm's generic
-//!   verdict is [`SectionError::RoutesToGeneralRung`], a documented
-//!   decision, not a TODO.
+//! - **Parabola and hyperbola are outside the conic inventory** (R1):
+//!   a plane×cone section of either kind refuses
+//!   [`SectionError::RoutesToGeneralRung`] naming its conic — a
+//!   documented decision, not a TODO. The ELLIPSE is in the inventory,
+//!   and a tilted plane×cone section of that kind is minted exactly.
 //!
 //! # The section arms
 //!
@@ -59,10 +59,10 @@
 //!    tangent line / empty.
 //! 2. [`plane_sphere_section`] — the `Circle`; the tangency is a POINT,
 //!    classification data refused as a carrier.
-//! 3. [`plane_cone_section`] — exact-degenerate cases only (R1):
-//!    apex-through plane (two generator lines / tangent line / apex
-//!    point), axis-normal cut (`Circle`); generic tilt refuses typed as
-//!    permanently routed to rung 3.
+//! 3. [`plane_cone_section`] — apex-through plane (two generator
+//!    lines / tangent line / apex point); axis-normal cut (`Circle`);
+//!    a tilt meeting every generator ⇒ exact `Ellipse`; a parabolic or
+//!    hyperbolic tilt refuses typed, naming its conic (R1).
 //! 4. [`plane_torus_section`] — the two exact-degenerate poses: an
 //!    axis-CONTAINING plane's two meridian `Circle`s, an axis-NORMAL
 //!    plane's two concentric ones (or the tangency circle, as
@@ -258,17 +258,16 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "tilted cut is the exact Ellipse (plane_cylinder_section); the \
                    perpendicular cut stays the rung-1 rim Circle",
         },
-        // ---- Rung 2, exact-degenerates only (R1, PERMANENT): generic
-        // tilt routes to rung 3 until a future PR adds the conic trio.
-        // The routing itself is the decision — not a TODO. ----
+        // ---- Rung 2: the apex-through degenerates, the axis-normal
+        // Circle and the tilted Ellipse. Parabola and hyperbola are
+        // outside the conic inventory (R1) — a decision, not a TODO. ----
         (Plane, Cone) | (Cone, Plane) => PairRoute {
             rung: Rung::Conic,
             implemented: true,
-            note: "exact-degenerate cases only (apex-through lines/tangent/point, \
-                   axis-normal Circle); generic tilt routes to the general rung \
-                   PERMANENTLY (parabola and hyperbola are outside the conic \
-                   inventory by decision, not by omission) — a routing that no \
-                   general-rung arm retires",
+            note: "apex-through lines/tangent/point, the axis-normal Circle and the \
+                   tilted Ellipse (plane_cone_section); a parabolic or hyperbolic \
+                   section refuses naming its conic — parabola and hyperbola are \
+                   outside the conic inventory by decision, not by omission",
         },
         // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
         // never a fitted chord (the die-pips premise). ----
@@ -637,8 +636,9 @@ pub enum SectionError {
     /// The configuration routes to the general rung — a documented arm
     /// decision (no runtime fallback exists; C5). The general rung is
     /// implemented; its arms retire one at a time, so a pair reaching
-    /// here is one whose arm has not retired — or one routed there
-    /// permanently (plane×cone generic tilt, R1).
+    /// here is one whose arm has not retired — or a section outside the
+    /// conic inventory by decision (a plane×cone parabola or
+    /// hyperbola, R1).
     RoutesToGeneralRung {
         /// The pair, for the message.
         pair: &'static str,
@@ -1669,12 +1669,13 @@ pub fn cylinder_sphere_section<T: Decide>(
 }
 
 // ---------------------------------------------------------------------
-// plane × cone, exact-degenerates only (spec §3.3, R1)
+// plane × cone (spec §3.3, R1)
 // ---------------------------------------------------------------------
 
-/// The classified plane×cone exact-degenerate section. Generic tilt is
+/// The classified plane×cone section. A parabola or hyperbola is
 /// deliberately NOT a variant: it refuses typed
-/// ([`SectionError::RoutesToGeneralRung`]) — R1's permanent routing.
+/// ([`SectionError::RoutesToGeneralRung`], naming the conic) — both are
+/// outside the conic inventory (R1).
 #[derive(Clone, Debug)]
 pub enum PlaneConeSection<T: Real> {
     /// Apex on the plane, plane cutting inside the cone: two generator
@@ -1692,12 +1693,24 @@ pub enum PlaneConeSection<T: Real> {
     ApexPoint(Point3<T>),
     /// Axis ∥ normal, apex off the plane: the rung-1 `Circle` cut.
     AxisNormalCircle(Curve3<T>),
+    /// Apex off the plane, plane tilted but meeting every generator:
+    /// the exact `Ellipse` (rung 2), carrier axis the plane normal,
+    /// zero-residual-by-construction.
+    ///
+    /// With `c = axis·n`, `δ = (apex − q)·n` and `K = c² − sin²α`
+    /// (positive exactly on this lane), the Dandelin construction gives
+    /// semi-major `|δ|·sin α·cos α / K` along the axis' in-plane
+    /// shadow, semi-minor `|δ|·sin α / √K` along `axis × n`, and centre
+    /// `apex − (δ/K)·(c·axis − sin²α·n)`. At `c² = 1` both semi-axes are
+    /// the axis-normal circle's `|h|·tan α` and the centre is its centre
+    /// — the circle is this form's boundary case.
+    TiltedEllipse(Curve3<T>),
 }
 
-/// Classifies and constructs the plane×cone exact-degenerate sections
-/// (spec §3.3). Generic tilt refuses typed — **permanently routed to
-/// rung 3** (R1: the conic trio does not land in M5; a future PR that
-/// adds parabola/hyperbola moves the arm, nothing else does).
+/// Classifies and constructs the plane×cone section (spec §3.3): the
+/// apex-through degenerates, the axis-normal circle and the tilted
+/// ellipse. A parabolic or hyperbolic section refuses typed, naming its
+/// conic (R1: neither is in the conic inventory).
 ///
 /// Trileans, in order:
 ///
@@ -1710,21 +1723,31 @@ pub enum PlaneConeSection<T: Real> {
 ///    classified.
 /// 1. `pn_apex_on_plane` — margin `(apex − q)·normal` (meters): Zero ⇒
 ///    the apex lane (step 2); definite ⇒ step 3.
-/// 2. `pn_apex_section` — margin `sin α·‖axis×normal‖ −
-///    cos α·|axis·normal|` metered at `extent` (the two-generator
-///    discriminant: positive exactly when the plane dips inside the
-///    cone): Positive ⇒ [`PlaneConeSection::ApexLinePair`], Zero ⇒
+/// 2. `pn_apex_section` — margin `D = sin α·‖axis×normal‖ −
+///    cos α·|axis·normal|` metered at `extent` (the conic-type
+///    discriminant, here at its degenerate column: positive exactly when
+///    the plane dips inside the cone): Positive ⇒
+///    [`PlaneConeSection::ApexLinePair`], Zero ⇒
 ///    [`PlaneConeSection::ApexTangentLine`], Negative ⇒
 ///    [`PlaneConeSection::ApexPoint`].
 /// 3. `pn_axis_normal` — margin `‖axis×normal‖·arm`, arm the would-be
 ///    circle radius `|h|·tan α` (h the apex-to-plane distance along
 ///    the axis): Zero ⇒ [`PlaneConeSection::AxisNormalCircle`];
-///    definite ⇒ the R1 refusal.
+///    definite ⇒ step 4.
+/// 4. `pn_conic_type` — the same margin `D`, metered at `extent`, off
+///    the apex: Negative ⇒ the plane meets every generator once and the
+///    section is [`PlaneConeSection::TiltedEllipse`] through the ellipse
+///    constructor (whose `ellipse_axes_distinct` gate is the final word
+///    on a near-circular tilt — the cylinder arm's double gate); Zero ⇒
+///    a parabola, Positive ⇒ a hyperbola, each refused naming its conic.
+///    An in-band `D` (a near-parabola) escalates; it is never snapped
+///    to either side.
 ///
 /// # Errors
 ///
 /// [`SectionError`] — wrong-lane kinds, the aperture guards, escalations
-/// (F6), or the R1 generic-tilt routing refusal.
+/// (F6), a carrier-constructor refusal, or the parabola/hyperbola
+/// refusal (R1).
 pub fn plane_cone_section<T: Decide>(
     plane: &Surface<T>,
     cone: &Surface<T>,
@@ -1824,8 +1847,8 @@ pub fn plane_cone_section<T: Decide>(
             }
         }
         Sign::Positive | Sign::Negative => {
-            // Apex definitely off the plane: axis-normal circle or the
-            // R1 permanent routing.
+            // Apex definitely off the plane: axis-normal circle, else
+            // the conic the tilt makes.
             let h = (q - apex).dot(a);
             let rim_r = h.abs() * (sin_a / cos_a);
             match decide("pn_axis_normal", Margin::levered(s, rim_r), band)
@@ -1837,14 +1860,38 @@ pub fn plane_cone_section<T: Decide>(
                     radius: rim_r,
                     u_ref: cone_u,
                 })),
-                Sign::Positive | Sign::Negative => Err(SectionError::RoutesToGeneralRung {
-                    pair: "plane×cone",
-                    why: "generic tilt routes to the general rung PERMANENTLY — the \
-                          conic trio is outside the closed-form inventory by \
-                          decision, and only an arm that adds parabola/hyperbola \
-                          moves it. The general rung is implemented; this routing is \
-                          not waiting on it",
-                }),
+                Sign::Positive | Sign::Negative => {
+                    let discr = sin_a * s - cos_a * c.abs();
+                    match decide("pn_conic_type", Margin::levered(discr, extent), band)
+                        .map_err(SectionError::Escalated)?
+                    {
+                        Sign::Negative => {
+                            // K = −D·(cos α·|c| + sin α·s) > 0 here.
+                            let k = c * c - sin_a * sin_a;
+                            let major = apex_gap.abs() * sin_a * cos_a / k;
+                            let minor = apex_gap.abs() * sin_a / k.sqrt();
+                            let center = apex - (a * c - n * (sin_a * sin_a)) * (apex_gap / k);
+                            // The axis-normal trilean above made `s`
+                            // definite, so the minor direction is.
+                            let v_minor = s_vec / s;
+                            let u_major = v_minor.cross(n);
+                            let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
+                            Ok(PlaneConeSection::TiltedEllipse(e))
+                        }
+                        Sign::Zero => Err(SectionError::RoutesToGeneralRung {
+                            pair: "plane×cone",
+                            why: "the plane lies parallel to a generator, so the section \
+                                  is a PARABOLA — outside the conic inventory by decision \
+                                  (R1), not by omission",
+                        }),
+                        Sign::Positive => Err(SectionError::RoutesToGeneralRung {
+                            pair: "plane×cone",
+                            why: "the plane meets both nappes, so the section is a \
+                                  HYPERBOLA — outside the conic inventory by decision \
+                                  (R1), not by omission",
+                        }),
+                    }
+                }
             }
         }
     }
