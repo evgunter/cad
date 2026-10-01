@@ -2459,17 +2459,19 @@ mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let center = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surface_stranding_for_tests(
-                face,
-                FaceSurface::New {
-                    surface: Surface::Sphere {
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(
+                    Surface::Sphere {
                         center,
                         radius: r,
                         axis: Vec3::unit_z(),
                         u_ref: Vec3::unit_x(),
                     },
-                    sense: true,
-                },
+                    face,
+                    true,
+                )],
+                &[],
+                Tol::witness(),
             )
             .unwrap();
             let b = face_box(&body, face, pad()).unwrap();
@@ -2511,12 +2513,10 @@ mod tests {
         let patch = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap();
         let surface = Surface::Nurbs(std::sync::Arc::new(patch));
         let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-        body.set_face_surface_stranding_for_tests(
-            face,
-            FaceSurface::New {
-                surface,
-                sense: true,
-            },
+        body.set_face_surfaces_describing(
+            vec![crate::Rechart::new(surface, face, true)],
+            &[],
+            Tol::witness(),
         )
         .unwrap();
         (
@@ -2812,17 +2812,19 @@ mod tests {
         for &r in &[0.002, 1.0, 40.0] {
             let c = Point3::new(0.3 * r, -0.2 * r, 0.1 * r);
             let (mut body, face) = arc_sector(r, core::f64::consts::PI);
-            body.set_face_surface_stranding_for_tests(
-                face,
-                FaceSurface::New {
-                    surface: Surface::Sphere {
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(
+                    Surface::Sphere {
                         center: c,
                         radius: r,
                         axis: Vec3::unit_z(),
                         u_ref: Vec3::unit_x(),
                     },
-                    sense: true,
-                },
+                    face,
+                    true,
+                )],
+                &[],
+                Tol::witness(),
             )
             .unwrap();
             let b = face_box(&body, face, pad).unwrap();
@@ -3049,12 +3051,10 @@ mod tests {
         for s in kinds {
             let kind = geom_brep::SurfaceKind::of(&s);
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surface_stranding_for_tests(
-                face,
-                FaceSurface::New {
-                    surface: s,
-                    sense: true,
-                },
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(s, face, true)],
+                &[],
+                Tol::witness(),
             )
             .unwrap();
             let b = face_box(&body, face, pad()).unwrap();
@@ -3394,18 +3394,20 @@ mod tests {
                 let (u_ref, _) = axis.orthonormal_basis();
                 let v_ref = axis.cross(u_ref);
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surface_stranding_for_tests(
-                    face,
-                    FaceSurface::New {
-                        surface: Surface::Torus {
+                body.set_face_surfaces_describing(
+                    vec![crate::Rechart::new(
+                        Surface::Torus {
                             center,
                             axis,
                             major_radius: major,
                             minor_radius: minor,
                             u_ref,
                         },
-                        sense: true,
-                    },
+                        face,
+                        true,
+                    )],
+                    &[],
+                    Tol::witness(),
                 )
                 .unwrap();
                 let b = face_box(&body, face, pad()).unwrap();
@@ -4082,18 +4084,20 @@ mod tests {
                 let c = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
                 let u_ref = axis.orthonormal_basis().0;
                 let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                body.set_face_surface_stranding_for_tests(
-                    face,
-                    FaceSurface::New {
-                        surface: Surface::Torus {
+                body.set_face_surfaces_describing(
+                    vec![crate::Rechart::new(
+                        Surface::Torus {
                             center: c,
                             axis,
                             major_radius: major,
                             minor_radius: minor,
                             u_ref,
                         },
-                        sense: true,
-                    },
+                        face,
+                        true,
+                    )],
+                    &[],
+                    Tol::witness(),
                 )
                 .unwrap();
                 let b = face_box(&body, face, pad).unwrap();
@@ -4211,12 +4215,10 @@ mod tests {
         };
         let relabelled = |s: Surface<f64>| {
             let (mut body, face) = arc_sector(1.0, core::f64::consts::PI);
-            body.set_face_surface_stranding_for_tests(
-                face,
-                FaceSurface::New {
-                    surface: s,
-                    sense: true,
-                },
+            body.set_face_surfaces_describing(
+                vec![crate::Rechart::new(s, face, true)],
+                &[],
+                Tol::witness(),
             )
             .unwrap();
             (body, face)
