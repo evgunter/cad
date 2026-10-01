@@ -1317,3 +1317,30 @@ Implements the ruling on PR 3553.
 **PR 3684** (unblocked main, cleave's row): #3645's `geom::mid_param` changed which forms the m10 sym walks build (same points, different forms); re-baselined slab and plate after confirming the old formula restores the pins exactly.
 
 **PR 3594** merged: node ids mint from the document's one `Mint` shared with step ids; the tag switched to the id's high 48 bits (a 12-hex prefix, the `DocRef` rule). Merged main twice; evidence on the merged tree: 359/359 value channels bit-identical, 353/359 name tables identical (6 reorder `Borders` walls), 966 `FromMember` segments identical. One diagnosis probe's edge key moved (`9v1`→`15v1`, same group, same diagnosis). Next: the labels unit (dispatched).
+
+## 2026-10-01 — node labels are document data (PR 3713, PR 1 of 2)
+
+Implements the ruling on PR 3565:
+- `Label` and `Doc.labels`, kept outside `Node`.
+- One `SetLabel { node, label: Option<Label> }` edit.
+- The spoken form `Extrude "base plate" (tag)`.
+- Python `Doc.label` / `DocEdit.set_label` / `insert(label=)`.
+- Viewer rename, a labelled tree headline, and an editable "Kind N" proposal on every creation form.
+- Python `Doc(label=)` renamed `Doc(seed=)`.
+- Unlabelled files keep their bytes. `kitchen_sink`'s persisted-text hash moved because the corpus now authors a `SetLabel`; its name table did not move.
+
+**Review.** One blocking finding, fixed: a labelled Boolean lost its label silently, because the label rode a session field that only `commit_run` read. The label is now applied after whichever commit door the creation takes, by extending that recorded state (`History::extend_current`). A test runs every `creates_a_node` op labelled, each as one undo.
+
+**Rulings.** "Kind N" counts the kind's live nodes plus one, then steps past a taken N. A refused creation keeps its typed label. A quoted label escapes `"` and `\`.
+
+**Seams filed.**
+- PR 2 is `refusal-values-speak-the-node-with-its-label`: refusal values and the memoized `NodeError`.
+- Other rows:
+  - a bad label in a file gets the regenerate recourse;
+  - the part chooser has no label field;
+  - the seated-tool nouns are unpinned;
+  - invisible or bidi-only labels are admitted;
+  - `Attr::Label` has no reader;
+  - "label" has other meanings.
+
+Next: PR 2 (dispatched).
