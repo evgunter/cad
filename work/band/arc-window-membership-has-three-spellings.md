@@ -57,3 +57,35 @@ the shared one's. Retire `CircleMargins`/`ring_circle` in favour of
 metering a ring's pieces through `piece_distance`, if the containment
 reading (`other_inside_trim`) can be put as a per-piece question; if it
 cannot, say so beside `CircleMargins`.
+
+## Findings (band/arc-window-one-home)
+
+**The three sites are two questions, not one.**
+
+- *May this angle bracket lie in this periodic window?* — read by a
+  caller that SELECTS between two sound bounds (an arc's end values,
+  or the whole circle's extreme), where an uncertain answer must
+  loosen. `sweep`'s `CircleFrame::misses` and `geom`'s curve boxes
+  (`circle_arc_aabb`, `ellipse_arc_aabb`, through `axis_extremum`) ask
+  it. One home now: `geom::angle_window_may_hold`
+  (`crates/geom/src/param.rs`); the private `angle_interval_in_span`
+  is gone and `misses` calls the home. The boxes' `ANGLE_SLOP` stays
+  the boxes' own widening of the window (their arithmetic is not
+  outward through `libm::atan2`); `misses` asks with its brackets as
+  they stand, because its two candidates agree at the switch.
+- *Is this point inside, outside or in band of the window?* — a
+  DECIDED membership, metered in metres, escalating in band. `topo`
+  holds it, and the row's citation was stale: there is no
+  `point_on_arc` in `contain.rs` (that file has `point_on_circle`, the
+  carrier half). The angular half is `splitting::containment::arc_trim`
+  (chordal distances, the pre-pass's `bool_contact_arc_{end,trim}`
+  rows) and `boolean::solid_contain::chart_azimuth_margin` (the cosine
+  window, with its own site roster). Each now says, at its doc, why it
+  is not the selection home's question.
+
+**`CircleMargins`/`ring_circle` stay**, and say why beside
+`CircleMargins`: `other_inside_trim` is per-piece (`si` less the
+largest piece `far`), but `external` is not — a piece's `near` is
+unsigned, so `near − si` reads a ring that ENCLOSES the trim circle as
+clear where `external` reads the overlap. The trim's side of a ring is
+a property of the closed cycle.

@@ -832,6 +832,12 @@ const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
 /// `Positive` inside, `Negative` past an end, `Zero` at an end or in
 /// the trim's band.
 ///
+/// A DECIDED membership, and so not [`geom::angle_window_may_hold`]'s
+/// question, which serves a caller selecting between two sound bounds:
+/// there an uncertain answer loosens a bound and is read as "may hold",
+/// here it escalates, and the band of an end is measured along the
+/// carrier rather than as an angle.
+///
 /// # Errors
 ///
 /// An in-band end distance with neither end definitely `Zero`, or an

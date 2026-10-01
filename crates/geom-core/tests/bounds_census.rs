@@ -327,7 +327,8 @@ const ROSTER: &[Site] = &[
         subject: "impl<T: Bounds> CircleFrame<T>",
         why: Selection(
             "an arc's closed-form extremes (`distance`, `along`). `misses` reads the \
-             stored window's brackets to SELECT, per extreme, between the arc's two ends \
+             stored window's and the angle's brackets, asking `geom::angle_window_may_hold`, \
+             to SELECT, per extreme, between the arc's two ends \
              and the whole circle's value; the result is a margin `ring_clearance` \
              decides, and the branch is the value channel's (a dual's bracket is its \
              value's). The branch is locally constant everywhere off the switch, and AT \

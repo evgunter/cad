@@ -2631,6 +2631,12 @@ pub(super) fn chart_dir<T: Decide>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> Vec3<
 /// radian at the point being tested, which is what the margin has to
 /// mean.
 ///
+/// A DECIDED membership, and so not [`geom::angle_window_may_hold`]'s
+/// question, which serves a caller selecting between two sound bounds
+/// and reads an uncertain answer as "may hold": this margin escalates
+/// in band instead, and is branch-cut-free because an interval `atan2`
+/// near the seam would escalate where that door merely loosens.
+///
 /// # Errors
 ///
 /// [`PointInSolidError::Escalated`] — an in-band period guard, or a

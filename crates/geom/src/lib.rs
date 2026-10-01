@@ -166,7 +166,7 @@ pub use curves::{
     spiric_curvature_sup, spiric_f_range, spiric_radial,
 };
 pub use datum::{AnalyticData, DatumValue};
-pub use param::mid_param;
+pub use param::{angle_window_may_hold, mid_param};
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
 // public names both halves' callers have always used.

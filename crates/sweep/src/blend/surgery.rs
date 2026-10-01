@@ -2129,6 +2129,19 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 /// halves are rowed (`ring_clearance_forms`, `review_ring_clearance_r1_probes`).
 /// `external` is the one reading with no screen counterpart, because the
 /// screen has no notion of which side of a boundary a strip lies on.
+///
+/// **A ring is read as one whole circle here, not as its pieces through
+/// [`piece_distance`], because `external` is not a per-piece
+/// question.** `other_inside_trim` would fold — it is `si` less the
+/// ring's farthest reach from the trim centre, the largest of its
+/// pieces' `far` — but a piece's `near` is unsigned: `near − si` reads a
+/// ring that ENCLOSES the trim circle (the trim sitting in a hole) as
+/// clear by `aj − d − si`, where `external` reads it as the overlap
+/// `d − si − aj < 0`. Which side of a ring the trim lies on is whether
+/// the closed cycle winds about the trim centre, a property of the
+/// cycle and of no piece of it. The ladder walk's outer boundary is
+/// metered by pieces exactly because there the enclosing side is the
+/// one expected, and `near − si` asks nothing else.
 struct CircleMargins<T> {
     /// `‖cj − ci‖ − si − aj`: separation of two circles that lie
     /// outside each other.
@@ -2271,8 +2284,11 @@ impl<T: Real> CircleFrame<T> {
 
 impl<T: Bounds> CircleFrame<T> {
     /// **Whether the arc over `(ta, tb)` certainly misses the circle
-    /// point `q`**: `q`'s angle past `ta` ([`Self::past`]) is certainly
-    /// beyond the arc's span and certainly short of a full turn.
+    /// point `q`**: `q`'s angle, read past `ta` ([`Self::past`]) so its
+    /// branch cut sits on the window's start, certainly lies outside
+    /// the window — asked of the one home of that question,
+    /// [`geom::angle_window_may_hold`], with the angle's and the
+    /// window's brackets as they stand.
     ///
     /// **A bracket read whose branch reaches a decision, sound by
     /// value-channel delegation** (DL5(b), `geom_core::real`'s
@@ -2300,8 +2316,8 @@ impl<T: Bounds> CircleFrame<T> {
     ///   on it the choice moves no tangent — what the locally-constant
     ///   condition of DL5(b) exists to guarantee.
     fn misses(self, (ta, tb): (T, T), q: Point3<T>) -> bool {
-        let past = self.past(ta, q);
-        (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
+        let phi = ta + self.past(ta, q);
+        !geom::angle_window_may_hold((phi.lo(), phi.hi()), (ta.lo(), tb.hi()))
     }
 
     /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
