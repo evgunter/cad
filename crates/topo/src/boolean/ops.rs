@@ -31,10 +31,10 @@
 //!   fallback's probe verdicts as the door's containment evidence.
 //!
 //! When operand boundaries do not intersect, classification falls back
-//! to per-shell vertex-in-solid containment
-//! ([`point_in_solid`], F8's ray
-//! design promoted to 3-D), probing non-contact vertices against the
-//! pristine other operand.
+//! to per-shell containment against the pristine other operand: the
+//! uncut-shell witness ([`super::shell_witness`]) probes the shell's
+//! points with [`super::solid_contain::point_in_solid`] (F8's ray design
+//! promoted to 3-D) until one lies off the other boundary.
 //!
 //! # The merge output stage (F7)
 //!
@@ -104,11 +104,10 @@ use super::BooleanDecision;
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
-use super::finish::{contact_skip_set, kept_side, setopfinish};
+use super::finish::{kept_side, setopfinish};
 use super::join::bool_connect;
-use super::solid_contain::{
-    PointInSolidError, SolidContainment, closed_sphere_group, point_in_solid,
-};
+use super::shell_witness::{contact_skip_set, shell_side};
+use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::zip_seam;
 use super::{
@@ -1333,13 +1332,15 @@ pub(super) fn merge_rows(
 /// sign is decided or every face reaches the last round every lane runs
 /// (`geom_brep::props::quad::LAST_ROUND_EVERY_LANE_RUNS`).
 ///
-/// There the rounds run out at a resolution: the quadrature's interval
-/// floor, measured on the oblique-capped rod (`r = 0.5`, cut 20° at
-/// `z = 3.5`, `tests/reach_volume_backstop.rs`) at 5.5e-10 m³ against
-/// a reporting half-width of 9.2e-7 m³, and growing with the body's
-/// size. What is still open is then metered as a boundary displacement
-/// — the margin's lower end over the two bodies' summed area — and
-/// decided against the model's own band: inside it, the open range is
+/// There the rounds run out at a resolution: the last round's
+/// half-width, measured on the oblique-capped rod (`r = 0.5`, cut 20° at
+/// `z = 3.5`, `sweep/tests/reach_volume_backstop.rs`) as ≈ 2.2e-10 m³
+/// of rule remainder whatever ε plus ≈ 0.55·ε m³ (7.7e-10 m³ at the
+/// default ε, against a reporting half-width of 9.2e-7 m³), the
+/// remainder growing with the body's size. What is still open is then
+/// metered as a boundary displacement — the margin's lower end over
+/// the two bodies' summed area — and decided against the model's own
+/// band: inside it, the open range is
 /// below the model's resolution and the bound is accepted as an
 /// in-band margin is (below); certified beyond it, the measurement
 /// cannot decide a question the model can tell apart, and the gate
@@ -1708,50 +1709,16 @@ pub(super) fn describe_minted_edges<T: Decide>(
         let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(corrupt());
         };
-        // Curved seam edges (M5 PR 9) keep their minted conic carrier
-        // and pin the witness at the carrier's mid parameter (the S2
-        // contract); planar chords keep the M3 line lane bit-
-        // identically (fresh chord carrier, lerp witness).
         let existing = body
             .get_curve_geom(edge_data.curve)
             .and_then(crate::null::CurveGeom::certified)
             .cloned();
-        let curved = existing
-            .as_ref()
-            .is_some_and(|c| !matches!(c.carrier(), geom::Curve3::Line { .. }));
-        let (witness, extent) = if curved {
-            let c = existing.as_ref().ok_or_else(corrupt)?;
-            let (t0, t1) = c.params();
-            let mid = c.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
-            (
-                mid,
-                geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
-            )
-        } else {
-            (p0.lerp(p1, T::from_f64(0.5)), p0.distance(p1))
-        };
+        let curved = existing.as_ref().is_some_and(|c| c.carrier().is_curved());
+        let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
+        let (witness, extent) = (draft.witness, draft.extent);
         match geom_brep::classify_dihedral(surf1, surf2, witness, extent, band) {
             Ok(geom_brep::DihedralClass::Transverse) => {
-                let spec = if curved {
-                    let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let (t0, t1) = c.params();
-                    geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeDescriptionSpec::Intersection {
-                            s1,
-                            s2,
-                            witness,
-                        },
-                        carrier: c.carrier().clone(),
-                        param_start: t0,
-                        param_end: t1,
-                    }
-                } else {
-                    let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                    spec.description =
-                        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
-                    spec
-                };
-                body.set_edge_curve(edge, spec, tol)
+                body.set_edge_curve(edge, draft.into_spec(s1, s2), tol)
                     .map_err(|_| BooleanError::JoinDesync {
                         what: "minted-edge description failed certification",
                     })?;
@@ -2510,14 +2477,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             operand: x_is,
                                             face,
                                             what: "two sphere boundaries meet (neither \
-                                                   separated nor strictly nested) — the \
-                                                   sphere×sphere section is the exact \
-                                                   closed-form Circle and the germ frame \
-                                                   names it, but the JOIN has no arm for a \
-                                                   curved×curved germ pair: its arc-side \
-                                                   rule needs a chart the pair does not \
-                                                   have, and a crossing found here would \
-                                                   pierce a curved face first",
+                                                   separated nor strictly nested) while the \
+                                                   crossing layer found no edge crossing a \
+                                                   face: whatever the two spheres share \
+                                                   lies off every edge, the join's \
+                                                   sphere-pair arm had no chord to run, and \
+                                                   this scan, which reads the SURFACES, \
+                                                   cannot certify the shell disjoint from \
+                                                   the other boundary",
                                         });
                                     }
                                 }
@@ -2741,16 +2708,16 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// Per-shell classification of one operand's clone against the other
-/// pristine operand (containment fallback; contact vertices skipped,
-/// `OnBoundary` probes advanced past).
+/// pristine operand (containment fallback), by the uncut-shell witness
+/// ([`super::shell_witness`]).
 ///
-/// **The vertex probe below is the WITNESS, not the certificate**
-/// (M5 S13). A curved boundary can leave the other solid strictly
-/// between its vertices (the S12 finding), so for the sphere class
-/// the answer is only sound because [`sphere_extent_scan`] ran first
-/// and certified every sphere-involved boundary pair disjoint (or
-/// re-cut / refused): a connected shell whose surface avoids the
-/// other boundary lies in one component, and the witness names it.
+/// **The witness is not the certificate** (M5 S13). A curved boundary
+/// can leave the other solid strictly between a shell's witnesses (the
+/// S12 finding), so for the sphere class the answer is only sound
+/// because [`sphere_extent_scan`] ran first and certified every
+/// sphere-involved boundary pair disjoint (or re-cut / refused): a
+/// connected shell whose surface avoids the other boundary lies in one
+/// component, and the witness names it.
 fn classify_shells<T: Decide>(
     body: &Body<T>,
     other: &Body<T>,
@@ -2759,47 +2726,15 @@ fn classify_shells<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<Vec<(ShellKey, SideCode)>, BooleanError> {
-    let corrupt = || BooleanError::JoinDesync {
-        what: "fallback operand clone is not walkable",
-    };
     let skip = contact_skip_set(contacts, operand);
-    let mut out = Vec::new();
-    for (shell, shell_data) in body.shells() {
-        let mut verdict = None;
-        'probe: for &face in &shell_data.faces {
-            let face_data = body.get_face(face).ok_or_else(corrupt)?;
-            for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-                let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(corrupt)?.boundary
-                else {
-                    continue;
-                };
-                for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-                    let v = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-                    if skip.contains_key(v) {
-                        continue;
-                    }
-                    let q = *body
-                        .get_vertex(v)
-                        .and_then(|vd| body.get_point(vd.point))
-                        .ok_or_else(corrupt)?;
-                    match point_in_solid(other, q, band, tol).map_err(BooleanError::Containment)? {
-                        SolidContainment::In => {
-                            verdict = Some(SideCode::In);
-                            break 'probe;
-                        }
-                        SolidContainment::Out => {
-                            verdict = Some(SideCode::Out);
-                            break 'probe;
-                        }
-                        SolidContainment::OnBoundary => continue,
-                    }
-                }
-            }
-        }
-        let side = verdict.ok_or(BooleanError::Containment(PointInSolidError::RayExhausted))?;
-        out.push((shell, side));
-    }
-    Ok(out)
+    body.shells()
+        .map(|(shell, _)| {
+            Ok((
+                shell,
+                shell_side(body, shell, other, &skip, operand, band, tol)?,
+            ))
+        })
+        .collect()
 }
 
 /// The containment fallback (F8): no crossings — classify whole
@@ -2889,13 +2824,12 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
                         .map(|&s| (s, voids::VoidContainment::Probed(SolidContainment::In)))
                         .collect(),
                 };
-                voids::insert_void(&mut body, solid, b_body, &evidence, tol)
+                voids::insert_void(&mut body, solid, b_body, &evidence)
                     .map_err(|e| match e {
                         voids::VoidInsertError::Revert(r) => BooleanError::Revert(r),
                         voids::VoidInsertError::Corrupt { what } => {
                             BooleanError::JoinDesync { what }
                         }
-                        voids::VoidInsertError::Recertify(c) => BooleanError::GraftRecertify(c),
                         voids::VoidInsertError::MissingEvidence { .. }
                         | voids::VoidInsertError::NotStrictlyContained { .. }
                         | voids::VoidInsertError::ForeignShell { .. }

@@ -842,8 +842,8 @@ pub enum EulerOpError {
     /// the kill does not leave lone or another loop's lone vertex
     /// ([`Body::kef`], [`Body::kev`],
     /// [`Body::kemr`]); or an `Empty` loop that [`Body::kvfs`] or
-    /// [`Body::mekr`]'s `Empty` ring sites remove is claimed by a
-    /// half-edge.
+    /// [`Body::mekr`]'s `Empty` ring sites remove, or that
+    /// [`Body::movefac`]'s labelling reaches, is claimed by a half-edge.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -979,8 +979,9 @@ pub enum EulerOpError {
     /// `owner`, or neither. Raised for a face the labelling labels,
     /// whether a seed from the shell's list or a neighbour reached
     /// across an edge, that the shell does not list or whose `shell` is
-    /// another (`owner` is the shell), and for a loop a face lists
-    /// whose `face` is another (`owner` is the face).
+    /// another (`owner` is the shell), for a loop a face lists whose
+    /// `face` is another, and for the loop a mate lies in whose `face`
+    /// does not list it (`owner` is the face).
     NotOwned {
         /// The record the labelling took as `owner`'s.
         child: EntityId,
@@ -1004,6 +1005,17 @@ pub enum EulerOpError {
         target: LoopKey,
         /// The ring-side loop, in a different face.
         ring: LoopKey,
+    },
+    /// [`Body::set_null_face_pair`]'s record names a loop that is not
+    /// the marked face's own — neither its outer loop nor one of its
+    /// rings. A null face is one face's two coincident loops
+    /// ([`crate::null`]), so such a record describes none.
+    NullPairForeignLoop {
+        /// The face the record would mark.
+        face: FaceKey,
+        /// The first role loop, in declaration order, that `face` does
+        /// not hold.
+        r#loop: LoopKey,
     },
     /// A loop named as a ring is its face's outer loop:
     /// [`Body::mekr`]'s ring argument, [`Body::ring_move`]'s ring, and
@@ -1355,6 +1367,12 @@ impl EulerOpError {
                 "mekr: loops {target:?} and {ring:?} belong to different \
                  faces"
             ),
+            Self::NullPairForeignLoop { face, r#loop } => format!(
+                "a null-face record on face {face:?} names loop {loop:?}, which is not \
+                 that face's outer loop or one of its rings (a null face is one face's \
+                 two coincident loops)",
+                loop = r#loop
+            ),
             Self::RingIsOuter { r#loop } => format!(
                 "loop {loop:?} is its face's outer loop, not a ring",
                 loop = r#loop
@@ -1551,6 +1569,10 @@ pub(crate) fn every_euler_op_error_once()
             target: lp,
             ring: lp,
         },
+        EulerOpError::NullPairForeignLoop {
+            face: fc,
+            r#loop: lp,
+        },
         EulerOpError::RingIsOuter { r#loop: lp },
         EulerOpError::SameFace { face: fc },
         EulerOpError::CrossShell { f1: fc, f2: fc },
@@ -1702,6 +1724,7 @@ impl EulerOpError {
             | Self::SelfLoopEdge { .. }
             | Self::SameLoop { .. }
             | Self::NotSameFace { .. }
+            | Self::NullPairForeignLoop { .. }
             | Self::RingIsOuter { .. }
             | Self::SameFace { .. }
             | Self::CrossShell { .. }
@@ -1981,7 +2004,7 @@ impl<T: Decide> Body<T> {
     /// the other not) is refused [`EulerOpError::RebasedNullEdge`]; one
     /// whose two halves are both in the run moves whole and is carried.
     /// The one-half refusal, and the plane × NURBS class's
-    /// `RebasedCarrier { Unimplemented }`, stand even where `point` is
+    /// `RebasedCarrier { NurbsLaneNotSupplied }`, stand even where `point` is
     /// the old vertex's own: the gate does not ask whether `point` is
     /// that point, and its docs (the crate-internal
     /// `Body::certify_rebased_run`) say why. A fan split that moves
@@ -3679,7 +3702,7 @@ impl<T: Decide> Body<T> {
     ///
     /// **What that costs.** The plane × NURBS class (M7-8) needs an
     /// injected lane this bound cannot supply, so `recertify` answers
-    /// `Unimplemented` exactly as `split_edge` does on the same class —
+    /// `NurbsLaneNotSupplied` exactly as `split_edge` does on the same class —
     /// an operator makes no claim it cannot derive, and a claim it
     /// cannot derive is not a licence to move the edge. `recertify`
     /// answers that before any endpoint check, so the gate refuses where
@@ -5408,7 +5431,7 @@ mod tests {
     #[test]
     fn a_fan_mev_refuses_the_plane_x_nurbs_class_where_nothing_moves_and_mev_null_splits_it() {
         // The over-refusal the gate's docs state, through the public
-        // door: `recertify` answers `Unimplemented` for the M7-8 class
+        // door: `recertify` answers `NurbsLaneNotSupplied` for the M7-8 class
         // before any endpoint check, so `mev` refuses at the old
         // vertex's own point (the closed spec) as at a moved one (a
         // chord), body untouched. The no-move split is `mev_null`, which
@@ -5427,7 +5450,7 @@ mod tests {
                 body.mev(site, point, spec, tol).map(|_| ()),
                 Err(EulerOpError::RebasedCarrier {
                     edge,
-                    error: geom_brep::CertifyError::Unimplemented,
+                    error: geom_brep::CertifyError::NurbsLaneNotSupplied,
                 }),
                 "the M7-8 edge, mev to {point:?}"
             );
@@ -6790,12 +6813,15 @@ mod tests {
 /// `tier1` constructs is one relation, keyed by the variant and the
 /// kinds its fields wrap (`EntityId::Face(..)` reads `Face`), or by its
 /// field names where it wraps none. `RELATIONS` gives each one a
-/// disposition: the helper whose scan reads the naming field before a
+/// disposition: the helper whose scan reads the naming field when a
 /// kill removes the record it names, checked against that helper's
-/// body, or the tracker row that files the gap, checked to exist. A
-/// relation `tier1` gains, or a variant of either prefix the enum gains
-/// that `tier1` does not construct and `NOT_BODY_RELATIONS` does not
-/// place, reds here until it is given one.
+/// body — a proof that refuses before the kill, or, for the null-face
+/// records a kill, or a move of a loop off its face, maintains rather
+/// than refuses over, the drop in its mutation phase. A relation
+/// `tier1` gains, or a variant of either
+/// prefix the enum gains that `tier1` does not construct and
+/// `NOT_BODY_RELATIONS` does not place, reds here until it is given
+/// one.
 ///
 /// What this cannot see: a relation the validator checks without a
 /// `Dangling*` or `Stale*` variant, and a second field of one kind pair
@@ -6819,16 +6845,11 @@ mod removal_census {
         /// The helper whose scan reads the field, and the code
         /// fragments its body reads it through.
         Read(&'static str, &'static [&'static str]),
-        /// The row that files the gap, repo-relative.
-        Filed(&'static str),
     }
-    use Disposition::{Filed, Read};
-
-    const NULL_FACES: &str =
-        "work/topo/kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove.md";
+    use Disposition::Read;
 
     /// One disposition per relation `tier1` checks, in its pass order.
-    const RELATIONS: [(&str, Disposition); 19] = [
+    const RELATIONS: [(&str, Disposition); 20] = [
         (
             "DanglingTopology: Solid -> Shell",
             Read("require_shell_unnamed", &["data.shells.contains"]),
@@ -6910,7 +6931,14 @@ mod removal_census {
             "DanglingTopology: Vertex -> HalfEdge",
             Read("require_killed_halves_unnamed", &["data.emanating"]),
         ),
-        ("StaleNullFaceLoop: face, named_loop", Filed(NULL_FACES)),
+        (
+            "StaleNullFaceLoop: face, named_loop",
+            Read("drop_null_face_records_naming", &["pair.loops().contains"]),
+        ),
+        (
+            "StaleNullFaceOwnership: face, named_loop",
+            Read("drop_null_face_records_naming", &["pair.loops().contains"]),
+        ),
     ];
 
     /// Variants of either prefix that name no record of a `Body`, so no
@@ -7007,7 +7035,7 @@ mod removal_census {
     }
 
     #[test]
-    fn every_relation_validate_checks_is_read_by_a_kill_helper_or_filed() {
+    fn every_relation_validate_checks_is_read_by_a_kill_helper() {
         let found = tier1_relations();
         let keys: Vec<&str> = found.iter().map(|(_, key)| key.as_str()).collect();
         let listed: Vec<&str> = RELATIONS.iter().map(|&(key, _)| key).collect();
@@ -7032,25 +7060,16 @@ mod removal_census {
              in `NOT_BODY_RELATIONS`"
         );
         let helpers: Vec<String> = HELPER_SOURCES.iter().map(|s| code_only(s)).collect();
-        let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
-        for (key, disposition) in &RELATIONS {
-            match disposition {
-                Read(helper, reads) => {
-                    let head = format!("fn {helper}(");
-                    let sources: Vec<&String> =
-                        helpers.iter().filter(|code| code.contains(&head)).collect();
-                    let [source] = sources[..] else {
-                        panic!("`{key}`: `{helper}` is defined once among the helper sources");
-                    };
-                    let body = body_of(source, &head);
-                    for read in *reads {
-                        assert!(body.contains(read), "`{key}`: `{helper}` reads `{read}`");
-                    }
-                }
-                Filed(row) => assert!(
-                    root.join(row).is_file(),
-                    "`{key}` is filed at `{row}`, which no longer exists: give it a disposition"
-                ),
+        for (key, Read(helper, reads)) in &RELATIONS {
+            let head = format!("fn {helper}(");
+            let sources: Vec<&String> =
+                helpers.iter().filter(|code| code.contains(&head)).collect();
+            let [source] = sources[..] else {
+                panic!("`{key}`: `{helper}` is defined once among the helper sources");
+            };
+            let body = body_of(source, &head);
+            for read in *reads {
+                assert!(body.contains(read), "`{key}`: `{helper}` reads `{read}`");
             }
         }
     }

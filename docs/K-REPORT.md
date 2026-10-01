@@ -533,18 +533,20 @@ Six ways a name escapes the old pattern, all live today:
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
    last two.
-3. **A named `const &str` rather than a literal at the site.** Seven,
+3. **A named `const &str` rather than a literal at the site.** Six,
    not the three originally recorded: `sector_shape.rs`'s
    module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
    `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
    const in `topo/src/query.rs`, re-exported by `editor-core`),
-   `sweep/src/fillet/surgery.rs`'s module-private `RING_CLEARANCE`
-   (`fillet3_ring_clearance`), and the direction-length pair —
+   and the direction-length pair —
    `DATUM_UNIT_NORM` (`datum_unit_norm`, a `pub` const in
    `topo/src/query.rs`) and `EVAL_DIRECTION_NORM`
    (`eval_direction_norm`, `editor-core`'s `eval/wire.rs`), which are
    the same shape for the same reason and are described together
-   below.
+   below. The blend's `fillet3_*` names went further: each is an arm
+   of `sweep::blend::BlendDecision::predicate`, a match over the
+   closed decision type the blend's one funnel (`classify`) takes, so
+   no literal or const stands at any decide site.
 4. **A name PASSED to the deciding body by its caller** — the pair
    just named, and the reason they are also a separate way of
    escaping the pattern. Since SEAT-DN one function decides

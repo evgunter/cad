@@ -240,24 +240,32 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// second-order jet margin the tier-3 validator decides.
 ///
 /// "One home" is **aspiration, not fact**, and the gap is filed as
-/// issue 1439. Three hand-rolled siblings of this fold remain across
+/// issue 1439. Two hand-rolled siblings of this fold remain across
 /// the workspace — `topo::boolean::contact_verify` (the fold's own
-/// stated origin), `crate::ssi` and `topo::boolean::ops` — down from
-/// the six that issue counted: `crate::certify` reaches the fold
-/// through [`tangent_second_order`], and `sweep::extrude` and
+/// stated origin) and `topo::boolean::ops` — down from the six that
+/// issue counted: `crate::certify` reaches the fold through
+/// [`tangent_second_order`], `sweep::extrude` and
 /// `sweep::revolve::upgrade` through [`must_carry_over_edge`], which
-/// composes it. The two hand-rolled siblings of the second-order
-/// MARGIN are a different pair and are counted on
-/// [`tangent_second_order`]. `contact_tangent_opposed` is also
-/// [`classify_material_pairing`]'s own twin — the same C1 lemma
-/// between bodies rather than within one. Consolidating the rest is
-/// that issue's work, deliberately NOT absorbed here; until it lands,
-/// a new site levering against its own fold is a silent
-/// non-comparability, so route new callers through this function.
+/// composes it, and `crate::ssi` through `pair_lever_arm`. The two
+/// hand-rolled siblings of the second-order MARGIN are a different
+/// pair and are counted on [`tangent_second_order`].
+/// `contact_tangent_opposed` is also [`classify_material_pairing`]'s
+/// own twin — the same C1 lemma between bodies rather than within one.
+/// Consolidating the rest is that issue's work, deliberately NOT
+/// absorbed here; until it lands, a new site levering against its own
+/// fold is a silent non-comparability, so route new callers through
+/// this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
-    curvature_lever_arm(s1, p)
-        .min(curvature_lever_arm(s2, p))
-        .min(extent)
+    pair_lever_arm(s1, s2, p).min(extent)
+}
+
+/// The two curvature arms of [`folded_lever_arm`] folded without the
+/// extent, for a caller that applies its own extent once at the point
+/// of use (the SSI march's arm guard). An arm
+/// [`curvature_lever_arm`] cannot state (a NURBS or approximated
+/// carrier) makes the pair's arm poison.
+pub(crate) fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T {
+    curvature_lever_arm(s1, p).min(curvature_lever_arm(s2, p))
 }
 
 /// **`tangent_second_order`** — the must-carry rule's one metered
@@ -424,12 +432,13 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// fewer: an extruded wall is ruled in the sweep direction and the
 /// strut is one of its rulings, along which both surfaces' Hessians
 /// and the transverse direction are constant — so `κ_rel` is constant
-/// along it; and a revolve's latitude join carries a circle coaxial
-/// with both surfaces of revolution, along which the configuration is
-/// carried by a symmetry flow of both — so `κ_rel` is constant there
-/// too. Each fact holds for the pairs ONE verb mints, while this walk
-/// must hold for every pair it is handed, so neither licenses reading
-/// one station.
+/// along it; an extruded cap rim that reads smooth is a line between
+/// two planes, whose normals are constant along it; and a revolve's
+/// latitude join carries a circle coaxial with both surfaces of
+/// revolution, along which the configuration is carried by a symmetry
+/// flow of both — so `κ_rel` is constant there too. Each fact holds
+/// for the pairs ONE caller mints, while this walk must hold for every
+/// pair it is handed, so none licenses reading one station.
 ///
 /// **The one home** [`folded_lever_arm`]'s doc calls aspirational, one
 /// level up: the fold has a single spelling and so does the metered
@@ -469,6 +478,63 @@ pub fn must_carry_over_edge<T: Decide>(
         MustCarryVerdict::JetDeterminate
     } else {
         MustCarryVerdict::UnderDetermined
+    }
+}
+
+/// What a join entered as definitely smooth stores, by the must-carry
+/// rule's verdict ([`MustCarryVerdict::description`]).
+#[derive(Clone, Debug)]
+pub enum MustCarryDescription<T: Real> {
+    /// The intrinsic [`crate::EdgeDescriptionSpec::TangentIntersection`]
+    /// over the pair the rule was asked about, in that order; the caller
+    /// stores it on its carrier.
+    Intrinsic(crate::EdgeDescriptionSpec<T>),
+    /// The conventional description: a chart image where the edge
+    /// rests. Which adjacent chart, and whether the stored carrier is
+    /// restated or the exact carrier stated, is the caller's: a
+    /// sweep-minted edge already stores its locus and restates it,
+    /// while a blend contact edge stores a chord scaffold and states
+    /// the locus fresh.
+    Conventional,
+}
+
+/// Why a join entered as definitely smooth gets no description: each
+/// caller maps it to its own typed refusal.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MustCarryRefusal {
+    /// [`MustCarryVerdict::InBand`]: certifiable as neither, refused
+    /// typed with the deciding station's escalation (D4 ¶3) — never
+    /// folded into either description.
+    InBand(Indeterminate),
+    /// [`MustCarryVerdict::Transverse`]: a station read the join a
+    /// corner, refuting the smooth premise the caller entered on.
+    Refuted,
+}
+
+impl MustCarryVerdict {
+    /// The one mapping from the verdict to what the join stores:
+    /// jet-determinate ⇒ the intrinsic `TangentIntersection { s1, s2,
+    /// witness }`, under-determined ⇒ conventional, in-band and
+    /// transverse ⇒ a typed refusal. `s1`/`s2` are the keys of the
+    /// surfaces [`must_carry_over_edge`] was asked about, in its order.
+    ///
+    /// # Errors
+    ///
+    /// [`MustCarryRefusal`] on an in-band or transverse verdict.
+    pub fn description<T: Real>(
+        self,
+        s1: crate::SurfaceKey,
+        s2: crate::SurfaceKey,
+        witness: Point3<T>,
+    ) -> Result<MustCarryDescription<T>, MustCarryRefusal> {
+        match self {
+            Self::JetDeterminate => Ok(MustCarryDescription::Intrinsic(
+                crate::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness },
+            )),
+            Self::UnderDetermined => Ok(MustCarryDescription::Conventional),
+            Self::InBand(source) => Err(MustCarryRefusal::InBand(source)),
+            Self::Transverse => Err(MustCarryRefusal::Refuted),
+        }
     }
 }
 
@@ -707,12 +773,63 @@ mod tests {
         Tol::witness().get().eps
     }
 
+    /// The one verdict-to-description mapping every smooth-join caller
+    /// stores by: each verdict lands on its own answer, and the
+    /// intrinsic one names the pair in the order the rule was asked.
+    #[test]
+    fn must_carry_description_maps_each_verdict() {
+        let mut keys = slotmap::SlotMap::<crate::SurfaceKey, ()>::with_key();
+        let (a, b) = (keys.insert(()), keys.insert(()));
+        let witness = Point3::new(1.0, 2.0, 3.0);
+        match MustCarryVerdict::JetDeterminate.description(a, b, witness) {
+            Ok(MustCarryDescription::Intrinsic(
+                crate::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness: w },
+            )) => assert!(
+                s1 == a && s2 == b && w.distance(witness) == 0.0,
+                "{s1:?} {s2:?} {w:?}"
+            ),
+            other => panic!("jet-determinate must be the intrinsic tangency: {other:?}"),
+        }
+        assert!(matches!(
+            MustCarryVerdict::UnderDetermined.description(a, b, witness),
+            Ok(MustCarryDescription::Conventional)
+        ));
+        let source = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: band(),
+            predicate: Some("tangent_second_order"),
+            terminal_sliver: false,
+        };
+        assert!(matches!(
+            MustCarryVerdict::InBand(source).description(a, b, witness),
+            Err(MustCarryRefusal::InBand(s)) if s == source
+        ));
+        assert!(matches!(
+            MustCarryVerdict::Transverse.description(a, b, witness),
+            Err(MustCarryRefusal::Refuted)
+        ));
+    }
+
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {
         Surface::Plane {
             origin: Point3::origin(),
             normal,
             u_ref,
         }
+    }
+
+    /// The fold propagates poison from either arm and from the extent:
+    /// a NURBS operand folds to poison, never to the plane's arm or the
+    /// extent that would otherwise win.
+    #[test]
+    fn the_folded_arm_is_poison_when_any_operand_is() {
+        let p = plane(Vec3::unit_z(), Vec3::unit_x());
+        let n = Surface::nurbs_placeholder();
+        let o = Point3::origin();
+        assert!(folded_lever_arm(&p, &n, o, 1.0).is_nan());
+        assert!(folded_lever_arm(&n, &p, o, 1.0).is_nan());
+        assert!(folded_lever_arm(&p, &p, o, f64::NAN).is_nan());
+        assert_eq!(folded_lever_arm(&p, &p, o, 1.0), 1.0);
     }
 
     #[test]

@@ -113,24 +113,6 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/editor-core/src/clearance.rs",
-        subject: "in_plane_axis",
-        why: Selection(
-            "the clearance engine's planar re-chart picks WHICH world axis to cross the \
-             normal with, by the widest cross product's `lo()` under `total_cmp`. A chart \
-             choice decides nothing semantic — every choice yields a sound superset, and \
-             the enclosure it names is locally constant in the choice",
-        ),
-    },
-    Site {
-        path: "crates/editor-core/src/clearance.rs",
-        subject: "chart_frame",
-        why: Payload(
-            "the same re-chart's finiteness guard: the brackets are read only to refuse a \
-             frame that did not come out finite, and nothing downstream reads them",
-        ),
-    },
-    Site {
         path: "crates/editor-core/src/eval/wire.rs",
         subject: "refusal_menu",
         why: Payload(
@@ -327,6 +309,54 @@ const ROSTER: &[Site] = &[
              boundary the whole neighbourhood takes the same branch, and the branch it \
              takes when refusing carries no geometry, only the low end as an f64 payload \
              in `BlendError::NonpositiveSize`",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/open/ruled.rs",
+        subject: "impl<T: Bounds> CapSliver<T>",
+        why: Selection(
+            "the ruled cut-off's cap meter `clearance`. It reads no bracket itself — its \
+             reads are `CircleFrame::misses`' and the on-axis guards', reached through \
+             `piece_distance` and `piece_along` in `surgery.rs` — and its result is the \
+             margin `ring_clearance` decides, so it inherits that door's DL5(b) \
+             disposition and no other",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "impl<T: Bounds> CircleFrame<T>",
+        why: Selection(
+            "an arc's closed-form extremes (`distance`, `along`). `misses` reads the \
+             stored window's brackets to SELECT, per extreme, between the arc's two ends \
+             and the whole circle's value; the result is a margin `ring_clearance` \
+             decides, and the branch is the value channel's (a dual's bracket is its \
+             value's). The branch is locally constant everywhere off the switch, and AT \
+             the switch the two candidates agree in value and first-order tangent (the \
+             end is the point realising the whole circle's extreme, where that extreme \
+             is stationary), so no seed's tangent depends on the branch. An uncertain \
+             bracket takes the whole circle's value, a sound bound wherever the truth \
+             lies. The on-axis `lo() <= 0` guards select the whole-circle pair, which \
+             bounds the arc's wherever `c` is and equals the ends' pair where a point \
+             scalar takes it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "piece_along",
+        why: Selection(
+            "an edge's extent along a direction over its own window: a segment's ends \
+             read no bracket, and a circle's reads are `CircleFrame`'s above, whose \
+             DL5(b) disposition this inherits",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "piece_distance",
+        why: Selection(
+            "an edge's near and far distance from a point over its own window: a \
+             segment's clamped foot is `max`/`min` arithmetic with no bracket read, and a \
+             circle's reads are `CircleFrame`'s above, whose DL5(b) disposition this \
+             inherits",
         ),
     },
     Site {

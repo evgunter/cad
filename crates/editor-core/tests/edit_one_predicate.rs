@@ -304,16 +304,8 @@ fn mate(
         b: crate::fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame {
-                origin,
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
-            b: MateFrame {
-                origin: [0.0, 0.0, 0.0],
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
+            a: MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,
@@ -887,7 +879,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (sketch, gone) = (doc.order()[1], doc.order()[2]);
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
-    // is then the site rule's and not `IdBeyondCounter`.
+    // is then the site rule's and not `NodeNotMinted`.
     let doc = apply(
         &doc,
         &DocEdit::DeleteNode { id: gone },

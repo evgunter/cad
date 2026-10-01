@@ -312,7 +312,8 @@ impl BooleanDecision {
             }
             // The margin is cos θ levered by the shorter edge: that
             // edge's projection onto the other, a length. A straight
-            // corner passes on a negative one; a sector bounded twice by
+            // corner passes on a negative one (`sector_shape` gates it with
+            // `decide_negative`); a sector bounded twice by
             // one edge passes on any definite one.
             Self::Corner(SectorRung::Straight { full_circle }) => sized(
                 CORNER_LEVER,
@@ -837,6 +838,58 @@ mod tests {
             ) && !text.contains("tolerance below"),
             "{text}"
         );
+    }
+
+    /// **An ellipse carrier's escalation reads by door**: the section
+    /// through a curved face whose kind the carrier constructor could not
+    /// decide says which question it hinged on, offers the split the
+    /// geometry and the tolerance alone and the Boolean its declaration
+    /// too, and offers neither a carrier to construct.
+    #[test]
+    fn an_ellipse_carrier_escalation_is_routed_by_door() {
+        let b = band();
+        let rows = [
+            (
+                "ellipse_axes_distinct",
+                "whether the curve is a circle or an ellipse",
+            ),
+            (
+                "ellipse_minor_positive",
+                "whether the curve's minor semi-axis is positive",
+            ),
+        ];
+        for (predicate, subject) in rows {
+            let diag = Indeterminate {
+                predicate: Some(predicate),
+                ..diag_of(MarginDiag::value((b.zero() + b.escalate()) / 2.0))
+            };
+            let join = || crate::SplitJoinError::Section {
+                face: crate::entity::FaceKey::default(),
+                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
+            };
+            let split = crate::SplitError::Join(join()).to_string();
+            let boolean = BooleanError::Join(join()).to_string();
+            for text in [&split, &boolean] {
+                let problems = short_of_the_guard(text, &[]);
+                assert!(problems.is_empty(), "{predicate}: {problems:?}: {text}");
+                assert!(
+                    text.contains(&format!(
+                        "{subject} is undecided for the section through a curved face: {}. ",
+                        diag.payload()
+                    )) && !text.contains("Circle carrier"),
+                    "{predicate}: {text}"
+                );
+            }
+            assert!(
+                split.ends_with("Recourse: move the geometry, or lower the tolerance")
+                    && !split.contains("declare"),
+                "{predicate}: the split takes no declaration: {split}"
+            );
+            assert!(
+                boolean.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
+                "{predicate}: the Boolean takes one: {boolean}"
+            );
+        }
     }
 
     /// **The conic root lane ends alike at the split and the Boolean**,

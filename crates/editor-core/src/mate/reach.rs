@@ -1,14 +1,20 @@
-//! **The mated parts' own extent** — the two body terms of the lever a
-//! mate's angular decisions turn on (A11's one geometric read).
+//! **The mated parts' own evaluations, as the solve reads them** — the
+//! two answers `ASSEMBLY.md` A11 rule 5 lets cross into the solve: a
+//! part's EXTENT, the body term of the lever a mate's angular
+//! decisions turn on, and a named FACE's canonical pose, the frame a
+//! `FromFace` side resolves to.
 //!
 //! A parallelism verdict is consumed as "the separation is constant
 //! across the parts", so its margin is `sin θ · L` where `L` is the
 //! length the two parts span together from the datum. The solve has
-//! no body in hand — it works over the recipe — so the extent reaches
-//! it through [`MateReach`], one method answering an instance's part
-//! reach, implemented by the evaluation over its own part cache
+//! no body in hand — it works over the recipe — so both answers reach
+//! it through [`MateReach`]: [`MateReach::reach`] answering a part's
+//! reach, [`MateReach::face_pose`] answering one of its faces' pose,
+//! implemented by the evaluation over its own part cache
 //! (`eval::mate_reach` is the public door; the evaluation's own run
-//! reads the cache it already built).
+//! reads the cache it already built), so a mated part is evaluated
+//! once and both questions are answered off that one product, in the
+//! part's own coordinates.
 //!
 //! # What "reach" is
 //!
@@ -55,6 +61,7 @@ use geom::Surface;
 use geom_core::{Decide, Point3};
 use topo::Body;
 use topo::entity::FaceKey;
+use topo::readback::Pose;
 
 use crate::eval::measure::reach_of;
 use crate::ident::DocRef;
@@ -91,11 +98,134 @@ pub trait MateReach {
     /// resolver's own fault), its body has a face whose reach cannot
     /// be bounded, or its body has no faces.
     fn reach(&self, part: &DocRef) -> Result<f64, ReachRefusal>;
+
+    /// **The canonical pose of `face`, a face of the part `part`
+    /// names**, in the part's own coordinates: the name resolved in
+    /// the part's own product table to its face, then
+    /// `topo::readback::face_pose` on the part's own body — the
+    /// frame a `FromFace` mate frame resolves to
+    /// ([`super::MateFrame`]). The pose is the CARRIER's, read off
+    /// its surface parameters exactly, with the face's orientation
+    /// sense beside the axis and not folded into it.
+    ///
+    /// # Errors
+    ///
+    /// [`FacePoseRefusal`]: the part does not resolve (the resolver's
+    /// own fault), the table has no row for the name or ties it, the
+    /// readback refuses the face (no canonical frame, a dangling
+    /// key), or the product's scalar pins no `f64`.
+    fn face_pose(
+        &self,
+        part: &DocRef,
+        face: &crate::FaceName,
+    ) -> Result<Pose<f64>, FacePoseRefusal>;
+}
+
+/// Why a face's pose is not in hand ([`MateReach::face_pose`]) —
+/// closed over the resolver's, the table's and the readback's own
+/// refusals, named against the part alone; the solve carries it beside
+/// the instance it was reading and the face it named
+/// ([`super::FaceRefusal::Reach`]).
+///
+/// Displayed as what the part answered, after the subject the carrier
+/// names: each sentence ends on its recourse, or on the kernel-defect
+/// ending where no door reaches the arm.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FacePoseRefusal {
+    /// The part does not resolve: the evaluation layer's own typed
+    /// cause, unaltered.
+    PartUnresolved {
+        /// The resolver's fault.
+        fault: crate::eval::PartFault,
+    },
+    /// The part's product table has no row for the name.
+    NoSuchName,
+    /// The name is an N2 tie among the part's faces: several answer
+    /// to it equally, so there is no one face to read.
+    Ambiguous {
+        /// How many faces answer.
+        candidates: usize,
+    },
+    /// The table's row for the name holds an entity of another kind.
+    /// A frame's face is a face BY TYPE ([`crate::FaceName`]), so no
+    /// door can author this state: it is the table's own invariant —
+    /// a row is admitted only at its name's kind — broken, answered
+    /// here in release rather than assumed, and the rung
+    /// `names::interrogate`'s reader asserts against in debug.
+    NotAFace {
+        /// What the row holds.
+        found: crate::EntityKind,
+    },
+    /// The readback refused the face, in its own voice: a carrier
+    /// with no canonical frame (a NURBS or approximating surface,
+    /// which keeps taking authored vectors) — the one reachable
+    /// refusal. A `Dangling` key is the product's table naming a face
+    /// its own body does not hold: the table and the body are one
+    /// evaluation's product, emitted together, so no door reaches it.
+    Readback(topo::readback::ReadbackError),
+    /// The product is elaborated at a scalar that pins no single
+    /// `f64` (`eval`'s `SectionScalar`: an enclosure or a sensitivity
+    /// lane), so the pose has no `f64` coordinates to read. Reading
+    /// the nominal would drop the pose's own sensitivity to the
+    /// parameters, and pinning an enclosure there would certify a
+    /// face that moves inside the box, so a face frame resolves on
+    /// the nominal lane only ([`super::MateFrame`]).
+    Unpinned,
+}
+
+impl core::fmt::Display for FacePoseRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let defect = geom_core::KERNEL_DEFECT_ENDING;
+        match self {
+            Self::PartUnresolved { fault } => write!(f, "the part is not in hand: {fault}"),
+            Self::NoSuchName => f.write_str(
+                "the part has no face answering to that name: its edit removed it, or the \
+                 name is not its own. Recourse: delete the mate, and insert it again on a face \
+                 the part has, or with authored vectors",
+            ),
+            Self::Ambiguous { candidates } => write!(
+                f,
+                "{candidates} of the part's faces answer to that name equally, so there is no one \
+                 pose to read. Recourse: delete the mate, and insert it again on one of \
+                 them, or with authored vectors"
+            ),
+            Self::NotAFace { found } => write!(
+                f,
+                "the part's table holds {} {} under that name, and admits a row only at its name's \
+                 kind. {defect}",
+                found.article(),
+                found.noun()
+            ),
+            Self::Readback(error @ topo::readback::ReadbackError::NoCanonicalFrame { .. }) => {
+                write!(
+                    f,
+                    "{error}. Recourse: delete the mate, and insert it again with authored \
+                     vectors"
+                )
+            }
+            Self::Readback(_) => write!(
+                f,
+                "the part's table names a face its own body does not read back. {defect}"
+            ),
+            Self::Unpinned => f.write_str(
+                "the part is elaborated at a scalar that pins no single number, so the face \
+                 has no coordinates the solve can read: a face frame resolves on the nominal \
+                 lane only. Recourse: to solve on this lane, delete the mate and insert it \
+                 again with authored vectors",
+            ),
+        }
+    }
 }
 
 /// Why a part's reach is not in hand ([`MateReach::reach`]). Named
-/// against the part alone; the solve adds the instance it was asking
-/// for ([`super::LeverRefusal::of`]).
+/// against the part alone; the solve carries it beside the instance
+/// it was asking for ([`super::LeverRefusal::Reach`]).
+///
+/// Displayed as a predicate of the part, after the subject the
+/// carrier names (`instance 6's part …`): each sentence ends on its
+/// recourse, on the kernel-defect ending where only a malformed body
+/// reaches the arm, or on "no way through" where the kernel has no
+/// bound to state.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReachRefusal {
     /// The part does not resolve: the evaluation layer's own typed
@@ -121,25 +251,73 @@ pub enum ReachRefusal {
     },
     /// The body has no faces, so it has no extent to lever over.
     NoExtent,
-    /// The body's reach read back non-finite — a poisoned coordinate
-    /// somewhere in the walk — so no bound can be stated.
+    /// The body's reach read back non-finite — a coordinate out of the
+    /// format's range somewhere in the walk — so no bound can be
+    /// stated.
     NoFiniteBound,
+}
+
+impl core::fmt::Display for ReachRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PartUnresolved { fault } => write!(
+                f,
+                "is not in hand, so the mate has no extent to lever a verdict over: {fault}"
+            ),
+            Self::FaceUnbounded { kind, .. } => write!(
+                f,
+                "has a {} face whose reach from the part's origin cannot be bounded, so no \
+                 bound on the part's extent can be stated. There is no way through for a \
+                 mate on this part",
+                kind.name()
+            ),
+            Self::MalformedBody { .. } => write!(
+                f,
+                "has a face whose surface resolves to nothing, so the body is not well \
+                 formed. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::NoExtent => f.write_str(
+                "has no faces, so it has no extent to lever a verdict over. Recourse: mate a \
+                 part that has a body",
+            ),
+            Self::NoFiniteBound => write!(
+                f,
+                "has a reach that reads back non-finite, so no bound on its extent can be \
+                 stated. Recourse: {}",
+                geom_core::RANGE_RECOURSE
+            ),
+        }
+    }
 }
 
 /// **The refusing reach** — the reach of a door with no resolver in
 /// hand: every part is [`crate::eval::PartFault::NoResolver`], typed,
-/// so a solve through it levers no mate and refuses each one in the
-/// resolver's own voice, and an edit whose maintenance needs a solved
-/// frame refuses at the door. What `eval::mate_reach` answers over
-/// options carrying no resolver, as a value for a door that has no
-/// options at all — and the honest reach for an edit that cannot
-/// move a cluster's gauge, which never asks it.
+/// so a solve through it levers no mate, resolves no `FromFace`
+/// frame, and refuses each one in the resolver's own voice, and an
+/// edit whose maintenance needs a solved frame refuses at the door.
+/// What `eval::mate_reach` answers over options carrying no resolver,
+/// as a value for a door that has no options at all — and the honest
+/// reach for an edit that asks the parts nothing: one that cannot move
+/// a group's root and inserts no mate whose admission reads a part
+/// (a side that names a face, a rider on a coincidence). Such an
+/// insert refuses through it, typed, at the door.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RefusingReach;
 
 impl MateReach for RefusingReach {
     fn reach(&self, _part: &DocRef) -> Result<f64, ReachRefusal> {
         Err(ReachRefusal::PartUnresolved {
+            fault: crate::eval::PartFault::NoResolver,
+        })
+    }
+
+    fn face_pose(
+        &self,
+        _part: &DocRef,
+        _face: &crate::FaceName,
+    ) -> Result<Pose<f64>, FacePoseRefusal> {
+        Err(FacePoseRefusal::PartUnresolved {
             fault: crate::eval::PartFault::NoResolver,
         })
     }

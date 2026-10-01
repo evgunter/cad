@@ -330,6 +330,8 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //   of its own: a seam vertex is not a corner, so no run-out helps.
 // - `BlendSite` is `Escalated`'s: link, joint, or the chain whole —
 //   the payload half of the two-tolerance shape (D4 ¶1 addendum).
+// - `BlendDecision` is `Escalated`'s too: the question that could not
+//   be taken, which alone decides the refusal's recourse.
 // - `Convexity` is `ConvexitySignFlip`'s: which way the chain's
 //   material wedge turns. It is NOT one of the three the CUR3 bank
 //   named — the struct-payload sweep found it — and leaving it out
@@ -343,7 +345,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{BlendSite, CornerConfig, RunOutPolicy};
+pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability

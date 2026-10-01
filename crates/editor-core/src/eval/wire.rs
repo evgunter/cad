@@ -163,7 +163,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
     /// The document's mate solve, run once per evaluation (ASM-R2a
-    /// D-5): every instance's pose relative to its cluster gauge, and
+    /// D-5): every instance's pose relative to its group root, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
     /// Where profile geometry comes from, and over which environment.
@@ -2073,8 +2073,8 @@ fn resolve_open_faces(
 /// ([`ladder::resolve_in`]):
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
-///    document. Ids are never reused, so an id below the mint counter
-///    was DELETED and one at/above it was never this document's
+///    document. Ids are never reused, so an id the mint log holds was
+///    DELETED and one it does not hold was never this document's
 ///    (`ForeignNode`). The [`ladder::Live`] token makes this rung
 ///    outrank every later refusal, a door's own included.
 /// 2. [`ladder::Landing::Tied`] → `Ambiguous`: the tie row IS the
@@ -2595,7 +2595,6 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         target,
         &target_table,
         &body,
-        plane.normal,
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
@@ -3485,9 +3484,9 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// no published table holds. Every name the refusal carries is
 /// therefore put through [`names::collapse_name`], the collapse the
 /// node's own table gets from `name_union`. A member-EDGE piece would
-/// still carry the fold's rank, which `name_union` renumbers over the
+/// still carry the fold's `Ends`, which `name_union` re-reads over the
 /// finished body, so one refuses as an emission bug
-/// ([`UNION_REFUSAL_FOLD_RANKED_EDGE`]); a flush finding names faces.
+/// ([`UNION_REFUSAL_FOLD_QUALIFIED_EDGE`]); a flush finding names faces.
 ///
 /// The recourse offered is the pair boolean's: a `Declare` on the
 /// union's own input, each side SITED at the member that carries it
@@ -3534,9 +3533,9 @@ fn union_refusal<T: geom_core::Bounds>(
     // refusal that has one has no pair to offer.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
-            if names::is_fold_ranked_member_edge(row) {
+            if names::is_fold_qualified_member_edge(row) {
                 return NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                    what: UNION_REFUSAL_FOLD_QUALIFIED_EDGE,
                 });
             }
             return NodeErrorKind::UndeclarableContact {
@@ -3647,9 +3646,9 @@ fn sited_member(
     })
 }
 
-/// A union's refusal named a piece of a member edge by the fold's rank.
-const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
-     edge by the fold's rank, which no published table holds";
+/// A union's refusal named a piece of a member edge by the fold's qualifier.
+const UNION_REFUSAL_FOLD_QUALIFIED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's qualifier, which no published table holds";
 
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =
@@ -4286,12 +4285,12 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         // a union of separated bodies has, and the only one the seamed
         // boolean path accepts as an operand.
         let keys = if i == 0 {
-            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed, tol)
+            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed)
                 .map_err(NodeErrorKind::Boolean)?;
             targets = keys.solids().to_vec();
             keys
         } else {
-            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed, tol)
+            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed)
                 .map_err(NodeErrorKind::Boolean)?
         };
         bridges.push(keys);

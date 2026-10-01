@@ -72,7 +72,7 @@ pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
 //
 // Authored through `apply`, in the order a user would: a fixture that
 // reached past it would be testing a document the edit vocabulary
-// cannot produce. The fixtures are part-less — no mate, no cluster — so
+// cannot produce. The fixtures are part-less — no mate, no group — so
 // the reach is the refusing one and is never asked.
 
 /// Apply one edit, answering the new document and any minted id.
@@ -143,6 +143,10 @@ pub fn try_inserted(
 /// A sketch frame node, and the world xy frame these fixtures sketch
 /// on — `editor_core::test_support`'s, as the literals above.
 pub use editor_core::test_support::{frame, xy_frame};
+
+/// A spoken node built by hand, for a row a test builds without a
+/// document — `editor_core::test_support`'s.
+pub use editor_core::test_support::spoken;
 
 /// An axis-aligned rectangular loop, `w` by `h`, its lower-left
 /// corner at `origin` in the plane's own coordinates, counter-clockwise

@@ -81,3 +81,7 @@ Worth saying because the rate pair is the natural place a reader would
 look for this: `dn` is NOT a rate. It is the norm of a direction
 vector, so no `SupSpeed` tag applies and the pair's doors do not reach
 it. What it wants is the ring's fold, which this file already owns.
+
+## Note from SSI (2026-10-01)
+
+PR 3653 (`ssi/chart-rate`) routes `cell_normal`'s `dn` through `geom_core::interval::norm_sup`, so the f64 fused-multiply-add fold this row describes is gone. The substance looks closed; whether the row closes is OFFSET's call.

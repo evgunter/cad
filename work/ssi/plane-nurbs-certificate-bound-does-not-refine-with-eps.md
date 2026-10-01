@@ -2,10 +2,12 @@
 id: plane-nurbs-certificate-bound-does-not-refine-with-eps
 kind: issue
 title: Limb 2's between-samples bound is a function of a FIXED sample schedule, so an exact intensional description refuses at small enough epsilon
-status: open
+status: parked
 opened: 2026-09-15
 priority: P1
 cost: H
+blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites, 3524]
+design: true
 ---
 
 
@@ -116,3 +118,66 @@ If it does, the bound is refinable and the class boundary is an artifact.
 If it does not, the ring widening is the floor and the class boundary is
 real — in which case it should be stated in metres per model scale,
 where a reader can find it.
+
+## Measured (SSI measurement lane, 2026-10-01, head 04095ca9)
+
+**The premise is half right.** The bound is ε-independent: the same
+bits come out at 1e-6, 1e-9 and 1e-12. But it does not refine as `h²`.
+It is **ring widening from interval Boehm insertion** in
+`to_bezier_spans_extra` → `geom_core::spline::compose`'s
+`insert_once_ring`, whose lerp form reads `c₋₁` twice, and it grows as
+**N³** under refinement.
+
+On the m8_4 seam at scale 1, N = 32, the certified bound is 1.6926e-12 m
+(the row's 6.217e-12 is stale). It splits as:
+
+| term | value (m) | share |
+|---|---|---|
+| (a) degree-1 image against the true foot path | 0 (structurally: the seam is the wall's `u = 1` column, so the foot path is straight) | 0 |
+| (b) foot projection residual | 2.54e-14 | 1.5% |
+| (c) ring widening | 1.67e-12 | 98.5% |
+
+The widening piles up along `t`: 1.3e-16 in the first span, 1.53e-12 in
+the last two.
+
+Refining (N is set by `PXN_FIT_SAMPLES` and `SSI_CERT_SPANS` together;
+`CERT_SAMPLES` plays no part in limb 2, nor does `PXN_WALL_SPANS`):
+
+| N | lerp (shipped) | convex form |
+|---|---|---|
+| 8 | 3.00e-14 | 2.04e-14 |
+| 32 | 1.69e-12 | 5.47e-14 |
+| 128 | 1.08e-10 | 1.53e-13 |
+| 256 | 8.64e-10 | 2.60e-13 |
+
+Per model scale at N = 32, the shipped code costs 1.69e-12 m per metre,
+so it certifies only while L < 0.59 m at ε = 1e-12. The convex form
+costs ≈ 3.4e-14 m/m plus a ≈ 3e-14 m absolute floor from the projection.
+
+`INTERIOR_COLUMN_SCALE = 1/1024` is still load-bearing on shipped code.
+Under the convex form at scale 1, every row passes at all three ε, and
+the four "refuses below 1e-9" pins would be re-baselined (the seam then
+attaches). Today 4 rows stand down at 1e-12, not 11: three in
+`m8_4_intersection_iso.rs` and `review_probes_m8_4.rs::probe_e_…`.
+
+**What follows.**
+1. The fix for the dominant term is the convex form at `insert_once_ring`,
+   which PROPS' `f64-refinement-inside-an-enclosure-has-five-more-sites`
+   already carries (PR 3524, open). This row parks on it, and the
+   measurement is added there as evidence.
+2. Once that lands, the **design question** on this row is the
+   schedule contract. Three options:
+   - (i) a fixed N with the residual floor documented in metres per metre
+     of edge extent;
+   - (ii) per-span adaptive refinement, driven by the enclosure's midpoint
+     (the true residual) rather than its radius;
+   - (iii) N driven by ε.
+   (iii) is argued against: refinement raises (c) under either form.
+   Weighing (i) against (ii) needs term (a) measured on a fixture whose
+   foot path is curved in the chart (an oblique plane through the bowed
+   wall), which this fixture cannot show.
+
+Off-question findings were filed on PROPS
+(`project-eps-point-is-absolute-so-a-km-model-refuses-off-geometry`)
+and on NURBS (`an-exact-pcurve-image-certifies-worse-than-an-interpolated-one`),
+and the stale numbers are noted on TINT's `D70`.

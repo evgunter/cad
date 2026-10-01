@@ -246,6 +246,8 @@ pub enum NodeErrorClass {
     MateSelf,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
     MateUnleverable,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
+    MateFaceUnresolved,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefResolve`].
@@ -428,6 +430,7 @@ impl NodeErrorClass {
             MateFault::PartSelectsAnotherCopy { .. } => Self::MatePartSelectsAnotherCopy,
             MateFault::SelfMate { .. } => Self::MateSelf,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
+            MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
         }
     }
 
@@ -583,6 +586,7 @@ mod tests {
         MatePartSelectsAnotherCopy,
         MateSelf,
         MateUnleverable,
+        MateFaceUnresolved,
         CrossingUnverified,
         MeasureRefResolve,
         MeasureRefUnreadable,
@@ -1010,10 +1014,21 @@ mod tests {
             }),
             C::MateUnleverable => mate(crate::MateFault::Unleverable {
                 mate: n(9),
-                refusal: crate::LeverRefusal::NoExtent {
+                refusal: Box::new(crate::LeverRefusal::Reach {
                     instance: n(6),
                     part: doc_ref(),
-                },
+                    refusal: crate::ReachRefusal::NoExtent,
+                }),
+            }),
+            C::MateFaceUnresolved => mate(crate::MateFault::FaceUnresolved {
+                mate: n(9),
+                side: crate::MateSide::A,
+                refusal: Box::new(crate::FaceRefusal::Reach {
+                    instance: n(6),
+                    part: doc_ref(),
+                    face: crate::FaceName::new(name()).expect("a face name"),
+                    refusal: crate::FacePoseRefusal::NoSuchName,
+                }),
             }),
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),

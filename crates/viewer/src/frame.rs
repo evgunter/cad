@@ -229,9 +229,10 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
-    PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault, SlotId,
+    ChecksReport, Doc, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
+    PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, SlotId,
 };
+use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
@@ -2207,21 +2208,25 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
 /// say (`wording` absent, which is a fit that did not move δ). The
 /// second was a second condition at the call site.
 ///
-/// **The δ is rendered, not formatted**
-/// ([`crate::scene::DisplayTolerance::render_mm`]). The badge's whole
+/// **The δ is rendered, not formatted**, in `unit` — the working
+/// notation's length unit
+/// ([`crate::scene::DisplayTolerance::render_in`]). The badge's whole
 /// sentence is which δ the picture is at, and the δ it announces is the
 /// budget's own choice — `constant / TRIANGLE_BUDGET`, a quotient with
-/// no short spelling — so a fixed `{:.3}` read `δ 0.000 mm chosen` for
-/// every body whose cost constant is under a triangle·millimetre. A
+/// no short spelling — so a fixed precision would read it as zero. A
 /// label wide enough for the render is the price, and a badge is a
 /// label rather than a fixed-width field.
-pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
+pub fn delta_badge(fitted: Option<&FittedDelta>, unit: LengthUnit) -> Option<Badge> {
     let fitted = fitted?;
-    let wording = fitted.wording()?;
+    let wording = fitted.wording(unit)?;
     Some(
         Badge::read(
             Subject::Display,
-            format!("δ {} mm chosen", fitted.delta.render_mm()),
+            format!(
+                "δ {} {} chosen",
+                fitted.delta.render_in(unit),
+                unit.symbol()
+            ),
             Tone::Advisory,
         )
         .detailed(wording),
@@ -2399,8 +2404,8 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// DERIVED: the failure it follows from is already on screen, as the
 /// one [`Tone::Actionable`] row the tree draws for it. So it takes the
 /// tree's own reading of a downstream row — [`Tone::Advisory`], naming
-/// the row that carries the cause ([`crate::tree::cause_row`], spelled
-/// [`crate::tree::node_number`]) — and the index's own words move to
+/// the row that carries the cause ([`crate::tree::cause_row`], as the
+/// document speaks it) — and the index's own words move to
 /// the tooltip, unaltered.
 ///
 /// **It is placed under the cause, not dropped**, because it carries
@@ -2433,6 +2438,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// where the louder news it defers to is actually drawn.
 pub fn index_badge(
     error: Option<&PickIndexError>,
+    doc: &Doc<ProfileProgram>,
     evaluation: Option<&Evaluation<f64>>,
 ) -> Option<Badge> {
     let error = error?;
@@ -2449,7 +2455,7 @@ pub fn index_badge(
             format!(
                 "pick index: waits on {}, which failed — until the index builds, no pick is \
                  answered and the picture is not redrawn",
-                crate::tree::node_number(cause)
+                doc.spoken(cause)
             ),
             Tone::Advisory,
         )
@@ -3137,7 +3143,7 @@ mod tests {
 
     #[test]
     fn the_gather_verdict_badges_only_the_faults_nothing_else_carries() {
-        let node = RecipeNodeId(2);
+        let node = RecipeNodeId(test_utils::refusal::tagged(2));
 
         // The item's own reproduction: two roots colliding in the name
         // table. Not a node failure, so no per-node badge carries it —
@@ -3182,7 +3188,7 @@ mod tests {
             (
                 ProductError::Root(NodeStanding::Poisoned {
                     node,
-                    through: RecipeNodeId(1),
+                    through: RecipeNodeId(test_utils::refusal::tagged(1)),
                 }),
                 BadgeSite::FeatureTree,
             ),
@@ -3246,7 +3252,7 @@ mod tests {
                 carried: Vec::new(),
             },
             RowStatus::Poisoned {
-                through: RecipeNodeId(1),
+                through: RecipeNodeId(test_utils::refusal::tagged(1)),
                 message: None,
             },
             RowStatus::Unevaluated,
@@ -3321,10 +3327,13 @@ mod tests {
     /// commonest arm, and the one whose `Display` carries a remedy.
     fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
         Withdrawn {
-            instance: RecipeNodeId(instance),
+            instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::MateConstrained {
-                instance: RecipeNodeId(instance),
-                mates: mates.iter().copied().map(RecipeNodeId).collect(),
+                instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
+                mates: mates
+                    .iter()
+                    .map(|&mate| RecipeNodeId(test_utils::refusal::tagged(mate)))
+                    .collect(),
             },
         }
     }
@@ -3338,7 +3347,7 @@ mod tests {
         // line instead of to the notices is erased by its own cause.
         let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
-            notice.contains("instance 7"),
+            notice.contains("instance 000000000007"),
             "the notice names which of the user's placements went — here in \
              the part-instance vocabulary, because the MateConstrained arm's \
              subject is an instance. That is `AdmissionFault`'s per-arm rule \
@@ -3378,8 +3387,8 @@ mod tests {
         // sentence names the mates AND the remedy, and neither string
         // is written here — both come from `AdmissionFault`'s `Display`.
         let cause = AdmissionFault::MateConstrained {
-            instance: RecipeNodeId(3),
-            mates: vec![RecipeNodeId(5)],
+            instance: RecipeNodeId(test_utils::refusal::tagged(3)),
+            mates: vec![RecipeNodeId(test_utils::refusal::tagged(5))],
         };
         let notice = superseded_text(&[constrained(3, &[5])]).expect("news");
         assert!(
@@ -3395,15 +3404,15 @@ mod tests {
         // not say: an instance that is GONE says so, rather than being
         // named as if the tree still drew it.
         let gone = superseded_text(&[Withdrawn {
-            instance: RecipeNodeId(4),
+            instance: RecipeNodeId(test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: RecipeNodeId(4),
+                node: RecipeNodeId(test_utils::refusal::tagged(4)),
             },
         }])
         .expect("news");
         assert_eq!(
             gone,
-            "free move: a committed placement was discarded — node 4 is not in the document"
+            "free move: a committed placement was discarded — node 000000000004 is not in the document"
         );
     }
 
@@ -3415,11 +3424,11 @@ mod tests {
         // free-move preamble are both absent, and the fault says which
         // of the two things happened to the picture.
         let fused = Withdrawn {
-            instance: RecipeNodeId(3),
+            instance: RecipeNodeId(test_utils::refusal::tagged(3)),
             cause: AdmissionFault::FusedGeometry {
-                instance: RecipeNodeId(3),
-                root: RecipeNodeId(8),
-                others: vec![RecipeNodeId(5)],
+                instance: RecipeNodeId(test_utils::refusal::tagged(3)),
+                root: RecipeNodeId(test_utils::refusal::tagged(8)),
+                others: vec![RecipeNodeId(test_utils::refusal::tagged(5))],
             },
         };
         let notice = dropped_hide_text(core::slice::from_ref(&fused)).expect("news");
@@ -3465,17 +3474,17 @@ mod tests {
         // Reachable in production: one boolean fusing two hidden
         // instances withdraws both hides in one prune.
         let fused = |instance: u64, other: u64| Withdrawn {
-            instance: RecipeNodeId(instance),
+            instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
             cause: AdmissionFault::FusedGeometry {
-                instance: RecipeNodeId(instance),
-                root: RecipeNodeId(8),
-                others: vec![RecipeNodeId(other)],
+                instance: RecipeNodeId(test_utils::refusal::tagged(instance)),
+                root: RecipeNodeId(test_utils::refusal::tagged(8)),
+                others: vec![RecipeNodeId(test_utils::refusal::tagged(other))],
             },
         };
         let gone = Withdrawn {
-            instance: RecipeNodeId(4),
+            instance: RecipeNodeId(test_utils::refusal::tagged(4)),
             cause: AdmissionFault::NoSuchNode {
-                node: RecipeNodeId(4),
+                node: RecipeNodeId(test_utils::refusal::tagged(4)),
             },
         };
 
@@ -3505,7 +3514,7 @@ mod tests {
         assert_eq!(
             dropped_hide_text(core::slice::from_ref(&gone)).expect("news"),
             "hide: a hide was dropped with the instance it was on — \
-             node 4 is not in the document"
+             node 000000000004 is not in the document"
         );
     }
 
@@ -3519,7 +3528,7 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             instance 3 is mate-constrained (mate node(s) 5): its pose is \
+             instance 000000000003 is mate-constrained (mate node(s) 000000000005): its pose is \
              mate-derived, so the free-move probe refuses — delete the mate(s) if \
              free relative motion is intended"
         );
@@ -3686,16 +3695,16 @@ mod tests {
             unresolved(ResolveFault::EpsilonSeam),
             unresolved(ResolveFault::Unresolved),
             PartFault::PartRootFailed {
-                node: RecipeNodeId(7),
+                node: RecipeNodeId(test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
             PartFault::PartRootPoisoned {
-                root: RecipeNodeId(8),
-                through: RecipeNodeId(7),
+                root: RecipeNodeId(test_utils::refusal::tagged(8)),
+                through: RecipeNodeId(test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
             PartFault::RootFailureUnrecorded {
-                node: RecipeNodeId(7),
+                node: RecipeNodeId(test_utils::refusal::tagged(7)),
             },
             PartFault::PartProduct {
                 kind: ProductErrorKind::RootFailed,

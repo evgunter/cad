@@ -2233,7 +2233,7 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
     // the axis — and takes the funnel's escalation rather than a poison
     // direction.
     if u_win.is_some() || v_win.is_some() {
-        geom_core::k_stats::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
+        crate::validate::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
             .map_err(escalate)?;
     }
     if let Some(az) = u_win {
@@ -2661,7 +2661,7 @@ fn chart_azimuth_margin<T: Decide>(
     }
     let r_hat = radial / radial.norm();
     let half = T::from_f64(0.5);
-    let m_hat = chart_dir(axis, u_ref, (w_min + w_max) * half);
+    let m_hat = chart_dir(axis, u_ref, geom::mid_param(w_min, w_max));
     let (_, c_h) = (width * half).sin_cos();
     // Ledger row F8: the cone term's (cosΔ − cos h)·r collapses
     // quadratically for narrow windows — conservative direction, the
@@ -2957,7 +2957,7 @@ pub(super) fn sphere_chart_trim<T: Decide>(
                 // and has no angular gate to test: out of the class.
                 Sign::Zero | Sign::Negative => return Ok(None),
             }
-            let m_hat = chart_dir(n_c, u_c, (t0 + t1) * half);
+            let m_hat = chart_dir(n_c, u_c, geom::mid_param(t0, t1));
             let (_, c_h) = (width * half).sin_cos();
             for pole in [axis, axis * (T::zero() - T::one())] {
                 match decide(
@@ -3265,7 +3265,7 @@ pub(super) fn point_on_sphere_in_face<T: Decide>(
     .collect();
     if let Some((w_min, w_max)) = trim.az {
         let width = w_max - w_min;
-        let m_hat = chart_dir(axis, u_ref, (w_min + w_max) * half);
+        let m_hat = chart_dir(axis, u_ref, geom::mid_param(w_min, w_max));
         let (_, c_h) = (width * half).sin_cos();
         // The azimuth direction is the radial one, and at a POLE there
         // is none: every azimuth meets there, so the window cannot
@@ -3782,6 +3782,55 @@ pub(super) fn line_wall_roots<T: Decide>(
         disc / two_r.powi(2),
         band,
         "F2",
+    )? {
+        Sign::Positive => {}
+        Sign::Zero => return Ok(WallRoots::Tangent),
+        Sign::Negative => return Ok(WallRoots::Miss),
+    }
+    let root = disc.max(T::zero()).sqrt();
+    Ok(WallRoots::Two([
+        (T::zero() - b2 - root) / a2,
+        (T::zero() - b2 + root) / a2,
+    ]))
+}
+
+/// The certified roots of the LINE `q + d·t` against the sphere
+/// `(center, radius)`: `|d|²t² + 2(w·d)t + (|w|² − r²) = 0`, `w = q − c`.
+/// `d` need not be unit — a ray's is, and a `Line` carrier's is by a
+/// convention nothing checks — so the roots are in `d`'s own parameter.
+///
+/// The discriminant is metered as a LENGTH: `disc/|d|²` is the squared
+/// half-chord in metres, so `disc/(|d|²·2r)` is the D4 ¶1-honest
+/// margin. That is NOT what [`line_wall_roots`] does with its own
+/// (`disc/(2r)²`, dimensionless); the length form here is the correct
+/// one, and the cylinder's is pinned where it stands.
+///
+/// A line is never parallel to a sphere in the sense a wall's ruling
+/// is, so [`WallRoots::AxisParallel`] is never answered, and no line
+/// lies on a sphere: two distinct roots certify the line is off it.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] — an in-band discriminant decision the
+/// band cannot call, or a zero-length `d` (no line at all). The caller
+/// wraps it in its own error type.
+pub(super) fn line_sphere_roots<T: Decide>(
+    q: Point3<T>,
+    d: Vec3<T>,
+    center: Point3<T>,
+    radius: T,
+    band: Band,
+) -> Result<WallRoots<T>, geom_core::Indeterminate> {
+    let w0 = q - center;
+    let a2 = d.norm_squared();
+    let b2 = w0.dot(d);
+    let c2 = w0.norm_squared() - radius.powi(2);
+    let disc = b2.powi(2) - a2 * c2;
+    let two_r = T::from_f64(2.0) * radius;
+    match decide(
+        "bool_ray_sphere_disc",
+        Margin::over_lever(disc / a2, two_r),
+        band,
     )? {
         Sign::Positive => {}
         Sign::Zero => return Ok(WallRoots::Tangent),
@@ -4615,21 +4664,8 @@ fn cast_ray<T: Decide>(
                     }
                 }
             }
-            // The full-sphere pierce arm (M5 PR 9c). With `d` a unit
-            // direction the ray/sphere system is monic in `t`:
-            // `t² + 2(w·d)t + (|w|² − r²) = 0`, `w = q − c`. The
-            // discriminant is metered as a LENGTH: `√disc` is the
-            // half-chord in metres, so `disc` is m² and `disc / 2r` is
-            // the D4 ¶1-honest margin.
-            //
-            // This is NOT what the cylinder arm above does: it divides
-            // its own discriminant by `(2r)²`, which is dimensionless.
-            // The length-dimensioned form here is the correct one.
-            // Normalizing the cylinder arm to match is deliberately NOT
-            // done in passing — its margins are pinned by the PR 9
-            // acceptance rows and a metering change moves every one of
-            // them, so it is flagged for a unit that can re-pin them
-            // (PR 9c review, F3).
+            // The full-sphere pierce arm: the quadratic of
+            // [`line_sphere_roots`], whose metering that function states.
             //
             // Zero ⇒ the ray is tangent: a graze, retried on
             // the next schedule member, never a parity guess.
@@ -4649,23 +4685,12 @@ fn cast_ray<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let w0 = q - center;
-                let b2 = w0.dot(d);
-                let c2 = w0.norm_squared() - radius.powi(2);
-                let disc = b2.powi(2) - c2;
-                let two_r = T::from_f64(2.0) * radius;
-                match decide(
-                    "bool_ray_sphere_disc",
-                    Margin::over_lever(disc, two_r),
-                    band,
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    Sign::Zero => return Ok(None), // tangent ray: graze
-                    Sign::Negative => continue,    // definite miss
-                }
-                let root = disc.max(T::zero()).sqrt();
+                let [near, far] =
+                    match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
+                        WallRoots::Two(ts) => ts,
+                        WallRoots::Tangent => return Ok(None), // tangent ray: graze
+                        WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
+                    };
                 // The near/far outward pair is read off the geometry
                 // (`d·(p − c)/r = ±√disc/r`) and is therefore a CHART
                 // statement: it says the near root enters the BALL and
@@ -4674,8 +4699,8 @@ fn cast_ray<T: Decide>(
                 // a reversed sphere face bounds the material OUTSIDE
                 // it — so the pair is swapped rather than recomputed.
                 for (t, outward) in [
-                    (T::zero() - b2 - root, oriented(Sign::Negative, sense)),
-                    (T::zero() - b2 + root, oriented(Sign::Positive, sense)),
+                    (near, oriented(Sign::Negative, sense)),
+                    (far, oriented(Sign::Positive, sense)),
                 ] {
                     if fold(&mut best, face, t, outward)?.is_none() {
                         return Ok(None);
@@ -4696,26 +4721,15 @@ fn cast_ray<T: Decide>(
                 ref trim,
                 sense,
             } => {
-                let w0 = q - center;
-                let b2 = w0.dot(d);
-                let c2 = w0.norm_squared() - radius.powi(2);
-                let disc = b2.powi(2) - c2;
-                let two_r = T::from_f64(2.0) * radius;
-                match decide(
-                    "bool_ray_sphere_disc",
-                    Margin::over_lever(disc, two_r),
-                    band,
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    Sign::Zero => return Ok(None), // tangent ray: graze
-                    Sign::Negative => continue,    // definite miss
-                }
-                let root = disc.max(T::zero()).sqrt();
+                let [near, far] =
+                    match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
+                        WallRoots::Two(ts) => ts,
+                        WallRoots::Tangent => return Ok(None), // tangent ray: graze
+                        WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
+                    };
                 for (t, outward) in [
-                    (T::zero() - b2 - root, oriented(Sign::Negative, sense)),
-                    (T::zero() - b2 + root, oriented(Sign::Positive, sense)),
+                    (near, oriented(Sign::Negative, sense)),
+                    (far, oriented(Sign::Positive, sense)),
                 ] {
                     let p = q + d * t;
                     match point_on_sphere_in_face(face, center, radius, axis, u_ref, trim, p, band)?
@@ -4942,7 +4956,7 @@ mod per_solid_entry_tests {
         let tol = Tol::witness();
         let mut body = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
         let other = quad_prism(&[(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], 1.0, tol);
-        crate::instance::graft_disjoint(&mut body, &other, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &other).unwrap();
         body
     }
 

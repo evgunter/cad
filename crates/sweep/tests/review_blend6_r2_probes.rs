@@ -356,7 +356,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
 
     let mut two = cube(L, Tol::witness());
     let other = cube(L, Tol::witness());
-    topo::instance::graft_disjoint_all(&mut two, &other, Tol::witness()).expect("a disjoint graft");
+    topo::instance::graft_disjoint_all(&mut two, &other).expect("a disjoint graft");
     let two_edges = query::all_edges(&two);
     out.push((
         "two-solid body",

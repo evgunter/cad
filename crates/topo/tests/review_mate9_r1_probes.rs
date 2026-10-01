@@ -115,9 +115,9 @@ fn r1_a_diving_edge_crossing_is_not_backed_by_the_seat_pair() {
     let spike = common::brick::<f64>((0.45, 0.55), (0.30, 0.38), (0.40, 0.60), Tol::witness());
     let post_top = post.top_face;
     let mut body = post.body;
-    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
-    topo::graft_disjoint_all_keyed(&mut body, &spike, Tol::witness()).unwrap();
+    topo::graft_disjoint_all_keyed(&mut body, &spike).unwrap();
 
     // The witness is a coordinate triple, and a crossing witness may
     // carry a trailing side-verdict clause after it — so both probes
@@ -208,8 +208,8 @@ fn r1_a_skew_pair_names_no_side_verdict_without_a_shared_carrier() {
     let post_side_x030 = post.side_faces[3];
     let wedge_45 = wedge.side_faces[0];
     let mut body = post.body;
-    let _ = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
-    let wkeys = topo::graft_disjoint_all_keyed(&mut body, &wedge.body, Tol::witness()).unwrap();
+    let _ = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
+    let wkeys = topo::graft_disjoint_all_keyed(&mut body, &wedge.body).unwrap();
     let wedge_45 = wkeys.face(wedge_45).unwrap();
 
     let found = errors(&body, &declared(&[(post_side_x030, wedge_45)]));

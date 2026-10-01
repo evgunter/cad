@@ -31,8 +31,6 @@ them has moved since.
 
 - `slab-cut-cylinder-refuses-sector-side`: wire the second-order sector
   trilean (`enters_material_order2`) into the curved sector-side verdict.
-- `sphere-union-sphere-refuses-though-the-section-is-closed-form`: the
-  pierce layer for a sphere pair whose section is already exact.
 - `cosurface-disjoint-curved-walls-refuse`: designers first. The open
   question is what a same-sense cosurface pair is to the census.
 - `plane-cone-elliptic-section-split-refusal`: designers first, because

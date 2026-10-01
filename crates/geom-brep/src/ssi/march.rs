@@ -104,9 +104,10 @@
 //!   in band.
 
 use geom_core::linalg::svd::Svd;
-use geom_core::{Band, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Margin, Point3, Real, Sign, Vec3};
 
-use crate::dihedral::{decide, decide_positive};
+use crate::dihedral::{decide, decide_positive, decide_reported};
+use crate::recourse::Refused;
 
 use super::SsiError;
 use super::system::LocalSystem;
@@ -251,6 +252,20 @@ impl StepperMode {
     }
 }
 
+/// What is wrong with a step the stepper minted
+/// ([`SsiError::StepUnusable`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StepFault {
+    /// The march speed is not positive and finite, so it converts no
+    /// step into metres.
+    SpeedUnusable,
+    /// The step is not finite in some coordinate of the state.
+    NotFinite,
+    /// The step is below the resolution of the state's coordinates:
+    /// adding it leaves the state unchanged.
+    DoesNotMove,
+}
+
 /// How a traced branch ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BranchEnd {
@@ -305,6 +320,23 @@ pub(crate) struct MarchContext<const N: usize> {
     pub max_steps: usize,
 }
 
+impl<const N: usize> MarchContext<N> {
+    /// The domain box's diagonal, in state units: the longest step the
+    /// stepper takes. The trace ends at its first exit, so a longer step
+    /// buys nothing, and it costs the trace twice. Landed far outside the
+    /// domain, the step may not settle back onto the locus at all
+    /// (Newton fails, and the march loses its branch), or it puts the
+    /// crossing past what the boundary search's fixed bisections
+    /// resolve, so the trace ends at the state it left.
+    fn diagonal(&self) -> f64 {
+        self.domain
+            .iter()
+            .map(|[lo, hi]| (hi - lo) * (hi - lo))
+            .sum::<f64>()
+            .sqrt()
+    }
+}
+
 /// The unit normal of the locus's first surface at a state, and of the
 /// second — the pair whose angle is the transversality margin.
 pub(crate) type NormalPair = (Vec3<f64>, Vec3<f64>);
@@ -317,7 +349,10 @@ pub(crate) trait TransversalityData<const N: usize> {
     /// Unit normals of the two operands at the state.
     fn normals(&self, x: &[f64; N]) -> NormalPair;
     /// The folded curvature lever arm at the state, in meters
-    /// (`f64::MAX` where no curvature bounds it — the plane identity).
+    /// (`f64::MAX` where no curvature bounds it — the plane identity;
+    /// the march clamps it to the run's extent). A poisoned operand
+    /// makes the arm poison, so the arm guard escalates rather than
+    /// levering against the sibling's.
     fn lever_arm(&self, x: &[f64; N]) -> f64;
 }
 
@@ -328,8 +363,11 @@ pub(crate) trait TransversalityData<const N: usize> {
 /// [`SsiError::TransversalityBand`] in the σ₂ sliver band (toward C7),
 /// [`SsiError::StepCollapsed`], [`SsiError::StepBudget`],
 /// [`SsiError::SelfCrossingLocus`], [`SsiError::Escalated`] for any
-/// other in-band trilean, [`SsiError::SeedRefinementFailed`] when the
-/// seed will not settle onto the locus.
+/// other in-band trilean, [`SsiError::StepUnusable`] when the step
+/// minted from the march speed cannot be taken,
+/// [`SsiError::SeedRefinementFailed`] when the seed will not settle
+/// onto the locus, and [`SsiError::StepRefinementFailed`] when a step
+/// from the locus will not settle back onto it.
 pub(crate) fn march<const M: usize, const N: usize, S>(
     sys: &S,
     seed: [f64; N],
@@ -364,32 +402,26 @@ where
         // ---- 2. ssi_transversality (the σ₂ sliver band ⇒ C7) ----
         let (n1, n2) = sys.normals(&x);
         let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-        let arm = sys.lever_arm(&x).min(ctx.extent);
+        let arm = Real::min(sys.lever_arm(&x), ctx.extent);
         decide_positive("ssi_transversality_arm", Margin::of(arm), band)
             .map_err(SsiError::Escalated)?;
         let transversality = Margin::levered(sin_theta, arm);
         if transversality.value() < min_transversality {
             min_transversality = transversality.value();
         }
-        match decide("ssi_transversality", transversality, band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => {
-                // The sliver band: a tangential (or in-band tangential)
-                // contact along the candidate locus. C7's regime.
-                return Err(SsiError::TransversalityBand {
-                    sin_theta,
-                    arm,
-                    sigma_min: sigma,
-                });
-            }
-            Ok(Sign::Negative) => {
-                // sin θ · arm is a magnitude; a definite negative can
-                // only be poison arithmetic. Refuse rather than march.
-                return Err(SsiError::TransversalityBand {
-                    sin_theta,
-                    arm,
-                    sigma_min: sigma,
-                });
+        // Zero is the sliver band: a tangential (or in-band tangential)
+        // contact along the candidate locus, C7's regime. `sin θ · arm`
+        // is a magnitude, so a definite negative cannot arise.
+        match decide_reported("ssi_transversality", transversality, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(SsiError::TransversalityBand {
+                        sin_theta,
+                        arm,
+                        sigma_min: sigma,
+                        verdict,
+                    });
+                }
             }
             Err(diag) => return Err(SsiError::Escalated(diag)),
         }
@@ -411,30 +443,24 @@ where
         // Meters per unit of the march parameter (the state-space
         // tangent is a unit vector; the 3-D speed converts it).
         let speed = sys.tangent_speed(&x, &d1);
+        let unusable = |fault| SsiError::StepUnusable {
+            mode: mode.name(),
+            speed,
+            fault,
+        };
         if !speed.is_finite() || speed <= 0.0 {
-            // A speed OUTSIDE the positive-finite class can never
-            // convert a state step into meters: at zero the state
-            // moves and the point does not; at `±∞` or poison the
-            // step in state units divides to `0` and the meters it
-            // claims are indeterminate. Refuse rather than divide by
-            // it — and refuse HERE, so the caller is told the speed
-            // is unusable rather than being handed the step
-            // predicate's answer in its place. Positive finite is
-            // NECESSARY, not sufficient: a subnormal speed passes
-            // this test while `h` overflows anyway (the measured
-            // usability boundary is ~5.6e-312 at unit extent, not 0)
-            // — the finite-but-unusable window is issue 1238's.
-            return Err(SsiError::StepCollapsed {
-                mode: mode.name(),
-                step_meters: 0.0,
-            });
+            // At zero the state moves and the point does not; at `±∞`
+            // or poison the step divides to `0` and the meters it
+            // claims are indeterminate, which `ssi_step_progress` would
+            // escalate in the speed's place.
+            return Err(unusable(StepFault::SpeedUnusable));
         }
 
         // ---- 4./5. the step ----
         let (dx, h_meters) = match mode {
             StepperMode::Idealized => {
                 // The spec: a tangent line of fixed tiny length.
-                let h = (SSI_IDEALIZED_STEP * ctx.extent) / speed;
+                let h = Real::min((SSI_IDEALIZED_STEP * ctx.extent) / speed, ctx.diagonal());
                 (scale(&d1, h), h * speed)
             }
             StepperMode::Realized => {
@@ -444,18 +470,25 @@ where
                 let b3 = sys.rhs3(&x, &d1, &d2);
                 let mut d3 = svd.solve_min_norm(&b3);
                 // Frenet: γ₃ = −κ².
+                let kappa_sq = kappa * kappa;
                 for (i, v) in d3.iter_mut().enumerate() {
-                    *v -= kappa * kappa * d1[i];
+                    *v -= kappa_sq * d1[i];
                 }
                 let n3 = norm(&d3);
                 // (a) Hoffmann's relative heuristic: |h²κ/2| ≤ ρ·h and
                 //     |h³‖d₃‖/6| ≤ ρ·h.
-                let h_quad = if kappa > 0.0 {
+                // κ and ‖d₃‖ are the system's own answers, so each
+                // bound is unbounded only at an exact zero and a
+                // poisoned one carries through `h` to the step guard.
+                // An overflowed κ² is not poison but makes ‖d₃‖ NaN
+                // through ∞·0 in the correction above; `h_quad` already
+                // binds there, so the cubic rung stands aside.
+                let h_quad = if kappa != 0.0 {
                     2.0 * SSI_STEP_RELATIVE / kappa
                 } else {
                     f64::INFINITY
                 };
-                let h_cub = if n3 > 0.0 {
+                let h_cub = if n3 != 0.0 && kappa_sq != f64::INFINITY {
                     (6.0 * SSI_STEP_RELATIVE / n3).sqrt()
                 } else {
                     f64::INFINITY
@@ -463,6 +496,10 @@ where
                 // (b) the fit's between-sample budget (module docs).
                 // κ and ‖d₃‖ are in state units; the curvature that
                 // governs the 3-D fit is κ/speed², so convert once.
+                // `> 0.0`, not `!= 0.0`: the quotient is NaN at an
+                // underflowing speed (0/0) or an overflowing one (∞/∞),
+                // which is the speed's fault, not a poisoned κ — and a
+                // poisoned κ already reaches `h` through `h_quad`.
                 let kappa3d = kappa / (speed * speed);
                 let h_fit = if kappa3d > 0.0 {
                     // ¼ power as TWO square roots, not `powf(0.25)`:
@@ -480,7 +517,9 @@ where
                     f64::INFINITY
                 };
                 let h_max = (SSI_STEP_MAX * ctx.extent) / speed;
-                let h = h_quad.min(h_cub).min(h_fit).min(h_max);
+                let h = [h_cub, h_fit, h_max, ctx.diagonal()]
+                    .into_iter()
+                    .fold(h_quad, Real::min);
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
                     *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
@@ -496,21 +535,37 @@ where
                 return Err(SsiError::StepCollapsed {
                     mode: mode.name(),
                     step_meters: h_meters,
+                    speed,
                 });
             }
             Err(diag) => return Err(SsiError::Escalated(diag)),
         }
 
+        // The step itself, where it is minted: a positive finite speed
+        // still overflows `h` (or `h²` in the realized approximant) when
+        // it is small enough, and a large one shrinks the step below
+        // the state's resolution. Either way no ε would help, so the
+        // refusal names the speed. Asked after `ssi_step_progress`, so
+        // a poisoned κ still escalates there.
         let mut next = x;
         for (i, v) in next.iter_mut().enumerate() {
             *v += dx[i];
         }
+        if !dx.iter().all(|d| d.is_finite()) {
+            return Err(unusable(StepFault::NotFinite));
+        }
+        if next == x {
+            return Err(unusable(StepFault::DoesNotMove));
+        }
 
         // ---- 6. Newton refinement to the surface pair ----
         let Some(refined) = newton_refine(sys, next, ctx.tol) else {
-            // A step that will not settle is a step into nothing: end
-            // the branch honestly rather than record a bad sample.
-            return Err(SsiError::SeedRefinementFailed { mode: mode.name() });
+            // A step that will not settle is a step into nothing:
+            // refuse rather than record a bad sample.
+            return Err(SsiError::StepRefinementFailed {
+                mode: mode.name(),
+                step_meters: h_meters,
+            });
         };
         next = refined;
         steps += 1;
@@ -726,7 +781,7 @@ where
     for (i, s) in scales.iter().enumerate() {
         let lo = (x[i] - ctx.domain[i][0]) * s;
         let hi = (ctx.domain[i][1] - x[i]) * s;
-        worst = worst.min(lo).min(hi);
+        worst = [lo, hi].into_iter().fold(worst, Real::min);
     }
     worst
 }
@@ -866,20 +921,41 @@ where
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        LocalSystem, MarchContext, MarchTol, NormalPair, SsiError, StepperMode, TransversalityData,
-        march,
+        LocalSystem, MarchContext, MarchTol, NormalPair, SsiError, StepFault, StepperMode,
+        TransversalityData, march,
     };
     use geom_core::{Band, Point3, Vec3};
 
     /// A two-plane system in ℝ³ whose locus is the `x` axis, with the
-    /// chart speed dictated by the row. The residual is exact at the
-    /// seed, the Jacobian is constant, and the two normals meet at a
-    /// right angle with an unbounded lever arm — so the only thing a
-    /// march over this system can refuse on is the speed, and the
-    /// refusal it produces is the speed guard's own.
+    /// chart speed, the order-2 and order-3 right-hand sides, the `x`
+    /// coordinate scale and the lever arm dictated by the row. The
+    /// residual is exact at the seed, the Jacobian is constant, and the
+    /// two normals meet at a right angle — so the only thing a march
+    /// over this system can refuse on is the one value the row spoils,
+    /// and the refusal it produces names that value's guard.
     struct FixedSpeedR3 {
         /// Meters per unit of the march parameter.
         speed: f64,
+        /// Both components of the order-2 right-hand side.
+        rhs2: f64,
+        /// Both components of the order-3 right-hand side.
+        rhs3: f64,
+        /// Meters per unit of the `x` coordinate.
+        x_scale: f64,
+        /// The lever arm the system reports, before the march's clamp.
+        arm: f64,
+    }
+
+    impl FixedSpeedR3 {
+        fn at_speed(speed: f64) -> Self {
+            Self {
+                speed,
+                rhs2: 0.0,
+                rhs3: 0.0,
+                x_scale: 1.0,
+                arm: f64::MAX,
+            }
+        }
     }
 
     impl LocalSystem<2, 3> for FixedSpeedR3 {
@@ -892,11 +968,11 @@ mod tests {
         }
 
         fn rhs2(&self, _x: &[f64; 3], _d1: &[f64; 3]) -> [f64; 2] {
-            [0.0, 0.0]
+            [self.rhs2, self.rhs2]
         }
 
         fn rhs3(&self, _x: &[f64; 3], _d1: &[f64; 3], _d2: &[f64; 3]) -> [f64; 2] {
-            [0.0, 0.0]
+            [self.rhs3, self.rhs3]
         }
 
         fn point(&self, x: &[f64; 3]) -> Point3<f64> {
@@ -904,7 +980,7 @@ mod tests {
         }
 
         fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
-            [1.0, 1.0, 1.0]
+            [self.x_scale, 1.0, 1.0]
         }
 
         fn tangent_speed(&self, _x: &[f64; 3], _d: &[f64; 3]) -> f64 {
@@ -918,13 +994,13 @@ mod tests {
         }
 
         fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
-            f64::MAX
+            self.arm
         }
     }
 
-    /// **The stepper's chart-speed guard**: only a POSITIVE FINITE
-    /// speed converts a state step into meters, and every value that is
-    /// not one is refused by the guard's own name.
+    /// **The stepper's speed guard**: only a POSITIVE FINITE speed
+    /// converts a state step into meters, and every value that is not
+    /// one is refused by the speed's own name.
     ///
     /// `+∞` is the case a `is_nan() || <= 0.0` test admits, and what
     /// follows it is not a silent wrong answer but a wrong DIAGNOSIS:
@@ -932,47 +1008,224 @@ mod tests {
     /// meters it claims are `0 · ∞ = NaN`, and `ssi_step_progress`
     /// escalates on an indeterminate margin — telling the caller the
     /// stepper cannot progress at this ε when the truth is that this
-    /// system has no usable chart speed and no ε would have helped.
-    /// The chart lane states the same duty one door over, in
-    /// `plane_nurbs_ssi`'s seeding guard.
+    /// system has no usable speed and no ε would have helped.
     ///
     /// All five non-positive-finite values are pinned together because
     /// the guard's obligation is the class, not the one member of it a
     /// predicate happened to miss.
     #[test]
-    fn a_non_finite_chart_speed_refuses_by_the_speeds_own_name() {
+    fn a_non_finite_march_speed_refuses_by_the_speeds_own_name() {
         let band = Band::new(1.0e-9, 1.0e-8).unwrap();
-        let ctx = MarchContext::<3> {
-            domain: [[-1.0, 1.0], [-1.0, 1.0], [-1.0, 1.0]],
-            extent: 1.0,
-            tol: MarchTol::from_band(band),
-            max_steps: 64,
-        };
         for speed in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -1.0] {
-            let sys = FixedSpeedR3 { speed };
-            match march(
+            let sys = FixedSpeedR3::at_speed(speed);
+            let r = march(
                 &sys,
-                [0.0, 0.0, 0.0],
-                ctx,
+                [0.0; 3],
+                unit_ctx(band),
                 StepperMode::Idealized,
                 1.0,
                 band,
-            ) {
-                Err(SsiError::StepCollapsed { mode, step_meters }) => {
+            );
+            match r {
+                Err(SsiError::StepUnusable {
+                    mode,
+                    speed: named,
+                    fault: StepFault::SpeedUnusable,
+                }) => {
                     assert_eq!(mode, StepperMode::Idealized.name());
-                    assert!(
-                        !step_meters.is_nan(),
-                        "the refusal must carry a number a reader can act on, \
-                         not the indeterminate the speed produced"
-                    );
+                    assert_eq!(named.to_bits(), speed.to_bits(), "the speed it names");
+                    let ending = SsiError::StepUnusable {
+                        mode,
+                        speed,
+                        fault: StepFault::SpeedUnusable,
+                    }
+                    .ending(crate::recourse::Reading::Build);
+                    assert_eq!(ending.as_deref(), Some(geom_core::KERNEL_DEFECT_ENDING));
                 }
                 Err(SsiError::Escalated(diag)) => panic!(
-                    "WRONG DIAGNOSIS: a chart speed of {speed:e} escalated on \
+                    "WRONG DIAGNOSIS: a march speed of {speed:e} escalated on \
                      {:?} instead of being refused as the speed it is",
                     diag.predicate
                 ),
                 other => panic!("expected the speed guard for {speed:e}, got {other:?}"),
             }
+        }
+    }
+
+    /// **The step is guarded where it is minted**, for the positive
+    /// finite speeds the class guard admits. Each row reached a wrong
+    /// diagnosis or none before the guard, measured at this unit's base:
+    ///
+    /// - a tiny speed in a unit box: the idealized step `1e-3/speed`
+    ///   overshot the box by up to `1e297` widths, the boundary search's
+    ///   32 bisections found no crossing, and the march answered `Ok`
+    ///   with a one-state trace (at `1e-300`), or the step overflowed
+    ///   and Newton answered `SeedRefinementFailed` (at `1e-320` and
+    ///   `5e-324`). The step is capped at the box's diagonal, so what
+    ///   the speed leaves is a step of `~3.5·speed` metres, which
+    ///   collapses into the band, naming the speed.
+    /// - a tiny speed in a box too wide for that cap: the realized
+    ///   step is `0.031` m, but its `h²` overflows in state units and
+    ///   `∞·0` made the step NaN, which Newton answered
+    ///   `SeedRefinementFailed`.
+    /// - a huge speed away from the origin: the step `1e-303` does not
+    ///   move a state at `0.5`, and the march spun to `StepBudget`.
+    #[test]
+    fn an_unusable_step_refuses_naming_the_speed() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let wide = MarchContext::<3> {
+            domain: [[-1.0e200, 1.0e200]; 3],
+            ..unit_ctx(band)
+        };
+        let rows = [
+            (1.0e-300, StepperMode::Idealized, unit_ctx(band), 0.0, None),
+            (1.0e-320, StepperMode::Idealized, unit_ctx(band), 0.0, None),
+            (
+                f64::from_bits(1),
+                StepperMode::Realized,
+                unit_ctx(band),
+                0.0,
+                None,
+            ),
+            (
+                1.0e-180,
+                StepperMode::Realized,
+                wide,
+                0.0,
+                Some(StepFault::NotFinite),
+            ),
+            (
+                1.0e300,
+                StepperMode::Idealized,
+                unit_ctx(band),
+                0.5,
+                Some(StepFault::DoesNotMove),
+            ),
+        ];
+        for (speed, mode, ctx, x0, fault) in rows {
+            let sys = FixedSpeedR3::at_speed(speed);
+            let r = march(&sys, [x0, 0.0, 0.0], ctx, mode, 1.0, band);
+            let named = match (fault, &r) {
+                (None, Err(SsiError::StepCollapsed { speed, .. })) => *speed,
+                (Some(want), Err(SsiError::StepUnusable { speed, fault, .. }))
+                    if *fault == want =>
+                {
+                    *speed
+                }
+                _ => panic!("speed {speed:e} ({mode:?}): expected {fault:?}, got {r:?}"),
+            };
+            assert_eq!(named.to_bits(), speed.to_bits(), "the speed it names");
+            let ending = r.unwrap_err().ending(crate::recourse::Reading::Build);
+            assert!(
+                ending
+                    .as_deref()
+                    .is_some_and(|e| e.starts_with("Recourse: bring the operands")),
+                "speed {speed:e}: {ending:?}"
+            );
+        }
+    }
+
+    /// The context every row below marches in.
+    fn unit_ctx(band: Band) -> MarchContext<3> {
+        MarchContext::<3> {
+            domain: [[-1.0, 1.0]; 3],
+            extent: 1.0,
+            tol: MarchTol::from_band(band),
+            max_steps: 64,
+        }
+    }
+
+    /// **A poisoned value reaches the guard that decides it**, rather
+    /// than being folded away by a `min` that keeps the other operand.
+    /// Each row poisons one input of one guarded fold and pins the
+    /// escalation by that guard's name: the lever arm through the
+    /// extent clamp to `ssi_transversality_arm`; the order-3 right-hand
+    /// side (with a finite, zero κ) through the cubic rung of the step
+    /// fold to `ssi_step_progress`; the order-2 right-hand side (κ
+    /// itself) to the same guard, through both `h_quad` and the κ²
+    /// correction in `‖d₃‖`, so this row goes red only when both paths
+    /// drop it; and a coordinate scale through the domain-margin fold
+    /// to `ssi_branch_open_end`.
+    #[test]
+    fn a_poisoned_fold_operand_escalates_at_its_own_guard() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let rows = [
+            (
+                FixedSpeedR3 {
+                    arm: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Idealized,
+                "ssi_transversality_arm",
+            ),
+            (
+                FixedSpeedR3 {
+                    rhs3: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Realized,
+                "ssi_step_progress",
+            ),
+            (
+                FixedSpeedR3 {
+                    rhs2: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Realized,
+                "ssi_step_progress",
+            ),
+            (
+                FixedSpeedR3 {
+                    x_scale: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Idealized,
+                "ssi_branch_open_end",
+            ),
+        ];
+        for (sys, mode, guard) in rows {
+            match march(&sys, [0.0, 0.0, 0.0], unit_ctx(band), mode, 1.0, band) {
+                Err(SsiError::Escalated(diag)) => {
+                    assert_eq!(diag.predicate, Some(guard), "the poisoned operand's guard");
+                }
+                other => panic!("expected {guard} to escalate, got {other:?}"),
+            }
+        }
+    }
+
+    /// **A NaN the arithmetic manufactures from finite inputs is not a
+    /// poisoned answer**, and must not escalate the step guard. A flat
+    /// locus at an underflowing speed makes the fit rung's `κ/speed²`
+    /// a `0/0`; a curvature whose square overflows makes the Frenet
+    /// correction's `κ²·0` an `∞·0`. Neither is the system's fault at
+    /// the step, so neither may surface as `ssi_step_progress`.
+    #[test]
+    fn a_nan_manufactured_from_finite_inputs_is_not_a_step_escalation() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let mut rows: Vec<FixedSpeedR3> = [1.0e-170, 1.0e-200, 1.0e-300]
+            .into_iter()
+            .map(FixedSpeedR3::at_speed)
+            .collect();
+        rows.push(FixedSpeedR3 {
+            rhs2: 1.0e200,
+            ..FixedSpeedR3::at_speed(1.0)
+        });
+        for sys in rows {
+            let r = march(
+                &sys,
+                [0.0; 3],
+                unit_ctx(band),
+                StepperMode::Realized,
+                1.0,
+                band,
+            );
+            assert!(
+                !matches!(&r, Err(SsiError::Escalated(d))
+                    if d.predicate == Some("ssi_step_progress")),
+                "speed {:e}, rhs2 {:e}: {r:?}",
+                sys.speed,
+                sys.rhs2
+            );
         }
     }
 

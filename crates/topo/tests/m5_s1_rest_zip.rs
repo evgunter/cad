@@ -11,11 +11,9 @@
 //!   (M9-3's ring-capable zip retired the old sub-frontier refusal);
 //! - ∖/∩ disposition rows on the PINNED REST fixtures (crosslap,
 //!   corner-flush): classification resolves them structurally
-//!   (operand A / typed Empty) without reaching a join door. NOT a
-//!   universal claim: a three-wall notch-fill REST ∖ refuses
-//!   `Containment(RayExhausted)` — a pre-existing containment-probe
-//!   exhaustion, unchanged by S1 (`review_s1_probes.rs` pins the
-//!   counterexample);
+//!   (operand A / typed Empty) without reaching a join door (the
+//!   three-wall notch-fill REST ∖ reaches the containment fallback
+//!   instead, `review_s1_probes.rs`);
 //! - undeclared doors unchanged (the ladder is law);
 //! - re-run bit-identity for the stacked union.
 //!
@@ -243,10 +241,8 @@ fn annular_rest_contact_unions_exactly_additively() {
 /// Crosslap ∖/∩ disposition rows (SPEC §1): on THIS fixture (and the
 /// corner-flush one above) classification resolves ∖/∩ structurally —
 /// no join door is reached, so there is no refusing door to re-text
-/// here. The claim is per-fixture, not universal: the three-wall
-/// notch-fill REST ∖ refuses `Containment(RayExhausted)` (pre-existing
-/// probe exhaustion, unchanged by S1) — `review_s1_probes.rs` pins
-/// that counterexample.
+/// here. The claim is per-fixture: the three-wall notch-fill REST ∖
+/// reaches the containment fallback instead (`review_s1_probes.rs`).
 #[test]
 fn rest_subtract_and_intersect_resolve_structurally() {
     let beam_a = brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), Tol::witness());

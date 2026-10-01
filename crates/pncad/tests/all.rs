@@ -327,6 +327,24 @@ fn blend_site_and_convexity_are_matchable(
     (where_it_broke, removes_material)
 }
 
+/// `BlendError::Escalated`'s decision: which question could not be
+/// taken, and so which lever the refusal hands its reader.
+fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
+    match decision {
+        BlendDecision::RadiusHeadroom => "radius_headroom",
+        BlendDecision::FaceClearance => "face_clearance",
+        BlendDecision::SpineRegularity => "spine_regularity",
+        BlendDecision::ChainG1 => "chain_g1",
+        BlendDecision::ChainArm => "chain_arm",
+        BlendDecision::ConvexitySign => "convexity_sign",
+        BlendDecision::RingClearance => "ring_clearance",
+        BlendDecision::SupportCoaxiality => "support_coaxiality",
+        BlendDecision::ContactSecondOrder => "contact_second_order",
+        BlendDecision::CornerIndependence => "corner_independence",
+        BlendDecision::CapTransverse => "cap_transverse",
+    }
+}
+
 /// `ValidationError::UndeclaredContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
 /// `EdgeFacePierce` is interpenetration and categorically undeclarable
@@ -559,6 +577,10 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             Convexity::Concave
         ),
         ("joint", false)
+    );
+    assert_eq!(
+        blend_decision_is_matchable(BlendDecision::CornerIndependence),
+        "corner_independence"
     );
 
     // Declarable vs categorically undeclarable, off the same refusal.
@@ -3580,11 +3602,7 @@ fn asm_r2a_mated_assembly(
             .into(),
         }],
     };
-    let axis = |origin: [f64; 3]| MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let axis = |origin: [f64; 3]| MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     // A mate head is a `SitedFace`: the fixture's claim that the name
     // it just built is a face is made where the name is built.
     let face_head = |name: pncad::prelude::StableName| {
@@ -3697,7 +3715,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// The crossing record is authored through `Node::instantiate_part_with`
 /// rather than harvested from the split, and deliberately so: for a
 /// PROPER mate edge no accepted cut can produce a crossing (the
-/// whole-cluster precondition — see editor-core's `row5_a`), and the
+/// whole-group precondition — see editor-core's `row5_a`), and the
 /// one shape that does mint one today has semantics pending Ev's
 /// AQ8 ruling. Authoring the record keeps this row about D9 — the
 /// same bits from the same recipe — rather than about a semantics
@@ -3754,7 +3772,7 @@ fn asm_r2b_child_crossing_probe() {
     .expect("the crossing-bearing instance inserts")
     .doc;
 
-    // The whole cluster split out — accepted, and the remainder is
+    // The whole group split out — accepted, and the remainder is
     // itself a crossing-bearing document.
     let store: std::sync::Arc<dyn pncad::document::PartResolver> = std::sync::Arc::new(ws.clone());
     let split = pncad::document::split(
@@ -3764,7 +3782,7 @@ fn asm_r2b_child_crossing_probe() {
         Tol::witness(),
         Some(&store),
     )
-    .expect("a whole-cluster cut splits");
+    .expect("a whole-group cut splits");
     let text =
         pncad::document::save(&split.remainder, &[], Tol::witness()).expect("the remainder saves");
     dir.write(
@@ -4148,8 +4166,8 @@ fn asm4_row6_split_bytes_agree_across_two_fresh_processes() {
 
 const ASM4_PROBE_OUT: &str = "ASM4_PROBE_OUT";
 
-/// The child half of row 6: build the deterministic two-cluster
-/// assembly, split its second cluster out, and write both documents'
+/// The child half of row 6: build the deterministic two-group
+/// assembly, split its second group out, and write both documents'
 /// save bytes.
 #[test]
 fn asm4_child_split_probe() {
@@ -4644,11 +4662,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-/// - **The step mint** (`StepMint`): the chain and log a document mints
-///   its profile step ids from, which `Doc::step_mint` answers. The
-///   doors read it and a consumer never writes it; what a consumer
-///   holds is the ids themselves (`StepId`), carried.
-const NOT_CARRIED: [&str; 92] = [
+/// - **The mint** (`Mint` and its log's `Minted` entries): the chain
+///   and log a document mints its node and profile step ids from,
+///   which `Doc::mint` answers. The doors read it and a consumer never
+///   writes it; what a consumer holds is the ids themselves
+///   (`RecipeNodeId`, `StepId`), carried.
+const NOT_CARRIED: [&str; 93] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4683,6 +4702,8 @@ const NOT_CARRIED: [&str; 92] = [
     "MetaValue",
     "MinClearanceLane",
     "MinClearanceOperand",
+    "Mint",
+    "Minted",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
@@ -4702,7 +4723,6 @@ const NOT_CARRIED: [&str; 92] = [
     "RunStatus",
     "SectionScalar",
     "SeedScalar",
-    "StepMint",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",

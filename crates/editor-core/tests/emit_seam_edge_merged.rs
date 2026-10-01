@@ -14,7 +14,8 @@
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
-use crate::fixture::{edge_of, member_entity, table};
+use crate::emit_shared_rim_several::is_rim_piece;
+use crate::fixture::{edge_of, table};
 
 use editor_core::{
     CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
@@ -98,10 +99,11 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     );
 }
 
-/// `a`'s rim between its top cap and its y = 1 wall publishes two
-/// pieces, x = 0.4..0.5 and x = 0.0..0.3 at y = z = 1: cells 1 and 3 of
-/// the four the body's vertices cut it into along −x (1.0, 0.5, 0.4, 0.3,
-/// 0.0). Cell 0 is `b`'s in these orders, and cell 2 is inside `c`.
+/// `a`'s rim between its top cap and its y = 1 wall publishes three
+/// pieces at y = z = 1, each named by its ends: the body's vertices cut
+/// the rim at 0.5, 0.4 and 0.3, x = 0.3..0.4 is inside `c`, and x =
+/// 0.5..1.0, where `a` runs flush with `b`, is named for `a`, the lesser
+/// member (`emit_union::Flush`).
 fn assert_rim_pieces(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -117,13 +119,12 @@ fn assert_rim_pieces(
             crate::fixture::piece(doc, a, 0, 2),
         )],
     };
-    let piece = |rank| {
-        let mut n = member_entity(union, a, rim.clone(), EntityKind::Edge);
-        n.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 4 }));
-        n
-    };
     let t = table(ev, union);
+    let pieces: Vec<StableName> = t
+        .iter()
+        .filter(|(n, _)| is_rim_piece(n, a, &rim))
+        .map(|(n, _)| n.clone())
+        .collect();
     let body = body_of(ev, union);
     let span = |n: &StableName| {
         let e = edge_of(t, "the rim piece", n);
@@ -140,12 +141,23 @@ fn assert_rim_pieces(
         let (x0, x1) = (x(edge.he_plus), x(edge.he_minus));
         (x0.min(x1), x0.max(x1))
     };
-    let spans = [span(&piece(1)), span(&piece(3))];
-    let near =
-        |(p, q): (f64, f64), (r, s): (f64, f64)| (p - r).abs() < 1e-12 && (q - s).abs() < 1e-12;
-    assert!(
-        near(spans[0], (0.4, 0.5)) && near(spans[1], (0.0, 0.3)),
-        "{order:?}: cells 1 and 3 of a's rim, got {spans:?}"
+    let micro = |x: f64| (x * 1e6).round() as i64;
+    let mut spans: Vec<(i64, i64)> = pieces
+        .iter()
+        .map(|n| {
+            assert!(
+                matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))),
+                "{order:?}: a piece of a's rim is named by its ends: {n:?}"
+            );
+            let (x0, x1) = span(n);
+            (micro(x0), micro(x1))
+        })
+        .collect();
+    spans.sort_unstable();
+    assert_eq!(
+        spans,
+        [(0.0, 0.3), (0.4, 0.5), (0.5, 1.0)].map(|(p, q)| (micro(p), micro(q))),
+        "{order:?}: a's rim pieces"
     );
 }
 

@@ -252,7 +252,22 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             sample: 4,
             cause: diag(),
         },
-        PlaneNurbsRefusal::Escalated(diag()),
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::OnLocus,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::HullSup,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::Tube,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
+        PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
+            axis: geom_brep::ChartAxis::U,
+        }),
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },
@@ -268,6 +283,7 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
+        CertifyError::NurbsLaneNotSupplied,
         CertifyError::IntersectionSameSurface { key },
         CertifyError::SeamOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
@@ -340,6 +356,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::FittedEscalated { cause: diag() },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
@@ -372,6 +389,7 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
             cause: diag(),
@@ -774,6 +792,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
         ValidationError::LeakedNullFaceRecord { face },
         ValidationError::StaleNullFaceLoop {
+            face,
+            named_loop: loop_,
+        },
+        ValidationError::StaleNullFaceOwnership {
             face,
             named_loop: loop_,
         },

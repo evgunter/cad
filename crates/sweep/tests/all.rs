@@ -107,6 +107,8 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
+#[path = "placeholder_chart_boundary.rs"]
+mod placeholder_chart_boundary;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -115,6 +117,8 @@ mod r1_mate3_probes;
 mod r2_mate3_probes;
 #[path = "r2_mesh1_donut_probes.rs"]
 mod r2_mesh1_donut_probes;
+#[path = "rehome_rings_lune.rs"]
+mod rehome_rings_lune;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -160,6 +164,8 @@ mod verbs_shell;
 
 #[path = "axis_lap.rs"]
 mod axis_lap;
+#[path = "band_ruled_cap_ring.rs"]
+mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
@@ -196,6 +202,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "contained_flush_cylinder.rs"]
+mod contained_flush_cylinder;
 #[path = "contfp_reads_arcs_on_their_carriers.rs"]
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "encl_curved_loft_shell.rs"]
@@ -422,6 +430,8 @@ mod s49_census_jurisdiction;
 mod seat6_germ_channel;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
+#[path = "split_section_rings.rs"]
+mod split_section_rings;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -553,6 +563,8 @@ mod mate7a_r1_probes;
 mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "snowman.rs"]
+mod snowman;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
@@ -777,9 +789,6 @@ mod wire_loft_end_profile_lift;
 
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
-
-#[path = "review_recourse_roster_r1_probes.rs"]
-mod review_recourse_roster_r1_probes;
 
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;
