@@ -6264,8 +6264,11 @@ def split(
     a dead gauge reference (`dead_gauge_reference`), a cut of unplaced
     material alone (`unplaced_alone`), a hoisted member's further
     offset (`hoisted_member_offset`), and a kept mate that would start
-    placing (`would_start_placing`) or whose cut side would change
-    coordinates (`mate_frame_crosses`)."""
+    placing (`would_start_placing`), whose cut side would change
+    coordinates (`mate_frame_crosses`), or whose cut side's frame is
+    `MateFrame.from_face` (`mate_face_frame_crosses`): the face's name
+    is the cut instance's part's, which the new part does not carry
+    unwrapped."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the

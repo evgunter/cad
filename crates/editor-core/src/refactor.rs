@@ -415,6 +415,20 @@ pub enum SplitError {
         /// Which of its sides crosses.
         side: crate::mate::MateSide,
     },
+    /// **A `FromFace` side would cross the seam**: a kept mate's side
+    /// that reads a cut instance names its frame as a face of that
+    /// instance's part, in the part's own spelling, and once the side
+    /// reads the instance the split leaves behind the name is not a
+    /// row of the new part's table. The face would be in the new
+    /// part, under the name the inner instance wraps it in; the
+    /// re-spelling is not built, so the split refuses rather than
+    /// leave a frame naming nothing.
+    MateFaceFrameCrosses {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which of its sides crosses.
+        side: crate::mate::MateSide,
+    },
     /// **A hoisted group's member carries a further offset**: the hoist
     /// lands the root at the empty chain, so a member's offset, stated
     /// against the root's old place, would no longer hold.
@@ -598,6 +612,19 @@ impl core::fmt::Display for SplitError {
                  mean another place. {}",
                 side.name(),
                 Recourse(&format!("delete mate {m}, then split", m = mate.0)),
+                m = mate.0
+            ),
+            Self::MateFaceFrameCrosses { mate, side } => write!(
+                f,
+                "split: mate {m}'s {} side reads a cut instance and its frame names a face of \
+                 that instance's part, a name the new part's table does not carry, so the frame \
+                 would name nothing. {}",
+                side.name(),
+                Recourse(&format!(
+                    "author mate {m}'s {} frame as numbers, or delete mate {m}, then split",
+                    side.name(),
+                    m = mate.0
+                )),
                 m = mate.0
             ),
             Self::HoistedMemberOffset { instance } => write!(
@@ -838,6 +865,18 @@ pub enum InlineError {
         /// Which of its sides.
         side: crate::mate::MateSide,
     },
+    /// **A `FromFace` side would cross the seam**: a host mate's side
+    /// that reads the instance names its frame as a face of the
+    /// referenced document, in that document's spelling, and once the
+    /// side reads the spliced inner node the name is not a row of the
+    /// inner instance's part. The re-spelling is not built, so inline
+    /// refuses rather than leave a frame naming nothing.
+    MateFaceFrameCrosses {
+        /// The host mate.
+        mate: RecipeNodeId,
+        /// Which of its sides.
+        side: crate::mate::MateSide,
+    },
     /// **Two placing mates of one pair would read two pairs** (A4's
     /// fold rule): they relate the instance to one host member, and
     /// re-anchored they would relate two inner instances to it, which
@@ -972,6 +1011,19 @@ impl core::fmt::Display for InlineError {
                  another place. {}",
                 side.name(),
                 Recourse(&format!("delete mate {m}, then inline", m = mate.0)),
+                m = mate.0
+            ),
+            Self::MateFaceFrameCrosses { mate, side } => write!(
+                f,
+                "inline: mate {m}'s {} side reads the instance and its frame names a face of the \
+                 referenced document, a name the inner instance's part does not carry, so the \
+                 frame would name nothing. {}",
+                side.name(),
+                Recourse(&format!(
+                    "author mate {m}'s {} frame as numbers, or delete mate {m}, then inline",
+                    side.name(),
+                    m = mate.0
+                )),
                 m = mate.0
             ),
             Self::MatePairSplits { first, second } => write!(
@@ -2029,7 +2081,10 @@ pub fn split(
     // tears its group, and a declaring one, or one whose cut side read
     // no instance, would start); and its cut side's coordinates must
     // not change, so an instance it reads must be, in the part, its
-    // group's root at the empty chain on the part's world.
+    // group's root at the empty chain on the part's world. A cut side
+    // whose frame is `FromFace` refuses besides: its name is a row of
+    // the cut instance's part, which the new part carries only wrapped
+    // at the inner instance, and that re-spelling is not built.
     let root_lands_empty = |instance: RecipeNodeId| match hoisted {
         Some((_, root)) => root == instance,
         None => cut_groups.iter().any(|&(_, root, cause)| {
@@ -2042,12 +2097,15 @@ pub fn split(
         if cut.contains(&mate) {
             continue;
         }
-        let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+        let Some(Node::Mate {
+            a, b, alignment, ..
+        }) = doc.node(mate)
+        else {
             continue;
         };
-        for (side, inner, outer) in [
-            (crate::mate::MateSide::A, a, b),
-            (crate::mate::MateSide::B, b, a),
+        for (side, inner, outer, frame) in [
+            (crate::mate::MateSide::A, a, b, &alignment.a),
+            (crate::mate::MateSide::B, b, a, &alignment.b),
         ] {
             let Some(kept) = crate::mate::member_of(doc, outer) else {
                 continue;
@@ -2064,6 +2122,9 @@ pub fn split(
                     || !root_lands_empty(read.instance))
             {
                 return Err(SplitError::MateFrameCrosses { mate, side });
+            }
+            if frame.face().is_some() {
+                return Err(SplitError::MateFaceFrameCrosses { mate, side });
             }
         }
     }
@@ -2628,15 +2689,21 @@ pub fn inline(
     // rebind below re-anchors onto the inner name. The inner instance
     // must be its part group's root at the empty chain on the part's
     // world, so the frame means what it meant; and the placing mates
-    // of one pair must still read one pair.
+    // of one pair must still read one pair. A side whose frame is
+    // `FromFace` refuses besides: its name is a row of the referenced
+    // document, not of the inner instance's part, and the re-spelling
+    // is not built.
     let mut pair_reads: Vec<(crate::mate::Member, RecipeNodeId, RecipeNodeId)> = Vec::new();
     for &mate in doc.order() {
-        let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+        let Some(Node::Mate {
+            a, b, alignment, ..
+        }) = doc.node(mate)
+        else {
             continue;
         };
-        for (side, here, there) in [
-            (crate::mate::MateSide::A, a, b),
-            (crate::mate::MateSide::B, b, a),
+        for (side, here, there, frame) in [
+            (crate::mate::MateSide::A, a, b, &alignment.a),
+            (crate::mate::MateSide::B, b, a, &alignment.b),
         ] {
             let [RoleSeg::InPart { of }] = &here.name.path[..] else {
                 continue;
@@ -2652,6 +2719,9 @@ pub fn inline(
             }) else {
                 return Err(InlineError::MateFrameCrosses { mate, side });
             };
+            if frame.face().is_some() {
+                return Err(InlineError::MateFaceFrameCrosses { mate, side });
+            }
             if let Some(other) = crate::mate::member_of(doc, there)
                 && crate::mate::places(doc, instance, other.instance)
             {

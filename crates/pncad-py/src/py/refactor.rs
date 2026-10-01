@@ -287,7 +287,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
         ),
         // The mate is the subject; which side crosses is in the message.
-        E::WouldStartPlacing { mate } | E::MateFrameCrosses { mate, .. } => (
+        E::WouldStartPlacing { mate }
+        | E::MateFrameCrosses { mate, .. }
+        | E::MateFaceFrameCrosses { mate, .. } => (
             id(mate),
             none(),
             none(),
@@ -663,7 +665,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::MateFrameCrosses { mate, .. } => (
+        E::MateFrameCrosses { mate, .. } | E::MateFaceFrameCrosses { mate, .. } => (
             id(mate),
             none(),
             none(),

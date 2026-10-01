@@ -4982,6 +4982,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inline_edit",
             "instance_body_name_referenced",
             "instance_consumed",
+            "mate_face_frame_crosses",
             "mate_frame_crosses",
             "mate_pair_splits",
             "mate_placed",
@@ -5745,6 +5746,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dead_gauge_reference",
             "empty_cut",
             "hoisted_member_offset",
+            "mate_face_frame_crosses",
             "mate_frame_crosses",
             "name_on_dropped_step",
             "name_straddles_cut",
@@ -6129,6 +6131,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("join", 2),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
+    ("mate_face_frame_crosses", 2),
     ("mate_frame_crosses", 2),
     ("measure_malformed", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
