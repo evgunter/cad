@@ -24,17 +24,15 @@
 //!
 //! **Where they come from today.** The measured mint site is
 //! [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis), whose
-//! `s = 1.copysign(n.z)` and `r = 1/(1 + |n.z|)` take a `copysign` and
-//! an `abs` of one quantity, the frame normal's `z`: on a `FaceFrame`
-//! over the END cap of a body extruded from a frame tilted about `u`,
-//! that `z` is `1/sqrt(P(t))` for a polynomial `P` in the document's
-//! parameter — an `Inv` of a `sqrt` atom, positive wherever it has a
-//! value at all — and on the same body's START cap, or with the frame's
-//! `v` flipped, it is `−1/sqrt(P(t))`, the same atom negated, which is
-//! what the negative arm is for. That construction is not permanent:
-//! PROPS' sign-hull work replaces it, and the replacement frame's own
-//! `|n.z|` is the next `abs` of the same shape, so the rule outlives
-//! the spelling that motivated it.
+//! axis comparison `|n.z| − max(|n.x|, |n.y|)/2` takes an `abs` of the
+//! frame normal's `z`: on a `FaceFrame` over the END cap of a body
+//! extruded from a frame tilted about `u`, that `z` is `1/sqrt(P(t))`
+//! for a polynomial `P` in the document's parameter — an `Inv` of a
+//! `sqrt` atom, positive wherever it has a value at all — and on the
+//! same body's START cap, or with the frame's `v` flipped, it is
+//! `−1/sqrt(P(t))`, the same atom negated, which is what the negative
+//! arm is for. The basis transfers no sign, so it mints no `copysign`;
+//! the `copysign` half of the rule is read at the sites listed below.
 //!
 //! **What the census proves, and what the list is.** Two different
 //! claims, kept apart. (1) The EMPIRICAL claim, which covers every
@@ -70,7 +68,7 @@
 //! does, and this site's atom exists only inside one.
 //! (2) The sites the tree holds at
 //! this commit, outside this module and the scalar impls that merely
-//! forward the function: `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
+//! forward the function: `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom-brep/src/implicit.rs`'s cone gradient;
 //! `geom-brep/src/props/curved.rs`'s sphere-meridian pole margins;
 //! `geom-brep/src/tangent.rs`'s jet (the orientation sign of the
@@ -127,7 +125,7 @@
 //! positive polynomial and `D` is a manifestly non-negative one. `D`
 //! needs only non-negativity because `D ≠ 0` at every point of a box
 //! clause 1 admits — and that is `quotient`'s side condition, argued
-//! there in full over the FOUR sources a denominator has. It is NOT
+//! there in full over the FIVE sources a denominator has. It is NOT
 //! "a point where `D` vanishes is a point the value channel divided by
 //! zero at": that covers only source (i), and `quotient`'s header names
 //! it as the mistake its own paragraph replaces; (ii)–(iv) are non-zero
@@ -263,6 +261,7 @@
 use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly};
+use super::rational::Rat;
 use super::{AtomInfo, Session, SymOp, indet_atom, signed};
 
 /// How many atom arguments deep `positive` looks before it declines.
@@ -299,10 +298,69 @@ fn termwise_nonneg(p: &Poly, sess: &Session) -> bool {
         .all(|(m, c)| !c.is_negative() && nonneg_mono(m, sess))
 }
 
-/// **A manifestly non-negative POLYNOMIAL** — the term-wise test, or a
-/// perfect square.
+/// **A DEFINITE quadratic in one indeterminate**: `a·X² + b·X + c` with
+/// `a > 0` and `b² ≤ 4ac` is non-negative at every real `X`, so it is
+/// non-negative wherever `X` has a value at all, whatever `X` stands
+/// for. `false` for anything that is not a quadratic in exactly one
+/// indeterminate over rational coefficients.
+///
+/// It reads no session state at all: the test is arithmetic on `p`'s
+/// own coefficients, which is what makes it a fact about the FORM.
+///
+/// **This is the source that carries a candidate norm's denominator.**
+/// A frame's normal over a tilted axis has `S = sqrt(t² + t/2 + 17/16)`
+/// and its candidates divide by `1 + 8t/17 + 16t²/17` — sums whose
+/// term-wise test fails on the ODD power of `t` and which are not
+/// perfect squares, but which complete the square with room to spare
+/// (`(t + 1/4)² + 1`). The discriminant is that completion, done in the
+/// coefficient ring rather than in the polynomial.
+fn definite_quadratic(p: &Poly) -> bool {
+    let (mut a, mut b, mut c) = (None, None, Rat::zero());
+    let mut var: Option<u128> = None;
+    for (mono, coeff) in p.terms() {
+        let (id, e) = match mono.as_slice() {
+            [] => {
+                c = coeff.clone();
+                continue;
+            }
+            [(id, e)] => (*id, *e),
+            _ => return false,
+        };
+        if *var.get_or_insert(id) != id || e > 2 {
+            return false;
+        }
+        if e == 2 { &mut a } else { &mut b }.replace(coeff.clone());
+    }
+    let Some(a) = a else { return false };
+    if a.is_negative() || a.is_zero() {
+        return false;
+    }
+    let Some(b) = b else {
+        // No linear term: `a·X² + c` with `a > 0` needs only `c ≥ 0`,
+        // which the term-wise test already reaches. Decline rather
+        // than answer a second time.
+        return false;
+    };
+    // `b² ≤ 4ac`, in the exact ring: no root, so no sign change.
+    let Some(four_ac) = Rat::new(4, 1, 0)
+        .and_then(|f| f.mul(&a))
+        .and_then(|f| f.mul(&c))
+    else {
+        return false;
+    };
+    let Some(disc) = b
+        .mul(&b)
+        .and_then(|bb| four_ac.neg().and_then(|n| bb.add(&n)))
+    else {
+        return false;
+    };
+    disc.is_negative() || disc.is_zero()
+}
+
+/// **A manifestly non-negative POLYNOMIAL** — the term-wise test, a
+/// perfect square, or a definite quadratic in one indeterminate.
 fn nonneg_poly(p: &Poly, sess: &Session) -> bool {
-    termwise_nonneg(p, sess) || signed::poly_sqrt(p, sess.budget).is_some()
+    termwise_nonneg(p, sess) || signed::poly_sqrt(p, sess.budget).is_some() || definite_quadratic(p)
 }
 
 /// **A manifestly non-negative FORM**: both halves manifestly
@@ -358,6 +416,14 @@ fn positive_at(f: &Form, sess: &Session, depth: usize) -> bool {
         return false;
     }
     positive_poly(&f.num, sess, depth) && nonneg_poly(&f.den, sess)
+}
+
+/// **One INDETERMINATE that is positive wherever it has a value** —
+/// the predicate the decision read strips a product's content by
+/// ([`super::signed`]), which needs the per-indeterminate test rather
+/// than the per-form one.
+pub(super) fn indet_positive(id: u128, sess: &Session) -> bool {
+    positive_indet(id, sess, 0)
 }
 
 /// **A manifestly POSITIVE form**: `> 0` at every point of the box
@@ -447,7 +513,7 @@ pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
     super::mint_atom(sess, id, true, || AtomInfo {
         op: SymOp::Abs,
         payload: 0,
-        args: [Some(Arc::new(y.clone())), None],
+        args: [Some(Arc::new(y.clone())), None, None],
     });
     Some(Form::poly(Poly::indet(id)))
 }
