@@ -98,4 +98,29 @@ mod tests {
         assert!(!may_hold((FRAC_PI_2, FRAC_PI_2), (2.0, 4.7), PI));
         assert!(!may_hold((FRAC_PI_2, FRAC_PI_2), (2.0, 4.7), TAU));
     }
+
+    /// The translates the exactness argument concedes. At
+    /// `lo = 119.38052083641215` the quotient `lo / τ` lies just above
+    /// 19 and rounds to it, so the translate tried is one too small:
+    /// `19·τ` sits below the window, and the answer is `true` although no
+    /// multiple of `τ` lies in `[lo, lo + 1]` — the inclusive side, which
+    /// a translate chosen too LARGE would leave. And `|k| ≥ 2` both ways,
+    /// at a translate's end and one ulp past it.
+    #[test]
+    fn a_translate_one_too_small_reads_inclusive_and_far_translates_hold_their_ends() {
+        let lo = 119.380_520_836_412_15;
+        assert!((lo / TAU).ceil() == 19.0 && 19.0 * TAU < lo);
+        assert!(may_hold((0.0, 0.0), (lo, lo + 1.0), TAU));
+        // A period whose multiples are exact, so a translate's end is a
+        // known `f64` and the comparison at it is the thing tested.
+        let p = 1.5;
+        for k in [2.0, 3.0, -2.0, -5.0] {
+            let end = 0.25 + p * k;
+            assert!(may_hold((0.25 - p * k, 0.25 - p * k), (0.0, 0.25), p));
+            assert!(may_hold((0.25, 0.25), (end - 0.5, end), p));
+            assert!(may_hold((0.25, 0.25), (end, end + 0.5), p));
+            assert!(!may_hold((0.25, 0.25), (end.next_up(), end + 0.5), p));
+            assert!(!may_hold((0.25, 0.25), (end - 0.5, end.next_down()), p));
+        }
+    }
 }

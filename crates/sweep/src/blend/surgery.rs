@@ -2323,7 +2323,12 @@ impl<T: Bounds> CircleFrame<T> {
     }
 
     /// [`Self::misses`] on the angle `past` already read: whether it
-    /// certainly lies outside `[0, tb − ta]` and short of a whole turn.
+    /// certainly lies outside `[0, tb − ta]` and short of a whole turn,
+    /// for a `past` bracket within `[0, τ]` — the range [`Self::past`]
+    /// reads, up to its own rounding at either end. On that domain the
+    /// home's first translate is `past` itself, and the answer is
+    /// exactly `past.lo > (tb − ta).hi` and `past.hi < τ`; outside it
+    /// a further translate is tried, which is no reading `past` gives.
     fn past_misses(past: T, (ta, tb): (T, T)) -> bool {
         !geom::periodic_window_may_hold(
             (past.lo(), past.hi()),
@@ -4852,21 +4857,43 @@ mod tests {
     fn misses_is_the_relative_bracket_read() {
         use super::CircleFrame;
         use geom_core::{Bounds, Interval, Real};
-        // The former predicate, spelled once for both scalars.
-        macro_rules! old {
-            ($t:ty, $past:expr, $ta:expr, $tb:expr) => {{
-                let (past, ta, tb): ($t, $t, $t) = ($past, $ta, $tb);
-                (past - (tb - ta)).lo() > 0.0 && (<$t>::tau() - past).lo() > 0.0
-            }};
+        // The former predicate, the oracle every assertion below reads.
+        fn old_misses<T: Bounds>(past: T, (ta, tb): (T, T)) -> bool {
+            (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
         }
         let tau = core::f64::consts::TAU;
         // The far window start with the point at it: `past` a whole
         // turn, which the arc holds.
         let (ta, tb) = (1e6, 1e6 + 2.0);
         assert!(!CircleFrame::<f64>::past_misses(tau, (ta, tb)));
-        assert!(!old!(f64, tau, ta, tb));
+        assert!(!old_misses(tau, (ta, tb)));
         let (tai, tbi) = (Interval::from_f64(ta), Interval::from_f64(tb));
         assert!(!CircleFrame::past_misses(Interval::tau(), (tai, tbi)));
+        // The domain's ends, sharp and bracketed, against the oracle: a
+        // whole turn, a hair short of it, zero and a hair past it.
+        for w in [0.0, 1e-300, 2.0, tau.next_down(), tau] {
+            let (ta, tb) = (1e6, 1e6 + w);
+            for past in [0.0, 1e-300, tau.next_down(), tau] {
+                assert_eq!(
+                    CircleFrame::<f64>::past_misses(past, (ta, tb)),
+                    old_misses(past, (ta, tb)),
+                    "width {w}, past {past}"
+                );
+            }
+            let (tai, tbi) = (Interval::from_f64(ta), Interval::from_f64(tb));
+            for pi in [
+                Interval::from_bounds(0.0, 0.0),
+                Interval::from_bounds(0.0, 1e-9),
+                Interval::from_bounds(tau.next_down(), tau),
+                Interval::tau(),
+            ] {
+                assert_eq!(
+                    CircleFrame::past_misses(pi, (tai, tbi)),
+                    old_misses(pi, (tai, tbi)),
+                    "width {w}, past {pi:?}"
+                );
+            }
+        }
         // A deterministic spread of angles in `(0, τ]` and just past
         // either end, at both scalars, over sharp and wide window starts.
         let mut seed = 0x9e37_79b9_7f4a_7c15u64;
@@ -4886,7 +4913,7 @@ mod tests {
             let tb = ta + w;
             assert_eq!(
                 CircleFrame::<f64>::past_misses(past, (ta, tb)),
-                old!(f64, past, ta, tb),
+                old_misses(past, (ta, tb)),
                 "ta {ta}, tb {tb}, past {past}"
             );
             let wide = next() * 1e-3;
@@ -4895,7 +4922,7 @@ mod tests {
             let pi = Interval::from_bounds(past, past + next() * 1e-3);
             assert_eq!(
                 CircleFrame::past_misses(pi, (tai, tbi)),
-                old!(Interval, pi, tai, tbi),
+                old_misses(pi, (tai, tbi)),
                 "ta {ta} ±{wide}, width {w}, past {past}"
             );
         }

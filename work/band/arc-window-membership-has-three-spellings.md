@@ -19,7 +19,8 @@ its own soundness direction:
   — a bracket read on the angle of `q` past the window's start, read in
   `(0, τ]` (`CircleFrame::past`), selecting between an arc's end values
   and the whole circle's extreme;
-- `geom`'s `angle_interval_in_span` (`crates/geom/src/curves/boxes.rs`)
+- `geom`'s `angle_interval_in_span` (`crates/geom/src/curves/boxes.rs`;
+  now `geom::periodic_window_may_hold`, `crates/geom/src/periodic.rs`)
   — an `f64` interval-translate test with `ANGLE_SLOP` widening,
   conservative-inclusive, for the curve boxes;
 - `topo`'s `point_on_arc` (`crates/topo/src/boolean/contain.rs`) — the

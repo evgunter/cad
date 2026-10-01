@@ -361,6 +361,16 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "old_misses",
+        why: Payload(
+            "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
+             the f64 and interval lanes are compared against one spelling: the former \
+             `CircleFrame::misses` predicate, whose bracket reads become the bool one \
+             `assert_eq!` compares and stop",
+        ),
+    },
+    Site {
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracket_point",
         why: Payload("the C10 span-box reader: brackets into an f64 `SpanBox`"),
