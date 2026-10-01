@@ -44,3 +44,24 @@ already has — `splitting::containment::point_in_carrier_loop`, which
 reads an arc-bearing loop such as the keyhole ring on its own carriers
 (ATREST-12) — with this fixture as its row, or the gap stated in check
 9's banner beside its nesting residue.
+
+## Second shape: two rings that touch (CLEAVE, 2026-10-01)
+
+Reported by the second reviewer of PR 3658 (`cleave/section-rings`).
+The lane passed it on without re-measuring it. Two rings of one face that
+touch at a corner also pass tier 3. Check 9 compares each ring only
+against the face's outer loop: `ring_outer_contact` and `ring_nesting`
+take `face.outer`. Nothing compares ring against ring, so ring-ring
+contact goes as unchecked as ring-in-ring nesting.
+
+This now has a producer. The split nests every section hole into the
+face that encloses it (`crates/topo/src/splitting/finish.rs`,
+`nest_hole_sections`), so two holes whose sections touch could land as
+two touching rings of one face. The nesting guards against that itself:
+a hole joins a face only when it is decided disjoint from every ring
+the face already holds. Tier 3 has no such guard, so it would not catch
+a producer that skipped the check.
+
+The taker's ring-vs-ring arm should decide contact as well as nesting,
+and should run the split's nesting rows
+(`crates/sweep/tests/split_section_rings.rs`) for a regression.

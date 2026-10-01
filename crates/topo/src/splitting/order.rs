@@ -37,6 +37,23 @@
 //! dyadic geometry, and tilted planes refuse. Documented contract,
 //! not a bug.
 //!
+//! # One planar face's crossings, along the face's own line
+//!
+//! The sweep visits null edges in this order, and the book pairs a
+//! face's crossings on the strength of it: a lexicographic order is
+//! monotone along every line, so each face's crossings arrive in line
+//! order. That holds for exact points. Crossings are COMPUTED, and on a
+//! line parallel to `v` their `u` keys, equal in exact arithmetic,
+//! differ in the last bits — the exact `u` comparison then orders them
+//! by rounding, and a ringed cap is chorded across its hole. So the
+//! join does not take a planar face's pairing from this order: it
+//! pairs that face's crossings along the face's own section line
+//! ([`sort_along_line`]), where crossings are separated by their real
+//! distance and only a gap the band cannot decide — between two
+//! crossings of ONE face, whose pairing it settles — refuses. This
+//! global order still drives the sweep and still pairs a curved face's
+//! crossings.
+//!
 //! Ties (both coordinates Zero — distinct null edges at one point,
 //! e.g. the two tip-vertex runs of the Fig. 14.2 notch) keep
 //! **insertion order** (the reduction's deterministic discovery
@@ -172,6 +189,68 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     Ok(order)
 }
 
+/// One planar face's crossings ordered along its section line, from
+/// their along-line coordinates `keys` (metres, in the face's
+/// insertion order). Returns the permutation.
+///
+/// Every comparison is against the run's band (**`split_join_line_order`**),
+/// not the exact one: two crossings of one face are either a real
+/// distance apart along its line or one point computed twice (several
+/// null edges at one point — the Fig. 14.2 notch's tip — or a crossing
+/// and its interval twin), and the exact band would order the second
+/// kind by rounding or, on the interval lane, escalate on it. An
+/// insertion sort that stops at the first predecessor not definitely
+/// after leaves coincident keys in insertion order; then every run of
+/// successive Zero gaps (**`split_join_line_gap`**) is put back in
+/// insertion order, so the result is a function of the verdicts.
+///
+/// **Residual: a chain of sub-ε gaps.** The comparator is banded, so
+/// it is not transitive: three crossings of one face whose successive
+/// gaps are each Zero (≤ ε) while their span lands in the window
+/// `(ε, K·ε)` — all three within about `1.2·ε` of each other, a
+/// cluster the reduction's own sliver gates normally refuse first —
+/// sort in an order that can depend on their insertion order. The
+/// result is still a function of the verdicts (the run is put back in
+/// insertion order), but not of the positions alone.
+///
+/// # Errors
+///
+/// A comparison in the band's ambiguity window — two crossings of one
+/// face neither certainly apart nor certainly at one point, whose
+/// pairing the order decides.
+pub(super) fn sort_along_line<T: Decide>(
+    keys: &[T],
+    band: Band,
+) -> Result<Vec<usize>, Indeterminate> {
+    let mut sorted: Vec<usize> = (0..keys.len()).collect();
+    for i in 1..sorted.len() {
+        let mut j = i;
+        while j > 0 {
+            let margin = Margin::of(keys[sorted[j]] - keys[sorted[j - 1]]);
+            if decide("split_join_line_order", margin, band)? != Sign::Negative {
+                break;
+            }
+            sorted.swap(j - 1, j);
+            j -= 1;
+        }
+    }
+    let mut order = Vec::with_capacity(keys.len());
+    let mut run: Vec<usize> = Vec::new();
+    for &i in &sorted {
+        if let Some(&last) = run.last() {
+            let gap = Margin::of(keys[i] - keys[last]);
+            if decide("split_join_line_gap", gap, band)? != Sign::Zero {
+                run.sort_unstable();
+                order.append(&mut run);
+            }
+        }
+        run.push(i);
+    }
+    run.sort_unstable();
+    order.append(&mut run);
+    Ok(order)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -219,5 +298,24 @@ mod tests {
         assert_eq!(cmp(a, b), core::cmp::Ordering::Less);
         assert_eq!(cmp(b, a), core::cmp::Ordering::Greater);
         assert_eq!(cmp(a, a), core::cmp::Ordering::Equal);
+    }
+
+    /// Along one line: ascending keys; keys a few ULPs apart (one point,
+    /// computed twice) keep insertion order; a gap in the window
+    /// refuses, naming the line-gap predicate.
+    #[test]
+    fn along_a_line_coincident_keys_keep_insertion_order_and_a_window_gap_refuses() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let up = |x: f64| f64::from_bits(x.to_bits() + 1);
+        let keys = [2.0, up(up(0.5)), -1.0, 0.5, up(0.5)];
+        assert_eq!(
+            sort_along_line(&keys, band).unwrap(),
+            vec![2, 1, 3, 4, 0],
+            "−1, then the three keys at 0.5 in insertion order, then 2"
+        );
+        let mid = 0.5 * (1.0 + tol.k()) * tol.eps();
+        let err = sort_along_line(&[0.0, mid], band).unwrap_err();
+        assert_eq!(err.predicate, Some("split_join_line_order"));
     }
 }
