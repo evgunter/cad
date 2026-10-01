@@ -131,8 +131,12 @@
 //!   cache's only BRANCH constraint: on a periodic chart a τ-shifted
 //!   pcurve certifies every other check identically, so this is the
 //!   one check that can tell the two apart. Whether any given caller
-//!   can trip it is that caller's property — `topo::pcurves` records
-//!   that neither of its own can. Two honesty notes, both binding:
+//!   can trip it is that caller's property. `topo::pcurves`'s mint
+//!   cannot, by construction (its window is the hull of the boxes it
+//!   checks); its split carry is a real check — each half against a
+//!   window holding the parent's box — that a half passes because
+//!   [`Pcurve::chart_box`] is restriction-monotone. Two honesty notes,
+//!   both binding:
 //!   - The window is a conservative *over-approximation* of the trim
 //!     region (a box, not the region bounded by the loop).
 //!     Point-in-trim-region is the tessellation trim-loop consumer's,
@@ -398,22 +402,32 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
 }
 
 /// **The harmonic image's span box.** Per channel
-/// `P(t) = c + a·cos t + b·sin t + l·t`; with `M = hypot(a, b)` and
-/// `h = |t₁ − t₀|` the box is the MEET of two enclosures, each true on
-/// its own:
+/// `P(t) = c + l·t + T(t)` with `T(t) = a·cos t + b·sin t`; the box is
+/// the SUM of the linear part's box and the trigonometric part's, each
+/// true on its own:
 ///
-/// - **chord**: `hull(P(t₀), P(t₁)) ± M·h²/8`. `|P″| = |a·cos t +
-///   b·sin t| ≤ M`, and a C² function leaves its chord over a width-`h`
-///   interval by at most `sup|P″|·h²/8` (the linear term has no `P″`).
-///   Tight on a short span, and centred where the edge is.
-/// - **ball**: `c + hull(l·t₀, l·t₁) ± M`. The trigonometric part never
-///   leaves `[−M, M]` and the linear part is monotone. Tighter once the
-///   span passes a few radians (a full turn's chord charge is `M·π²/2`).
+/// - **linear**: `hull(c + l·t₀, c + l·t₁)` — exact, the part is monotone.
+/// - **trigonometric**: with `M = hypot(a, b)` and `h = |t₁ − t₀|`, the
+///   MEET of the chord enclosure `hull(T(t₀), T(t₁)) ± M·h²/8` (`|T″| =
+///   |T| ≤ M`, and a C² function leaves its chord over a width-`h`
+///   interval by at most `sup|T″|·h²/8`) and the ball `[−M, M]`, which
+///   is the tighter once the span passes a few radians (a full turn's
+///   chord charge is `M·π²/2`).
+///
+/// A channel with only one of the two parts — every image a
+/// constructor mints — gets the meet of the whole channel's chord and
+/// ball. **Restriction-monotone**: a sub-span's box lies inside the
+/// span's, which [`Pcurve::chart_box`]'s callers that re-certify a
+/// split edge's halves against the parent's window rely on. The linear
+/// box is monotone exactly; the trigonometric box is pinned by
+/// `tests/chart_box_span.rs`'s sub-span fuzz. Summing the parts rather
+/// than taking one chord of the whole channel is what buys it: a
+/// mixed channel's whole-channel chord is not monotone, and costs
+/// `|T(t₁) − T(t₀)|` of tightness at most.
 ///
 /// **At every scalar.** At `f64` each end is the round-to-nearest value
 /// of a true bound, so it can miss the exact image by rounding error in
-/// the chart coordinates — the posture of every `f64` box in this file,
-/// and check 5 meters an escape through the band, which a
+/// the chart coordinates, which check 5 meters through the band and a
 /// rounding-scale escape does not leave. At `Interval` every operation
 /// is outward-rounded and [`Real::min`]/[`Real::max`] are the envelope
 /// extremes, so each end encloses the true bound for every `t₀`, `t₁`
@@ -430,12 +444,12 @@ fn harmonic_span_box<T: Real>(
     let (s1, c1) = t1.sin_cos();
     let dip = (t1 - t0).powi(2) * T::from_f64(0.125);
     let channel = |c: T, a: T, b: T, l: T| {
-        let amp = (a.powi(2) + b.powi(2)).sqrt();
-        let (e0, e1) = (c + a * c0 + b * s0 + l * t0, c + a * c1 + b * s1 + l * t1);
         let (l0, l1) = (c + l * t0, c + l * t1);
-        let chord = (e0.min(e1) - amp * dip, e0.max(e1) + amp * dip);
-        let ball = (l0.min(l1) - amp, l0.max(l1) + amp);
-        (chord.0.max(ball.0), chord.1.min(ball.1))
+        let amp = (a.powi(2) + b.powi(2)).sqrt();
+        let (e0, e1) = (a * c0 + b * s0, a * c1 + b * s1);
+        let lo = (e0.min(e1) - amp * dip).max(T::zero() - amp);
+        let hi = (e0.max(e1) + amp * dip).min(amp);
+        (l0.min(l1) + lo, l0.max(l1) + hi)
     };
     let (u_min, u_max) = channel(p0.x, pa.x, pb.x, pl.x);
     let (v_min, v_max) = channel(p0.y, pa.y, pb.y, pl.y);
@@ -448,11 +462,11 @@ fn harmonic_span_box<T: Real>(
 }
 
 impl<T: Real> Pcurve<T> {
-    /// A harmonic image's chart box over the span `[t₀, t₁]` (either
-    /// order) — the one spelling of that enclosure, and what
-    /// [`Pcurve::chart_box`]'s harmonic arm answers. `None` for every
-    /// other variant: the bound is a fact about this family only. It
-    /// locates no span, so it answers at every [`Real`] scalar.
+    /// [`Pcurve::chart_box`] for a harmonic image, at every [`Real`]
+    /// scalar — the door for a caller with no span location, which
+    /// `chart_box` needs for its NURBS arms. `None` for every other
+    /// variant. The construction, its enclosure argument and its
+    /// restriction monotonicity are `harmonic_span_box`'s.
     pub fn harmonic_span_box(&self, t0: T, t1: T) -> Option<ChartWindow<T>> {
         let Pcurve::Harmonic { p0, pa, pb, pl } = *self else {
             return None;
@@ -596,7 +610,14 @@ impl<T: SpanLocate> Pcurve<T> {
     /// `[t₀, t₁]` — a box over-approximation (module docs), always
     /// sound in the containment direction: it can only make a
     /// containment claim harder to satisfy, never falsely satisfied.
-    /// A harmonic image's box is [`Pcurve::harmonic_span_box`]'s.
+    /// A harmonic or iso-line image's box is
+    /// [`Pcurve::harmonic_span_box`]'s.
+    ///
+    /// **Restriction-monotone on every arm**: a sub-span's box lies
+    /// inside the span's (the net and arc-segment arms ignore the span;
+    /// the harmonic arm by its construction's docs). A split edge's
+    /// halves re-certified against a window holding the parent's box
+    /// therefore cannot escape it.
     pub fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
         match self {
             Pcurve::Harmonic { p0, pa, pb, pl } => harmonic_span_box(*p0, *pa, *pb, *pl, t0, t1),
@@ -636,18 +657,11 @@ impl<T: SpanLocate> Pcurve<T> {
                 }
                 w
             }
-            // A straight line's extremes over an interval are at its
-            // endpoints — the one arm whose box is TIGHT, not merely
-            // conservative (still sound in the containment direction).
+            // A straight line is a harmonic image with no
+            // trigonometric part, and its box is its endpoint hull.
             Pcurve::IsoLine { p0, pl } => {
-                let a = Point2::new(p0.x + pl.x * t0, p0.y + pl.y * t0);
-                let b = Point2::new(p0.x + pl.x * t1, p0.y + pl.y * t1);
-                ChartWindow {
-                    u_min: a.x.min(b.x),
-                    u_max: a.x.max(b.x),
-                    v_min: a.y.min(b.y),
-                    v_max: a.y.max(b.y),
-                }
+                let zero = Vec2::new(T::zero(), T::zero());
+                harmonic_span_box(*p0, zero, zero, *pl, t0, t1)
             }
             // The arc rim's chart image is the SEGMENT `p0 → p0 + pd`
             // (`g` is monotone in `t`: `tan` is monotone on
@@ -4821,15 +4835,24 @@ mod tests {
     /// steps between them, in the span's own direction.
     fn span_samples(t0: f64, t1: f64) -> impl Iterator<Item = f64> {
         const N: u32 = 4000;
-        (0..=N).map(move |i| t0 + (t1 - t0) * f64::from(i) / f64::from(N))
+        (0..=N).map(move |i| {
+            if i == N {
+                t1
+            } else {
+                t0 + (t1 - t0) * f64::from(i) / f64::from(N)
+            }
+        })
     }
 
     /// **The span box ENCLOSES the image at `f64`**, densely sampled
     /// on every row, and is at most its own charge looser than the
-    /// sampled range: each end lies within `min(M·h²/8, 2M)` of the
+    /// sampled range: each end lies within `min(M·h²/8 + s, 2M)` of the
     /// sampled extreme (`M = hypot(a, b)` per channel) — the chord
-    /// arm's dip and the ball arm's full swing. A linear channel has
-    /// `M = 0`, so its box is exactly its endpoint hull.
+    /// arm's dip and the ball arm's full swing, plus, on a channel
+    /// mixing a linear and a trigonometric part, the trigonometric
+    /// part's endpoint swing `s = |T(t₁) − T(t₀)|` the sum of the two
+    /// parts' boxes gives up. A linear channel has `M = 0`, so its box
+    /// is exactly its endpoint hull.
     #[test]
     fn the_harmonic_span_box_encloses_its_image_and_is_no_looser_than_its_charge() {
         for row in &SPAN_BOX_ROWS {
@@ -4842,11 +4865,17 @@ mod tests {
                 v = (v.0.min(p.y), v.1.max(p.y));
             }
             let h = (t1 - t0).abs();
+            let (_, pa, pb, pl, ..) = *row;
             let charge = |a: [f64; 2], b: [f64; 2], i: usize| {
                 let m = a[i].hypot(b[i]);
-                (m * h * h / 8.0).min(2.0 * m)
+                let trig = |t: f64| a[i] * t.cos() + b[i] * t.sin();
+                let swing = if pl[i] == 0.0 {
+                    0.0
+                } else {
+                    (trig(t1) - trig(t0)).abs()
+                };
+                (m * h * h / 8.0 + swing).min(2.0 * m)
             };
-            let (_, pa, pb, ..) = *row;
             let rounding = 1e-12;
             for (lo, hi, sampled, charge, what) in [
                 (b.u_min, b.u_max, u, charge(pa, pb, 0), "u"),
@@ -4866,10 +4895,9 @@ mod tests {
     }
 
     /// **The span box ENCLOSES the image at `Interval`**: on every row
-    /// each box end's outward bracket contains the interval evaluation
-    /// of the image at every sample — the box at this scalar is the
-    /// outward-rounded enclosure of the true bound, never a rounding
-    /// inside it.
+    /// no sample's image enclosure lies certainly outside the box. The
+    /// true point is in both, so a box end's bracket past the far end
+    /// of the image's is a miss; the near ends may cross by rounding.
     #[test]
     fn the_harmonic_span_box_encloses_its_image_at_interval() {
         use geom_core::{Bounds, Interval};
@@ -4882,7 +4910,7 @@ mod tests {
                     [(b.u_min, b.u_max, p.x, "u"), (b.v_min, b.v_max, p.y, "v")]
                 {
                     assert!(
-                        lo.lo() <= at.lo() && hi.hi() >= at.hi(),
+                        lo.lo() <= at.hi() && hi.hi() >= at.lo(),
                         "row {row:?}, t = {t}: the {what} box [{}, {}] misses the image's \
                          enclosure [{}, {}]",
                         lo.lo(),
