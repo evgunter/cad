@@ -941,3 +941,24 @@ Opus, reusing the lane's warm target dir. Friction: the stopped
 MSOLVE-9 merge lane had rebuilt a 7 GB target that took free disk to
 3.9 GB. A lane that is stopped leaves its cache behind, and the
 orchestrator has to sweep it.
+
+MSOLVE-11 review of `fff779e03`: APPROVE-WITH-FIXES, no MAJOR. Claims
+C1, C2, C3, C5 and C7 hold. The memo arm, the parallel splice and the
+`Arm` door were all probed, and the `PartUnresolved` fold was judged
+right. Two claims fail on edges:
+- C4: a two-fault case names a poisoned `Part` with `States`. This is
+  a pre-existing class, filed and pinned rather than redesigned.
+- C6: an out-of-range `Part` index gets "rebind to copy 5", a copy that
+  does not exist.
+
+The review also found:
+- a second, string-keyed table of predicate words (`refuted`);
+- an unenforced "a mate op decides nothing";
+- a vacuous assert;
+- recourses that name doors no edit has;
+- the `Arm` doc overclaiming past the Roll lever;
+- the box driver now reading mate escalations through its log.
+
+The fix pass has twelve rulings (R1–R12) and went to the
+implementer lane with its context. Accepted as built: the doubled
+solve in the A2 fixture check, and the probe sink order.
