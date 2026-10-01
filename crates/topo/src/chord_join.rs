@@ -88,7 +88,7 @@ use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::null::CurveGeom;
 use crate::splitting::SplitPlane;
-use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_carrier_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -232,6 +232,14 @@ pub enum SplitJoinError {
     /// loop — containment is ambiguous (ill-conditioned operand).
     RingHomingAmbiguous {
         /// The undecidable ring.
+        ring: LoopKey,
+    },
+    /// The divided face's outer loop carries an edge the containment
+    /// walk has no crossing row for (a spiric, a spline), and the ray
+    /// schedule from the ring's representative ran out with at least
+    /// one ray abandoned because it could meet that edge.
+    RingHomingUncrossable {
+        /// The unplaced ring.
         ring: LoopKey,
     },
     /// Loose ends survived the sweep — the null-edge set does not
@@ -414,8 +422,9 @@ impl SplitJoinError {
                 ),
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
-                    "every test ray grazed a hole loop, so which piece holds it is \
-                     ill-conditioned at this tolerance. Recourse: {recourse}"
+                    "every test ray grazed the divided face's boundary, so which piece \
+                     holds a hole loop is ill-conditioned at this tolerance. Recourse: \
+                     {recourse}"
                 ),
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {
                     write!(f, "re-homing a hole loop refused: {e}")
@@ -425,6 +434,12 @@ impl SplitJoinError {
                 f,
                 "a hole loop sits on the divided face's outer boundary, so which piece \
                  holds it cannot be decided. Recourse: {recourse}"
+            ),
+            Self::RingHomingUncrossable { .. } => write!(
+                f,
+                "which piece holds a hole loop cannot be read: no test ray got past a \
+                 curved edge of the divided face's boundary that it could meet. Recourse: \
+                 {recourse}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
@@ -446,6 +461,20 @@ impl SplitJoinError {
             }
             Self::Band(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            // The carrier's constructor states its escalation for a
+            // caller that could build the circle instead; no reader of
+            // a join can, so the join keeps the constructor's subject
+            // and offers its own door's levers.
+            Self::Section {
+                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
+                ..
+            } => write!(
+                f,
+                "{} is undecided for the section through a curved face: {}. Recourse: \
+                 {recourse}",
+                geom::EllipseInvalid::escalated_subject(diag),
+                diag.payload()
+            ),
             Self::Section { source, .. } => {
                 write!(f, "the section through a curved face refused: {source}")
             }
@@ -2344,7 +2373,9 @@ impl ChordJoiner {
 
     /// `laringmv(oldf, newf)`: move every bystander ring of `oldf`
     /// enclosed by the mef run (`newf`'s outer) into `newf` — decided
-    /// by the trilean containment predicate, never a raw comparison.
+    /// on the run's own edge carriers ([`point_in_carrier_loop`]),
+    /// since a run bearing an arc does not bound the polygon through
+    /// its vertices.
     ///
     /// The test is against the RUN, not `oldf`'s outer (issue #93):
     /// when the split loop was a RING of `oldf` (an island seam),
@@ -2377,12 +2408,13 @@ impl ChordJoiner {
                 continue;
             }
             let rep = ring_representative(body, ring)?;
-            match point_in_loop(body, run, normal, rep, self.band)? {
-                LoopContainment::In => body.ring_move(ring, newf)?,
-                LoopContainment::Out => {}
-                LoopContainment::OnBoundary => {
+            match point_in_carrier_loop(body, run, normal, rep, self.band)? {
+                Some(LoopContainment::In) => body.ring_move(ring, newf)?,
+                Some(LoopContainment::Out) => {}
+                Some(LoopContainment::OnBoundary) => {
                     return Err(SplitJoinError::RingHomingAmbiguous { ring });
                 }
+                None => return Err(SplitJoinError::RingHomingUncrossable { ring }),
             }
         }
         Ok(())
@@ -2449,13 +2481,16 @@ impl ChordJoiner {
 /// The face's **chart** plane normal (F5-gated: always a `Plane`),
 /// deliberately without the face's sense folded in.
 ///
-/// Its one consumer is [`point_in_loop`], which reads the normal only
-/// to recover the loop's PLANE and whose verdict is exactly invariant
-/// under `n̂ ↦ −n̂`. **That derivation lives at `point_in_loop`**,
+/// Its one consumer is [`point_in_carrier_loop`], which reads the
+/// normal only to recover the loop's PLANE and the in-plane side axis
+/// `n̂ × d` of each ray; only the straight edges' crossing rows read
+/// that axis, and their verdict is exactly invariant under `n̂ ↦ −n̂`.
+/// **That derivation lives at
+/// [`point_in_loop`](crate::splitting::containment::point_in_loop)**,
 /// under the function whose property it is rather than under the
 /// five-line producer that relies on it; the consequence here is that
 /// ring re-homing cannot move a ring on the sense bit, and
-/// `tests/review_m3_pr3_pil.rs` pins it.
+/// `tests/review_m3_pr3_pil.rs` pins it for the straight rows.
 ///
 /// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
 /// which multiplies although its own consumer is equally sign-blind,

@@ -2,10 +2,12 @@
 id: emit-topo-says-every-face-mints-sense-true
 kind: issue
 title: emit_topo::face_plane's doc calls its sense fold the identity because 'every face this build mints has sense: true', which no longer holds
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
+closed: 2026-10-01
+pr: 3629
 ---
 
 ## Finding
@@ -24,3 +26,9 @@ a reversed planar face is named, or drop the "no name moves" claim.
 
 Found by PR 3467's fix pass (TOPO), sweeping for present-tense prose
 that states a default `sense`.
+
+## Closed (2026-10-01, PR 3629)
+
+`carrier_plane` and its doc are gone: no naming rule reads a plane
+since edge pieces are named by their ends and split faces by the edges
+they keep (`edge-pieces-are-named-by-their-ends`).

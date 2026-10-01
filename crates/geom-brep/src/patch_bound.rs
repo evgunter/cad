@@ -26,14 +26,15 @@
 //! needs them as such — a magnitude sup cannot bound `‖S_u × S_v‖`
 //! from below, because the cross product's sign structure is exactly
 //! the information a magnitude throws away — and a sup-side consumer
-//! reads a vector magnitude off them with [`sq_norm`], whose
+//! reads a vector magnitude off them with
+//! [`norm_sq`](geom_core::interval::norm_sq), whose
 //! `√hi` is a sup bound on the norm.
 //!
 //! **The signed reading is the only one**, and it is a reading of the
 //! quotient rule itself: the true `−` signs, divided by the whole
 //! weight hull. The cancellations that survive that are real — on a
 //! quarter cylinder they are worth an order of magnitude on
-//! `sup‖S_uv‖` — so a consumer wanting a magnitude takes [`sq_norm`]
+//! `sup‖S_uv‖` — so a consumer wanting a magnitude takes `norm_sq`
 //! of a signed enclosure and never a magnitude recurrence.
 //!
 //! # The rational arm
@@ -452,18 +453,6 @@ pub fn window_tilde_hull(
 /// CELL's bound above the whole-patch hull it is a subset of.
 pub fn window_hull(net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> Interval {
     net.window_hull(wu, wv)
-}
-
-/// **The squared-sum collapse of one signed componentwise enclosure**:
-/// `sum over c of sup squared`, whose `sqrt(hi)` is a sup bound on the
-/// vector's norm. One spelling, consumed wherever a vector partial's
-/// magnitude is read off its signed enclosure.
-///
-/// Fixed association (D9): channel order `x, y, z`, accumulated left
-/// to right from interval arithmetic zero. A refusal in one channel refuses the sum.
-#[must_use]
-pub fn sq_norm(v: [Interval; 3]) -> Interval {
-    v.iter().fold(Interval::zero(), |acc, c| acc + c.sqr())
 }
 
 /// A span's `[knot, next knot]` extent (the caller has already
