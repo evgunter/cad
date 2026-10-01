@@ -2,11 +2,12 @@
 id: rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk
 kind: issue
 title: chord_join::rehome_rings places a bystander ring against the run through point_in_loop with no loop_shape dispatch: on an arc-bearing run (a planar cylinder cap cut by a straight chord) a ring in the lune reads Out and stays on the wrong face (unreproduced)
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P1
 cost: M
 refs: [arc-aware-point-in-loop, three-answers-to-is-this-loop-inside-that-one]
+branch: cleave/rehome-rings
 ---
 
 

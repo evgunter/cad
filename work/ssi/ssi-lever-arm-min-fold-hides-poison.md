@@ -7,7 +7,7 @@ opened: 2026-08-29
 github: 1219
 refs: [762]
 priority: P0
-cost: H
+cost: M
 ---
 
 ## From GitHub issue 1219

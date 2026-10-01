@@ -92,3 +92,8 @@ zero case as ending at `SsiError::TubeProbeSilent`; two independent
 reviews of that PR ran it and found the ladder answers instead, and the
 mechanism above is what execution shows. `ssi*` is TRIM's ground behind
 PCURVE P-2 per PROPS' and BOOL's `keep_out`.
+
+## Design (2026-10-01)
+
+Decided with three sibling rows; the spec is the "Design" section of
+`ssi-chart-speed-usability-boundary`.
