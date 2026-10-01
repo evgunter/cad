@@ -67,8 +67,8 @@
 // carries beside the name, and which of the two doors was refused is
 // the whole of what that arm says beyond the parameter.
 // `Maintenance` rides with `Applied` by the same rule: it is what
-// `Applied::maintenance` answers in — the A11 cluster-record acts an
-// edit forced and the references a delete stranded (DM7) — and a
+// `Applied::maintenance` answers in — the offset the mate door cleared
+// (A11 (2)) and the references a delete stranded (DM7) — and a
 // consumer that can hold an `Applied` in a typed field must be able to
 // hold what it carries. `MaintenanceNet` rides with it: a consumer
 // that applies several edits as one action (a cascade delete) folds
@@ -327,9 +327,8 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the group placement a document
-// records per instantiate node
-// (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
+// Instantiated parts. `Frame` is the rigid motion a gauge's or an
+// instance offset's `Placement` evaluates to;
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
 // refusal, and `PartFault` the evaluation-side cause an
@@ -344,9 +343,7 @@ pub use editor_core::{
 // Mates: the declaration node's
 // authored payload (`Alignment` over two `MateFrame`s, a
 // `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
-// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
-// cluster-record maintenance (`ClusterMaintenance`, one arm of the
-// `Maintenance` row carried above), and `MateFault`
+// (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the

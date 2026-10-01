@@ -3052,7 +3052,7 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     // replayed result, and that is what a resolve must pin.
     let text = pncad::document::save(
         &origin,
-        &[pncad::document::LoggedEdit::bare(edit.clone())],
+        std::slice::from_ref(&edit),
         Tol::witness(),
     )
     .expect("the logged document saves");
@@ -3351,9 +3351,11 @@ fn asm2a_assembly(
             let dx = 10.0 * i as f64;
             doc = pncad::document::apply(
                 &doc,
-                &pncad::document::DocEdit::SetPlacement {
-                    node: id,
-                    frame: pncad::document::Frame::translation([dx, 0.0, 0.0]),
+                &pncad::document::DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(pncad::document::Placement::literal(
+                        &pncad::document::Frame::translation([dx, 0.0, 0.0]),
+                    )),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -3636,10 +3638,14 @@ fn asm_r2a_child_mated_probe() {
     let (doc_ref, body) = asm2a_part_and_body(&dir, "part.pncad", "asm-r2a-probe-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let (doc, ids) = asm_r2a_mated_assembly("asm-r2a-probe-asm", doc_ref, body);
-    // The mate SOLVED the second instance's placement: it is recipe
-    // data, not a recorded frame, so the registry stays empty.
+    // The mate SOLVED the second instance's pose: the mate door took
+    // its offset when the mate joined it to the first's group, so the
+    // pose is recipe data, not a stored frame.
     assert!(
-        doc.placements().is_empty(),
+        matches!(
+            doc.node(ids[1]),
+            Some(pncad::document::Node::InstantiatePart { offset: None, .. })
+        ),
         "the pose is solved, not stored"
     );
     let opts = pncad::document::EvalOptions {
@@ -3746,7 +3752,12 @@ fn asm_r2b_child_crossing_probe() {
     let doc = pncad::document::apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::instantiate_part_with(doc_ref, record),
+            node: Node::instantiate_part_with(
+                doc_ref,
+                record,
+                None,
+                Some(pncad::document::Placement::IDENTITY),
+            ),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3864,9 +3875,11 @@ fn asm2b_outer(
         if i > 0 {
             doc = pncad::document::apply(
                 &doc,
-                &pncad::document::DocEdit::SetPlacement {
-                    node: id,
-                    frame: pncad::document::Frame::translation([100.0, 0.0, 0.0]),
+                &pncad::document::DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(pncad::document::Placement::literal(
+                        &pncad::document::Frame::translation([100.0, 0.0, 0.0]),
+                    )),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
