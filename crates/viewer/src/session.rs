@@ -1979,10 +1979,10 @@ impl DocSession {
                 // Applied to the gesture's BASE, so previews replace
                 // one another instead of composing, and the history
                 // never sees any of them. The reach is the session's
-                // own seam: a gesture that moved a gauge would mint a
+                // own seam: a gesture that moved a root would mint a
                 // frame from the parts' extent, and with no directory
                 // to resolve against it refuses typed. Built per tick,
-                // and lazy — a slot gesture moves no gauge, so what a
+                // and lazy — a slot gesture moves no root, so what a
                 // tick pays for it is the construction and nothing
                 // more.
                 let reach = PartReach::<f64>::with_resolver(Some(&resolver), tol);
@@ -2868,7 +2868,7 @@ impl DocSession {
     {
         // ONE reach for the whole action, over the session's own seam
         // (the directory rule; `None` refuses typed): each edit's
-        // maintenance asks it only when a cluster's gauge moves, and
+        // maintenance asks it only when a group's root moves, and
         // what it decided rides the logged entry into the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);

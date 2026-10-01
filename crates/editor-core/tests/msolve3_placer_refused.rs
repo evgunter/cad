@@ -782,7 +782,7 @@ fn a_stranded_operand_is_still_a_dangling_head() {
     );
     let o = scene.opts();
     // Deleting the placer strands the mate's operand and splits the
-    // cluster: the edit levers through the store's reach.
+    // group: the edit levers through the store's reach.
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step_with(scene.doc, DocEdit::DeleteNode { id: scene.placer }, &reach);
     let f = solve(&doc, &o, Tol::witness())

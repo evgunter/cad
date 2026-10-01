@@ -144,8 +144,8 @@ pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission,
     ClusterMaintenance, Coset, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
     MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, PlacerRow, ReachRefusal, RefusingReach,
-    SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of,
-    reading_edges, relative_freedom_components, solve_document, table_gap,
+    SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, groups, member_of, reading_edges,
+    relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,

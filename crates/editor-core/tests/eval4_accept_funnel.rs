@@ -5,7 +5,7 @@
 //! never instead of them.
 //!
 //! Each row asserts a maintenance act the door's edits are known to
-//! perform (the act is checked against the cluster partition of the
+//! perform (the act is checked against the group partition of the
 //! document that came back), so a door that swapped a document in and
 //! let the maintenance fall goes red here rather than reporting an
 //! empty list that reads as "nothing moved".
@@ -19,7 +19,7 @@ use std::collections::BTreeSet;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocRef, DocumentId,
     EntityKind, Frame, Maintenance, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, clusters, inline, split,
+    RoleSeg, StableName, groups, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame_keeping, square, step};
@@ -122,14 +122,14 @@ fn kept_instance_mated_to_a_local_block(
         part_body,
     );
     assert_eq!(
-        clusters(&doc),
+        groups(&doc),
         vec![vec![kept]],
         "before the split the kept instance is a singleton: the mate's far end is a local body"
     );
     (doc, kept, cut)
 }
 
-/// Row 1 — the remainder's `Rebind` joins two clusters, and the
+/// Row 1 — the remainder's `Rebind` joins two groups, and the
 /// outcome says so.
 ///
 /// Re-anchoring the mate's far end onto the new instance is what
@@ -137,7 +137,7 @@ fn kept_instance_mated_to_a_local_block(
 /// instance the split just minted. That join is a fact about the
 /// remainder the outcome hands back, so it must ride the outcome.
 #[test]
-fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
+fn a_rebind_that_joins_two_groups_appears_in_the_remainder_maintenance() {
     let mut store = PartStore::new();
     let (doc_ref, part_body) = store.insert_part(part("eval4-r1-part"), Tol::witness());
     let (doc, kept, cut) = kept_instance_mated_to_a_local_block("eval4-r1", doc_ref, part_body);
@@ -150,7 +150,7 @@ fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
     )
     .expect("a local block whose only outside reference is a mate operand cuts");
     assert_eq!(
-        clusters(&out.remainder),
+        groups(&out.remainder),
         vec![vec![kept, out.instance]],
         "after the split the re-anchored mate welds the kept instance to the new one"
     );
@@ -170,11 +170,11 @@ fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
     );
 }
 
-/// Row 2 — a cluster cut whole re-forms in the part (its mate's insert
+/// Row 2 — a group cut whole re-forms in the part (its mate's insert
 /// is a join there) and dissolves in the remainder (its mate's delete
 /// is a split there); each side's record rides its own outcome field.
 #[test]
-fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remainder() {
+fn a_whole_group_cut_records_its_join_in_the_part_and_its_split_in_the_remainder() {
     let mut store = PartStore::new();
     let (doc_ref, part_body) = store.insert_part(part("eval4-r2-part"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("eval4-r2"), Tol::witness());
@@ -194,10 +194,10 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
             frame: Frame::translation([0.0, 0.0, 4.0]),
         },
     );
-    assert_eq!(clusters(&doc), vec![vec![a, b]], "one cluster, two members");
+    assert_eq!(groups(&doc), vec![vec![a, b]], "one group, two members");
 
-    // Both sides of this cut move a gauge (the remainder's mate delete
-    // splits the cluster, the part's mate insert joins it), so each
+    // Both sides of this cut move a root (the remainder's mate delete
+    // splits the group, the part's mate insert joins it), so each
     // side's maintenance solve levers the instances' part through the
     // store — a cut given no resolver refuses the same solve typed.
     let store: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
@@ -208,12 +208,12 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
         Tol::witness(),
         Some(&store),
     )
-    .expect("a whole cluster and its mate cut");
+    .expect("a whole group and its mate cut");
     let (pa, pb) = (out.node_map[&a], out.node_map[&b]);
     assert_eq!(
-        clusters(&out.part),
+        groups(&out.part),
         vec![vec![pa, pb]],
-        "the cluster re-forms in the part"
+        "the group re-forms in the part"
     );
     assert_eq!(
         out.part_maintenance,
@@ -225,7 +225,7 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
         "the part's mate insert joined the two spliced members"
     );
     // The remainder deletes the mate first (reverse document order),
-    // which splits the cluster and re-mints the orphan's frame from
+    // which splits the group and re-mints the orphan's frame from
     // its solved pose; the two member deletes that follow move no mate
     // graph, so the split is the whole record.
     assert!(
@@ -233,7 +233,7 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
             out.remainder_maintenance[..],
             [Maintenance::Cluster(ClusterMaintenance::Split { from, to, frame: Some(_) })] if from == a && to == b
         ),
-        "the remainder's mate delete split the cluster: {:?}",
+        "the remainder's mate delete split the group: {:?}",
         out.remainder_maintenance
     );
 }
@@ -263,7 +263,7 @@ fn inline_records_the_split_its_re_anchoring_performs() {
     )
     .expect("the instance inlines back");
     assert_eq!(
-        clusters(&back.doc),
+        groups(&back.doc),
         vec![vec![kept]],
         "after the splice the mate's far end is local again and welds nothing"
     );
@@ -281,7 +281,7 @@ fn inline_records_the_split_its_re_anchoring_performs() {
                 _ => None,
             })
             .is_some_and(|(from, to)| from == kept && to == out.instance),
-        "the re-anchoring rebind split the instance off the kept cluster: {:?}",
+        "the re-anchoring rebind split the instance off the kept group: {:?}",
         back.maintenance
     );
     assert!(
@@ -289,7 +289,7 @@ fn inline_records_the_split_its_re_anchoring_performs() {
             .maintenance
             .iter()
             .any(|act| matches!(act, Maintenance::Cluster(ClusterMaintenance::Join { .. }))),
-        "nothing the splice did joined a cluster: {:?}",
+        "nothing the splice did joined a group: {:?}",
         back.maintenance
     );
 }

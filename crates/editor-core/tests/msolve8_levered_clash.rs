@@ -510,7 +510,7 @@ fn c1_length_none_and_roll_arm() {
 }
 
 /// **A transported direction never refuses, and the clash it reaches
-/// is levered.** The spanning tree reads the pair from the gauge, so
+/// is levered.** The spanning tree reads the pair from the root, so
 /// a mate authored `(second, first)` is INVERTED before the fold —
 /// its directions transported by the representative's rotation and
 /// re-minted under the band. The three documents above, authored the
@@ -1138,7 +1138,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
         "the document holds its five instances and nothing else"
     );
     // And the solve of what the document does hold: `Band` reaches
-    // EVERY instance — each its own singleton cluster — and nothing
+    // EVERY instance — each its own singleton group — and nothing
     // else, since no band means no verdict for any of them.
     let poses = solve(doc, &EvalOptions::default(), tol);
     let mut instances = 0_usize;

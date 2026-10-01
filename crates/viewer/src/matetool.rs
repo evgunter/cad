@@ -285,7 +285,7 @@ pub enum MateToolError {
         side: MateSide,
     },
     /// The member's instance's current placement could not be read
-    /// (its cluster's solve refused), so the world pose cannot be
+    /// (its group's solve refused), so the world pose cannot be
     /// pulled back into part coordinates.
     Placement {
         /// Which pick.

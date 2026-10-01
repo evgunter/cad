@@ -38,7 +38,7 @@ it is genuinely a second measure and not a second reading.
 
 The ASSEMBLY vocabulary is the layer above a single document:
 `Workspace` holds the parts, `Node.instantiate_part` references one,
-`DocEdit.set_placement` places its cluster, `Node.mate` says how two
+`DocEdit.set_placement` places its group, `Node.mate` says how two
 instances meet, `solve_document` poses them, `product` gathers what
 the document IS and `assemble` says whether it is valid at rest.
 `split` and `inline` refactor across the seam, and
@@ -640,7 +640,7 @@ class MateError(PncadError):
     `variant` is the refusing arm's stable tag; `fault` is the
     `MateFault` VALUE carrying the arm's payload.
 
-    The solve itself is TOTAL and never raises — a refusing cluster
+    The solve itself is TOTAL and never raises — a refusing group
     must not fail an unrelated one, so `solve_document` records the
     fault per node and `SolvedPoses.fault` hands back the same value
     this exception carries. Raised only where an answer is a pose or
@@ -702,7 +702,7 @@ class SplitError(PncadError):
     node: Optional[NodeId]
     consumer: Optional[NodeId]
     input: Optional[NodeId]
-    gauge: Optional[NodeId]
+    root: Optional[NodeId]
     instance: Optional[NodeId]
     param: Optional[str]
     name: Optional[str]
@@ -2543,7 +2543,7 @@ class Node:
         (`DocEdit.update_reference`, or `update_references` for every
         site at once).
 
-        No frame argument: placement lives on the CLUSTER, which is
+        No frame argument: placement lives on the GROUP, which is
         what makes zero-anchor and multi-anchor states
         unrepresentable rather than merely refused —
         `DocEdit.set_placement` is the door. No interface record
@@ -3305,11 +3305,11 @@ class DocEdit:
 
     @staticmethod
     def set_placement(node: NodeId, frame: Frame) -> DocEdit:
-        """Place an instance's CLUSTER.
+        """Place an instance's GROUP.
 
         The frame REPLACES whatever was recorded. Placement is
-        per-cluster, not per-instance: an instance coupled to others
-        by mates shares their frame, and `gauge_of` says which node
+        per-group, not per-instance: an instance coupled to others
+        by mates shares their frame, and `root_of` says which node
         the registry is actually keyed by. Refuses typed on
         `EditError`: `placement_on_non_instance`,
         `non_finite_placement`, `improper_placement`."""
@@ -3468,14 +3468,14 @@ class Doc:
         """Apply one edit, answering the minted node id if the edit
         minted one.
 
-        `resolver` is the document seam an edit that moves a cluster's
-        gauge levers through: its cluster-record maintenance mints the
-        cluster's frame from a solve of the prior document, whose lever
+        `resolver` is the document seam an edit that moves a group's
+        root levers through: its cluster-record maintenance mints the
+        group's frame from a solve of the prior document, whose lever
         is the mated parts' own extent. Every other edit never consults
         it, with one exception: inserting a mate asks the solve's own
         per-mate admission at the door, and a clocking rider on a frame
         coincidence is decided over the mated parts' extent, read
-        through `resolver`. Absent, a gauge-moving edit raises
+        through `resolver`. Absent, a root-moving edit raises
         `EditError` with variant `maintenance_refused` rather than
         recording a frame nothing decided, and a mate with such a rider
         raises `mate_refused` with `inner_variant == "mate_unleverable"`;
@@ -3566,7 +3566,7 @@ class Doc:
         be inferred."""
 
     def placement(self, node: NodeId) -> Frame:
-        """An instance's CLUSTER frame, or the identity when nothing
+        """An instance's GROUP frame, or the identity when nothing
         was recorded. Total — use `placements` to tell "placed at the
         identity" from "carries no frame of its own". This is the
         AUTHORED frame; a mated instance's world pose is
@@ -3574,8 +3574,8 @@ class Doc:
 
     def placements(self) -> dict[NodeId, Frame]:
         """The placement registry itself: every node with a recorded
-        cluster frame. A mated instance that is not its cluster's
-        gauge is ABSENT here however it is posed."""
+        group frame. A mated instance that is not its group's
+        root is ABSENT here however it is posed."""
 
     def reference(self, node: NodeId) -> Optional[DocRef]:
         """The `(id, pin)` an instantiate node carries, or `None` for
@@ -3616,7 +3616,7 @@ class Doc:
 
         `resolver` is the document seam a mate's admission levers
         through: an insert is a Join at most (the survivor keeps its
-        gauge), so its maintenance never consults it, but a mate's
+        root), so its maintenance never consults it, but a mate's
         clocking rider on a frame coincidence is decided at the door
         over the mated parts' extent, read through `resolver` — see
         `apply` for what a mate refuses here (`mate_refused`)."""
@@ -5272,9 +5272,9 @@ def evaluate(
 # `Node.mate` + `DocEdit.set_placement`; reading is `solve_document`,
 # `product` and `assemble`; refactoring is `split` / `inline`.
 #
-# Placement lives on the CLUSTER, never on the instance: mated
+# Placement lives on the GROUP, never on the instance: mated
 # instances share one recorded frame — the earliest of them in
-# document order, their GAUGE — and every other member's world pose is
+# document order, their ROOT — and every other member's world pose is
 # SOLVED from the mates and composed outward. That is why
 # `Doc.placement` and `SolvedPoses.placement` are two different
 # questions, and why a document can carry three instances and one
@@ -5639,39 +5639,39 @@ class MateFault:
 
 class SolvedPoses:
     """The document's solved poses: each instance's pose relative to
-    its cluster gauge, each mate's role, and the per-node refusals."""
+    its group root, each mate's role, and the per-node refusals."""
 
     def fault(self, node: NodeId) -> Optional[MateFault]:
         """The node's recorded fault. Recorded against the refusing
-        MATE and against every instance in its cluster that
+        MATE and against every instance in its group that
         consequently has no pose — and no further."""
 
     def role(self, mate: NodeId) -> Optional[MateRole]: ...
-    def gauge(self, instance: NodeId) -> Optional[NodeId]:
-        """The instance's cluster gauge. A singleton is its own."""
+    def root(self, instance: NodeId) -> Optional[NodeId]:
+        """The instance's group root. A singleton is its own."""
 
     def relative(self, instance: NodeId) -> Optional[Frame]:
-        """Its pose relative to that gauge. The gauge's own entry is
+        """Its pose relative to that root. The root's own entry is
         the identity, bit-exactly."""
 
     def placement(self, doc: Doc, instance: NodeId) -> Frame:
-        """The instance's WORLD placement: the cluster's recorded
+        """The instance's WORLD placement: the group's recorded
         frame composed onto the solved relative pose. A singleton
         returns its recorded frame verbatim.
 
         `doc` must be the document this solve is OF. Passing another
         would compose this document's relative poses onto that one's
-        cluster frames, which is a pose of neither, so the door
+        group frames, which is a pose of neither, so the door
         refuses first: a `SolvedPoses` carries the id of the document
         `solve_document` solved, and a mismatch raises MateError with
         tag `mate_poses_of_another_document` before any frame is
-        read. Raises MateError when the cluster did not solve."""
+        read. Raises MateError when the group did not solve."""
 
 def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
     deterministic spanning tree.
 
-    TOTAL — this never raises. A refusing cluster must not fail an
+    TOTAL — this never raises. A refusing group must not fail an
     unrelated one, so refusals are read back through
     `SolvedPoses.fault`.
 
@@ -5685,14 +5685,14 @@ def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedP
     references name, which is why a document can solve cleanly and
     still refuse at the gate."""
 
-def clusters(doc: Doc) -> list[list[NodeId]]:
-    """The placement clusters: instances coupled by mates, members in
+def groups(doc: Doc) -> list[list[NodeId]]:
+    """The placement groups: instances coupled by mates, members in
     document order. The partition placement is keyed by."""
 
-def gauge_of(doc: Doc, instance: NodeId) -> NodeId:
-    """An instance's cluster GAUGE — the document-order-first instance
-    of its cluster, whose recorded frame places the whole cluster.
-    Answers the node itself when it is in no cluster."""
+def root_of(doc: Doc, instance: NodeId) -> NodeId:
+    """An instance's group ROOT — the document-order-first instance
+    of its group, whose recorded frame places the whole group.
+    Answers the node itself when it is in no group."""
 
 def reading_edges(doc: Doc) -> list[tuple[NodeId, NodeId]]:
     """For each mate, the instantiate node each of its references
@@ -5701,7 +5701,7 @@ def reading_edges(doc: Doc) -> list[tuple[NodeId, NodeId]]:
 def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
     """The relative-freedom partition: components over consuming
     union reading edges, so mates couple what they constrain. Coarser
-    than `clusters`, which partitions instances alone."""
+    than `groups`, which partitions instances alone."""
 
 class Maintenance:
     """One act of automatic maintenance an accepted edit performed:
@@ -6081,17 +6081,17 @@ def split(
     in one store.
 
     The cut must be ancestor- and consumer-closed and a union of WHOLE
-    placement clusters. Pure — `doc` is untouched. Raises SplitError,
-    typed, naming the offending edge, cluster, parameter or name.
+    placement groups. Pure — `doc` is untouched. Raises SplitError,
+    typed, naming the offending edge, group, parameter or name.
 
     `resolver` is the document seam the split's own edits lever
-    through where one moves a cluster's gauge (the remainder's mate
-    deletes split the cluster they cut; the part's mate inserts
-    re-form it): its cluster-record maintenance mints the cluster's
+    through where one moves a group's root (the remainder's mate
+    deletes split the group they cut; the part's mate inserts
+    re-form it): its cluster-record maintenance mints the group's
     frame from a solve of the prior document, whose lever is the
     mated parts' own extent. The part being minted answers its own
     reference; `resolver` answers every other. Absent, a cut that
-    moves a gauge raises `SplitError` carrying an `EditError` with
+    moves a root raises `SplitError` carrying an `EditError` with
     variant `maintenance_refused`; a cut that moves none is
     unaffected."""
 

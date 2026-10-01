@@ -11,8 +11,8 @@ THE SCENE IS `bench_scene.py`, AND THE ORACLE COMES FROM THE TOUR
 -----------------------------------------------------------------
 `demos/tour/src/assembly.rs` is the scene these documents ARE, and its
 own assertions are the oracle: the layout's three disjoint solids of
-`PATTERN_COUNT x post + shelf`, the stand's cluster of three instances
-with the earliest as gauge, the far post's solved translation, the
+`PATTERN_COUNT x post + shelf`, the stand's group of three instances
+with the earliest as root, the far post's solved translation, the
 identity rotation two aligned frame-coincidence mates compose to, two
 minted declarations, and a gate that certifies. Every number below is
 that scene's, re-derived from the same base dimensions rather than
@@ -170,7 +170,7 @@ class TestBenchLayout(BenchWorkspace):
     """Row 47: the flat-pack. The posts on their side and the shelf
     beside them, nothing touching — A5's disjoint half.
 
-    The layout has no mates, so the cluster, the solve and the minted
+    The layout has no mates, so the group, the solve and the minted
     declarations are `TestBenchStand`'s expectations and not this
     document's; what this one is held to is the material, the
     placements, the names and a gate that passes OUTRIGHT with nothing
@@ -322,7 +322,7 @@ class TestBenchLayout(BenchWorkspace):
                     outcome[name] = solved.fault(mate)
                     self.assertIsNone(solved.fault(mate))
                     self.assertEqual(solved.role(mate), MateRole.Determining)
-                    self.assertEqual(pncad.clusters(doc), [[post_i, shelf_i]])
+                    self.assertEqual(pncad.groups(doc), [[post_i, shelf_i]])
                     minted = assemble(doc, evaluate(doc, resolver=self.ws)).minted
                     self.assertEqual([d.mate for d in minted], [mate])
                 else:
@@ -335,7 +335,7 @@ class TestBenchLayout(BenchWorkspace):
                     self.assertEqual(refusal.fault.head, family)
                     # The mate never entered, so the two instances are
                     # still two.
-                    self.assertEqual(pncad.clusters(doc), [[post_i], [shelf_i]])
+                    self.assertEqual(pncad.groups(doc), [[post_i], [shelf_i]])
         self.assertIsNone(outcome["pattern"])
         self.assertIsNotNone(outcome["placed_union"])
 
@@ -438,7 +438,7 @@ class TestBenchLayout(BenchWorkspace):
 
 class TestBenchStand(BenchWorkspace):
     """Row 46: the assembled bench. Two posts and a shelf, the shelf
-    SEATED on the posts by mates — only the gauge post carries an
+    SEATED on the posts by mates — only the root post carries an
     authored frame, and the other two poses are solved."""
 
     def stand(self, primitive=None, class_=ContactClass.Rest):
@@ -446,13 +446,13 @@ class TestBenchStand(BenchWorkspace):
             self.ws, self.post_ref, self.shelf_ref, primitive, class_
         )
 
-    def test_the_mates_couple_the_three_instances_into_one_cluster(self):
+    def test_the_mates_couple_the_three_instances_into_one_group(self):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i, post_b]])
-        # The gauge is the cluster's earliest instance in document
+        self.assertEqual(pncad.groups(doc), [[post_a, shelf_i, post_b]])
+        # The root is the group's earliest instance in document
         # order, and every member agrees on it.
         for node in (post_a, shelf_i, post_b):
-            self.assertEqual(pncad.gauge_of(doc, node), post_a)
+            self.assertEqual(pncad.root_of(doc, node), post_a)
         # A mate's references are not recipe edges; the READING edges
         # are what couples the graph, recomputed from the name heads.
         self.assertEqual(
@@ -478,7 +478,7 @@ class TestBenchStand(BenchWorkspace):
         `test_the_refactoring_doors_hand_back_the_maintenance_their_edits_performed`
         is their half of the same funnel."""
         doc, (post_a, _shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        # `insert`: the stand's second mate joins post_b's cluster into
+        # `insert`: the stand's second mate joins post_b's group into
         # post_a's, and that join is what the door just accepted.
         joins = doc.last_maintenance
         self.assertEqual([r.variant for r in joins], ["join"])
@@ -504,7 +504,7 @@ class TestBenchStand(BenchWorkspace):
         lower = slab((0 * m, 1 * m), (0 * m, 1 * m), (0 * m, 1 * m))
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
         self.assertEqual(doc.last_maintenance, [])
-        # `apply`: deleting a mate splits the cluster it coupled.
+        # `apply`: deleting a mate splits the group it coupled.
         doc.apply(DocEdit.delete_node(mate_2), resolver=self.ws)
         self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
         # `declare` and `declare_all`, each from that split: a declared
@@ -530,13 +530,13 @@ class TestBenchStand(BenchWorkspace):
         refactoring's own record.
 
         An empty list would be indistinguishable from "nothing moved",
-        which is why the scene is a whole cluster: cutting it out
+        which is why the scene is a whole group: cutting it out
         DISSOLVES it in the remainder and RE-FORMS it in the part, so
         both halves have something to report."""
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i, post_b]])
+        self.assertEqual(pncad.groups(doc), [[post_a, shelf_i, post_b]])
 
-        # Both halves of a whole-cluster cut move a gauge, so each
+        # Both halves of a whole-group cut move a root, so each
         # side's maintenance solve levers through the workspace.
         outcome = pncad.split(
             doc,
@@ -548,7 +548,7 @@ class TestBenchStand(BenchWorkspace):
         # each mate welds two members as it lands: one join per mate.
         part = outcome.part
         self.assertEqual([r.variant for r in part.last_maintenance], ["join", "join"])
-        # The remainder loses the cluster: deleting the mates splits it.
+        # The remainder loses the group: deleting the mates splits it.
         remainder = outcome.remainder
         self.assertEqual(
             [r.variant for r in remainder.last_maintenance], ["split", "split"]
@@ -564,7 +564,7 @@ class TestBenchStand(BenchWorkspace):
         self.assertEqual([r.variant for r in doc.last_maintenance], ["join"])
 
         # `inline`, splicing the part back. The instance inherited the
-        # cluster's gauge frame, and a part whose roots are plain
+        # group's root frame, and a part whose roots are plain
         # recipe geometry has nowhere local to put one — the kernel
         # refuses that rather than dropping the pose — so the frame is
         # returned to the identity first, through the door that keeps
@@ -577,15 +577,15 @@ class TestBenchStand(BenchWorkspace):
         )
         spliced = pncad.inline(remainder, outcome.instance, self.ws)
         # The part's own mates weld their spliced members as they land,
-        # and the instance's delete drops its cluster's row.
+        # and the instance's delete drops its group's row.
         self.assertEqual(
             [r.variant for r in spliced.doc.last_maintenance],
             ["join", "join", "drop"],
         )
 
-    def test_only_the_gauge_carries_an_authored_frame(self):
+    def test_only_the_root_carries_an_authored_frame(self):
         doc, (post_a, shelf_i, post_b), _ = self.stand()
-        # Placement lives on the CLUSTER. Two of the three instances
+        # Placement lives on the GROUP. Two of the three instances
         # were never placed and never will be: their poses are solved.
         self.assertEqual(list(doc.placements()), [post_a])
         self.assertNotIn(post_b, doc.placements())
@@ -598,25 +598,25 @@ class TestBenchStand(BenchWorkspace):
             self.assertIsNone(solved.fault(node), f"{node} records no fault")
         for mate in (mate_1, mate_2):
             self.assertEqual(solved.role(mate), MateRole.Determining)
-        # The gauge's relative pose is the identity, bit-exactly, so
+        # The root's relative pose is the identity, bit-exactly, so
         # its world placement is its recorded frame verbatim.
         self.assertEqual(
             solved.placement(doc, post_a).origin,
             doc.placement(post_a).origin,
         )
-        # The far post: composed outward from the gauge along the mate
+        # The far post: composed outward from the root along the mate
         # tree, never stored. The scene's own expected translation.
         far = solved.placement(doc, post_b)
         want = (
             SEAT_B[0] - SEAT_A[0],
-            bench_scene.GAUGE_OFFSET_Y,
+            bench_scene.ROOT_OFFSET_Y,
             0.0,
         )
         for got, expected in zip(far.origin, want, strict=True):
             self.assertAlmostEqual(got.meters, expected, delta=1e-12)
         # And the ROTATION, which a translation check cannot see: both
         # mates align +z with +z at zero clocking, so composing out
-        # from the gauge must leave the post's own axes unturned. A
+        # from the root must leave the post's own axes unturned. A
         # solve that rotated the post and still landed its seating
         # point would pass the check above and put the part in
         # sideways.
@@ -715,12 +715,12 @@ class TestAssemblyRefusals(BenchWorkspace):
     def stand_planar(self):
         return TestBenchStand.stand(self, MatePrimitive.planar_rest(0 * m))
 
-    def test_a_refused_solve_poisons_its_cluster_and_no_more(self):
+    def test_a_refused_solve_poisons_its_group_and_no_more(self):
         self.stand_planar()
         other = Doc("elsewhere")
         lone = other.insert(Node.instantiate_part(self.post_ref))
         # The refusal reaches the refusing mate and every instance in
-        # its cluster that consequently has no pose. A second document
+        # its group that consequently has no pose. A second document
         # is untouched, which is the whole reason the solve is total.
         self.assertIsNone(solve_document(other).fault(lone))
 
@@ -893,7 +893,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         # through it to the minting instance) and visible to the SOLVE
         # (which walks from the operand and composes its map).
         self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
-        self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i]])
+        self.assertEqual(pncad.groups(doc), [[post_a, shelf_i]])
         # Read at the instance instead and it is a different node: the
         # operand is part of what a mate says.
         at_mint = Node.mate(
@@ -1382,7 +1382,7 @@ class TestMateFaultPayload(BenchWorkspace):
         fault = solve_document(doc).fault(mate)
         self.assertEqual(fault.variant, "mate_unleverable")
         # The nested refusal's own word, beside the instance it names:
-        # the gauge's part is asked first.
+        # the root's part is asked first.
         self.assertEqual(fault.inner_variant, "part_unresolved")
         self.assertEqual(fault.instance, post_i)
         self.assertEqual(fault.mate, mate)
@@ -1743,7 +1743,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         doc.apply(
             DocEdit.set_placement(
                 post_a,
-                Frame.translation((0 * m, bench_scene.GAUGE_OFFSET_Y * m, 0 * m)),
+                Frame.translation((0 * m, bench_scene.ROOT_OFFSET_Y * m, 0 * m)),
             )
         )
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))

@@ -41,7 +41,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     // rides a LAST instance, behind the two mate ends and the mate
     // itself. That is the shape a split leaves behind.
     let mut host = ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness());
-    // Inserts alone — a Join at most, never a moved gauge — so the
+    // Inserts alone — a Join at most, never a moved root — so the
     // reach is never asked and the refusing one serves.
     let push = |doc: &ProfileDoc, node| {
         apply(

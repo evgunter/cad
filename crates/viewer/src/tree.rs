@@ -44,8 +44,8 @@
 //!
 //! Mates and instances are DAG LEAVES — a mate's references are names,
 //! not edges — so the placement solve is one shared computation the
-//! result DAG has no edges for. When a cluster refuses, the kernel
-//! records the SAME typed fault against every instance in that cluster
+//! result DAG has no edges for. When a group refuses, the kernel
+//! records the SAME typed fault against every instance in that group
 //! and every mate holding it together, and each of those nodes reports
 //! it as its own `Failed`. Read verbatim that draws four identical
 //! FAILED badges and sends the eye nowhere.
@@ -94,9 +94,9 @@
 //!   it does not (a `Part` indexing past its pattern's count, a pattern
 //!   of no copies), and then both rows are loud and neither is
 //!   poisoned through the other.
-//! - **Raised while a cluster's fold derives an offset**
+//! - **Raised while a group's fold derives an offset**
 //!   (`mate::member::derived_offset`): a `PlacerRefused` only. It
-//!   reaches every instance and mate of the cluster, and they point at
+//!   reaches every instance and mate of the group, and they point at
 //!   the mate, whose row carries the placer's refusal verbatim. A
 //!   placer on the chain above an instance the fault reached is
 //!   poisoned by the evaluation even when its own slots are broken, so
@@ -129,7 +129,7 @@
 //! **[`MateFault::Band`] names none, and it is the arm that still
 //! reaches rows.** A band is the RUN's tolerance, not a decision about
 //! any node: with no band the solve decides nothing, and faults every
-//! mate and every instance in the DOCUMENT — across cluster
+//! mate and every instance in the DOCUMENT — across group
 //! boundaries, and including instances no mate touches — with one
 //! shared cause. No row is more at fault than another, so nothing here
 //! picks one and every row it reached keeps its own `Failed`. That
@@ -228,7 +228,7 @@ pub enum RowStatus {
     /// Two things arrive here: a DAG descendant of a failed node, which
     /// the evaluation itself reports as poisoned; and a node the
     /// placement solve left without a pose because some OTHER mate in
-    /// its cluster refused, which the evaluation reports as its own
+    /// its group refused, which the evaluation reports as its own
     /// `Failed` (the module header's second section).
     Poisoned {
         /// The row to go and read: a node THIS TREE badges `Failed`,
@@ -927,7 +927,7 @@ pub fn own_error(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<&Node
 /// **A kernel standing, re-read as this tree draws its node** (the
 /// module header's second section).
 ///
-/// The kernel reports a node a cluster refusal reached as its own
+/// The kernel reports a node a group refusal reached as its own
 /// `Failed`, and a node poisoned through such a node as poisoned
 /// through it; the tree draws both as downstream of the mate the fault
 /// blames. Answered off [`cause_row`]: a node whose cause is another
@@ -1182,7 +1182,7 @@ fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
 ///
 /// That ancestor is `Failed` in the run, but the tree may redraw its
 /// row as downstream itself — reachably: a boolean over two instances
-/// of a cluster that then refuses is poisoned through an instance
+/// of a group that then refuses is poisoned through an instance
 /// whose own row now points at the mate. Two hops, one of them a row
 /// with nothing to act on, so this carries the same cause that row
 /// does. One step settles it: a mate the fault names keeps its own

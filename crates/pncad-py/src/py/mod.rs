@@ -314,7 +314,7 @@ pyo3::create_exception!(
     "The mate solve could not place an instance. Carries `variant`, \
      the stable tag of the refusing arm, and `fault` — the \
      `MateFault` VALUE, which carries the arm's payload.\n\n\
-     The solve itself is TOTAL and never raises: a refusing cluster \
+     The solve itself is TOTAL and never raises: a refusing group \
      must not fail an unrelated one, so `solve_document` records the \
      fault per node and `SolvedPoses.fault` hands back the same value \
      this exception carries. This class is raised only where an \
@@ -359,7 +359,7 @@ pyo3::create_exception!(
     PncadError,
     "The `split` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
-     (`node`, `consumer`, `input`, `gauge`, `instance`, `param`, \
+     (`node`, `consumer`, `input`, `root`, `instance`, `param`, \
      `name`, `id`), `None` where inapplicable."
 );
 pyo3::create_exception!(

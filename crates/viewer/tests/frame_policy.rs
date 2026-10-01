@@ -930,7 +930,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
 
 /// **The one path where the tree's blame and the index's words part**:
 /// a root the placement solve left without a pose because another mate
-/// in its cluster refused. The evaluation reports the root `Failed` in
+/// in its group refused. The evaluation reports the root `Failed` in
 /// its own right, so the index's words say the ROOT failed; the tree
 /// draws the root downstream of the mate the fault blames, and the
 /// badge names that mate, because that is the row a reader can act on.

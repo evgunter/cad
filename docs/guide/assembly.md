@@ -131,16 +131,16 @@ meant yesterday" a fact rather than a hope.
 
 ## 2. Authoring an assembly
 
-Three doors — and one property, *placement lives on the cluster*,
+Three doors — and one property, *placement lives on the group*,
 that explains the second of them.
 
 `Node.instantiate_part(reference)` is an instance: a **leaf** whose
 material crosses the document seam. It takes no frame.
 
 `DocEdit.set_placement(node, frame)` is where the frame goes — and it
-places the instance's **cluster**, not the instance. Instances coupled
+places the instance's **group**, not the instance. Instances coupled
 by mates share one recorded frame, held by the earliest of them in
-document order (their **gauge**); every other member's pose is
+document order (their **root**); every other member's pose is
 *solved*. That is why a document can carry three instances and one
 frame, and why zero-anchor and multi-anchor states are
 unrepresentable here rather than merely refused.
@@ -184,10 +184,10 @@ from pncad import (
     SegTag,
     Selector,
     Workspace,
-    clusters,
+    groups,
     content_pin,
     evaluate,
-    gauge_of,
+    root_of,
     m,
     reading_edges,
 )
@@ -235,7 +235,7 @@ shelf_ref = DocRef(shelf.id, content_pin(shelf))
 
 stand = Doc("bench-stand")
 post_a = stand.insert(Node.instantiate_part(post_ref))
-# Only the gauge is placed by hand. The other two poses are solved.
+# Only the root is placed by hand. The other two poses are solved.
 stand.apply(
     DocEdit.set_placement(
         post_a,
@@ -278,10 +278,10 @@ mate_b = stand.insert(
     )
 )
 
-# The two mates couple all three instances into ONE cluster, gauged
-# by the earliest of them.
-assert clusters(stand) == [[post_a, shelf_i, post_b]]
-assert all(gauge_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
+# The two mates couple all three instances into ONE group, rooted
+# at the earliest of them.
+assert groups(stand) == [[post_a, shelf_i, post_b]]
+assert all(root_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
 
 # ...so exactly one instance carries an authored frame. The other two
 # never will.
@@ -421,7 +421,7 @@ store.create(post)
 store.create(shelf)
 
 # The flat-pack layout: a post and the shelf beside it, nothing
-# touching. No mates, so each instance is its own cluster and each
+# touching. No mates, so each instance is its own group and each
 # carries its own frame.
 layout = Doc("bench-layout")
 post_i = layout.insert(Node.instantiate_part(DocRef(post.id, content_pin(post))))
@@ -556,8 +556,8 @@ Two doors, and they check different things.
 
 `solve_document(doc, resolver=store)` folds the mates: per-pair
 cosets along a deterministic spanning tree, producing each instance's
-pose relative to its cluster gauge. It is **total** — a refusing
-cluster must not fail an unrelated one, so refusals are read back per
+pose relative to its group root. It is **total** — a refusing
+group must not fail an unrelated one, so refusals are read back per
 node through `SolvedPoses.fault` rather than raised. It inspects no
 geometry except each mated part's own extent — an upper bound taken
 from its evaluated body, which is why it crosses the same `resolver=`
@@ -683,7 +683,7 @@ assert all(solved.fault(n) is None for n in (post_a, shelf_i, post_b, *mates))
 # contact declaration is `Declaring`.
 assert [solved.role(mate) for mate in mates] == [MateRole.Determining] * 2
 
-# The gauge's relative pose is the identity, bit-exactly, so its
+# The root's relative pose is the identity, bit-exactly, so its
 # world placement is its recorded frame verbatim...
 assert solved.placement(stand, post_a).origin == stand.placement(post_a).origin
 # ...and the other two are composed outward along the mate tree,

@@ -180,7 +180,7 @@ fn an_instances_payload_names_are_its_crossing_outers_in_record_order() {
 #[test]
 fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
     // `target` and `keeper` are mated, so the delete below moves that
-    // cluster's gauge and levers the parts through the store's reach.
+    // group's root and levers the parts through the store's reach.
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(part_doc("crossnames-door-part"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("crossnames-door"), Tol::witness());
@@ -188,7 +188,7 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
     let (doc, keeper) = insert(doc, Node::instantiate_part(doc_ref));
     let outer = in_part(target, body, CapEnd::End);
     // The mate the crossing came from — it welds the two instances
-    // into the cluster whose gauge the delete below moves, which is
+    // into the group whose root the delete below moves, which is
     // what makes the reach answer.
     let (doc, _) = insert(
         doc,
@@ -310,7 +310,7 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
 #[test]
 fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
     // `target` and `keeper` are mated, so deleting `target` moves that
-    // cluster's gauge and the maintenance levers the parts through the
+    // group's root and the maintenance levers the parts through the
     // store's reach.
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(part_doc("crossnames-strand-part"), Tol::witness());

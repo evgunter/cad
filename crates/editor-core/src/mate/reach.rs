@@ -133,7 +133,7 @@ pub enum ReachRefusal {
 /// frame refuses at the door. What `eval::mate_reach` answers over
 /// options carrying no resolver, as a value for a door that has no
 /// options at all — and the honest reach for an edit that cannot
-/// move a cluster's gauge, which never asks it.
+/// move a group's root, which never asks it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RefusingReach;
 

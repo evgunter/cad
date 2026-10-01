@@ -327,7 +327,7 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the cluster placement a document
+// Instantiated parts. `Frame` is the group placement a document
 // records per instantiate node
 // (read through `Doc::placement`, written by `DocEdit::SetPlacement`);
 // `PartResolver` is the document seam evaluation crosses to reach a
@@ -373,8 +373,8 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
     MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, PlacerRow,
-    ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of,
-    mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
+    ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, groups, mate_reach,
+    member_of, reading_edges, relative_freedom_components, root_of, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
