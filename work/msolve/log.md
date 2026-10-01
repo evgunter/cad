@@ -920,3 +920,11 @@ question are filed:
   code.
 - `a-boxed-rotation-refuses-not-rigid-at-every-placer`, routed to
   TOPO, whose door it is (P3, design).
+
+Item 22's two designers agreed on the diagnosis but split on three
+points: the typing, whether A3 and A11 (1) move, and the planar zero.
+Round 1 settled the typing and the clauses, and crossed on the planar
+zero. Round 2, on that point alone, converged: no row, and a note
+under LINALG's `interval-orthonormal-basis-sign-hull`, written there.
+Asked on `[ev]` PR 3681 (fork-log row 35). Both `[ev]` PRs are
+subscribed for Ev's answer.
