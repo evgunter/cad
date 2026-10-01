@@ -37,9 +37,7 @@ use std::sync::Arc;
 /// centered at `cx` (the asm2a fixture).
 /// **Positions** in a `part` document's node order — its sketch
 /// frame, the profile drawn on it, then the extrude that is its body.
-/// These index `doc.order()`; they are not node ids, which is why
-/// they do not borrow `fixture::resolver::PART_BODY`'s name even
-/// though this suite's parts are the same three-node shape.
+/// These index `doc.order()`; they are not node ids.
 const PLANE_POSITION: usize = 0;
 const PROFILE_POSITION: usize = 1;
 const BODY_POSITION: usize = 2;

@@ -95,7 +95,7 @@ pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueG
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
-    admits, face_frame_seat, face_frame_seat_drawn,
+    VersionOffer, admits, face_frame_seat, face_frame_seat_drawn,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -1117,7 +1117,19 @@ impl DocSession {
         // run is outstanding the tree therefore shows the picture's
         // document, which is what the viewport shows too.
         match &self.derived.landed {
-            Some(run) => tree::rows(&run.doc, Some(&run.evaluation), &run.files),
+            Some(run) => {
+                let mut rows = tree::rows(&run.doc, Some(&run.evaluation), &run.files);
+                // An offer acts on the COMMITTED document, so one read
+                // off a run of an older document is withheld until the
+                // current one lands: the accept it made may already be
+                // the edit that run is answering.
+                if self.busy() {
+                    for row in &mut rows {
+                        row.version_offer = None;
+                    }
+                }
+                rows
+            }
             // Nothing has landed: the shown document with no
             // evaluation, which renders every row `Unevaluated`, and
             // no scan of the directory, which names a part as unread.
@@ -1476,6 +1488,7 @@ impl DocSession {
             SessionOp::AddPart { of, select } => self.add_part(of, select),
             SessionOp::Duplicate { input } => self.add_duplicate(input),
             SessionOp::AddInstance { id } => self.add_instance(id),
+            SessionOp::AcceptPartVersion { id } => self.accept_part_version(id),
         }
     }
 
@@ -1490,12 +1503,7 @@ impl DocSession {
     /// or an unreadable sibling surfaces, at the chooser rather than
     /// at a tree badge, since no node exists yet to badge.
     pub fn part_catalogue(&self) -> Result<Vec<parts::PartEntry>, Refusal> {
-        let resolver = self
-            .resolver
-            .as_deref()
-            .ok_or(Refusal::NoDocumentDirectory)?;
-        parts::catalogue(resolver, self.committed_doc().id())
-            .map_err(|error| Refusal::Workspace(Box::new(error)))
+        self.read_store(|ws| Ok(parts::catalogue(ws, self.committed_doc().id())))
     }
 
     /// **One scan of the document's directory, as a value**
@@ -1610,19 +1618,43 @@ impl DocSession {
         if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
             return OpOutcome::refused(refusal);
         }
-        let Some(resolver) = self.resolver.as_deref() else {
-            return OpOutcome::refused(Refusal::NoDocumentDirectory);
-        };
-        let pin = match resolver
-            .workspace()
-            .and_then(|ws| ws.current_pin(id, self.tol))
-        {
+        let pin = match self.read_store(|ws| ws.current_pin(id, self.tol)) {
             Ok(pin) => pin,
-            Err(error) => return OpOutcome::refused(Refusal::Workspace(Box::new(error))),
+            Err(refusal) => return OpOutcome::refused(refusal),
         };
         self.commit(DocEdit::InsertNode {
             node: Node::instantiate_part(DocRef { id, pin }),
         })
+    }
+
+    /// Move every reference to the part `id` onto the version its file
+    /// holds now, as one action: the store's own elaboration
+    /// ([`pncad::workspace::update_to_store`]), applied whole.
+    fn accept_part_version(&mut self, id: DocumentId) -> OpOutcome {
+        let doc = self.committed_doc();
+        match self.read_store(|ws| pncad::workspace::update_to_store(doc, id, ws, self.tol)) {
+            Ok(edits) => self.commit_action(edits),
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
+    }
+
+    /// **A read of the session's store, refused typed**: `read` over
+    /// the directory every reference resolves against
+    /// ([`DirResolver::workspace`]) — [`Refusal::NoDocumentDirectory`]
+    /// for a session with no backing file, and the store's own
+    /// refusal, scan or read, as [`Refusal::Workspace`].
+    fn read_store<T>(
+        &self,
+        read: impl FnOnce(&pncad::workspace::Workspace) -> Result<T, pncad::workspace::WorkspaceError>,
+    ) -> Result<T, Refusal> {
+        let resolver = self
+            .resolver
+            .as_deref()
+            .ok_or(Refusal::NoDocumentDirectory)?;
+        resolver
+            .workspace()
+            .and_then(|ws| read(&ws))
+            .map_err(|error| Refusal::Workspace(Box::new(error)))
     }
 
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {

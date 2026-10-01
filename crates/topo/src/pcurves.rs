@@ -1463,9 +1463,12 @@ fn v_meter<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
 
 /// A whole-period shift of the MERIDIONAL channel — the `v` twin of
 /// [`geom_brep::Pcurve::shift_branch`], for the charts whose second
-/// parameter is an angle (sphere/torus). Only the harmonic form lives
-/// on those charts; other variants answer themselves unchanged (the
-/// walk never computes a nonzero shift for them).
+/// parameter is an angle (sphere/torus). Two forms live on those
+/// charts and both carry their meridional constant in one field: the
+/// harmonic form's `p0.y` and a spiric WALL image's `v0` (a spiric
+/// cap's chart is a plane, which has no periodic channel to shift).
+/// Other variants answer themselves unchanged — the walk never
+/// computes a nonzero shift for them.
 fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
     match pcurve {
         Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
@@ -1473,6 +1476,21 @@ fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T>
             pa: *pa,
             pb: *pb,
             pl: *pl,
+        },
+        Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: geom_brep::SpiricImage::Wall { u0, v0, sense },
+        } => Pcurve::Spiric {
+            major: *major,
+            minor: *minor,
+            offset: *offset,
+            image: geom_brep::SpiricImage::Wall {
+                u0: *u0,
+                v0: *v0 + k * period,
+                sense: *sense,
+            },
         },
         other => other.clone(),
     }
@@ -3027,6 +3045,12 @@ fn chart_edge<T: Decide>(
             matches!(chart, Surface::Plane { .. })
                 && matches!(walked.carrier, geom::Curve3::Line { .. })
         }
+        // A spiric image is curved on BOTH charts it lives on — the
+        // cap's `pm·f(t) + pa·sin t` and the wall's `atan2(f, d)`
+        // azimuth — so it takes the envelope door below, which the
+        // `_` arm there already answers from `eval` over the span
+        // hull.
+        Pcurve::Spiric { .. } => false,
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
     if straight {
@@ -3750,6 +3774,20 @@ pub(crate) mod staleness_posture {
              which that pass skips entirely",
             ),
             (
+                "set_face_surface_stranding_for_tests",
+                Transfers,
+                "the failure-injection twin of `set_face_surface`, whose rows it keeps and \
+             drops on the same terms",
+            ),
+            (
+                "set_face_surfaces_describing",
+                Transfers,
+                "`set_face_surface`'s swap per face, on its terms: a face's rows are kept \
+             across a move onto the same chart and dropped on any other. The edges it \
+             re-describes are the listed certified ones, whose rows stand as \
+             `set_edge_curve` leaves a certified edge's",
+            ),
+            (
                 "set_edge_curve",
                 Completes,
                 "a carrier swap is content staleness the tier-3 pass re-certifies against, \
@@ -4380,6 +4418,97 @@ mod derive_without_a_door {
                 && text.contains("certification rights")
                 && !text.contains("check"),
             "the refusal names the dual and who holds the door, and claims no check ran: {text}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
+mod polar_shift_tests {
+    use super::shift_polar_branch;
+    use geom_brep::{Pcurve, SpiricImage};
+    use geom_core::{Point2, Vec2};
+
+    /// **The meridional branch shift, at its own door.** The wall arm
+    /// this lane added is the `v` twin of `Pcurve::shift_branch`, and
+    /// a body cannot exercise it: a spiric rim's parameter span is the
+    /// revolved PROFILE arc's, so the one spiric-bearing body's rims
+    /// span 1.78 rad and the loop walk's `k` is 0 on every row it has.
+    /// The arm's value is therefore pinned HERE, directly, rather than
+    /// left resting on a shift nothing computes — which is exactly the
+    /// state a planted `k·period → 0` survived.
+    ///
+    /// What the row asserts, per variant: a wall's `v0` takes the
+    /// whole-period shift and its `u0`, `sense` and the three carrier
+    /// scalars do not; a harmonic image's `p0.y` takes it; a CAP image
+    /// does not move at all (a plane chart has no periodic channel) —
+    /// and neither does any other variant.
+    #[test]
+    fn the_meridional_shift_moves_a_wall_images_v0_and_nothing_else() {
+        let period = core::f64::consts::TAU;
+        let wall = Pcurve::Spiric {
+            major: 0.09375,
+            minor: 0.0703125,
+            offset: 0.0078125,
+            image: SpiricImage::Wall {
+                u0: 0.25,
+                v0: 0.5,
+                sense: -1.0,
+            },
+        };
+        let Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: SpiricImage::Wall { u0, v0, sense },
+        } = shift_polar_branch(&wall, 3.0, period)
+        else {
+            panic!("the wall arm keeps its variant and its image kind");
+        };
+        assert_eq!(v0, 0.5 + 3.0 * period, "v0 takes the whole-period shift");
+        assert_eq!(u0, 0.25, "the azimuth constant is the other door's");
+        assert_eq!(sense, -1.0, "the sign is not a branch");
+        assert_eq!((major, minor, offset), (0.09375, 0.0703125, 0.0078125));
+
+        // A cap lives on a plane chart, which has no periodic channel:
+        // the shift is meaningless there and the image is answered as
+        // it was, not moved.
+        let cap = Pcurve::Spiric {
+            major: 0.09375,
+            minor: 0.0703125,
+            offset: 0.0078125,
+            image: SpiricImage::Cap {
+                p0: Point2::new(0.1, 0.2),
+                pm: Vec2::new(1.0, 0.0),
+                pa: Vec2::new(0.0, 0.0703125),
+            },
+        };
+        assert_eq!(
+            format!("{:?}", shift_polar_branch(&cap, 3.0, period)),
+            format!("{cap:?}"),
+            "a plane chart's image has no meridional branch to shift"
+        );
+
+        // The harmonic arm, unchanged by this lane and asserted beside
+        // the new one so the two cannot drift apart unnoticed.
+        let harmonic = Pcurve::Harmonic {
+            p0: Point2::new(0.3, 0.4),
+            pa: Vec2::new(1.0, 0.25),
+            pb: Vec2::new(-0.5, 1.0),
+            pl: Vec2::new(0.125, -0.375),
+        };
+        let Pcurve::Harmonic { p0, pa, pb, pl } = shift_polar_branch(&harmonic, 3.0, period) else {
+            panic!("the harmonic arm keeps its variant");
+        };
+        assert_eq!(p0.y, 0.4 + 3.0 * period);
+        assert_eq!(p0.x, 0.3);
+        // `Vec2` is deliberately not `PartialEq` (a geometric vector
+        // is not a thing this kernel compares with `==`), so the three
+        // untouched coefficients are read componentwise.
+        assert_eq!(
+            [pa.x, pa.y, pb.x, pb.y, pl.x, pl.y],
+            [1.0, 0.25, -0.5, 1.0, 0.125, -0.375],
+            "the trigonometric and linear coefficients are not a branch"
         );
     }
 }

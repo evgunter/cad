@@ -2,11 +2,13 @@
 id: no-row-holds-that-the-create-pane-offers-the-tools-it-has
 kind: issue
 title: No row holds that the chrome CALLS its tool panels — nine activation buttons across create_ui and properties_ui are reachable only through a ViewerBehavior no test can build
-status: dispatched
+status: closed
 opened: 2026-09-22
 priority: P1
 cost: D
 branch: author/tool-census
+pr: 3573
+closed: 2026-09-30
 ---
 
 
@@ -88,3 +90,42 @@ for its two panels and for the seven that shipped before them, is that
 **The premise above is stale.** Since 2026-09-25 (`9c9fb7ba7`), `app.rs`'s `properties_pane_tests` has run whole-app frames that paint `ViewerApp`, open sections and read what was painted. So the unit is a census row over `ToolKind::ALL` in that harness: no new fixture and no lowering of seven panels.
 
 **A duplication is folded in.** `ToolKind::label()` is "the tool's name, for sentences and buttons", yet all nine activation buttons spell their label literally.
+
+## Built (AUTH-12, PR 3573)
+
+- `ToolKind::button` (`crates/viewer/src/tools.rs`) is the one button
+  form of `ToolKind::label`. All nine activation buttons in
+  `pane/create.rs` take their words from it.
+- `app::properties_pane_tests::every_tool_opens_from_its_activation_button`
+  sweeps `ToolKind::ALL` in the whole-app harness. For each kind it
+  opens the hosting section (an exhaustive match), clicks the one run
+  reading `kind.button()`, and compares what opened against `ALL`.
+  Deleting any tool panel call from `create_ui` or `properties_ui`
+  reddens it, as do a button spelled apart from `button()` and a button
+  that opens the wrong kind.
+- The extrude form and `add_part_ui` are held by
+  `the_extrude_form_and_the_part_chooser_are_reachable`, through one
+  spelling each (`pane::create::EXTRUDE`, `pane::create::ADD_PART`).
+- This row's "nothing in the tree asserts any of it" was not true of
+  the add-datum and add-profile forms. Existing whole-app rows already
+  redden when either call is deleted (measured by mutation, PR 3573).
+- The sweep's second pass filed
+  `work/author/a-tools-commit-button-spells-its-name-a-second-time` and
+  `work/chrome/the-mate-tools-refusal-names-the-mate-tool-twice`.
+- Fix pass: which section hosts a kind has one home in the test
+  module, `properties_pane_tests::section_of`. It is read by the census
+  and by `painted_with_tool`, which lost its `section` parameter. The
+  census also reddens when a button is painted before its section
+  opens. The section headings and the add-datum and add-profile button
+  words are `pane::create` consts. `ToolKind::label` is now the bare
+  noun, with `says`, `button` and `commit` composing over it, which
+  closed `a-tools-commit-button-spells-its-name-a-second-time`.
+
+## Closed 2026-09-30 — PR 3573 merged (`0c9f05e1`)
+
+**Every tool the chrome has is reachable, and a row says so.**
+- The census `every_tool_opens_from_its_activation_button` sweeps `ToolKind::ALL` through one whole-app run. For each kind it opens that kind's section (`section_of`), clicks the button whose text is `kind.button()`, and asserts that exactly that tool opened.
+- It turns red if any panel call is deleted, if a button is spelled differently, or if a tool moves to another section, including to the top level.
+- `the_extrude_form_and_the_part_chooser_are_reachable` holds the two parts of the create pane that nothing held.
+
+**One name home.** `ToolKind::label()` is the bare noun, and `says`, `button` and `commit` compose over it. The nine activation buttons, the nine commit buttons and the section headings no longer spell their words twice. This also closed `a-tools-commit-button-spells-its-name-a-second-time`. Filed: `the-mate-and-blend-commit-rows-restate-tool-commit-row` (P4).

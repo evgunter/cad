@@ -2,10 +2,12 @@
 id: trim-escalations-offer-a-declaration-the-door-cannot-take
 kind: issue
 title: trim: an iso-row escalation forwards the declare menu to the shell op, which takes no declaration
-status: open
+status: closed
 opened: 2026-09-29
 priority: P2
 cost: E
+closed: 2026-09-30
+pr: 3525
 ---
 
 

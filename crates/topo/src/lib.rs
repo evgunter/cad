@@ -292,6 +292,25 @@ pub mod test_support {
     pub use crate::test_support_impl::ArenaCounts;
     pub use crate::test_support_samples::validation_error_samples;
 
+    /// The boolean's volume backstop over `a`, `b` and a `result`, as the
+    /// pipeline gates a finished body
+    /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a
+    /// suite plants a wrong result through.
+    ///
+    /// # Errors
+    ///
+    /// The backstop's refusal, or a tolerance that forms no band.
+    pub fn volume_backstop<T: crate::AtRestPolicy>(
+        op: crate::BooleanOp,
+        a: &Body<T>,
+        b: &Body<T>,
+        result: &Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::AtRestOutcome, crate::BooleanError> {
+        let band = geom_core::Band::linear(tol)?;
+        T::gate_volume_backstop(op, a, b, result, band, tol)
+    }
+
     /// The two operand clones as the boolean's join leaves them, A's
     /// first.
     pub type JoinedOperands = (Body<f64>, Body<f64>);
@@ -450,6 +469,7 @@ pub use surgery::Surgery;
 pub use boolean::{PlantedDegradation, sweep_traces, sweep_traces_with_pad};
 // The census's idealized/realized pair (its `Candidates`): the
 // vocabulary always, the door on the boolean sweep's terms.
+pub use attach::Rechart;
 pub use census::{CensusStrategy, CensusTrace, SweepPairs};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};

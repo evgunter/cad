@@ -24,36 +24,28 @@ fn the_selection_reaches_the_wire_canonical() {
     let square =
         editor_core::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
             .expect("finite");
-    let mut doc = ProfileDoc::empty_derived("m6_5_selection_wire", Tol::witness());
-    for edit in [
-        DocEdit::InsertNode {
-            node: fixture::xy_frame(),
+    let doc = ProfileDoc::empty_derived("m6_5_selection_wire", Tol::witness());
+    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(editor_core::ProfileProgram {
+            plane,
+            loops: vec![square],
+            ids: Vec::new(),
+        }),
+    );
+    let (mut doc, body) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
         },
-        DocEdit::InsertNode {
-            node: Node::Profile(editor_core::ProfileProgram {
-                plane: editor_core::RecipeNodeId(0),
-                loops: vec![square],
-                ids: Vec::new(),
-            }),
-        },
-        DocEdit::InsertNode {
-            node: Node::Extrude {
-                profile: editor_core::RecipeNodeId(1),
-                distance: len(1.0),
-            },
-        },
-    ] {
-        doc = apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach)
-            .expect("the fixture builds")
-            .doc;
-    }
+    );
     let steps: Vec<u64> = (0..4)
-        .map(
-            |seg| match crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg) {
-                editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
-                other => panic!("a square's side is a step's piece, got {other:?}"),
-            },
-        )
+        .map(|seg| match crate::fixture::piece(&doc, body, 0, seg) {
+            editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
+            other => panic!("a square's side is a step's piece, got {other:?}"),
+        })
         .collect();
     let step_of = |seg: usize| steps[seg];
     // Canonical order is name order, which for two pieces of one
@@ -67,20 +59,16 @@ fn the_selection_reaches_the_wire_canonical() {
     };
     let rim = |seg: u32| StableName {
         kind: editor_core::EntityKind::Edge,
-        node: editor_core::RecipeNodeId(2),
+        node: body,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg as usize),
+            crate::fixture::piece(&doc, body, 0, seg as usize),
         )],
     };
     doc = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(
-                editor_core::RecipeNodeId(2),
-                len(0.0625),
-                vec![rim(high as u32), rim(low as u32)],
-            ),
+            node: Node::fillet(body, len(0.0625), vec![rim(high as u32), rim(low as u32)]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

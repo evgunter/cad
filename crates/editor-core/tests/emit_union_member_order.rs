@@ -126,27 +126,30 @@ fn reordering_a_unions_two_members_rebinds_no_name() {
 ///
 /// The rib's caps meet the slab's top in two chains of two edges each.
 /// The slab's top has outward normal +z; the rib's end cap −y, its start
-/// cap +y. In canonical (name) order the slab's face comes first, so
-/// the end-cap chain runs along +z × −y = +x and the start-cap chain
-/// along +z × +y = −x. Each rank names the edge at that place along
-/// its chain, in both member orders.
+/// cap +y. Where canonical (name) order puts the slab's face first, the
+/// end-cap chain runs along +z × −y = +x and the start-cap chain along
+/// +z × +y = −x, and the other way round where it puts the rib's
+/// first. Each rank names the edge at that place along its chain, in
+/// both member orders.
 #[test]
 fn a_unions_seam_chain_is_ranked_along_the_canonical_pair() {
     for swap in [false, true] {
         let (ev, u, [slab, rib]) = union_of(slab_rib, swap);
         let top = member_face(u, slab, fname(slab, RoleSeg::Cap(CapEnd::End)));
         let body = body_of(&ev, u);
-        for (cap, rank, x) in [
-            (CapEnd::End, 0, (0.5, 1.0)),
-            (CapEnd::End, 1, (2.0, 2.5)),
-            (CapEnd::Start, 0, (2.0, 2.5)),
-            (CapEnd::Start, 1, (0.5, 1.0)),
+        // With the slab's face first; the rib's first reverses each
+        // chain, which swaps its two ranks.
+        for (cap, rank, x, reversed) in [
+            (CapEnd::End, 0, (0.5, 1.0), (2.0, 2.5)),
+            (CapEnd::End, 1, (2.0, 2.5), (0.5, 1.0)),
+            (CapEnd::Start, 0, (2.0, 2.5), (0.5, 1.0)),
+            (CapEnd::Start, 1, (0.5, 1.0), (2.0, 2.5)),
         ] {
             let rib_cap = member_face(u, rib, fname(rib, RoleSeg::Cap(cap)));
-            let (a, b) = if top <= rib_cap {
-                (top.clone(), rib_cap)
+            let (a, b, x) = if top <= rib_cap {
+                (top.clone(), rib_cap, x)
             } else {
-                (rib_cap, top.clone())
+                (rib_cap, top.clone(), reversed)
             };
             let n = StableName {
                 kind: EntityKind::Edge,

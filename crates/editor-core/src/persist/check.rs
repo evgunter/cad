@@ -1279,10 +1279,10 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     if !crate::doc::epsilon_admissible(doc.epsilon) {
         return Err(SnapshotError::EpsilonInvalid { value: doc.epsilon });
     }
-    // Every id in the document stays below the mint counter — replay
+    // Every id in the document is one the document has minted — replay
     // after load must never re-mint a referenced id.
     let check_id = |id: RecipeNodeId| -> Result<(), SnapshotError> {
-        if id.0 >= doc.next_id {
+        if !doc.has_minted(id) {
             Err(SnapshotError::IdBeyondCounter {
                 id,
                 next_id: doc.next_id,

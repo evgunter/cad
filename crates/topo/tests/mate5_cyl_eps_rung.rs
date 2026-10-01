@@ -468,8 +468,9 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
             Tol::witness(),
         );
         let (mut a_body, mut b_body) = (a.body, b.body);
+        // Lifts both refusals: two independently authored curved descriptions are the declared pair.
         a_body
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 a.top_face,
                 FaceSurface::New {
                     surface: surface.clone(),
@@ -477,8 +478,9 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
                 },
             )
             .unwrap();
+        // Lifts both refusals: two independently authored curved descriptions are the declared pair.
         b_body
-            .set_face_surface(
+            .set_face_surface_stranding_for_tests(
                 b.bottom_face,
                 FaceSurface::New {
                     surface: surface.clone(),

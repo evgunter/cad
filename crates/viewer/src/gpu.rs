@@ -2004,6 +2004,7 @@ mod tests {
             selected_probed: true,
             hovered_probed: false,
             held: segment(3.0),
+            held_refused: None,
             held_probed: false,
             preview: segment(2.0),
             datums: segment(0.0),

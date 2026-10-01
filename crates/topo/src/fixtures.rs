@@ -22,9 +22,10 @@
 //! Plus [`refile_shells`], the raw arena write that files several
 //! shells under one solid, which no operator does.
 //!
-//! Plus two whole-body observations the suites compare by —
-//! [`arena_snapshot`] (every arena's length) and [`deep_snapshot`]
-//! (key-for-key, field-for-field, provenance-for-provenance).
+//! Plus the whole-body observations the suites compare by —
+//! [`arena_snapshot`] (every arena's length), [`deep_snapshot`]
+//! (key-for-key, field-for-field, provenance-for-provenance, and each
+//! arena's next key) and [`deep_rows`] (the same less the next keys).
 //!
 //! Plus the **operator-built** family — [`ops_holed_box`] and
 //! [`ops_genus2`], the acceptance-test bodies rebuilt in-crate for
@@ -54,7 +55,7 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopBoundary, LoopKey,
     Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::euler::{MefCreated, MevCreated, MevSite, MvfsCreated};
+use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::provenance::Provenance;
@@ -147,24 +148,56 @@ pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
 /// the field and axis source channels), each in slot-index order,
 /// carrying the row's key and its full payload through `Debug` (which
 /// prints every field). Two snapshots compare equal iff the bodies
-/// are row-for-row and field-for-field identical.
+/// are row-for-row and field-for-field identical and every arena would
+/// mint the same next key.
 ///
 /// Every table is walked as a table rather than through live keys, so
-/// a row left behind for a dead key shows like any other. An arena's
-/// vacant slots are not rows: a key slot minted and freed again does
-/// not show.
+/// a row left behind for a dead key shows like any other. Each arena
+/// also gives one "next key" line: the key its next insert would mint,
+/// which is its free-list head. A key slot minted and freed again
+/// leaves every row as it was, but the last slot freed goes to the
+/// head with its version bumped past any key it held before, so the
+/// line moves (D1: a refused op consumes no key slots).
 ///
 /// `Body` is destructured without `..`, so a field this walk does not
 /// read fails to compile here. The one field it skips is the debug
 /// build's surgery depth, which counts the door scopes open on the
 /// body and is not body state (a clone resets it).
 pub(crate) fn deep_snapshot(body: &Body<f64>) -> Vec<String> {
+    let (mut lines, next_keys) = snapshot_rows_and_next_keys(body);
+    lines.extend(next_keys);
+    lines
+}
+
+/// [`deep_snapshot`] without its next-key lines: the observation for a
+/// make-then-kill round trip, which restores every row and consumes the
+/// key slots it minted.
+pub(crate) fn deep_rows(body: &Body<f64>) -> Vec<String> {
+    snapshot_rows_and_next_keys(body).0
+}
+
+fn snapshot_rows_and_next_keys(body: &Body<f64>) -> (Vec<String>, Vec<String>) {
     fn walk<K: std::fmt::Debug, V: std::fmt::Debug>(
         lines: &mut Vec<String>,
         table: &str,
         rows: impl Iterator<Item = (K, V)>,
     ) {
         lines.extend(rows.map(|(k, v)| format!("{table} {k:?}: {v:?}")));
+    }
+    fn walk_arena<K: slotmap::Key, V: Clone + std::fmt::Debug>(
+        lines: &mut Vec<String>,
+        next_keys: &mut Vec<String>,
+        table: &str,
+        arena: &slotmap::SlotMap<K, V>,
+    ) {
+        walk(lines, table, arena.iter());
+        // An insert whose value closure fails reports the key it would
+        // have minted and leaves the arena as it was.
+        let next = arena
+            .clone()
+            .try_insert_with_key(Err::<V, K>)
+            .expect_err("the value closure refuses");
+        next_keys.push(format!("{table} next key: {next:?}"));
     }
     let Body {
         solids,
@@ -195,16 +228,18 @@ pub(crate) fn deep_snapshot(body: &Body<f64>) -> Vec<String> {
             surgery: _,
     } = body;
     let mut lines = Vec::new();
-    walk(&mut lines, "solid", solids.iter());
-    walk(&mut lines, "shell", shells.iter());
-    walk(&mut lines, "face", faces.iter());
-    walk(&mut lines, "loop", loops.iter());
-    walk(&mut lines, "half-edge", half_edges.iter());
-    walk(&mut lines, "edge", edges.iter());
-    walk(&mut lines, "vertex", vertices.iter());
-    walk(&mut lines, "point", points.iter());
-    walk(&mut lines, "curve", curves.iter());
-    walk(&mut lines, "surface", surfaces.iter());
+    let mut next_keys = Vec::new();
+    let keys = &mut next_keys;
+    walk_arena(&mut lines, keys, "solid", solids);
+    walk_arena(&mut lines, keys, "shell", shells);
+    walk_arena(&mut lines, keys, "face", faces);
+    walk_arena(&mut lines, keys, "loop", loops);
+    walk_arena(&mut lines, keys, "half-edge", half_edges);
+    walk_arena(&mut lines, keys, "edge", edges);
+    walk_arena(&mut lines, keys, "vertex", vertices);
+    walk_arena(&mut lines, keys, "point", points);
+    walk_arena(&mut lines, keys, "curve", curves);
+    walk_arena(&mut lines, keys, "surface", surfaces);
     walk(&mut lines, "pcurve", pcurves.iter());
     walk(&mut lines, "null-face", null_faces.iter());
     walk(&mut lines, "solid-provenance", solid_provenance.iter());
@@ -231,7 +266,7 @@ pub(crate) fn deep_snapshot(body: &Body<f64>) -> Vec<String> {
         "surface-axis-source",
         surface_axis_sources.iter(),
     );
-    lines
+    (lines, next_keys)
 }
 
 /// Runs `op` on `body`, asserts it fails with exactly `expected`, and
@@ -262,10 +297,26 @@ pub(crate) enum KillAnchorFault {
     HeldTwice(VertexKey),
     /// A vertex no half-edge starts at and no `Empty` loop holds.
     Orphan(VertexKey),
-    /// A half-edge whose `parent_loop` does not resolve.
-    DeadLoop(HalfEdgeKey),
-    /// A half-edge whose start does not resolve.
-    DeadStart(HalfEdgeKey),
+    /// A half-edge whose `parent_loop` does not resolve, or a face
+    /// that lists a loop that does not.
+    DeadLoop(EntityId),
+    /// A half-edge whose start does not resolve, or an `Empty` loop
+    /// whose vertex does not.
+    DeadStart(EntityId),
+    /// A loop whose `face` does not resolve, or a shell that lists a
+    /// face that does not.
+    DeadFace(EntityId),
+    /// A face whose `shell` does not resolve, or a solid that lists a
+    /// shell that does not.
+    DeadShell(EntityId),
+    /// A shell whose `solid` does not resolve.
+    DeadSolid(ShellKey),
+    /// A half-edge whose `edge` does not resolve.
+    DeadEdge(HalfEdgeKey),
+    /// A half-edge whose `next` or `prev` does not resolve, a loop whose
+    /// `first` does not, a vertex whose `emanating` does not, or an edge
+    /// a slot of which does not.
+    DeadHalfEdge(EntityId),
 }
 
 /// Every [`KillAnchorFault`] on `body`.
@@ -309,10 +360,76 @@ pub(crate) fn kill_anchor_faults(body: &Body<f64>) -> Vec<KillAnchorFault> {
     }
     for (he, data) in body.half_edges() {
         if body.get_loop(data.parent_loop).is_none() {
-            faults.push(KillAnchorFault::DeadLoop(he));
+            faults.push(KillAnchorFault::DeadLoop(EntityId::HalfEdge(he)));
         }
         if body.get_vertex(data.start).is_none() {
-            faults.push(KillAnchorFault::DeadStart(he));
+            faults.push(KillAnchorFault::DeadStart(EntityId::HalfEdge(he)));
+        }
+        if body.get_edge(data.edge).is_none() {
+            faults.push(KillAnchorFault::DeadEdge(he));
+        }
+        if [data.next, data.prev]
+            .iter()
+            .any(|&link| body.get_half_edge(link).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::HalfEdge(he)));
+        }
+    }
+    for (l, data) in body.loops() {
+        if let LoopBoundary::Cycle { first } = data.boundary
+            && body.get_half_edge(first).is_none()
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Loop(l)));
+        }
+    }
+    for (v, data) in body.vertices() {
+        if data
+            .emanating
+            .is_some_and(|he| body.get_half_edge(he).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Vertex(v)));
+        }
+    }
+    for (e, data) in body.edges() {
+        if [data.he_plus, data.he_minus]
+            .iter()
+            .any(|&slot| body.get_half_edge(slot).is_none())
+        {
+            faults.push(KillAnchorFault::DeadHalfEdge(EntityId::Edge(e)));
+        }
+    }
+    for (l, data) in body.loops() {
+        if let LoopBoundary::Empty { vertex } = data.boundary
+            && body.get_vertex(vertex).is_none()
+        {
+            faults.push(KillAnchorFault::DeadStart(EntityId::Loop(l)));
+        }
+        if body.get_face(data.face).is_none() {
+            faults.push(KillAnchorFault::DeadFace(EntityId::Loop(l)));
+        }
+    }
+    for (f, data) in body.faces() {
+        if core::iter::once(&data.outer)
+            .chain(&data.rings)
+            .any(|&l| body.get_loop(l).is_none())
+        {
+            faults.push(KillAnchorFault::DeadLoop(EntityId::Face(f)));
+        }
+        if body.get_shell(data.shell).is_none() {
+            faults.push(KillAnchorFault::DeadShell(EntityId::Face(f)));
+        }
+    }
+    for (s, data) in body.shells() {
+        if data.faces.iter().any(|&f| body.get_face(f).is_none()) {
+            faults.push(KillAnchorFault::DeadFace(EntityId::Shell(s)));
+        }
+        if body.get_solid(data.solid).is_none() {
+            faults.push(KillAnchorFault::DeadSolid(s));
+        }
+    }
+    for (solid, data) in body.solids() {
+        if data.shells.iter().any(|&s| body.get_shell(s).is_none()) {
+            faults.push(KillAnchorFault::DeadShell(EntityId::Solid(solid)));
         }
     }
     faults
@@ -579,6 +696,66 @@ pub(crate) fn ngon_pillow(n: usize, tol: Tol) -> NgonPillow {
 /// The digon pillow — the minimal closed fixture (see [`ngon_pillow`]).
 pub(crate) fn pillow(tol: Tol) -> NgonPillow {
     ngon_pillow(2, tol)
+}
+
+/// The PR 4 detached-digon transient with `n` digons: a pillow, and
+/// `n` digons each grown on its own ring of the pillow's seed face and
+/// promoted (`mfkrh`) — one shell entity of `n + 1` closed components.
+/// Returns (body, shell, seed face, the promoted faces in order). The
+/// seed face is the shell's first face.
+pub(crate) fn detached_digons(n: usize) -> (Body<f64>, ShellKey, FaceKey, Vec<FaceKey>) {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    let seg = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        )
+        .unwrap();
+    body.mef_chord(
+        MefSite::Chords {
+            he1: seg.he_plus,
+            he2: seg.he_minus,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
+    let mut promoted = Vec::new();
+    for i in 0..n {
+        let x = 2.0 * (i as f64) + 2.0;
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                Point3::new(x, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let grow = body
+            .mev_line(
+                MevSite::Lone { r#loop: kill.ring },
+                Point3::new(x + 1.0, 0.0, 0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        body.mef_chord(
+            MefSite::Chords {
+                he1: grow.he_plus,
+                he2: grow.he_minus,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        promoted.push(body.mfkrh_plug(kill.ring, true).unwrap().face);
+    }
+    assert_eq!(body.get_shell(seed.shell).unwrap().faces[0], seed.face);
+    (body, seed.shell, seed.face, promoted)
 }
 
 /// Every shell of `donor` refiled under `keeper` — appended to
@@ -1334,10 +1511,33 @@ pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
 mod tests {
     use super::*;
 
+    /// Removes every arena entry `original` does not hold, bumping the
+    /// version of each slot it frees.
+    fn drop_entries_not_in(body: &mut Body<f64>, original: &Body<f64>) {
+        fn keep<K: slotmap::Key, V, W>(
+            arena: &mut slotmap::SlotMap<K, V>,
+            original: &slotmap::SlotMap<K, W>,
+        ) {
+            arena.retain(|k, _| original.contains_key(k));
+        }
+        keep(&mut body.solids, &original.solids);
+        keep(&mut body.shells, &original.shells);
+        keep(&mut body.faces, &original.faces);
+        keep(&mut body.loops, &original.loops);
+        keep(&mut body.half_edges, &original.half_edges);
+        keep(&mut body.edges, &original.edges);
+        keep(&mut body.vertices, &original.vertices);
+        keep(&mut body.points, &original.points);
+        keep(&mut body.curves, &original.curves);
+        keep(&mut body.surfaces, &original.surfaces);
+    }
+
     /// Every record the snapshot claims to walk moves it: a new entry in
     /// each of the ten arenas, then a provenance record for each new
-    /// topology entry. A walk that drops an arena or a provenance lookup
-    /// leaves that row's snapshot unmoved.
+    /// topology entry, and, on its own, the key slot that entry consumes
+    /// once it is removed again. A walk that drops an arena, a
+    /// provenance lookup or an arena's next key leaves that row's
+    /// snapshot unmoved.
     #[test]
     fn deep_snapshot_sees_every_arena_and_provenance_record() {
         let s = mvfs_state();
@@ -1440,6 +1640,20 @@ mod tests {
         ];
 
         for (arena, insert) in &rows {
+            let mut churned = s.body.clone();
+            insert(&mut churned);
+            drop_entries_not_in(&mut churned, &s.body);
+            assert_eq!(
+                arena_snapshot(&churned),
+                arena_snapshot(&s.body),
+                "{arena}: the churn leaves every arena its length"
+            );
+            assert_ne!(
+                deep_snapshot(&churned),
+                before,
+                "{arena}: an entry minted and removed leaves the snapshot unmoved"
+            );
+
             let mut body = s.body.clone();
             let entity = insert(&mut body);
             let with_entry = deep_snapshot(&body);

@@ -4270,3 +4270,563 @@ review, frozen at `dba0ffb29a`, on the loop-anchor target. The review:
 
 PR 3559 merged (`685dc36544`) after CI run 36728287648 went green,
 closing `deep-snapshot-does-not-walk-the-body-side-tables`.
+
+## revert-starts delivered as PR 3562; row closed on the branch (2026-09-30)
+
+The implementer took 208,608 tokens, 117 tools and 2,607 s. Head
+`b80f9797d0` is green on CI run 36732202326.
+
+**The `prev` split, measured at base.** Of the `prev` tears that gain a
+validator kind:
+- 7,704 are renames: the `next`↔`prev` swap handing the same link to
+  another field.
+- 164 are written faults. A `prev` at the anchor naming another member
+  of the same loop passed PR 3546's `LoopMember` check, and the anchor
+  moved there.
+
+**The new proofs.**
+- `RevertLink::Start`: each half-edge's end is its mate's start.
+- `RevertLink::LoopPredecessor`: `prev(first).next == first`.
+
+Every written fault on eight bodies goes to 0. Every `Ok` from a
+`next` or `prev` tear equals the tear's image, and the renames are
+pinned per tear kind.
+
+The orchestrator read the diff and accepted it. The row closes at
+`9c47ba020f`; merge after CI.
+
+**Filed:** `tint/topo-tests-fail-clippy-with-debug-assertions-off`
+(P3, E). Two lanes in a row hit eight dead-code errors in
+`loop_reparenting_pcurve_rows.rs` with debug assertions off; CI does
+not lint that config.
+
+Dispatched on the walk target: `deep-snapshot-cannot-see-a-consumed-key-slot`,
+bundled with `refusal-rows-that-count-instead-of-snapshot` (branch
+`topo/snapshot-key-slots`).
+- The snapshot gains a per-arena next-key line (D1: "consumes no key
+  slots"), and the two count-only refusal rows move to the snapshot.
+- As with the side tables, the lane measures which rows newly red, and
+  defers any fix that lies in a live lane's files.
+- `null.rs`'s part waits for PR 3531.
+
+PR 3562 merged (`f0cce79cbb`) after CI run 36733898770 went green,
+closing `revert-writes-each-start-through-an-unproven-next`. `revert`
+now proves every map it writes.
+
+## PR 3531's fix pass delivered; item closed on the branch (2026-09-30)
+
+The fix pass took 422,292 tokens, 233 tools and 5,696 s. Head
+`b4164771a4` is green on CI run 36733865284.
+
+What the fix pass did:
+- **MAJOR.** `merge_group` moved to `ring_move_minting` and
+  `kef_minting`. The review's public-door probe is now a sweep row,
+  red on the old merge-door code for the absorbed-sector case, green
+  for both cases, and red under the keys-only mutant.
+- **The caller re-check** found one more of the same shape:
+  `boolean/rest.rs`'s band-run `kef`, now `kef_minting`. The rest cannot
+  owe, and each is stated.
+- **One predicate.** `pcurves::site_walks`. `site_rows` walks exactly
+  its list, and `site_rows_owed` is "the list is not empty".
+- **The twins are pinned** on the same-chart and spline rows through a
+  shared `both_doors`.
+- **The emptied-face account** was re-measured with the review's tool:
+  317 → 147 / 169 / 1 / 0 carried.
+- **Style.** `kfmrh` split into plan and execute, so all four pairs
+  share one postcondition shape and the two `ALLOWED` rows are gone.
+  `seqgen` drives both doors. Deviation 4 is reverted to main's
+  `StaleKey` order.
+- **Q7** not taken, as ruled.
+
+**Pins that moved, re-counts under their gates' own rules:**
+- `seqgen`'s fingerprint moved (both doors offered). The module's
+  stream-set counts were re-measured, and the method reproduces the old
+  numbers with the twins withheld.
+- `bit-identity-debug-only.sh`'s `euler_ring.rs` pin went 19 → 20.
+
+The orchestrator read the diff and accepted it. The item closes at
+`70211795ed`; merge after CI. Single tier, no DR row.
+
+After the merge, the kill-plan P3s can go, since their files are free:
+the far vertex, the empty loop or lone vertex, face/shell/solid
+removals, and the mate's own edge.
+
+## PR 3531 merged; the kill proofs dispatched (2026-09-30)
+
+PR 3531 merged at `70211795ed` (merge `b286e6e520`) after CI run
+36735728816 went green. That closes
+`loop-reparenting-doors-drop-rows-they-could-now-re-mint-under-decide`,
+and I unsubscribed.
+
+**Dispatched on the rebase target:** the four kill-plan P3s as one
+unit, "every kill proves nothing else names what it removes", branch
+`topo/kill-proves-removals`. The rows are:
+- `kev-kills-a-far-vertex-whose-fan-it-reads-by-the-walk`;
+- `mekr-and-kvfs-remove-an-empty-loop-or-lone-vertex-another-record-names`;
+- `kef-kvfs-and-mekr-remove-a-face-shell-solid-or-edge-another-record-names`;
+- `kef-and-kev-take-a-mate-whose-own-edge-is-another`.
+
+**The brief.**
+- Its governing text is D1 (atomic) and the D2 addendum, with
+  provenance, and its precedents are PRs 3483, 3495, 3511, 3532 and
+  3531.
+- One proof helper per relation (vertex, loop, face/shell/solid,
+  edge), read by every operator and by both doors of each twin pair.
+- The probe loses its `FILED_CELLS` admission, so every cell must
+  reach 0.
+- Lanes use the GitHub MCP tools, never raw API calls.
+
+## The key-slot unit delivered as PR 3566; row closed on the branch (2026-09-30)
+
+The implementer took 168,774 tokens, 103 tools and 2,738 s. Head
+`a311ec4383` is green on CI run 36736280511.
+
+**What changed.** `deep_snapshot` gains a next-key line per arena,
+read through slotmap's `try_insert_with_key(Err)` on a clone: the next
+key comes back, and nothing is inserted.
+
+**What it exposed.**
+- **No refusal row reds**, so no D1 slot defect exists in today's rows.
+- Two make-then-kill round-trip rows in `review_m1_pr4` moved. A
+  successful make and kill consumes slots, and D1 allows that. They
+  now compare with `deep_rows` (the same walk without the next-key
+  lines), which is exactly what they claimed.
+- The two count-only refusal rows now read the snapshot.
+- The lineage rows are kept, since they pin the construction
+  interleaving and caller-visible key identity.
+
+The orchestrator read and accepted it. The key-slot row closes at
+`d3bb73c03b`. `refusal-rows-that-count-instead-of-snapshot` stays
+open for its `null.rs` part. Merge after CI.
+
+Dispatched on the walk target: the two `movefac` rows as one unit,
+branch `topo/movefac-proofs`:
+- `movefac-labels-components-by-an-unproven-cycle-walk` (P3);
+- `movefac-row-skips-three-component-shells` (P3).
+
+The labelling walks get PR 3511's `require_run_of` proof. `seqgen`
+offers shells of `c >= 2` components. The row's "a site is an address"
+property is the catalog's convention, not a ratified decision
+(`git log -S` finds only the S69 row's text), so the generator shape
+is the lane's to choose and state.
+
+PR 3566 merged (`b37d0526b0`) after CI run 36739836506 went green,
+closing `deep-snapshot-cannot-see-a-consumed-key-slot`. The deep
+snapshot now observes every table and every arena's next key.
+
+## PR 3513's fix-pass-2 review: a MAJOR again; third fix pass out (2026-09-30)
+
+The review at `dba0ffb29a` took 453,143 tokens, 201 tools and 6,785 s.
+The gate was green.
+
+**What held.** The root-cause change works at the sites earlier reviews
+named, and all 24 lane mutants red.
+
+**MAJOR (executed from a public door).** At the sphere lanes, the
+refusal offers "tighten the tolerance below X". Run at that tolerance,
+it refuses with a different story. `nested` passes on Positive only;
+`escape_parallel` only at Zero, which never names the tolerance. The
+umbrella `AnySign` pass set is false there. It is the N-3 class, half
+swept, and the PR body's sweep claim is false.
+
+**MINORs:**
+- a false `Settles` at the `recl` membership tie for planar flanks;
+- two hand-minted decided-zero refusals that bypass the escalation
+  log (a fresh defect this pass minted);
+- a poisoned normal routed to "declare";
+- the budget broken by enclosure payloads;
+- the circle lane's stated pass reason is false;
+- six of the reviewer's seven mutants survive.
+
+**Adjudication.** Three rounds, one class: a claim the deciding code
+does not honour, stated per site or per umbrella. The third fix pass
+fixes the root first:
+- the pass set moves onto each question, derived from its deciding
+  code;
+- `DeclarationRead` is constructed from the door's actual read, not
+  stated, with `Moot` only for primitives that take none.
+
+Then the findings. Every claim in the PR body must now cite a row, a
+mutant or an executed probe; an uncited claim is removed.
+
+Out on the loop-anchor target.
+
+## The movefac unit delivered as PR 3574; rows closed on the branch (2026-09-30)
+
+The implementer took 317,197 tokens, 174 tools and 4,143 s. Head
+`da621f9af9` is green on CI run 36745997179.
+
+**The proof.** Each labelling walk is proven to be its loop's whole
+cycle:
+- every member claims the loop (`require_run_of(.., Part, ..)`);
+- the walk's length equals the loop's claim count, from one arena
+  pass.
+
+That gives `Whole`'s invariant at O(half-edges), with
+`require_run_of` unchanged. `Part` alone would miss a short walk that
+splits a shell. A failing walk refuses `LoopCycleBroken` before any
+mutation.
+
+**The torn-body sweep.** Wrong partitions through `Ok` go to 0 under
+every tear (from 3,025 joined and 4,034 split at the worst). A
+constructed pin covers the short-walk split, which random tears never
+build.
+
+**The generator.** Shape (b): `ep_vector(&self, body)` derives `c`,
+and the filter is `>= 2`. 87 of 311 `Movefac` selections now reach
+`c >= 3`, where there were 0.
+- `FINGERPRINT` moved to 10,871,328,829,263,095,025.
+- The module's stream counts were re-measured, and the harness
+  reproduces the old numbers at base.
+
+**Filed:**
+- `movefac-reads-a-mate-and-a-neighbour-it-never-proves`;
+- `movefac-roundtrip-re-make-is-unbuilt`.
+
+**Deviation, accepted.** The lane edited `seqgen.rs` (probe's
+territory) and a new `tests/tears.rs` (tcost/tint), both assigned by
+the brief.
+
+The orchestrator read the proof and accepted it. The rows close at
+`4a087db298`; merge after CI.
+
+Dispatched on the walk target:
+`set-face-surface-hands-the-caller-an-ordering-obligation-in-prose`
+(P3, E), branch `topo/set-face-surface-proves-edges`.
+- It is the last S93-class prose obligation. The precedent is PR
+  2527's `kev` ruling: re-check every edge naming the swapped surface,
+  and refuse typed before mutating where one would go stale. A
+  describing sibling door is added only if the measurement needs one.
+- It also finishes `null.rs`'s part of
+  `refusal-rows-that-count-instead-of-snapshot`, now that PR 3531 has
+  landed.
+
+`movefac-reads-a-mate-and-a-neighbour-it-never-proves` waits for the
+kill-proofs lane, whose both-ways edge-claim helper it should reuse.
+
+PR 3574 merged (`4085f56827`) after CI run 36748519761 went green,
+closing the two `movefac` rows.
+
+## The kill proofs delivered as PR 3570; its single review out (2026-09-30)
+
+The implementer took 497,180 tokens, 247 tools and 7,932 s. Head
+`1c474a7f32` is green on CI run 36750910239.
+
+**What changed.** One proof helper per relation, each a single arena
+scan with its cost stated:
+- `require_vertex_unnamed`;
+- `require_edge_pair`, both ways through `Edge::claim`, which replaces
+  `kemr`'s inline `claims_both`;
+- `require_loop_unlisted`;
+- `require_face_unnamed`, `require_shell_unnamed`, `require_solid_unnamed`.
+
+`kev`, `kef`, `kvfs`, `kemr` and all four `mekr` sites read them.
+
+**Refusals.** `OrbitBroken`, `LoopCycleBroken`, `NotSameEdge` and
+`UnclaimedHalfEdge` are reused. One new variant,
+`KillLeavesDangling { from, to }`, covers spine ownership lists. It
+ends in `KERNEL_OR_FILE_DEFECT_ENDING` while its siblings end in
+"(malformed body)", which the review checks against
+`euler-op-corruption-refusals-end-in-a-tag`.
+
+**The probe.** 22 faulted cells before, every cell 0 after. The
+`FILED_CELLS` admission is gone, and no fault-free cell's `Err` count
+moved.
+
+**Baseline.** `SPENT_GRAFT_EXPOSURE`'s `kev` count went 50 → 25: the
+25 kills that now refuse each left a dead record named at base.
+
+**Filed:**
+- `kills-remove-half-edges-another-record-names`;
+- `kfmrh-removes-a-face-or-shell-another-record-names`;
+- evidence on REACH's `carve` row.
+
+**Deviation.** Red-first was shown with the proofs switched off,
+because the new variant does not compile on base. The review
+reproduces it on the true base.
+
+The lane freed about 2.4 GB of stale files in its own target, with
+nothing denied; the disk is at 9.3 GB free.
+
+**The review.** A single full review, frozen at `1c474a7f32`, on the
+rebase target. It checks each helper against valid bodies (self-loops,
+seams, genus 2, both twin doors), the late proof order in `kef` and
+`kev`, and the new variant's ending.
+
+## PR 3570's review: APPROVE-WITH-FIXES; fix pass out (2026-09-30)
+
+The single full review of PR 3570 at `1c474a7f32` took 362,199 tokens,
+169 tools and 4,509 s, on a green gate.
+
+**Confirmed:**
+- All 12 witnesses are `Ok` with their fault at the true base, and
+  refused at head.
+- 205 valid bodies pass: 9,599 helper checks, including 625 self-loops
+  and 1,048 seam-shaped edges.
+- Twelve two-fault plants refuse the documented-first fault, with the
+  body deep-unchanged.
+- The `SPENT_GRAFT_EXPOSURE` move is exactly the 25 faulted kills.
+
+The reviewer's `git merge-tree` was denied by the permission
+classifier. It did not retry, and I did not run it on its behalf; the
+fix pass merges main normally.
+
+**MAJOR.** The receipt missed `null_faces`, which names loops (validate
+pass 13). From tier-1-valid bodies, through public doors, `kef`, `kvfs`
+and `mekr(Cycles)` return `Ok` with `StaleNullFaceLoop`. This is
+pre-existing, but it falsifies the unit's universal claim.
+- It is filed rather than fixed: whether a kill should refuse or
+  maintain the record is a null-face semantics question, and one
+  witness is a plausible pipeline state.
+- The root cause is the hand-kept census of naming relations, which
+  drifted from validate's. The fix pass adds a census row tying the
+  kill helpers to validate's list.
+
+**MINORs:**
+- The mate decision is made three ways, and a torn slot is reported
+  as a non-corruption variant. It becomes one O(1) check first, with
+  the arena scan last and the pre-empted rows re-baselined.
+- The PR body's over-refusal claim is false. The extra refusals (torn
+  mate `edge` fields) are right; the claim is corrected.
+- The open ending row's text is stale.
+- R03, R05 and R06 are pinned only by the seed search.
+
+The fix pass is out on the rebase target.
+
+## set-face-surface delivered as PR 3580; its single review out (2026-09-30)
+
+The implementer took 464,300 tokens, 267 tools and 8,711 s. Head
+`8325571ad6` is green on CI run 36763556276.
+
+**The measurement.** The swap mints a fresh key, so what goes false is
+an edge's adjacency, not its certificate; tier 3 reports it as
+`DescriptionNotAdjacent`. Four production callers strand edges, about
+3,900 calls in all: `offset_together`, `offset_axial`,
+`replace_face_offset` and `splitting/finish`'s section face. Each
+swaps and then re-describes.
+
+**The mechanism** follows PR 2527's `kev` precedent.
+- `set_face_surface` stays keys-only and refuses
+  `RechartStrandsDescriptions` before mutating. It takes no band,
+  since the question is exact.
+- A describing door, `set_face_surfaces_describing(Vec<Rechart>, ..,
+  tol)`, is multi-chart. It departs from `kev_describing`'s single
+  site, because an edge between two moving charts certifies on
+  neither mixed pair. The four callers move to it.
+- A test-only bypass door, `set_face_surface_stranding_for_tests`,
+  serves about 90 fixtures.
+- Four new `EulerOpError` variants.
+- `null.rs`'s snapshot companions are dropped.
+
+**Filed:**
+- `mef-and-mfkrh-onto-a-new-chart-strand-the-edges-they-move` (with
+  `kef` evidence);
+- `a-kill-refusal-row-keeps-a-rows-companion-the-deep-snapshot-subsumes`.
+
+**The review.** It is a new public API shape beside a ratified
+family, so a single full review, frozen at `8325571ad6`, on the walk
+target. It tests:
+- the adjacency-not-certificate reading, including a `Shared` swap
+  onto different geometry;
+- whether the plain door is exact;
+- whether the multi-chart door is necessary and harmonious (Ev's PR
+  2527 concern);
+- whether the bypass door leaks outside test builds, and whether its
+  fixtures could be coherent;
+- whether the callers' output bodies are unchanged.
+
+## PR 3570's fix pass delivered; main's latent ε-row red fixed as PR 3590 (2026-09-30)
+
+The fix pass took 401,679 tokens, 176 tools and 6,078 s.
+
+**What it did:**
+- **MAJOR.** Filed as `kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove`
+  (P2, `design: true`), with the three witnesses and both shapes. The
+  title and claim are scoped.
+- **The census row.** It reads `validate::tier1`'s `Dangling*` and
+  `Stale*` constructions (19 relations), and each is either read by a
+  kill helper or filed. A new relation or variant reds it.
+- **One pair check.** `require_halves` is O(1) and runs first; the
+  stray scan runs last, `kemr` included. A torn slot is now
+  `NotSameEdge`.
+  - Two rows were re-baselined, `OrbitBroken` and `LoopCycleBroken` →
+    `NotSameEdge`.
+  - The segment-merges-a-fan arm is now unreachable and unpinned. It
+    is kept as a contract, and the lane says so.
+- **Claims and rows.** The over-refusal claim is corrected (20,883
+  torn mate `edge` fields refused), and the ending row's text updated.
+- **Mutants.** R03, R05 and R06 have deterministic rows; all 20 red.
+- **Style.** One home each for `starts_at_besides` and
+  `empty_at_besides`; `Clearing` is now `{removed, edited}`; one ring
+  helper for all four `mekr` sites.
+
+**The orchestrator read** the fix commit `7b32f0a20f` and accepted it.
+The four rows close on the branch at `605fa59524`.
+
+**CI was red, and not this PR's.**
+`viewer::sketch::tests::a_last_leg_no_close_can_follow_is_walked_back`,
+from AUTH-13 on main, fails at ε 1e-6 and 1e-12.
+- Its `banded` and `banded_short` legs place in-band offsets at
+  literals (1e-9, 4e-10) that sit in the band only at the default ε,
+  while `previewed` reads `Tol::witness()`. Each leg reds on its own.
+- No fix existed. I opened PR 3590: both offsets read
+  `Tol::witness().eps()` (1ε, 0.4ε). It passes locally at all three ε,
+  fmt and gates are clean, and the seam note is on author's log.
+- I ported it into PR 3570 by merging the branch (`08e65af424`). Merge
+  both after CI.
+
+## PR 3513's third fix pass delivered; the focused fix-pass-3 review out (2026-09-30)
+
+The third fix pass took 138,514 tokens, 400 tools and 15,895 s.
+
+**Both root-cause changes are taken:**
+- **Per-question pass sets.** `Coincide::ending` states each question's
+  own pass set. Questions with mixed sites are split, and
+  non-coincidence questions move to their own decisions:
+  `Sphere(SphereQuestion)`, `SelfCheck`, `SeamWedge` and
+  `ArcTorusRoots`.
+- **A constructed declaration read.** `DeclarationRead::Settles(Settling)`
+  has a private field and one constructor, `DeclaredPairs::read`, which
+  goes through `Coincide::settled_by`. A site stating `Settles` is a
+  compile error. "Declare" is now offered at exactly three sites.
+
+**What else changed:**
+- The sphere lanes are five true questions.
+- `SpheresMeet` is a new refusal kind.
+- The escalation-log hole is closed by `decide_nonzero_reported`.
+- A poisoned norm is `SelfCheck(Normals)`.
+- A budget row renders every decision × read × payload.
+- 50 mutants, all red except R1a, which the lane calls equivalent.
+
+**CI.** It was red only on main's viewer ε-row test. PR 3590 is ported
+(`aae266107f`).
+
+**The disk trim was denied.** When asked to trim its own target, the
+lane's deletion was denied by the permission classifier. It did not
+work around it, and I have not deleted anything there on its behalf.
+Reported to Ev. The disk is at about 5.4 GB free.
+
+**The focused fix-pass-3 review,** frozen at `aae266107f`, decides
+whether the class is closed. For every tolerance offer, it re-runs the
+real raise just below the offered ε, which must pass. For each
+`Settles` site, it declares through the real door, which must pass.
+It also tries to lie to the type, checks the split questions' pass
+sets, the `SelfCheck` reachability and `SpheresMeet`'s wiring, and
+runs mutants.
+
+## PR 3580's review: APPROVE-WITH-FIXES; fix pass out, with the describing door kept to PR 2527's shape (2026-09-30)
+
+The single full review at `8325571ad6` took 346,264 tokens, 179 tools
+and 4,849 s, on a green gate.
+
+**Confirmed:**
+- The keys-only refusal matches tier 3's `DescriptionNotAdjacent`
+  exactly over 328 swaps.
+- The refusals are atomic.
+- The bypass door is unreachable from non-test builds (`cargo tree`).
+- The four composers' 1,041 results are identical to base.
+
+**MINORs:**
+- A residual hole: both doors pass a swap that moves a face off its
+  boundary, left for tier 3 by a new prose obligation (S93 class).
+- 12 fixture sites take the bypass though the real doors serve them.
+- Two docs still cite the deleted clause.
+- The multi-chart order and the `repoint` tie-break are unpinned.
+- The refusal text is one message for two decisions.
+- Harmony with PR 2527's family.
+
+**Ruled (MINOR-6).** The describing door departs from Ev's PR 2527
+shape in two ways: it is not a superset of the plain door (a stranding
+`Shared` swap has no public door), and it carries unlisted edges by
+default. Ev said of a default in this family, "that's not great".
+- The option that keeps the ruling is mine to take (the PR 3156
+  lesson): the describing door accepts every spec, refuses an unlisted
+  stranded edge, and callers state their re-descriptions, through a
+  helper if useful.
+- The multi-chart shape stays, on its true reason: one call avoids an
+  observable `ScaffoldAtRest` intermediate.
+
+**MINOR-1.** The describing door checks its moved faces' residuals
+under its band. The plain door's gap is filed.
+
+The fix pass is out on the walk target. It must keep the composers'
+output identical, re-running the review's dump.
+
+PR 3590 merged (`b3f6ec349f`) after CI run 36775011254 went green.
+Main's viewer ε-row test holds at every ε again. PR 3570 and PR 3513
+carry the same change.
+
+## PR 3570 merged; the half-edge, kfmrh and movefac proofs dispatched (2026-09-30)
+
+PR 3570 merged at `08e65af424` (merge `6288a7d210`) after CI run
+36775034261 went green, ε rows included, with PR 3590's port. That
+closes the four kill-proof rows.
+
+**Dispatched on the rebase target,** branch
+`topo/kill-proves-half-edges`:
+- `kills-remove-half-edges-another-record-names`;
+- `kfmrh-removes-a-face-or-shell-another-record-names`;
+- `movefac-reads-a-mate-and-a-neighbour-it-never-proves`.
+
+Precedent is PR 3570's helpers. The four half-edge relations move from
+Filed to Read in `euler::removal_census`. `movefac` reuses
+`require_halves`, and `kfmrh` joins the probe.
+
+`kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove`
+is `design: true`. Before any fork, I'll check whether one of its two
+shapes keeps the ratified decisions as they stand.
+
+## PR 3513 fix pass 3 reviewed: NOT-MERGEABLE-AS-IS; fix pass 4 dispatched (2026-09-30)
+
+A focused review ran on the frozen head `aae266107f`, where CI run
+36775092792 is green and the merge state is clean.
+
+**The declaration half now holds.** Pass 3 constructs the declaration
+read. The reviewer declared the offered class through the real door at
+`vtxfac` and at the `recl` ON door, and both built.
+
+**The tolerance half does not.** The reviewer re-ran each offer at ε
+just below the offered value. It is false at six arms:
+- `vtxfac` coplanar Sectors: a `ClassificationInvariant` at 5e-10,
+  then `VertexOnFace`;
+- the negative line-clearance and curved-endpoint arms: they reach
+  `WallRoots(Discriminant)`;
+- `LeverArm(SectorSide)`: the offer is too large by 1/sin(elevation);
+- curved-flank FlankSense: `CurvedBooleanUnsupported`;
+- two declared doors: they end at a frontier.
+
+Sphere `Apart`'s decided zero says the spheres "cross". That is false,
+and it offers no tolerance. Four MINORs remain: an unhonoured
+curved-flank Settles, `Settling` not bound to its question, a possibly
+reachable `SelfCheck(GermLine)`, and surviving mutants W3/W3b. Report
+archived.
+
+**Ruling (orchestrator): what a tolerance offer promises.** D4 ¶1 (i)
+offers the tolerance only where "a smaller ε decides it". Read against
+the op, as the user meets it, an offer is true when, re-run at 0.9×
+the offer, either:
+- (T1) the op passes; or
+- (T2) the op refuses on a *different* decision that tells its own true
+  story, and whose own offer is true, ending in a pass.
+
+It is false if the same decision refuses again (F1), if the re-run
+reaches a defect or invariant (F2), or if it reaches a frontier with no
+pass at any ε (F3). F3 is D4's pass set applied along the op's path:
+that side does not pass.
+
+Withdrawing a valued tolerance is always D4-compliant, since (i)
+restricts the offer and never obliges it. This reading keeps D4 as it
+stands, so there is no `[ev]` question (the PR 3156 lesson).
+
+**Root fix.** Four rounds have found the same class. Each review found
+offers pinned only against `want()`, never executed. Pass 4 therefore
+adds one harness that executes every tolerance offer through its real
+raise, with completeness enforced from the closed decision type, and
+mutants that inflate or re-offer one. The harness is seeded from the
+reviewer's C1 table. Arms that cannot be made true locally are
+withdrawn, and the residue is filed.
+
+The `vtxfac` invariant is reachable from user geometry. That makes it a
+bug, to be fixed at its source.
+
+Dispatched on the loopanchor target. The brief is `coinc-fix4-brief.md`.

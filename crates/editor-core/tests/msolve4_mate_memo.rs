@@ -34,8 +34,8 @@ use geom_core::Tol;
 /// (`fixture::resolver`), not a stub authored here.
 use fixture::resolver::{PartStore, in_part, with_resolver};
 
-/// A `wxwxh` block, as a whole part document.
-fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
+/// A `wxwxh` block, as a whole part document, and its body.
+fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -44,14 +44,13 @@ fn slab(label: &str, w: f64, h: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)]],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(h),
         },
-    );
-    doc
+    )
 }
 
 // ---- the scene ----
@@ -130,15 +129,17 @@ struct Scene {
     top_a: RecipeNodeId,
     top_b: RecipeNodeId,
     top_c: RecipeNodeId,
+    base_body: RecipeNodeId,
+    block_body: RecipeNodeId,
 }
 
 fn scene(label: &str) -> Scene {
     let mut store = PartStore::new();
-    let base_ref = store.insert(
+    let (base_ref, base_body) = store.insert_part(
         slab(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let block_ref = store.insert(
+    let (block_ref, block_body) = store.insert_part(
         slab(&format!("{label}-block"), BLOCK_WIDTH, BLOCK_HEIGHT),
         Tol::witness(),
     );
@@ -155,6 +156,8 @@ fn scene(label: &str) -> Scene {
         top_a,
         top_b,
         top_c,
+        base_body,
+        block_body,
     }
 }
 
@@ -176,8 +179,8 @@ impl Scene {
         primitive: MatePrimitive,
     ) -> RecipeNodeId {
         let node = seat(
-            crate::fixture::head_at(self.base, in_part(self.base, CapEnd::End)),
-            crate::fixture::head_at(block, in_part(block, CapEnd::Start)),
+            crate::fixture::head_at(self.base, in_part(self.base, self.base_body, CapEnd::End)),
+            crate::fixture::head_at(block, in_part(block, self.block_body, CapEnd::Start)),
             base_frame(x, y),
             block_bottom(),
             primitive,
@@ -188,8 +191,8 @@ impl Scene {
     /// A mate seating `upper`'s bottom cap on `lower`'s top cap.
     fn stack(&mut self, lower: RecipeNodeId, upper: RecipeNodeId) -> RecipeNodeId {
         let node = seat(
-            crate::fixture::head_at(lower, in_part(lower, CapEnd::End)),
-            crate::fixture::head_at(upper, in_part(upper, CapEnd::Start)),
+            crate::fixture::head_at(lower, in_part(lower, self.block_body, CapEnd::End)),
+            crate::fixture::head_at(upper, in_part(upper, self.block_body, CapEnd::Start)),
             block_top(),
             block_bottom(),
             MatePrimitive::FrameCoincidence,
