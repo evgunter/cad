@@ -446,6 +446,20 @@ impl SplitJoinError {
             }
             Self::Band(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            // The carrier's constructor states its escalation for a
+            // caller that could build the circle instead; no reader of
+            // a join can, so the join keeps the constructor's subject
+            // and offers its own door's levers.
+            Self::Section {
+                source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
+                ..
+            } => write!(
+                f,
+                "{} is undecided for the section through a curved face: {}. Recourse: \
+                 {recourse}",
+                geom::EllipseInvalid::escalated_subject(diag),
+                diag.payload()
+            ),
             Self::Section { source, .. } => {
                 write!(f, "the section through a curved face refused: {source}")
             }
@@ -1335,7 +1349,7 @@ fn chord_spec<T: Decide>(
                     k
                 }
             };
-            let witness = carrier.eval(s1 + (s2 - s1) * T::from_f64(0.5));
+            let witness = carrier.mid_point(s1, s2);
             return Ok(Some(EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
                     s1: wall_key,
@@ -1384,7 +1398,7 @@ fn chord_spec<T: Decide>(
             k
         }
     };
-    let witness = carrier.eval(t_start + (t_end - t_start) * T::from_f64(0.5));
+    let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             s1: wall_key,
@@ -1518,7 +1532,7 @@ fn bool_planar_chord_spec<T: Decide>(
             k
         }
     };
-    let witness = carrier.eval(t_start + (t_end - t_start) * T::from_f64(0.5));
+    let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             s1: plane_key,
@@ -2617,7 +2631,7 @@ mod tests {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         s1: cyl,
                         s2: plane,
-                        witness: carrier.eval((t0 + t1) * 0.5),
+                        witness: carrier.mid_point(t0, t1),
                     },
                     carrier,
                     param_start: t0,

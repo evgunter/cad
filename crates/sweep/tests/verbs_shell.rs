@@ -20,7 +20,7 @@ use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{
     hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
 };
-use crate::common::torus_walls::klein_elbow;
+use crate::common::torus_walls::{klein_elbow, props_door};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -1038,21 +1038,24 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
 /// **It does not retire yet, and this row is why.** A partial revolve
 /// of a disc gives a TORUS wall and two PLANAR meridian end caps, so
 /// every rim is a torus × meridian-plane seam vertex. The corner
-/// SOLVES (the carried-datum arm), and the rim EDGE between wall and
-/// moved cap now MINTS: the moved cap stands `t` off the axis,
-/// parallel to it, and cuts the torus in a spiric, which the axial
-/// door mints as the exact `Curve3::Spiric` it is. What this row pins
-/// now is the door AFTER the carrier: the elbow's EQUATOR SEAMS, the
-/// disc's two profile vertices revolved as `RevolvedPoint`-declared
-/// chart seams, whose re-author refuses a corner the moved cap has
-/// displaced off the family's own sketch plane
-/// (`offset_axial_reauthor_plane`).
+/// SOLVES (the carried-datum arm), the rim EDGE between wall and moved
+/// cap MINTS as the exact `Curve3::Spiric` the moved cap cuts with its
+/// window read forward of its start, and the elbow's EQUATOR SEAMS —
+/// the disc's two profile vertices revolved as `RevolvedPoint`-declared
+/// chart seams — re-author onto the corners the moved caps turned
+/// about the axis. The SEALED arm then hollows to tier 3 and stops at
+/// the props door (check 7, a spiric-bounded cap's area). The OPENED
+/// arm stops a stage earlier, at the rim stage's LIFT: the per-chart
+/// door re-anchors a curved corner off its carrier
+/// (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
 ///
 /// **The old door, verbatim (measured at the unit's head before the
-/// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
-/// circular edge between two charts whose centre is off the axis" } }`
-/// — the latitude mint's `offset_axial_centre` predicate, on the same
-/// door face, edge and predicate for the open and the sealed arm.
+/// rim window was read forward):** `ShellError::Face { face:
+/// FaceKey(1v1), error: Op { edge: None, error: RechartFalsifies {
+/// edge: EdgeKey(2v1), error: IntervalNotForward { margin:
+/// −0.7068583470577036 } } } }`, the same face, edge and span for the
+/// open and the sealed arm; before it, the equator seams' re-author
+/// (`offset_axial_reauthor_plane`).
 ///
 /// **This is not a torus gap — and it is not every curved wall's gap
 /// either.** A partial revolve whose wall is a CYLINDER hollows today:
@@ -1066,13 +1069,10 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
 /// premise — a wall its OPERAND already stands behind. What is missing
 /// here is exactly the torus's moved-rim CARRIER.
 ///
-/// **What would retire it**, concretely, is two doors: a re-author
-/// for a revolved point's declaration whose corner leaves the sketch
-/// plane (the seam's family still passes through the moved corner —
-/// rotated to the corner's own azimuth — but that re-authoring is a
-/// design question, not this row's), and then the props quadrature
-/// lane for a spiric-bounded face, where the sectioned vessel already
-/// stands (`spiric_rim`). The C5 table is not involved: the axial
+/// **What would retire it**, concretely, is two doors: the opened
+/// arm's lift on an axial scope, and the props quadrature lane for a
+/// spiric-bounded face, where the sealed arm and the sectioned vessel
+/// already stand (`spiric_rim`). The C5 table is not involved: the axial
 /// door mints the rim inline, and `plane_torus_section` keeps refusing
 /// the tilted pose. `torax_axial` carries the section's own
 /// measurement — on this elbow's numbers the half-width and
@@ -1086,7 +1086,7 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
 /// instead of two, and the wall stops being a number the author has to
 /// keep consistent across two call sites.
 #[test]
-fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
+fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_lift() {
     // The hand construction still builds, unchanged — the debt is real
     // and the demo is not broken, it is just paid by hand.
     let by_hand = klein_elbow(vec![
@@ -1112,34 +1112,32 @@ fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
-    let seam_reauthor = |e: ShellError<f64>| {
-        let ShellError::Face { face, error } = e else {
-            panic!("expected the offset door's refusal, got {e}");
-        };
-        let topo::ReplaceFaceError::TogetherAxialEdge { edge, what } = *error else {
-            panic!("expected the seam re-author's refusal, got {error}");
-        };
-        assert_eq!(
-            what,
-            "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
-        );
-        (face, edge, what)
-    };
-    let open = seam_reauthor(
-        topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
-            .expect_err("the opened elbow's equator seam cannot be re-authored off its plane"),
+    // The sealed arm hollows to tier 3 and stops at the props door.
+    let sealed =
+        topo::shell(&solid, KLEIN_WALL, Tol::witness()).expect_err("the sealed arm's volume");
+    let (face, source) =
+        props_door(&sealed).unwrap_or_else(|| panic!("the sealed arm's props door: {sealed:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
     );
 
-    // The sealed arm stops at the same wall, on the same edge — the
-    // blocker is the seam, not the opening — asserted on the PAYLOAD
-    // (same door face, same edge, same predicate).
-    let sealed = seam_reauthor(
-        topo::shell(&solid, KLEIN_WALL, Tol::witness())
-            .expect_err("the sealed arm meets the same seam"),
-    );
-    assert_eq!(
-        sealed, open,
-        "the sealed arm's refusal is the open arm's: same wall, same edge, same predicate"
+    // The opened arm stops one stage earlier, at the rim stage's LIFT:
+    // the lifted solid's scope is offset by the per-chart door, whose
+    // re-anchor leaves a curved corner off its carrier.
+    let open = topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
+        .expect_err("the opened arm's lift");
+    let ShellError::Lift { error, .. } = &open else {
+        panic!("the opened arm's lift, got {open:?}");
+    };
+    let topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. } = **error else {
+        panic!("the lift's re-anchor, got {error:?}");
+    };
+    println!("[measured] the opened klein elbow's lift re-anchor gap = {gap}");
+    assert!(
+        (5.0e-4..2.0e-3).contains(&gap),
+        "the measured sub-millimetre gap, got {gap}"
     );
 }
 

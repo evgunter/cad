@@ -571,11 +571,9 @@ struct FaceBound {
 }
 
 /// `sqrt(sum_c sup_c^2)`, rounded up — `mesh::nurbs_cert::cell_component`
-/// applied to `patch_bound::sq_norm`.
+/// applied to `geom_core::interval::norm_sq`.
 fn component(v: [geom_core::Interval; 3]) -> f64 {
-    let sq = geom_brep::patch_bound::sq_norm(v);
-    let hi = sq.hi();
-    if hi == 0.0 { 0.0 } else { hi.sqrt().next_up() }
+    geom_core::interval::norm_sup(&v)
 }
 
 /// The fold: per-cell sups, maxed over the cells.

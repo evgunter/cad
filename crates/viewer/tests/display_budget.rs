@@ -23,6 +23,7 @@
 
 use editor_core::{DocEdit, ProfileDoc};
 use pncad::geom_core::Tol;
+use pncad::quantity::MM;
 use viewer::readout;
 use viewer::scene::{
     self, DisplayTolerance, INITIAL_DELTA, ProbeStop, SCALE_PROBE_DELTA, TRIANGLE_BUDGET,
@@ -192,7 +193,7 @@ fn a_document_inside_the_budget_is_drawn_as_asked() {
         "nothing was over budget, so there is nothing to report"
     );
     assert_eq!(
-        fitted.wording(),
+        fitted.wording(MM),
         None,
         "and the status line stays quiet about a picture drawn as asked"
     );
@@ -210,7 +211,7 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
     let body = session.landed_body().expect("the ring gathers");
     let fitted = scene::fit_delta(body, delta(OVER_BUDGET_DELTA), tol).expect("fits");
     let wording = fitted
-        .wording()
+        .wording(MM)
         .expect("a coarsened picture has a sentence");
     for needle in [
         // The renders, not a second formatting of them: a needle built
@@ -218,8 +219,8 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
         // that string rather than to the δ, which is the defect the
         // render exists to close (`no_delta_renders_as_a_number_a_
         // delta_cannot_be`).
-        &fitted.delta.render_mm(),
-        &delta(OVER_BUDGET_DELTA).render_mm(),
+        &fitted.delta.render_in(MM),
+        &delta(OVER_BUDGET_DELTA).render_in(MM),
         &TRIANGLE_BUDGET.to_string(),
         &"not a cap".to_owned(),
     ] {
@@ -256,19 +257,15 @@ const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 /// `the_top_of_the_type_is_spelled_exactly`), and that spelling is
 /// twenty-two characters.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
-    let text = d.render_mm();
-    // BOTH factors below are spelled here DELIBERATELY rather than
-    // read from the code, and they are two different numbers.
-    //
-    // `1.0e3` is the render's: this row checks that `render_mm`
-    // applies it, so reading `scene::MM_PER_METRE` would make the
-    // check agree with the render by construction.
-    //
-    // `1.0e-3` is the δ FIELD's commit factor (`pane::view`'s
-    // `delta_field`), which the field spells itself. Restating it
-    // states independently that the two are inverses — which is the
-    // coincidence `DisplayTolerance::new`'s doc argues its bound
-    // from, and which no constant in the crate holds.
+    let text = d.render_in(MM);
+    // The millimetre value is formed here by a DIFFERENT operation from
+    // the render's, so the check does not agree with it by
+    // construction: the render divides by the `mm` row's factor
+    // (`props::written`), and this multiplies by a thousand. The two
+    // roundings part by at most two ulps (the factor's own rounding and
+    // each operation's), so the text must read back, within the
+    // render's own grid, as one of the five values that close to the
+    // product. A render in any other unit misses by a factor.
     let mm = d.get() * 1.0e3;
     let read: f64 = text.parse().unwrap_or_else(|error| {
         panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
@@ -277,8 +274,15 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
         DisplayTolerance::new(read * 1.0e-3).is_ok(),
         "δ {mm} mm renders as {text}, which is not a δ this door accepts"
     );
+    let near = [
+        mm.next_down().next_down(),
+        mm.next_down(),
+        mm,
+        mm.next_up(),
+        mm.next_up().next_up(),
+    ];
     assert!(
-        readout::reads_back(&text, mm),
+        near.iter().any(|&value| readout::reads_back(&text, value)),
         "δ {mm} mm renders as {text}, further from it than the render's own grid"
     );
 }
@@ -286,7 +290,7 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
 /// [`reads_back_as_a_delta`], and inside the character bound — which is
 /// every δ below the band at the top of the type.
 fn fits_and_reads_back_as_a_delta(d: DisplayTolerance) {
-    let text = d.render_mm();
+    let text = d.render_in(MM);
     assert!(
         text.chars().count() <= readout::MAX_CHARS,
         "δ {} mm renders as {text}, past the {} character bound",
@@ -301,7 +305,9 @@ fn fits_and_reads_back_as_a_delta(d: DisplayTolerance) {
 /// over millimetres reads `0.000` below half a micrometre — a value
 /// [`DisplayTolerance::new`] refuses, in every place a user reads the δ
 /// in force as a number they can act on. All three go through
-/// [`DisplayTolerance::render_mm`] now, so this row covers all three.
+/// [`DisplayTolerance::render_in`], so this row covers all three — in
+/// millimetres, the finest length unit, where the conversion gives way
+/// first.
 ///
 /// **The population is every δ the door accepts, and the row reaches
 /// both ends of it.** A geometric grid carries the millimetre and metre
@@ -379,8 +385,9 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
 ///
 /// A δ past [`COARSEST_DELTA`] is finite and strictly positive and
 /// `mesh::tessellate` would take it, so the door's old predicate
-/// accepted it — and [`DisplayTolerance::render_mm`] multiplies by a
-/// thousand, so what a user read was `inf`: not a δ the door accepts,
+/// accepted it — and its millimetre value overflows, so what a user
+/// reading in millimetres ([`DisplayTolerance::render_in`]) would read
+/// is `inf`: not a δ the door accepts,
 /// and infinitely far from the value. No text can repair that, because
 /// the millimetre value is not an `f64` at all; what the door holds is
 /// the only place the render's domain can be made total.
@@ -388,8 +395,8 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
 /// **The bound is measured here rather than asserted from a constant.**
 /// It is where `δ * 1.0e3` stops being finite, and that is exactly
 /// `f64::MAX * 1.0e-3` — the largest δ the field's own commit path
-/// (`mm * 1.0e-3` over a finite `mm`) can name. So the narrowing takes
-/// nothing a person could have typed.
+/// in millimetres (`mm * 1.0e-3` over a finite `mm`) can name. So the
+/// narrowing takes nothing a person could have typed in millimetres.
 #[test]
 fn the_door_refuses_a_delta_whose_millimetre_value_is_not_one() {
     assert!(
@@ -418,12 +425,30 @@ fn the_door_refuses_a_delta_whose_millimetre_value_is_not_one() {
     }
 }
 
+/// **Millimetres are the finest length row of the unit table** — the
+/// claim [`scene::MM_PER_METRE`] stands on, since a δ whose millimetre
+/// value is finite has a value in every length row only while no row
+/// is finer. Read from `quantity::UNITS`, so a finer row reds here.
+#[test]
+fn millimetres_are_the_finest_length_row() {
+    let finest = pncad::quantity::UNITS
+        .iter()
+        .filter(|row| row.as_length().is_some())
+        .map(|row| row.factor())
+        .fold(f64::INFINITY, f64::min);
+    assert_eq!(
+        1.0 / finest,
+        scene::MM_PER_METRE,
+        "the finest length row's factor is {finest}, and the door's bound is not its reciprocal"
+    );
+}
+
 /// The two δ the field used to lie about, by the numbers the item that
 /// filed it named: 0.4 µm read `0.000` and 1.6 µm read `0.002`.
 #[test]
 fn the_two_deltas_the_fixed_three_decimal_render_lied_about() {
-    assert_eq!(delta(0.4e-6).render_mm(), "0.0004");
-    assert_eq!(delta(1.6e-6).render_mm(), "0.0016");
+    assert_eq!(delta(0.4e-6).render_in(MM), "0.0004");
+    assert_eq!(delta(1.6e-6).render_in(MM), "0.0016");
     // Both are exact here, which is what a decimal spelling buys where
     // it fits at all: the field shows the δ in force rather than a
     // rounding of it.
@@ -448,7 +473,7 @@ fn a_budget_delta_renders_to_the_grid_rather_than_to_its_figures() {
     let mm = d.get() * 1.0e3;
     let exact = format!("{mm}");
     assert_eq!(exact, "0.0003746123456789012", "seventeen figures");
-    let rendered = d.render_mm();
+    let rendered = d.render_in(MM);
     assert_eq!(rendered, "0.0003746123", "and the render keeps seven");
     assert!(
         readout::reads_back(&rendered, mm),

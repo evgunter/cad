@@ -341,7 +341,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
             );
             let shown = format!("{refusal:?}");
             assert!(
-                shown.contains("PlaneNurbsCertificate") && shown.contains("ssi_hull_sup_chart"),
+                shown.contains("PlaneNurbsHull") && shown.contains("ssi_hull_sup_chart"),
                 "the ε-fine refusal is the envelope's own measured bound: {shown}"
             );
             println!("M8-4 integral twin @ eps={eps:e}: adoption refuses — {shown}");
@@ -522,7 +522,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 topo::EulerOpError::Certification {
                     error:
                         geom_brep::CertifyError::Escalated {
-                            check: geom_brep::CertCheck::PlaneNurbsCertificate,
+                            check: geom_brep::CertCheck::PlaneNurbsHull,
                             cause,
                             ..
                         },

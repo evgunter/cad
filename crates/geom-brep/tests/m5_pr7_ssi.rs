@@ -274,9 +274,17 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
         }
         Err(SsiError::FitSampleBudget { samples, budget }) => {
             assert!(samples > budget, "BUDGET: {samples} vs {budget}");
-            let msg = format!("{}", SsiError::FitSampleBudget { samples, budget });
+            let msg = SsiError::FitSampleBudget { samples, budget }
+                .render(geom_brep::recourse::Reading::Build);
             assert!(msg.contains("fit budget"), "BUDGET: {msg}");
-            assert!(msg.contains("raise the tolerance"), "BUDGET: {msg}");
+            assert!(
+                msg.ends_with(&format!(
+                    "Recourse: loosen the tolerance until a branch needs at most {budget} \
+                     samples, {}",
+                    geom_core::KERNEL_LIMIT_LAST_RESORT
+                )),
+                "BUDGET: {msg}"
+            );
             vacuity::stood_down(
                 &format!("planted fixture, eps = {:e}", eps()),
                 &format!(
@@ -495,9 +503,11 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             }
             // A hull bound that lands just ABOVE ε is inside the
             // escalation band, so limb 2 speaks as an F6 escalation
-            // rather than a definite refusal. Same limb, same meaning —
-            // and the predicate name is how they are told apart.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_hull_sup") => {
+            // rather than a definite refusal, naming the same limb.
+            Err(SsiError::CertificateEscalated {
+                limb: SsiLimb::HullSup,
+                ref cause,
+            }) if cause.predicate == Some("ssi_hull_sup") => {
                 found = Some((d, f64::NAN));
                 break;
             }
@@ -512,7 +522,10 @@ fn the_planted_fixture_is_found_certified_limbed_accounted_and_deduplicated() {
             // own trilean legitimately lands in the escalation band on
             // the way past: that is limb 1 speaking, and the scan is
             // over.
-            Err(SsiError::Escalated(ref diag)) if diag.predicate == Some("ssi_on_locus") => {
+            Err(SsiError::CertificateEscalated {
+                limb: SsiLimb::OnLocus,
+                ref cause,
+            }) if cause.predicate == Some("ssi_on_locus") => {
                 break;
             }
             Err(e) => panic!("LIMB-2: unexpected refusal while scanning: {e}"),
@@ -863,6 +876,8 @@ fn a_tangent_pair_refuses_toward_the_c7_regime_and_never_desingularizes() {
     let err = ssi::cylinder_sphere_ssi(&c, &s, slab(), band()).expect_err("must refuse");
     let msg = format!("{err}");
     match err {
+        // The pair's own tangency gap, decided before any rung.
+        SsiError::PairTangent { .. } => {}
         SsiError::TransversalityBand { sin_theta, .. } => {
             assert!(sin_theta < 1.0e-6, "sin θ = {sin_theta}");
         }
@@ -1331,7 +1346,10 @@ fn an_inflected_wall_refuses_in_band_at_the_hull_limb_honestly() {
             );
             assert!(out.branches[0].certificate.hull_sup <= eps());
         }
-        Err(SsiError::Escalated(ref d)) if d.predicate == Some("ssi_hull_sup_chart") => {
+        Err(SsiError::CertificateEscalated {
+            limb: SsiLimb::HullSup,
+            ref cause,
+        }) if cause.predicate == Some("ssi_hull_sup_chart") => {
             assert!(
                 band().zero() <= 10.0 * MEASURED_DEVIATION,
                 "in-band refusal where the band is far above the measured deviation"
@@ -2266,6 +2284,173 @@ fn an_underflowing_weight_reaches_the_chart_refusal_arm_without_magnitude() {
     }
 }
 
+/// **A non-finite operand is refused as itself, at every door.** A
+/// plane whose origin or normal is not finite, cut against the ordinary
+/// wall, reached the chart sweep's refusal arm, whose sentence can only
+/// blame the wall's net; a wall with a NaN control point reached the
+/// march as a seed that would not settle; a non-finite sphere reached
+/// the pair's tangency trilean as an escalation. Each of the four SSI
+/// doors now names the operand and the datum before any sweep or march
+/// reads it. The healthy operand beside each is the file's own, so no
+/// other operand can be at fault.
+#[test]
+fn a_non_finite_operand_is_refused_at_the_door_by_name() {
+    use geom_brep::ssi::OperandDatum;
+    let plane = |origin: Point3<f64>, normal: Vec3<f64>| {
+        let Surface::Plane { u_ref, .. } = cutting_plane() else {
+            unreachable!("the cutting plane is a plane")
+        };
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        }
+    };
+    let Surface::Plane { origin, normal, .. } = cutting_plane() else {
+        unreachable!("the cutting plane is a plane")
+    };
+    let expect =
+        |got: Result<(), SsiError>, operand: &str, datum: OperandDatum, row: &str| match got {
+            Err(SsiError::OperandNotFinite {
+                operand: o,
+                datum: d,
+            }) if o == operand && d == datum => {
+                let msg = SsiError::OperandNotFinite { operand: o, datum }.to_string();
+                assert!(
+                    msg.contains(&format!("the {operand}'s {datum}")),
+                    "{row}: {msg}"
+                );
+            }
+            Err(other) => panic!("{row}: expected the {operand}'s own refusal, got {other}"),
+            Ok(()) => panic!("{row}: a non-finite {operand} traced"),
+        };
+    let field = OperandDatum::Field;
+    let wall = nurbs_wall();
+    // The plane, at both plane × NURBS doors.
+    for (row, p, datum) in [
+        (
+            "+inf origin",
+            plane(Point3::new(f64::INFINITY, 0.0, 0.4), normal),
+            field(geom::SurfaceDatum::Origin),
+        ),
+        (
+            "NaN origin",
+            plane(Point3::new(0.0, f64::NAN, 0.4), normal),
+            field(geom::SurfaceDatum::Origin),
+        ),
+        (
+            "NaN normal",
+            plane(origin, Vec3::new(0.0, f64::NAN, 1.0)),
+            field(geom::SurfaceDatum::Normal),
+        ),
+    ] {
+        expect(
+            ssi::plane_nurbs_ssi(&p, &wall, wall_domain(), band()).map(|_| ()),
+            "plane",
+            datum,
+            &format!("{row}, plane_nurbs_ssi"),
+        );
+        expect(
+            ssi::trace_plane_nurbs_uncertified(
+                &p,
+                &wall,
+                (0.5, 0.5),
+                wall_domain(),
+                band().zero(),
+                band(),
+            )
+            .map(|_| ()),
+            "plane",
+            datum,
+            &format!("{row}, trace_plane_nurbs_uncertified"),
+        );
+    }
+    // The wall: a NaN control point in its second column, whose first
+    // point is the net's third (two rows per column).
+    let mut cols = NURBS_WALL_COLS;
+    cols[1].0 = f64::NAN;
+    let bad_wall = wall_from_cols(cols);
+    expect(
+        ssi::plane_nurbs_ssi(&cutting_plane(), &bad_wall, wall_domain(), band()).map(|_| ()),
+        "NURBS wall",
+        OperandDatum::ControlPoint(2),
+        "NaN control point, plane_nurbs_ssi",
+    );
+    expect(
+        ssi::trace_plane_nurbs_uncertified(
+            &cutting_plane(),
+            &bad_wall,
+            (0.5, 0.5),
+            wall_domain(),
+            band().zero(),
+            band(),
+        )
+        .map(|_| ()),
+        "NURBS wall",
+        OperandDatum::ControlPoint(2),
+        "NaN control point, trace_plane_nurbs_uncertified",
+    );
+    // The analytic pair, at both ℝ³ doors.
+    let Surface::Sphere {
+        radius,
+        axis,
+        u_ref,
+        ..
+    } = sphere()
+    else {
+        unreachable!("the sphere is a sphere")
+    };
+    let bad_sphere = Surface::Sphere {
+        center: Point3::new(f64::NAN, 0.0, 0.0),
+        radius,
+        axis,
+        u_ref,
+    };
+    let centre = field(geom::SurfaceDatum::Center);
+    expect(
+        ssi::cylinder_sphere_ssi(&threaded_cylinder(), &bad_sphere, slab(), band()).map(|_| ()),
+        "sphere",
+        centre,
+        "NaN sphere centre, cylinder_sphere_ssi",
+    );
+    expect(
+        ssi::idealized_trace_r3(
+            &threaded_cylinder(),
+            &bad_sphere,
+            Point3::new(0.11, 0.0, 0.99),
+            slab(),
+            band(),
+        )
+        .map(|_| ()),
+        "second operand",
+        centre,
+        "NaN sphere centre, idealized_trace_r3",
+    );
+}
+
+/// **Internal tangency still crosses, and the refusal does not say
+/// otherwise.** Viviani's pose — a cylinder of half the sphere's radius
+/// through its centre, touching it from inside at one point — meets the
+/// sphere along a figure-eight that crosses itself at the tangency.
+/// The pair's tangency decision refuses it, and its words must be true
+/// of a pair that crosses.
+#[test]
+fn an_internally_tangent_pair_refuses_without_denying_the_crossing() {
+    let viv = Surface::Cylinder {
+        origin: Point3::new(0.5, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let e = ssi::cylinder_sphere_ssi(&viv, &surf::sphere(1.0), slab(), band()).unwrap_err();
+    assert!(
+        matches!(e, SsiError::PairTangent { .. }) && !e.to_string().contains("rather than cross"),
+        "{e}"
+    );
+    let rendered = e.render(geom_brep::recourse::Reading::Build);
+    assert!(!rendered.contains("rather than cross"), "{rendered}");
+}
+
 /// **The chart-speed guard**: a wall whose certified chart speed is not
 /// a positive finite number is refused as itself, by name.
 ///
@@ -2523,36 +2708,96 @@ fn the_ssi_predicates_reach_the_k_funnel() {
     }
 }
 
-/// **A collapsed net lands on the ZERO-speed arm, and the speed is
-/// exactly `0`** — measured to settle two contradicting review
-/// readings (one predicted the budget answers, one a hull-inflated
-/// ≈1e-7 speed keeping the sweep alive).
+/// A clamped cubic × linear net of eight points collapsed to `spread`:
+/// columns `spread·i` along `x`, rows `0` and `spread/2` along `z`.
+fn collapsed_net(spread: f64) -> NurbsSurface<f64> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(8);
+    for i in 0..4 {
+        let x = spread * (i as f64);
+        control.push(Point3::new(x, 0.0, 0.0));
+        control.push(Point3::new(x, 0.0, 0.5 * spread));
+    }
+    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+}
+
+/// **A point net refuses on the zero-speed arm; a tiny net reads a
+/// speed at or above its true one.**
 ///
-/// Mechanism: the seeding guard's `mag` squares each derivative-hull
-/// component before its `sqrt`, so a net whose spread is below
-/// ~1e-154 underflows to exactly `0.0` there — no ring inflation
-/// keeps it positive — and the `speed <= 0.0` arm refuses by the
-/// speed's own name before any floor is translated. Pinned across
-/// the whole subnormal-adjacent range the reviews probed.
+/// A net whose spread is exactly zero has derivative boxes that are
+/// exactly `[0, 0]`, so the outward norm reads `0` and the
+/// `speed <= 0.0` arm refuses by the speed's own name before any floor
+/// is translated.
+///
+/// A net collapsed only to a tiny spread is not that wall. Its chart
+/// speed along `u` at `u = 0` is exactly `3·‖P₁ − P₀‖`, read here off
+/// the stored control points, so the certified sup must be at least
+/// that. A round-to-nearest fold of the box's squares read below it at
+/// `1e-160` (`2.99998e-160` against `3e-160`) and read exactly `0`
+/// further down, where a tiny square underflows. The outward square
+/// rounds UP, so the sup stays at or above the true speed, the zero
+/// arm does not answer, and the sweep excludes the one cell, which the
+/// cutting plane misses by ~0.39 m.
 #[test]
-fn a_collapsed_net_refuses_on_the_zero_speed_arm_not_the_budget() {
-    for spread in [1.0e-200f64, 1.0e-260, 1.0e-300, 1.0e-315] {
-        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let mut control = Vec::with_capacity(8);
-        for i in 0..4 {
-            let x = spread * (i as f64);
-            control.push(Point3::new(x, 0.0, 0.0));
-            control.push(Point3::new(x, 0.0, 0.5 * spread));
+fn a_point_net_refuses_on_the_zero_speed_arm_and_a_tiny_net_reads_at_least_its_true_speed() {
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &collapsed_net(0.0), wall_domain(), band()) {
+        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed is zero") => {}
+        other => {
+            panic!("a point net: expected the zero-speed arm to answer by name, got {other:?}")
         }
-        let w = NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap();
-        match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
-            Err(SsiError::UnsupportedCertificate { what })
-                if what.contains("chart speed is zero") => {}
+    }
+    for spread in [1.0e-160f64, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315] {
+        let net = collapsed_net(spread);
+        let c = net.control();
+        // `S_u(0) = 3·(P₁ − P₀)` for a clamped cubic, with `P₁` the
+        // next column (index 2: the net is column-major over `v`).
+        // `3·Δ` rounds to nearest, so it steps one ulp down to stay a
+        // lower bound on the true speed.
+        let true_speed = (3.0 * (c[2] - c[0]).norm()).next_down();
+        match ssi::plane_nurbs_ssi(&cutting_plane(), &net, wall_domain(), band()) {
+            Ok(out) => {
+                let speed = out.exhaustiveness.lane.speed().map(|s| s.get());
+                assert!(
+                    speed.is_some_and(|s| s >= true_speed),
+                    "spread {spread:e}: the certified chart speed {speed:?} is below the \
+                     true speed {true_speed:e}"
+                );
+                assert!(
+                    out.branches.is_empty(),
+                    "spread {spread:e}: the plane misses the net"
+                );
+            }
             other => panic!(
-                "spread {spread:e}: expected the zero-speed arm to answer by \
-                 name, got {other:?}"
+                "spread {spread:e}: expected a certified speed and an excluded cell, got \
+                 {other:?}"
             ),
+        }
+    }
+}
+
+/// A tiny net the plane DOES meet never answers `Ok` with no branch:
+/// whatever the chart speed reads at these spreads, the sweep either
+/// finds the crossing or refuses. Paired with the row above, whose
+/// `Ok`-empty answers are honest only because its plane misses.
+#[test]
+fn a_tiny_net_the_plane_meets_never_answers_ok_empty() {
+    let dom = SsiDomain {
+        center: Point3::new(0.0, 0.0, 0.0),
+        half_extent: 2.0,
+        extent: 1.5,
+        floor_scale: 1.0,
+    };
+    for s in [
+        1.0e-8f64, 1.0e-100, 1.0e-160, 1.0e-200, 1.0e-260, 1.0e-300, 1.0e-315,
+    ] {
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.25 * s),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        if let Ok(out) = ssi::plane_nurbs_ssi(&plane, &collapsed_net(s), dom, band()) {
+            assert!(!out.branches.is_empty(), "spread {s:e}: silent miss");
         }
     }
 }
