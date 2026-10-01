@@ -2,12 +2,14 @@
 id: euler-rebased-run-recertifies-through-the-plain-door
 kind: issue
 title: certify_rebased_run re-certifies a moved run through the lane-free door, so an M7-8 edge in the run refuses NurbsLaneNotSupplied at a scalar that holds the lane
-status: open
+status: review
 opened: 2026-10-01
 priority: P3
 cost: M
 refs: [graft-recertifies-through-the-narrow-lane, the-re-basing-gate-refuses-m7-8-where-nothing-moves]
 parent: edge-mint-doors-read-the-nurbs-lane-from-the-policy
+pr: 3720
+branch: cleave/mint-doors
 ---
 
 
