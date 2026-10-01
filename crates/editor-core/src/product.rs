@@ -416,7 +416,7 @@ impl Staged for ProductError {
                             write!(f, "root {} is not valid at rest:", root)?;
                         } else {
                             let named: Vec<String> =
-                                roots.iter().map(|r| r.0.to_string()).collect();
+                                roots.iter().map(ToString::to_string).collect();
                             write!(f, "roots {} are not valid at rest:", named.join(", "))?;
                         }
                         crate::finding::render_lines(

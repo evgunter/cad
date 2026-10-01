@@ -1269,7 +1269,7 @@ impl Stackup {
         let _ = writeln!(
             s,
             "stackup measure={} nominal={} chamber={}",
-            self.measurement.0,
+            self.measurement.full(),
             match &self.nominal {
                 Ok(v) => format!("{:016x}", v.to_bits()),
                 Err(why) => format!("unavailable:{}", why.verb()),
@@ -1277,7 +1277,7 @@ impl Stackup {
             match &self.chamber {
                 Chamber::ChamberCertified {
                     verdict_vector_key, ..
-                } => format!("certified:{:032x}", verdict_vector_key.0),
+                } => format!("certified:{verdict_vector_key:032x}"),
                 Chamber::LocalOnly => "local_only".to_owned(),
             }
         );
@@ -1358,7 +1358,7 @@ impl Stackup {
     pub fn render(&self, analyzed: &crate::analysis::AnalyzedBox) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
-        let _ = writeln!(s, "stackup of measure node {}", self.measurement.0);
+        let _ = writeln!(s, "stackup of measure node {}", self.measurement);
         let _ = writeln!(
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \

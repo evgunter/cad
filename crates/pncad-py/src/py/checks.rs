@@ -234,11 +234,10 @@ impl ChecksConfig {
         chart_coherence: Advisory,
     ) -> PyResult<Self> {
         let mut expected: BTreeMap<(d::RecipeNodeId, u32), u32> = BTreeMap::new();
-        for (root, output_ix, count) in expected_components.unwrap_or_default() {
-            if expected.insert((root.0, output_ix), count).is_some() {
+        for (NodeId(root), output_ix, count) in expected_components.unwrap_or_default() {
+            if expected.insert((root, output_ix), count).is_some() {
                 return Err(PyValueError::new_err(format!(
-                    "expected_components states subject (node {}, output {output_ix}) twice",
-                    root.0
+                    "expected_components states subject (node {root}, output {output_ix}) twice"
                 )));
             }
         }

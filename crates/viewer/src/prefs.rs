@@ -232,7 +232,10 @@ impl Prefs {
         );
         match &self.keys {
             Some(name) => out.push_str(&format!("{PRESET} = {}\n", toml_string(name))),
-            None => out.push_str(&format!("# {PRESET} = \"{}\"\n", input::PRESETS[0].0)),
+            None => {
+                let (default, _) = input::PRESETS[0];
+                out.push_str(&format!("# {PRESET} = \"{default}\"\n"));
+            }
         }
         out.push_str(&format!("\n[{FILES}]\n"));
         out.push_str(

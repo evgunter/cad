@@ -807,13 +807,13 @@ impl ParamBoxVerdict {
             self.receipt.splits,
             self.receipt.holds()
         );
-        let _ = writeln!(s, "witness_vector {:032x}", self.witness_vector.key().0);
+        let _ = writeln!(s, "witness_vector {:032x}", self.witness_vector.key());
         for leaf in &self.certified {
             let _ = writeln!(
                 s,
                 "certified {} key={:032x}",
                 render_box(&leaf.box_),
-                leaf.verdict_vector_key.0
+                leaf.verdict_vector_key
             );
         }
         for leaf in &self.refused {

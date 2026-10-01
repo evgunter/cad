@@ -536,11 +536,13 @@ impl core::fmt::Display for RangeRefusal {
                 e.problem(),
                 geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::SeedIsNotTheAnalyzedAxis { analyzed, asked } => write!(
+            Self::SeedIsNotTheAnalyzedAxis {
+                analyzed: (analyzed_lo, analyzed_hi),
+                asked: (asked_lo, asked_hi),
+            } => write!(
                 f,
-                "the analysis derived the axis [{}, {}] for this field, which is not the seed \
-                 [{}, {}] that was asked for",
-                analyzed.0, analyzed.1, asked.0, asked.1
+                "the analysis derived the axis [{analyzed_lo}, {analyzed_hi}] for this field, \
+                 which is not the seed [{asked_lo}, {asked_hi}] that was asked for",
             ),
             Self::MoreThanOneAxisVaries { varying } => write!(
                 f,
@@ -548,11 +550,10 @@ impl core::fmt::Display for RangeRefusal {
                  field, and a box over several is `drive`'s own answer"
             ),
             Self::Drive(e) => write!(f, "the drive refused: {e}"),
-            Self::LeavesAreNotAPartition { at } => write!(
+            Self::LeavesAreNotAPartition { at: (lo, hi) } => write!(
                 f,
-                "the drive's leaves do not tile the seed: [{}, {}] leaves a gap, overlaps a \
+                "the drive's leaves do not tile the seed: [{lo}, {hi}] leaves a gap, overlaps a \
                  neighbour, or varies off the field's axis",
-                at.0, at.1
             ),
         }
     }

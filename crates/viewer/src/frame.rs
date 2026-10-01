@@ -2395,8 +2395,8 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// DERIVED: the failure it follows from is already on screen, as the
 /// one [`Tone::Actionable`] row the tree draws for it. So it takes the
 /// tree's own reading of a downstream row — [`Tone::Advisory`], naming
-/// the row that carries the cause ([`crate::tree::cause_row`], spelled
-/// spoken as the document speaks it) — and the index's own words move to
+/// the row that carries the cause ([`crate::tree::cause_row`], as the
+/// document speaks it) — and the index's own words move to
 /// the tooltip, unaltered.
 ///
 /// **It is placed under the cause, not dropped**, because it carries

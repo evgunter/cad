@@ -121,7 +121,7 @@ fn main() {
         let rows = session.tree_rows();
         let instances: Vec<_> = rows
             .iter()
-            .filter(|r| r.kind == "InstantiatePart")
+            .filter(|r| r.spoken.kind() == Some("InstantiatePart"))
             .collect();
         let failed: Vec<_> = rows
             .iter()
@@ -210,7 +210,7 @@ fn main() {
                 println!("      node {}: free-move refused typed", row.id);
             }
         }
-        let mates = rows.iter().filter(|r| r.kind == "Mate").count();
+        let mates = rows.iter().filter(|r| r.spoken.kind() == Some("Mate")).count();
         if mates > 0 {
             println!("      ({mates} authored mate node(s))");
         }

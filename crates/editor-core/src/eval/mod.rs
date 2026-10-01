@@ -1024,7 +1024,7 @@ impl From<NodeErrorKind> for NodeRefusal {
 impl PartialEq for NodeRefusal {
     fn eq(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.0, &other.0)
-            || format!("{:?}", self.0) == format!("{:?}", other.0)
+            || format!("{:?}", self.kind()) == format!("{:?}", other.kind())
     }
 }
 

@@ -1040,11 +1040,8 @@ impl ClearanceReport {
             render(self.widths.narrowest),
             self.widths.deepest
         );
-        let _ = writeln!(
-            s,
-            "windows tightened={} loose={}",
-            self.windows.0, self.windows.1
-        );
+        let (tightened, loose) = self.windows;
+        let _ = writeln!(s, "windows tightened={tightened} loose={loose}");
         s
     }
 
@@ -1092,11 +1089,11 @@ impl ClearanceReport {
              {} violated, {} refused, {} split, {} abandoned",
             r.candidates, r.discharged, r.outside, r.violated, r.refused, r.splits, r.abandoned
         );
+        let (tightened, loose) = self.windows;
         let _ = writeln!(
             s,
-            "  {} of {} carrier window(s) tightened to the face's chart boundary",
-            self.windows.0,
-            self.windows.0 + self.windows.1
+            "  {tightened} of {} carrier window(s) tightened to the face's chart boundary",
+            tightened + loose
         );
         let w = self.widths;
         let _ = writeln!(

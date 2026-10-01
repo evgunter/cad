@@ -215,7 +215,7 @@ impl core::fmt::Display for AdmissionFault {
                 write!(f, "node {} is not a part instance", node)
             }
             Self::MateConstrained { instance, mates } => {
-                let list: Vec<String> = mates.iter().map(|m| m.0.to_string()).collect();
+                let list: Vec<String> = mates.iter().map(ToString::to_string).collect();
                 write!(
                     f,
                     "instance {} is mate-constrained (mate node(s) {}): its pose is \
@@ -230,7 +230,7 @@ impl core::fmt::Display for AdmissionFault {
                 root,
                 others,
             } => {
-                let list: Vec<String> = others.iter().map(|o| o.0.to_string()).collect();
+                let list: Vec<String> = others.iter().map(ToString::to_string).collect();
                 write!(
                     f,
                     "instance {}'s geometry is fused into node {} together with instance(s) {} — \
