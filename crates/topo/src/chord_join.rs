@@ -449,20 +449,16 @@ impl SplitJoinError {
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
             // The carrier's constructor states its escalation for a
             // caller that could build the circle instead; no reader of
-            // a join can, so the join says what the section's kind
-            // hinged on and offers its own door's levers.
+            // a join can, so the join keeps the constructor's subject
+            // and offers its own door's levers.
             Self::Section {
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
                 ..
             } => write!(
                 f,
-                "{} is undecided: {}. Recourse: {recourse}",
-                match diag.predicate {
-                    Some("ellipse_minor_positive") => {
-                        "whether the section through a curved face has a positive minor axis"
-                    }
-                    _ => "whether the section through a curved face is a circle or an ellipse",
-                },
+                "{} is undecided for the section through a curved face: {}. Recourse: \
+                 {recourse}",
+                geom::EllipseInvalid::escalated_subject(diag),
                 diag.payload()
             ),
             Self::Section { source, .. } => {

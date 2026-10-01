@@ -361,21 +361,15 @@ fn interval_the_klein_elbow_hollows_to_the_props_door() {
                     ..
                 }]
             ) => {}
-        // At a strict band the certified scalar may escalate first —
-        // at the door's own decides, or at the pcurve mint's envelope,
-        // whose enclosure is wider than ε = 1e-12 (measured).
+        // At a strict band the certified scalar may escalate first: at
+        // the door's own decides, or (measured at ε = 1e-12) at the
+        // pcurve envelope of a spiric RIM, whose enclosure is wider than
+        // the band. Only a rim's: a re-authored seam's escalation is not
+        // absorbed here.
         ShellError::Face { ref error, .. }
             if tol.eps() < DEFAULT_EPS
-                && matches!(
-                    **error,
-                    topo::ReplaceFaceError::Escalated { .. }
-                        | topo::ReplaceFaceError::Pcurve {
-                            source: topo::PcurveMintError::Certify {
-                                error: geom_brep::PcurveCertifyError::Escalated { .. },
-                                ..
-                            }
-                        }
-                ) =>
+                && (matches!(**error, topo::ReplaceFaceError::Escalated { .. })
+                    || rim_envelope_escalation(&body, error)) =>
         {
             stood_down(
                 &format!("the klein elbow's interval hollow, eps = {:e}", tol.eps()),
@@ -385,4 +379,35 @@ fn interval_the_klein_elbow_hollows_to_the_props_door() {
         }
         other => panic!("expected check 7's props door, got {other:?}"),
     }
+}
+
+/// Whether `error` is the pcurve mint's envelope escalating on a
+/// half-edge of a DERIVED edge of `body` — a spiric rim, not a
+/// re-authored (declared) seam.
+fn rim_envelope_escalation(
+    body: &Body<Interval>,
+    error: &topo::ReplaceFaceError<Interval>,
+) -> bool {
+    let topo::ReplaceFaceError::Pcurve {
+        source:
+            topo::PcurveMintError::Certify {
+                half_edge,
+                error:
+                    geom_brep::PcurveCertifyError::Escalated {
+                        check: geom_brep::PcurveCheck::Envelope,
+                        cause,
+                        ..
+                    },
+            },
+    } = error
+    else {
+        return false;
+    };
+    cause.predicate == Some("pcurve_envelope")
+        && body
+            .get_half_edge(*half_edge)
+            .and_then(|h| body.get_edge(h.edge))
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(|c| c.certified())
+            .is_some_and(|c| matches!(c.authority(), geom_brep::EdgeAuthority::Derived))
 }

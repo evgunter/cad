@@ -348,7 +348,8 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
     );
     assert!(
         text.starts_with(
-            "whether the section through a curved face is a circle or an ellipse is undecided: "
+            "whether the curve is a circle or an ellipse is undecided for the section through \
+             a curved face: "
         ) && text.ends_with("Recourse: move the geometry, or lower the tolerance"),
         "{text}"
     );

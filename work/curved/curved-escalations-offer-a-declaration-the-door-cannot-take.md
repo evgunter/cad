@@ -2,7 +2,8 @@
 id: curved-escalations-offer-a-declaration-the-door-cannot-take
 kind: issue
 title: curved: an ellipse carrier's escalation offers 'declare the coincidence' and 'construct the Circle carrier' at a split, which takes neither
-status: open
+status: review
+branch: curved/equator-seam
 opened: 2026-09-29
 priority: P2
 cost: E

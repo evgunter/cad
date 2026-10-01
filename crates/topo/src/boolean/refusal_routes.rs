@@ -850,11 +850,11 @@ mod tests {
         let rows = [
             (
                 "ellipse_axes_distinct",
-                "whether the section through a curved face is a circle or an ellipse",
+                "whether the curve is a circle or an ellipse",
             ),
             (
                 "ellipse_minor_positive",
-                "whether the section through a curved face has a positive minor axis",
+                "whether the curve's minor semi-axis is positive",
             ),
         ];
         for (predicate, subject) in rows {
@@ -872,8 +872,10 @@ mod tests {
                 let problems = short_of_the_guard(text, &[]);
                 assert!(problems.is_empty(), "{predicate}: {problems:?}: {text}");
                 assert!(
-                    text.contains(&format!("{subject} is undecided: {}. ", diag.payload()))
-                        && !text.contains("Circle carrier"),
+                    text.contains(&format!(
+                        "{subject} is undecided for the section through a curved face: {}. ",
+                        diag.payload()
+                    )) && !text.contains("Circle carrier"),
                     "{predicate}: {text}"
                 );
             }
