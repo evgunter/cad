@@ -2,11 +2,12 @@
 id: split-through-the-u-cutter-pockets-inverts-section-loop-roles
 kind: issue
 title: a split of the U-cutter subtract at x = 3 evaluates, then its half fails the at-rest gate with LoopRoleInverted on two faces
-status: dispatched
+status: review
 opened: 2026-09-25
 priority: P0
 cost: M
 branch: cleave/section-rings
+pr: 3658
 ---
 
 
