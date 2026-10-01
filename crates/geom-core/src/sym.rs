@@ -235,7 +235,7 @@
 //! **What it reaches on the plate, at the nominal** (theorem / gated /
 //! registered / numeric, `m10_10_pins_interval`): `carrier_on_surface_2`
 //! 108/0/0/72 → 180/0/0/0 and `witness_on_surface_2` 12/0/0/8 →
-//! 20/0/0/0 as THEOREMS; `carrier_matches_mapped_source` 180/0/8/64 →
+//! 20/0/0/0 as THEOREMS; `carrier_matches_mapped_source` 180/0/16/56 →
 //! 180/0/72/0, every sample through the DOOR — rule D makes the trig
 //! meet, and the rim identity `‖q − c‖ = r` the registrant states is
 //! what closes it, so the count is `registered`, honestly. The fourth

@@ -108,7 +108,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_filleted_bracket",
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
-            registered: 144,
+            // 144 until the certification schedule assigned its last
+            // sample `t₁` itself (`geom_brep::schedule_param`) rather
+            // than `t₀ + (t₁ − t₀)·1`: two numeric decisions reach the
+            // door (numeric 825 → 823, frozen 1767 → 1755), verdicts
+            // unchanged.
+            registered: 146,
             // One of these is the bracket's fillet run out read against
             // its arrival carrier (`path_run_out_carrier`), a margin the
             // tier proves zero rather than measuring it.
@@ -177,7 +182,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // on carrier(0).x and six Zero decisions go from registered
             // to numeric (numeric 1072), verdicts unchanged
             // (`work/sym/registrations-sealed-inside-frozen-compounds`).
-            registered: 122,
+            //
+            // 122 until the certification schedule assigned its last
+            // sample `t₁` itself (`geom_brep::schedule_param`): four
+            // numeric decisions reach the door (numeric 1072 → 1068,
+            // frozen 2543 → 2495), verdicts unchanged — the bracket's
+            // two above are the same cause.
+            registered: 126,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
