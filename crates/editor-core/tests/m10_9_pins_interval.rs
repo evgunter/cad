@@ -93,18 +93,20 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_link",
             certifies_at: 4.930e2,
             refuses_at: 4.934e2,
-            // 90 / 515 until the carrier's span was spelled as the
-            // stored sweep signed by the decided turn (`swept::arc_span`)
-            // instead of `4·atan|b|`: the span then shares the
-            // pushforward's `atan b` atom, and of the link's 1102
-            // decisions 20 move INTO the door — 10 out of `numeric` and
-            // TEN out of `symbolic_zero` (505 now). Those ten are the
-            // same class as the pad's four above (a residual the early
-            // walk was cancelling over reshaped, then re-taken by the
-            // registry). `frozen` is 1060 either way, nothing is
-            // refused or contradicted, and no ceiling moves.
-            registered: 110,
-            symbolic_zero: 505,
+            // DECIDE-3: rule G re-keys the link's roots on their value
+            // class, so six more of the rim identity's samples meet
+            // the registrant's forms (90 -> 96) and twenty-six more
+            // residuals are theorems outright (515 -> 541). Both move
+            // UP; nothing was traded. The carrier's span spelled as
+            // the stored sweep signed by the decided turn
+            // (`swept::arc_span`) shares the pushforward's `atan b`
+            // atom, and both move up again, 96 -> 108 and 541 -> 545.
+            // On the tier without rule G the same span read 110 / 505
+            // (20 decisions into the door, ten of them out of
+            // `symbolic_zero`); with rule G in, none of that trade
+            // shows.
+            registered: 108,
+            symbolic_zero: 545,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -112,10 +114,17 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
             registered: 144,
-            // One of these is the bracket's fillet run out read against
-            // its arrival carrier (`path_run_out_carrier`), a margin the
-            // tier proves zero rather than measuring it.
-            symbolic_zero: 1084,
+            // DECIDE-3: more theorems from A0's constant fold
+            // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)
+            // and rule G, and decisions the read answers; `registered`
+            // is unmoved. With the read shut this replay reads 1121
+            // theorems; with it on, 16 of those are answered by the read
+            // before their form reduces and count `sign_gated` (21 in
+            // all) — the class the pad's note names. One of the 1105 is
+            // the bracket's fillet run out read against its arrival
+            // carrier (`path_run_out_carrier`), a margin the tier proves
+            // zero rather than measuring it.
+            symbolic_zero: 1105,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -171,11 +180,22 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // so their pins here hold. Every rule-reached edge on the
             // five reads `JetDeterminate` with the gate and without,
             // so the document the replay builds is the same one.
-            registered: 128,
+            //
+            // DECIDE-3 (rule G and the decision read): `registered`
+            // 128 -> 150, and with the read shut this replay reads
+            // 925 theorems, 0 `sign_gated`, 1004 `numeric` — every
+            // column up. With the read on, 32 of those 925 are answered
+            // by the read before their form reduces, so they count
+            // `sign_gated` (34) and not `symbolic_zero` (893): 4 of them
+            // stand without the must-carry gate's stations, 28 come
+            // with them. The decisions stay discharged; the claim on
+            // those 32 is the read's, not a theorem
+            // (`work/decide/the-decision-read-answers-theorems-the-must-carry-stations-would-prove`).
+            registered: 150,
             // Three of these are the pad's fillet run outs read against
             // their arrival carriers (`path_run_out_carrier`), margins
             // the tier proves zero rather than measuring them.
-            symbolic_zero: 885,
+            symbolic_zero: 893,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
