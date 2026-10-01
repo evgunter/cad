@@ -5,8 +5,10 @@
 //! GQ2's ratified codomain is a per-node result — `Ok`, `Failed(e)`,
 //! `Poisoned { through }` — and the ratified error rule is that a
 //! failure is a typed value the GUI renders, never a string invented
-//! at the interaction layer. So a failing row's message is
-//! `NodeError`'s own `Display`, and nothing here composes a sentence
+//! at the interaction layer. So a failing row's message is the
+//! kernel's own rendering of the `NodeError`, its node spoken from the
+//! document the row is drawn over (`NodeError::spoken`), and nothing
+//! here composes a sentence
 //! about what went wrong. The two sentences this module writes ABOUT
 //! A FAILURE are a downstream row's pointer ([`downstream_wording`])
 //! and a failed row's link to the node to repair ([`link_wording`]),
@@ -200,8 +202,8 @@ pub struct CarriedLine {
     /// The document, by file name ([`PartFiles::name`]), or
     /// [`THIS_DOCUMENT`] for the tree's own.
     pub document: String,
-    /// The node's refusal exactly as its own tree draws it:
-    /// `NodeError`'s `Display` for that node and kind.
+    /// The node's refusal exactly as its own tree draws it
+    /// (`CarriedLevel::line_in`).
     pub line: String,
 }
 
@@ -217,7 +219,7 @@ pub enum RowStatus {
     /// The node's own operation failed. `message` is the typed
     /// error's own rendering, and `carried` the refusals it carries.
     Failed {
-        /// `NodeError`'s `Display`.
+        /// `NodeError::spoken` over the tree's document.
         message: String,
         /// **The refusals `message` points at and does not quote**, one
         /// per level ([`carried_lines`]): another node's refusal, with

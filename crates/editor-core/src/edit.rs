@@ -1687,8 +1687,8 @@ impl EditError {
                 )
             }
             // Forwarded, not restated: `InputFault` owns this
-            // vocabulary and `node.rs` promises every door that renders
-            // it forwards. The door adds its own frame — which edit the
+            // vocabulary (`node::duplicate_input`, which takes the
+            // input as this door speaks it). The door adds its own frame — which edit the
             // fault is about — and joins it with a colon, because the
             // forwarded sentence carries an em-dash of its own and two
             // in a row read as a dump.
@@ -1699,9 +1699,9 @@ impl EditError {
             // and never will if the edit is refused — and from
             // `SetMembers` with a live one. This rendering cannot tell
             // which, so a sentence naming that id tells a person to go
-            // and look at a node that may be a phantom. The id the
-            // reader CAN act on is `input`, which the forwarded fault
-            // names, and it is live on both paths.
+            // and look at a node that may be a phantom. The node the
+            // reader CAN act on is `input`, which the sentence names,
+            // and it is live on both paths.
             //
             // The action is the door's to add: `InputFault` states the
             // rule ("pairwise distinct"), which says what is wrong and

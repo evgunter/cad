@@ -97,8 +97,10 @@ pub struct SpokenNode {
     id: RecipeNodeId,
     /// The kind noun, `None` for an id the document does not hold.
     kind: Option<&'static str>,
-    /// The node's label, `None` when it has none or is not held.
-    label: Option<Label>,
+    /// The node's label, `None` when it has none or is not held. Boxed
+    /// so that a spoken node stays three words wide: the edit refusals
+    /// hold up to two and every edit door returns them by value.
+    label: Option<Box<Label>>,
 }
 
 impl SpokenNode {
@@ -110,7 +112,11 @@ impl SpokenNode {
         kind: Option<&'static str>,
         label: Option<Label>,
     ) -> Self {
-        Self { id, kind, label }
+        Self {
+            id,
+            kind,
+            label: label.map(Box::new),
+        }
     }
 
     /// A node no document at hand holds: `node <tag>`, what
@@ -151,7 +157,7 @@ impl SpokenNode {
     /// `None` when it had none.
     #[must_use]
     pub fn label(&self) -> Option<&Label> {
-        self.label.as_ref()
+        self.label.as_deref()
     }
 }
 
@@ -184,7 +190,7 @@ impl<P> Doc<P> {
             Some(node) => SpokenNode {
                 id,
                 kind: Some(node_kind_noun(node)),
-                label: self.label(id).cloned(),
+                label: self.label(id).cloned().map(Box::new),
             },
             None => SpokenNode::absent(id),
         }
