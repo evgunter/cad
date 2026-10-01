@@ -5,7 +5,8 @@ title: MateFault::Band on a MATE is unreachable through the insert door, so the 
 status: open
 opened: 2026-09-20
 priority: P0
-cost: D
+cost: E
+parent: MSOLVE-12
 ---
 
 
