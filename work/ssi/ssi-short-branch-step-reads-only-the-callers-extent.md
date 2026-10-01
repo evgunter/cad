@@ -4,6 +4,9 @@ kind: issue
 title: ssi/march: the longest step is SSI_STEP_MAX of the caller's extent alone, so a feature shorter than a few steps is refused (BranchUndersampled), never traced
 status: open
 opened: 2026-10-01
+priority: P3
+cost: M
+design: true
 ---
 
 
