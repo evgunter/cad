@@ -3,12 +3,11 @@
 //! `adopt.rs`'s two iso rungs — the `IsoCurve` candidate rung and the
 //! ARC-rim residual gate — each extract a described NURBS wall's own
 //! boundary column through `geom_brep::boundary_iso_u` /
-//! `boundary_iso_v`. Those doors are control-net COPIES: they slice
-//! `control` and `weights` to the same length and re-wrap them over
-//! one of the surface's own knot vectors, so **the only refusal either
-//! can build is a weight on the extracted column that is not positive
-//! and finite** — and `geom::NurbsSurface::new` refuses exactly that
-//! of the whole net at construction. The refusal is therefore
+//! `boundary_iso_v`. Those doors are control-net COPIES whose only
+//! refusals are a net that disagrees with the knot vector it is
+//! indexed by and a weight on the extracted column that is not
+//! positive and finite — and `geom::NurbsSurface::new` refuses exactly
+//! those nets at construction. The refusal is therefore
 //! unreachable from any body this reader assembles, and it says
 //! nothing about whether the edge is the shape the rung is looking
 //! for.
@@ -20,8 +19,8 @@
 //!   corpus extract both columns at both ends;
 //! - the nets that WOULD break extraction are refused one layer up, at
 //!   the surface door, so no wall reaches the rungs in that state;
-//! - and when the refusal is carried anyway, it names the offending
-//!   weight, which is the whole reason it is carried rather than
+//! - and when the refusal is carried anyway, it names WHICH invariant
+//!   broke, which is the whole reason it is carried rather than
 //!   discarded.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -144,14 +143,8 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
     let knots_v = kv(4, 3);
     let ok_control = vec![Point3::new(0.0, 0.0, 0.0); 12];
 
-    // A net one control point short. Measured against a
-    // validation-bypassed surface, this one does NOT reach a typed
-    // refusal at all: `end = false` extracts happily (the leading
-    // slice still fits) and `end = true` PANICS inside the slice, one
-    // layer below any error this reader could carry. So the surface
-    // door is the only thing standing between the reader and a panic
-    // here, which is a stronger reason for this row to exist than the
-    // refusal it used to claim.
+    // One control point short: the doors would answer
+    // ControlCountMismatch before slicing a row — if the wall existed.
     let short = vec![Point3::new(0.0, 0.0, 0.0); 11];
     assert!(
         matches!(
@@ -161,10 +154,7 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
         "a net that disagrees with its knot vectors must refuse at construction"
     );
 
-    // The same for a short weight vector — also a slice panic below,
-    // never a `WeightCountMismatch`: extraction slices control and
-    // weights to one length, so that arm cannot arise from these
-    // doors at all.
+    // One weight short: WeightCountMismatch, likewise.
     assert!(
         matches!(
             NurbsSurface::new(
@@ -178,11 +168,10 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
         "a weight count that disagrees with the net must refuse at construction"
     );
 
-    // The weight VALUES are the door's one reachable refusal: a column
-    // copies the wall's weights verbatim, so a wall holding a bad one
-    // on an extracted row hands it to `NurbsCurve3::new` and gets
-    // `NonPositiveWeight` / `NonFiniteWeight` back. This clause is
-    // what `WallColumnStructure` can actually carry.
+    // Weight values: a column copies the wall's weights verbatim, so a
+    // wall holding a bad one on an extracted row hands it to
+    // `NurbsCurve3::new` and gets `NonPositiveWeight` /
+    // `NonFiniteWeight` back.
     for (index, bad) in [0.0, -1.0, f64::NAN, f64::INFINITY].into_iter().enumerate() {
         let mut weights = vec![1.0; 12];
         weights[index] = bad;
@@ -200,36 +189,38 @@ fn a_net_that_would_break_a_column_is_refused_at_the_surface_door() {
 }
 
 /// Why the refusal is carried rather than discarded: the rendered
-/// message names the offending weight, so a kernel-bug report says
-/// more than that a kernel bug happened. Dropping the `{source}`
-/// interpolation reddens this immediately.
-///
-/// The exemplar is the payload the doors can actually build — a weight
-/// violation on the extracted column, whose `index` counts along that
-/// column rather than through the wall's net. The count arms of
-/// [`SplineError`] are deliberately NOT used here: extraction cannot
-/// produce them (module docs), so pinning one would pin a sentence no
-/// wall can ever render.
+/// message names WHICH structural invariant the wall broke, so a
+/// kernel-bug report says more than that a kernel bug happened.
+/// Dropping the `{source}` interpolation reddens this immediately. One
+/// exemplar per kind the doors build: a count of the whole net, and a
+/// weight on the extracted column.
 #[test]
 fn the_refusal_names_which_invariant_the_wall_broke() {
-    let source = SplineError::NonFiniteWeight {
-        index: 3,
-        weight: f64::INFINITY,
-    };
-    // Built from its own type, never read back out of the enum that
-    // wraps it.
-    let inner = format!("{source}");
-    let rendered = format!(
-        "{}",
-        StepImportError::WallColumnStructure { id: 4271, source }
-    );
-    assert!(
-        rendered.contains("#4271"),
-        "the refusal must name the edge: {rendered}"
-    );
-    assert!(
-        rendered.contains(&inner),
-        "the refusal must carry the extraction door's own words \
-         ({inner}), got: {rendered}"
-    );
+    for source in [
+        SplineError::ControlCountMismatch {
+            control: 11,
+            expected: 12,
+        },
+        SplineError::NonFiniteWeight {
+            index: 3,
+            weight: f64::INFINITY,
+        },
+    ] {
+        // Built from its own type, never read back out of the enum that
+        // wraps it.
+        let inner = format!("{source}");
+        let rendered = format!(
+            "{}",
+            StepImportError::WallColumnStructure { id: 4271, source }
+        );
+        assert!(
+            rendered.contains("#4271"),
+            "the refusal must name the edge: {rendered}"
+        );
+        assert!(
+            rendered.contains(&inner),
+            "the refusal must carry the extraction door's own words \
+             ({inner}), got: {rendered}"
+        );
+    }
 }
