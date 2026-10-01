@@ -9,6 +9,7 @@ pr: 883
 refs: [867, 886]
 priority: P1
 cost: H
+needs_ev: true
 ---
 
 ## What
@@ -30,7 +31,7 @@ Track H.
 
 `Bounds` has a `Dual` impl since D1 and these are `pub` doors on an API-first kernel, so the seam is instantiable at a dual. What made that a finding was that the D1 ruling's three *smaller* residues each got a number (`ContentBits for Dual` → #687, the census box duplication → #700, the `Enclosure` gate gap → #701) and the one seam it left unguarded got prose. **Both halves of that premise have since moved**: the seam's written reason for needing no lane exists in one home — `real.rs`'s delegation rule (DUAL-DESIGN DL5), which `scripts/gates/bounds-allowlist.sh` points at rather than restating — and the ruled tightening is rowed as **`S90-impl` on Track M**, which carries #883. What stays open is the tightening itself, at these three doors.
 
-**Verdict: ANSWERED — Ev, 2026-08-21: *"tightening to `CertifiedBounds` works at least for now."* Answer (4).** The fillet seam's three public entry points take `<T: Decide + CertifiedBounds>`, which makes an external `Dual64` instantiation a **compile error** rather than a thing an audit has to keep being true about. *"At least for now"* is part of the ruling and is recorded as such: this closes the seam, it does not settle whether a fillet battery should ever be differentiable.
+**Verdict: the blend doors stay generic — `fillet_edges`/`chamfer_edges` at `T: Decide + Bounds + topo::AtRestPolicy`, `run_battery` and the battery predicates at `T: Decide + Bounds` — under DUAL-DESIGN DL5's delegation rule (the `real.rs` ledger's edge-blend entry), and the fillet third of the 2026-08-21 tightening (H-R3, *"tightening to `CertifiedBounds` works at least for now"*) is retired.** The blend certifies nothing: its battery decides on the value channel, its 18 bracket reads are payloads, discrete selections and value-channel refusal gates (DL5 (a)/(b)), and it mints no certificate. Its doors sit beneath `editor_core::eval::evaluate<T>`, which the E4 sensitivity tier runs at `Dual64` (DL3), so a `CertifiedBounds` bound would remove a working capability — measured: a filleted cube's `Dual64` volume tangent matches central differences of the `f64` build to ~1e-11, for the fillet radius and for parameters upstream of it. H-R3's other two doors (`chart_region_overlap`, the projection doors, #886) and its "the passes keep their lanes" half stand. What a dual blend owes is a pin: a tangent row against finite differences on `die_fillet`/`die_chamfer`, and a stack-up row that differentiates through a 3D blend.
 
 **What the ruling does NOT do — and the distinction is Ev's, drawn on the evidence:** it does **not** delete the four lane traits. `CertifiedBounds` refuses at the **function**; a lane trait refuses at a **sub-operation inside a function that has non-certifying work to do**, and no bound on a whole function can say *"this arm needs certification, the rest does not"*. All four lane traits gate mixed passes, and `topo/tests/geometric_cube.rs:236` calls `validate_geometric` at `Dual64` and asserts it **succeeds**. Bounding that pass on `CertifiedBounds` would delete `Body<Dual64>`'s ability to go through a validation pass at all. **The doors tighten; the passes keep their lanes.** Full ruling and its scope: `docs/SMELL-H-LOG.md`, **H-R3**.
 
