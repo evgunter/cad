@@ -1682,7 +1682,7 @@ fn interpolate_offset_grid(
         for v in vs {
             let p = offset_point(base, d, *u, *v)
                 .ok_or(OffsetFitError::NonFiniteSample { uv: (*u, *v) })?;
-            row.extend_from_slice(&[p.x, p.y, p.z]);
+            row.extend_from_slice(&p.to_array());
         }
         rows_u.push(row);
     }
@@ -2150,7 +2150,7 @@ fn recentre_origin(base: &NurbsSurface<f64>) -> Origin {
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     for p in base.control() {
-        for (c, v) in [p.x, p.y, p.z].into_iter().enumerate() {
+        for (c, v) in p.to_array().into_iter().enumerate() {
             lo[c] = lo[c].min(v);
             hi[c] = hi[c].max(v);
         }

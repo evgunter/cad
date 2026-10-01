@@ -154,7 +154,7 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::{Affine3, Arc2, Mat3, OrthoFrame, Point2, Point3, Real, Tol, Vec3};
+use geom_core::{Affine3, Arc2, OrthoFrame, Point2, Point3, Real, Tol, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -906,25 +906,15 @@ impl SketchPlane<f64> {
     /// place every sketch point identically, by construction.
     pub fn bit_eq(&self, other: &Self) -> bool {
         let bits = |p: &Self| {
-            // **What holds the twelve complete is the four patterns,
-            // not this function's own arithmetic.** A field added to
-            // `SketchPlane`, to the `Affine3` it stores, to that map's
-            // `Mat3` or to a `Vec3` column is an E0027 here, so a new
-            // stored component cannot land outside the comparison
-            // quietly. Read straight off `translation` rather than
-            // through `Self::origin`, which transcribes exactly those
-            // three components and nothing else: same bits, and a
-            // pattern where there was a call.
+            // **What holds the twelve complete is patterns, not this
+            // function's own arithmetic.** A field added to
+            // `SketchPlane` is an E0027 here; one added to the `Affine3`
+            // it stores, to that map's `Mat3` or to a `Vec3` column is
+            // an E0027 inside `Affine3::components`, which binds all
+            // three levels by pattern. A new stored component cannot
+            // land outside the comparison quietly.
             let Self { placement } = p;
-            let Affine3 {
-                linear,
-                translation,
-            } = placement;
-            let Mat3 { c0, c1, c2 } = linear;
-            [translation, c0, c1, c2].map(|v| {
-                let Vec3 { x, y, z } = v;
-                [x.to_bits(), y.to_bits(), z.to_bits()]
-            })
+            placement.components().map(f64::to_bits)
         };
         bits(self) == bits(other)
     }
