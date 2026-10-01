@@ -2,7 +2,8 @@
 id: klint-dev-probe-fires-after-going-dark
 kind: issue
 title: k-lint (dev-probe) fires 35 flags on its first nightly run after moving off the per-PR gate
-status: review
+status: closed
+closed: 2026-09-30
 opened: 2026-09-29
 priority: P0
 cost: M

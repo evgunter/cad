@@ -115,7 +115,7 @@ use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
 };
 
-use crate::certify::CERT_SAMPLES;
+use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::dihedral::{decide, decide_reported};
 use crate::recourse::Refused;
 
@@ -357,8 +357,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let (t0, t1) = carrier.domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = sample_param(t0, t1, i);
         let r = crate::implicit::implicit_residual(surface, carrier.eval(T::from_f64(t))).abs();
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
@@ -418,8 +417,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let (t0, t1) = carrier.domain();
     let mut worst = T::zero();
     for i in 0..CERT_SAMPLES {
-        #[allow(clippy::cast_precision_loss)]
-        let t = t0 + (t1 - t0) * (f64::from(i) / f64::from(CERT_SAMPLES - 1));
+        let t = sample_param(t0, t1, i);
         let c = carrier.eval(T::from_f64(t));
         // Warm-start from the trace's own pcurve: the projection is a
         // *check*, and starting it where the trace says the foot is

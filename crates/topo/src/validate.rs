@@ -2195,6 +2195,10 @@ const NOT_YET: &str = "There is no way through yet";
 /// The recourse for a tolerance that forms no usable band.
 const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 
+/// The recourse for a curve whose parameter range its image on a
+/// spline face cannot be expressed on — the lane's own.
+const REPARAMETERIZE: &str = geom_brep::CARRIER_DOMAIN_RECOURSE;
+
 /// The recourse for a margin the band could not decide, where a
 /// coincidence between two things has an object to declare: the
 /// shared menu ([`geom_core::COINCIDENCE_RECOURSE`], which
@@ -2422,6 +2426,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "the check could not locate the curve on its spline face (the projection did not \
              converge)"
         }
+        CertifyError::PlaneNurbs(P::CarrierDomain(_)) => {
+            "its curve's parameter range cannot carry the curve's image on its spline face"
+        }
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. }) => KIND,
@@ -2447,6 +2454,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::SeamOnNonPeriodic
             | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
+            CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
             | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. }) => {
@@ -2586,38 +2594,79 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
     (why, recourse.into())
 }
 
-fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, Cow<'static, str>) {
+/// **What a mass-properties refusal says about the body** — the one
+/// reading tier 3's check 7 and the boolean's volume backstop share:
+/// why the volume is missing, what the user can do, and whether that is
+/// a defect in the body. Only structure that does not resolve is one; a
+/// face the property layer has no measurement for, a decision too close
+/// to call, a quadrature that ran out are measurements the kernel does
+/// not have, however the face came to need them.
+pub(crate) struct MassPropsReading {
+    /// Why the volume is missing, as a clause.
+    pub(crate) why: &'static str,
+    /// What to do about it — or the defect ending, when `defect`.
+    pub(crate) recourse: Cow<'static, str>,
+    /// The body's own structure is at fault.
+    pub(crate) defect: bool,
+}
+
+pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassPropsReading {
     use crate::props::MassPropsError as M;
     use geom_brep::props::PropsError as P;
-    let (why, recourse) = match e {
-        M::Band { error } => (classify_band(error), TOLERANCE),
+    let reading = |why, recourse: Cow<'static, str>, defect| MassPropsReading {
+        why,
+        recourse,
+        defect,
+    };
+    match e {
+        M::Band { error } => reading(classify_band(error), TOLERANCE.into(), false),
         M::Face { source, .. } => match source {
-            P::Escalated { cause } => {
-                return (
-                    "a face's contribution is too close to call at this tolerance",
-                    unnamed(&cause.margin),
-                );
-            }
-            P::QuadratureBudget { .. } => (
+            // The quadrature's own convergence test: its enclosure
+            // width against its target, nothing of the model's — no
+            // coincidence to declare and no size to change.
+            P::Escalated { cause } if cause.predicate == Some("props_quad_converged") => reading(
+                "the quadrature could not decide whether its enclosure of a face's \
+                 contribution had converged",
+                unnamed(&cause.margin),
+                false,
+            ),
+            P::Escalated { cause } => reading(
+                "a face's contribution is too close to call at this tolerance",
+                unnamed(&cause.margin),
+                false,
+            ),
+            P::QuadratureBudget { .. } => reading(
                 "a face's contribution did not converge to the tolerance",
-                "Recourse: loosen the tolerance",
+                "Recourse: loosen the tolerance".into(),
+                false,
             ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
             | P::NappeSpanning
             | P::NotOneChartBranch { .. }
-            | P::QuadratureUnsupported { .. } => {
-                ("the kernel cannot yet measure a face of this kind", NOT_YET)
-            }
-            P::DegenerateFace => ("a face encloses no area", DEFECT),
+            | P::QuadratureUnsupported { .. } => reading(
+                "the kernel cannot yet measure a face of this kind",
+                NOT_YET.into(),
+                false,
+            ),
+            // Raised on an extent decided zero at the band and on a
+            // quadrature area whose enclosure reaches zero: a face too
+            // thin to certify, not a contradiction in the body.
+            P::DegenerateFace => reading(
+                "a face's area could not be certified positive at this tolerance",
+                "Recourse: widen the face well past the tolerance".into(),
+                false,
+            ),
         },
-        M::RingOnCurvedFace { .. } => (
+        M::RingOnCurvedFace { .. } => reading(
             "the kernel cannot yet measure a curved face with a hole",
-            NOT_YET,
+            NOT_YET.into(),
+            false,
         ),
-        M::Corrupt { .. } | M::NullScaffoldEdge { .. } => ("its structure is incomplete", DEFECT),
-    };
-    (why, recourse.into())
+        M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
+            reading("its structure is incomplete", DEFECT.into(), true)
+        }
+    }
 }
 
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
@@ -2658,6 +2707,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 C::FittedLaneUnsupported { .. } => (
                     "this scalar cannot certify a fitted boundary",
                     "Recourse: check the body at a certifying scalar",
+                ),
+                C::CarrierDomain(_) => (
+                    "a boundary curve's parameter range cannot carry its image on the face",
+                    REPARAMETERIZE,
                 ),
                 C::ChartRow { .. }
                 | C::IntervalNotForward
@@ -2983,7 +3036,7 @@ impl fmt::Display for ValidationError {
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
             Self::VolumeUncomputable { source, .. } => {
-                let (why, recourse) = classify_mass_props(source);
+                let MassPropsReading { why, recourse, .. } = classify_mass_props(source);
                 write!(
                     f,
                     "a solid's volume could not be computed to check that it is not \

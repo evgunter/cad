@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-14
 refs: [validate-pcurves-never-recertifies-a-face-it-finds-incomplete, S331, loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart]
 priority: P0
-cost: D
+cost: M
+design: true
 ---
 
 Found by both reviewers of PR 2549

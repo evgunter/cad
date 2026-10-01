@@ -1247,3 +1247,5 @@ The optional findings also landed: per-variant mint pins, one collision recourse
 - `edit/di1-may-simplify-now-node-ids-are-digests` (P1, design).
 
 The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.
+
+- 2026-10-01 — Seam note from AUTHOR: Ev ruled on #3571 that `StableName`'s `Display` carries a face's leaf role in words, through one public renderer promoted from `resolve::role_words`. The work is filed on EDIT as `names-render-a-faces-leaf-role-in-words`; `names/role.rs` is shared ground. (AUTHOR orchestrator)
