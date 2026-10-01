@@ -2,10 +2,12 @@
 id: the-uncut-shell-witness-skips-contact-vertices-but-probes-the-edges-and-faces-between-them
 kind: issue
 title: The uncut-shell witness skips contact vertices at tier 1 but probes the edges and faces between them, so a declared contact the reduction recorded ON the boundary can be re-asked of the geometry
-status: open
+status: review
 opened: 2026-10-01
 priority: P2
 cost: M
+pr: 3716
+branch: cleave/ladders
 ---
 
 
