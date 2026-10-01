@@ -78,6 +78,12 @@ fn a_rename_recomputes_nothing_and_mints_nothing() {
     let renamed = set_label(labelled.clone(), d.final_node, Some("the die"));
     let ev2 = evaluate::<f64>(&renamed, Some(&ev1), &CancelToken::new(), &opts, tol);
     assert_eq!(ev2.recomputed, 0, "a rename recomputes no node");
+    let diff = labelled.diff(&renamed);
+    assert_eq!(
+        (diff.nodes.len(), diff.labels),
+        (0, vec![d.final_node]),
+        "a rename changes no node, only its label"
+    );
 
     assert_eq!(renamed.mint(), d.doc.mint(), "a label edit mints nothing");
     let frame = fixture::xy_frame();
