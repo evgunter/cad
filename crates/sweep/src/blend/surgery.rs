@@ -104,10 +104,10 @@
 //! a support face's ring and a blend's trimline — circle-vs-line and
 //! circle-vs-circle, exact, never sampled — between each other
 //! outer-boundary edge of a closed rim's support and that support's
-//! trim (a line or circle exactly; any other carrier through a
-//! certified box over its window, a bound whose refusal says so), and,
-//! on a transverse cap
-//! a convex ruled band cuts off, between each edge the cut leaves on
+//! trim (a line or circle exactly; an ellipse, spiric or NURBS edge
+//! through a certified bound — [`boxed_reach`] — whose refusal says it
+//! is one), and, on a transverse cap a convex ruled band cuts off,
+//! between each edge the cut leaves on
 //! the cap and a region enclosing the sliver it removes. Positive
 //! carries the ring or edge through; zero/negative refuses typed
 //! ([`BlendError::RingClearance`]); in-band escalates with the same
@@ -1992,8 +1992,9 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
 /// slot order. `classify_arm` keys `trim_a` to `face_a`, and `face_a` is
 /// whichever support carries `he_plus`, which the request does not
 /// choose; the `(Sphere, Plane)` arm swaps its own trims for exactly
-/// this reason. Callers pass `host_is_a = (link.face_a == the link's own
-/// host)`;
+/// this reason. Callers pass `first_is_a = (link.face_a == face)` for
+/// the support `face` whose trim they want FIRST — the link's host for
+/// the (host, mate) pair, or either support to read its own trim;
 /// reading `trim_a` blind would take the mate's trim for the host's on
 /// exactly the links where the two disagree. Pinned by
 /// `tests::trim_selection_is_by_support_kind`.
@@ -2001,9 +2002,9 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
 fn rim_trim_circles<T: Real>(
     edge: EdgeKey,
     blend: &EdgeBlend<T>,
-    host_is_a: bool,
+    first_is_a: bool,
 ) -> Result<((Point3<T>, T), (Point3<T>, T)), BlendError> {
-    let (host_trim, mate_trim) = if host_is_a {
+    let (first_trim, other_trim) = if first_is_a {
         (&blend.trim_a.0, &blend.trim_b.0)
     } else {
         (&blend.trim_b.0, &blend.trim_a.0)
@@ -2012,22 +2013,22 @@ fn rim_trim_circles<T: Real>(
         center: pc,
         radius: pr,
         ..
-    } = *host_trim
+    } = *first_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
-            "a rim blend's host trimline is not a circle",
+            "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
     let Curve3::Circle {
         center: sc,
         radius: sr,
         ..
-    } = *mate_trim
+    } = *other_trim
     else {
         return Err(unbuilt_geometry(
             EntityId::Edge(edge),
-            "a rim blend's mate trimline is not a circle",
+            "a rim blend's trimline on one of its supports is not a circle",
         ));
     };
     Ok(((pc, pr), (sc, sr)))
@@ -2073,6 +2074,7 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
     face: FaceKey,
     chain: Convexity,
     margin: T,
+    bounded: bool,
     band: Band,
 ) -> Result<(), BlendError> {
     let decision = BlendDecision::RingClearance;
@@ -2082,7 +2084,7 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
             face,
             chain,
             margin: super::battery::classified(decision, margin, band, sign),
-            bounded: false,
+            bounded,
         }),
     }
 }
@@ -2393,7 +2395,7 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     margin: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    ring_clearance(face, chain, margin, band)
+    ring_clearance(face, chain, margin, false, band)
 }
 
 /// The pre-mutation honesty pass (module docs): every ring of every
@@ -2475,7 +2477,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 // shared construction, never by cancellation.
                 let _ = dir;
                 let margin = (c - origin).dot(m) - a;
-                ring_clearance(face, o.convexity(), margin, band)?;
+                ring_clearance(face, o.convexity(), margin, false, band)?;
             }
         }
     }
@@ -2515,7 +2517,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 } else {
                     m.external
                 };
-                ring_clearance(host, rim.chain.first().convexity, margin, band)?;
+                ring_clearance(host, rim.chain.first().convexity, margin, false, band)?;
             }
         }
         support_boundary_clearance(body, rim, band)?;
@@ -2570,7 +2572,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                              which the sliver meter needs",
                         )
                     })?;
-                    ring_clearance(s.cap, plan.link().convexity(), margin, band)?;
+                    ring_clearance(s.cap, plan.link().convexity(), margin, false, band)?;
                 }
             }
         }
@@ -2594,8 +2596,9 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// (the incidence [`resolve_rim`]'s routes admit), which the carve
 /// splits at the trim. A line or circle edge is read exactly
 /// ([`piece_distance`], [`piece_along`]); any other carrier through
-/// [`boxed_reach`], a certified box over its window whose refusal says
-/// it is a bound. An edge with no certified carrier refuses.
+/// [`boxed_reach`], a certified bound (an ellipse arc's box over its
+/// window, a spiric oval's over its period, a NURBS curve's control
+/// hull) whose refusal says it is a bound. An edge with no certified carrier refuses.
 ///
 /// Its own function, and so a compound bound of its own in this file:
 /// it is the edge-blend seam's ring carry-through pass split by arm,
@@ -2626,7 +2629,7 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         }
         seen.push(face);
         let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == face)?;
-        let Some((rim_carrier, rim_window)) = stored_piece(body, l.edge)? else {
+        let Some((rim_carrier, _)) = stored_piece(body, l.edge)? else {
             return Err(unbuilt_geometry(
                 EntityId::Edge(l.edge),
                 "a rim arc carries no certified carrier",
@@ -2659,20 +2662,23 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         };
         // The latitude function's range over one piece, and whether that
         // range is a bound rather than the piece's own.
-        let reach = |carrier: &Curve3<T>, window: (T, T)| match carrier {
+        let reach = |carrier: &Curve3<T>, (ta, tb): (T, T)| match carrier {
             Curve3::Line { .. } | Curve3::Circle { .. } => match direction {
-                None => piece_distance(carrier, window, ci),
-                Some(u) => piece_along(carrier, window, ci, u),
+                None => piece_distance(carrier, (ta, tb), ci),
+                Some(u) => piece_along(carrier, (ta, tb), ci, u),
             }
             .map(|r| (r, false)),
             Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-                boxed_reach(carrier, window, ci, direction).map(|r| (r, true))
+                let ends = (carrier.eval(ta), carrier.eval(tb));
+                boxed_reach(carrier, (ta, tb), ends, ci, direction).map(|r| (r, true))
             }
         };
-        let at_trim = if direction.is_none() { si } else { T::zero() };
-        let ((rim_at, _), _) = reach(rim_carrier, rim_window).ok_or_else(|| {
-            unbuilt_geometry(EntityId::Edge(l.edge), "a closed rim's arc is not a circle")
-        })?;
+        // The rim's own value: its radius on a plane (coplanar and
+        // coaxial with the trim), its height along the axis on a wall.
+        let (at_trim, rim_at) = match direction {
+            None => (si, rim_frame.radius),
+            Some(u) => (T::zero(), (rim_frame.center - ci).dot(u)),
+        };
         // The rim lies one setback off the trim, so this bracket read is
         // definite wherever the trim exists; it selects which end of an
         // edge's range is decided, and an indefinite read refuses.
@@ -2714,73 +2720,37 @@ fn support_boundary_clearance<T: Decide + Bounds>(
             } else {
                 low - at_trim
             };
-            match ring_clearance(face, convexity, margin, band) {
-                Err(BlendError::RingClearance {
-                    face,
-                    chain,
-                    margin,
-                    ..
-                }) => {
-                    return Err(BlendError::RingClearance {
-                        face,
-                        chain,
-                        margin,
-                        bounded,
-                    });
-                }
-                decided => decided?,
-            }
+            ring_clearance(face, convexity, margin, bounded, band)?;
         }
     }
     Ok(())
 }
 
 /// **A certified range of the latitude function over one piece whose
-/// carrier has no exact closed form here** — an ellipse, a spiric oval
-/// or a NURBS curve: `(low, high)` bounding the distance from `c`
+/// carrier has no windowed closed form here** — an ellipse, a spiric
+/// oval or a NURBS curve: `(low, high)` bounding the distance from `c`
 /// (`u` absent) or the height `(p − c)·u` along the unit `u`, for every
-/// point `p` of `carrier` over `window`, read off the certified box of
-/// that piece (`geom::curves::boxes`): the box of the arc over its
-/// window for the two conics, the control hull's for a NURBS curve. A
-/// range that holds the box holds the piece; it is a BOUND, not the
-/// piece's own range. `None` for a box that is not finite (poison) or a
-/// carrier the boxes do not take.
+/// point `p` of `carrier` over `window`, whose ends are `ends`.
+///
+/// Read off the certified box `geom::curves::boxes` mints: an ellipse
+/// arc's over its window, a spiric oval's over its whole period, a
+/// NURBS curve's over its control hull. A range that holds the box
+/// holds the piece. An ellipse's HEIGHT is also read exactly over its
+/// whole period — a sinusoid of the parameter in any frame, which a
+/// world-axis box overstates once the axis is tilted — and the two
+/// ranges are intersected. Every range here is a BOUND, not the piece's
+/// own. `None` for a box that is not finite (poison) or a carrier the
+/// boxes do not take.
 fn boxed_reach<T: Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
+    (end0, end1): (Point3<T>, Point3<T>),
     c: Point3<T>,
     u: Option<Vec3<T>>,
 ) -> Option<(T, T)> {
     let aabb = match carrier {
-        Curve3::Ellipse {
-            center,
-            axis,
-            major,
-            minor,
-            u_ref,
-        } => {
-            let at = |t: T| {
-                *center + *u_ref * (*major * t.cos()) + axis.cross(*u_ref) * (*minor * t.sin())
-            };
-            boxes::ellipse_arc_aabb(carrier, ta, tb, at(ta), at(tb))?
-        }
-        Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius,
-            offset,
-        } => {
-            let at = |v: T| {
-                let rho = *major_radius + *minor_radius * v.cos();
-                *center
-                    + *u_ref * *offset
-                    + axis.cross(*u_ref) * (rho.powi(2) - offset.powi(2)).sqrt()
-                    + *axis * (*minor_radius * v.sin())
-            };
-            boxes::spiric_arc_aabb(carrier, at(ta), at(tb))?
-        }
+        Curve3::Ellipse { .. } => boxes::ellipse_arc_aabb(carrier, ta, tb, end0, end1)?,
+        Curve3::Spiric { .. } => boxes::spiric_arc_aabb(carrier, end0, end1)?,
         Curve3::Nurbs(n) => boxes::nurbs_curve_aabb(n),
         Curve3::Line { .. } | Curve3::Circle { .. } => return None,
     };
@@ -2809,10 +2779,26 @@ fn boxed_reach<T: Bounds>(
         }
         Some(u) => {
             let h0 = first.dot(u);
-            Some((1..8).fold((h0, h0), |(l, h), i| {
+            let (low, high) = (1..8).fold((h0, h0), |(l, h), i| {
                 let v = (corner(i) - c).dot(u);
                 (l.min(v), h.max(v))
-            }))
+            });
+            match carrier {
+                Curve3::Ellipse {
+                    center,
+                    axis,
+                    major,
+                    minor,
+                    u_ref,
+                } => {
+                    let mid = (*center - c).dot(u);
+                    let amp = ((*major * u_ref.dot(u)).powi(2)
+                        + (*minor * axis.cross(*u_ref).dot(u)).powi(2))
+                    .sqrt();
+                    Some((low.max(mid - amp), high.min(mid + amp)))
+                }
+                _ => Some((low, high)),
+            }
         }
     }
 }
@@ -5044,8 +5030,9 @@ mod tests {
             ("spiric", spiric.clone(), (-0.4, 1.7)),
             ("nurbs", nurbs.clone(), (0.2, 0.9)),
         ] {
-            let (near, far) = boxed_reach(&carrier, window, c, None).expect(name);
-            let (low, high) = boxed_reach(&carrier, window, c, Some(u)).expect(name);
+            let ends = (carrier.eval(window.0), carrier.eval(window.1));
+            let (near, far) = boxed_reach(&carrier, window, ends, c, None).expect(name);
+            let (low, high) = boxed_reach(&carrier, window, ends, c, Some(u)).expect(name);
             for i in 0..=4096 {
                 let t = window.0 + (window.1 - window.0) * f64::from(i) / 4096.0;
                 let p = carrier.eval(t);
@@ -5080,7 +5067,8 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let c = Point3::new(0.0, 0.0, 0.0);
-        let (near, far) = boxed_reach(&ellipse, (0.0, TAU), c, None).expect("a finite box");
+        let ends = (ellipse.eval(0.0), ellipse.eval(TAU));
+        let (near, far) = boxed_reach(&ellipse, (0.0, TAU), ends, c, None).expect("a finite box");
         let p = ellipse.eval(core::f64::consts::FRAC_PI_2);
         let d = (p - c).norm();
         assert!(

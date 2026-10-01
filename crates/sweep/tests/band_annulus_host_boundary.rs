@@ -120,7 +120,8 @@ fn carves(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64) {
 }
 
 /// The reading of a refusal, and whether it was a bound (an ellipse
-/// edge's certified box) rather than a measurement (a line or circle).
+/// edge's certified range) rather than a measurement (a line or
+/// circle).
 fn refuses(name: &str, body: &Body<f64>, rim: (f64, f64), r: f64, bounded: bool) -> f64 {
     validate_geometric(body, tol()).expect("the fixture is tier-3 valid");
     let arcs = rim_arcs_at(body, rim.0, rim.1);
@@ -278,7 +279,7 @@ fn tilted_cut_shaft(cut: Cut, level: f64, spin: f64) -> Body<f64> {
 }
 
 /// **A curved host's far boundary is read along the axis, and an
-/// ellipse through its whole-carrier range.** The cone–cylinder rim at
+/// ellipse through its certified height range.** The cone–cylinder rim at
 /// `y = 0.5` has its host trim on the cylinder one setback `r·tan(π/8)`
 /// up (the wall turns 45° there). The tilted cut leaves the cylinder an
 /// ellipse whose lowest point is at `level`; turned 11.25° off the
@@ -333,4 +334,48 @@ fn a_tilted_cut_reaching_a_cylinder_mates_trim_between_samples_refuses() {
         (1.0, 0.5),
         0.1,
     );
+}
+
+/// **The height is read in the support's own frame, not the world's.**
+/// The host row's fixture with the cut's lowest point at `0.547`, and
+/// the whole shaft tipped 30° about `z` so its axis is no world axis:
+/// the ellipse clears the host trim by
+/// `(0.547 − 0.5) − 0.1·tan(π/8) ≈ +0.0056`, while a read of its height
+/// off a world-axis box overstates its reach toward the trim by
+/// `≈ 0.016` and refuses (measured).
+#[test]
+fn a_tilted_cut_clear_of_a_tipped_cylinder_hosts_trim_carves() {
+    let a = 30f64.to_radians();
+    let (c, s) = (a.cos(), a.sin());
+    let tip = Affine3::from_parts(
+        Mat3::from_cols(
+            Vec3::new(c, s, 0.0),
+            Vec3::new(-s, c, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
+        Vec3::new(0.0, 0.0, 0.0),
+    );
+    let body = moved(&tilted_cut_shaft(Cut::HostFromAbove, 0.547, 191.25), &tip);
+    validate_geometric(&body, tol()).expect("the fixture is tier-3 valid");
+    // The rim's centre, tipped with the body.
+    let centre = Vec3::new(-0.5 * s, 0.5 * c, 0.0);
+    let seed = body
+        .edges()
+        .find(|(_, e)| {
+            let Some(g) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                return false;
+            };
+            matches!(*g.carrier(), geom::Curve3::Circle { radius, center, .. }
+                if (radius - 1.0).abs() < 1e-9
+                    && (center.x - centre.x).abs() < 1e-9
+                    && (center.y - centre.y).abs() < 1e-9
+                    && center.z.abs() < 1e-9)
+        })
+        .map(|(k, _)| k)
+        .expect("the tipped rim's seed arc");
+    let arcs = topo::query::rim_of(&body, seed).expect("one rim");
+    let out = fillet_edges(&body, &arcs, 0.1, tol())
+        .unwrap_or_else(|e| panic!("the tipped shaft carves, got {e:?}"));
+    validate_geometric(&out.body, tol()).expect("tier-3 valid");
+    assert_eq!(out.band_faces.len(), 1, "one band");
 }

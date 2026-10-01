@@ -74,7 +74,8 @@ into a rim vertex) against that face's trim under
 the height along the axis on a cylinder, cone or sphere, decided on the
 trim's far side from the rim. Lines and circles go through
 `piece_distance` / `piece_along`; an ellipse, spiric or NURBS edge
-through `boxed_reach`, the certified box of the piece, and a refusal it
-decides carries `bounded: true`
+through `boxed_reach`, a certified bound (the piece's box, and an
+ellipse's exact height range), and a refusal it decides carries
+`bounded: true`
 (`support-boundary-meter-bounds-other-carriers-by-the-whole-carrier`);
 an uncertified edge refuses typed. Nothing is skipped.

@@ -14,35 +14,44 @@ cost: M
 `support_boundary_clearance` (`crates/sweep/src/blend/surgery.rs`)
 reads a line or circle edge over its stored window exactly
 (`piece_distance`, `piece_along`), and an ellipse, spiric or NURBS edge
-through `boxed_reach`: the certified axis-aligned box `geom::curves::boxes`
-mints for that piece (`ellipse_arc_aabb` and `spiric_arc_aabb` over the
-edge's window, `nurbs_curve_aabb` over the control hull), read for the
-distance from the trim centre or the height along the axis. The box
-holds the piece, so the read never passes an edge that reaches the
-strip, and its refusal says it is a bound (`RingClearance { bounded:
-true }`). It can still refuse an edge that clears:
+through `boxed_reach`, off the certified axis-aligned box
+`geom::curves::boxes` mints for it: an ellipse arc's over its window
+(`ellipse_arc_aabb`), a spiric oval's over its WHOLE period
+(`spiric_arc_aabb`), a NURBS curve's over its whole control hull
+(`nurbs_curve_aabb`). An ellipse's HEIGHT along the axis is also read
+exactly over its whole period (a sinusoid in any frame) and intersected
+with the box's. Each range holds the piece, so the read never passes an
+edge that reaches the strip, and its refusal carries `RingClearance {
+bounded: true }`. It can still refuse an edge that clears:
 
-- the box is AXIS-ALIGNED, so on a tilted ellipse or a support whose
-  axis is not a world axis its corners overstate the reach;
-- a NURBS edge's box is its whole control hull, not its window's.
+- an ellipse's DISTANCE (a plane support) comes from the axis-aligned
+  box, which overstates on a tilted ellipse;
+- a spiric's and a NURBS edge's box covers the whole carrier, not the
+  edge's window;
+- an IN-BAND bounded margin goes out as `Escalated` with the
+  two-tolerance recourse, which cannot settle a limit set by the box's
+  width rather than by the tolerance.
 
-An earlier spelling of this read bounded an ellipse's distance by the
-ball of radius `major`, which is NOT sound: tier 3 does not order
-`major` and `minor` (a STEP `ELLIPSE` stores its semi-axes as given),
-and a swapped ellipse leaves that ball. The box has no such premise
-(`boxed_reach_holds_every_point_of_its_piece` reads both spellings).
+An earlier spelling bounded an ellipse's distance by the ball of radius
+`major`, which is NOT sound: tier 3 does not order `major` and `minor`
+(a STEP `ELLIPSE` stores its semi-axes as given), and a swapped ellipse
+leaves that ball. The box has no such premise
+(`boxed_reach_holds_every_point_of_its_piece` and
+`band_review_3715_swapped_ellipse_distance_ball_encloses` read both
+spellings).
 
-Reachable for the ellipse on a curved support
-(`band_annulus_host_boundary::a_tilted_cut_reaching_a_cylinder_hosts_trim_between_samples_refuses`,
-where the cylinder's axis is a world axis and the box's height range is
-the arc's own). No row measures an over-refusal; a support whose axis
-is tilted, or a STEP-imported plate with a spline outline near a bore,
-is where one would show.
+Rowed: an ellipse on a tilted-axis cylinder host, where the world box's
+height alone over-refused and the exact sinusoid carves
+(`band_annulus_host_boundary::a_tilted_cut_clear_of_a_tipped_cylinder_hosts_trim_carves`).
+No row measures a distance over-refusal; a STEP-imported plate with a
+spline outline near a bore, or a tilted bore crossing a cap's outer
+cycle, is where one would show.
 
 ## What the taker owes
 
-If a row shows the box over-refusing: read the ellipse's height in its
-own frame (a sinusoid of the parameter, whose window extremes need the
-window-membership home `arc-window-membership-has-three-spellings`
-asks for), and a NURBS edge over its window (subdivide its control
-polygon to the window first).
+Make the in-band bounded ending honest (a recourse that names the
+bound, not the tolerance). If a row shows the box over-refusing on
+distance: an ellipse arc's distance in its own frame, and a NURBS edge
+over its window (subdivide its control polygon to the window first) —
+any window-membership read routed through the home
+`arc-window-membership-has-three-spellings` asks for.

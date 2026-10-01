@@ -1467,11 +1467,11 @@ pub enum BlendError {
         /// edge touching it, unless `bounded` says otherwise.
         margin: ClassifiedMargin,
         /// Whether `margin` is a BOUND rather than a measurement: the
-        /// edge's carrier has no exact closed form here (an ellipse, a
-        /// spiric oval, a NURBS curve), so its reach is read off a
-        /// certified box over it, and a refusal says only that the edge
-        /// could not be certified clear — not that it reaches the part
-        /// the blend replaces.
+        /// edge is an ellipse, a spiric oval or a NURBS curve, whose
+        /// reach the surgery reads off a certified bound rather than
+        /// its own window, so a refusal says only that the edge could
+        /// not be certified clear — not that it reaches the part the
+        /// blend replaces.
         bounded: bool,
     },
     /// **The result's pcurve caches could not be re-minted** after the
@@ -2090,6 +2090,35 @@ mod recourse_tests {
             assert!(text.contains(says), "{chain}: {text}");
             assert!(!text.contains(never), "{chain}: {text}");
         }
+    }
+
+    /// **A `bounded` ring clearance says it could not certify the edge
+    /// clear, never that the edge reaches the part the blend replaces**
+    /// — the margin it carries is a bound, not a measurement.
+    #[test]
+    fn a_bounded_ring_clearance_says_it_could_not_certify() {
+        let render = |bounded| {
+            BlendError::RingClearance {
+                face: FaceKey::default(),
+                chain: Convexity::Convex,
+                margin: ClassifiedMargin {
+                    predicate: "fillet3_ring_clearance",
+                    reading: MarginDiag::value(-1e-3),
+                    band: Band::new(1e-9, 1e-6).expect("a band"),
+                    sign: Sign::Negative,
+                },
+                bounded,
+            }
+            .to_string()
+        };
+        let (bound, measured) = (render(true), render(false));
+        assert!(
+            bound.contains("cannot be certified clear") && bound.contains("a bound over the edge"),
+            "{bound}"
+        );
+        assert!(!bound.contains("lies in"), "{bound}");
+        assert!(measured.contains("a ring or edge lies in"), "{measured}");
+        assert!(!measured.contains("certified clear"), "{measured}");
     }
 
     /// **No refusal this enum can render carries a `Debug` field
