@@ -2850,6 +2850,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::NullScaffoldShared { .. } => "null_scaffold_shared",
         ValidationError::LeakedNullFaceRecord { .. } => "leaked_null_face_record",
         ValidationError::StaleNullFaceLoop { .. } => "stale_null_face_loop",
+        ValidationError::StaleNullFaceOwnership { .. } => "stale_null_face_ownership",
         ValidationError::NullEdgeAtRest { .. } => "null_edge_at_rest",
         ValidationError::NullFaceAtRest { .. } => "null_face_at_rest",
     }

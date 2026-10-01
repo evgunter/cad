@@ -107,6 +107,8 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
+#[path = "placeholder_chart_boundary.rs"]
+mod placeholder_chart_boundary;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -517,6 +519,8 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "full_turn_wall.rs"]
+mod full_turn_wall;
 #[path = "germ_circle_torus.rs"]
 mod germ_circle_torus;
 #[path = "germ_cone_apex_closure.rs"]

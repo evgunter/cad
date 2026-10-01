@@ -787,14 +787,16 @@ pub enum EulerOpError {
     },
     /// An argument key, or a key the operator must follow to do its
     /// work (a `prev` link, a spine parent, a start vertex), does not
-    /// resolve.
+    /// resolve. A caller reaches the first and only a torn body the
+    /// second, and the variant does not say which.
     StaleKey {
         /// The unresolvable reference, wrapped with its kind.
         key: EntityId,
     },
     /// A geometry key the operator must read (an endpoint vertex's
     /// point for the certification gate, a `FaceSurface::Shared` key)
-    /// does not resolve.
+    /// does not resolve. A caller reaches it through a key it passed (the
+    /// `Shared` key), and only a torn body through one a record holds.
     StaleGeometry {
         /// The unresolvable geometry reference.
         key: GeomRef,
@@ -841,10 +843,7 @@ pub enum EulerOpError {
     /// ([`Body::kef`], [`Body::kev`],
     /// [`Body::kemr`]); or an `Empty` loop that [`Body::kvfs`] or
     /// [`Body::mekr`]'s `Empty` ring sites remove is claimed by a
-    /// half-edge; or the loop is `Empty` at a vertex [`Body::kvfs`] or
-    /// [`Body::kev`] removes (the crate-internal
-    /// `Body::require_vertex_unnamed`), which another loop holds or a
-    /// half-edge starts at.
+    /// half-edge.
     LoopCycleBroken {
         /// The loop whose cycle is broken.
         r#loop: LoopKey,
@@ -872,7 +871,8 @@ pub enum EulerOpError {
     /// from the edge's slots is the argument itself or names another
     /// edge (the crate-internal `require_halves`). [`Body::movefac`]
     /// refuses it for a cycle member whose mate, read from the member's
-    /// edge, names another edge.
+    /// edge, names another edge. A caller reaches the first, through
+    /// `kemr`'s arguments, and only a torn body the rest.
     NotSameEdge {
         /// The first half-edge.
         he1: HalfEdgeKey,
@@ -945,9 +945,9 @@ pub enum EulerOpError {
     },
     /// A kill would remove `to` while `from`, a record it keeps, still
     /// names it — tier-1-invalid input: a torn `face`, `rings`, `shell`,
-    /// `faces` or `solid` names the record from outside the ownership the
-    /// kill reads it by, and the kill would leave `from` naming a dead
-    /// record. Fired by [`Body::kef`] (a face listing its dying loop, a
+    /// `faces`, `solid` or `Empty` boundary names the record from outside
+    /// the ownership the kill reads it by, and the kill would leave `from`
+    /// naming a dead record. Fired by [`Body::kef`] (a face listing its dying loop, a
     /// loop or shell naming its dying face), [`Body::kvfs`] (a face
     /// listing its loop, a loop or shell naming its face, a face or solid
     /// naming its shell, a shell naming its solid), [`Body::mekr`] (a
@@ -957,7 +957,10 @@ pub enum EulerOpError {
     /// [`Body::kef`], [`Body::kev`] and [`Body::kemr`] for a half-edge's
     /// `next` or `prev`, a loop's `first`, a vertex's `emanating` or
     /// another edge's slot naming a half-edge they remove (the
-    /// crate-internal `Body::require_killed_halves_unnamed`).
+    /// crate-internal `Body::require_killed_halves_unnamed`), and
+    /// [`Body::kvfs`] and [`Body::kev`] for a loop they keep that is
+    /// `Empty` at the vertex they remove (the crate-internal
+    /// `Body::require_vertex_unnamed`).
     ///
     /// A half-edge naming a removed loop, vertex or edge has the variant
     /// that already decides that field: a half-edge claiming a removed
@@ -1001,6 +1004,17 @@ pub enum EulerOpError {
         target: LoopKey,
         /// The ring-side loop, in a different face.
         ring: LoopKey,
+    },
+    /// [`Body::set_null_face_pair`]'s record names a loop that is not
+    /// the marked face's own — neither its outer loop nor one of its
+    /// rings. A null face is one face's two coincident loops
+    /// ([`crate::null`]), so such a record describes none.
+    NullPairForeignLoop {
+        /// The face the record would mark.
+        face: FaceKey,
+        /// The first role loop, in declaration order, that `face` does
+        /// not hold.
+        r#loop: LoopKey,
     },
     /// A loop named as a ring is its face's outer loop:
     /// [`Body::mekr`]'s ring argument, [`Body::ring_move`]'s ring, and
@@ -1212,8 +1226,10 @@ impl EulerOpError {
             ),
             Self::MergeRebasesCarriers { edges } => format!(
                 "kev: the fan merge re-bases certified edges {edges:?} onto the surviving \
-                 vertex, and the keys-only kill takes no band to certify them there \
-                 (kev_describing takes one, and their re-descriptions)"
+                 vertex, and the keys-only kill takes no band to certify them there. \
+                 Recourse: re-describe those edges at the surviving vertex, or kill the edge's \
+                 other end where it meets no other edge (kev_describing takes their \
+                 re-descriptions under a band, and kev on the other half kills the other end)"
             ),
             Self::NotMergedMember { edge } => format!(
                 "kev_describing: edge {edge:?} is not a member of the merged fan, so the \
@@ -1276,7 +1292,8 @@ impl EulerOpError {
             ),
             Self::FanOrbitBroken { he1, he2 } => format!(
                 "mev fan: the clockwise vertex orbit from {he1:?} never \
-                 reaches {he2:?} (malformed body)"
+                 reaches {he2:?}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NotSameLoop { he1, he2 } => format!(
                 "half-edges {he1:?} and {he2:?} belong to different loops \
@@ -1286,7 +1303,8 @@ impl EulerOpError {
                 "loop {loop:?}'s next cycle disagrees with the half-edges that \
                  claim it: a walk of it fails to close, strays into another \
                  loop or misses one of its members, or it is empty at a vertex \
-                 another loop also holds or a half-edge starts at (malformed body)",
+                 another loop also holds or a half-edge starts at. {}",
+                geom_core::KERNEL_DEFECT_ENDING,
                 loop = r#loop
             ),
             Self::LoopNotEmpty { r#loop } => format!(
@@ -1295,7 +1313,8 @@ impl EulerOpError {
             ),
             Self::LoopNotCycle { r#loop } => format!(
                 "a half-edge argument claims parent loop {loop:?}, which is \
-                 an empty loop (malformed body)",
+                 an empty loop. {}",
+                geom_core::KERNEL_DEFECT_ENDING,
                 loop = r#loop
             ),
             Self::NotSameEdge { he1, he2 } => format!(
@@ -1304,7 +1323,8 @@ impl EulerOpError {
             ),
             Self::UnclaimedHalfEdge { he, edge } => format!(
                 "half-edge {he:?}'s edge {edge:?} does not claim it in either \
-                 slot, so its mate cannot be resolved (malformed body)"
+                 slot, so its mate cannot be resolved. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::SelfLoopEdge { edge, vertex } => format!(
                 "kev: edge {edge:?} is a self-loop at vertex {vertex:?} — kev \
@@ -1317,22 +1337,24 @@ impl EulerOpError {
                  vertex, an anchor a kill writes for it starts elsewhere, a kill \
                  takes it for lone while a half-edge still starts at it or no \
                  empty loop holds it, or a kill removes it while {he:?}, which \
-                 the kill keeps, still starts at it (malformed body)"
+                 the kill keeps, still starts at it. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::EmptyAnchorsCollide { vertex } => format!(
                 "the operation would leave two empty loops holding the same \
-                 lone vertex {vertex:?} (tier 1 allows exactly one)"
+                 lone vertex {vertex:?}, which only a torn body reaches. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::KillLeavesDangling { from, to } => format!(
                 "the kill removes {to}, which {from} still names outside the ownership \
                  the kill reads, so it would be left naming a dead record. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NotOwned { child, owner } => format!(
                 "movefac took {child} as {owner}'s, but the two do not own each \
                  other both ways: {owner} does not list {child}, or {child} does \
                  not name {owner}. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::SameLoop { r#loop } => format!(
                 "two distinct loops required, but both sides name loop \
@@ -1343,6 +1365,12 @@ impl EulerOpError {
             Self::NotSameFace { target, ring } => format!(
                 "mekr: loops {target:?} and {ring:?} belong to different \
                  faces"
+            ),
+            Self::NullPairForeignLoop { face, r#loop } => format!(
+                "a null-face record on face {face:?} names loop {loop:?}, which is not \
+                 that face's outer loop or one of its rings (a null face is one face's \
+                 two coincident loops)",
+                loop = r#loop
             ),
             Self::RingIsOuter { r#loop } => format!(
                 "loop {loop:?} is its face's outer loop, not a ring",
@@ -1540,6 +1568,10 @@ pub(crate) fn every_euler_op_error_once()
             target: lp,
             ring: lp,
         },
+        EulerOpError::NullPairForeignLoop {
+            face: fc,
+            r#loop: lp,
+        },
         EulerOpError::RingIsOuter { r#loop: lp },
         EulerOpError::SameFace { face: fc },
         EulerOpError::CrossShell { f1: fc, f2: fc },
@@ -1622,11 +1654,21 @@ impl EulerOpError {
     ///
     /// The membership is this enum's own documentation: a variant
     /// answers `true` exactly when its doc comment says the state is
-    /// tier-1-invalid input, plus the two dangling-reference variants
-    /// whose whole subject is a key that did not resolve. Callers
+    /// tier-1-invalid input, plus [`EulerOpError::StaleKey`] and
+    /// [`EulerOpError::StaleGeometry`], whose whole subject is a key
+    /// that did not resolve. Callers
     /// that place a refusal — a driver deciding whether to record it
     /// and carry on, or to refuse — ask here instead of keeping a
     /// second copy of the list.
+    ///
+    /// **For three variants `true` assumes the call's keys are
+    /// right.** A caller also reaches [`EulerOpError::StaleKey`] and
+    /// [`EulerOpError::StaleGeometry`] by passing a key the body does
+    /// not hold, and [`EulerOpError::NotSameEdge`] by passing `kemr` two
+    /// half-edges that are not mates, and the variant does not say
+    /// which reached it. The answer holds for them only where every
+    /// key the call passed resolves in this body and `kemr`'s two are
+    /// mates.
     ///
     /// The match is exhaustive on purpose: a new variant does not
     /// compile until someone says which side of this line it is on.
@@ -1681,6 +1723,7 @@ impl EulerOpError {
             | Self::SelfLoopEdge { .. }
             | Self::SameLoop { .. }
             | Self::NotSameFace { .. }
+            | Self::NullPairForeignLoop { .. }
             | Self::RingIsOuter { .. }
             | Self::SameFace { .. }
             | Self::CrossShell { .. }
@@ -3216,8 +3259,8 @@ impl<T: Decide> Body<T> {
     /// removes: no half-edge but `moved` starts at `v`, refusing
     /// [`EulerOpError::OrbitBroken`] naming the first that does in arena
     /// order; then no loop but `killed` is `Empty` at `v`, refusing
-    /// [`EulerOpError::LoopCycleBroken`] naming the first that is.
-    /// `moved` is every half-edge the kill removes or re-bases off `v`,
+    /// [`EulerOpError::KillLeavesDangling`] from the first that is to
+    /// `v`. `moved` is every half-edge the kill removes or re-bases off `v`,
     /// and `killed` every loop it removes.
     ///
     /// A plan reads what starts at `v` from an orbit walk, or finds `v`
@@ -3236,7 +3279,10 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::OrbitBroken { he });
         }
         match self.empty_at_besides(v, killed) {
-            Some(r#loop) => Err(EulerOpError::LoopCycleBroken { r#loop }),
+            Some(r#loop) => Err(EulerOpError::KillLeavesDangling {
+                from: EntityId::Loop(r#loop),
+                to: EntityId::Vertex(v),
+            }),
             None => Ok(()),
         }
     }
@@ -6591,6 +6637,56 @@ mod tests {
         }
     }
 
+    /// **The corruption refusals end one way** (D4 ¶1 (i)): every
+    /// variant [`EulerOpError::reports_tier1_corruption`] answers `true`
+    /// for ends in [`geom_core::KERNEL_DEFECT_ENDING`], its one recourse,
+    /// but for the three a caller reaches too, which state the fact and
+    /// claim neither a recourse nor a defect; no other variant names a
+    /// defect. `PcurveMint` answers by its payload, so both of its sides
+    /// are sampled beside the shared array.
+    #[test]
+    fn corruption_refusals_end_in_the_kernel_defect_ending() {
+        use crate::pcurves::SiteRowRefusal;
+        use EulerOpErrorKind as K;
+        const CALLERS_TOO: [K; 3] = [K::StaleKey, K::StaleGeometry, K::NotSameEdge];
+        let pcurve_mint = |refusal| EulerOpError::PcurveMint {
+            face: FaceKey::default(),
+            refusal,
+        };
+        let samples = every_euler_op_error_once().into_iter().chain([
+            pcurve_mint(SiteRowRefusal::Corrupt),
+            pcurve_mint(SiteRowRefusal::KeysOnly),
+        ]);
+        let mut corrupt = 0;
+        for error in samples {
+            let text = error.to_string();
+            if !error.reports_tier1_corruption() {
+                assert!(
+                    !text.contains("kernel defect") && !text.contains("malformed"),
+                    "{text}"
+                );
+                continue;
+            }
+            corrupt += 1;
+            if CALLERS_TOO.contains(&K::from(&error)) {
+                assert!(
+                    !text.contains("kernel defect")
+                        && !text.contains("malformed")
+                        && !text.contains("torn"),
+                    "{text}"
+                );
+                assert_eq!(test_utils::refusal::recourse_markers(&text), 0, "{text}");
+            } else {
+                assert!(
+                    text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
+                    "{text}"
+                );
+                assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+            }
+        }
+        assert_eq!(corrupt, 12, "the corruption samples this row reads");
+    }
+
     /// **`split_edge`'s interiority arms tell one story** (D4 ¶1 (iv)),
     /// each on a real raise: the crossing within the zero band of an
     /// end, the one outside the edge, and the one in the band. All three
@@ -6716,12 +6812,15 @@ mod tests {
 /// `tier1` constructs is one relation, keyed by the variant and the
 /// kinds its fields wrap (`EntityId::Face(..)` reads `Face`), or by its
 /// field names where it wraps none. `RELATIONS` gives each one a
-/// disposition: the helper whose scan reads the naming field before a
+/// disposition: the helper whose scan reads the naming field when a
 /// kill removes the record it names, checked against that helper's
-/// body, or the tracker row that files the gap, checked to exist. A
-/// relation `tier1` gains, or a variant of either prefix the enum gains
-/// that `tier1` does not construct and `NOT_BODY_RELATIONS` does not
-/// place, reds here until it is given one.
+/// body — a proof that refuses before the kill, or, for the null-face
+/// records a kill, or a move of a loop off its face, maintains rather
+/// than refuses over, the drop in its mutation phase. A relation
+/// `tier1` gains, or a variant of either
+/// prefix the enum gains that `tier1` does not construct and
+/// `NOT_BODY_RELATIONS` does not place, reds here until it is given
+/// one.
 ///
 /// What this cannot see: a relation the validator checks without a
 /// `Dangling*` or `Stale*` variant, and a second field of one kind pair
@@ -6745,16 +6844,11 @@ mod removal_census {
         /// The helper whose scan reads the field, and the code
         /// fragments its body reads it through.
         Read(&'static str, &'static [&'static str]),
-        /// The row that files the gap, repo-relative.
-        Filed(&'static str),
     }
-    use Disposition::{Filed, Read};
-
-    const NULL_FACES: &str =
-        "work/topo/kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove.md";
+    use Disposition::Read;
 
     /// One disposition per relation `tier1` checks, in its pass order.
-    const RELATIONS: [(&str, Disposition); 19] = [
+    const RELATIONS: [(&str, Disposition); 20] = [
         (
             "DanglingTopology: Solid -> Shell",
             Read("require_shell_unnamed", &["data.shells.contains"]),
@@ -6836,7 +6930,14 @@ mod removal_census {
             "DanglingTopology: Vertex -> HalfEdge",
             Read("require_killed_halves_unnamed", &["data.emanating"]),
         ),
-        ("StaleNullFaceLoop: face, named_loop", Filed(NULL_FACES)),
+        (
+            "StaleNullFaceLoop: face, named_loop",
+            Read("drop_null_face_records_naming", &["pair.loops().contains"]),
+        ),
+        (
+            "StaleNullFaceOwnership: face, named_loop",
+            Read("drop_null_face_records_naming", &["pair.loops().contains"]),
+        ),
     ];
 
     /// Variants of either prefix that name no record of a `Body`, so no
@@ -6933,7 +7034,7 @@ mod removal_census {
     }
 
     #[test]
-    fn every_relation_validate_checks_is_read_by_a_kill_helper_or_filed() {
+    fn every_relation_validate_checks_is_read_by_a_kill_helper() {
         let found = tier1_relations();
         let keys: Vec<&str> = found.iter().map(|(_, key)| key.as_str()).collect();
         let listed: Vec<&str> = RELATIONS.iter().map(|&(key, _)| key).collect();
@@ -6958,25 +7059,16 @@ mod removal_census {
              in `NOT_BODY_RELATIONS`"
         );
         let helpers: Vec<String> = HELPER_SOURCES.iter().map(|s| code_only(s)).collect();
-        let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
-        for (key, disposition) in &RELATIONS {
-            match disposition {
-                Read(helper, reads) => {
-                    let head = format!("fn {helper}(");
-                    let sources: Vec<&String> =
-                        helpers.iter().filter(|code| code.contains(&head)).collect();
-                    let [source] = sources[..] else {
-                        panic!("`{key}`: `{helper}` is defined once among the helper sources");
-                    };
-                    let body = body_of(source, &head);
-                    for read in *reads {
-                        assert!(body.contains(read), "`{key}`: `{helper}` reads `{read}`");
-                    }
-                }
-                Filed(row) => assert!(
-                    root.join(row).is_file(),
-                    "`{key}` is filed at `{row}`, which no longer exists: give it a disposition"
-                ),
+        for (key, Read(helper, reads)) in &RELATIONS {
+            let head = format!("fn {helper}(");
+            let sources: Vec<&String> =
+                helpers.iter().filter(|code| code.contains(&head)).collect();
+            let [source] = sources[..] else {
+                panic!("`{key}`: `{helper}` is defined once among the helper sources");
+            };
+            let body = body_of(source, &head);
+            for read in *reads {
+                assert!(body.contains(read), "`{key}`: `{helper}` reads `{read}`");
             }
         }
     }

@@ -1333,13 +1333,15 @@ pub(super) fn merge_rows(
 /// sign is decided or every face reaches the last round every lane runs
 /// (`geom_brep::props::quad::LAST_ROUND_EVERY_LANE_RUNS`).
 ///
-/// There the rounds run out at a resolution: the quadrature's interval
-/// floor, measured on the oblique-capped rod (`r = 0.5`, cut 20° at
-/// `z = 3.5`, `tests/reach_volume_backstop.rs`) at 5.5e-10 m³ against
-/// a reporting half-width of 9.2e-7 m³, and growing with the body's
-/// size. What is still open is then metered as a boundary displacement
-/// — the margin's lower end over the two bodies' summed area — and
-/// decided against the model's own band: inside it, the open range is
+/// There the rounds run out at a resolution: the last round's
+/// half-width, measured on the oblique-capped rod (`r = 0.5`, cut 20° at
+/// `z = 3.5`, `sweep/tests/reach_volume_backstop.rs`) as ≈ 2.2e-10 m³
+/// of rule remainder whatever ε plus ≈ 0.55·ε m³ (7.7e-10 m³ at the
+/// default ε, against a reporting half-width of 9.2e-7 m³), the
+/// remainder growing with the body's size. What is still open is then
+/// metered as a boundary displacement — the margin's lower end over
+/// the two bodies' summed area — and decided against the model's own
+/// band: inside it, the open range is
 /// below the model's resolution and the bound is accepted as an
 /// in-band margin is (below); certified beyond it, the measurement
 /// cannot decide a question the model can tell apart, and the gate
