@@ -95,3 +95,30 @@ its `(c₀, A₁, A₂)`), so `circle_torus::half_angle_roots`, which is
 surface-generic over degree-2 harmonics, is the root door it would
 call; only the harmonics' phases, a noise meter and a
 `f_per_metre` floor are owed.
+
+## Outcome (2026-10-01, TANG: the circle × cylinder crossing cell)
+
+The cell is settled: `topo::boolean::circle_cylinder` certifies a
+circle's crossings with a cylinder wall. The evidence above held, with
+one correction: a circle SQUARE to the wall's axis (every parallel-axes
+pose, this row's included) has a first-harmonic residual, which the
+half-angle ladder reads badly (its discriminant measures how near the
+complex pair lies, so a near miss reads as a tangency) and which it
+cannot answer at all when coaxial (`F` constant). That arm goes through
+the circle × sphere door's decisions instead, made the shared
+`circle_sphere::first_harmonic_roots`; tilted circles take the shared
+`circle_torus::half_angle_roots`. No third root door was written.
+
+Where #347's cylinder poses stand now:
+
+| pose | door now |
+|---|---|
+| parallel, equal r, one height (this row's pose) | `UndeclaredCoincidence` on the coplanar cap discs — a declaration's |
+| parallel, equal r, staggered heights, `d` 0.3 to 1.6 | `CurvedSectorSideUnsupported { Negative }` (`work/reach/slab-cut-cylinder-refuses-sector-side.md`) |
+| parallel, equal r, staggered, `d` 1.9 | `Join(SectionArcWindow { NoChartedRun })`, the pierce ring (`pierce-ring-has-no-join-arm`) |
+| coaxial, equal r | `CurvedPierceUnsupported`, the rim lying on the wall (`Constant`): a declaration's |
+| Steinmetz | `CurvedPierceUnsupported` at the seam tangency, the pinch family, unchanged |
+| a D-prism beside a cylinder, square and tilted 10°/30°/45° | builds under ∪, ∖, ∩, tier 3 clean, volume at the closed form |
+
+So no genuine circle pierce of a wall builds yet. The next wall for
+those is the arc's sector side, then the pierce ring.
