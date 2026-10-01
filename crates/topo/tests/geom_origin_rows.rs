@@ -414,7 +414,7 @@ fn an_origin_rides_the_graft_and_the_destination_keeps_its_own() {
     let mut src = unit_brick();
     src.mark_imported();
     let src = transform_rigid(&src, &aside(), tol).unwrap();
-    graft_disjoint(&mut dst, &src, tol).unwrap();
+    graft_disjoint(&mut dst, &src).unwrap();
 
     let grafted: Vec<_> = dst
         .surfaces()
@@ -442,7 +442,7 @@ fn a_graft_carries_the_point_and_curve_origins_too() {
     let mut src = unit_brick();
     src.mark_imported();
     let src = transform_rigid(&src, &aside(), tol).unwrap();
-    graft_disjoint(&mut dst, &src, tol).unwrap();
+    graft_disjoint(&mut dst, &src).unwrap();
 
     let mut grafted_p = 0usize;
     for (k, _) in dst.points() {

@@ -40,7 +40,7 @@ const L_PROFILE: [(f64, f64); 6] = [
 /// grafted (fresh keys, equal geometry).
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
@@ -151,7 +151,7 @@ fn cavity() -> Body<f64> {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut dst, solid, hole, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut dst, solid, hole, &evidence).unwrap();
     assert_eq!(
         dst.shells().count(),
         2,

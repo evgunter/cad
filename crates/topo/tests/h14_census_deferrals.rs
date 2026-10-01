@@ -44,7 +44,7 @@ fn cube(side: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
 /// The pair as one two-instance arena.
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 

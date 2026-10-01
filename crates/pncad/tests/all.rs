@@ -327,6 +327,24 @@ fn blend_site_and_convexity_are_matchable(
     (where_it_broke, removes_material)
 }
 
+/// `BlendError::Escalated`'s decision: which question could not be
+/// taken, and so which lever the refusal hands its reader.
+fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
+    match decision {
+        BlendDecision::RadiusHeadroom => "radius_headroom",
+        BlendDecision::FaceClearance => "face_clearance",
+        BlendDecision::SpineRegularity => "spine_regularity",
+        BlendDecision::ChainG1 => "chain_g1",
+        BlendDecision::ChainArm => "chain_arm",
+        BlendDecision::ConvexitySign => "convexity_sign",
+        BlendDecision::RingClearance => "ring_clearance",
+        BlendDecision::SupportCoaxiality => "support_coaxiality",
+        BlendDecision::ContactSecondOrder => "contact_second_order",
+        BlendDecision::CornerIndependence => "corner_independence",
+        BlendDecision::CapTransverse => "cap_transverse",
+    }
+}
+
 /// `ValidationError::UndeclaredContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
 /// `EdgeFacePierce` is interpenetration and categorically undeclarable
@@ -559,6 +577,10 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             Convexity::Concave
         ),
         ("joint", false)
+    );
+    assert_eq!(
+        blend_decision_is_matchable(BlendDecision::CornerIndependence),
+        "corner_independence"
     );
 
     // Declarable vs categorically undeclarable, off the same refusal.
@@ -4640,11 +4662,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-/// - **The step mint** (`StepMint`): the chain and log a document mints
-///   its profile step ids from, which `Doc::step_mint` answers. The
-///   doors read it and a consumer never writes it; what a consumer
-///   holds is the ids themselves (`StepId`), carried.
-const NOT_CARRIED: [&str; 92] = [
+/// - **The mint** (`Mint` and its log's `Minted` entries): the chain
+///   and log a document mints its node and profile step ids from,
+///   which `Doc::mint` answers. The doors read it and a consumer never
+///   writes it; what a consumer holds is the ids themselves
+///   (`RecipeNodeId`, `StepId`), carried.
+const NOT_CARRIED: [&str; 93] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4679,6 +4702,8 @@ const NOT_CARRIED: [&str; 92] = [
     "MetaValue",
     "MinClearanceLane",
     "MinClearanceOperand",
+    "Mint",
+    "Minted",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
@@ -4698,7 +4723,6 @@ const NOT_CARRIED: [&str; 92] = [
     "RunStatus",
     "SectionScalar",
     "SeedScalar",
-    "StepMint",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",

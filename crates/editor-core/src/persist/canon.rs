@@ -26,10 +26,10 @@
 //! exclusions are explicit carve-outs earned by a demonstrated
 //! problem, and they ride a schema seam.
 //!
-//! Not the step mint's preimage (`crate::step_mint`): that hashes one
-//! minting edit's statement about its steps with display units erased
-//! (D6), to answer "which step"; these bytes are the whole document,
-//! display units included, and answer "which version".
+//! Not the mint's preimage (`crate::mint`): that hashes one minting
+//! edit's statement with display units erased (D6), to answer "which
+//! node" or "which step"; these bytes are the whole document, display
+//! units included, and answer "which version".
 //!
 //! Stated consequence (spec, honest): an appearance-only edit moves
 //! the pin — a consuming assembly sees an update whose

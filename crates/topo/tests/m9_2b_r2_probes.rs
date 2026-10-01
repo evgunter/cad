@@ -27,7 +27,7 @@ fn cube_scaled_at(s: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 

@@ -2,8 +2,11 @@
 id: ssi-march-newton-tolerance-has-no-resolvability-door
 kind: issue
 title: ssi/march: the march's Newton tolerance is ε-derived with no resolvability door, so a slab far from the origin fails as StepRefinementFailed rather than by its scale
-status: open
+status: dispatched
 opened: 2026-10-01
+priority: P1
+cost: M
+branch: ssi/march-endings
 ---
 
 
