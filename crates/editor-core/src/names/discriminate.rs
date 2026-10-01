@@ -26,17 +26,15 @@ pub(crate) const FAMILY: &str = "name_frag_";
 /// it and [`decision_words`] states what it decides.
 pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
-/// The on-member-edge predicate's name (`emit_union`'s member-edge
-/// ranker): whether a vertex of a union's result lies on a member edge,
-/// at which end, and whether two such vertices are one place.
+/// The on-member-edge predicate's name (`emit_union`'s `Flush`): whether
+/// a point of a union's result lies on a member edge or at a member
+/// vertex, and at which end.
 ///
-/// **In the [`FAMILY`], unlike [`CHORD_ON_RIM`].** Its verdicts decide a
-/// member-edge piece's `OrderAlong { rank, of }` — which places cut the
-/// edge, so how many cells there are and which one a piece starts in —
-/// so they enter the name, and a flip of one is an N2 discriminator
-/// flip. `resolve`'s ladder reads a family flip on the path as the
-/// name's own; a flip about a vertex elsewhere on the same member edge
-/// does move that edge's count, so the reading holds for it too.
+/// **In the [`FAMILY`], unlike [`CHORD_ON_RIM`].** Its verdicts decide
+/// which member edge a finished edge is a piece of, and which member
+/// vertex or edge a finished vertex is named for, so they enter the
+/// name, and a flip of one is an N2 discriminator flip. `resolve`'s
+/// ladder reads a family flip on the path as the name's own.
 pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
 
 /// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
@@ -59,7 +57,7 @@ pub(crate) const CHORD_ON_RIM: &str = "name_chord_on_rim";
 /// of its own. `None` for a predicate this layer does not own.
 pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
     match predicate {
-        ORDER_ALONG => Some("the order of two pieces along an edge"),
+        ORDER_ALONG => Some("the order of two crossings along an edge"),
         ON_MEMBER_EDGE => Some("a point's place along an edge"),
         CHORD_ON_RIM => Some("whether a chord lies on its rim"),
         _ => None,

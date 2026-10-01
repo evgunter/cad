@@ -375,7 +375,10 @@ GROUP-SIZE rung (`resolve::group_resized`, whose docs say why a fragment name
 can vanish with no flip) needs a prior run: when the last-good table at the
 minting node carried the name, and the group its emitter divided the
 fragment's parent into held `was` entities there and holds `now ≠ was` in the
-current run, the diagnosis is `GroupResized { node, was, now, cutters }`. The group is
+current run, the diagnosis is `GroupResized { node, was, now, cutters }`. An
+edge piece's `Ends` holds no count, so a cut elsewhere on its parent leaves the
+piece's name as it was, and the rung meets an edge piece only where its own
+ends moved or its group stopped being divided. The group is
 the one the emitter formed, read from the record it keeps beside the table
 (`names::FragmentGroups`, not persisted), not re-derived from the names: it
 counts the distinct entities of the node's output descended from the parent

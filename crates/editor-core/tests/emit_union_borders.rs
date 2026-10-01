@@ -1365,3 +1365,48 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
         );
     }
 }
+
+/// **A slot across a sunk boss, turned 90°, names.** The boss of
+/// [`a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`],
+/// with the slab running along x instead (x −1..4, y 1.4..1.6, from
+/// z = 0.8 up): its walls cross the boss's curved wall, and the seam
+/// chains along that wall are named by their ends, where they were once
+/// ranked along a plane the wall does not have.
+#[test]
+fn a_slot_along_x_across_a_sunk_boss_names() {
+    let doc = ProfileDoc::empty_derived("sunk-boss-slot-x", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, boss) = cylinder(doc, [1.5, 1.5, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
+    let (doc, slab) = block(doc, (-1.0, 4.0), (1.4, 1.6), 0.8, 1.2);
+    let (pair_doc, pair) = insert(
+        doc.clone(),
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: plate,
+            b: boss,
+            declare: None,
+        },
+    );
+    let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
+    for order in permutations(&[0, 1]) {
+        let (d, u) = union_of(doc.clone(), &[plate, boss], &order);
+        joins.push((format!("union {order:?}"), d, u));
+    }
+    for (label, doc, joined) in joins {
+        let (doc, cut) = insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Subtract,
+                a: joined,
+                b: slab,
+                declare: None,
+            },
+        );
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, cut).is_none(),
+            "{label}: the slot names: {:?}",
+            failure(&ev, cut)
+        );
+    }
+}

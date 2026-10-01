@@ -1456,7 +1456,7 @@ fn a_predicate_flip_names_its_signs_as_words() {
             to: geom_core::predicate::Sign::Negative,
         },
         &[
-            "the margin deciding the order of two pieces along an edge flipped from positive \
+            "the margin deciding the order of two crossings along an edge flipped from positive \
              to negative",
         ],
         // Every `Sign`, not the two this row happens to construct: a
@@ -2572,7 +2572,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     terminal_sliver: false,
                 },
             },
-            vec!["the order of two pieces along an edge", "too close to call"],
+            vec![
+                "the order of two crossings along an edge",
+                "too close to call",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);

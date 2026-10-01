@@ -1596,7 +1596,7 @@ mod display_tests {
                     predicate: crate::names::discriminate::ORDER_ALONG,
                     source: escalation(),
                 },
-                vec!["the order of two pieces along an edge"],
+                vec!["the order of two crossings along an edge"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {

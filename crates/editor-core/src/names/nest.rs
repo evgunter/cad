@@ -1827,6 +1827,8 @@ pub(super) mod tests {
                 R::Seam { a: r(a), b: r(b) },
                 R::Merged(vec![a.clone(), b.clone()]),
                 R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
+                R::Fragment(Qualifier::Keeps(vec![a.clone(), b.clone()])),
+                R::Fragment(Qualifier::Ends(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
                 R::SplitBody(SplitHalf::Below),
                 R::SectionFace {

@@ -493,7 +493,7 @@ pub(crate) struct OperandCtx<'a, T: Decide> {
     pub node: RecipeNodeId,
     /// Its name table (total over its body).
     pub table: &'a NameTable,
-    /// Its body (order-along carrier geometry).
+    /// Its body (the carriers its crossed edges are ranked along).
     pub body: &'a Body<T>,
 }
 
@@ -1710,6 +1710,24 @@ impl<T: Decide> Segment<T> {
             d,
             len: d.norm(),
         })
+    }
+
+    /// Whether `p` lies on the segment's LINE, decided through
+    /// `predicate` over its distance off it: the first verdict
+    /// [`Segment::place`] takes.
+    pub(super) fn on_line(
+        &self,
+        p: Point3<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<bool, NamingError> {
+        let off = decide(
+            predicate,
+            Margin::over_lever((p - self.q0).cross(self.d).norm(), self.len),
+            bnd,
+        )
+        .map_err(|source| NamingError::Escalated { predicate, source })?;
+        Ok(off == Sign::Zero)
     }
 
     /// Where `p` lies, decided through `predicate` over lengths: first

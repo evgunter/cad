@@ -2,11 +2,13 @@
 id: edge-pieces-are-named-by-their-ends
 kind: unit
 title: Edge pieces are named by their ends; the Split's same-side faces by the edges they keep
-status: open
+status: review
 opened: 2026-10-01
 priority: P0
 cost: H
 refs: [curved-seam-pieces-have-no-ranking-direction, a-plane-split-of-a-curved-face-refuses-as-an-emission-bug, a-split-mints-a-twice-crossed-edges-pieces-under-one-name, edge-dir-is-a-chord-so-curved-edge-pieces-misrank]
+pr: 3629
+branch: emit/edge-pieces-by-ends
 ---
 
 
@@ -71,3 +73,26 @@ Stored goldens move: seam chains, operand-edge pieces, union member-edge
 pieces, section chords and split pieces are renamed. Re-baseline and say
 what moved. The union's cell count can land after the seam and split
 changes, as its own PR.
+
+## Built (PR 3629)
+
+One PR carries the whole scope: `Ends`, the crossing ordinal and
+`Keeps` share the vertex-before-qualifier mint order and the retirement
+of `OrderAlong` for edges, and no intermediate state named consistently.
+
+What is left, as found:
+- **The `Ends`-delta diagnosis rung is not designed**, as ruled. A
+  vanished edge piece falls to the existing rungs: a flip or an edit on
+  its path (its ends cite the cutter, so the cutter is on that path
+  now), the group-size rung where its group stopped being divided, then
+  the fallback. No fixture in the suite reached the fallback with an
+  edge piece, so nothing was filed.
+- **A union's crossings of a seam of several curves tie.** A vertex
+  cites a union seam by its head; where one face crosses it several
+  times the crossings share a name and are ranked along the seam's line
+  (`emit_union::rank_along_seam`; the area-overlap fixtures of
+  `wire_legal_union_refusals` reach it), but a seam of several curves
+  has no one carrier to order them along, so there they are N2's tie.
+  No fixture reaches the tie.
+- **A crossed NURBS edge's crossings tie**: `emit_topo::param_along`
+  has no closed-form parameter for a NURBS carrier.

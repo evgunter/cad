@@ -31,17 +31,13 @@
 //! sides are put in name order, because a union has no A and B.
 //!
 //! Putting a `Seam`'s sides in name order can also rewrite a VALUE in
-//! the tail. The pair emitter ranks every chain along a seam line along
-//! that seam pair's `n_a × n_b`, which is oriented by side. That covers
-//! the pieces of a seam minted already cut, the pieces of a whole seam a
-//! later step cut, and a seam-vertex group ranked along a seam edge.
-//! Which ranks lie on a seam line, and which pair's line, is ONE answer,
-//! `names::seam_pair`, read by the pair emitter to pick the direction
-//! and by the canonical form (`names::canonical`) to decide what the
-//! ordering does. The line is found in the fold-space name, through any
-//! depth of `FromA`/`FromB` wrapping, and in the collapsed one, and the
-//! rank reads from the other end (`of − 1 − rank`) exactly where the
-//! pair comes out swapped in name order.
+//! the tail. A seam-vertex group ranked along a seam edge is ranked as
+//! the loop of that seam's first side runs along it, so where the pair
+//! comes out swapped in name order the rank reads from the other end
+//! (`of − 1 − rank`). Which ranks lie on a seam line, and which pair's
+//! line, is ONE answer, `names::seam_pair`, read by the pair emitter to
+//! orient the edge and by the canonical form (`names::canonical`) to
+//! decide what the ordering does.
 //!
 //! More rewrites happen at the END, on the published table only,
 //! because they read the finished table or the finished body. Each
@@ -52,24 +48,24 @@
 //!   ([`Fold`], [`Parents`]): the parent itself when the finished body
 //!   holds it as one face, and otherwise the parent and one `Borders`
 //!   over the divider walls each piece borders; a seam edge is named
-//!   for the two parents it lies between, ranked along the seam when
-//!   there are several; and any other name cites a face as its parent
-//!   ([`name_by_parents`]) — whether a step cut a face before or after
-//!   it merged, and in how many steps, is fold history;
+//!   for the two parents it lies between; and any other name cites a
+//!   face as its parent ([`name_by_parents`]) — whether a step cut a
+//!   face before or after it merged, and in how many steps, is fold
+//!   history;
 //! - an entity of the finished body that belongs to several members at
 //!   once (a flush stretch, a corner on another member's rim) is named
 //!   for the least member entity that holds it, and every edge lying
-//!   along a member edge is named as a piece of it ([`Flush`]) — which
-//!   member was operand A is fold history;
-//! - the pieces of each member EDGE are numbered by the cells the
-//!   finished body's vertices cut that edge into, counting every cell
-//!   whoever holds it ([`rank_member_edges`]) — which step cut the edge
-//!   is fold history;
+//!   along a member edge is named as a piece of it ([`Flush`],
+//!   [`group_member_edges`]) — which member was operand A is fold
+//!   history;
 //! - a vertex is named for the member vertex it sits at, or for the
 //!   member edge it lies on and the one face crossing it there, and
 //!   otherwise cites the member edge it lies on whole, not the stretch
-//!   of it the fold had cut when it met the vertex
-//!   ([`cite_member_edges`]).
+//!   of it the fold had cut when it met the vertex, and a seam by its
+//!   head ([`cite_member_edges`]);
+//! - several pieces of one seam or one member edge are told apart by
+//!   their ends, over the vertex names just published (N2's `Ends`) —
+//!   which step cut the edge is fold history.
 //!
 //! These names are functions of the finished body, so they are
 //! order-free as far as the boolean's output is: where different member
@@ -78,10 +74,10 @@
 //! the names differ with them.
 //!
 //! A refusal raised mid-fold, and the declaration door's view of an
-//! intermediate step, have no finished body and keep the fold's ranks.
-//! Neither may carry a fold-ranked member-edge piece: the declaration
-//! door admits no edge (`DeclareUnsupportedPair`), and a refusal that
-//! would carry one refuses as an emission bug instead
+//! intermediate step, have no finished body and keep the fold's
+//! qualifiers. Neither may carry a fold-qualified member-edge piece: the
+//! declaration door admits no edge (`DeclareUnsupportedPair`), and a
+//! refusal that would carry one refuses as an emission bug instead
 //! ([`is_fold_ranked_member_edge`]).
 //!
 //! # How an intermediate row is told from a member's row
@@ -212,7 +208,15 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     let flush = Flush::of(node, body, members, &parents, bnd)?;
     let by_parents = name_by_parents(node, &t, body, &parents, fold, &flush)?;
     let (t, member_edges) = group_member_edges(by_parents.table, by_parents.held, &flush)?;
-    let mut t = cite_member_edges(t, by_parents.vertices, body, members, &flush, bnd)?;
+    let mut t = cite_member_edges(
+        t,
+        by_parents.vertices,
+        &by_parents.seams,
+        body,
+        members,
+        &flush,
+        bnd,
+    )?;
     let mut tie = TieRows::default();
     for g in by_parents.seams.iter().chain(&member_edges) {
         name_edge_pieces(&mut t, &mut tie, g.from_tie, &g.base, body, 0, &g.edges)?;
@@ -747,16 +751,18 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, NameRef, bool)>
 /// and not the one the fold happened to rank along at the step that met
 /// the group. A seam citing two member edges refuses, as the collapse
 /// already does for such a group's ranks. A group whose one seam
-/// crosses a union seam [`name_by_parents`] re-spelled by its head has
-/// no one carrier to rank along, since the seam may be several curves,
-/// and ties. A
+/// crosses a union seam [`name_by_parents`] re-spelled by its head is
+/// ranked along that seam where it is one straight line, and ties where
+/// it is several curves ([`rank_along_seam`]). A
 /// group with a moved name and no single seam, or a seam citing no
 /// edge, refuses. A group with no moved name and no member edge to rank
 /// along keeps its names: its ranks, if any, lie along a seam, in the
 /// orientation the collapse put in canonical form.
+#[allow(clippy::too_many_arguments)]
 fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
     vertex_rows: Vec<(StableName, Entry, bool)>,
+    seams: &[PieceGroup],
     body: &topo::Body<T>,
     members: &[Member<'_, T>],
     flush: &Flush<'_, T>,
@@ -826,14 +832,10 @@ fn cite_member_edges<T: geom_core::Decide>(
                 (Some(m), None) | (None, Some(m)) => Some(m),
                 (Some(_), Some(_)) => return Err(bug(Unrankable::SidedVertexRank.what())),
                 (None, None) if respelled_bases.contains(&base) => {
-                    let mut ents = Vec::with_capacity(rows.len());
-                    for (_, entry, _) in rows {
-                        match entry {
-                            Entry::Unique(e) => ents.push(e),
-                            Entry::Tied(es) => ents.extend(es),
-                        }
-                    }
-                    mint_candidates(&mut out, &mut tie, false, base, ents)?;
+                    let seam = [a, b]
+                        .into_iter()
+                        .find_map(|side| seams.iter().find(|g| g.base == **side));
+                    rank_along_seam(&t, &mut out, &mut tie, &base, rows, seam, body, bnd)?;
                     continue;
                 }
                 (None, None) if moved => return Err(bug(CITED_GROUP_NO_MEMBER_EDGE)),
@@ -881,6 +883,76 @@ fn cite_member_edges<T: geom_core::Decide>(
     Ok(out)
 }
 
+/// **Crossings of a union seam cited by its head**: ranked along the
+/// seam where its pieces lie on one straight line and every crossing on
+/// it — the line's parameter, the seam oriented as the loop of its
+/// first side runs along it, read off the finished body and the faces
+/// `t` names ([`rank_crossings`]) — and otherwise N2's tie, because a
+/// seam of several curves has no one carrier to order them along.
+#[allow(clippy::too_many_arguments)]
+fn rank_along_seam<T: geom_core::Decide>(
+    t: &NameTable,
+    out: &mut NameTable,
+    tie: &mut TieRows,
+    base: &StableName,
+    rows: Vec<(StableName, Entry, bool)>,
+    seam: Option<&PieceGroup>,
+    body: &topo::Body<T>,
+    bnd: geom_core::Band,
+) -> Result<(), NamingError> {
+    let mut keys = Vec::with_capacity(rows.len());
+    let mut points = Vec::with_capacity(rows.len());
+    let mut unique = true;
+    for (_, entry, _) in rows {
+        match entry {
+            Entry::Unique(e) => {
+                if let EntityKey::Vertex(v) = e.key {
+                    points.push(vertex_point(body, v)?);
+                }
+                keys.push(e);
+            }
+            Entry::Tied(es) => {
+                unique = false;
+                keys.extend(es);
+            }
+        }
+    }
+    let line = match (seam, unique && points.len() == keys.len()) {
+        (Some(g), true) if g.edges.iter().all(|&e| straight(body, e)) => {
+            let first = *g.edges.first().ok_or(NamingError::Emission {
+                what: "a union seam group holds no edge",
+            })?;
+            let seg = Segment::of_edge(body, first)?;
+            let mut on = true;
+            for &e in &g.edges {
+                let (v0, v1) = edge_ends(body, e)?;
+                for v in [v0, v1] {
+                    on &= seg.on_line(vertex_point(body, v)?, ON_MEMBER_EDGE, bnd)?;
+                }
+            }
+            for &p in &points {
+                on &= seg.on_line(p, ON_MEMBER_EDGE, bnd)?;
+            }
+            on.then_some((first, &g.base))
+        }
+        _ => None,
+    };
+    match line {
+        Some((edge, name)) => rank_crossings(
+            out,
+            tie,
+            false,
+            base,
+            (body, t, edge, name),
+            &keys,
+            &points,
+            bnd,
+            |e| *e,
+        ),
+        None => Ok(mint_candidates(out, tie, false, base.clone(), keys)?),
+    }
+}
+
 /// Several vertices share one name once they cite member edges whole,
 /// and that name is not a single seam line (a junction's run, say), so
 /// nothing says what to rank them along.
@@ -892,10 +964,10 @@ const CITED_GROUP_NOT_ONE_SEAM: &str = "several vertices of a union share one na
 const CITED_GROUP_NO_MEMBER_EDGE: &str = "several vertices of a union share one seam name once \
      they cite member edges whole, and neither side of it is an edge to rank them along";
 
-/// Whether `name` is a RANKED piece of a member edge. In a name collapsed
-/// out of a fold that did not finish — a refusal's — that rank is the
-/// fold's, which no published table holds, so such a name cannot be
-/// handed out.
+/// Whether `name` is a QUALIFIED piece of a member edge. In a name
+/// collapsed out of a fold that did not finish — a refusal's — that
+/// qualifier is the fold's, over vertices no published table names, so
+/// such a name cannot be handed out.
 pub(crate) fn is_fold_ranked_member_edge(name: &StableName) -> bool {
     member_edge_piece(name).is_some_and(|(_, _, ranked)| ranked)
 }
@@ -2410,7 +2482,15 @@ mod tests {
             let members = self.members();
             let parents = Parents::empty();
             let flush = Flush::of(self.union, &self.body, &members, &parents, bnd)?;
-            cite_member_edges(NameTable::new(), rows, &self.body, &members, &flush, bnd)
+            cite_member_edges(
+                NameTable::new(),
+                rows,
+                &[],
+                &self.body,
+                &members,
+                &flush,
+                bnd,
+            )
         }
     }
 

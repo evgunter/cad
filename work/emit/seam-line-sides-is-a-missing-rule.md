@@ -2,10 +2,12 @@
 id: seam-line-sides-is-a-missing-rule
 kind: issue
 title: SeamLineSides: a chain along a seam known only by name refuses when its faces' names do not settle the pair's sides
-status: open
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: D
+closed: 2026-10-01
+pr: 3629
 ---
 
 ## What
@@ -51,3 +53,12 @@ Name matching alone cannot settle either case. Two options:
 - Fall back to the edge's own carrier. This is consistent with the
   union's collapse only where the collapse cannot swap the pair (an
   equal pair), so it is not a general answer.
+
+## Closed (2026-10-01, PR 3629)
+
+`SeamLineSides` retired with the rankers that raised it. Edge pieces
+take `Ends`, which reads no side. The one reader left, a crossing
+ordinal along a seam edge (`emit_topo::crossed_edge_orientation`),
+orients the edge by the loop of the pair's first side, and where the
+faces' names do not settle that side, or the pair's two sides carry one
+name, the crossings tie (N2) rather than refuse.
