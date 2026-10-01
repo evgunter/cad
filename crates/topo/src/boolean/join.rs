@@ -1790,14 +1790,8 @@ fn cut_pair<T: Decide>(
 /// provisional labels, and a single-face seam ring has no in-solid
 /// label to anchor on.
 ///
-/// What this question adds to the ladder is that the two loops' regions
-/// flank the seam, so their sides are opposite: either loop's verdict
-/// fixes both roles. A loop whose regions lie ON the other boundary (a
-/// declared flush face) reads undecided, and the other loop decides.
-/// When both decide they must disagree: agreeing verdicts mean the seam
-/// is not a crossing, and refuse [`SplitJoinError::SectionLoopMixed`].
-/// When neither decides, the first in-band refusal met is the refusal,
-/// else the regions hold no decisive witness.
+/// What this question adds to the ladder is [`loop_roles`]: the two
+/// loops' regions flank the seam, so their sides are opposite.
 fn resolve_roles_geometric<T: Decide>(
     body: &Body<T>,
     other_pristine: &Body<T>,
@@ -1816,10 +1810,36 @@ fn resolve_roles_geometric<T: Decide>(
             tol,
         )
     };
+    loop_roles(face, (outer, side(outer)?), (ring, side(ring)?))
+}
+
+/// The (IN, OUT) loop order from each loop's ladder reading. Either
+/// loop's verdict fixes both roles; a loop whose regions lie ON the
+/// other boundary (a declared flush face) reads undecided, and the
+/// other loop decides.
+///
+/// **Agreeing verdicts are a kernel defect**, refused
+/// [`SplitJoinError::SectionLoopMixed`]. A section polygon is minted
+/// only where the other boundary crosses the face with opposed senses,
+/// and each reading comes from a point of an uncut region, so the two
+/// sides differ unless the join minted a seam that is not a crossing (a
+/// tangential contact) or left a crossing uncut. No row reaches it; the
+/// guard stands for those two defects.
+///
+/// **Neither deciding** is refused as the join's own: every witness of
+/// both loops' regions read the other boundary or too near it, which a
+/// crossing's two flanks cannot both do unless their faces are all
+/// curved (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
+/// No in-band reading is named as the cause: it is about one point.
+fn loop_roles(
+    face: FaceKey,
+    (outer, o): (LoopKey, Reading),
+    (ring, r): (LoopKey, Reading),
+) -> Result<(LoopKey, LoopKey), BooleanError> {
     let in_first = |s: SideCode, l: LoopKey, m: LoopKey| {
         if s == SideCode::In { (l, m) } else { (m, l) }
     };
-    match (side(outer)?, side(ring)?) {
+    match (o, r) {
         (Reading::Side(o), Reading::Side(r)) if o == r => {
             Err(BooleanError::Join(SplitJoinError::SectionLoopMixed {
                 face,
@@ -1827,11 +1847,8 @@ fn resolve_roles_geometric<T: Decide>(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.or(r) {
-            Some(e) => BooleanError::Containment(e),
-            None => BooleanError::JoinDesync {
-                what: "neither section loop's regions hold a decisive witness",
-            },
+        (Reading::Undecided(_), Reading::Undecided(_)) => Err(BooleanError::JoinDesync {
+            what: "neither section loop's regions hold a decisive witness",
         }),
     }
 }
@@ -1870,6 +1887,63 @@ fn region_faces<T: Decide>(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod loop_roles_rows {
+    use super::super::shell_witness::{Reading, Tally};
+    use super::super::{BooleanError, SideCode};
+    use super::loop_roles;
+    use crate::chord_join::SplitJoinError;
+    use crate::entity::{FaceKey, LoopKey};
+    use slotmap::SlotMap;
+
+    fn keys() -> (FaceKey, LoopKey, LoopKey) {
+        let mut loops: SlotMap<LoopKey, ()> = SlotMap::with_key();
+        (FaceKey::default(), loops.insert(()), loops.insert(()))
+    }
+
+    fn side(s: SideCode) -> Reading {
+        Reading::Side(s)
+    }
+
+    fn undecided() -> Reading {
+        Reading::Undecided(Tally::default())
+    }
+
+    /// Each loop's reading, alone or with its opposite, fixes the same
+    /// order; agreeing readings refuse as the kernel's defect; two
+    /// undecided loops refuse without naming a witness's cause.
+    #[test]
+    fn the_two_loops_readings_fix_the_roles_or_refuse() {
+        use SideCode::{In, Out};
+        let (face, o, r) = keys();
+        for (label, a, b, want) in [
+            ("outer In", side(In), undecided(), (o, r)),
+            ("outer Out", side(Out), undecided(), (r, o)),
+            ("ring In", undecided(), side(In), (r, o)),
+            ("ring Out", undecided(), side(Out), (o, r)),
+            ("opposite", side(In), side(Out), (o, r)),
+        ] {
+            assert_eq!(loop_roles(face, (o, a), (r, b)).unwrap(), want, "{label}");
+        }
+        for s in [In, Out] {
+            let err = loop_roles(face, (o, side(s)), (r, side(s))).unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::Join(SplitJoinError::SectionLoopMixed { face: f }) if f == face
+                ),
+                "both {s:?}: {err:?}"
+            );
+        }
+        let err = loop_roles(face, (o, undecided()), (r, undecided())).unwrap_err();
+        assert!(
+            matches!(err, BooleanError::JoinDesync { .. }),
+            "neither decides: {err:?}"
+        );
+    }
 }
 
 /// **The join's self-checks refuse as the kernel's own**, at their

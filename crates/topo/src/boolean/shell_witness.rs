@@ -36,22 +36,29 @@
 //!    [`point_in_face`] certifies strictly inside the face.
 //!
 //! A witness is **inconclusive** when it reads `OnBoundary`, or when
-//! its reading is in-band (an escalated margin, a ray schedule that
-//! only grazed): the point is on the other boundary or too near it to
-//! say, and the next witness is read. A declared contact is one or the
-//! other — its carriers differ by less than the band, and the reduction
-//! took them as one — so no record of contacts is consulted, at any
-//! dimension. Any other refusal is about the other operand rather than
-//! the point, and propagates.
+//! its reading is in-band ([`inconclusive`]): the point is on the other
+//! boundary or too near it to say, and the next witness is read. Any
+//! other refusal is about the other operand rather than the point, and
+//! propagates.
+//!
+//! No record of contacts is consulted, at any dimension. A vertex the
+//! reduction recorded ON the other boundary is there by geometry, within
+//! the band's zero, and reads `OnBoundary`; a declared pair whose
+//! carriers sit in the band's sliver is refused by the reduction before
+//! any witness runs. So a recorded contact never reads decisively, which
+//! [`debug_assert_contacts_undecisive`] checks on every boolean that
+//! reaches the ladder.
 //!
 //! The first decisive witness decides. A block inside another, flush on
 //! four walls, reaches the third tier: its vertices and edges all lie
 //! on the other boundary, and the interior of each end face does not.
-//! When no witness decides, the complex's side is undecided: the
-//! reading names the first in-band witness's refusal if there was one.
-//! A complex whose vertices and edges all lie on the other boundary and
-//! whose faces off it are all curved reaches this (tier 3 reads planar
-//! faces only).
+//! When no witness decides, the complex's side is undecided, and the
+//! reading says how many witnesses read the other boundary and how many
+//! read too near it to say. That is the cause; an in-band reading is
+//! about one point, possibly near a face far from the complex, and rides
+//! along as evidence only. A complex whose vertices and edges all lie on
+//! the other boundary and whose faces off it are all curved reaches this
+//! (tier 3 reads planar faces only).
 
 use geom_core::{Band, Decide, Point3, Tol, Vec3};
 use slotmap::SecondaryMap;
@@ -59,7 +66,7 @@ use slotmap::SecondaryMap;
 use super::solid_contain::{
     PointInSolidError, SolidContainment, face_plane, point_in_face, point_in_solid,
 };
-use super::{BooleanError, Operand, SideCode};
+use super::{BooleanError, ContactRecords, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, VertexKey};
 use crate::splitting::PointInLoopError;
@@ -69,8 +76,19 @@ use crate::splitting::PointInLoopError;
 pub(super) enum Reading {
     /// The first decisive witness's side: `In` or `Out`.
     Side(SideCode),
-    /// No witness decided; the first in-band refusal met, if any.
-    Undecided(Option<PointInSolidError>),
+    /// No witness decided.
+    Undecided(Tally),
+}
+
+/// The witnesses of a complex none of which decided.
+#[derive(Debug, Default)]
+pub(super) struct Tally {
+    /// Witnesses that read `OnBoundary`.
+    pub(super) on_boundary: usize,
+    /// Witnesses that read in-band ([`inconclusive`]).
+    pub(super) in_band: usize,
+    /// The first in-band reading, as evidence.
+    pub(super) first_in_band: Option<PointInSolidError>,
 }
 
 /// The side of `other` the cell complex `faces` of `body` lies on,
@@ -88,14 +106,18 @@ pub(super) fn complex_side<T: Decide>(
     tol: Tol,
 ) -> Result<Reading, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let mut in_band: Option<PointInSolidError> = None;
+    let mut tally = Tally::default();
     let mut side = |q: Point3<T>| -> Result<Option<SideCode>, BooleanError> {
         Ok(match point_in_solid(other, q, band, tol) {
             Ok(SolidContainment::In) => Some(SideCode::In),
             Ok(SolidContainment::Out) => Some(SideCode::Out),
-            Ok(SolidContainment::OnBoundary) => None,
-            Err(e) if is_in_band(&e) => {
-                in_band.get_or_insert(e);
+            Ok(SolidContainment::OnBoundary) => {
+                tally.on_boundary += 1;
+                None
+            }
+            Err(e) if inconclusive(&e) => {
+                tally.in_band += 1;
+                tally.first_in_band.get_or_insert(e);
                 None
             }
             Err(e) => return Err(BooleanError::Containment(e)),
@@ -156,11 +178,23 @@ pub(super) fn complex_side<T: Decide>(
         }
     }
 
-    Ok(Reading::Undecided(in_band))
+    Ok(Reading::Undecided(tally))
 }
 
-/// Is `e` an in-band reading of the probed point (module docs)?
-fn is_in_band(e: &PointInSolidError) -> bool {
+/// Is `e` a reading too near a boundary to say, about the one point
+/// asked — the ladder's inconclusive refusal (module docs), and the
+/// certificate's ([`certified_in_face`])? Another point of the same
+/// complex can still decide.
+///
+/// - **In**: `Escalated` (a margin in the band's sliver),
+///   `RayExhausted` (every schedule ray grazed), and the in-plane loop
+///   walk's own two (`Loop(Escalated)`, `Loop(RayExhausted)`).
+/// - **Out**: every refusal about a body rather than a point — a face
+///   kind or edge carrier the door has no arm for, a corrupt face, a
+///   zero or uncertified volume, a sphere chart it cannot read. Each
+///   would answer the same at any point, so passing over it would only
+///   defer it.
+fn inconclusive(e: &PointInSolidError) -> bool {
     matches!(
         e,
         PointInSolidError::Escalated { .. }
@@ -176,11 +210,9 @@ fn is_in_band(e: &PointInSolidError) -> bool {
 ///
 /// # Errors
 ///
-/// [`BooleanError::Containment`] when a probe refuses, or when no
-/// witness decides and one read in-band;
-/// [`BooleanError::ShellWitnessExhausted`] when every witness lies on
-/// `other`'s boundary; [`BooleanError::JoinDesync`] when the shell does
-/// not walk.
+/// [`BooleanError::Containment`] when a probe refuses other than
+/// in-band; [`BooleanError::ShellWitnessExhausted`] when no witness
+/// decides; [`BooleanError::JoinDesync`] when the shell does not walk.
 pub(super) fn shell_side<T: Decide>(
     body: &Body<T>,
     shell: ShellKey,
@@ -197,8 +229,13 @@ pub(super) fn shell_side<T: Decide>(
         .faces;
     match complex_side(body, faces, other, band, tol)? {
         Reading::Side(s) => Ok(s),
-        Reading::Undecided(Some(e)) => Err(BooleanError::Containment(e)),
-        Reading::Undecided(None) => Err(BooleanError::ShellWitnessExhausted { operand, shell }),
+        Reading::Undecided(t) => Err(BooleanError::ShellWitnessExhausted {
+            operand,
+            shell,
+            on_boundary: t.on_boundary,
+            in_band: t.in_band,
+            first_in_band: t.first_in_band,
+        }),
     }
 }
 
@@ -294,10 +331,10 @@ fn chord_midpoint<T: Decide>(a: Point3<T>, b: Point3<T>) -> Point3<T> {
 }
 
 /// Does [`point_in_face`] certify `p` strictly inside planar `face`?
-/// An inconclusive answer — outside, on a loop, an in-band margin, an
-/// exhausted schedule, an outline the walk cannot cross — is `false`:
-/// the candidate is discarded, never probed. A face the walk cannot
-/// read at all is an error.
+/// `false` discards the candidate unprobed: outside, on a loop, an
+/// [`inconclusive`] reading, or an edge of `face` whose carrier the
+/// walk cannot cross — that face then offers no candidate, as a curved
+/// face offers none. Any other refusal is an error.
 pub(super) fn certified_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -307,13 +344,49 @@ pub(super) fn certified_in_face<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match point_in_face(body, face, normal, p, band) {
         Ok(verdict) => Ok(verdict == Some(true)),
-        Err(
-            PointInSolidError::Escalated { .. }
-            | PointInSolidError::Loop(
-                PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. },
-            )
-            | PointInSolidError::EdgeCarrierUnsupported { .. },
-        ) => Ok(false),
+        Err(e) if inconclusive(&e) => Ok(false),
+        Err(PointInSolidError::EdgeCarrierUnsupported { .. }) => Ok(false),
         Err(e) => Err(BooleanError::Containment(e)),
+    }
+}
+
+/// Every vertex the reduction recorded ON the other operand
+/// (`ContactRecords::vv`, `a_on_b`, `b_on_a`) reads `OnBoundary` or
+/// in-band against it, never `In` or `Out` (module docs: the reason the
+/// ladder reads no contact record). Debug builds only; a refusal of the
+/// probe is not this check's question and is passed over.
+pub(super) fn debug_assert_contacts_undecisive<T: Decide>(
+    contacts: &ContactRecords,
+    a: (&Body<T>, &Body<T>),
+    b: (&Body<T>, &Body<T>),
+    band: Band,
+    tol: Tol,
+) {
+    if !cfg!(debug_assertions) {
+        return;
+    }
+    let check = |(body, other): (&Body<T>, &Body<T>), v: VertexKey, operand: Operand| {
+        let Some(p) = body
+            .get_vertex(v)
+            .and_then(|vd| body.get_point(vd.point).copied())
+        else {
+            return;
+        };
+        let read = point_in_solid(other, p, band, tol);
+        debug_assert!(
+            !matches!(read, Ok(SolidContainment::In | SolidContainment::Out)),
+            "a contact vertex of operand {operand:?} recorded ON the other operand reads \
+             decisively: {read:?}"
+        );
+    };
+    for c in &contacts.vv {
+        check(a, c.a, Operand::A);
+        check(b, c.b, Operand::B);
+    }
+    for c in &contacts.a_on_b {
+        check(a, c.vertex, Operand::A);
+    }
+    for c in &contacts.b_on_a {
+        check(b, c.vertex, Operand::B);
     }
 }

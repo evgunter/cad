@@ -1,15 +1,13 @@
-//! Reviewer rows for PR 3716 (CLEAVE `cleave/ladders`): the
-//! cell-dimension witness ladder answered past an in-band witness, and
-//! the role resolution that ships mergedoor scenes A and B, read at
-//! points rather than through volume alone.
+//! The cell-dimension witness ladder (`topo`'s `boolean::shell_witness`)
+//! passes over a witness that reads too near the other boundary to say,
+//! and answers at the next.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::mate2_common::{collar, collar_at, peg_at, wall_decls};
-use geom_core::{Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{brick, extruded, sketch_from_axes};
-use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, SolidContainment, SweepStrategy};
+use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, SweepStrategy};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -75,57 +73,6 @@ fn a_box_edge_resting_on_a_rim_answers_past_its_in_band_corner() {
                     _ => false,
                 },
                 "{op:?} {label}: volume {got:?}, want {want:?}"
-            );
-        }
-    }
-}
-
-/// Mergedoor scenes A and B (`curved_mergedoor.rs` row 2) union to a
-/// collar whose bore holds the peg exactly where the peg is: each
-/// section loop's role is read at points of the result, which an
-/// additive volume alone does not pin.
-#[test]
-fn mergedoor_scenes_a_and_b_hold_the_peg_where_it_is() {
-    use SolidContainment::{In, Out};
-    let band = Band::linear(tol()).unwrap();
-    for (label, a, b, pts) in [
-        (
-            "A",
-            collar(),
-            peg_at(0.0, 1.5, 1.0),
-            vec![
-                ((0.0, 0.0, 1.25), Out),
-                ((0.0, 0.0, 1.75), In),
-                ((0.0, 0.0, 2.25), In),
-                ((1.0, 0.0, 1.5), In),
-                ((1.0, 0.0, 2.25), Out),
-            ],
-        ),
-        (
-            "B",
-            collar_at(0.0),
-            peg_at(0.0, 0.5, 1.0),
-            vec![
-                ((0.0, 0.0, 0.75), In),
-                ((0.0, 0.0, 1.25), In),
-                ((0.0, 0.0, 1.75), Out),
-                ((1.0, 0.0, 1.5), In),
-                ((1.0, 0.0, 0.75), Out),
-            ],
-        ),
-    ] {
-        let d = wall_decls(&a, &b);
-        let BooleanResult::Body(bb) =
-            topo::union_with(&a, &b, &d, tol()).unwrap_or_else(|e| panic!("{label}: {e:?}"))
-        else {
-            panic!("{label}: a union of two solids is not empty");
-        };
-        assert_eq!(bb.body.solids().count(), 1, "{label}: one solid");
-        for ((x, y, z), want) in pts {
-            assert_eq!(
-                topo::point_in_solid(&bb.body, Point3::new(x, y, z), band, tol()).ok(),
-                Some(want),
-                "{label} at ({x}, {y}, {z})"
             );
         }
     }

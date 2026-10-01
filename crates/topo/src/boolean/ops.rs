@@ -107,7 +107,7 @@ use super::combine::{GraftMap, graft_solid};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::finish::{kept_side, setopfinish};
 use super::join::bool_connect;
-use super::shell_witness::shell_side;
+use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::zip_seam;
@@ -2770,6 +2770,13 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
+    debug_assert_contacts_undecisive(
+        &red.contacts,
+        (&red.a, b_pristine),
+        (&red.b, a_pristine),
+        band,
+        tol,
+    );
     let a_sides = classify_shells(&red.a, b_pristine, Operand::A, band, tol)?;
     let b_sides = classify_shells(&red.b, a_pristine, Operand::B, band, tol)?;
     let keep_a = kept_side(op, Operand::A);

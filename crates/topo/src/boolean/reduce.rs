@@ -23,10 +23,11 @@
 //!   itself; the realized path never examines it. Pruning can drop
 //!   only such spurious escalations, never an accepted event — the
 //!   value channel is pinned bit-equal. In the full boolean the
-//!   realized path answers where the brute path refuses: the
 //!   disjoint-operands containment witness passes over a point that
-//!   reads in-band against the same plane and decides at the next
-//!   (`super::shell_witness`), pinned in the suite's grazing fixture.
+//!   reads in-band against the same plane (`super::shell_witness`), so
+//!   the realized path answers wherever another witness of the shell
+//!   decides, and refuses where none does; the suite's grazing fixture
+//!   pins one that answers.
 //! - **Worklist, not recursion** (Problem 15.3 / F12): a proper
 //!   crossing splits the edge through the certified `split_edge` lane
 //!   and pushes BOTH children back with the *next* face index (a line

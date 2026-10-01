@@ -35,7 +35,7 @@ use slotmap::SecondaryMap;
 use super::combine::{GraftMap, graft_solid};
 use super::discard::{DiscardRow, discard_row};
 use super::join::CompletedPolygonPair;
-use super::shell_witness::shell_side;
+use super::shell_witness::{debug_assert_contacts_undecisive, shell_side};
 use super::{BooleanError, BooleanOp, BooleanReduction, Operand, SideCode};
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, SolidKey, VertexKey};
@@ -221,6 +221,13 @@ pub(super) fn setopfinish<T: Decide>(
         single_solid(&red.a).map_err(|_| desync("operand A is not a single-solid body"))?;
     let b_solid =
         single_solid(&red.b).map_err(|_| desync("operand B is not a single-solid body"))?;
+    debug_assert_contacts_undecisive(
+        &red.contacts,
+        (&red.a, b_pristine),
+        (&red.b, a_pristine),
+        band,
+        tol,
+    );
     let a_kept_shells = select_solid(
         &mut red.a,
         a_solid,

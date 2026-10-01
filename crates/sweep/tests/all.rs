@@ -342,8 +342,6 @@ mod review_blend6_r1_probes;
 mod review_blend6_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
-#[path = "review_cleave_ladders.rs"]
-mod review_cleave_ladders;
 #[path = "review_closed_chain_junctions_r2_probes.rs"]
 mod review_closed_chain_junctions_r2_probes;
 #[path = "review_contact_edge_must_carry_r2_probes.rs"]
@@ -798,3 +796,6 @@ mod wedge_end_doors;
 
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;
+
+#[path = "witness_ladder.rs"]
+mod witness_ladder;

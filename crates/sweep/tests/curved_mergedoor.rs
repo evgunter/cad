@@ -642,12 +642,53 @@ fn sphere_and_torus_pairs_record_their_kind() {
 /// Row 2 (A, B): the floating and mid-bore pegs ship honest bodies —
 /// additive volume, tiers 2, 3 and 3′ — with the one cylinder pair
 /// recorded. Each peg rim cuts the bore wall mid-height, and the
-/// section loops' roles resolve on the rim arcs' own midpoints.
+/// section loops' roles resolve on the rim arcs' own midpoints; the
+/// result holds the peg exactly where it is, read at points, which an
+/// additive volume alone does not pin.
 #[test]
 fn floating_and_mid_bore_pegs_ship_honest_with_one_record() {
-    for (label, (a, b, d)) in [("A", scene_a()), ("B", scene_b())] {
+    use topo::SolidContainment::{In, Out};
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    for (label, (a, b, d), pts) in [
+        (
+            "A",
+            scene_a(),
+            [
+                ((0.0, 0.0, 1.25), Out),
+                ((0.0, 0.0, 1.75), In),
+                ((0.0, 0.0, 2.25), In),
+                ((1.0, 0.0, 1.5), In),
+                ((1.0, 0.0, 2.25), Out),
+            ],
+        ),
+        (
+            "B",
+            scene_b(),
+            [
+                ((0.0, 0.0, 0.75), In),
+                ((0.0, 0.0, 1.25), In),
+                ((0.0, 0.0, 1.75), Out),
+                ((1.0, 0.0, 1.5), In),
+                ((1.0, 0.0, 0.75), Out),
+            ],
+        ),
+    ] {
         let bb = union_honest(label, &a, &b, &d);
         assert_cylinder_records(label, &bb);
+        assert_eq!(bb.body.solids().count(), 1, "{label}: one solid");
+        for ((x, y, z), want) in pts {
+            assert_eq!(
+                topo::point_in_solid(
+                    &bb.body,
+                    geom_core::Point3::new(x, y, z),
+                    band,
+                    Tol::witness()
+                )
+                .ok(),
+                Some(want),
+                "{label} at ({x}, {y}, {z})"
+            );
+        }
     }
 }
 
