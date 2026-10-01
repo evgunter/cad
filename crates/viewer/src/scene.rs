@@ -51,7 +51,8 @@ use crate::narrowing::Narrow;
 /// whose millimetre value is an `f64` therefore has a value in every
 /// length row of the table, so the door that checks this one product
 /// makes the render total in every notation a person can pick.
-/// `display_budget.rs`'s
+/// `display_budget.rs`'s `millimetres_are_the_finest_length_row`
+/// reads that claim off the table, and its
 /// `the_door_refuses_a_delta_whose_millimetre_value_is_not_one`
 /// measures the bound against its own literals rather than this
 /// constant.
@@ -113,11 +114,31 @@ impl DisplayTolerance {
     /// [`SceneError::DisplayToleranceOverflowsMillimetres`] for one
     /// that is, but whose millimetre value is not.
     pub fn new(delta: f64) -> Result<Self, SceneError> {
+        Self::typed(delta, pncad::quantity::M)
+    }
+
+    /// The δ a person typed: `written` in `unit`, judged at
+    /// [`DisplayTolerance::new`]'s door, whose refusal then names
+    /// `written` in `unit` — the number and the unit the field showed —
+    /// rather than the world-unit value it converts to.
+    ///
+    /// # Errors
+    ///
+    /// As [`DisplayTolerance::new`], on `written` converted to world
+    /// units.
+    pub fn typed(written: f64, unit: LengthUnit) -> Result<Self, SceneError> {
+        let delta = crate::props::from_written(written, unit.def());
         if !delta.is_finite() || delta <= 0.0 {
-            return Err(SceneError::InvalidDisplayTolerance { delta });
+            return Err(SceneError::InvalidDisplayTolerance {
+                delta: written,
+                unit,
+            });
         }
         if !(delta * MM_PER_METRE).is_finite() {
-            return Err(SceneError::DisplayToleranceOverflowsMillimetres { delta });
+            return Err(SceneError::DisplayToleranceOverflowsMillimetres {
+                delta: written,
+                unit,
+            });
         }
         Ok(Self(delta))
     }
@@ -154,12 +175,16 @@ impl DisplayTolerance {
     /// value or finer. `no_delta_renders_as_a_number_a_delta_cannot_be`
     /// is where that is checked.
     ///
-    /// **What it is not is exact.** The grid is capped one decade below
-    /// ε, so a δ the triangle budget chose — `constant /
-    /// TRIANGLE_BUDGET`, seventeen figures — is shown to the figures
-    /// that tell it from the next δ. It is still a render and never a
-    /// commit path: the number a δ moves to is the one a user types,
-    /// never one the chrome echoed at them.
+    /// **What it is not is exact.** The grid is the finer of a tenth of
+    /// ε, applied to the written number, and four significant figures
+    /// of it. So a δ the triangle budget chose — `constant /
+    /// TRIANGLE_BUDGET`, seventeen figures — reads to within a tenth of
+    /// ε in every length unit (closer below 2·10⁻⁷ of `unit`, where the
+    /// four figures are the finer arm). How many figures that takes is
+    /// the unit's: the δ that reads `0.0003746123` in `mm` reads
+    /// `0.0000003746` in `m`. Either way it is a render and never a commit path: the
+    /// number a δ moves to is the one a user types, never one the
+    /// chrome echoed at them.
     pub fn render_in(self, unit: LengthUnit) -> String {
         let unit = unit.def();
         crate::props::written(self.0, unit)
@@ -186,8 +211,10 @@ impl DisplayTolerance {
 pub enum SceneError {
     /// δ was not a finite, strictly positive length.
     InvalidDisplayTolerance {
-        /// The offending value.
+        /// The offending value, in `unit`.
         delta: f64,
+        /// The unit `delta` was written in.
+        unit: LengthUnit,
     },
     /// δ was a length, but so coarse that its millimetre value is not
     /// an `f64` — so nothing this crate could write would name it.
@@ -200,8 +227,10 @@ pub enum SceneError {
     /// ([`DisplayTolerance::render_in`]), and past `f64::MAX` divided by
     /// [`MM_PER_METRE`] there is no value to show in its finest unit.
     DisplayToleranceOverflowsMillimetres {
-        /// The offending value, in world units.
+        /// The offending value, in `unit`.
         delta: f64,
+        /// The unit `delta` was written in.
+        unit: LengthUnit,
     },
     /// The document's roots did not gather into a product body, for
     /// any of the gather's reasons (`ProductErrorKind::means_no_body`
@@ -267,19 +296,21 @@ impl core::fmt::Display for SceneError {
     /// it.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::InvalidDisplayTolerance { delta } => write!(
+            Self::InvalidDisplayTolerance { delta, unit } => write!(
                 f,
-                "{delta} is not a finite, strictly positive display tolerance"
+                "{delta} {} is not a finite, strictly positive display tolerance",
+                unit.symbol()
             ),
             // Scientific, and not the plain `Display` the arm above
             // uses: every value that reaches this arm is within three
             // decades of `f64::MAX`, so `{delta}` is three hundred
             // digits of decimal expansion — a sentence nobody can read,
             // about a number nobody can read.
-            Self::DisplayToleranceOverflowsMillimetres { delta } => write!(
+            Self::DisplayToleranceOverflowsMillimetres { delta, unit } => write!(
                 f,
-                "{delta:e} is past the coarsest display tolerance this viewer can read: \
-                 its value in millimetres is not a finite number"
+                "{delta:e} {} is past the coarsest display tolerance this viewer can read: \
+                 its value in millimetres is not a finite number",
+                unit.symbol()
             ),
             Self::NoProduct(error) => write!(f, "{error}"),
             Self::NotTessellated(error) => {

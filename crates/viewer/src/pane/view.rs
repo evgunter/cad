@@ -6,7 +6,9 @@ use eframe::egui;
 use pncad::quantity::{LengthUnit, UnitDef};
 
 use crate::app::ViewerBehavior;
+use crate::camera::Camera;
 use crate::frame;
+use crate::props::Notation;
 use crate::scene::DisplayTolerance;
 
 impl ViewerBehavior<'_> {
@@ -40,23 +42,9 @@ impl ViewerBehavior<'_> {
         // this window's.
         ui.checkbox(self.show_datums, "show datums");
         ui.separator();
-        // The camera's state, read in the working notation like every
-        // other value nobody wrote: the angles in its angle unit, the
-        // distances in its length unit, each through the crate's
-        // render (`props::written_text`, over `readout::number`).
-        let notation = *self.notation;
-        ui.label(format!(
-            "camera yaw {}, pitch {}",
-            camera_reading(self.camera.yaw(), notation.angle.def()),
-            camera_reading(self.camera.pitch(), notation.angle.def())
-        ));
-        let length = notation.length.def();
-        ui.label(format!(
-            "distance {} (band {}–{})",
-            camera_reading(self.camera.distance(), length),
-            camera_reading(self.camera.min_distance(), length),
-            camera_reading(self.camera.max_distance(), length)
-        ));
+        for line in camera_readout(self.camera, *self.notation) {
+            ui.label(line);
+        }
         ui.separator();
         ui.label(format!("history: {} states", self.session.history().len()));
         match self.session.path() {
@@ -85,6 +73,28 @@ impl ViewerBehavior<'_> {
             self.delta_request,
         );
     }
+}
+
+/// The camera's state as the View pane's two lines, read in the working
+/// `notation` like every other value nobody wrote: the angles in its
+/// angle unit, the distances in its length unit, each through
+/// [`camera_reading`].
+fn camera_readout(camera: &Camera, notation: Notation) -> [String; 2] {
+    let angle = notation.angle.def();
+    let length = notation.length.def();
+    [
+        format!(
+            "camera yaw {}, pitch {}",
+            camera_reading(camera.yaw(), angle),
+            camera_reading(camera.pitch(), angle)
+        ),
+        format!(
+            "distance {} (band {}–{})",
+            camera_reading(camera.distance(), length),
+            camera_reading(camera.min_distance(), length),
+            camera_reading(camera.max_distance(), length)
+        ),
+    ]
 }
 
 /// One reading of the camera — a distance or an angle — in `unit`, as
@@ -178,7 +188,7 @@ fn delta_field(
     unit: LengthUnit,
     draft: &mut Option<String>,
     notices: &mut Vec<frame::Message>,
-    delta_request: &mut Option<f64>,
+    delta_request: &mut Option<DisplayTolerance>,
 ) {
     let drafted = draft.is_some();
     let render = in_force.render_in(unit);
@@ -207,10 +217,12 @@ fn delta_field(
             match typed.parse::<f64>() {
                 // Judged by `DisplayTolerance`, not here: a δ that is
                 // not a finite positive length is refused at that one
-                // door, wherever it came from.
-                Ok(written) => {
-                    *delta_request = Some(crate::props::from_written(written, unit.def()));
-                }
+                // door, wherever it came from, and its refusal names
+                // the number typed in the field's unit.
+                Ok(written) => match DisplayTolerance::typed(written, unit) {
+                    Ok(delta) => *delta_request = Some(delta),
+                    Err(error) => notices.push(frame::delta_refusal(&error)),
+                },
                 Err(error) => {
                     notices.push(frame::delta_not_a_number(typed, &error));
                 }
@@ -240,35 +252,25 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{camera_reading, delta_field};
+    use super::{camera_reading, camera_readout, delta_field};
+    use crate::camera::Camera;
     use crate::frame;
+    use crate::props::Notation;
     use crate::scene::DisplayTolerance;
     use eframe::egui;
     use pncad::quantity::{DEG, IN, LengthUnit, M, MM, PI};
 
-    /// **The camera readout reads in the unit it is handed — the
-    /// working notation's — and asks whether the value exists there.**
+    /// **The camera readout reads in the unit it is handed and asks
+    /// whether the value exists there.**
     ///
-    /// The unit: the same distance reads in metres, millimetres and
-    /// inches as the unit table writes it, and an angle in degrees and
-    /// half turns, so a readout that kept a fixed unit reds. The
-    /// existence: a camera distance above `f64::MAX * MILLI` metres has
-    /// no millimetre value, and the render says which notation could
-    /// not name it instead of spelling `inf`, while metres still name
-    /// it.
+    /// The unit: the same distance reads in metres and millimetres, and
+    /// an angle in degrees and half turns, as the unit table writes
+    /// them. The existence: a camera distance above `f64::MAX * MILLI`
+    /// metres has no millimetre value, and the render says which
+    /// notation could not name it instead of spelling `inf`, while
+    /// metres still name it.
     #[test]
-    fn the_camera_readout_reads_in_the_working_notation() {
-        for metres in [1.0e-6, 0.05, 1.0, 1234.5] {
-            for unit in [M, MM, IN] {
-                let unit = unit.def();
-                assert_eq!(
-                    camera_reading(metres, unit),
-                    crate::props::written_text(metres, unit),
-                    "{metres} m in {}",
-                    unit.symbol()
-                );
-            }
-        }
+    fn a_camera_reading_reads_in_the_unit_it_is_handed() {
         assert_eq!(camera_reading(0.05, M.def()), "0.05 m");
         assert_eq!(camera_reading(0.05, MM.def()), "50 mm");
         assert_eq!(
@@ -288,6 +290,43 @@ mod tests {
         );
     }
 
+    /// **The View pane's camera lines follow the working notation** —
+    /// the text `view_ui` labels, read off one camera under two
+    /// notations, so a line that kept a fixed unit, or read its angles
+    /// in the length unit, reds on one of them.
+    #[test]
+    fn the_camera_readout_follows_the_working_notation() {
+        use core::f64::consts::{FRAC_PI_2, FRAC_PI_4};
+
+        let camera = Camera::new(
+            pncad::geom_core::Point3::new(0.0, 0.0, 0.0),
+            2.0,
+            FRAC_PI_2,
+            FRAC_PI_4,
+            1.0,
+            1.0,
+        )
+        .expect("a camera over a unit scene");
+        assert_eq!(
+            camera_readout(&camera, Notation::DEFAULT),
+            [
+                "camera yaw 0.5 pi rad, pitch 0.25 pi rad",
+                "distance 2 m (band 0.05 m–100 m)",
+            ],
+        );
+        let millimetres_and_degrees = Notation {
+            length: MM,
+            angle: DEG,
+        };
+        assert_eq!(
+            camera_readout(&camera, millimetres_and_degrees),
+            [
+                "camera yaw 90 deg, pitch 45 deg",
+                "distance 2000 mm (band 50 mm–100000 mm)",
+            ],
+        );
+    }
+
     /// One δ field, one button to tab the focus onto, and the three
     /// values the field writes.
     struct Field {
@@ -296,7 +335,7 @@ mod tests {
         unit: LengthUnit,
         draft: Option<String>,
         notices: Vec<frame::Message>,
-        request: Option<f64>,
+        request: Option<DisplayTolerance>,
     }
 
     impl Field {
@@ -430,7 +469,11 @@ mod tests {
             repeat: false,
             modifiers: egui::Modifiers::NONE,
         }]);
-        assert_eq!(field.request, Some(0.02 * 1.0e-3), "and Enter commits it");
+        assert_eq!(
+            field.request,
+            Some(DisplayTolerance::new(0.02 * 1.0e-3).expect("a positive δ")),
+            "and Enter commits it"
+        );
         assert!(field.draft.is_none(), "the draft is spent");
     }
 
@@ -498,7 +541,10 @@ mod tests {
             egui::Event::Text("0.0500".to_owned()),
         ]);
         field.tab();
-        assert_eq!(field.request, Some(0.05 * 1.0e-3));
+        assert_eq!(
+            field.request,
+            Some(DisplayTolerance::new(0.05 * 1.0e-3).expect("a positive δ"))
+        );
     }
 
     /// **The field can show every render the character bound covers.** A
@@ -565,7 +611,47 @@ mod tests {
             egui::Event::Text("0.002".to_owned()),
         ]);
         field.tab();
-        assert_eq!(field.request, Some(0.002), "and a typed number is metres");
+        assert_eq!(
+            field.request,
+            Some(DisplayTolerance::new(0.002).expect("a positive δ")),
+            "and a typed number is metres"
+        );
+    }
+
+    /// **A refused δ is named as it was typed, in the field's unit** —
+    /// the number on the screen and the symbol beside it, not the
+    /// world-unit value the door judged. Both of the door's arms, each
+    /// under a notation that is not the default, so a refusal that
+    /// echoed metres reds on the number and one that dropped the unit
+    /// reds on the symbol.
+    #[test]
+    fn a_refused_delta_is_named_in_the_unit_it_was_typed_in() {
+        for (unit, typed, said) in [
+            (MM, "-2", "-2 mm is not a finite, strictly positive"),
+            (IN, "1e308", "1e308 in is past the coarsest"),
+        ] {
+            let mut field = Field::at(0.05);
+            field.unit = unit;
+            field.frame(Vec::new());
+            field.tab();
+            field.frame(vec![
+                egui::Event::Key {
+                    key: egui::Key::A,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::COMMAND,
+                },
+                egui::Event::Text(typed.to_owned()),
+            ]);
+            field.tab();
+            assert_eq!(field.request, None, "{typed} {unit:?} commits nothing");
+            let said_texts: Vec<&str> = field.notices.iter().map(frame::Message::text).collect();
+            assert!(
+                matches!(said_texts.as_slice(), [one] if one.starts_with(said)),
+                "{typed} in {unit:?} is refused as typed: {said_texts:?}"
+            );
+        }
     }
 
     /// A δ that moved under an unfocused field shows up in it, because

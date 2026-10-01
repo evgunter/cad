@@ -258,14 +258,15 @@ const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 /// twenty-two characters.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
     let text = d.render_in(MM);
-    // The factor is spelled here DELIBERATELY rather than read from
-    // the unit table, so the check does not agree with the render by
-    // construction. The render divides the δ by the `mm` row's factor
-    // (`props::written`, the panel's own conversion) and the δ field
-    // commits a typed number times it (`props::from_written`), so the
-    // value the text must read back as is the quotient by `1.0e-3`,
-    // and what it reads back to is the product by it.
-    let mm = d.get() / 1.0e-3;
+    // The millimetre value is formed here by a DIFFERENT operation from
+    // the render's, so the check does not agree with it by
+    // construction: the render divides by the `mm` row's factor
+    // (`props::written`), and this multiplies by a thousand. The two
+    // roundings part by at most two ulps (the factor's own rounding and
+    // each operation's), so the text must read back, within the
+    // render's own grid, as one of the five values that close to the
+    // product. A render in any other unit misses by a factor.
+    let mm = d.get() * 1.0e3;
     let read: f64 = text.parse().unwrap_or_else(|error| {
         panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
     });
@@ -273,8 +274,15 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
         DisplayTolerance::new(read * 1.0e-3).is_ok(),
         "δ {mm} mm renders as {text}, which is not a δ this door accepts"
     );
+    let near = [
+        mm.next_down().next_down(),
+        mm.next_down(),
+        mm,
+        mm.next_up(),
+        mm.next_up().next_up(),
+    ];
     assert!(
-        readout::reads_back(&text, mm),
+        near.iter().any(|&value| readout::reads_back(&text, value)),
         "δ {mm} mm renders as {text}, further from it than the render's own grid"
     );
 }
@@ -415,6 +423,24 @@ fn the_door_refuses_a_delta_whose_millimetre_value_is_not_one() {
              rather than a render of infinity"
         );
     }
+}
+
+/// **Millimetres are the finest length row of the unit table** — the
+/// claim [`scene::MM_PER_METRE`] stands on, since a δ whose millimetre
+/// value is finite has a value in every length row only while no row
+/// is finer. Read from `quantity::UNITS`, so a finer row reds here.
+#[test]
+fn millimetres_are_the_finest_length_row() {
+    let finest = pncad::quantity::UNITS
+        .iter()
+        .filter(|row| row.as_length().is_some())
+        .map(|row| row.factor())
+        .fold(f64::INFINITY, f64::min);
+    assert_eq!(
+        1.0 / finest,
+        scene::MM_PER_METRE,
+        "the finest length row's factor is {finest}, and the door's bound is not its reciprocal"
+    );
 }
 
 /// The two δ the field used to lie about, by the numbers the item that

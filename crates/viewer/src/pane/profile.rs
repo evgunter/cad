@@ -63,10 +63,7 @@ impl ViewerBehavior<'_> {
             &mut self.notation.length,
             &mut self.notation.angle,
         );
-        let written = (
-            (self.notation.length.def(), self.notation.angle.def()),
-            *self.notation,
-        );
+        let notation = *self.notation;
         let Some(edit) = self.drafts.profile_edit.as_mut() else {
             unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
         };
@@ -74,7 +71,7 @@ impl ViewerBehavior<'_> {
             ui,
             session,
             self.theme,
-            written,
+            notation,
             edit,
             self.profile_previews.edit.as_ref(),
         ) {
@@ -107,13 +104,14 @@ pub(crate) fn edit_door_ui(
     ui: &mut egui::Ui,
     session: &DocSession,
     theme: Theme,
-    (units, notation): ((UnitDef, UnitDef), Notation),
+    notation: Notation,
     edit: &mut ProfileEdit,
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> Result<Option<SessionOp>, frame::Message> {
     let node = edit.node;
     ui.label(format!("profile on frame {}", edit.plane().0));
     let loops = edit.loops().len();
+    let units = (notation.length.def(), notation.angle.def());
     let mut rows = Vec::new();
     for index in 0..loops {
         // A loop label only where there is more than one: "loop 0"
@@ -1177,11 +1175,8 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("the editor holds the profile");
-            let written = (
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
-                Notation::CANONICAL,
-            );
-            match super::edit_door_ui(ui, session, Theme::DEFAULT, written, edit, None) {
+            match super::edit_door_ui(ui, session, Theme::DEFAULT, Notation::CANONICAL, edit, None)
+            {
                 Ok(Some(op)) => formed = Some(op),
                 Ok(None) => {}
                 Err(notice) => panic!("the door could not form its op: {notice:?}"),
@@ -1288,12 +1283,14 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("held");
-            let written = (
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+            let _hovered_only = super::edit_door_ui(
+                ui,
+                &session,
+                Theme::DEFAULT,
                 Notation::CANONICAL,
+                edit,
+                None,
             );
-            let _hovered_only =
-                super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
         });
         assert!(
             hovered.contains(&format!("node {} carries a {wall}", carrier.0)),
@@ -1319,11 +1316,14 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("held");
-            let written = (
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+            let _read_only = super::edit_door_ui(
+                ui,
+                &session,
+                Theme::DEFAULT,
                 Notation::CANONICAL,
+                edit,
+                None,
             );
-            let _read_only = super::edit_door_ui(ui, &session, Theme::DEFAULT, written, edit, None);
         });
         assert!(painted.contains(label), "{painted}");
         let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);

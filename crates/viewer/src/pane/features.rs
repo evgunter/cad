@@ -819,8 +819,8 @@ mod tests {
     }
 
     /// **A measure with a value paints it on its own row**, in the
-    /// notation the chrome writes any computed value in: canonical,
-    /// with the unit's symbol.
+    /// working notation the chrome writes any computed value in — here
+    /// the default's metres — with the unit's symbol.
     ///
     /// Red if `row_result` stops drawing `Readout::Value` or is drawn
     /// off the row's line, or if `readout_of` spells the value any

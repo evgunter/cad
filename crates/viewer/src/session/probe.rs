@@ -22,7 +22,7 @@ use pncad::quantity::UnitDef;
 
 use crate::bounds;
 use crate::evalseam::evaluate_beside;
-use crate::props::{self, Notation, SlotValue};
+use crate::props::{self, SlotValue};
 use crate::session::refuse::Refusal;
 
 /// **One locally-valid-range probe's answer**, with everything a panel
@@ -100,9 +100,8 @@ pub(super) fn probe_bounds(
     prior: Option<&Evaluation<f64>>,
     resolver: &Option<Arc<dyn PartResolver>>,
     tol: Tol,
-    notation: Notation,
 ) -> Result<BoundsReading, Refusal> {
-    let (origin, unit, integral) = probe_scale(base, &target, notation)?;
+    let (origin, unit, integral) = probe_scale(base, &target)?;
     let seed = probe_seed(unit);
     // The baseline is taken at the value the field HAS, from the
     // same oracle every sample goes through — so "no worse than the
@@ -174,7 +173,6 @@ fn probe_seed(unit: Option<UnitDef>) -> f64 {
 fn probe_scale(
     doc: &Doc<ProfileProgram>,
     target: &BoundsTarget,
-    notation: Notation,
 ) -> Result<(f64, Option<UnitDef>, bool), Refusal> {
     match target {
         BoundsTarget::Slot { node, slot } => {
@@ -187,19 +185,18 @@ fn probe_scale(
                 .into_iter()
                 .find(|row| row.slot == *slot)
                 .and_then(|row| Some((row.value.ok()?, row.dimension, row.unit)));
-            let Some((value, dimension, remembered)) = found else {
+            let Some((value, dimension, unit)) = found else {
                 return Err(Refusal::NoSuchSlot {
                     node: *node,
                     slot: *slot,
                 });
             };
-            let value = value.as_f64();
-            // Whatever unit the field is written in — through
-            // `rendering_unit`, so a computed slot's step is the
-            // same unit the panel shows it in rather than a second
-            // answer to the same question.
-            let unit = props::rendering_unit(dimension, remembered, notation);
-            Ok((value, unit, dimension == Dimension::Count))
+            // The unit the field is written in, which a literal
+            // remembers: a slot whose value nobody wrote is driven,
+            // and `DocSession::probe_bounds` refuses a driven slot
+            // before it reaches here, so no working notation is read.
+            // A count remembers none and steps by 1.
+            Ok((value.as_f64(), unit, dimension == Dimension::Count))
         }
         BoundsTarget::Param { name } => {
             let Some(param) = doc.params().get(name) else {
@@ -213,7 +210,7 @@ fn probe_scale(
             // a millimetre parameter is searched in millimetres. A
             // `Count` is a number rather than a quantity, has no
             // unit to name, and steps by 1.
-            let (value, remembered) = match param {
+            let (value, unit) = match param {
                 DocParam::Continuous {
                     value,
                     display_unit,
@@ -221,11 +218,6 @@ fn probe_scale(
                 } => (*value, Some(display_unit.def())),
                 DocParam::Count { value } => (*value as f64, None),
             };
-            // Through `rendering_unit` for the slot arm's reason:
-            // one function answers "what unit is this field written
-            // in" for both fields, so the panel row and the probe
-            // cannot come to two answers.
-            let unit = props::rendering_unit(param.dim(), remembered, notation);
             Ok((value, unit, param.dim() == Dimension::Count))
         }
     }

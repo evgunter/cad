@@ -245,10 +245,10 @@ impl ViewerBehavior<'_> {
             // says (`widgets::unit_field`) — so the tick handed over is
             // the CANONICAL one for the dimension picked and the field
             // divides it by the same factor it divides the value by.
-            // The tick a person feels is therefore
-            // `FieldWriting::of(dimension, unit).tick`, derived rather
-            // than stated, and applying the factor here as well would
-            // apply it twice. With no dimension picked yet there is no
+            // The tick a person feels is therefore the tick of
+            // `FieldWriting::of(dimension, Some(unit), ..)` for the
+            // picked `unit`, derived rather than stated, and applying
+            // the factor here as well would apply it twice. With no dimension picked yet there is no
             // tick to derive and Create is refused anyway; a length's
             // serves as the placeholder.
             let speed = self
@@ -487,52 +487,7 @@ impl ViewerBehavior<'_> {
                     .moved
                     .get(&node)
                     .map_or([0.0; 3], |frame| frame.translation);
-                // A LENGTH field written in the working notation — so
-                // the conversion and the drag tick are the panel's own
-                // ([`FieldWriting`]) and the probe reads in the unit
-                // every other value nobody wrote reads in. Three
-                // components of one frame, one writing.
-                let field = FieldWriting::of(
-                    Dimension::Length,
-                    Some(self.notation.length.def()),
-                    *self.notation,
-                );
-                let unit = self.notation.length.def();
-                ui.label(format!(
-                    "free-move probe ({}, display only):",
-                    unit.symbol()
-                ));
-                // **Asked, not formed**, as the panel's value fields
-                // ask ([`crate::props::shown_value`]): a translation
-                // dragged or typed in a coarse notation can have no
-                // value in a finer one the notation was switched to.
-                let mut written = [0.0; 3];
-                for (shown, canonical) in written.iter_mut().zip(current) {
-                    match crate::props::shown_value(field.unit, canonical) {
-                        Ok(value) => *shown = value,
-                        Err(unit) => {
-                            crate::widgets::message(ui, crate::props::no_reading(unit));
-                            return;
-                        }
-                    }
-                }
-                // The G1 gesture triple over DISPLAY state, through the
-                // one widget→gesture mapping (`drag_ops`) so the typed-
-                // input arm exists here too: typing a value performs a
-                // one-shot begin/preview/commit, exactly one committed
-                // display value. The instance has ONE probe and all
-                // three components drive it, so the row is one gesture
-                // and `vec3_row_ops` maps it once — its docs carry what
-                // a triple per box costs. Each preview composes the
-                // FULL frame from all three, so dragging x does not
-                // zero y and z. The chrome offers the translation
-                // components; the op vocabulary takes any rigid frame.
-                let frame_of =
-                    |written: [f64; 3]| Frame::translation(written.map(|v| field.authored(v)));
-                let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
-                ui.horizontal(|ui| {
-                    vec3_row_ops(ui, field.tick, &mut written, gesture, typed, self.ops);
-                });
+                free_move_probe(ui, node, current, *self.notation, self.ops);
             }
         }
     }
@@ -1199,6 +1154,58 @@ fn slot_notes(
     clicked
 }
 
+/// **The free-move probe's row**: the three translation components of
+/// `current`, an eligible instance's display frame, written in the
+/// working `notation`'s length unit, and the gesture that drags or
+/// types them onto `ops`.
+///
+/// A LENGTH field written in the working notation — so the conversion
+/// and the drag tick are the panel's own ([`FieldWriting`]) and the
+/// probe reads in the unit every other value nobody wrote reads in.
+/// Three components of one frame, one writing.
+fn free_move_probe(
+    ui: &mut egui::Ui,
+    node: RecipeNodeId,
+    current: [f64; 3],
+    notation: Notation,
+    ops: &mut Vec<SessionOp>,
+) {
+    let field = FieldWriting::of(Dimension::Length, None, notation);
+    let unit = notation.length.def();
+    ui.label(format!(
+        "free-move probe ({}, display only):",
+        unit.symbol()
+    ));
+    // **Asked, not formed**, as the panel's value fields ask
+    // ([`crate::props::shown_value`]): a translation dragged or typed in
+    // a coarse notation can have no value in a finer one the notation
+    // was switched to.
+    let mut written = [0.0; 3];
+    for (shown, canonical) in written.iter_mut().zip(current) {
+        match crate::props::shown_value(field.unit, canonical) {
+            Ok(value) => *shown = value,
+            Err(unit) => {
+                crate::widgets::message(ui, crate::props::no_reading(unit));
+                return;
+            }
+        }
+    }
+    // The G1 gesture triple over DISPLAY state, through the one
+    // widget→gesture mapping (`drag_ops`) so the typed-input arm exists
+    // here too: typing a value performs a one-shot begin/preview/commit,
+    // exactly one committed display value. The instance has ONE probe
+    // and all three components drive it, so the row is one gesture and
+    // `vec3_row_ops` maps it once — its docs carry what a triple per box
+    // costs. Each preview composes the FULL frame from all three, so
+    // dragging x does not zero y and z. The chrome offers the
+    // translation components; the op vocabulary takes any rigid frame.
+    let frame_of = |written: [f64; 3]| Frame::translation(written.map(|v| field.authored(v)));
+    let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
+    ui.horizontal(|ui| {
+        vec3_row_ops(ui, field.tick, &mut written, gesture, typed, ops);
+    });
+}
+
 /// **A document parameter's range `reading` and the button that takes
 /// one** — the reading on its own line, the button under it, which is
 /// the order a slot's reading ([`slot_notes`]) and its range row are
@@ -1454,13 +1461,14 @@ mod tests {
 
     use std::cell::Cell;
 
-    use super::hide_toggle;
+    use super::{free_move_probe, hide_toggle};
     use crate::app::ViewerBehavior;
     use crate::display::AdmissionFault;
-    use crate::pane::headless::painted_after_clicking;
+    use crate::pane::headless::{painted_after_clicking, painted_text};
     use crate::props::{Notation, SlotDriver, SlotFault, SlotRow, SlotValue};
-    use crate::session::Refusal;
+    use crate::session::{Refusal, SessionOp};
     use crate::theme::Theme;
+    use eframe::egui;
     use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
 
     const NODE: RecipeNodeId = RecipeNodeId(4);
@@ -1634,6 +1642,121 @@ mod tests {
             Refusal::affordance(&[thickness()], SlotId::Distance, None, Notation::DEFAULT)
         );
         assert!(refusal.to_string().contains("thickness"));
+    }
+
+    /// The working notation every free-move row below is drawn in:
+    /// millimetres, which is not the default, so a probe that kept a
+    /// fixed unit reds whichever one it kept.
+    const MILLIMETRES: Notation = Notation {
+        length: pncad::quantity::MM,
+        ..Notation::DEFAULT
+    };
+
+    /// **The free-move probe reads in the working notation**: its label
+    /// names the notation's length unit, and its boxes show the
+    /// translation in it.
+    #[test]
+    fn the_free_move_probe_is_labelled_and_shown_in_the_working_unit() {
+        let painted = painted_text(|ui| {
+            free_move_probe(ui, NODE, [0.25, 0.0, 0.0], MILLIMETRES, &mut Vec::new());
+        });
+        assert!(
+            painted.contains("free-move probe (mm, display only):"),
+            "the label names the working unit: {painted}"
+        );
+        assert!(
+            painted
+                .lines()
+                .any(|line| line.trim().parse::<f64>() == Ok(250.0)),
+            "and 0.25 m shows as 250 in it: {painted}"
+        );
+    }
+
+    /// **A number typed into the probe commits in the working unit** —
+    /// `5` in a millimetre box previews a frame 5 mm along x, which is
+    /// `field.authored` and not the number as typed.
+    #[test]
+    fn a_number_typed_into_the_free_move_probe_commits_in_the_working_unit() {
+        let ctx = egui::Context::default();
+        let mut emitted: Vec<SessionOp> = Vec::new();
+        let mut frame = |events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                free_move_probe(ui, NODE, [0.0; 3], MILLIMETRES, &mut emitted);
+            });
+            // The font atlas is built on the first pass and epaint
+            // panics on a dropped delta nobody uploaded; nothing here
+            // paints.
+            output.textures_delta.clear();
+        };
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(Vec::new());
+        // Tab lands on x, which takes the focus with its text selected,
+        // so the typed number replaces it.
+        frame(vec![key(egui::Key::Tab)]);
+        frame(vec![egui::Event::Text("5".to_owned())]);
+        frame(vec![key(egui::Key::Enter)]);
+        let previewed: Vec<[f64; 3]> = emitted
+            .iter()
+            .filter_map(|op| match op {
+                SessionOp::PreviewFreeMove { instance, frame } if *instance == NODE => {
+                    Some(frame.translation)
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            previewed,
+            [[5.0 * 1.0e-3, 0.0, 0.0]],
+            "one typed value, previewed as millimetres: {emitted:?}"
+        );
+        assert!(
+            emitted.iter().any(
+                |op| matches!(op, SessionOp::CommitFreeMove { instance } if *instance == NODE)
+            ),
+            "and committed: {emitted:?}"
+        );
+    }
+
+    /// **A translation the working unit cannot name has no box to show
+    /// it in**: the row says which notation could not name it and draws
+    /// no field, where a coarser notation still shows the same value.
+    #[test]
+    fn a_free_move_the_working_unit_cannot_name_draws_no_reading() {
+        let unnameable = [1.0e306, 0.0, 0.0];
+        let mut emitted = Vec::new();
+        let painted = painted_text(|ui| {
+            free_move_probe(ui, NODE, unnameable, MILLIMETRES, &mut emitted);
+        });
+        assert!(
+            painted.contains("no mm reading"),
+            "the row says the millimetre value does not exist: {painted}"
+        );
+        assert!(
+            !painted.contains("inf"),
+            "and spells no infinity: {painted}"
+        );
+        assert!(emitted.is_empty(), "with no field there is nothing to emit");
+        let metres = painted_text(|ui| {
+            free_move_probe(ui, NODE, unnameable, Notation::DEFAULT, &mut Vec::new());
+        });
+        assert!(
+            !metres.contains("no m reading"),
+            "metres still name it, so the refusal is the notation's: {metres}"
+        );
     }
 }
 

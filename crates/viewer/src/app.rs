@@ -1068,27 +1068,17 @@ impl ViewerApp {
         }
     }
 
-    /// Change δ to `delta` world units, rebuilding the picture from
-    /// the evaluation already in hand — a display change is not a
-    /// document change and re-runs no geometry above the tessellator.
-    ///
-    /// The value goes through [`DisplayTolerance::new`], the one door
-    /// that decides what a δ may be, so a zero or a negative number is
-    /// refused with the tessellator's own condition and the picture
-    /// keeps the δ it had.
-    fn set_delta(&mut self, delta: f64) {
-        match DisplayTolerance::new(delta) {
-            Ok(delta) => {
-                self.delta = delta;
-                // From here the number is the user's. The budget chose
-                // an opening δ and has no further say — including no
-                // say over a δ finer than it would have picked, which
-                // is the whole difference between a default and a cap.
-                self.budget_delta = None;
-                self.sync_scene();
-            }
-            Err(error) => self.notices.push(frame::delta_refusal(&error)),
-        }
+    /// Change δ to `delta`, rebuilding the picture from the evaluation
+    /// already in hand — a display change is not a document change and
+    /// re-runs no geometry above the tessellator.
+    fn set_delta(&mut self, delta: DisplayTolerance) {
+        self.delta = delta;
+        // From here the number is the user's. The budget chose an
+        // opening δ and has no further say — including no say over a δ
+        // finer than it would have picked, which is the whole
+        // difference between a default and a cap.
+        self.budget_delta = None;
+        self.sync_scene();
     }
 
     /// Give the Features tile the height its content wants, capped at
@@ -1897,7 +1887,7 @@ impl eframe::App for ViewerApp {
         let mut datums_vanished = 0_usize;
         let mut profiles_undrawn = 0_usize;
         let mut held_edges_refused: Option<EdgeNamesRefused> = None;
-        let mut delta_request: Option<f64> = None;
+        let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
         // The working notation the panes read and the forms' pickers
@@ -2138,10 +2128,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,
-    /// A δ the View pane's field committed this frame, in world units.
-    /// The pane holds a borrow of the app, not the app, so it hands
-    /// the number back for [`ViewerApp::set_delta`] to judge.
-    pub(crate) delta_request: &'a mut Option<f64>,
+    /// A δ the View pane's field committed this frame. The pane holds
+    /// a borrow of the app, not the app, so it hands the δ back for
+    /// [`ViewerApp::set_delta`] to apply.
+    pub(crate) delta_request: &'a mut Option<DisplayTolerance>,
     /// What the Features pane's content laid out to this frame, once
     /// it has drawn.
     pub(crate) features_content_height: &'a mut Option<f32>,

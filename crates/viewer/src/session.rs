@@ -394,8 +394,8 @@ pub struct DocSession {
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
     /// The working notation ([`props::Notation`]): what a value nobody
-    /// wrote reads in, here because the refusals and the range probe
-    /// this session answers read such values. Per person and never in
+    /// wrote reads in, here because the refusals this session answers
+    /// read such values. Per person and never in
     /// the document, so no `Open` or new document resets it.
     notation: Notation,
 }
@@ -1736,14 +1736,7 @@ impl DocSession {
         let base = self.doc().clone();
         let resolver = self.run_resolver();
         let prior = self.memo_under(&resolver);
-        match probe::probe_bounds(
-            &base,
-            target,
-            prior.as_deref(),
-            &resolver,
-            self.tol,
-            self.notation,
-        ) {
+        match probe::probe_bounds(&base, target, prior.as_deref(), &resolver, self.tol) {
             Ok(reading) => {
                 self.derived.bounds = Some(reading);
                 OpOutcome::default()
