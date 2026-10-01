@@ -85,7 +85,8 @@ use crate::theme::Theme;
 /// than the other way round. An `egui::Window` begins at egui's own
 /// default unless it is given a width; the Checks window
 /// (`crate::app`'s `checks_window`) and the part chooser
-/// (`crate::pane::create`'s `part_window`) each give theirs one.
+/// (`crate::pane::create`'s `part_window`) take theirs from
+/// [`window_width`].
 ///
 /// # A floor, and then the pane scrolls
 ///
@@ -101,9 +102,10 @@ use crate::theme::Theme;
 ///
 /// A message that reaches the floor is a finding about the layout that
 /// put it there; `crate::pane::features`'s `message_indent` is one this
-/// chrome answered. The toolbar's status line is another: the panel it
-/// is in does not scroll, so the line has a row of its own that does
-/// (`crate::app`'s `toolbar_ui`).
+/// chrome answered. The toolbar is another: a panel does not scroll,
+/// so the toolbar is drawn in a scroll area of its own whose content is
+/// never narrower than the floor (`crate::app`'s `toolbar_ui`), and the
+/// two chrome windows scroll sideways for the same reason.
 ///
 /// # Characters or width: the rule
 ///
@@ -190,6 +192,21 @@ fn wrapped_in_region(
 pub(crate) fn message_floor(ui: &egui::Ui) -> f32 {
     let font = egui::FontSelection::Default.resolve(ui.style());
     widest_number(ui, &font) + ui.fonts_mut(|fonts| fonts.glyph_width(&font, ' '))
+}
+
+/// **The width a chrome window is pinned at**: the width of the `Ui`
+/// whose control opened it, and never under [`message_floor`].
+///
+/// The window answers that control's region, so it lays its sentences
+/// out the way that region would. Pinned as both the least and the
+/// most the window may be, every frame: a `default_width` alone is
+/// read once — egui persists a window's size under its id and only
+/// ratchets it up — so a window reopened after its opener narrowed
+/// would keep the old width. Below a floor-wide screen egui caps the
+/// window at the screen, which is why a window pinned here also
+/// scrolls sideways.
+pub(crate) fn window_width(opener: &egui::Ui) -> f32 {
+    opener.available_width().max(message_floor(opener))
 }
 
 /// **How wide the widest text [`crate::readout::number`] returns lays

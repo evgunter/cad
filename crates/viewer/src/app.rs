@@ -1412,15 +1412,23 @@ impl ViewerApp {
     /// have gone — an edit answering a finding is exactly when
     /// somebody is looking — so it says so rather than emptying
     /// silently.
-    fn checks_window(&mut self, ctx: &egui::Context, ops: &mut Vec<SessionOp>) {
+    ///
+    /// It is as wide as the toolbar whose badge opens it (`opener`),
+    /// through [`crate::widgets::window_width`], as the part chooser is
+    /// as wide as its pane.
+    fn checks_window(&mut self, opener: &egui::Ui, ops: &mut Vec<SessionOp>) {
         if !self.checks_shown {
             return;
         }
+        let width = crate::widgets::window_width(opener);
         let mut open = true;
         egui::Window::new("Checks")
             .open(&mut open)
-            .default_width(420.0)
-            .show(ctx, |ui| match self.session.checks() {
+            .resizable(false)
+            .hscroll(true)
+            .min_width(width)
+            .max_width(width)
+            .show(opener.ctx(), |ui| match self.session.checks() {
                 None => {
                     ui.label("nothing has been checked yet");
                 }
@@ -1478,13 +1486,18 @@ impl ViewerApp {
     /// costs a second line only at widths where the alternative was a
     /// control nobody could click.
     ///
-    /// **The status line is a row of its own, under the controls, and
-    /// that row scrolls.** It is a [`crate::widgets::message`], whose
-    /// floor assumes a region that scrolls, and the panel does not; so
-    /// the row is a horizontal scroll area the width of the panel, and
-    /// a window narrower than the floor scrolls the line rather than
-    /// drawing it past the panel. The row also fixes where the line
-    /// begins: at the panel's left edge, at every width, rather than
+    /// **The width contract is [`crate::widgets::message_floor`].** At
+    /// or above it every control and sentence here sits inside the
+    /// panel; below it the toolbar is laid out at the floor and the
+    /// whole of it scrolls sideways, as one unit, in one horizontal
+    /// scroll area whose content is never narrower than the floor. That
+    /// is the floor every [`crate::widgets::message`] here already
+    /// assumes, so nothing in the toolbar narrows past it, and every
+    /// control in the wrapping row takes part in the wrapping — none
+    /// places itself without asking the row for room.
+    ///
+    /// **The status line is a row of its own, under the controls**, so
+    /// it begins at the panel's left edge at every width rather than
     /// wherever the wrapping row's cursor fell.
     ///
     /// **The document's name is truncated at the panel's edge**, with
@@ -1493,10 +1506,18 @@ impl ViewerApp {
     ///
     /// [`Refusal::GestureInFlight`]: crate::session::Refusal::GestureInFlight
     fn toolbar_ui(&mut self, ui: &mut egui::Ui, ops: &mut Vec<SessionOp>, chosen: &mut Theme) {
-        // Read before the controls: a control laid out past the
-        // panel widens this `Ui`, and the status row (its separator
-        // included) must not follow.
-        let panel_width = ui.available_width();
+        let floor = crate::widgets::message_floor(ui);
+        egui::ScrollArea::horizontal()
+            .id_salt("viewer_toolbar")
+            .show(ui, |ui| {
+                ui.set_min_width(floor);
+                self.toolbar_rows(ui, ops, chosen);
+            });
+    }
+
+    /// [`Self::toolbar_ui`]'s content: the wrapping row of controls,
+    /// then the status line.
+    fn toolbar_rows(&mut self, ui: &mut egui::Ui, ops: &mut Vec<SessionOp>, chosen: &mut Theme) {
         ui.horizontal_wrapped(|ui| {
             // What is OPEN, not what the program is called: the
             // window title already carries the application's name,
@@ -1777,13 +1798,15 @@ impl ViewerApp {
             // name `crate::theme` gives it — the registry IS the
             // menu, so a theme cannot be shipped and left
             // unreachable.
-            egui::ComboBox::from_id_salt("viewer_theme")
-                .selected_text(chosen.name)
-                .show_ui(ui, |ui| {
-                    for theme in Theme::ALL {
-                        ui.selectable_value(&mut *chosen, *theme, theme.name);
-                    }
-                });
+            // A menu button rather than a combo box: a button asks the
+            // wrapping row for room and moves to the next line when
+            // there is none, where `egui::ComboBox` takes what is left
+            // of the line and runs past the panel.
+            ui.menu_button(chosen.name, |ui| {
+                for theme in Theme::ALL {
+                    ui.selectable_value(&mut *chosen, *theme, theme.name);
+                }
+            });
             // **Beside the picker, not in the badge row above**:
             // it is the only badge that is about a control rather
             // than about the document or the picture, and a
@@ -1798,13 +1821,8 @@ impl ViewerApp {
             }
         });
         if let Some(status) = &self.status {
-            ui.scope(|ui| {
-                ui.set_max_width(panel_width);
-                ui.separator();
-                egui::ScrollArea::horizontal()
-                    .id_salt("viewer_status_line")
-                    .show(ui, |ui| crate::widgets::message(ui, status.text()));
-            });
+            ui.separator();
+            crate::widgets::message(ui, status.text());
         }
     }
 }
@@ -1822,6 +1840,7 @@ impl eframe::App for ViewerApp {
 
         egui::Panel::top("viewer_toolbar").show(ui, |ui| {
             self.toolbar_ui(ui, &mut ops, &mut chosen);
+            self.checks_window(ui, &mut ops);
         });
 
         if chosen != self.theme {
@@ -1945,7 +1964,6 @@ impl eframe::App for ViewerApp {
                 };
                 self.tree.ui(&mut behavior, ui);
             });
-        self.checks_window(ui.ctx(), &mut ops);
         self.profile_drawn = profile_drawn;
         self.datums_vanished = datums_vanished;
         self.profiles_undrawn = profiles_undrawn;
@@ -2582,47 +2600,76 @@ mod tests {
         assert_eq!(features_fraction(100.0, -1.0), None, "a negative stack");
     }
 
-    /// The narrowest window this chrome is held to, in points.
+    /// **The window widths every toolbar hold sweeps**, in points: from
+    /// below [`crate::widgets::message_floor`] to a desktop screen,
+    /// 120 to 1280 in steps of 20.
     ///
-    /// The browser is the narrow case the viewer actually ships into —
-    /// `run_web` puts this same toolbar in a canvas the page sizes —
-    /// and an upright phone viewport is the narrow end of the browser:
-    /// 400 points is about the widest of that class, so a window this
-    /// wide is the easiest member of the hardest case. A desktop
-    /// window tiled to half of a 1280-point screen gets 640 and is
-    /// therefore already covered by it.
-    const NARROW: f32 = 400.0;
+    /// The steps are fine enough to put the controls' last line at
+    /// every position a control or a sentence could follow it from: a
+    /// control that places itself without asking the wrapping row for
+    /// room runs past the panel only where the line it lands on is
+    /// nearly full, which can happen at any width, so the sweep runs
+    /// to desktop widths rather than stopping at a phone's.
+    fn sweep() -> impl Iterator<Item = f32> {
+        (0..=58).map(|step| 120.0 + 20.0 * step as f32)
+    }
 
     /// A window wider than any toolbar will ask for, which is how the
     /// row's natural width is read: nothing constrains the layout, so
     /// what it occupies is what it wants.
     const UNBOUNDED: f32 = 4000.0;
 
+    /// A shape one headless frame painted, and the clip it was
+    /// painted under.
+    #[derive(Debug)]
+    struct Painted {
+        /// The text of a text run; empty for any other shape.
+        text: String,
+        /// The shape's bounds as laid out, clip ignored.
+        rect: egui::Rect,
+        /// The clip rect: the part of `rect` outside it is not on
+        /// screen.
+        clip: egui::Rect,
+    }
+
     /// What one headless frame of the toolbar occupied, and what it
     /// was given to occupy.
     struct Row {
-        /// The width the row's content laid itself out across.
+        /// The width the toolbar's content laid itself out across.
         occupied: f32,
-        /// The width the panel offered it.
-        available: f32,
-        /// The panel's own rectangle — the region a status line has to
-        /// stay inside, and whose left edge is where egui would put a
-        /// wrapped label's second line.
+        /// The panel's own content rectangle — the region the toolbar
+        /// has to stay inside, and whose left edge is where egui
+        /// would put a wrapped label's second line.
         panel: egui::Rect,
+        /// The panel's whole rectangle, its frame included.
+        panel_outer: egui::Rect,
+        /// The rectangle the toolbar's scroll area took in the panel.
+        laid_out: egui::Rect,
+        /// The panel frame's bottom margin, in points.
+        panel_margin_bottom: f32,
+        /// Every shape painted from the panel's left edge on — text
+        /// runs, button frames, rules — which leaves out the panel's
+        /// own fill and border, both of which start at the window's
+        /// edge.
+        painted: Vec<Painted>,
+        /// Every widget rect egui recorded in the panel from its left
+        /// edge on: each control, label and `Ui` the toolbar laid out.
+        widgets: Vec<egui::Rect>,
         /// Where the sentence [`toolbar_drawn`] looked for landed, one
         /// rect per line, empty when it was given none.
         status: Vec<egui::Rect>,
-        /// The clip rect that sentence was painted under: the part of
-        /// a line outside it is not on screen.
+        /// The clip rect that sentence was painted under.
         status_clip: egui::Rect,
-        /// The right-hand end of the widest HORIZONTAL rule that
-        /// starts inside the panel: the status row's separator, the
-        /// only one the toolbar draws (the controls' separators are
-        /// vertical, and the panel's own border starts at the
-        /// window's edge). `-inf` for none.
-        rule_right: f32,
         /// [`crate::widgets::message_floor`] in the panel.
         floor: f32,
+    }
+
+    impl Row {
+        /// The width the toolbar is laid out across: the panel's, or
+        /// the floor where the panel is narrower.
+        fn region_right(&self) -> f32 {
+            self.panel.left() + self.panel.width().max(self.floor)
+        }
     }
 
     /// A status line longer than a narrow window's toolbar row, in the
@@ -2673,6 +2720,32 @@ mod tests {
         toolbar_driven(width, prepare, sentence, |_| Vec::new())
     }
 
+    /// Every shape in `shapes` that starts at or right of `left`, with
+    /// its clip.
+    fn painted_from(shapes: &[egui::epaint::ClippedShape], left: f32) -> Vec<Painted> {
+        fn walk(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<Painted>) {
+            let (text, rect) = match shape {
+                egui::Shape::Vec(inner) => {
+                    inner.iter().for_each(|shape| walk(shape, clip, out));
+                    return;
+                }
+                egui::Shape::Text(text) => (
+                    text.galley.text().to_owned(),
+                    egui::Rect::from_min_size(text.pos, text.galley.size()),
+                ),
+                egui::Shape::Noop => return,
+                other => (String::new(), other.visual_bounding_rect()),
+            };
+            out.push(Painted { text, rect, clip });
+        }
+        let mut out = Vec::new();
+        for clipped in shapes {
+            walk(&clipped.shape, clipped.clip_rect, &mut out);
+        }
+        out.retain(|painted| painted.rect.is_finite() && painted.rect.left() >= left - SLACK);
+        out
+    }
+
     /// [`toolbar_drawn`], then one frame per batch of events `input`
     /// hands back — it is shown the row the frame before measured,
     /// and an empty batch ends the drive — with `sentence` read off
@@ -2681,19 +2754,41 @@ mod tests {
         width: f32,
         prepare: impl FnOnce(&mut ViewerApp),
         sentence: Option<&str>,
-        mut input: impl FnMut(&Row) -> Vec<egui::Event>,
+        input: impl FnMut(&Row) -> Vec<egui::Event>,
     ) -> Row {
+        let (ctx, mut app) = prepared(prepare);
+        drive(&ctx, &mut app, width, sentence, input)
+    }
+
+    /// A headless context, and the app startup assembled on it in the
+    /// state `prepare` put it in.
+    fn prepared(prepare: impl FnOnce(&mut ViewerApp)) -> (egui::Context, ViewerApp) {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
         prepare(&mut app);
+        (ctx, app)
+    }
+
+    /// [`toolbar_driven`]'s frames, on a context and app the caller
+    /// keeps — so a sweep pays for startup and its fixture once.
+    fn drive(
+        ctx: &egui::Context,
+        app: &mut ViewerApp,
+        width: f32,
+        sentence: Option<&str>,
+        mut input: impl FnMut(&Row) -> Vec<egui::Event>,
+    ) -> Row {
         let mut row = Row {
             occupied: f32::NAN,
-            available: f32::NAN,
             panel: egui::Rect::NOTHING,
+            panel_outer: egui::Rect::NOTHING,
+            laid_out: egui::Rect::NOTHING,
+            panel_margin_bottom: f32::NAN,
+            painted: Vec::new(),
+            widgets: Vec::new(),
             status: Vec::new(),
             status_clip: egui::Rect::NOTHING,
-            rule_right: f32::NEG_INFINITY,
             floor: f32::NAN,
         };
         let mut frame = 0;
@@ -2711,24 +2806,30 @@ mod tests {
                 events,
                 ..Default::default()
             };
-            let app = &mut app;
+            let app = &mut *app;
             let row = &mut row;
             let mut output = ctx.run_ui(input, |ui| {
-                egui::Panel::top("viewer_toolbar").show(ui, |ui| {
-                    let mut ops: Vec<SessionOp> = Vec::new();
-                    let mut chosen = Theme::ALL[0];
-                    row.available = ui.available_width();
-                    row.panel = ui.max_rect();
-                    row.floor = crate::widgets::message_floor(ui);
-                    // The row's OWN rect, through a scope: a panel's
-                    // `Ui` is expanded to the panel's width whatever
-                    // it holds, so its `min_rect` answers the window
-                    // rather than the toolbar.
-                    let laid_out = ui.scope(|ui| {
-                        app.toolbar_ui(ui, &mut ops, &mut chosen);
-                    });
-                    row.occupied = laid_out.response.rect.width();
-                });
+                row.panel_margin_bottom = egui::Frame::side_top_panel(ui.style())
+                    .total_margin()
+                    .bottom;
+                row.panel_outer = egui::Panel::top("viewer_toolbar")
+                    .show(ui, |ui| {
+                        let mut ops: Vec<SessionOp> = Vec::new();
+                        let mut chosen = Theme::ALL[0];
+                        row.panel = ui.max_rect();
+                        row.floor = crate::widgets::message_floor(ui);
+                        // The toolbar's OWN rect, through a scope: a
+                        // panel's `Ui` is expanded to the panel's width
+                        // whatever it holds, so its `min_rect` answers
+                        // the window rather than the toolbar.
+                        let laid_out = ui.scope(|ui| {
+                            app.toolbar_ui(ui, &mut ops, &mut chosen);
+                        });
+                        row.laid_out = laid_out.response.rect;
+                        row.occupied = laid_out.response.rect.width();
+                    })
+                    .response
+                    .rect;
             });
             let landed = sentence.and_then(|text| {
                 crate::pane::headless::landed_in(&output.shapes)
@@ -2736,18 +2837,20 @@ mod tests {
                     .find(|landed| landed.text == text)
             });
             let panel = row.panel;
-            row.rule_right = output
-                .shapes
-                .iter()
-                .filter_map(|clipped| match &clipped.shape {
-                    egui::Shape::LineSegment { points: [a, b], .. }
-                        if a.y == b.y && a.x.min(b.x) >= panel.left() - SLACK =>
-                    {
-                        Some(a.x.max(b.x))
-                    }
-                    _ => None,
-                })
-                .fold(f32::NEG_INFINITY, f32::max);
+            row.painted = painted_from(&output.shapes, panel.left());
+            row.widgets = ctx.viewport(|viewport| {
+                viewport
+                    .prev_pass
+                    .widgets
+                    .layers()
+                    .flat_map(|(_, rects)| rects.iter().map(|widget| widget.rect))
+                    .filter(|rect| {
+                        rect.is_finite()
+                            && rect.left() >= panel.left() - SLACK
+                            && rect.top() <= row.panel_outer.bottom() + SLACK
+                    })
+                    .collect()
+            });
             (row.status, row.status_clip) = landed.map_or_else(
                 || (Vec::new(), egui::Rect::NOTHING),
                 |landed| (landed.rows, landed.clip),
@@ -2760,30 +2863,66 @@ mod tests {
         row
     }
 
-    /// Where the toolbar's canceled line landed in a window `width`
-    /// points wide, over a session a cancel left showing an older
-    /// result.
-    fn canceled_line(width: f32) -> Row {
-        toolbar_drawn(
-            width,
-            |app| {
-                let tol = pncad::tolerance::witness();
-                let (document, _) =
-                    crate::scene::plate_with_hole(tol).expect("the startup document");
-                let mut session = crate::session::DocSession::inline(document, tol);
-                session.pump();
-                session.perform(SessionOp::Reevaluate);
-                session.perform(SessionOp::CancelEvaluation);
-                session.pump();
-                assert_eq!(
-                    session.outstanding(),
-                    crate::session::Outstanding::Canceled,
-                    "the fixture is the state the canceled line is drawn in"
-                );
-                app.session = session;
-            },
-            Some(CANCELED_LINE),
-        )
+    /// Put `app` in the state the canceled line is drawn in: a session
+    /// a cancel left showing an older result.
+    fn canceled(app: &mut ViewerApp) {
+        let tol = pncad::tolerance::witness();
+        let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let mut session = crate::session::DocSession::inline(document, tol);
+        session.pump();
+        session.perform(SessionOp::Reevaluate);
+        session.perform(SessionOp::CancelEvaluation);
+        session.pump();
+        assert_eq!(
+            session.outstanding(),
+            crate::session::Outstanding::Canceled,
+            "the fixture is the state the canceled line is drawn in"
+        );
+        app.session = session;
+    }
+
+    /// The toolbar across [`sweep`] in each state a hold sweeps: a
+    /// status line showing, and the canceled line with its Re-evaluate
+    /// button beside it. Each entry is named for its message and its
+    /// window's width.
+    ///
+    /// One context and app per state, every width drawn on it in turn:
+    /// the layout of a frame is a function of its width and of nothing
+    /// a previous width leaves behind, and startup is most of what a
+    /// fresh one would cost.
+    fn swept_states() -> Vec<(&'static str, f32, Row)> {
+        let status = |app: &mut ViewerApp| {
+            app.status = Some(crate::frame::Message::new(
+                crate::frame::Subject::Document,
+                STATUS,
+                crate::frame::Retold::Again,
+            ));
+        };
+        let states: [(&'static str, &dyn Fn(&mut ViewerApp), &str); 2] = [
+            ("status line", &status, STATUS),
+            ("canceled line", &canceled, CANCELED_LINE),
+        ];
+        states
+            .into_iter()
+            .flat_map(|(state, prepare, sentence)| {
+                swept(prepare, sentence)
+                    .into_iter()
+                    .map(move |(width, row)| (state, width, row))
+            })
+            .collect()
+    }
+
+    /// The toolbar at every width in [`sweep`], over one app `prepare`
+    /// put in the state a row is about, with the lines `sentence`
+    /// landed in.
+    fn swept(prepare: &dyn Fn(&mut ViewerApp), sentence: &str) -> Vec<(f32, Row)> {
+        let (ctx, mut app) = prepared(prepare);
+        sweep()
+            .map(|width| {
+                let row = drive(&ctx, &mut app, width, Some(sentence), |_| Vec::new());
+                (width, row)
+            })
+            .collect()
     }
 
     /// **The canceled line wraps whole**: at the row's own left edge,
@@ -2794,13 +2933,11 @@ mod tests {
     /// `egui::Label::layout_in_ui` starts a label beside the widget
     /// before it and puts its second line at the panel's left edge.
     /// Where the line falls on the row moves with the window, so the
-    /// row sweeps the width across the range a phone and a half-tiled
-    /// desktop window give, rather than guessing one width where the
+    /// row sweeps the width rather than guessing one width where the
     /// cursor happens to sit near the end of a line.
     #[test]
     fn the_toolbars_canceled_line_begins_every_line_in_the_same_place() {
-        for width in (0..=16).map(|step| NARROW / 2.0 + 25.0 * step as f32) {
-            let row = canceled_line(width);
+        for (width, row) in swept(&canceled, CANCELED_LINE) {
             assert!(
                 !row.status.is_empty(),
                 "the canceled line was painted at a {width}-point window"
@@ -2820,34 +2957,128 @@ mod tests {
         }
     }
 
-    /// **The row does not fit a narrow window.** This is the
-    /// measurement the wrapping answers, and the reason the row below
+    /// **The row does not fit a floor-wide panel.** This is the
+    /// measurement the wrapping answers, and the reason the sweep below
     /// is a hold rather than a tautology: if the toolbar ever loses
     /// enough controls to fit, this reads red, and the honest repair
-    /// is to retire both rows rather than to widen the number.
+    /// is to retire both rows rather than to move the number.
     #[test]
-    fn the_toolbar_asks_for_more_width_than_a_narrow_window_gives() {
-        let natural = toolbar_row(UNBOUNDED).occupied;
+    fn the_toolbar_asks_for_more_width_than_the_floor_gives() {
+        let row = toolbar_row(UNBOUNDED);
+        let (natural, floor) = (row.occupied, row.floor);
         assert!(
-            natural > NARROW,
-            "the toolbar's natural width is {natural} points, which already fits a {NARROW}-point window"
+            natural > floor,
+            "the toolbar's natural width is {natural} points, which already fits the \
+             {floor}-point floor"
         );
     }
 
-    /// **And it wraps rather than running off the edge.** A row laid
-    /// out past the window's right edge is clipped, and a clipped
-    /// control is not small — it is unreachable, which for the two
-    /// cancel doors means no exit from a gesture at all.
+    /// **The width contract: inside the panel at or above the floor,
+    /// scrolled as one unit below it.**
+    ///
+    /// At every width in [`sweep`] whose panel is at least
+    /// [`crate::widgets::message_floor`] wide, every shape the toolbar
+    /// painted and every widget rect it laid out ends inside the panel,
+    /// clip ignored. Below the floor everything is laid out across the
+    /// floor and nothing past the panel is on screen: what lies past it
+    /// is under the scroll area's clip, for the scroll to reach
+    /// (`below_the_floor_the_toolbar_scrolls_as_one_unit`). The status
+    /// line begins at the panel's left edge at every width.
+    ///
+    /// **And the panel keeps its own height**: a scroll area hands its
+    /// content the window's whole height, so the panel ending at the
+    /// toolbar's last line, plus its frame, is what says it still
+    /// sizes to what it holds.
     #[test]
-    fn the_toolbar_wraps_rather_than_running_past_a_narrow_window() {
-        let row = toolbar_row(NARROW);
+    fn the_toolbar_is_inside_the_panel_above_the_floor_and_scrolls_below_it() {
+        let mut above = 0;
+        let mut below = 0;
+        for (state, width, row) in swept_states() {
+            let at = format!("{state}, {width}-point window, panel {:?}", row.panel);
+            assert!(
+                !row.painted.is_empty() && !row.widgets.is_empty(),
+                "{at}: the toolbar painted and laid out something"
+            );
+            let fits = row.panel.width() >= row.floor;
+            if fits {
+                above += 1;
+            } else {
+                below += 1;
+            }
+            for painted in &row.painted {
+                let shown = painted.rect.right().min(painted.clip.right());
+                assert!(
+                    shown <= row.panel.right() + SLACK,
+                    "{at}: {painted:?} is on screen {} points past the panel",
+                    shown - row.panel.right()
+                );
+                if fits {
+                    assert!(
+                        painted.rect.right() <= row.panel.right() + SLACK,
+                        "{at}: as wide as the floor ({}), yet {painted:?} is laid out {} \
+                         points past the panel",
+                        row.floor,
+                        painted.rect.right() - row.panel.right()
+                    );
+                }
+            }
+            if fits {
+                for widget in &row.widgets {
+                    assert!(
+                        widget.right() <= row.panel.right() + SLACK,
+                        "{at}: as wide as the floor ({}), yet a widget at {widget:?} \
+                         ends past the panel",
+                        row.floor
+                    );
+                }
+            }
+            if state == "status line" {
+                for line in &row.status {
+                    assert!(
+                        (line.left() - row.panel.left()).abs() <= SLACK,
+                        "{at}: every line of the status line begins at the panel's left \
+                         edge ({line:?})"
+                    );
+                }
+            }
+            assert!(
+                row.panel_outer.bottom() <= row.laid_out.bottom() + row.panel_margin_bottom + SLACK,
+                "{at}: the panel ends at {} against a toolbar ending at {}, so it is \
+                 taller than what it holds",
+                row.panel_outer.bottom(),
+                row.laid_out.bottom()
+            );
+        }
         assert!(
-            row.occupied <= row.available,
-            "the toolbar occupied {} points of the {} it was given, so {} points of it lie past the right edge",
-            row.occupied,
-            row.available,
-            row.occupied - row.available
+            above > 0 && below > 0,
+            "the sweep reaches both sides of the floor ({above} above, {below} below)"
         );
+    }
+
+    /// **Nothing in the toolbar's wrapping row ends past its region**,
+    /// at any width in [`sweep`]: every widget rect egui recorded ends
+    /// within the width the row is laid out across, the panel's or the
+    /// floor below it.
+    ///
+    /// The class this holds is a control that places itself without
+    /// asking a `horizontal_wrapped` row for room — `egui::ComboBox`
+    /// is one, and it ran past the panel wherever the line it landed
+    /// on was nearly full. The read is every widget rect, not a list
+    /// of the controls, so a new control of that class fails it
+    /// whatever kind of widget it is.
+    #[test]
+    fn nothing_in_the_toolbars_wrapping_row_ends_past_its_region() {
+        for (state, width, row) in swept_states() {
+            for widget in &row.widgets {
+                assert!(
+                    widget.right() <= row.region_right() + SLACK,
+                    "{state}, {width}-point window: a widget at {widget:?} ends {} points \
+                     past the {}-point region the row is laid out across",
+                    widget.right() - row.region_right(),
+                    row.region_right() - row.panel.left()
+                );
+            }
+        }
     }
 
     /// Every text run a headless frame painted, with the rect it
@@ -3151,13 +3382,18 @@ mod tests {
     /// it and puts every line after the first at the panel's left
     /// edge. So the reading that answers the symptom is not "it fits"
     /// — it is that the lines begin under EACH OTHER.
+    ///
+    /// Read at a 360-point window, an upright phone's, which is a
+    /// fixture and not a contract: the width only has to leave the
+    /// sentence more than one line.
     #[test]
     fn the_toolbars_status_line_wraps_under_itself_rather_than_at_the_windows_edge() {
-        let row = toolbar_with(NARROW, Some(STATUS));
+        let width = 360.0;
+        let row = toolbar_with(width, Some(STATUS));
         assert!(
             row.status.len() > 1,
-            "the fixture has to be longer than what is left of a {NARROW}-point \
-             toolbar row, or this row is not about wrapping: {:?}",
+            "the fixture has to be longer than a {width}-point toolbar row, or this row is \
+             not about wrapping: {:?}",
             row.status
         );
         let first = row.status[0].left();
@@ -3186,68 +3422,12 @@ mod tests {
         );
     }
 
-    /// **What of the status line is on screen lies inside the panel, at
-    /// every width**, the ones below the message floor included; where
-    /// the panel is as wide as the floor, the whole line does, so the
-    /// row scrolls only below the floor. The separator above the line
-    /// spans the panel and no further.
-    ///
-    /// The sweep runs from below the floor to past a half-tiled
-    /// desktop, in steps fine enough to put the controls' last line at
-    /// every position the status line could follow it from.
+    /// **Below the floor the toolbar scrolls, as one unit**: it is laid
+    /// out at the floor, wider than the panel, and scrolling it to its
+    /// end brings the status line's end on screen and moves the
+    /// controls above it by the same distance.
     #[test]
-    fn the_toolbars_status_line_is_drawn_inside_the_panel_at_every_width() {
-        for width in (0..=26).map(|step| 120.0 + 20.0 * step as f32) {
-            let row = toolbar_with(width, Some(STATUS));
-            assert!(
-                !row.status.is_empty(),
-                "the status line was painted at a {width}-point window"
-            );
-            for line in &row.status {
-                assert!(
-                    (line.left() - row.panel.left()).abs() <= SLACK,
-                    "at a {width}-point window every line of the status begins at the \
-                     panel's left edge ({line:?}, panel {:?})",
-                    row.panel
-                );
-                let shown = line.right().min(row.status_clip.right());
-                assert!(
-                    shown <= row.panel.right() + SLACK,
-                    "at a {width}-point window the status line is on screen {} points past \
-                     the panel ({line:?} under clip {:?}, panel {:?})",
-                    shown - row.panel.right(),
-                    row.status_clip,
-                    row.panel
-                );
-                // Unclipped: a line laid out past the panel and hidden
-                // by the scroll area's clip passes the reading above.
-                if row.panel.width() >= row.floor {
-                    assert!(
-                        line.right() <= row.panel.right() + SLACK,
-                        "at a {width}-point window, as wide as the floor ({}), the status \
-                         line is laid out {} points past the panel, so it scrolls where it \
-                         could wrap ({line:?}, panel {:?})",
-                        row.floor,
-                        line.right() - row.panel.right(),
-                        row.panel
-                    );
-                }
-            }
-            assert!(
-                row.rule_right.is_finite() && row.rule_right <= row.panel.right() + SLACK,
-                "at a {width}-point window the status row's separator ends at {} against a \
-                 panel ending at {}",
-                row.rule_right,
-                row.panel.right()
-            );
-        }
-    }
-
-    /// **Below the floor the status line scrolls**: it is laid out at
-    /// the floor, wider than the panel, and scrolling it to its end
-    /// brings that end on screen.
-    #[test]
-    fn below_the_floor_the_toolbars_status_line_scrolls_to_the_rest() {
+    fn below_the_floor_the_toolbar_scrolls_as_one_unit() {
         let width = 150.0;
         let at_rest = toolbar_with(width, Some(STATUS));
         let widest = at_rest
@@ -3308,17 +3488,33 @@ mod tests {
             at_rest.status,
             scrolled.status
         );
+        let moved = |row: &Row, text: &str| {
+            row.painted
+                .iter()
+                .find(|painted| painted.text == text)
+                .unwrap_or_else(|| panic!("the toolbar paints {text}: {:?}", row.painted))
+                .rect
+                .left()
+        };
+        let status_shift = widest - end;
+        let control_shift = moved(&at_rest, "New…") - moved(&scrolled, "New…");
+        assert!(
+            status_shift > SLACK && (status_shift - control_shift).abs() <= SLACK,
+            "the status line moved {status_shift} points and the New… control above it \
+             {control_shift}: one scroll moves both"
+        );
     }
 
     /// **The document's name is cut at the panel's edge**: the user
-    /// chose it, so it can be wider than any window.
+    /// chose it, so it can be wider than any window. Read at a phone's
+    /// 360 points, a fixture width.
     #[test]
     fn a_long_document_name_is_truncated_inside_the_panel() {
         let name = "a document name its author made long enough to run past any narrow toolbar";
         let path = std::env::temp_dir().join(format!("{name} {}.pncad", std::process::id()));
         let shown = super::document_name(Some(&path));
         let row = toolbar_drawn(
-            NARROW,
+            360.0,
             |app| {
                 let outcome = app.session.perform(SessionOp::Save(path.clone()));
                 // The name is read off the session's path, not the

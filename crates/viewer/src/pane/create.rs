@@ -260,27 +260,15 @@ fn frame_picker<T: Copy + PartialEq>(
 const NO_FRAMES: &str = "none in this document — add a frame datum first";
 
 /// **The "Add part" chooser's window**, as wide as the pane its door
-/// is drawn in (`opener`) and never under
-/// [`crate::widgets::message_floor`].
-///
-/// The width is given rather than left to egui's own default for a
-/// window, because it is what every sentence in the chooser wraps at:
-/// the chooser answers the pane that opened it, so it lays its
-/// sentences out the way that pane would.
-///
-/// **Pinned, every frame**, as both the least and the most the window
-/// may be. A `default_width` alone is read once per session — egui
-/// persists a window's size under its id and only ratchets it up from
-/// there — so a chooser reopened after the pane narrowed would keep
-/// the old width. Pinning also follows a pane resized while the
-/// chooser is open.
+/// is drawn in (`opener`): [`crate::widgets::window_width`], so its
+/// sentences wrap the way that pane's would, and it follows a pane
+/// resized while the chooser is open.
 fn part_window(opener: &egui::Ui) -> egui::Window<'static> {
-    let width = opener
-        .available_width()
-        .max(crate::widgets::message_floor(opener));
+    let width = crate::widgets::window_width(opener);
     egui::Window::new("Add part")
         .collapsible(false)
         .resizable(false)
+        .hscroll(true)
         .min_width(width)
         .max_width(width)
 }
