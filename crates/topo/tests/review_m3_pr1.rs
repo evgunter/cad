@@ -493,8 +493,8 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
 }
 
 /// TARGET 3: Intersection-description splits re-mint each child's
-/// witness BITWISE as that child's certification mid-sample
-/// carrier(t_a + (t_b - t_a)/2) - derived independently here.
+/// witness BITWISE as that child's mid-parameter point
+/// carrier((t_a + t_b)/2) - derived independently here.
 #[test]
 fn split_edge_intersection_witness_bitwise_remint() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
@@ -525,9 +525,9 @@ fn split_edge_intersection_witness_bitwise_remint() {
         let topo::EdgeDescription::Intersection { witness, s1, s2 } = *child.description() else {
             panic!("child lost its Intersection description");
         };
-        // Independent derivation of the mid-sample: t_a + (t_b - t_a) *
-        // (4/8), the certification schedule's middle sample.
-        let expected = parent.carrier().eval(ta + (tb - ta) * 0.5);
+        // Independent derivation of the mid-parameter: (t_a + t_b) / 2,
+        // the point the witness pin reads.
+        let expected = parent.carrier().eval((ta + tb) * 0.5);
         assert_eq!(
             (
                 witness.x.to_bits(),
@@ -539,7 +539,7 @@ fn split_edge_intersection_witness_bitwise_remint() {
                 expected.y.to_bits(),
                 expected.z.to_bits()
             ),
-            "witness is not the bitwise mid-sample"
+            "witness is not the bitwise mid-parameter point"
         );
         // Children keep the parent's surface keys.
         let topo::EdgeDescription::Intersection { s1: p1, s2: p2, .. } = *parent.description()

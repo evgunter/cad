@@ -31,11 +31,20 @@ Left-drag in the viewport is inert **by design** — primary is reserved
 for selection; hold ALT to orbit with it on a trackpad. Moving an
 instance is not a viewport drag either: the free-move probe is the typed
 x/y/z fields in the instance section of the Properties panel
-(display-only, mm).
+(display-only, in the working length unit).
+
+**The working notation.** A value nobody wrote — a driven slot's
+`= value`, a measure's row, both numbers of an assertion's verdict, the
+camera readout, the display δ and the free-move probe — reads in one
+per-person length unit and angle unit, metres and `pi rad` until you
+pick others. The creation forms' unit pickers set it, and it is kept in
+the preferences file as `[notation] length` and `angle`, by unit
+symbol; it is never written into a document. A literal you wrote reads
+in the unit it was written in.
 
 In the Properties panel, the document-parameters list ends with an
-add-parameter row (name + dimension + value, written in the unit the
-form's picker names, one undoable edit); an
+add-parameter row (name + dimension + value, written in the working
+notation's unit, one undoable edit); an
 expression that names an undeclared parameter refuses typed, and the
 refusal offers to create it — prefilled into that row, with the
 dimension left as your pick.
@@ -1589,7 +1598,7 @@ instance has exactly one probe, the way `PreviewGesture` names a slot
 because a slot has exactly one drag. Each names the SUBJECT whose
 gesture it drives, and how fine that subject is follows from what state
 exists, not from how finely a chrome cuts the subject up: the three
-millimetre boxes the panel draws are one chrome's decomposition of one
+boxes the panel draws are one chrome's decomposition of one
 frame, and the op takes any rigid `Frame`. Mapped a triple per box
 those boxes are three gestures over one probe and the payload cannot
 separate them, both naming the same instance: the second box's begin is

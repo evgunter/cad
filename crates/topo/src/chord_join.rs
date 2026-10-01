@@ -1331,7 +1331,7 @@ fn chord_spec<T: Decide>(
                     k
                 }
             };
-            let witness = carrier.eval(s1 + (s2 - s1) * T::from_f64(0.5));
+            let witness = carrier.mid_point(s1, s2);
             return Ok(Some(EdgeCurveSpec {
                 description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
                     s1: wall_key,
@@ -1380,7 +1380,7 @@ fn chord_spec<T: Decide>(
             k
         }
     };
-    let witness = carrier.eval(t_start + (t_end - t_start) * T::from_f64(0.5));
+    let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             s1: wall_key,
@@ -1514,7 +1514,7 @@ fn bool_planar_chord_spec<T: Decide>(
             k
         }
     };
-    let witness = carrier.eval(t_start + (t_end - t_start) * T::from_f64(0.5));
+    let witness = carrier.mid_point(t_start, t_end);
     Ok(Some(EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             s1: plane_key,
@@ -2613,7 +2613,7 @@ mod tests {
                     description: geom_brep::EdgeDescriptionSpec::Intersection {
                         s1: cyl,
                         s2: plane,
-                        witness: carrier.eval((t0 + t1) * 0.5),
+                        witness: carrier.mid_point(t0, t1),
                     },
                     carrier,
                     param_start: t0,
