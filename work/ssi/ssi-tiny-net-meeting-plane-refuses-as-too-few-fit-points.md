@@ -2,11 +2,14 @@
 id: ssi-tiny-net-meeting-plane-refuses-as-too-few-fit-points
 kind: issue
 title: plane_nurbs_ssi on a 1e-2-spread collapsed net that the plane meets refuses Fit(TooFewPoints{have:3,need:4}), a fitting diagnosis for what is a degenerate-wall case
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
 rides_with: ssi-chart-speed-usability-boundary
+closed: 2026-10-01
+pr: 3694
+branch: ssi/chart-floor
 ---
 
 
@@ -29,3 +32,7 @@ resolution (D4 ¶4's model-size range), or name the trace's sample
 shortfall in terms of the geometry. The chart-floor unit
 (`ssi-chart-speed-usability-boundary`'s Design, part 5) is the
 nearest door, so look there first.
+
+## Closed (2026-10-01, PR 3694)
+
+Not a floor case. The 3 cm branch is shorter than the march's longest step at the 1.5 m extent, so it yields 3 samples where the cubic fit needs 4. It refuses `BranchUndersampled` naming the extent, and following that recourse traces and certifies it. The row that pins it pins the refusal kind per spread. The design alternative, having the stepper trace short branches itself, is filed as `ssi-short-branch-step-reads-only-the-callers-extent`.

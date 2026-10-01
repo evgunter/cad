@@ -430,6 +430,8 @@ mod s49_census_jurisdiction;
 mod seat6_germ_channel;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
+#[path = "split_section_rings.rs"]
+mod split_section_rings;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
