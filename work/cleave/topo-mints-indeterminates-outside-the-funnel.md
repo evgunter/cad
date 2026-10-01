@@ -5,7 +5,8 @@ title: topo mints Indeterminates outside the funnel after a definite sign, in tw
 status: open
 opened: 2026-09-20
 priority: P0
-cost: D
+cost: M
+design: true
 ---
 
 
