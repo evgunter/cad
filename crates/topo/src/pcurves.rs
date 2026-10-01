@@ -468,10 +468,15 @@ pub enum PcurveMintError {
     },
     /// The run's linear band could not be built.
     Band(BandError),
-    /// The chart [`chart_boundary`] was handed is the mvfs placeholder
-    /// (`NurbsSurface::placeholder`): it has no description yet, so
-    /// there is no lever arm to meter a joint gap through and no
-    /// region of it for a loop to bound.
+    /// The chart [`chart_boundary`] was handed is the placeholder
+    /// ([`Surface::is_placeholder_chart`]): it has no description yet,
+    /// so there is no lever arm to meter a joint gap through and no
+    /// region of it for a loop to bound. Refused before any loop is
+    /// walked, so there is no half-edge to carry a
+    /// [`PcurveMintError::Certify`] with
+    /// [`PcurveCertifyError::PlaceholderChart`] — the same fact, refused
+    /// per half-edge by the certification lanes. Never produced at rest:
+    /// the minting pass and the validator skip a placeholder face.
     PlaceholderChart {
         /// The face whose boundary was asked for.
         face: FaceKey,
@@ -540,9 +545,9 @@ impl core::fmt::Display for PcurveMintError {
             Self::Band(e) => write!(f, "{e}"),
             Self::PlaceholderChart { face } => write!(
                 f,
-                "the chart offered for face {face:?} is the mvfs placeholder, which has no \
-                 description yet, so nothing on it can be metred. Recourse: describe the \
-                 surface first, then ask for the face's boundary on it"
+                "the chart offered for face {face:?}: {}, so nothing on it can be metred. \
+                 {PLACEHOLDER_RECOURSE}",
+                geom::PLACEHOLDER_SURFACE
             ),
         }
     }
@@ -550,8 +555,13 @@ impl core::fmt::Display for PcurveMintError {
 
 impl std::error::Error for PcurveMintError {}
 
-/// A chart that is not the mvfs placeholder — the only kind of chart
-/// the loop walk and its meters ([`chart_u_arm`], [`v_meter`]) accept.
+/// The recourse for a placeholder chart, whichever enum refuses it.
+pub(crate) const PLACEHOLDER_RECOURSE: &str =
+    "Recourse: describe the surface first, then ask again";
+
+/// A chart that is not the placeholder
+/// ([`Surface::is_placeholder_chart`]) — the only kind of chart the
+/// loop walk and its meters ([`chart_u_arm`], [`v_meter`]) accept.
 ///
 /// The placeholder's control net is all-poison: it has no locus, so
 /// `geom_brep::chart_stretch_sup` refuses it rather than answer a lever
@@ -565,12 +575,17 @@ pub(crate) struct DescribedChart<'a, T: Real>(&'a Surface<T>);
 
 impl<'a, T: Real> DescribedChart<'a, T> {
     /// `None` for exactly the surface `geom_brep::chart_stretch_sup`
-    /// refuses as [`geom_brep::NoChartSup::Placeholder`].
+    /// refuses as [`geom_brep::NoChartSup::Placeholder`]: both read
+    /// [`Surface::is_placeholder_chart`].
     pub(crate) fn of(surface: &'a Surface<T>) -> Option<Self> {
-        match surface {
-            Surface::Nurbs(payload) if payload.is_placeholder() => None,
-            _ => Some(Self(surface)),
-        }
+        (!surface.is_placeholder_chart()).then_some(Self(surface))
+    }
+
+    /// The chart of a face the minting pass writes rows for: described,
+    /// and of a kind that mints ([`chart_mints`]). `None` is "this face
+    /// carries no rows by construction" — the placeholder and the plane.
+    pub(crate) fn minting(surface: &'a Surface<T>) -> Option<Self> {
+        Self::of(surface).filter(|c| chart_mints(*c))
     }
 
     pub(crate) fn surface(self) -> &'a Surface<T> {
@@ -2198,7 +2213,7 @@ fn mint_face<T: AtRestPolicy>(
         .get_surface(surface_key)
         .cloned()
         .ok_or(PcurveMintError::Corrupt)?;
-    let Some(chart) = DescribedChart::of(&surface).filter(|c| chart_mints(*c)) else {
+    let Some(chart) = DescribedChart::minting(&surface) else {
         return Ok(());
     };
     let mut walked: Vec<Walked<T>> = Vec::new();
@@ -2463,7 +2478,7 @@ pub(crate) fn site_rows_from<T: Decide>(
     face: &crate::entity::Face,
     surface: &Surface<T>,
 ) -> Result<Option<SiteFrom<T>>, SiteRowRefusal> {
-    if !DescribedChart::of(surface).is_some_and(chart_mints) {
+    if DescribedChart::minting(surface).is_none() {
         return Ok(None);
     }
     let rows = stored_rows(body, face);
@@ -2488,12 +2503,10 @@ pub(crate) fn site_rows_from<T: Decide>(
 /// adds half-edges to, and [`held_open`]'s.
 fn site_walks<'a, T: Decide>(
     body: &Body<T>,
+    chart: DescribedChart<'_, T>,
     face: &'a SiteFace<T>,
     from: &SiteFrom<T>,
 ) -> Result<Vec<&'a [SiteHalf]>, SiteRowRefusal> {
-    if !DescribedChart::of(&face.surface).is_some_and(chart_mints) {
-        return Ok(Vec::new());
-    }
     // A spline chart's rows derive through the fitted lane, which a
     // `Decide` door does not hold, so no loop of it is minted here and
     // the question is per face, not per loop: refuse, or leave as
@@ -2508,7 +2521,7 @@ fn site_walks<'a, T: Decide>(
     // door, a blend's kills), which have no "move before minting" to
     // take as a refusal's recourse. A complete face the door adds
     // half-edges to refuses rather than go half-minted.
-    if face.surface.spline_chart().is_some() {
+    if chart.surface().spline_chart().is_some() {
         return if from.open.is_empty() && !face.moved {
             Err(SiteRowRefusal::SplineChart)
         } else {
@@ -2556,7 +2569,10 @@ pub(crate) fn site_rows_owed<T: Decide>(
     face: &SiteFace<T>,
     from: &SiteFrom<T>,
 ) -> Result<bool, SiteRowRefusal> {
-    Ok(!site_walks(body, face, from)?.is_empty())
+    let Some(chart) = DescribedChart::minting(&face.surface) else {
+        return Ok(false);
+    };
+    Ok(!site_walks(body, chart, face, from)?.is_empty())
 }
 
 /// **The rows a site mint writes onto one face**, derived before its
@@ -2633,11 +2649,10 @@ pub(crate) fn site_rows<T: Decide>(
     edge: Option<&geom_brep::EdgeCurve<T>>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
-    // The placeholder mints nothing, so it walks nothing.
-    let Some(chart) = DescribedChart::of(&face.surface) else {
+    let Some(chart) = DescribedChart::minting(&face.surface) else {
         return Ok(SiteRows::Leave);
     };
-    let walks = site_walks(body, face, from)?;
+    let walks = site_walks(body, chart, face, from)?;
     if walks.is_empty() {
         return Ok(SiteRows::Leave);
     }
@@ -3332,7 +3347,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
         let Some(surface) = body.get_surface(face.surface) else {
             continue;
         };
-        let Some(chart) = DescribedChart::of(surface).filter(|c| chart_mints(*c)) else {
+        let Some(chart) = DescribedChart::minting(surface) else {
             continue;
         };
         // Passes 0 and 1, over ONE walk of the face's loops
