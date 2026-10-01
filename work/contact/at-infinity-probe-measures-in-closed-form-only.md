@@ -29,9 +29,10 @@ ellipse arc (curved cut) — …" } }`. Pinned at that outcome by
 ## The shape of a fix
 
 The boolean's volume backstop had the same gap and now measures
-through the scalar's own lane, `AtRestPolicy::quad_lane` (certified
-quadrature at `f64`/`Probe`/`Interval`/`Sym`, the closed form at a
-dual). The probe can do the same, but `point_in_solid`,
+through the certified quadrature, gated per scalar by
+`AtRestPolicy::gate_volume_backstop` (run at `f64`/`Probe`/`Interval`/
+`Sym`, absent at a dual). The probe can measure the same way, but
+`point_in_solid`,
 `point_in_solid_of` and `point_in_solid_faces` are public at
 `T: Decide` with some two hundred callers, so the lane has to reach
 the probe either through those signatures (an `AtRestPolicy` bound)

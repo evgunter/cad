@@ -1085,6 +1085,55 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
 }
 
+/// The last round [`mass_properties_at_round`] may be asked for: the
+/// shortest schedule among the quadrature lanes `lane` can enter
+/// (`geom_brep::props::quad`'s `QUAD2_MAX_ROUNDS`, the spline and
+/// trimmed-patch lanes; the cylinder lane runs to 12). Each lane
+/// asserts that a window it is handed starts inside its own schedule.
+pub(crate) const LAST_SHARED_ROUND: usize = 6;
+
+/// The body's enclosure with every quadrature face computed at ONE
+/// round of its schedule, `round ≤` [`LAST_SHARED_ROUND`], whether or
+/// not the reporting target was met before it — the refinement a
+/// caller deciding a sign past the reporting target needs. A round's
+/// enclosure is the lane's own at that round (its rounds are
+/// independent recomputations), so it is sound at every round; past the
+/// reporting round it is tighter until interval rounding floors it.
+/// A face whose lane runs out of budget at `round` still contributes
+/// its enclosure, as at the sign level.
+///
+/// # Errors
+///
+/// A face with no enclosure at that round (poison, an escalation), as
+/// the reporting walk.
+pub(crate) fn mass_properties_at_round<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+    lane: QuadLane<T>,
+    round: usize,
+) -> Result<MassProperties<T>, MassPropsError> {
+    debug_assert!(
+        round <= LAST_SHARED_ROUND,
+        "round {round} is past every lane's schedule"
+    );
+    let window = RoundWindow::at(round);
+    let hook = move |body: &Body<T>,
+                     surface: &Surface<T>,
+                     outer: &[LoopEdge<T>],
+                     hes: &[HalfEdgeKey],
+                     band: Band,
+                     tol: Tol,
+                     _window: RoundWindow| {
+        (lane.cut_face_rounds)(body, surface, outer, hes, band, tol, window).map(Some)
+    };
+    let faces = crate::query::all_faces(body);
+    let runs = decide_faces(&faces, |&face| {
+        face_flux(body, face, band, &hook, tol, window)
+    })?;
+    Ok(fold_runs(&runs).0)
+}
+
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
 /// attempted (the closed form then answers, refusing typed on trimmed
 /// faces), `Ok(Some(outcome))` = the lane's answer over the window it
@@ -2188,14 +2237,15 @@ fn classify_shells_via<T: Decide>(
         };
         // The low end first; the high end only when the low end decides
         // nothing. Closed-form shells (pad = 0) reuse the one verdict.
-        let lo = sign_at(volume - T::from_f64(volume_pad));
+        let ends = sums.enclosure();
+        let lo = sign_at(ends.volume_lo);
         let role = match role_at(BracketEnd::Low, lo) {
             Some(role) => role,
             None => {
                 let hi = if volume_pad == 0.0 {
                     lo
                 } else {
-                    sign_at(volume + T::from_f64(volume_pad))
+                    sign_at(ends.volume_hi)
                 };
                 match role_at(BracketEnd::High, hi) {
                     Some(role) => role,
@@ -2538,33 +2588,15 @@ mod wiring_rows {
             "`ShellDoor::<Interval>::certified()` holds something other than `shell_open`"
         );
     }
-
-    /// The boolean's volume lane, per scalar: the certifying scalars
-    /// hand out the quadrature and a dual hands out none.
-    /// [`QuadLane::certified`] is the lane's only constructor, so a
-    /// `Some` is the certified quadrature the rows above pin.
-    #[test]
-    fn the_policy_hands_out_the_quadrature_where_the_scalar_certifies() {
-        assert!(<f64 as AtRestPolicy>::quad_lane().is_some(), "f64");
-        assert!(
-            <geom_core::interval::Interval as AtRestPolicy>::quad_lane().is_some(),
-            "Interval"
-        );
-        assert!(
-            <geom_core::Sym<f64> as AtRestPolicy>::quad_lane().is_some(),
-            "Sym<f64>"
-        );
-        assert!(
-            <geom_core::Dual64 as AtRestPolicy>::quad_lane().is_none(),
-            "Dual64"
-        );
-    }
 }
 
 /// The **scalar policy for the certified at-rest gates**
 /// (`docs/DUAL-DESIGN.md` DL3): whether an evaluation-service
 /// consumer of [`crate::validate_geometric`] /
-/// [`crate::validate_pseudomanifold`] runs them at this scalar.
+/// [`crate::validate_pseudomanifold`] runs them at this scalar, and
+/// whether the boolean engine runs its volume backstop
+/// ([`AtRestPolicy::gate_volume_backstop`]), which measures its
+/// operands and its result through the certified quadrature.
 ///
 /// Certified validation is an act of certification — its tier-3
 /// battery re-derives surface certificates
@@ -2600,13 +2632,12 @@ mod wiring_rows {
 /// bounds admit; this trait only decides which scalars'
 /// evaluation-service gates consult them.
 ///
-/// The trait also carries the four INJECTED DOORS whose presence is a
+/// The trait also carries the three INJECTED DOORS whose presence is a
 /// per-scalar fact, for the same reason it carries the gates: it is
 /// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
 /// the offset fit's, [`AtRestPolicy::fitted_lane`] is the fitted
-/// pcurve derivations', [`AtRestPolicy::shell_door`] is the
-/// hollowing verb's, and [`AtRestPolicy::quad_lane`] is the boolean
-/// engine's volume measurement's; each answers `None` for its own reason — a
+/// pcurve derivations', and [`AtRestPolicy::shell_door`] is the
+/// hollowing verb's; each answers `None` for its own reason — a
 /// derivation written at one scalar, or certification rights (DL1) —
 /// and the doc on each method says which. What a reader gets from the
 /// one trait is every per-scalar answer the at-rest machinery needs,
@@ -2679,20 +2710,6 @@ pub trait AtRestPolicy: Decide {
     /// derivation is written.
     fn shell_door() -> Option<ShellDoor<Self>>;
 
-    /// **This scalar's certified quadrature, or `None` where it may not
-    /// certify** — the ONE seam the `Some` comes from for the boolean
-    /// engine's volume backstop, which measures its operands and its
-    /// result through `mass_properties_with` with this lane. Holding
-    /// it, a face trimmed by an ellipse, a spiric or a spline is enclosed by
-    /// the quadrature exactly as [`mass_properties`] encloses it;
-    /// holding `None`, every face is the closed form's and one that
-    /// needed the quadrature refuses typed.
-    ///
-    /// `None` is certification rights (DL1), the same fact as
-    /// [`AtRestPolicy::fitted_lane`]'s: [`QuadLane::certified`] is
-    /// bounded on [`geom_core::CertifiedBounds`].
-    fn quad_lane() -> Option<QuadLane<Self>>;
-
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -2733,6 +2750,23 @@ pub trait AtRestPolicy: Decide {
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>>;
+
+    /// The boolean engine's volume backstop over an op's two operands
+    /// and its result (`crate::boolean::volume_backstop`, measuring
+    /// through [`QuadLane::certified`], at certifying scalars; absent at
+    /// duals, and the outcome says which).
+    ///
+    /// # Errors
+    ///
+    /// The backstop's own refusal, verbatim, where the scalar runs it.
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError>;
 }
 
 /// What an [`AtRestPolicy`] gate's success MEANS — the word that keeps
@@ -2766,11 +2800,6 @@ impl AtRestPolicy for f64 {
         Some(ShellDoor::certified())
     }
 
-    /// A certifying scalar measures through the certified quadrature.
-    fn quad_lane() -> Option<QuadLane<Self>> {
-        Some(QuadLane::certified())
-    }
-
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2788,6 +2817,18 @@ impl AtRestPolicy for f64 {
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2816,11 +2857,6 @@ impl AtRestPolicy for geom_core::Probe {
         Some(ShellDoor::certified())
     }
 
-    /// A certifying scalar measures through the certified quadrature.
-    fn quad_lane() -> Option<QuadLane<Self>> {
-        Some(QuadLane::certified())
-    }
-
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2838,6 +2874,18 @@ impl AtRestPolicy for geom_core::Probe {
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2862,11 +2910,6 @@ impl AtRestPolicy for geom_core::interval::Interval {
         Some(ShellDoor::certified())
     }
 
-    /// A certifying scalar measures through the certified quadrature.
-    fn quad_lane() -> Option<QuadLane<Self>> {
-        Some(QuadLane::certified())
-    }
-
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2884,6 +2927,18 @@ impl AtRestPolicy for geom_core::interval::Interval {
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2921,11 +2976,6 @@ where
         Some(ShellDoor::certified())
     }
 
-    /// A certifying scalar measures through the certified quadrature.
-    fn quad_lane() -> Option<QuadLane<Self>> {
-        Some(QuadLane::certified())
-    }
-
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2943,6 +2993,18 @@ where
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_volume_backstop(
+        op: crate::BooleanOp,
+        a: &Body<Self>,
+        b: &Body<Self>,
+        result: &Body<Self>,
+        band: Band,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
+        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2987,12 +3049,6 @@ where
         None
     }
 
-    /// **A dual does not certify** (DL1), and the quadrature's flux
-    /// enclosures are certification arithmetic.
-    fn quad_lane() -> Option<QuadLane<Self>> {
-        None
-    }
-
     fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }
@@ -3009,6 +3065,20 @@ where
         _contacts: &ContactRecords,
         _tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+
+    /// The backstop is a validation of the result, and the quadrature
+    /// it measures with is certification arithmetic: absent here, the
+    /// base-scalar run of the same recipe is the check of record.
+    fn gate_volume_backstop(
+        _op: crate::BooleanOp,
+        _a: &Body<Self>,
+        _b: &Body<Self>,
+        _result: &Body<Self>,
+        _band: Band,
+        _tol: Tol,
+    ) -> Result<AtRestOutcome, crate::BooleanError> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }
 }
@@ -3123,6 +3193,27 @@ mod at_rest_policy_tests {
             T::fitted_lane().is_some(),
             "a certifying scalar holds the fitted-pcurve door"
         );
+        // The volume backstop runs, on a planted wrong result: a union
+        // "result" half the size of an operand.
+        let (cube, half) = planted_union::<T>(tol);
+        let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
+        assert!(
+            matches!(
+                T::gate_volume_backstop(crate::BooleanOp::Union, &cube, &cube, &half, band, tol),
+                Err(crate::BooleanError::ResultVolumeImplausible { .. })
+            ),
+            "the certifying arm runs the volume backstop"
+        );
+    }
+
+    /// A unit cube and a half-height brick on it, the second standing
+    /// in as a union's "result" that is smaller than an operand.
+    fn planted_union<T: Decide>(tol: Tol) -> (Body<T>, Body<T>) {
+        let brick = crate::test_support_fixtures::brick::<T>;
+        (
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            brick((0.0, 1.0), (0.0, 1.0), (0.0, 0.5), tol),
+        )
     }
 
     #[test]
@@ -3185,6 +3276,21 @@ mod at_rest_policy_tests {
                 tol
             ),
             Ok(AtRestOutcome::NotRunAtThisScalar)
+        );
+        let (cube, half) = planted_union::<geom_core::Dual64>(tol);
+        let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
+        assert_eq!(
+            <geom_core::Dual64 as AtRestPolicy>::gate_volume_backstop(
+                crate::BooleanOp::Union,
+                &cube,
+                &cube,
+                &half,
+                band,
+                tol
+            )
+            .map_err(|e| e.kind()),
+            Ok(AtRestOutcome::NotRunAtThisScalar),
+            "a dual runs no volume backstop, even on a result a certifying scalar refuses"
         );
         // The shell door's absence is the same fact one step earlier:
         // the call is never formed at all, so there is no refusal to

@@ -2586,12 +2586,24 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
     (why, recourse.into())
 }
 
-fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, Cow<'static, str>) {
+pub(crate) fn classify_mass_props(
+    e: &crate::props::MassPropsError,
+) -> (&'static str, Cow<'static, str>) {
     use crate::props::MassPropsError as M;
     use geom_brep::props::PropsError as P;
     let (why, recourse) = match e {
         M::Band { error } => (classify_band(error), TOLERANCE),
         M::Face { source, .. } => match source {
+            // The quadrature's own convergence test: its enclosure
+            // width against its target, nothing of the model's — no
+            // coincidence to declare and no size to change.
+            P::Escalated { cause } if cause.predicate == Some("props_quad_converged") => {
+                return (
+                    "the quadrature could not decide whether its enclosure of a face's \
+                     contribution had converged",
+                    unnamed(&cause.margin),
+                );
+            }
             P::Escalated { cause } => {
                 return (
                     "a face's contribution is too close to call at this tolerance",
