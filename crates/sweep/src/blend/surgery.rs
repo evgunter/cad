@@ -726,13 +726,14 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         described.append(&mut arcs);
     }
 
-    // ---- Surfaces and senses first (attach.rs: attach surfaces
-    // before upgrading edge descriptions), then every new edge's
-    // intrinsic description, then the pcurve re-mint: the faces the
-    // surgery builds carry no row until it runs, and the descriptions
-    // it upgrades are what every image derives from. The struts leave
-    // a complete input face they land on complete or rowless, never
-    // half-minted, and this pass re-derives that face with the rest. ----
+    // ---- Surfaces and senses first (`set_face_surface` refuses a
+    // swap under an edge already described against the face's chart),
+    // then every new edge's intrinsic description, then the pcurve
+    // re-mint: the faces the surgery builds carry no row until it runs,
+    // and the descriptions it upgrades are what every image derives
+    // from. The struts leave a complete input face they land on
+    // complete or rowless, never half-minted, and this pass re-derives
+    // that face with the rest. ----
     // **The sense bit is the band's, not the verb's.** A rolling-ball
     // band's chart normal is the radial one, which is outward exactly
     // on a convex chain — so it folds the stored convexity verdict. A
@@ -2891,7 +2892,7 @@ fn rim_phase<T: Decide + Bounds>(
     for l in rim.chain.links() {
         let half = host_side_half(body, l, rim.host0())
             .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim edge's plane-side half"))?;
-        sources.kef_minted(body, half, "rim kef")?;
+        sources.kef_minted(body, half, "rim kef", tol)?;
         rec.dead.edges.push(l.edge);
     }
 
@@ -2990,7 +2991,7 @@ fn rim_phase<T: Decide + Bounds>(
                 u_ref: radial,
             });
         } else {
-            sources.kef_minted(body, hp, "rim strut kef")?;
+            sources.kef_minted(body, hp, "rim strut kef", tol)?;
             // The upper meridian remnant at this vertex is now a spur
             // ending at the old rim vertex.
             let (shp, shm) = halves_of(body, mr).ok_or_else(|| {
@@ -3679,7 +3680,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     for (i, l) in rim.chain.links().enumerate() {
         let dying = host_side_half(body, l, rim.hosts[i])
             .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
-        sources.kef_minted(body, dying, "annulus rim kef")?;
+        sources.kef_minted(body, dying, "annulus rim kef", tol)?;
     }
 
     // ---- (6)+(7) The crossings. Carry-through ones first, so every
@@ -3724,7 +3725,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                  own `split_edge` and only the closure crossing keeps one"
             )
         };
-        sources.kef_minted(body, mp, "annulus seam-crossing kef")?;
+        sources.kef_minted(body, mp, "annulus seam-crossing kef", tol)?;
     }
 
     // ---- The band's chart is SEAMED at the slit (certification demands
@@ -3968,6 +3969,7 @@ impl SourceFaces {
         body: &mut Body<T>,
         dying: HalfEdgeKey,
         site: &'static str,
+        tol: Tol,
     ) -> Result<(), BlendError> {
         let f = face_of_half(body, dying).ok_or_else(|| {
             invariant_broken(
@@ -3982,7 +3984,7 @@ impl SourceFaces {
                  kills only faces its own `mef`s minted",
             ));
         }
-        body.kef(dying).map_err(|e| op(site, e))?;
+        body.kef_minting(dying, tol).map_err(|e| op(site, e))?;
         Ok(())
     }
 }

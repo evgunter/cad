@@ -28,7 +28,9 @@ use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKind};
 use crate::history::HistoryId;
 use crate::seats::SeatError;
-use crate::session::{DatumSpec, FaceSelection, ProfilePlane, ProfileShape, SessionOp};
+use crate::session::{
+    DatumSpec, DeclareOffer, FaceSelection, ProfilePlane, ProfileShape, SessionOp,
+};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -143,16 +145,16 @@ pub(crate) struct Drafts {
     /// ([`crate::session::face_frame_seat`]), so a face an undo took
     /// away is refused rather than authored.
     ///
-    /// **Across documents it is, and the hazard is the form's known
-    /// one.** The gate cannot tell one document's names from another's
-    /// — a `RecipeNodeId` is a small integer and a `StableName` carries
-    /// no document identity — and nothing resets `Drafts` when the
-    /// session opens a new document, so a pick held here can resolve
-    /// against a second document whose ids coincide. That is true of
-    /// [`Self::datum_frame`] and of every other held pick on this
-    /// struct, so it is the form's class rather than this seat's:
+    /// **Across documents it would be**: the gate cannot tell one
+    /// document's names from another's — a `RecipeNodeId` is a small
+    /// integer and a `StableName` carries no document identity — and
+    /// the viewport marks this pick, so a stale one would light, and
+    /// the button commit against, a same-numbered face of the next
+    /// document. A document replacement therefore drops it
+    /// ([`Self::document_replaced`]). The form's other held picks keep
+    /// the hazard:
     /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
-    /// carries it.
+    /// carries them.
     pub(crate) datum_face: Option<FaceSelection>,
     /// The frame-on-face form's spin, radians — sketch +x's rotation
     /// about the face's outward normal. Opens at zero, the
@@ -220,6 +222,10 @@ pub(crate) struct Drafts {
     pub(crate) revolve_angle: f64,
     /// The boolean tool's operation choice.
     pub(crate) boolean_op: BooleanOp,
+    /// The offer an undeclared-contact refusal made
+    /// ([`crate::frame::declare_offer`]); shown in the boolean tool
+    /// while it stands ([`DeclareOffer::is_for`]).
+    pub(crate) declare_offer: Option<DeclareOffer>,
     /// The transform tool's translation, metres.
     pub(crate) transform_translation: [f64; 3],
     /// Its rotation axis (unitless).
@@ -640,6 +646,7 @@ impl Default for Drafts {
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
             boolean_op: BooleanOp::Union,
+            declare_offer: None,
             transform_translation: [0.0; 3],
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,
@@ -926,11 +933,30 @@ impl Drafts {
         Ok([self.length(p.x)?, self.length(p.y)?])
     }
 
+    /// **Another document replaced the one the held face was picked
+    /// in** (an open, a new document): the latch names nothing in it.
+    pub(crate) fn document_replaced(&mut self) {
+        self.datum_face = None;
+    }
+
+    /// **The face this form holds**: [`Self::datum_face`] while the
+    /// chosen kind is the one that reads it, `None` under every other.
+    ///
+    /// Under another kind the latch is kept, not held — nothing the
+    /// form commits reads it — so switching kind releases the pick,
+    /// and switching back holds it again. What the viewport marks as
+    /// held (`crate::marks::Held`).
+    pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
+        self.datum_face
+            .as_ref()
+            .filter(|_| self.datum_kind == DatumKindChoice::FaceFrame)
+    }
+
     /// **The add-datum form's drafts as a spec**, for the kind chosen:
     /// lengths in the form's notation, a normal or a direction
     /// dimensionless. `Ok(None)` is a SEAT still unfilled — an axis in
     /// a sketch with no frame chosen, a frame on a face whose gate has
-    /// not answered — and the form holds its button until it is
+    /// not answered — and the form withholds its button until it is
     /// filled, saying which pick it wants in that kind's own words
     /// ([`DatumKindChoice::unmet_seat`]).
     ///
@@ -942,7 +968,7 @@ impl Drafts {
     /// another, which is the defect this seat exists to close. `None`
     /// is every reason the gate did not answer — no face picked, a
     /// curved carrier, a name that no longer resolves — and the gate's
-    /// own sentence is what the form draws beside the held button.
+    /// own sentence is what the form draws beside the withheld button.
     ///
     /// # Errors
     ///

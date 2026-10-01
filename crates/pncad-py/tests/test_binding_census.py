@@ -2401,6 +2401,9 @@ NOT_BOUND = {
     # name, and a Python caller holds a name as opaque TEXT. Anything
     # it appears in reaches Python as the name it wraps.
     "NameRef": SHAPE,
+    # Why a name's text did not read: crosses as the `ValueError` a
+    # name's text refuses with, its words and place in the message.
+    "NameTextError": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     # The display-unit CODE a `DocParam` carries. A one-byte index into

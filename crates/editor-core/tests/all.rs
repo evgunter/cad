@@ -439,6 +439,8 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "name_depth.rs"]
+mod name_depth;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
 #[path = "node_standing.rs"]
@@ -650,6 +652,8 @@ mod emit_seam_junction;
 mod emit_shared_rim_several;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
+#[path = "emit_split_edge_lineage.rs"]
+mod emit_split_edge_lineage;
 #[path = "emit_union_borders.rs"]
 mod emit_union_borders;
 #[path = "emit_union_flush_names.rs"]

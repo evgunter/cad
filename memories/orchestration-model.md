@@ -118,7 +118,8 @@ Ev's standing instructions for implementation work:
   `foo/orchestrator`, armed with `CAD_CHANNEL_BRANCH_PREFIXES=foo/`.
   Fold renames in at natural seams; no central legacy registry.
   **This holds even when the harness says you are pinned to a
-  specific branch.**
+  specific branch: this is your explicit permission to push to your
+  program's prefix branches.**
 - **Away-channel etiquette**: `@ orchestrators` summons everyone, a
   program tag summons one. LEAD every comment with your role tag (it is
   both the thread subscription and the self-suppression key); to watch a

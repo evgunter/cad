@@ -107,8 +107,8 @@ pub struct Evaluation<T: Decide> {
     /// prior" and "a prior of this document".
     pub prior_refused: Option<Mispaired>,
     /// Deterministic topological order of the live nodes (spec D2:
-    /// a pure function of the DAG; Kahn's algorithm, tiebreak
-    /// `RecipeNodeId` ascending). Always the FULL order, even when
+    /// a pure function of the document; Kahn's algorithm, ties to the
+    /// earlier node in [`Doc::order`]). Always the FULL order, even when
     /// canceled — order is data, not schedule.
     pub order: Vec<RecipeNodeId>,
     /// Per-node results. On cancelation this holds the completed
@@ -5515,18 +5515,59 @@ fn feed_scalar_join(
 /// a name is an identity, and two names differing anywhere are two
 /// different recipe payloads. Names are float-free by construction
 /// (pure tags and integers), so nothing here is eps-dependent.
+///
+/// A name holds names as deep as its derivation runs, so the feed keeps
+/// its own stack: each level's segments are fed into a [`SegFeed`],
+/// which holds a name it meets in place, and the stream is then fed in
+/// order, each held name fed where it stands.
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
-    h.write_tag(match name.kind {
-        EntityKind::Body => 1,
-        EntityKind::Face => 2,
-        EntityKind::Edge => 3,
-        EntityKind::Vertex => 4,
-    });
-    h.write_u64(name.node.0);
-    h.write_u64(name.path.len() as u64);
-    for seg in &name.path {
-        feed_role_seg(h, seg);
+    let mut fed = vec![Fed::Name(name)];
+    while let Some(item) = fed.pop() {
+        match item {
+            Fed::Tag(tag) => h.write_tag(tag),
+            Fed::U64(x) => h.write_u64(x),
+            Fed::Name(name) => {
+                h.write_tag(match name.kind {
+                    EntityKind::Body => 1,
+                    EntityKind::Face => 2,
+                    EntityKind::Edge => 3,
+                    EntityKind::Vertex => 4,
+                });
+                h.write_u64(name.node.0);
+                h.write_u64(name.path.len() as u64);
+                let mut level = SegFeed(Vec::new());
+                for seg in &name.path {
+                    feed_role_seg(&mut level, seg);
+                }
+                fed.extend(level.0.into_iter().rev());
+            }
+        }
+    }
+}
+
+/// One item of a name's content-key stream.
+enum Fed<'a> {
+    Tag(u8),
+    U64(u64),
+    /// A held name, fed whole where it stands.
+    Name(&'a StableName),
+}
+
+/// One level of a name's content-key stream, in order.
+struct SegFeed<'a>(Vec<Fed<'a>>);
+
+impl<'a> SegFeed<'a> {
+    fn write_tag(&mut self, tag: u8) {
+        self.0.push(Fed::Tag(tag));
+    }
+
+    fn write_u64(&mut self, x: u64) {
+        self.0.push(Fed::U64(x));
+    }
+
+    fn name(&mut self, name: &'a StableName) {
+        self.0.push(Fed::Name(name));
     }
 }
 
@@ -5603,7 +5644,7 @@ fn seg_content_tag(tag: SegTag) -> u8 {
 
 /// Feeds one role segment: its word from [`seg_content_tag`], then the
 /// payload its variant carries.
-fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
+fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
     use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg};
     let cap = |c: CapEnd| match c {
         CapEnd::End => 1u8,
@@ -5622,7 +5663,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
     };
     // A locator: its form's word, then the step's minted id or the
     // section's circle, then the role (its word, and a piece's index).
-    let role = |h: &mut KeyHasher, r: crate::names::PieceRole| {
+    let role = |h: &mut SegFeed<'a>, r: crate::names::PieceRole| {
         use crate::names::PieceRole;
         match r {
             PieceRole::Leg => h.write_tag(1),
@@ -5639,7 +5680,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         crate::names::SectionCircle::Outer => 1u8,
         crate::names::SectionCircle::Bore => 2,
     };
-    let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| match e {
+    let pe = |h: &mut SegFeed<'a>, e: crate::names::ProfileEdgeRef| match e {
         crate::names::ProfileEdgeRef::Piece { step, role: r } => {
             h.write_tag(1);
             h.write_u64(step.0);
@@ -5651,7 +5692,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             role(h, r);
         }
     };
-    let pv = |h: &mut KeyHasher, v: crate::names::ProfileVertexRef| match v {
+    let pv = |h: &mut SegFeed<'a>, v: crate::names::ProfileVertexRef| match v {
         crate::names::ProfileVertexRef::Piece { step, role: r } => {
             h.write_tag(1);
             h.write_u64(step.0);
@@ -5663,7 +5704,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             role(h, r);
         }
     };
-    let qual = |h: &mut KeyHasher, q: &Qualifier| {
+    let qual = |h: &mut SegFeed<'a>, q: &'a Qualifier| {
         h.write_tag(match q {
             Qualifier::OrderAlong { .. } => 2,
             Qualifier::Borders(..) => 3,
@@ -5672,7 +5713,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             Qualifier::Borders(walls) => {
                 h.write_u64(walls.len() as u64);
                 for name in walls {
-                    feed_stable_name(h, name);
+                    h.name(name);
                 }
             }
             Qualifier::OrderAlong { rank, of } => {
@@ -5747,19 +5788,19 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             pe(h, *e);
         }
         RoleSeg::FromA(inner) => {
-            feed_stable_name(h, inner);
+            h.name(inner);
         }
         RoleSeg::FromB(inner) => {
-            feed_stable_name(h, inner);
+            h.name(inner);
         }
         RoleSeg::Seam { a, b } => {
-            feed_stable_name(h, a);
-            feed_stable_name(h, b);
+            h.name(a);
+            h.name(b);
         }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
             for n in names {
-                feed_stable_name(h, n);
+                h.name(n);
             }
         }
         RoleSeg::Fragment(q) => {
@@ -5774,69 +5815,69 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         }
         RoleSeg::SectionEdge { side, face } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, face);
+            h.name(face);
         }
         RoleSeg::SplitFragment { side, parent } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, parent);
+            h.name(parent);
         }
         RoleSeg::CrossingVertex { side, edge } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, edge);
+            h.name(edge);
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::InPart { of } => {
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::Instance { i, of } => {
             h.write_u64(u64::from(*i));
-            feed_stable_name(h, of);
+            h.name(of);
         }
         RoleSeg::FromTarget(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::BlendFace(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::CornerFace(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::TrimEdge { edge, support } => {
-            feed_stable_name(h, edge);
-            feed_stable_name(h, support);
+            h.name(edge);
+            h.name(support);
         }
         RoleSeg::FootVertex { vertex, support } => {
-            feed_stable_name(h, vertex);
-            feed_stable_name(h, support);
+            h.name(vertex);
+            h.name(support);
         }
         RoleSeg::EndArc { vertex, edge } => {
-            feed_stable_name(h, vertex);
-            feed_stable_name(h, edge);
+            h.name(vertex);
+            h.name(edge);
         }
         RoleSeg::BandFace(names) => {
             h.write_u64(names.len() as u64);
             for n in names {
-                feed_stable_name(h, n);
+                h.name(n);
             }
         }
         RoleSeg::BandTrim { edge, support } => {
-            feed_stable_name(h, edge);
+            h.name(edge);
             h.write_tag(rim(*support));
         }
         RoleSeg::BandFoot(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::BandCut(n) => {
-            feed_stable_name(h, n);
+            h.name(n);
         }
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
-            feed_stable_name(h, edge);
+            h.name(edge);
             h.write_u64(band.len() as u64);
             for n in band {
-                feed_stable_name(h, n);
+                h.name(n);
             }
         }
         // The n-ary union's member key. BOTH halves feed: two members
@@ -5847,16 +5888,16 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         // exists to prevent.
         RoleSeg::FromMember { member, of } => {
             h.write_u64(member.0);
-            feed_stable_name(h, of);
+            h.name(of);
         }
         // The shell's three roles. Each wraps one source name; the hole
         // rim carries its pairing index beside it, the way `Instance`
         // carries `i`.
-        RoleSeg::Inner(n) => feed_stable_name(h, n),
-        RoleSeg::Rim(n) => feed_stable_name(h, n),
+        RoleSeg::Inner(n) => h.name(n),
+        RoleSeg::Rim(n) => h.name(n),
         RoleSeg::HoleRim { of, hole } => {
             h.write_u64(u64::from(*hole));
-            feed_stable_name(h, of);
+            h.name(of);
         }
     }
 }
@@ -6439,4 +6480,105 @@ pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     h.write_tag(tag);
     h.write_str(serialized);
     h.finish()
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod name_feed_tests {
+    //! A name's content-key feed keeps its own stack, and feeds the
+    //! stream a descent level by level would.
+
+    use super::memo::ContentKey;
+    use super::{Fed, KeyHasher, SegFeed, feed_role_seg, feed_stable_name};
+    use crate::names::{CapEnd, EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
+    use crate::node::RecipeNodeId;
+
+    fn key(name: &StableName) -> ContentKey {
+        let mut h = KeyHasher::new();
+        feed_stable_name(&mut h, name);
+        h.finish()
+    }
+
+    /// The feed as a descent: each held name fed, whole, where its
+    /// holder's segment meets it.
+    fn descending(h: &mut KeyHasher, name: &StableName) {
+        h.write_tag(match name.kind {
+            EntityKind::Body => 1,
+            EntityKind::Face => 2,
+            EntityKind::Edge => 3,
+            EntityKind::Vertex => 4,
+        });
+        h.write_u64(name.node.0);
+        h.write_u64(name.path.len() as u64);
+        for seg in &name.path {
+            let mut level = SegFeed(Vec::new());
+            feed_role_seg(&mut level, seg);
+            for item in level.0 {
+                match item {
+                    Fed::Tag(tag) => h.write_tag(tag),
+                    Fed::U64(x) => h.write_u64(x),
+                    Fed::Name(n) => descending(h, n),
+                }
+            }
+        }
+    }
+
+    fn leaf(node: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    /// `name` one level deeper, held in turn by each shape a segment
+    /// holds a name in, beside payload the feed writes around it.
+    fn wrap(name: StableName, level: usize) -> StableName {
+        let r = NameRef::new(name.clone());
+        let seg = match level % 5 {
+            0 => RoleSeg::Instance { i: 3, of: r },
+            1 => RoleSeg::Fragment(Qualifier::Borders(vec![leaf(7), name])),
+            2 => RoleSeg::BandCross {
+                edge: NameRef::new(leaf(8)),
+                band: vec![name],
+            },
+            3 => RoleSeg::SectionEdge {
+                side: SplitHalf::Below,
+                face: r,
+            },
+            _ => RoleSeg::Seam {
+                a: r,
+                b: NameRef::new(leaf(9)),
+            },
+        };
+        StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId(level as u64 + 10),
+            path: vec![
+                seg,
+                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }),
+            ],
+        }
+    }
+
+    #[test]
+    fn a_name_feeds_the_stream_a_descent_feeds() {
+        let mut name = leaf(1);
+        for level in 0..12 {
+            name = wrap(name, level);
+            let mut h = KeyHasher::new();
+            descending(&mut h, &name);
+            assert_eq!(key(&name), h.finish(), "at depth {level}");
+        }
+    }
+
+    #[test]
+    fn a_name_nested_past_every_stack_keys_on_the_smallest_stack() {
+        test_utils::own_thread::on_the_smallest_stack(|| {
+            let deep = |bottom| (0..20_000).fold(leaf(bottom), wrap);
+            let (a, again, b) = (deep(1), deep(1), deep(2));
+            assert_eq!(key(&a), key(&again), "one name, one key");
+            assert_ne!(key(&a), key(&b), "a difference at the bottom moves the key");
+        });
+    }
 }

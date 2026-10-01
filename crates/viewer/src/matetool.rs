@@ -386,6 +386,16 @@ pub enum MateToolState {
 }
 
 impl MateToolState {
+    /// The held picks, side `a` then side `b`, `None` for a side not
+    /// yet picked — what the panel's line says and the viewport marks.
+    pub fn picks(&self) -> [Option<&FaceSelection>; 2] {
+        match self {
+            Self::Idle => [None, None],
+            Self::One(a) => [Some(a), None],
+            Self::Two { a, b } => [Some(a), Some(b)],
+        }
+    }
+
     /// **The line the mate panel shows for its held picks** — the
     /// seated tools' line (`seats::picks_line`), with the
     /// mate's two sides as its roles and each pick said as `face_of`
@@ -396,11 +406,7 @@ impl MateToolState {
     /// line is the same sentence about the same thing — a role and
     /// what fills it — so it is composed by the same door.
     pub fn line(&self) -> String {
-        let (a, b) = match self {
-            Self::Idle => (None, None),
-            Self::One(a) => (Some(a), None),
-            Self::Two { a, b } => (Some(a), Some(b)),
-        };
+        let [a, b] = self.picks();
         crate::seats::picks_line(
             [(MateSide::A, a), (MateSide::B, b)]
                 .map(|(side, pick)| (format!("pick {}", side.name()), pick.map(face_of))),

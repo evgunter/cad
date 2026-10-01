@@ -12,7 +12,7 @@ one sitting, which is what the cut was for.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `a-negative-extrude-distance-probes-as-valid` | E | The probe reports every negative extrude distance as valid, so a length field's only floor is the single point zero |
+| P0 | `a-negative-extrude-distance-probes-as-valid` | M, design | The probe reports every negative extrude distance as valid, so a length field's only floor is the single point zero |
 | P0 | `add-parameter-form-authors-canonical-only` | E | The add-parameter form authors only the canonical unit, though the kernel's written_length/written_angle doors are total |
 | P0 | `add-profile-mints-no-frame` | D | The add-profile form cannot mint the frame it needs, and names the ones it finds by node number |
 | P0 | `add-profile-placement-on-picked-face-frame` | H | Nothing in the viewer can mint a Datum::FaceFrame, so a profile still cannot be placed on a picked face |
@@ -52,19 +52,18 @@ Then the two node-kind gaps (`viewer-cannot-author-a-part-node`,
 `viewer-cannot-author-a-duplicate-node` — the second is Ev's own
 request and is the cheaper of the pair).
 
-`addboolean-doc-names-a-vocabulary-that-does-not-exist` waits on
-EDIT's `DocEdit` vocabulary rather than on anything here; ask before
-specifying it. The two E rows are drive-bys rather than dispatches
+`addboolean-doc-names-a-vocabulary-that-does-not-exist` closed as
+AUTH-9 (#3543) once EDIT's one-pass declared union landed (#2809).
+The two E rows are drive-bys rather than dispatches
 (`work/README.md`, "The tracker is not comprehensive"), and they ride
 different lanes because they are in different files.
 `add-parameter-form-authors-canonical-only` is
 `pane/properties.rs` and `props.rs` and rides **AUTH-2**, whose
 carrier says why: the notation design call is shared between the two
-parameter doors. `a-negative-extrude-distance-probes-as-valid` is
-`crates/viewer/src/bounds.rs` and `crates/viewer/tests/valid_range.rs`
-— not `forms.rs` or `props.rs`, which this paragraph said until
-2026-09-21 — so it waits for a lane in `bounds.rs` and is otherwise
-unclaimed.
+parameter doors. `a-negative-extrude-distance-probes-as-valid` turned out to be a
+design fork rather than a drive-by: the designer pair converged on an
+extrude depth plus a structural side, which is kernel/WIRE ground, and
+the question is with Ev (#3551).
 
 ## Review posture
 

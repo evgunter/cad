@@ -2,11 +2,14 @@
 id: mekr-and-kvfs-remove-an-empty-loop-or-lone-vertex-another-record-names
 kind: issue
 title: mekr's EmptyRing and BothEmpty sites kill an Empty ring no plan proves unclaimed, and kvfs removes a lone vertex a second Empty loop may hold: DanglingTopology through Ok
-status: open
+status: closed
+pr: 3570
+branch: topo/kill-proves-removals
 opened: 2026-09-30
 refs: [kvfs-kills-a-lone-vertex-and-loop-a-torn-half-edge-still-names]
 priority: P3
 cost: E
+closed: 2026-09-30
 ---
 
 ## What
