@@ -450,7 +450,7 @@ const SEAM_HALFPLANE_ESCALATED: (&str, &str) = (
 /// its decision's lever alone, and the attempt ends there (the `;`
 /// before the next rung).
 const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
-     description says they cross. Recourse: move the geometry so the faces cross at a clearer angle;";
+     description says they cross. Recourse: move the geometry so the surfaces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: (&str, &str) = (

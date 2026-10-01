@@ -1,7 +1,7 @@
 //! **A fillet arc the profile cannot store is refused at the door, not
 //! at validation.**
 //!
-//! A profile stores an arc as its chord and a bulge, and a reader
+//! A profile stores an arc as its chord and a carrier, and a reader
 //! classifies that pair back into a carrier through the same predicates
 //! validation runs. A fillet whose sagitta `r(1 − cos(θ/2)) ≈ r·θ²/8`
 //! sits at or below the run's ε is stored as a segment read as a
@@ -63,7 +63,7 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// The centre of the **line × arc** corner's arrival circle: radius 2,
@@ -89,7 +89,7 @@ fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// An **arc × arc** corner turning by `theta`: the two radius-2 circles
@@ -112,7 +112,7 @@ fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> 
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// A corner kind: its name for the messages, and the door that builds
@@ -342,7 +342,7 @@ fn the_recourse_the_refusal_names_builds_and_validates() {
         .and_then(|p| p.line_to(Start, tol()))
         .expect("the sharp corner builds")
         .loop_;
-    validates(sharp, tol()).expect("and the sharp corner validates");
+    validates(sharp.into_loop(), tol()).expect("and the sharp corner validates");
 }
 
 /// **No loop the fillet doors build carries a declared tangency
@@ -473,7 +473,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                 .and_then(|p| p.angle(th[3], tol()))
                 .and_then(|p| p.fillet(radius, tol()))
                 .and_then(|p| p.to(Start, tol()))
-                .map(|c| c.loop_)
+                .map(|c| c.loop_.into_loop())
         });
         must(format!("line x arc internal r={radius}"), {
             Open.at(Point2::new(0.0, 2.0))
@@ -490,7 +490,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                         tol(),
                     )
                 })
-                .map(|c| c.loop_)
+                .map(|c| c.loop_.into_loop())
         });
         must(format!("arc x line r={radius}"), {
             Open.arc_fillet(
@@ -507,7 +507,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
             .and_then(|p| p.line_to(Point2::new(4.0, 3.0), tol()))
             .and_then(|p| p.line_to(Point2::new(-1.0, 3.0), tol()))
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
         });
         must(format!("arc x arc vesica r={radius}"), {
             Open.arc_fillet_arc(
@@ -525,7 +525,7 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
                 tol(),
             )
             .and_then(|p| p.line_to(Start, tol()))
-            .map(|c| c.loop_)
+            .map(|c| c.loop_.into_loop())
         });
     }
     let named = out.len() - swept;
@@ -551,7 +551,10 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
             continue;
         }
         carried += 1;
-        out.push((format!("shared coverage corpus {i}"), closed.loop_));
+        out.push((
+            format!("shared coverage corpus {i}"),
+            closed.loop_.into_loop(),
+        ));
     }
     assert!(
         carried >= 5,
@@ -562,8 +565,8 @@ fn corpus() -> Vec<(String, ProfileLoop<f64>)> {
 }
 
 /// **The stored loops of the corpus, to the bit.** `CAD_DUMP_FILLETS=1`
-/// prints every corpus loop's vertices and bulges as their raw IEEE
-/// bit patterns, which is what a differential across two revisions
+/// prints every corpus loop's vertices and stored segments as their raw
+/// IEEE bit patterns, which is what a differential across two revisions
 /// diffs. Off by that switch the row still runs the dump, so the
 /// formatting cannot rot unnoticed.
 #[test]
@@ -578,14 +581,19 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
             let verts: Vec<String> = lp
                 .vertices()
                 .iter()
-                .zip(lp.bulges())
-                .map(|(v, b)| {
-                    format!(
-                        "{:016x},{:016x},{:016x}",
-                        v.x.to_bits(),
-                        v.y.to_bits(),
-                        b.to_bits()
-                    )
+                .zip(lp.segments())
+                .map(|(v, s)| {
+                    let arc = match s {
+                        profile::Segment::Line => String::new(),
+                        profile::Segment::Arc(a) => format!(
+                            ",{:016x},{:016x},{:016x},{:016x}",
+                            a.centre.x.to_bits(),
+                            a.centre.y.to_bits(),
+                            a.radius.to_bits(),
+                            a.sweep.to_bits()
+                        ),
+                    };
+                    format!("{:016x},{:016x}{arc}", v.x.to_bits(), v.y.to_bits())
                 })
                 .collect();
             format!(
@@ -601,7 +609,8 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
         }
     }
     // **The golden.** FNV-1a over the whole dump — every coordinate and
-    // every bulge of every corpus loop, as the bits they are stored as.
+    // every stored arc field of every corpus loop, as the bits they are
+    // stored as.
     // One ulp anywhere reds this row, which is what makes it an
     // instrument rather than a description of its own `format!`.
     //
@@ -623,24 +632,24 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
             hash,
             expected,
             "the corpus's stored tables moved at eps = {:e} (got {hash:#018x}); every \
-             coordinate and bulge is in this hash, so re-derive it and say what moved",
+             coordinate and arc field is in this hash, so re-derive it and say what moved",
             tol().eps()
         );
     }
 }
 
 /// The corpus dump's hash at the default ε row (see
-/// [`the_corpus_stored_loops_dump_to_the_bit`]). Re-derived when
-/// `coverage_corpus` gained the RADIUS-ARRIVAL fused chain (row 16):
-/// the dump grows that chain's own loop and the two carrier forms
-/// after it renumber, so the label lines move. No loop that was in
-/// the dump before changed a coordinate or a bulge — the new chain is
-/// an addition, not an edit, at every ε.
-const GOLDEN_DEFAULT: u64 = 0xb07a_e8ba_6ecd_7b4e;
+/// [`the_corpus_stored_loops_dump_to_the_bit`]). Re-derived when the
+/// loop stopped keeping a bulge beside each segment: the dump spells
+/// each segment's stored fields (an arc's centre, radius and sweep)
+/// where it spelled the bulge, so every arc's line moved in form. No
+/// stored value moved — the carriers are the ones the bulges were
+/// lowered to — and no loop's verdict moved, at any ε.
+const GOLDEN_DEFAULT: u64 = 0xf78b_852e_8f50_e2b9;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0x1b29_8cb7_03c2_4bc2;
+const GOLDEN_1E6: u64 = 0xb288_b10a_a6f2_744c;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0xb986_07f6_554a_e6ba;
+const GOLDEN_1E12: u64 = 0x291a_0c67_fcdb_e02f;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the
@@ -710,5 +719,5 @@ fn an_exact_outgoing_fit_leaves_its_joint_undeclared_and_still_validates() {
         "the exact fit declares fewer joints than the loop has: {:?} of {joints}",
         lp.tangent_joints()
     );
-    validates(lp, tol()).expect("and the loop the door built validates");
+    validates(lp.into_loop(), tol()).expect("and the loop the door built validates");
 }

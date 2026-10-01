@@ -77,7 +77,7 @@ fn arc_arc(
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())?;
-    Ok(closed.loop_)
+    Ok(closed.loop_.into_loop())
 }
 
 /// The pair whose two crossings refuse for DIFFERENT reasons: equal

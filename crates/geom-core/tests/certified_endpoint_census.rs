@@ -322,19 +322,19 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        10,
-        10,
-        "`Box3`'s disjointness, containment, centre and split all refuse by name, and \
+        11,
+        11,
+        "`Box3`'s disjointness, containment, centre, split and reach meet all refuse by name, and \
          so does the mignitude (`zero_free_lower_bound`, 4)",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-core/src/interval.rs",
-        22,
-        4,
-        "the type's own body. The 4 that ask are the two refusal doors \
-         (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup` \
-         and `div_down`. The other 18 are not certification \
+        23,
+        5,
+        "the type's own body. The 5 that ask are the two refusal doors \
+         (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup`, \
+         `div_down` and `div_up`. The other 18 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
          `repr_bits`, `copysign`, the kink selectors and the two `select_le_zero` \
@@ -347,7 +347,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         3,
         "the doors that read an endpoint (`clamped_to`, `width`, `mag`), each refusing first",
     ),
-    ("crates/geom-core/src/spline/compose/tensor.rs", 3, 3, ""),
+    ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
         17,

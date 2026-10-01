@@ -60,9 +60,9 @@ Found by review of #3223.
     recorded for positions, now reached only across branches.
   - The row pins that behaviour and is the one that turns when this is
     fixed.
-- `sibling_versions_mint_one_node_id_for_different_nodes`: two inserts
-  applied to one base mint one `RecipeNodeId` for two different
-  extrudes.
+- `sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names`
+  (then pinning the counter): two inserts applied to one base minted
+  one `RecipeNodeId` for two different extrudes.
 
 **This is reachable through the public doors, with no doctored state.**
 The store holds one file per id, the current one

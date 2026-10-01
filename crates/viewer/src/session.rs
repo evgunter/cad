@@ -57,7 +57,7 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr,
+    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Label,
     LoggedEdit, LoopProgram, Maintenance, MaintenanceNet, Node, ParamName, PartReach, PartResolver,
     ProductError, ProfileProgram, RecipeNodeId, SlotId, StepId, Subject, apply, assemble_gathered,
     cascade_delete_order, parse_expr, product_recorded, run_checks_on,
@@ -91,7 +91,9 @@ pub mod select;
 
 pub use author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
+pub use op::{
+    CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,
+};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     DeclareOffer, FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, RefusedBoolean, Step,
@@ -1540,7 +1542,57 @@ impl DocSession {
             SessionOp::Duplicate { input } => self.add_duplicate(input),
             SessionOp::AddInstance { id } => self.add_instance(id),
             SessionOp::AcceptPartVersion { id } => self.accept_part_version(id),
+            SessionOp::SetLabel { node, label } => {
+                self.commit_written(DocEdit::SetLabel { node, label })
+            }
+            SessionOp::CreateLabelled { creation, label } => self.create_labelled(creation, label),
         }
+    }
+
+    /// **A creation and its label as one action** ([`SessionOp::CreateLabelled`]).
+    ///
+    /// The creation is performed as it would be alone, through
+    /// whichever commit door it takes. Once it has recorded its state,
+    /// a `SetLabel` on the last node it minted is applied to that
+    /// state's document and joins that state's group
+    /// ([`History::extend_current`]), so the insert and the label are
+    /// one undo whatever door recorded the insert. A creation that
+    /// recorded nothing (refused, or declined) is answered as it is,
+    /// and its label is not applied.
+    fn create_labelled(&mut self, creation: Creation, label: Label) -> OpOutcome {
+        let before = self.history.current();
+        let mut outcome = self.perform(creation.into_op());
+        let recorded = self.history.current();
+        let Some(&node) = outcome.minted.last() else {
+            return outcome;
+        };
+        if recorded == before || outcome.refusal.is_some() {
+            return outcome;
+        }
+        let edit = DocEdit::SetLabel {
+            node,
+            label: Some(label),
+        };
+        // A label edit performs no maintenance, so its reach is never
+        // asked; the session's own is handed over for uniformity.
+        let resolver = self.resolver_seam();
+        let reach = PartReach::<f64>::with_resolver(Some(&resolver), self.tol);
+        match apply(self.history.doc(), &edit, self.tol, &reach) {
+            Ok(applied) => {
+                self.history.extend_current(
+                    recorded,
+                    LoggedEdit {
+                        edit: edit.clone(),
+                        maintenance: applied.cluster_rows(),
+                    },
+                    applied.doc,
+                );
+                outcome.committed.push(edit);
+                self.request_eval();
+            }
+            Err(error) => outcome.refusal = Some(Refusal::Edit(Box::new(error))),
+        }
+        outcome
     }
 
     /// The documents the open document's own directory offers as
@@ -2781,6 +2833,8 @@ impl DocSession {
                 doc.params().get(name),
                 Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
             ),
+            // The rename field's text, against the label the node has.
+            DocEdit::SetLabel { node, label } => doc.label(*node) == label.as_ref(),
             // Every other edit submits. The structure of the recipe and
             // the shape of the product: a node inserted, deleted,
             // re-parented or re-pointed has no standing value of its

@@ -128,3 +128,12 @@ The SSI tube's refusal now carries its verdict
 verdict.margin(), .. }`): a fresh copy of the same Zero/Negative
 conflation on this carrier.
 
+
+## D36 (2026-10-01, `pcert/d36-unsupported-carrier-split`)
+
+`UnsupportedCarrier` is no longer one of the stopping arms: D36 split it
+into `UnsupportedCarrier { chart, carrier, class }`, `CarrierOffChart
+{ chart, carrier, why }` and `ImageMismatch { image, why }`, each of
+whose `Display` names its pair and ends in a `Recourse:` clause, pinned
+by `pcurve_cache::tests::every_carrier_refusal_arm_names_its_pair_and_a_recourse`.
+The other six stand, and the variant count is nineteen.

@@ -54,6 +54,10 @@
 //! off the hosted `interval` lane, which is the only place this
 //! workspace builds that backend.
 //!
+//! **The stream hashes each node's id and walks the nodes in id
+//! order**, so a change to how the mint draws ids moves all three
+//! numbers with no point moving.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -463,7 +467,8 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
         j: usize,
         x: T,
         y: T,
-        bulge: T,
+        /// The leaving segment's stored sweep; zero for a line.
+        sweep: T,
     },
     /// Fixture program `i` refused at this scalar.
     FixtureRefused(usize),
@@ -572,10 +577,10 @@ where
             d.text("ok");
             d.u64(vertices as u64);
         }
-        Seen::FixtureVertex { x, y, bulge, .. } => {
+        Seen::FixtureVertex { x, y, sweep, .. } => {
             scalar(&mut d, x);
             scalar(&mut d, y);
-            scalar(&mut d, bulge);
+            scalar(&mut d, sweep);
         }
         Seen::FixtureRefused(_) => d.text("refused"),
         Seen::Document(name) => d.text(name),
@@ -661,17 +666,22 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
             .collect();
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
+                let lp = lp.as_loop();
                 seen(Seen::FixtureLoop {
                     i,
                     vertices: lp.vertices().len(),
                 });
-                for (j, (v, &bulge)) in lp.vertices().iter().zip(lp.bulges()).enumerate() {
+                for (j, (v, s)) in lp.vertices().iter().zip(lp.segments()).enumerate() {
+                    let sweep = match s {
+                        profile::Segment::Line => T::zero(),
+                        profile::Segment::Arc(arc) => arc.sweep,
+                    };
                     seen(Seen::FixtureVertex {
                         i,
                         j,
                         x: v.x,
                         y: v.y,
-                        bulge,
+                        sweep,
                     });
                 }
             }
@@ -696,7 +706,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x1d88_8859_88d9_dd79, 0x2657_da95_5bf0_b3b5),
+        (0x878a_0902_5cea_b61a, 0x9a41_6437_2c4f_8eee),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -722,7 +732,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x74fc_91e2_8365_51d5, 0xa1ee_304e_4eba_df89),
+        (0x9224_8bd0_be1e_7d68, 0x2921_a5ca_5a26_b4d4),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -746,7 +756,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x1d88_8859_88d9_dd79, 0x2657_da95_5bf0_b3b5),
+        (0x878a_0902_5cea_b61a, 0x9a41_6437_2c4f_8eee),
         "the corpus's Probe evaluation moved"
     );
 }

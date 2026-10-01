@@ -613,7 +613,7 @@ fn attack_header_spellings() {
     assert!(load(&format!("id: {hex}\n{body}"), Tol::witness()).is_ok());
 }
 
-/// ATTACK 10: appearance key referencing a DELETED node (< next_id,
+/// ATTACK 10: appearance key referencing a DELETED node (minted,
 /// not live) in a crafted snapshot — and metadata insertion-order
 /// canonicalization.
 #[test]

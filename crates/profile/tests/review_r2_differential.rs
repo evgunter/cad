@@ -24,7 +24,11 @@ fn record(out: &mut String, key: &str, lp: &Result<ProfileLoop<f64>, PathError<f
     match lp {
         Ok(lp) => {
             let _ = write!(out, "{key} BUILT joints={:?}", lp.tangent_joints());
-            for (v, b) in lp.vertices().iter().zip(lp.bulges()) {
+            for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                let b = match s {
+                    profile::Segment::Line => 0.0,
+                    profile::Segment::Arc(arc) => arc.sweep,
+                };
                 let _ = write!(
                     out,
                     " [{:016x},{:016x},{:016x}]",
@@ -58,7 +62,7 @@ fn line_arc(radius: f64, carrier: f64) -> Result<ProfileLoop<f64>, PathError<f64
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
@@ -77,7 +81,7 @@ fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathEr
         },
         tol(),
     )
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 fn mixed(r_carrier: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
@@ -96,7 +100,7 @@ fn mixed(r_carrier: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
@@ -108,7 +112,7 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 fn corner_out(
@@ -132,7 +136,7 @@ fn corner_out(
             tol(),
         )?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 #[test]

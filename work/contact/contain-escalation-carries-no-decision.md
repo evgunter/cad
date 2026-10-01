@@ -105,3 +105,39 @@ The front door meets this gate before the pierce normal ever does:
 `work/contact/degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine.md`
 (PR 3506's fix pass) has the two stories a degenerate torus operand
 gets through `union`/`subtract` instead.
+
+## Met after a valued offer, and at a declared pair (TOPO, PR 3513's fifth fix pass)
+
+The coincfr4 review of PR 3513 executed three public poses whose
+valued offer is true of its own decision: re-run at 0.9 × the value,
+that decision no longer refuses. Each re-run then meets this row's
+`BooleanError::Containment` (`PointInSolidError`'s `Escalated` arm).
+It ends "Recourse: declare the coincidence, move the geometry, or
+lower the tolerance": nothing in the pose can be declared, and no
+value is given. Each operation passes a decade lower. PR 3513's
+harness logs these stories under this row's id
+(`topo::test_support::LATER_STORIES_OWNED`). The poses, as executed at
+PR 3513's fifth pass:
+
+- **A bent split prism, public union** (`topo` `offer_rows`,
+  `neighbours_bent_in_a_union`). At 1e-9 it refuses
+  `Neighbours(Parallel)` and offers 5.5e-10. At 4.95e-10 it gets
+  `Containment`, margin −2.75e-9. At 4.95e-11 it passes.
+- **A brick D below a tube's wall, public union** (`sweep`
+  `offer_rows`, `brick_below_a_tube_union`). At 1e-9 it refuses
+  `Coincidence(EdgeOnCurvedFace)` and offers 5.5e-10. At 4.95e-10 it
+  gets `Containment`, margin −2.75e-9. At 4.95e-11 it passes.
+- **The review's W6**: a 30° wedge tilted 1.1e-8, its far vertex
+  5.5e-9 above the block, union and intersect (`topo` `offer_rows`,
+  `wide_wedge_with_a_far_vertex_*`). It refuses
+  `Coincidence(VertexOnFace)`, which no longer offers a tolerance. The
+  value withdrawn, 0.9 × 5.5e-10, gets `Containment` (margin 1.91e-9 in
+  the review's own run).
+
+**At a declared pair** (the review's MINOR-3, its W2: an 8° wedge at
+scale ½ tilted 5e-9, its bottom declared `Rest` on the block's top,
+through `boolean_op_with`). Undeclared, it refuses `Coincidence(Sectors)`
+and offers the declaration. Declared, it refuses here at 1e-9 with
+margin 8.12e-9, and still says "declare the coincidence", to a pair
+already declared. That is the review's probe `zz4_w2_decl_{u,s}`,
+re-run at the fifth pass's head.

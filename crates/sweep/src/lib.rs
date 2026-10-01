@@ -169,15 +169,21 @@ pub use revolve::{
 // legs through it — the LIB-U4 exact-path territory): a caller must
 // be able to spell its input without depending on `geom-brep`
 // directly. Loft/sweep SECTIONS no longer speak it (LIB-U3): they
-// are `Section`s — `profile::ProfileLoop` lists, re-exported here so
+// are `Section`s — lists of `profile::ProfileLoop` tables or of the
+// path lattice's `profile::ConstructedLoop`s, re-exported here so
 // section authors need not depend on `profile` directly.
 pub use geom_brep::SketchSegment;
-pub use profile::ProfileLoop;
+pub use profile::{ConstructedLoop, ProfileLoop};
 pub use skin::{
-    LoftGeometry, Section, SkinError, loft_geometry, loft_parameters, make_compatible,
+    LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, loft_parameters, make_compatible,
     segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
 pub mod blend;
 pub mod chamfer;
 pub mod fillet;
+
+// The sphere cases of `topo`'s executed-offer census, whose raises need
+// this crate's balls.
+#[cfg(test)]
+mod offer_rows;

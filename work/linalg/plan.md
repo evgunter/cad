@@ -2,44 +2,27 @@
 
 geom-core's vectors, frames and interval conventions: the answers that are wrong at Interval
 
-Opened 2026-09-20 by PROPS's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
-
-## The slate
-
-**20.5 budget points** of dispatchable work against a ceiling of 30.
-
-| pri | item | cost | title |
-|---|---|---|---|
-| P0 | `interval-orthonormal-basis-sign-hull` | H | Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero |
-| P0 | `nan-sign-is-not-stable-under-code-motion-so-d9s-fixed-order-covers-non-nan-only` | D | A Mat3/Affine3 product's NaN sign and payload differ between debug and release because LLVM commutes fadd across inline sites, so D9's fixed-order determinism holds for non-NaN outputs only |
-| P0 | `pole-branch-pick-two-integer-shift` | H | chord_join sphere-pole branch pick hands shift_branch a two-integer shift at Interval when an entry azimuth lands on the previous exit |
-| P0 | `sector-shape-mints-indeterminates-through-an-invalid-helper` | D | sector_shape mints Indeterminates through a local invalid() helper after a definite sign |
-| P0 | `torus-meridian-orient-builds-a-frame-on-an-undecided-normalize` | E | torus_meridian_orient builds a hand Gram-Schmidt frame on an undecided normalize |
-| P1 | `geom-core-linalg-has-no-array-doors` | E | geom-core linalg has no [f64;3] or [[f64;3];3] conversions, so every stored-array frame in editor-core lowers to Vec3/Mat3 by hand |
-| P1 | `interval-backend-signed-zero-conventions` | D | The interval backend's signed-zero conventions: a stale inari comment at interval.rs, abs(−0.0) = −0.0, and * and / dropping the bit |
-| P1 | `point3-has-no-order-and-vec3-no-sup-norm-door` | E | Point3 has no order and Vec3 no sup-norm door — the two spellings the tour lift sweep could not route through a door |
+Live state is in `python3 scripts/work.py status --program linalg`; the
+log carries the narrative.
 
 ## Order
 
-`interval-orthonormal-basis-sign-hull` first, and read FRAME's
-sign-hull unit before specifying it: Ev ruled (option 1, on #1944)
-that the frame constructor crosses the normal with a decided world
-axis and transfers no sign, and that ruling governs this row's answer
-as well.
-
-Then `pole-branch-pick-two-integer-shift` and
-`sector-shape-mints-indeterminates-through-an-invalid-helper` — both
-throw away a sign or a branch the code has already proved, which is
-the same mistake twice.
-`nan-sign-is-not-stable-under-code-motion-...` is a DESIGN.md question
-(how wide D9's determinism claim actually is) and should be put to Ev
-rather than answered here.
+1. **`certification-gains-a-sqrt-door`** (P2, M). CURVED's body is the
+   spec. The unit crosses QUAD, ENCL and TESS ground by announced seam,
+   and every retired `sqrt_up` caller's radicand must be checked:
+   `sqrt_up(x ≤ 0)` returns `x`.
+2. **The two adoption sweeps** (P4, E), done as one mechanical lane:
+   `array-doors-are-not-yet-adopted-by-the-test-suites` and
+   `hand-chebyshev-chains-are-not-yet-on-norm-inf`. Tier: the
+   orchestrator's read, because the change is mechanical. A transposed
+   lowering is still possible, so the lane runs a differential on
+   every rewritten site.
+3. **`the-viewer-camera-spells-4x4-arithmetic-with-no-mat4-to-lower-to`**
+   (P3, design). A designer pair weighs it first. The open question is
+   whether geom-core should carry a projective type at all, or whether
+   the camera's arithmetic belongs to the viewer.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. PROPS inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+The tiers are Ev's (2026-09-19, and 2026-09-23 for the dual). Each
+dispatch records its tier and its reason in `log.md`.

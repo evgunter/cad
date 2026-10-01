@@ -398,8 +398,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
   carrier is one edge. The form is redundant (the vertices lie on the
   carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
-  consistency conditions are verified at validate as ε-decisions at the
-  validating scalar, never trusted; a stored carrier is carried
+  consistency conditions are never trusted: each is either checked at
+  validate or holds by construction, proved by what built the arc at
+  the scalar it was built in, and none is decided twice (where each
+  is decided: `crates/profile/README.md`); a stored carrier is carried
   verbatim, including across scalars, and never re-derived from its
   vertices. The authored shape lives in the program, which is what a
   document stores and edits; the loop is its canonical cache, rebuilt
@@ -448,13 +450,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 - **Maximal-faces precondition and the merge stage.** Booleans
   precondition no two adjacent coplanar faces (`NonMaximalFaces`); the
   explicit opt-in normalization op is `merge_coplanar_faces` (merging
-  is never silent), and two ops run it as a documented final stage of
-  their contract, because each manufactures coplanar pairs by
-  construction: boolean *outputs* (the seam zip), and *sweeps* over a
-  profile side the author subdivided with a declared straight
-  continuation (the two walls are one carrier by that declaration, so
-  they share a surface key and merge on the structural rung). In
-  either case the recipe records one node, not hidden healing. Merge glues on the structural and declared rungs
+  is never silent), and boolean *outputs* run it as a documented final
+  stage of the op's contract — the seam zip manufactures coplanar
+  pairs by construction; the recipe records one boolean node, not
+  hidden healing. A sweep mints no same-key adjacency to merge: it
+  builds one wall per run of profile pieces on one carrier
+  (`crates/sweep/README.md`, "Walls"). Merge glues on the structural and declared rungs
   only; numeric coincidence never merges. A boolean licenses a
   cross-operand coplanar pair to merge by a declared continuation
   (`crates/topo/README.md`, C4); a same-sense cosurface adjacency it
@@ -780,7 +781,10 @@ Five commitments:
    its intensional description (D2). Kernel invariant: `residual ≤ ε`
    for every derived item in a valid body; the `topo` validator checks
    it, at `f64` as a conservative estimate and at `Interval` as an
-   enclosure.
+   enclosure. A certified upper bound on a vector-valued residual is
+   read from the Euclidean norm of each coefficient, never from a
+   per-coordinate box folded into a norm: the bound is then a function
+   of the geometry, and a rigid map moves it only by its rounding width.
 3. **Failure is a typed, actionable error naming the failing check and
    the entity** — consumable by humans and by the error-propagation
    machinery. The carrier is `CertifyError::ResidualExceeded { check,
@@ -974,7 +978,7 @@ swallowed.
   curable-vs-terminal, not bug-vs-invalid: an `Indeterminate` whose
   `MarginDiag` is of kind `Value`, or an `Enclosure` wholly inside a
   sliver band, is a statement about the input and reaches the user
-  through `COINCIDENCE_RECOURSE`; a straddling `Enclosure` is generally
+  through its decision's recourse (D4 ¶1 (i)); a straddling `Enclosure` is generally
   curable by subdivision, and an `Invalid` margin from a domain clamp
   may cure as the violating sub-box shrinks (a NaI never does). The
   subdivision driver exists (`editor_core::drive`, ERROR-DESIGN E6): a

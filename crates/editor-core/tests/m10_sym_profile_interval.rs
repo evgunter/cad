@@ -264,23 +264,24 @@ fn eps_row(eps: f64) -> usize {
 /// which restores the old line.
 ///
 /// What moves it is what moves [`PLATE_LEDGER`]; on the slab the
-/// edges' mid-parameter points are the lever — every witness is minted
-/// and certified at [`geom::mid_param`], and its spelling,
-/// `(t₀ + t₁)·½`, builds different forms from `t₀ + (t₁ − t₀)·½` for
-/// the same point, which reads here as `Plain/Decision` forms alone.
+/// edges' mid-parameter points are the lever — the witness an edge is
+/// minted with, the certificate's midpoint check and its schedule's
+/// middle station are one [`geom::mid_param`] evaluation, and a second
+/// spelling of that point builds a second chain of forms, which reads
+/// here as `Plain/Decision` forms alone.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 980 forms 9852 frozen 0 digest 470abc12bada3dcd9f6cc5ecc9b8c3a4\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest d7f80a97523e0c39f3318a28750839c1\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest ec472ae73ea4c7420d838e1560bb36d0",
     "\
-     Plain/Decision calls 980 forms 9852 frozen 0 digest 750cf690b774e40d40aad503aab9d326\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 2710dc0cfa425787e71ead1da8b6beaf\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest e83eae7723869354725ac1ce959e7302",
     "\
-     Plain/Decision calls 980 forms 9852 frozen 0 digest 19552976703374afc650924be6414006\n\
+     Plain/Decision calls 980 forms 9426 frozen 0 digest 855dea1b67548e891960c9fa117e7ad3\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
      Early/Assertion calls 510 forms 1958 frozen 0 digest 171de8349a6fabdbdc04441d2abb73b7",
@@ -376,6 +377,13 @@ const SLAB_LEDGER: [&str; 3] = [
 /// `Plain/Decision` 672 → 720, `Plain/Assertion` 372 → 420, and the
 /// apex lines 104 → 112. Calls are unchanged. Measured by restoring the
 /// old spelling on a probe, which restores both ledgers.
+///
+/// **With the one apex spelling** (`Arc2::apex`, whose sagitta reads
+/// `Arc2::quarter_tan`, the quarter sweep's `sin / cos` that rule D
+/// folds, in place of `tan`), the `Early/Assertion` and `Door/Decision`
+/// lines freeze nothing: the 104 nodes each that `tan(1·atan(1))` froze
+/// are gone, as folding `tan` measured above. A probe spelling
+/// `quarter_tan` as `tan` restores 104 on both lines.
 const SLAB_MAX_TERMS: usize = 6;
 const PLATE_MAX_TERMS: usize = 252;
 
@@ -389,13 +397,16 @@ const PLATE_MAX_TERMS: usize = 252;
 /// edge's mid parameter is spelled ([`geom::mid_param`]). A change
 /// that moves only digests reorders the forms; one that moves counts
 /// changes what is built.
+///
+/// The door's calls include the lowering's endpoint registrations
+/// (`Arc2::register_endpoints`): 16 decisions and 16 assertions.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15086 frozen 720 digest 2bae6acb5dd6e6f182a32aa86e7c9f69\n\
-     Plain/Assertion calls 462 forms 2941 frozen 420 digest 889d036c604d77280102ff460908e6cc\n\
-     Early/Decision calls 320 forms 7973 frozen 8 digest da1d7adcd3eb492876fe3a3a97f6bb29\n\
-     Early/Assertion calls 462 forms 3753 frozen 112 digest 2f847df27c1fdbb57f07fda01077e78a\n\
-     Door/Decision calls 330 forms 12012 frozen 112 digest 91308bb17a2ea723d9bb45de7cdb3249\n\
-     Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 951 forms 14653 frozen 672 digest 5f922b2af13058d8b4f4572cf657c77d\n\
+     Plain/Assertion calls 462 forms 2526 frozen 372 digest 6c29633eaf7b7e2c746fddc842754e9a\n\
+     Early/Decision calls 320 forms 7710 frozen 8 digest cc786663ad599318ae48e1ad6a64521d\n\
+     Early/Assertion calls 462 forms 3389 frozen 0 digest c8a22079b42a8cbe472a3f7466cd3bd0\n\
+     Door/Decision calls 346 forms 11732 frozen 0 digest 2184a919171301ac92d6fd3426aa3e03\n\
+     Door/Assertion calls 206 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

@@ -36,3 +36,5 @@ the revolved arm's `_azimuth` does.
 ## Home
 
 CURVED (`offset_axial.rs`); the planar sibling is SHELL's.
+
+Moved from CURVED at its close (2026-10-01): `crates/topo/src/offset_axial.rs` is OFFSET's ground.

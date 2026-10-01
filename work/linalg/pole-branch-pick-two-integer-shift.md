@@ -2,12 +2,13 @@
 id: pole-branch-pick-two-integer-shift
 kind: issue
 title: chord_join sphere-pole branch pick hands shift_branch a two-integer shift at Interval when an entry azimuth lands on the previous exit
-status: open
+status: closed
 opened: 2026-08-30
 github: 1305
 refs: [1191]
 priority: P0
 cost: H
+closed: 2026-10-01
 ---
 
 ## From GitHub issue 1305
@@ -32,3 +33,29 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Closed (2026-10-01)
+
+Closed by #3711 on a measurement. No refusal was added.
+
+**Where the shift can occur.** At `Interval` a non-singleton shift
+arises only on a body that tier 2 rejects: a meridian slit to the pole
+(`ScaffoldingStrutVertex`), or two edges overlapping on one
+half-meridian. Across the whole Interval corpus, 1,291 pole-arm calls
+were all singletons, and the review's valid-body search found none
+either.
+
+**Why the hull is sound.** The two-integer shift is a sound hull over
+both branches, and it encloses the f64 window. The row
+`the_interval_window_of_a_slit_dome_encloses_the_f64_window` pins
+this; a planted one-branch pick turns it red.
+
+**Why no reader can misuse it.** The hull's width encloses ≥ τ, so
+every window reader's period gate either declines it (f64) or
+escalates it (Interval). No reader treats it as a region.
+
+**Why a refusal at the arm would be worse.** A planted refusal turned
+correct containment verdicts into `PartialSphereFace`.
+
+Filed on CLEAVE's slate: a strut-bearing operand passes the boolean
+gates and refuses at the join.

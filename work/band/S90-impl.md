@@ -66,3 +66,115 @@ RING-3 (#3153) dissolved it into `Interval`. The roster's *"exactly"*
 also misses `Sym<T>` (`crates/geom-core/src/sym.rs`), which implements it
 only over a `T` that does, so `Sym<Dual>` is excluded too and the
 conclusion stands.
+
+## Measured 2026-10-01 (BAND, step 1): the tightening needs a design fork decided first
+
+**The doors, as of the tree today.** `fillet_edges` and `chamfer_edges`
+(`blend/build.rs`) take `T: Decide + Bounds + topo::AtRestPolicy`.
+`run_battery` and `run_battery_for` (`blend/battery.rs`) take
+`T: Decide + Bounds`. **`ring_clearance` is no longer a public door.** It
+is `pub(crate)`, and its only public spelling is
+`ring_clearance_for_tests`, which is behind `cfg(any(test, feature =
+"test-support"))` and re-exported as `test_support::ring_clearance`.
+Outside `blend/`, nothing calls `run_battery`, `run_battery_for` or
+`ring_clearance` generically. All three reach the build doors through
+`fillet_edges_inner` and `chamfer_edges_inner`, so tightening any one of
+the three means tightening `fillet_edges` too.
+
+**The generic chain, found by compiling it.** I tightened both build
+doors to `Decide + CertifiedBounds + topo::AtRestPolicy`, ran `cargo
+check -p verbs -p editor-core` and reverted. The first `E0277` is no
+longer in editor-core. It is `verbs::Verb::run` (`crates/verbs/src/run.rs`,
+`impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T>`, at its `Fillet`
+and `Chamfer` arms). Above that call the chain is
+`editor_core::eval::evaluate<T: EvalScalar>`, then `wire::run_op`
+(`EvalScalar`'s set), then `wire_blend<T: Decide + Bounds + AtRestPolicy>`,
+then `Verb::run`. `Dual<T>` implements every member of `EvalScalar`
+(`ContentBits`, `AxisScalar`, `SeedScalar`, `MinClearanceLane`,
+`SectionScalar`, `AtRestPolicy`), each with a deliberate impl. All other
+callers outside the blend module are concrete (`f64` or `Interval`) or
+are re-exports (`sweep::{fillet,chamfer}`, `pncad::prelude`).
+
+**Why editor-core is generic over `Dual`, and where it runs a fillet at
+`Dual`.** It is the E4 sensitivity tier: `stackup::driver` (under
+`stackup::sensitivities` and `stackup::stackup`) evaluates the whole
+document at `Dual64`, one unseeded base and one seeded pass per
+parameter, and pairs each pass with the `f64` anchor (DUAL-DESIGN DL2
+and DL3). That is the only `Dual` instantiation of `evaluate` in shipped
+code. Today a fillet at `Dual64` runs, and it runs green:
+`m10_di_dual_corpus::every_document_evaluates_at_dual64_with_the_f64_value_channel`
+iterates the whole registry, `die_fillet` and `die_chamfer` included,
+and asserts that every node is `Ok` and the value channel is
+bit-identical to `f64`. No sensitivity test or demo differentiates
+through a 3D blend: the "filleted bracket" rows are profile arcs.
+
+**So tightening forces a choice the ruling did not make.** Once
+`Verb::run` cannot call the door at `Dual`, a `Dual64` evaluation of a
+document with a fillet must do something at that node:
+
+1. **Refuse typed at the node (the shell precedent).** The pattern is a
+   door value on `AtRestPolicy` (`blend_door() -> Option<BlendDoor<Self>>`,
+   `None` at `Dual`, its constructor bounded on `CertifiedBounds`), which
+   `Verb::run` takes as `run_shell` takes `ShellDoor`, with
+   `wire_blend` refusing `BlendLaneUnsupported { scalar }`. What it
+   costs:
+   - `die_fillet` and `die_chamfer` leave the green-at-`Dual64` corpus
+     row, as `cup` and `vessel` sit outside the registry today.
+   - `stackup::sensitivities` over any filleted or chamfered part stops
+     answering. Whether it fails whole (`PairingViolation`, which is what
+     `pair_pass` does today with the shell's refusal; filed as
+     `work/stack/stackup-pairing-reads-the-shells-dual-refusal-as-a-violation`)
+     or answers `Unliftable` per entry is a second choice inside this
+     one.
+2. **Run the blend on the value channel and lift it back with zero
+   tangents.** The value channel would match, but every tangent
+   downstream would be wrong, so DL3's "sensitivity of the as-built
+   body" would be false. Rejected.
+3. **Keep a `Dual`-admitting internal door that the verb or document
+   path reaches.** That reopens the external `Dual` route the ruling
+   closes. Rejected.
+4. **Put option 1's cost to Ev before acting.** The `#883` pricing ("a
+   fillet stops being differentiable") was recorded against the kernel
+   door. That the E4 tier does differentiate through fillets today, and
+   that a corpus row pins it, was found after the 2026-08-21 ruling.
+
+Recommendation: option 1 with an `Unliftable` valve (a new `LiftRefusal`
+arm), so a stackup over a filleted part reports the fillet node as the
+place its sensitivity stops rather than failing whole. That reads
+straight off DL3's door-value list and the shell precedent. It still
+needs Ev's sign-off because it removes a capability that works today,
+and "at least for now" was hedged without that capability in view.
+
+**The bracket reads, re-counted and classified.** I counted `.lo()` and
+`.hi()` outside comments in `blend/`, including `arms.rs`, `admit.rs`,
+`naming.rs` and `open/`: **13 lines, 18 reads.** That is fewer than the
+17 lines and 19 reads recorded on 2026-09-02, because the nine payload
+fields in `battery.rs` now go through one `measured` constructor. The
+helpers carry these reads to their callers (`classified`, `short_arm`,
+`piece_distance` and `piece_along`, the last two used from
+`open/ruled.rs`), so a pattern counting `.lo()` calls cannot see those
+callers. The second pass, for `to_f64`, `Bounds::` and `width`, found no
+other bracket spelling.
+
+| site | reads | class |
+|---|---|---|
+| `battery::holds_enclosures` (`third.lo() < third.hi()`) | 2 | payload: picks the `MarginDiag` variant by measuring the type, decides nothing about geometry |
+| `battery::measured` (`value.lo(), value.hi()`) | 2 | payload: every margin field in a refusal, via `classified` and `short_arm` |
+| `battery::radius_headroom`, `spine_regularity` (`radius: radius.lo()`) | 2 | payload |
+| `battery` junction-end pick (`d0.min(d1).lo() == d0.lo()`) | 2 | selection: picks which tangent feeds the chain-G1 decision |
+| `build::nonpositive_size_gate` (`size.lo().partial_cmp(&0.0)`) | 1 | decision: refuses a size that is not positive |
+| `build::nonpositive_size_gate` (`size: size.lo()`) | 1 | payload |
+| `build::octant_chart` candidate score (`.norm().lo().abs()`) | 1 | selection: an `f64` score that picks the corner chart |
+| `surgery::CircleFrame::misses` | 2 | selection: chooses between the ends and the whole circle (DL5(b), argued at the site); feeds `ring_clearance`'s margin |
+| `surgery::CircleFrame::distance` (`rho.lo() <= 0.0`) | 1 | selection: on-axis guard |
+| `surgery::CircleFrame::along` (`nu.lo() <= 0.0`) | 1 | selection: on-axis guard |
+| `surgery::seam_split_param` period guard | 1 | decision on a representation datum: refuses typed |
+| `surgery::seam_split_param` in-window test | 2 | selection or refusal on a representation datum |
+
+Totals: 9 payload reads, 7 selection reads, 2 decision reads.
+
+**The class is wider than three doors.** Eight more `pub` functions in
+`battery.rs` take `Decide + Bounds`: `radius_headroom`,
+`spine_regularity`, `convexity_at`, `chain_g1`, `corner_config`,
+`face_clearance`, `run_battery_for` and `cap_transverse`. Whatever
+tightens `run_battery` should tighten them in the same edit.
