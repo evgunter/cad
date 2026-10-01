@@ -10,6 +10,11 @@
 //! ranks run all survive as positions, and a stretch that changed
 //! hands prints as a different position.
 //!
+//! Each node's value channels (its payload and contact records) are
+//! written beside its table as one digest of the same positional
+//! spelling (std's `DefaultHasher`, so compare dumps from one
+//! toolchain).
+//!
 //! Not a gate: it asserts nothing about the names, and writes the dump
 //! the comparison reads. To compare two trees, run in each, with the
 //! file copied in and listed in `all.rs` where it is absent:
@@ -31,8 +36,8 @@ use editor_core::{Node, ProfileDoc};
 
 use crate::corpus;
 
-/// `text` with every `RecipeNodeId(n)` and `StepId(n)` spelled as the
-/// position `at` gives it. An id `at` does not hold is left as it was
+/// `text` with every `RecipeNodeId(n)`, `StepId(n)` and bare `node: n`
+/// field spelled as the position `at` gives it. An id `at` does not hold is left as it was
 /// and counted in `unplaced`.
 fn at_position(text: &str, at: &BTreeMap<(&str, u64), String>, unplaced: &mut usize) -> String {
     let mut out = String::with_capacity(text.len());
@@ -54,6 +59,26 @@ fn at_position(text: &str, at: &BTreeMap<(&str, u64), String>, unplaced: &mut us
                 rest = &tail[close + 1..];
                 continue 'scan;
             }
+        }
+        // A geometry source and its placed expression hold a node's id
+        // as a bare `node: n` field.
+        let open = "node: ";
+        if out.ends_with([' ', '{'])
+            && let Some(tail) = rest.strip_prefix(open)
+            && let Some(close) = tail.find(|c: char| !c.is_ascii_digit())
+            && close > 0
+            && let Ok(bits) = tail[..close].parse::<u64>()
+        {
+            out.push_str(open);
+            match at.get(&("RecipeNodeId", bits)) {
+                Some(pos) => out.push_str(pos),
+                None => {
+                    *unplaced += 1;
+                    out.push_str(&tail[..close]);
+                }
+            }
+            rest = &tail[close..];
+            continue 'scan;
         }
         let ch = rest.chars().next().expect("rest is not empty");
         out.push(ch);
@@ -103,6 +128,17 @@ fn name_tables_by_position() {
                 .map(|(n, e)| at_position(&format!("{n:?}={e:?}"), &at, &mut unplaced))
                 .collect();
             rows.sort_unstable();
+            // The value channels — the payload and the contact records —
+            // as one digest of their positional spelling: equal across
+            // the trees where only the ids moved.
+            let channels = at_position(
+                &format!("{:?}|{:?}", value.payload, value.contacts),
+                &at,
+                &mut unplaced,
+            );
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            std::hash::Hash::hash(&channels, &mut h);
+            writeln!(dump, "#{pos} value {:016x}", std::hash::Hasher::finish(&h)).unwrap();
             writeln!(dump, "#{pos} {} rows", rows.len()).unwrap();
             for row in rows {
                 writeln!(dump, "  {row}").unwrap();
