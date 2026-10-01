@@ -164,6 +164,8 @@ mod r1_pxn_probes;
 mod r2_cert3_e2e;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
+#[path = "review_d36_probes.rs"]
+mod review_d36_probes;
 #[path = "review_flux_probes_r1.rs"]
 mod review_flux_probes_r1;
 #[path = "review_m2_pr3_certify.rs"]
