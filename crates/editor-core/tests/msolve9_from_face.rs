@@ -186,9 +186,9 @@ fn cap_pose(post: &ProfileDoc, body: RecipeNodeId, end: CapEnd) -> topo::readbac
 fn resolved(pose: &topo::readback::Pose<f64>) -> Frame {
     let u_ref = pose.u_ref.expect("the carrier fixes a reference");
     let authored = AuthoredFrame {
-        origin: [pose.origin.x, pose.origin.y, pose.origin.z],
-        axis: [pose.axis.x, pose.axis.y, pose.axis.z],
-        reference: [u_ref.x, u_ref.y, u_ref.z],
+        origin: pose.origin.to_array(),
+        axis: pose.axis.to_array(),
+        reference: u_ref.to_array(),
     };
     let fa = authored
         .placement(Tol::witness())
@@ -592,7 +592,7 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         "the CHART axis, sense left out"
     );
     let z = |f: &Frame| f.columns[2];
-    assert_eq!(z(&aligned), [pose.axis.x, pose.axis.y, pose.axis.z]);
+    assert_eq!(z(&aligned), pose.axis.to_array());
     let opposed = resolve_through_the_solve(
         "msolve9-a2-sense-opposed",
         part,

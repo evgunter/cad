@@ -906,7 +906,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         )
         .expect_err("a never-existed operand is a typo");
     assert!(
-        matches!(err, EditError::ReadSiteMissingNode { at } if at == ghost),
+        matches!(&err, EditError::ReadSiteMissingNode { at } if at.id() == ghost),
         "expected ReadSiteMissingNode, got {err:?}"
     );
 }

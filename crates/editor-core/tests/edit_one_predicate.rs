@@ -109,7 +109,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m, frame_node),
+        Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m.id(), frame_node),
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
     }
 
@@ -610,7 +610,7 @@ fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, other),
+        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node.id(), other),
         other => panic!("a placement on a non-instance must refuse typed, got {other:?}"),
     }
 
@@ -686,8 +686,8 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(error @ EditError::NonRigidPlacement { node, at, .. }) => {
-            assert_eq!((node, at), (ids[0], editor_core::FrameSite::Registry));
+        Err(ref error @ EditError::NonRigidPlacement { ref node, at, .. }) => {
+            assert_eq!((node.id(), at), (ids[0], editor_core::FrameSite::Registry));
             let text = error.to_string();
             assert!(
                 text.contains("not definitely rigid") && text.contains("Recourse:"),
@@ -854,7 +854,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node, non_sketch),
+        Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node.id(), non_sketch),
         other => panic!("a witness on a non-sketch must refuse typed, got {other:?}"),
     }
 
@@ -897,7 +897,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::UnknownNode { id }) => assert_eq!(id, gone),
+        Err(EditError::UnknownNode { id }) => assert_eq!(id.id(), gone),
         other => panic!("a witness on a missing node must refuse typed, got {other:?}"),
     }
 

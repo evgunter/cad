@@ -289,3 +289,16 @@ Ev approved the designer pair's converged answer, superseding the
 F7 is back to boolean outputs as the one op with a merge stage. The row
 `swept-continuation-walls-reach-the-boolean-unmerged` is now the
 implementation (fork-log row 36; A = Fable, B = Opus).
+
+## 2026-10-01 — `arc-window-membership-has-three-spellings` closed (PR #3700)
+
+The row's "three spellings" were two questions: a selection ("may this
+angle bracket lie in this periodic window" — sweep's `CircleFrame::misses`,
+geom's curve boxes, and a fourth copy found in `mesh/src/cert.rs`), now one
+home `geom::periodic_window_may_hold(phi, window, period)`; and topo's
+decided in/out/in-band membership (`arc_trim`, `chart_azimuth_margin`),
+a different question that keeps its own code, argued once at `arc_trim`.
+`misses` asks in its relative frame and is exactly the old predicate on
+its domain (pinned against an oracle with a census row). `CircleMargins`
+stays: an unsigned per-piece distance reads an enclosing ring as clear.
+Single review, fix pass, delta review, last pass.

@@ -211,7 +211,9 @@ fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
             &editor_core::RefusingReach
         )
         .expect_err("the triangle has no fourth outer segment"),
-        EditError::NameUnresolvedInEvaluation { name: t.fourth },
+        EditError::NameUnresolvedInEvaluation {
+            name: t.triangle.spoken_name(&t.fourth)
+        },
         "the triangle's own tables do not"
     );
 }

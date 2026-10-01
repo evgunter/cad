@@ -895,8 +895,8 @@ fn wire_doors_refuse_typed() {
     );
     assert!(
         matches!(
-            refused,
-            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input == ax
+            &refused,
+            Err(editor_core::EditError::DeclareInputNotDeclare { input, .. }) if input.id() == ax
         ),
         "expected the declare edge's kind refusal, got {refused:?}"
     );

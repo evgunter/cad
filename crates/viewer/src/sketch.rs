@@ -1736,14 +1736,14 @@ fn flatten(
         // orders of magnitude from the origin and a radius to match sum
         // past the top of the range on the far side of the arc, with
         // every value here finite.
-        let Some(count) = arc_points(arc.radius, arc.sweep, chord)
-            .filter(|_| drawable([arc.centre.x, arc.centre.y]))
+        let Some(count) =
+            arc_points(arc.radius, arc.sweep, chord).filter(|_| drawable(arc.centre.to_array()))
         else {
             return Err(index);
         };
         for ordinal in 1..count {
             let p = arc.point_from(from, ordinal as f64 / count as f64);
-            let place = [p.x, p.y];
+            let place = p.to_array();
             if !drawable(place) {
                 return Err(index);
             }

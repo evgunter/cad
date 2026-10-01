@@ -124,6 +124,7 @@ use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfileProgram};
 use crate::resolve::derivation_nodes;
 use crate::sentence::{PASS_A_RESOLVER, Recourse};
+use crate::spoken::SpokenNode;
 use geom_core::Tol;
 
 /// The old-id → new-id correspondence a refactoring establishes
@@ -223,7 +224,9 @@ fn carry<E>(
         let carried = match remap_node(node, &node_map, &step_map) {
             Ok(carried) => carried,
             Err(RemapMiss::Name { name, missing }) if forward(&missing) => {
-                return Err(edit(EditError::DeclareNamesMissingNode { name: *name }));
+                return Err(edit(EditError::DeclareNamesMissingNode {
+                    name: source.spoken_name(&name),
+                }));
             }
             Err(other) => return Err(miss(old, other)),
         };
@@ -1822,7 +1825,9 @@ pub fn split(
         },
         |old, miss| match miss {
             RemapMiss::Input(input) => SplitError::PartEdit {
-                error: Box::new(EditError::UnresolvedInput { input }),
+                error: Box::new(EditError::UnresolvedInput {
+                    input: SpokenNode::absent(input),
+                }),
             },
             RemapMiss::Name { name, missing } => SplitError::reaches(old, name, missing),
         },
@@ -2025,7 +2030,7 @@ pub fn split(
         // InsertNode always mints; surfaced typed rather than assumed.
         return Err(SplitError::RemainderEdit {
             error: Box::new(EditError::UnknownNode {
-                id: RecipeNodeId(0),
+                id: SpokenNode::absent(RecipeNodeId(0)),
             }),
         });
     };
@@ -2242,7 +2247,9 @@ pub fn inline(
         },
         |_, miss| match miss {
             RemapMiss::Input(input) => InlineError::Edit {
-                error: Box::new(EditError::UnresolvedInput { input }),
+                error: Box::new(EditError::UnresolvedInput {
+                    input: SpokenNode::absent(input),
+                }),
             },
             RemapMiss::Name { name, missing } => InlineError::stranded(name, missing),
         },

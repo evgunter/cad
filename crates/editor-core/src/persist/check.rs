@@ -1049,7 +1049,11 @@ fn frame_refusal(
     at: FrameSite,
     fault: FrameFault,
 ) -> core::fmt::Result {
-    write!(f, "{} {fault}. ", at.subject(node))?;
+    write!(
+        f,
+        "{} {fault}. ",
+        at.subject(&crate::SpokenNode::absent(node))
+    )?;
     match fault {
         FrameFault::NonFinite | FrameFault::Improper { .. } => {
             f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
@@ -1519,7 +1523,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
     // walk so a file with dangling inputs is diagnosed as such rather
     // than as an incidental coverage failure.
-    crate::roots::check(doc).map_err(SnapshotError::Roots)?;
+    crate::roots::check(doc, |id| doc.spoken(id)).map_err(SnapshotError::Roots)?;
     // D7's producer convention, asked of the whole map. The RULE is
     // already shared — `MetaValue::require_versioned` is the one
     // predicate, and `SetAppearanceMeta` calls it too — and what is not
@@ -1861,8 +1865,8 @@ mod tests {
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
             SnapshotError::Roots(crate::roots::RootFault::Ancestor {
-                ancestor: RecipeNodeId(1),
-                descendant: RecipeNodeId(2),
+                ancestor: crate::SpokenNode::absent(RecipeNodeId(1)),
+                descendant: crate::SpokenNode::absent(RecipeNodeId(2)),
             }),
             SnapshotError::PlacementSite { node },
             SnapshotError::PlacementNonFinite {

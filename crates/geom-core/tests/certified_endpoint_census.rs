@@ -268,14 +268,14 @@ const HOLDERS: &[&str] = &[
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/offset_fit.rs",
-        8,
-        8,
+        7,
+        7,
         "every read is in `cell_bound`, which refuses to `f64::INFINITY`",
     ),
     (
         "crates/geom-brep/src/offset_meters.rs",
-        12,
-        12,
+        11,
+        11,
         "the mignitude, the norm assemblies and the curvature join all refuse by name",
     ),
     (
@@ -292,8 +292,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/props/quad.rs",
-        17,
         12,
+        7,
         "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
          half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
          so no operand can leave a domain (argued at each). Every other read goes \
@@ -351,8 +351,8 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
     (
         "crates/geom-core/src/sym/signed.rs",
-        17,
-        11,
+        13,
+        7,
         "the 6 that do not ask read a bracket `enclose_deep` returned (the decision \
          read's halves, 4, and the profiling instrument's denominator, 2), and \
          `enclose_deep` hands back `None` for a refused bracket \
@@ -361,8 +361,6 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
-    ("crates/mesh/src/chords.rs", 1, 1, ""),
-    ("crates/mesh/src/nurbs_cert.rs", 1, 1, ""),
     ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
 ];
 

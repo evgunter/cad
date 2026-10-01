@@ -228,7 +228,7 @@ mod tests {
     }
 
     fn off_sphere(theta: f64, c: [f64; 3], r: f64) -> f64 {
-        (on_circle(theta) - Point3::new(c[0], c[1], c[2])).norm() - r
+        (on_circle(theta) - Point3::from_array(c)).norm() - r
     }
 
     /// The default band, for the rows whose poses are sized to it.

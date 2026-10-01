@@ -431,11 +431,12 @@ impl Staged for ProductError {
             }
             Self::ContactLineage { node, what } => write!(
                 f,
-                "root {}'s declared contact names a {what} the \
+                "root {}'s declared contact names {} {what} the \
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
                  succeed",
-                node
+                node,
+                crate::sentence::article(what)
             ),
         }
     }

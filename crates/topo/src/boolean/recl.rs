@@ -1077,7 +1077,7 @@ mod tests {
         let o = Point3::new(0.0, 0.0, 0.0);
         let chord = |v: [f64; 3]| Reach::Chord {
             base: o,
-            far: Point3::new(v[0], v[1], v[2]),
+            far: Point3::from_array(v),
         };
         let twin = |start: Vec3<f64>, sr, end: Vec3<f64>, er| BoolSector {
             he: crate::entity::HalfEdgeKey::default(),
@@ -1095,11 +1095,11 @@ mod tests {
                 twin(
                     bis,
                     Reach::Bisector(1.0),
-                    Vec3::new(far_end[0], far_end[1], far_end[2]).normalize(),
+                    Vec3::from_array(far_end).normalize(),
                     chord(far_end),
                 ),
                 twin(
-                    Vec3::new(far_start[0], far_start[1], far_start[2]).normalize(),
+                    Vec3::from_array(far_start).normalize(),
                     chord(far_start),
                     bis,
                     Reach::Bisector(1.0),

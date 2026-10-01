@@ -1292,12 +1292,14 @@ mod tests {
                 None,
             );
         });
+        let committed = session.committed_doc();
         assert!(
             hovered.contains(&format!(
-                "node {} carries a {wall}",
-                test_utils::refusal::tag(carrier.0)
+                "{} carries a {}",
+                committed.spoken(carrier),
+                committed.spoken_name(&wall)
             )),
-            "the hover names the carrier and the name: {hovered}"
+            "the hover speaks the carrier and the name's minting node: {hovered}"
         );
         // Another step dropped instead strands nothing — what Apply
         // says is asked again of every held state, not kept from the
@@ -1335,11 +1337,12 @@ mod tests {
         assert!(painted.contains(label), "{painted}");
         let (_, formed) = click_door(&session, &mut drafts, profile, label, 0);
         let op = formed.expect("Apply formed the op");
+        let before = session.committed_doc().clone();
         let out = session.perform(op.clone());
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         let expected = vec![Maintenance::Strand {
-            node: carrier,
-            name: wall,
+            node: before.spoken(carrier),
+            name: before.spoken_name(&wall),
         }];
         assert_eq!(out.maintenance, expected, "the door reports the strand");
         let line: Vec<String> = crate::frame::outcome_notices(&out)
