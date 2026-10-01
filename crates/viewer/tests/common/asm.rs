@@ -20,8 +20,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
-    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
-    RecipeNodeId, content_pin, evaluate,
+    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, Placement,
+    ProfileDoc, RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
@@ -132,18 +132,18 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let shelf_i = insert_into(&mut asm, Node::instantiate_part(shelf_ref), tol);
     edit_into(
         &mut asm,
-        DocEdit::SetPlacement {
-            node: shelf_i,
-            frame: Frame::translation(SHELF_AT),
+        DocEdit::SetOffset {
+            instance: shelf_i,
+            offset: Some(Placement::literal(&Frame::translation(SHELF_AT))),
         },
         tol,
     );
     let post_b = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
     edit_into(
         &mut asm,
-        DocEdit::SetPlacement {
-            node: post_b,
-            frame: Frame::translation(POST_B_AT),
+        DocEdit::SetOffset {
+            instance: post_b,
+            offset: Some(Placement::literal(&Frame::translation(POST_B_AT))),
         },
         tol,
     );

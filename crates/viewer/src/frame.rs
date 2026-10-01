@@ -1401,11 +1401,10 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// payload name, a stranded appearance key, and a declaration left
 /// with no consumer.
 ///
-/// **A cluster act is not**: it re-keys the mate graph's placement
-/// registry — a gauge instance and a frame, bookkeeping the chrome
-/// names nowhere — and what it decided about where the parts sit is
-/// what the picture draws. It still rides [`OpOutcome::maintenance`],
-/// where a reader of the API sees it.
+/// **The mate door's offset clear is not**: it is what inserting the
+/// mate means, and where the joined group now sits is what the picture
+/// draws. It still rides [`OpOutcome::maintenance`], where a reader of
+/// the API sees it.
 ///
 /// **Each worded arm answers [`Retold`] for itself**, and all three
 /// answer [`Retold::Never`]: none can show a retelling.
@@ -1427,7 +1426,10 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         Maintenance::Strand { .. } => Retold::Never,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
         Maintenance::OrphanedDeclare { .. } => Retold::Never,
-        Maintenance::Cluster(_) => return None,
+        // The mate door's offset clear is what inserting the mate
+        // means — the joined group stands on the one it joined — and
+        // the mate the person just placed is its notice.
+        Maintenance::OffsetCleared { .. } => return None,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
 }
@@ -2306,6 +2308,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::PlacedUnderTwoRoots
         | ProductErrorKind::Naming
         | ProductErrorKind::NoBodyRoots
+        | ProductErrorKind::Unplaced
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
@@ -3276,6 +3279,7 @@ mod tests {
             ProductErrorKind::RootFailed,
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,

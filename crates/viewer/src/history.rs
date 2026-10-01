@@ -32,7 +32,7 @@
 //!
 //! # Documents are values, so the tree is free
 //!
-//! Each entry retains the `Doc` its action produced and the logged edits
+//! Each entry retains the `Doc` its action produced and the edits
 //! that produced it. `apply` is pure and never mutates its input, so
 //! keeping the old value costs a clone of a document, not a
 //! reconstruction — which is why the tree is parent pointers over
@@ -41,7 +41,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, EditError, LoggedEdit, ProfileProgram, apply_logged};
+use pncad::document::{Doc, DocEdit, EditError, ProfileProgram, apply_replayed};
 use pncad::geom_core::Tol;
 
 /// An entry's identity in the history arena.
@@ -63,7 +63,7 @@ impl HistoryId {
 pub struct Entry {
     doc: Doc<ProfileProgram>,
     parent: Option<HistoryId>,
-    edits: Vec<LoggedEdit<ProfileProgram>>,
+    edits: Vec<DocEdit<ProfileProgram>>,
     children: Vec<HistoryId>,
     active_child: Option<HistoryId>,
 }
@@ -82,7 +82,7 @@ impl Entry {
     /// The edits that produced this state from its parent, in applied
     /// order — one for most actions, several for a cascade. EMPTY for
     /// the root, which is the one state no action reached.
-    pub fn edits(&self) -> &[LoggedEdit<ProfileProgram>] {
+    pub fn edits(&self) -> &[DocEdit<ProfileProgram>] {
         &self.edits
     }
 
@@ -163,17 +163,15 @@ impl History {
     /// module will not assume another crate's postcondition.
     pub fn replayed(
         snapshot: Doc<ProfileProgram>,
-        edits: &[LoggedEdit<ProfileProgram>],
+        edits: &[DocEdit<ProfileProgram>],
         tol: Tol,
     ) -> Result<Self, ReplayError> {
         let mut history = Self::new(snapshot);
         for (index, entry) in edits.iter().enumerate() {
-            // Replay re-applies the rows the log recorded; it never
-            // solves, so no store is in hand here and none is needed.
-            // Replay performs exactly an entry's rows (`apply_logged`
-            // refuses an empty entry whose edit would perform any), so
-            // the entry itself is what the history commits.
-            let applied = apply_logged(history.doc(), entry, tol)
+            // Replay never solves — no edit records a frame — so no
+            // store is in hand here and none is needed, and the edit
+            // itself is what the history commits.
+            let applied = apply_replayed(history.doc(), entry, tol)
                 .map_err(|error| ReplayError::Refused { index, error })?;
             history.commit(entry.clone(), applied.doc);
         }
@@ -231,11 +229,7 @@ impl History {
     /// existing children keep their subtrees, and only the parent's
     /// active child moves. The caller supplies the document `apply`
     /// produced, so this function never re-runs an edit.
-    pub fn commit(
-        &mut self,
-        edit: LoggedEdit<ProfileProgram>,
-        doc: Doc<ProfileProgram>,
-    ) -> HistoryId {
+    pub fn commit(&mut self, edit: DocEdit<ProfileProgram>, doc: Doc<ProfileProgram>) -> HistoryId {
         self.commit_group(vec![edit], doc)
     }
 
@@ -254,7 +248,7 @@ impl History {
     /// nothing.
     pub fn commit_group(
         &mut self,
-        edits: Vec<LoggedEdit<ProfileProgram>>,
+        edits: Vec<DocEdit<ProfileProgram>>,
         doc: Doc<ProfileProgram>,
     ) -> HistoryId {
         assert!(!edits.is_empty(), "a committed action performs an edit");
@@ -292,7 +286,7 @@ impl History {
     pub fn extend_current(
         &mut self,
         at: HistoryId,
-        edit: LoggedEdit<ProfileProgram>,
+        edit: DocEdit<ProfileProgram>,
         doc: Doc<ProfileProgram>,
     ) {
         assert!(
@@ -350,7 +344,7 @@ impl History {
     ///
     /// FLAT: a grouped action contributes its edits individually, in
     /// applied order, because the file records edits and not actions.
-    pub fn path_edits(&self) -> Vec<LoggedEdit<ProfileProgram>> {
+    pub fn path_edits(&self) -> Vec<DocEdit<ProfileProgram>> {
         self.path()
             .into_iter()
             .flat_map(|id| self.entry(id).edits.iter().cloned())

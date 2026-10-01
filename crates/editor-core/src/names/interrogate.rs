@@ -567,6 +567,7 @@ pub(crate) fn output_body<T: Decide>(
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => none(payload.kind_name()),

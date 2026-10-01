@@ -35,7 +35,9 @@ impl Rec {
         }
     }
     fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
-        let edit = DocEdit::InsertNode { node };
+        let edit = DocEdit::InsertNode {
+            node: Box::new(node),
+        };
         let applied = apply(
             &self.doc,
             &edit,

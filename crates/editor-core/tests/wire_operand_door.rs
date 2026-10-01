@@ -149,7 +149,9 @@ fn wired() -> (
                input: RecipeNodeId|
      -> ProfileDoc {
         match d.apply(
-            &DocEdit::InsertNode { node },
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
             Tol::witness(),
             &editor_core::RefusingReach,
         ) {
