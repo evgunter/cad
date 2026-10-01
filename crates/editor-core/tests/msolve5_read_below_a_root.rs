@@ -522,10 +522,14 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     assert!(
         matches!(
             &fault,
-            MateFault::Unleverable {
-                refusal: LeverRefusal::PartUnresolved { instance, .. },
-                ..
-            } if *instance == top
+            MateFault::Unleverable { refusal, .. } if matches!(
+                refusal.as_ref(),
+                LeverRefusal::Reach {
+                    instance,
+                    refusal: editor_core::ReachRefusal::PartUnresolved { .. },
+                    ..
+                } if *instance == top
+            )
         ),
         "{fault:?}"
     );
