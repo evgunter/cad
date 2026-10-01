@@ -486,7 +486,7 @@ which is what actually moves the number.
 | chord_join.rs:855 | split_arc_window (×5) | azimuth (rad) × chart radius | m | OK for cylinder; FLAG F8 for the sphere wall (arm R vs local R·cos lat) |
 | chord_join.rs:926 | split_arc_chart_orientation | cos × semi-major (= r for the plane×cyl ellipse) | m | OK |
 | chord_join.rs:1411 | split_conic_inplane_mid | plane residual at midpoint | m | OK |
-| chord_join.rs (`between_edge_in_plane`, boolean planar side) | bool_between_line_on_wall | a line's midpoint distance from the wall (cylinder: radial distance − r; sphere: centre distance − r) | m | OK |
+| chord_join.rs (`between_edge_is_section`, boolean planar side) | bool_between_line_on_wall | a line's midpoint offset from the wall, `geom_brep::implicit_residual` (cylinder: (ρ² − r²)/2r; sphere: (‖p − c‖² − r²)/2r), the signed distance to first order | m | OK |
 | chord_join.rs:1468 | bool_between_arc_window | (cosΔ−cos h)·r_c — quadratic in the angular deviation for narrow windows | m | FLAG F8 |
 | chord_join.rs:1490 | split_chart_azimuth_frame | radial·u_ref (m) — branch selection | m | OK (note N5) |
 | chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |

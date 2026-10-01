@@ -1596,13 +1596,10 @@ fn bool_planar_chord_spec<T: Decide>(
 }
 
 /// The adjacency skip, for both chords of a `join`: an already-adjacent
-/// pair whose between edge lies in the plane needs no chord — it IS the
-/// section segment (M3). A belly conic between them is not a section
-/// segment and its chord MUST be minted (M1 fix), and an escalated
-/// in-plane verdict refuses typed rather than guessing either way.
-///
-/// One body for both guards: they were two copies reconciled by a
-/// comment saying "same rule as the first guard".
+/// pair whose between edge IS the section segment needs no chord
+/// ([`between_edge_is_section`]). Any other between edge needs its chord
+/// minted, and an escalated verdict refuses typed rather than guessing
+/// either way.
 fn skip_adjacent_chord<T: Decide>(
     body: &Body<T>,
     lane: &JoinLane<'_, T>,
@@ -1610,7 +1607,7 @@ fn skip_adjacent_chord<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<bool, SplitJoinError> {
-    match between_edge_in_plane(body, lane, between, band)? {
+    match between_edge_is_section(body, lane, between, band)? {
         Some(in_plane) => Ok(in_plane),
         None => Err(SplitJoinError::SectionInvariant {
             face,
@@ -1619,24 +1616,82 @@ fn skip_adjacent_chord<T: Decide>(
     }
 }
 
-/// Whether the (real) edge under `he` lies IN the split plane over its
-/// whole span — the adjacency-skip guard's question (M1 fix pass):
-/// `None` = escalated. Null scaffolding answers `true`, and so does a
-/// line in the planar and split lanes, with NO predicate evaluation
-/// (the M3 path, bit-identical: a line whose join-adjacent role puts it
-/// between two ON copies is the in-plane section edge); in the boolean
-/// planar-side lane a line asks whether it lies on the wall
-/// (`bool_between_line_on_wall`); conics ask the named trilean
-/// `split_conic_inplane_mid` of the lane's section plane — margin the
-/// mid-parameter plane distance (meters). A conic not lying in the
-/// plane meets it in at most two points, and both endpoints are ON, so
-/// the interior is sign-constant: a Zero midpoint pins the whole arc
-/// in-plane; a definite midpoint is a belly arc — the skipped chord
-/// MUST be minted or the section face inherits an off-plane boundary
-/// edge. The plane×plane lane asks the same question as the split lane:
-/// a planar divided face still carries conic edges (a cylinder's cap
-/// disk), and the partner germ plane is its section.
-fn between_edge_in_plane<T: Decide>(
+/// The boolean planar-side lane's partner wall, a cylinder or a sphere:
+/// the only germ partners the lane is wired for. Carries the wall's
+/// chart frame (centre, polar axis, radius, azimuth reference) for the
+/// window test, and the wall itself for the off-wall residual.
+struct BoolWall<'w, T: Real> {
+    surface: &'w geom::Surface<T>,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+}
+
+impl<'w, T: Real> BoolWall<'w, T> {
+    /// The lane's wall, or the invariant break of any other partner,
+    /// named on the face `owning_face` resolves.
+    fn of(
+        surface: &'w geom::Surface<T>,
+        owning_face: impl FnOnce() -> Result<FaceKey, SplitJoinError>,
+    ) -> Result<Self, SplitJoinError> {
+        let (origin, axis, radius, u_ref) = match *surface {
+            geom::Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => (origin, axis, radius, u_ref),
+            geom::Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => (center, axis, radius, u_ref),
+            _ => {
+                return Err(SplitJoinError::SectionInvariant {
+                    face: owning_face()?,
+                    what: "boolean planar-side germ partner is neither a cylinder nor a sphere \
+                           (arm not wired)",
+                });
+            }
+        };
+        Ok(Self {
+            surface,
+            origin,
+            axis,
+            radius,
+            u_ref,
+        })
+    }
+
+    /// `p`'s offset from the wall, in metres: zero on it, the signed
+    /// distance to first order near it ([`geom_brep::implicit_residual`]).
+    fn off_wall(&self, p: Point3<T>) -> T {
+        geom_brep::implicit_residual(self.surface, p)
+    }
+}
+
+/// Whether the (real) edge under `he` IS the section segment over its
+/// whole span, the adjacency-skip guard's question: `None` = escalated.
+/// Null scaffolding answers `true` in every lane. The rest asks of the
+/// lane's own section:
+///
+/// - **A section plane** (the planar, split and plane×plane lanes): a
+///   line answers `true` with NO predicate evaluation, since a line
+///   between two ON copies lies in the plane. A conic asks the trilean
+///   `split_conic_inplane_mid`, margin its mid-parameter plane distance
+///   (metres): a conic not lying in the plane meets it in at most two
+///   points and both endpoints are ON, so the interior is sign-constant.
+///   Zero pins the whole arc in-plane; a definite midpoint is a belly
+///   arc, whose chord MUST be minted or the section face inherits an
+///   off-plane boundary edge. A planar divided face still carries conic
+///   edges (a cylinder's cap disk), so the plane×plane lane asks this
+///   too.
+/// - **A wall's section** (the boolean planar-side lane): a line asks
+///   whether it lies ON the wall (`bool_between_line_on_wall`), a conic
+///   whether it lies in the wall face's window (`bool_between_arc_window`).
+fn between_edge_is_section<T: Decide>(
     body: &Body<T>,
     lane: &JoinLane<'_, T>,
     he: HalfEdgeKey,
@@ -1667,28 +1722,7 @@ fn between_edge_in_plane<T: Decide>(
             // ruling; definitely off it, a chord across the section
             // that the conic's own arc must be minted beside.
             JoinLane::BoolPlanar { wall, .. } => {
-                let mid = curve.mid_point();
-                let off_wall = match wall {
-                    geom::Surface::Cylinder {
-                        origin,
-                        axis,
-                        radius,
-                        ..
-                    } => {
-                        let w = mid - *origin;
-                        (w - *axis * w.dot(*axis)).norm() - *radius
-                    }
-                    geom::Surface::Sphere { center, radius, .. } => {
-                        (mid - *center).norm() - *radius
-                    }
-                    _ => {
-                        return Err(SplitJoinError::SectionInvariant {
-                            face: owning_face()?,
-                            what: "boolean planar-side germ partner is neither a cylinder \
-                                   nor a sphere (arm not wired)",
-                        });
-                    }
-                };
+                let off_wall = BoolWall::of(wall, owning_face)?.off_wall(curve.mid_point());
                 match decide("bool_between_line_on_wall", Margin::of(off_wall), band) {
                     Ok(Sign::Zero) => Ok(Some(true)),
                     Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
@@ -1730,44 +1764,27 @@ fn between_edge_in_plane<T: Decide>(
                 // window (the same cone comparison the containment
                 // layer decides trim with; Zero = graze = escalate).
                 JoinLane::BoolPlanar { wall, window, .. } => {
-                    // The wall's chart frame — cylinder (PR 9) or
-                    // sphere (M5 S13); the branch-cut-free cosine
-                    // window test below is chart-frame generic.
-                    let (o_c, a_c, r_c, u_ref_c) = match wall {
-                        geom::Surface::Cylinder {
-                            origin,
-                            axis,
-                            radius,
-                            u_ref,
-                        } => (origin, axis, radius, u_ref),
-                        geom::Surface::Sphere {
-                            center,
-                            radius,
-                            axis,
-                            u_ref,
-                        } => (center, axis, radius, u_ref),
-                        _ => {
-                            return Err(SplitJoinError::SectionInvariant {
-                                face: owning_face()?,
-                                what: "boolean planar-side germ partner is neither a cylinder \
-                                       nor a sphere (arm not wired)",
-                            });
-                        }
-                    };
+                    let BoolWall {
+                        origin: o_c,
+                        axis: a_c,
+                        radius: r_c,
+                        u_ref: u_ref_c,
+                        ..
+                    } = BoolWall::of(wall, owning_face)?;
                     let (w_min, w_max) = *window;
                     let half = T::from_f64(0.5);
                     let m_ang = (w_min + w_max) * half;
                     let (s_m, c_m) = m_ang.sin_cos();
-                    let v_ref = a_c.cross(*u_ref_c);
-                    let m_hat = *u_ref_c * c_m + v_ref * s_m;
-                    let w = mid - *o_c;
-                    let radial = w - *a_c * w.dot(*a_c);
+                    let v_ref = a_c.cross(u_ref_c);
+                    let m_hat = u_ref_c * c_m + v_ref * s_m;
+                    let w = mid - o_c;
+                    let radial = w - a_c * w.dot(a_c);
                     let r_hat = radial / radial.norm();
                     let c_h = ((w_max - w_min) * half).cos();
                     // Ledger row F8 (unchanged): (cosΔ − cos h)·r is
                     // quadratic in the angular deviation for narrow
                     // windows; the margin is a length (levered) today.
-                    let margin = Margin::levered(r_hat.dot(m_hat) - c_h, *r_c);
+                    let margin = Margin::levered(r_hat.dot(m_hat) - c_h, r_c);
                     match decide("bool_between_arc_window", margin, band) {
                         Ok(Sign::Positive) => Ok(Some(true)),
                         Ok(Sign::Negative) => Ok(Some(false)),
@@ -2759,12 +2776,12 @@ mod tests {
                 origin: Point3::origin(),
                 normal,
             };
-            let planar = between_edge_in_plane(&body, &JoinLane::Planar { plane }, rim, band);
+            let planar = between_edge_is_section(&body, &JoinLane::Planar { plane }, rim, band);
             let mut ctx = SectionCtx {
                 plane,
                 plane_key: None,
             };
-            let split = between_edge_in_plane(&body, &JoinLane::Split(&mut ctx), rim, band);
+            let split = between_edge_is_section(&body, &JoinLane::Split(&mut ctx), rim, band);
             (planar.unwrap(), split.unwrap())
         };
         // A section plane through the rim's two ends and the cap's

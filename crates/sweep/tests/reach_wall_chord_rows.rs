@@ -14,7 +14,7 @@
 //!   band under the bar, times the depth. These poses once returned ∩
 //!   bodies missing that face (a wrong volume, negative on some, tier 3
 //!   red): the join took the chord for the section segment and never
-//!   minted the arc (`chord_join`'s `between_edge_in_plane`, the
+//!   minted the arc (`chord_join`'s `between_edge_is_section`, the
 //!   `bool_between_line_on_wall` arm).
 //! - **Cubes touching a drum's wall at a corner**, their main diagonal
 //!   along the wall's normal, inside or outside: each op is the cube's
