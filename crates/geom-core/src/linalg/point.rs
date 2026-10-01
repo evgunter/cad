@@ -46,6 +46,21 @@ impl<T: Real> Point2<T> {
         Self { x, y }
     }
 
+    /// The point whose coordinates are `[x, y]`, in that order — the
+    /// stored array form read as geometry. Destructures; no indexing.
+    pub const fn from_array(a: [T; 2]) -> Self {
+        let [x, y] = a;
+        Self::new(x, y)
+    }
+
+    /// The coordinates as `[x, y]` — the inverse of
+    /// [`Self::from_array`], bit for bit, every field bound by pattern
+    /// (see [`Vec2::to_array`]).
+    pub const fn to_array(self) -> [T; 2] {
+        let Self { x, y } = self;
+        [x, y]
+    }
+
     /// The same point read at another scalar: `f` applied to each
     /// coordinate, in `x, y` order. A structural map — no arithmetic,
     /// so it is exact whenever `f` is (`Real::from_f64`,
@@ -154,6 +169,21 @@ impl<T: Real> Point3<T> {
     /// [`Affine3::from_parts`]: crate::Affine3::from_parts
     pub const fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
+    }
+
+    /// The point whose coordinates are `[x, y, z]`, in that order — the
+    /// stored array form read as geometry. Destructures; no indexing.
+    pub const fn from_array(a: [T; 3]) -> Self {
+        let [x, y, z] = a;
+        Self::new(x, y, z)
+    }
+
+    /// The coordinates as `[x, y, z]` — the inverse of
+    /// [`Self::from_array`], bit for bit, every field bound by pattern
+    /// (see [`Vec3::to_array`]).
+    pub const fn to_array(self) -> [T; 3] {
+        let Self { x, y, z } = self;
+        [x, y, z]
     }
 
     /// The same point read at another scalar: `f` applied to each
@@ -470,5 +500,34 @@ mod tests {
             prop_assert_eq!(a.distance(b), b.distance(a));
             prop_assert_eq!(a.distance_squared(b), b.distance_squared(a));
         }
+    }
+
+    /// The point array doors place each coordinate and round-trip its
+    /// bits (`-0.0` and a NaN payload included).
+    #[test]
+    fn array_doors_place_each_coordinate_and_round_trip_its_bits() {
+        let p = Point3::from_array([1.0, 2.0, 3.0]);
+        assert_eq!((p.x, p.y, p.z), (1.0, 2.0, 3.0), "Point3::from_array order");
+        assert_eq!(
+            Point3::new(4.0, 5.0, 6.0).to_array(),
+            [4.0, 5.0, 6.0],
+            "Point3::to_array order"
+        );
+        let q = Point2::from_array([7.0, 8.0]);
+        assert_eq!((q.x, q.y), (7.0, 8.0), "Point2::from_array order");
+        assert_eq!(Point2::new(9.0, 10.0).to_array(), [9.0, 10.0], "Point2::to_array order");
+
+        let odd = [-0.0, f64::from_bits(0x7ff8_0000_dead_beef), 5.0];
+        assert_eq!(
+            Point3::from_array(odd).to_array().map(f64::to_bits),
+            odd.map(f64::to_bits),
+            "Point3 round trip"
+        );
+        let [a, b, _] = odd;
+        assert_eq!(
+            Point2::from_array([a, b]).to_array().map(f64::to_bits),
+            [a, b].map(f64::to_bits),
+            "Point2 round trip"
+        );
     }
 }

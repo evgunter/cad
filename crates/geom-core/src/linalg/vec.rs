@@ -38,6 +38,22 @@ impl<T: Real> Vec2<T> {
         Self { x, y }
     }
 
+    /// The vector whose components are `[x, y]`, in that order — the
+    /// stored array form read as geometry. Destructures; no indexing.
+    pub const fn from_array(a: [T; 2]) -> Self {
+        let [x, y] = a;
+        Self::new(x, y)
+    }
+
+    /// The components as `[x, y]` — the inverse of
+    /// [`Self::from_array`], bit for bit. Binds every field by pattern,
+    /// so a component added to this type is an E0027 here rather than
+    /// a value silently left out of the array.
+    pub const fn to_array(self) -> [T; 2] {
+        let Self { x, y } = self;
+        [x, y]
+    }
+
     /// The same vector read at another scalar: `f` applied to each
     /// component, in `x, y` order. A structural map — no arithmetic,
     /// so it is exact whenever `f` is (`Real::from_f64`,
@@ -121,11 +137,18 @@ impl<T: Real> Vec2<T> {
     /// what makes the predicate's two ratios a decision rather than a
     /// threshold.
     ///
-    /// **This is not a length.** It is the ∞-norm, offered only as that
-    /// question's witness; a door that wants a length wants
-    /// [`norm`](Self::norm). The two are written on adjacent lines at
-    /// every call site for that reason.
+    /// It is [`norm_sup`](Self::norm_sup), named for that question: a
+    /// door that wants the Euclidean length wants
+    /// [`norm`](Self::norm), and the two are written on adjacent lines
+    /// at every call site for that reason.
     pub fn norm_witness(self) -> T {
+        self.norm_sup()
+    }
+
+    /// The sup-norm (∞-norm, Chebyshev length): the largest
+    /// `|component|`, folded `max(|x|, |y|)` through [`Real::max`], so
+    /// a NaN component poisons the result rather than being dropped.
+    pub fn norm_sup(self) -> T {
         self.x.abs().max(self.y.abs())
     }
 
@@ -182,6 +205,24 @@ impl<T: Real> Vec3<T> {
     /// types).
     pub const fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
+    }
+
+    /// The vector whose components are `[x, y, z]`, in that order —
+    /// the stored array form read as geometry. Destructures; no
+    /// indexing.
+    pub const fn from_array(a: [T; 3]) -> Self {
+        let [x, y, z] = a;
+        Self::new(x, y, z)
+    }
+
+    /// The components as `[x, y, z]` — the inverse of
+    /// [`Self::from_array`], bit for bit. Binds every field by pattern,
+    /// so a component added to this type is an E0027 here rather than
+    /// a value silently left out of the array; the matrix and affine
+    /// readouts reach the leaf through this door and inherit that.
+    pub const fn to_array(self) -> [T; 3] {
+        let Self { x, y, z } = self;
+        [x, y, z]
     }
 
     /// The same vector read at another scalar: `f` applied to each
@@ -297,11 +338,20 @@ impl<T: Real> Vec3<T> {
     /// what makes the predicate's two ratios a decision rather than a
     /// threshold.
     ///
-    /// **This is not a length.** It is the ∞-norm, offered only as that
-    /// question's witness; a door that wants a length wants
-    /// [`norm`](Self::norm). The two are written on adjacent lines at
-    /// every call site for that reason.
+    /// It is [`norm_sup`](Self::norm_sup), named for that question: a
+    /// door that wants the Euclidean length wants
+    /// [`norm`](Self::norm), and the two are written on adjacent lines
+    /// at every call site for that reason.
     pub fn norm_witness(self) -> T {
+        self.norm_sup()
+    }
+
+    /// The sup-norm (∞-norm, Chebyshev length): the largest
+    /// `|component|`, folded `max(max(|x|, |y|), |z|)` through
+    /// [`Real::max`], so a NaN component poisons the result rather than
+    /// being dropped. `(p − q).norm_sup()` is the Chebyshev distance
+    /// between two points.
+    pub fn norm_sup(self) -> T {
         self.x.abs().max(self.y.abs()).max(self.z.abs())
     }
 
@@ -1742,6 +1792,67 @@ mod tests {
                     exact(e, want, which, (zx, zx, s));
                 }
             }
+        }
+    }
+
+    /// The array doors put each component in its place and give back
+    /// the bits they were handed: distinct components catch a swap,
+    /// and `-0.0` plus two NaN payloads catch a door that computes
+    /// rather than moves.
+    #[test]
+    fn array_doors_place_each_component_and_round_trip_its_bits() {
+        let v = Vec3::from_array([1.0, 2.0, 3.0]);
+        assert_eq!((v.x, v.y, v.z), (1.0, 2.0, 3.0), "Vec3::from_array order");
+        assert_eq!(
+            Vec3::new(4.0, 5.0, 6.0).to_array(),
+            [4.0, 5.0, 6.0],
+            "Vec3::to_array order"
+        );
+        let w = Vec2::from_array([7.0, 8.0]);
+        assert_eq!((w.x, w.y), (7.0, 8.0), "Vec2::from_array order");
+        assert_eq!(Vec2::new(9.0, 10.0).to_array(), [9.0, 10.0], "Vec2::to_array order");
+
+        let odd = [
+            -0.0,
+            f64::from_bits(0x7ff8_0000_dead_beef),
+            f64::from_bits(0xfff4_0000_0000_0001),
+        ];
+        let bits = |a: [f64; 3]| a.map(f64::to_bits);
+        assert_eq!(bits(Vec3::from_array(odd).to_array()), bits(odd), "Vec3 round trip");
+        let [a, b, _] = odd;
+        assert_eq!(
+            Vec2::from_array([a, b]).to_array().map(f64::to_bits),
+            [a, b].map(f64::to_bits),
+            "Vec2 round trip"
+        );
+    }
+
+    /// The sup-norm is the largest `|component|` wherever it sits and
+    /// whatever its sign, and a NaN in any position poisons it — the
+    /// inherent `f64::max` would drop the NaN, which this row reds.
+    #[test]
+    fn norm_sup_takes_the_largest_magnitude_from_every_position_and_keeps_nan() {
+        for (v, want) in [
+            (Vec3::new(-7.0, 3.0, 5.0), 7.0),
+            (Vec3::new(3.0, -7.0, 5.0), 7.0),
+            (Vec3::new(3.0, 5.0, -7.0), 7.0),
+            (Vec3::new(-0.0, 0.0, -0.0), 0.0),
+        ] {
+            assert_eq!(v.norm_sup(), want, "Vec3::norm_sup of {v:?}");
+            assert_eq!(v.norm_witness().to_bits(), v.norm_sup().to_bits(), "witness is the sup-norm");
+        }
+        for (v, want) in [(Vec2::new(-7.0, 3.0), 7.0), (Vec2::new(3.0, -7.0), 7.0)] {
+            assert_eq!(v.norm_sup(), want, "Vec2::norm_sup of {v:?}");
+        }
+        for v in [
+            Vec3::new(f64::NAN, 1.0, 2.0),
+            Vec3::new(1.0, f64::NAN, 2.0),
+            Vec3::new(1.0, 2.0, f64::NAN),
+        ] {
+            assert!(v.norm_sup().is_nan(), "a NaN component poisons Vec3::norm_sup: {v:?}");
+        }
+        for v in [Vec2::new(f64::NAN, 1.0), Vec2::new(1.0, f64::NAN)] {
+            assert!(v.norm_sup().is_nan(), "a NaN component poisons Vec2::norm_sup: {v:?}");
         }
     }
 }
