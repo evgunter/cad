@@ -1946,9 +1946,10 @@ pub(super) fn param_along<T: Decide>(
     })
 }
 
-/// **Ranks the crossings of one edge by one face** (N2): `keys` lie at
-/// `points` on edge `e` of `body`, named `name` in `table`, and take
-/// `base` + `Fragment(OrderAlong)` by the edge's carrier parameter,
+/// **Ranks the crossings of one edge by one face** (N2): a lone crossing
+/// is `base`, and several, lying at `points` on edge `e` of `body`,
+/// named `name` in `table`, take `base` + `Fragment(OrderAlong)` by the
+/// edge's carrier parameter,
 /// oriented by [`crossed_edge_orientation`]; with no orientation or no
 /// parameter they tie.
 #[allow(clippy::too_many_arguments)]
@@ -1963,6 +1964,9 @@ pub(super) fn rank_crossings<T: Decide, K: Copy>(
     bnd: geom_core::Band,
     to_ent: impl Fn(&K) -> super::table::EntityRef,
 ) -> Result<(), NamingError> {
+    if let [one] = keys {
+        return Ok(put(t, tie, from_tie, base.clone(), to_ent(one))?);
+    }
     let (body, table, e, name) = crossed;
     let tied = |t: &mut NameTable, tie: &mut TieRows| {
         mint_candidates(
