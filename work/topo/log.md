@@ -5835,3 +5835,39 @@ filed. The same lane was resumed to:
 - rewrite the text to what holds;
 - check that the lever is still true;
 - add the three new sites to the per-site table.
+
+## PR 3673 review: no MAJOR, fix pass dispatched (2026-10-01)
+
+The topo-only review at `74c301c76d` found the PR mergeable.
+- **C1 downstream:** answered by CI run 36852480689, where the change
+  filter picked sweep, editor-core, mesh and step-import.
+- **The doors:** each of the three refuses exactly the ruled condition,
+  every `Err` leaves the body deep-unchanged, and the `shell.rs`
+  reorder's output is identical.
+
+Rulings:
+- **Fix here: C3, the chord question.** `mef` asks its minted chord only
+  whether it names the new key, and that is weaker than adjacency. The
+  reviewer executed `Pair(cyl2, cap)` returning Ok where `set_edge_curve`
+  refuses `DescriptionNotAdjacent`. The question is this PR's own, so it
+  is fixed here: `mef` asks the chord `set_edge_curve`'s adjacency
+  question, in one home, refusing `DescriptionNotAdjacent`. That also
+  closes the `Inherit` half, which predates the PR. The receipt looks at
+  `mev`.
+- **Fix:** C6, five false `// Lifts` reasons, with every lift site
+  audited.
+- **Fix:** C8, the `kef` row counts a test helper. There are ten
+  production sites, and `rest.rs` has four calls.
+- **Fix:** Q3/C7, pin each door's lever separately. `ring_move`'s strand
+  lever survived a swap mutant.
+- **Fix:** C5, `mfkrh_plug` ends in a lever its caller cannot take.
+- **Fix:** the never-raised `(false, true)` arm, and its grammar.
+- **Fix:** Q4, doc rot in `rechart_edges`.
+- **Fix:** Q1, three prose copies of the rule.
+- **Not taken:** Q7, `vouch_move`'s parameter count.
+- **Not taken:** the always-refuse onto an analytic `New` chart, which is
+  by design and documented.
+
+Brief: `mefchart-fix-brief.md`, on the rebase target with its no-delete
+rule. The kef/kfmrh `[ev]` PR still waits on this merge, because PR 3673
+carries the row.
