@@ -135,8 +135,9 @@ fn probe_mirror_nappe_cone_rim_certifies_at_azimuth_plus_pi() {
     assert!(cache.certificate().envelope < 1e-12);
 }
 
-/// The apex limit: an apex-level "rim" (h = 0) refuses as an
-/// unsupported carrier rather than deriving a degenerate image.
+/// The apex limit: an apex-level "rim" (h = 0) refuses as a carrier
+/// off the chart — the apex plane meets the cone only at the apex —
+/// rather than deriving a degenerate image.
 #[test]
 fn probe_apex_level_rim_refuses() {
     let apex = Point3::new(0.0, 0.0, 0.0);
@@ -153,8 +154,8 @@ fn probe_apex_level_rim_refuses() {
         u_ref: Vec3::unit_x(),
     };
     match chart_pcurve(&carrier, &cone, band()) {
-        Err(PcurveCertifyError::UnsupportedCarrier) => {}
-        other => panic!("expected UnsupportedCarrier, got {other:?}"),
+        Err(PcurveCertifyError::CarrierOffChart { chart: "cone", .. }) => {}
+        other => panic!("expected CarrierOffChart, got {other:?}"),
     }
 }
 

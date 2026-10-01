@@ -627,7 +627,11 @@ fn t9_a_nurbs_carrier_on_a_plane_chart_refuses_typed() {
         matches!(
             err,
             PcurveMintError::Certify {
-                error: PcurveCertifyError::UnsupportedCarrier,
+                error: PcurveCertifyError::UnsupportedCarrier {
+                    chart: "plane",
+                    carrier: "Nurbs",
+                    ..
+                },
                 ..
             }
         ),

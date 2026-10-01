@@ -12,9 +12,10 @@
 //! five checks in their fixed order, and the order decides the
 //! verdict, not only its text:
 //!
-//! - a LINE carrier fails check 1 (`UnsupportedCarrier`), which the
-//!   mint reads as "outside every derivation route" and answers by
-//!   leaving the face uncached, `Ok`;
+//! - a LINE carrier fails check 1 (`UnsupportedCarrier`: a line on a
+//!   spline chart has no fitted-grade class), which the mint reads as
+//!   "no lane covers this pair yet" and answers by leaving the face
+//!   uncached, `Ok`;
 //! - a spline carrier passes check 1 and fails on its missing mate
 //!   (`FittedMateMissing`), which propagates.
 //!

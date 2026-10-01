@@ -319,7 +319,20 @@ fn certify_errors() -> Vec<CertifyError> {
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
     let mut v = vec![
         PcurveCertifyError::UnsupportedChart { chart: "torus" },
-        PcurveCertifyError::UnsupportedCarrier,
+        PcurveCertifyError::UnsupportedCarrier {
+            chart: "torus",
+            carrier: "circle",
+            class: "an oblique circle",
+        },
+        PcurveCertifyError::CarrierOffChart {
+            chart: "sphere",
+            carrier: "line",
+            why: "a sphere holds no line",
+        },
+        PcurveCertifyError::ImageMismatch {
+            image: "General",
+            why: "a fitted-grade image at the closed-form door",
+        },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::IsoUnsupported {
@@ -373,6 +386,7 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::UncertifiedImage { half_edge },
         PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,

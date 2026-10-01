@@ -1710,7 +1710,7 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
 
 /// The carrier's kind, for a refusal that has to name the pair it
 /// could not state (the chart side is `chart_name`'s).
-fn carrier_kind<T: Real>(carrier: &Curve3<T>) -> &'static str {
+pub(crate) fn carrier_kind<T: Real>(carrier: &Curve3<T>) -> &'static str {
     match carrier {
         Curve3::Line { .. } => "line",
         Curve3::Circle { .. } => "circle",

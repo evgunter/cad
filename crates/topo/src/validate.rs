@@ -2692,7 +2692,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         | M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
         | M::SingularChartJoint { .. }
-        | M::MissingCache { .. } => (WRONG, DEFECT),
+        | M::MissingCache { .. }
+        | M::UncertifiedImage { .. } => (WRONG, DEFECT),
         M::OuterSpansPeriod | M::LoopWraps { .. } => (
             "the face wraps all the way round its surface, which the kernel cannot yet map",
             NOT_YET,
@@ -2708,7 +2709,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         M::Certify { error, .. } => {
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
-                | C::UnsupportedCarrier
+                | C::UnsupportedCarrier { .. }
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
                 | C::FittedMateMissing => (KIND, NOT_YET),
@@ -2725,6 +2726,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     REPARAMETERIZE,
                 ),
                 C::ChartRow { .. }
+                | C::CarrierOffChart { .. }
+                | C::ImageMismatch { .. }
                 | C::IntervalNotForward
                 | C::AzimuthPeriodExceeded
                 | C::ResidualExceeded { .. }

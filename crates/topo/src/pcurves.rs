@@ -34,13 +34,16 @@
 //!   circles; torus parallels/meridians) derive and certify exactly as
 //!   the cylinder's; the sphere walk additionally knows the chart's
 //!   involution twin and the pole's zero azimuth lever (see
-//!   [`chart_u_arm`]/`sphere_twin`). Carriers OUTSIDE the closed-form
-//!   classes refuse typed with the class named — the sphere's general
-//!   circles have a certified route that this pass cannot reach
+//!   [`chart_u_arm`]/`sphere_twin`). A carrier OUTSIDE the closed-form
+//!   classes that can still lie on the chart refuses
+//!   [`PcurveCertifyError::UnsupportedCarrier`] with the class named,
+//!   and its face stays uncached — the sphere's general circles have a
+//!   certified route that this pass cannot reach
 //!   ([`geom_brep::PcurveCache::certify_fitted`], whose docs carry the
-//!   frontier), so those faces stay uncached; the cone/torus
-//!   oblique classes have no honest route (no ring-computable meters
-//!   composite) and stay refused.
+//!   frontier); the cone/torus oblique classes have no honest route (no
+//!   ring-computable meters composite). A carrier that cannot lie on
+//!   its face ([`PcurveCertifyError::CarrierOffChart`]) is a defect,
+//!   and the pass refuses with it.
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter
@@ -468,6 +471,15 @@ pub enum PcurveMintError {
     },
     /// The run's linear band could not be built.
     Band(BandError),
+    /// A half-edge's walked image is a `Fitted` or `General` one and
+    /// carries no stored certificate: the certificate's envelope is the
+    /// only statement bounding such an image against its carrier, and
+    /// the description refuses rather than claim a bound it does not
+    /// hold.
+    UncertifiedImage {
+        /// The half-edge whose image has no stored certificate.
+        half_edge: HalfEdgeKey,
+    },
     /// The chart [`chart_boundary`] was handed is the placeholder
     /// ([`Surface::is_placeholder_chart`]): it has no description yet,
     /// so there is no lever arm to meter a joint gap through and no
@@ -543,6 +555,12 @@ impl core::fmt::Display for PcurveMintError {
                 "the pcurve at half-edge {half_edge:?} escalated: {cause}"
             ),
             Self::Band(e) => write!(f, "{e}"),
+            Self::UncertifiedImage { half_edge } => write!(
+                f,
+                "half-edge {half_edge:?} has a fitted or general chart image with no stored \
+                 certificate, so nothing bounds the image against its carrier. Recourse: \
+                 re-mint the body's pcurves, which certifies such an image as it stores it"
+            ),
             Self::PlaceholderChart { face } => write!(
                 f,
                 "the chart offered for face {face:?}: {}, so nothing on it can be metred. \
@@ -1091,13 +1109,19 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // column under the chart's own parameterization refuses typed
         // and permanently (C5).
         geom_brep::EdgeDescription::Intersection { .. } => {
-            if !matches!(carrier, geom::Curve3::Nurbs(_)) {
+            let geom::Curve3::Nurbs(spline) = &carrier else {
                 return Err(refuse(
                     "an Intersection carrier that is not a spline — the certified \
                      boundary-column class compares the carrier against the chart's own \
                      boundary ROW, which is a spline",
                 ));
-            }
+            };
+            let Some(wall) = surface.spline_chart() else {
+                unreachable!(
+                    "nurbs_iso_derive: both callers route only a chart with a spline payload \
+                     here"
+                )
+            };
             let probe_t = t0 + span * T::from_f64(0.25);
             let probe = carrier.eval(probe_t);
             // Escalations are DEFERRED per candidate: an indeterminate
@@ -1146,7 +1170,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
             // it refuses earlier, at edge certification, on
             // `PXN_IMAGE_DEGREE` (`geom-brep/src/edge_nurbs.rs`, banked
             // to #264), so no body carrying one reaches this pass.
-            let image = match derive_general_image(&carrier, surface, half_edge) {
+            let image = match derive_general_image(spline, wall, half_edge) {
                 Ok(image) => image,
                 // An escalated candidate still outranks a derivation
                 // refusal: a row that escalates today keeps escalating,
@@ -1210,19 +1234,11 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// certified lane (a dual body may not certify — D1), or the
 /// derivation's own typed refusal.
 fn derive_general_image<T: AtRestPolicy>(
-    carrier: &geom::Curve3<T>,
-    surface: &Surface<T>,
+    spline: &geom::NurbsCurve3<T>,
+    wall: &geom::NurbsSurface<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<geom::NurbsCurve2<T>, PcurveMintError> {
     let certify = |error| PcurveMintError::Certify { half_edge, error };
-    let (geom::Curve3::Nurbs(spline), Some(wall)) = (carrier, surface.spline_chart()) else {
-        // Unreachable from the one caller (which has already required
-        // both), and stated as a refusal rather than a panic because
-        // the pair is a precondition of the DERIVATION, not of the
-        // body: a second caller must not be able to reach the producer
-        // without it.
-        return Err(certify(PcurveCertifyError::UnsupportedCarrier));
-    };
     let Some(lane) = T::fitted_lane() else {
         return Err(certify(PcurveCertifyError::FittedLaneUnsupported {
             scalar: T::NAME,
@@ -2160,29 +2176,28 @@ fn mint_faces<T: AtRestPolicy>(
     for &face in faces {
         match mint_face(body, face, band) {
             Ok(()) => {}
-            // A carrier CLASS outside every derivation route (the
+            // A pair the chart can hold but no lane covers yet (the
             // executed case: an oblique fillet trihedron's corner
             // octant, whose boundary circles are GENERAL sphere
-            // circles — neither polar nor meridian relative to the
-            // stored chart axis). The face is honestly NOT COVERED by
-            // the closed-form lane, and an uncached face is a legal
-            // at-rest state ("absence is never a claim" —
-            // `validate_pcurves`); refusing the whole construction
-            // would claim a coverage the lane does not have. The
-            // class's certified route EXISTS (`certify_fitted`'s
-            // Circle-carrier arm, mate from the edge's description), and
-            // this pass already holds its door (`AtRestPolicy::fitted_lane`);
-            // what is missing is a mint site that reaches that arm —
-            // banked in no milestone plan and in no carried-items
-            // register. Every OTHER failure — a covered
-            // class whose residuals, envelope, continuity or closure
-            // refuse — is a genuine defect and propagates.
+            // circles — on the sphere, neither polar nor meridian
+            // relative to the stored chart axis). An uncached face is
+            // a legal at-rest state ("absence is never a claim" —
+            // `validate_pcurves`), and refusing the construction would
+            // claim a coverage the lane does not have. `mint_face`
+            // stores rows only once every half-edge certified, so a
+            // refused face holds none and there is nothing to clear.
+            // The general circle's certified route EXISTS
+            // (`certify_fitted`'s Circle-carrier arm, mate from the
+            // edge's description), and this pass already holds its door
+            // (`AtRestPolicy::fitted_lane`); what is missing is a mint
+            // site that reaches that arm. Every OTHER failure — a
+            // carrier off its face, an image that is not its carrier's,
+            // a covered class whose residuals, envelope, continuity or
+            // closure refuse — is a genuine defect and propagates.
             Err(PcurveMintError::Certify {
-                error: PcurveCertifyError::UnsupportedCarrier,
+                error: PcurveCertifyError::UnsupportedCarrier { .. },
                 ..
-            }) => {
-                clear_face_caches(body, face);
-            }
+            }) => {}
             Err(e) => return Err(e),
         }
     }
@@ -3076,10 +3091,10 @@ fn pin_branch<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PcurveMintError::Certify`] with [`PcurveCertifyError::UnsupportedCarrier`]
-/// for a `General` image carrying no stored certificate: its envelope
-/// is the only statement bounding the image against its carrier, and
-/// inventing one would widen nothing while claiming a bound.
+/// [`PcurveMintError::UncertifiedImage`] for a `Fitted` or `General`
+/// image carrying no stored certificate: its envelope is the only
+/// statement bounding the image against its carrier, and inventing one
+/// would widen nothing while claiming a bound.
 fn chart_edge<T: Decide>(
     body: &Body<T>,
     walked: &Walked<T>,
@@ -3135,10 +3150,11 @@ fn chart_edge<T: Decide>(
         // and the carrier is the stored certificate's envelope — in
         // metres, so `metred` is where it widens the box.
         Pcurve::Fitted(_) | Pcurve::General(_) => {
-            let cache = body.pcurve(walked.key).ok_or(PcurveMintError::Certify {
-                half_edge: walked.key,
-                error: PcurveCertifyError::UnsupportedCarrier,
-            })?;
+            let cache = body
+                .pcurve(walked.key)
+                .ok_or(PcurveMintError::UncertifiedImage {
+                    half_edge: walked.key,
+                })?;
             let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
             Ok(ChartEdge::Envelope {
                 a,
@@ -3213,7 +3229,8 @@ fn chart_edge<T: Decide>(
 /// [`PcurveMintError`] — the loop walk's own refusals (a corrupt key,
 /// a typed chart refusal such as [`PcurveCertifyError::UnsupportedCarrier`]
 /// for a `Nurbs` carrier on an analytic chart, a discontinuous or
-/// unclosed walk); [`PcurveMintError::SingularChartJoint`] for a loop
+/// unclosed walk); [`PcurveMintError::UncertifiedImage`] for a fitted
+/// or general image with no stored certificate; [`PcurveMintError::SingularChartJoint`] for a loop
 /// through a pole or an apex; [`PcurveMintError::LoopWraps`] for a
 /// walk that closes a whole period off; and
 /// [`PcurveMintError::OuterSpansPeriod`] from
@@ -3347,7 +3364,10 @@ pub fn chart_boundary<T: AtRestPolicy>(
 ///
 /// For every face that **carries at least one** stored cache (a body
 /// that never ran the minting pass has none, and the pass says nothing
-/// about it — absence is never a claim):
+/// about it — absence is never a claim; the mint leaves a face uncached
+/// only for a pair no lane covers yet,
+/// [`PcurveCertifyError::UnsupportedCarrier`], and refuses a carrier
+/// off its face):
 ///
 /// 1. the cache set of that face is COMPLETE — every half-edge of
 ///    every loop carries one (a half-minted face is a defect, not a
@@ -4384,7 +4404,11 @@ mod recourse_tests {
             zero: 1e-8,
             escalate: 1e-9,
         };
-        let certify_error = PcurveCertifyError::UnsupportedCarrier;
+        let certify_error = PcurveCertifyError::CarrierOffChart {
+            chart: "sphere",
+            carrier: "line",
+            why: "a sphere holds no line",
+        };
         let arms = [
             PcurveMintError::Corrupt,
             PcurveMintError::Certify {
@@ -4415,8 +4439,14 @@ mod recourse_tests {
                 cause,
             },
             PcurveMintError::Band(band_error),
+            PcurveMintError::UncertifiedImage {
+                half_edge: HalfEdgeKey::default(),
+            },
+            PcurveMintError::PlaceholderChart {
+                face: FaceKey::default(),
+            },
         ];
-        assert_eq!(arms.len(), 10, "an arm was added without a row here");
+        assert_eq!(arms.len(), 12, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             match arm {
@@ -4455,11 +4485,10 @@ mod recourse_tests {
 mod derive_without_a_door {
     use super::{PcurveMintError, derive_general_image};
     use crate::entity::HalfEdgeKey;
-    use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+    use geom::{NurbsCurve3, NurbsSurface};
     use geom_brep::PcurveCertifyError;
     use geom_core::spline::KnotVector;
     use geom_core::{Dual64, Point3, Real};
-    use std::sync::Arc;
 
     #[test]
     fn a_dual_general_image_refuses_before_any_check_and_says_only_that() {
@@ -4485,12 +4514,7 @@ mod derive_without_a_door {
         )
         .unwrap()
         .map_scalar(lift);
-        let err = derive_general_image(
-            &Curve3::Nurbs(Arc::new(carrier)),
-            &Surface::Nurbs(Arc::new(chart)),
-            HalfEdgeKey::default(),
-        )
-        .unwrap_err();
+        let err = derive_general_image(&carrier, &chart, HalfEdgeKey::default()).unwrap_err();
         let PcurveMintError::Certify {
             error: PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
             ..
