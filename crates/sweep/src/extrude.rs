@@ -1072,7 +1072,7 @@ fn sweep_loop<T: Decide>(
                     }
                 }
             }
-            Err(source) => {
+            Err(geom_brep::LeverEscalation { diag: source, .. }) => {
                 return Err(ExtrudeError::SliverJoin {
                     loop_index,
                     vertex_index: segs[j].chord.canonical_vertex,
@@ -1320,7 +1320,7 @@ fn upgrade_rim<T: Decide>(
             }
             Ok(())
         }
-        Err(source) => Err(ExtrudeError::SliverRim {
+        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(ExtrudeError::SliverRim {
             loop_index,
             segment_index,
             source,
