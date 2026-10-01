@@ -168,6 +168,7 @@ pub(super) fn build_partial<T: Decide>(
     let mut walls_all: Vec<Vec<Option<FaceKey>>> = Vec::with_capacity(loops.len());
     let mut rims_all: Vec<Vec<Option<EdgeKey>>> = Vec::with_capacity(loops.len());
     let mut tops_all: Vec<Vec<Option<EdgeKey>>> = Vec::with_capacity(loops.len());
+    let mut runs_all: Vec<Vec<Vec<usize>>> = Vec::with_capacity(loops.len());
     for (li, (segs, hes)) in loops.iter().zip(&bases).enumerate() {
         let swept = sweep_loop(
             &mut body,
@@ -185,6 +186,7 @@ pub(super) fn build_partial<T: Decide>(
             band,
             tol,
         )?;
+        runs_all.push(swept.runs);
         walls_all.push(swept.faces);
         rims_all.push(swept.rims);
         tops_all.push(swept.tops);
@@ -253,7 +255,7 @@ pub(super) fn build_partial<T: Decide>(
             sm[s.canonical_segment] = Some(bottom);
             em[s.canonical_segment] = Some(tops_all[li][j].unwrap_or(bottom));
         }
-        walls_c.push(wc);
+        walls_c.push(super::bands_of(&wc, &runs_all[li]));
         rims_c.push(rc);
         poles_c.push(pc);
         // Meridian chains are total per segment (`Option` only bridges
@@ -267,7 +269,7 @@ pub(super) fn build_partial<T: Decide>(
         solid: seed.solid,
         shell: seed.shell,
         cavities: Vec::new(),
-        walls: walls_c,
+        bands: walls_c,
         rims: rims_c,
         poles: poles_c,
         kind: RevolvedKind::Partial {
@@ -348,6 +350,8 @@ fn finish_partial<T: Decide>(
 
 /// One loop's sweep products, swept-indexed (`None` = on-axis class).
 pub(super) struct LoopSwept {
+    /// The wall runs, each as its canonical segments in swept order.
+    pub(super) runs: Vec<Vec<usize>>,
     pub(super) faces: Vec<Option<FaceKey>>,
     pub(super) rims: Vec<Option<EdgeKey>>,
     pub(super) tops: Vec<Option<EdgeKey>>,
@@ -396,10 +400,15 @@ pub(super) fn sweep_loop<T: Decide>(
         pair.push(linked);
     }
 
-    // Struts: one latitude arc per off-axis vertex, traversal order.
+    let runs = crate::swept::wall_runs(segs, &pair, |j| walled[j]);
+    let lead = vec_lead(&runs, n);
+
+    // Struts: one latitude arc per off-axis vertex that leads a run, in
+    // traversal order. A station inside a run has none — the run's end
+    // chain mints its rotated copy below.
     let mut struts: Vec<Option<topo::MevCreated>> = Vec::with_capacity(n);
     for j in 0..n {
-        if cls.verts[j].pinned {
+        if cls.verts[j].pinned || !lead[j] {
             struts.push(None);
             continue;
         }
@@ -415,50 +424,67 @@ pub(super) fn sweep_loop<T: Decide>(
         struts.push(Some(m));
     }
 
-    // Walls: per off-axis segment, ascending; the new edge is the end
-    // (rotated) chain edge, the new face the wall. Site derivation:
-    // he1 = the strut minus at v_j (or hes[j] when v_j is pinned);
-    // he2 = the strut minus at v_{j+1} (or hes[j+1] when pinned; at
-    // the wrap, the first wall's plus half if segment 0 was walled,
-    // else hes[0]).
-    let mut faces: Vec<Option<FaceKey>> = Vec::with_capacity(n);
-    let mut tops: Vec<Option<EdgeKey>> = Vec::with_capacity(n);
+    // Walls: one per walled run, in run order; the new edges are the end
+    // (rotated) chain, the new face the wall. Site derivation: he1 = the
+    // strut minus at the run's leading vertex (or hes[first] when it is
+    // pinned), advanced along a `mev` chain that lays the end chain of
+    // every segment but the last (minting each station's rotated copy);
+    // he2 = the strut minus at the run's end vertex (or hes[end] when
+    // pinned; where the run ends at the first run's leading vertex, the
+    // first wall's plus half if that run was walled, else hes[end]).
+    let mut faces: Vec<Option<FaceKey>> = vec![None; n];
+    let mut tops: Vec<Option<EdgeKey>> = vec![None; n];
     let mut first_top: Option<topo::HalfEdgeKey> = None;
-    for j in 0..n {
+    let origin = runs[0].first;
+    let rank = |k: usize| (k + n - origin) % n;
+    for (ri, run) in runs.iter().enumerate() {
+        let j = run.first;
         let WallClass::Wall { kind, sense } = cls.walls[j] else {
-            faces.push(None);
-            tops.push(None);
             continue;
         };
-        let he1 = match &struts[j] {
+        let mut he1 = match &struts[j] {
             Some(s) => s.he_minus,
             None => hes[j],
         };
-        let next = (j + 1) % n;
-        let he2 = if j + 1 < n {
-            match &struts[next] {
-                Some(s) => s.he_minus,
-                None => hes[next],
-            }
-        } else {
-            match first_top {
-                Some(top) => top,
-                // Segment 0 is on-axis (or this loop's only wall is
-                // segment n−1): the wrap representative is hes[0],
-                // still in the seed loop.
-                None => hes[0],
-            }
+        let segments: Vec<usize> = run.segments(n).collect();
+        let Some((&last, chain)) = segments.split_last() else {
+            unreachable!("a wall run holds at least one segment")
         };
-        // Sharing shape (PR 4 SHOULD-1's precompute): `pair[j]` shares
-        // the previous wall's key; a run reaching segment 0 through
-        // the wrap shares the first wall's key. The `None` fallbacks
-        // are unreachable (pair implies walled) and mint an
-        // identical-by-construction surface defensively rather than
-        // erroring on a phantom state.
-        let shared = if pair[j] && j > 0 {
+        for (k, &s) in chain.iter().enumerate() {
+            let to = (s + 1) % n;
+            if cls.verts[to].pinned {
+                unreachable!("a station between two collinear off-axis walls is off-axis");
+            }
+            let m = body.mev(
+                MevSite::Fan { he1, he2: he1 },
+                rq[to],
+                placed_segment_spec(&segs[s], place_end, n_end, rq[s], rq[to], tol),
+                tol,
+            )?;
+            if ri == 0 && k == 0 {
+                first_top = Some(m.he_plus);
+            }
+            tops[s] = Some(m.edge);
+            he1 = m.he_minus;
+        }
+        let end = run.end(n);
+        let he2 = match (end == origin, first_top, &struts[end]) {
+            (true, Some(top), _) => top,
+            (_, _, Some(s)) => s.he_minus,
+            _ => hes[end],
+        };
+        // Sharing shape (PR 4 SHOULD-1's precompute), for cocircular
+        // arcs: `pair[j]` shares the previous wall's key; a run reaching
+        // `origin` through the wrap shares the first wall's key. The
+        // `None` fallbacks are unreachable (pair implies walled) and
+        // mint an identical-by-construction surface defensively rather
+        // than erroring on a phantom state.
+        let shared = if rank(j) == 0 {
+            None
+        } else if pair[j] {
             faces[(j + n - 1) % n]
-        } else if j > 0 && pair[0] && ((j + 1)..n).all(|k| pair[k]) {
-            faces[0]
+        } else if pair[origin] && ((rank(j) + 1)..n).all(|r| pair[(origin + r) % n]) {
+            faces[origin]
         } else {
             None
         };
@@ -479,15 +505,17 @@ pub(super) fn sweep_loop<T: Decide>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[next], tol),
+            placed_segment_spec(&segs[last], place_end, n_end, rq[last], rq[end], tol),
             surface,
             tol,
         )?;
-        if j == 0 {
+        if ri == 0 && first_top.is_none() {
             first_top = Some(mef.he_plus);
         }
-        faces.push(Some(mef.face));
-        tops.push(Some(mef.edge));
+        tops[last] = Some(mef.edge);
+        for &s in &segments {
+            faces[s] = Some(mef.face);
+        }
     }
 
     // Latitude joins: strut j joins the walls of segments j−1 and j
@@ -528,5 +556,25 @@ pub(super) fn sweep_loop<T: Decide>(
         )?;
     }
 
-    Ok(LoopSwept { faces, rims, tops })
+    let runs = runs
+        .iter()
+        .map(|run| run.segments(n).map(|s| segs[s].canonical_segment).collect())
+        .collect();
+    Ok(LoopSwept {
+        runs,
+        faces,
+        rims,
+        tops,
+    })
 }
+
+/// Which vertices lead a run (`true`) rather than sit inside one as a
+/// station.
+fn vec_lead(runs: &[crate::swept::Run], n: usize) -> Vec<bool> {
+    let mut lead = vec![false; n];
+    for run in runs {
+        lead[run.first] = true;
+    }
+    lead
+}
+

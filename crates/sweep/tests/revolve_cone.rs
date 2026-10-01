@@ -42,12 +42,12 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     assert_eq!(t.body.surfaces().count(), 2);
     // Walls: segment 0 (base) a plane, segment 1 (slant) a cone with
     // apex (0, 1, 0) and half-angle π/4; segment 2 (axis) omitted.
-    let base = t.walls[0][0].expect("base wall");
+    let base = t.walls()[0][0].expect("base wall");
     assert!(matches!(
         t.body.get_surface(t.body.get_face(base).unwrap().surface),
         Some(Surface::Plane { .. })
     ));
-    let slant = t.walls[0][1].expect("slant wall");
+    let slant = t.walls()[0][1].expect("slant wall");
     let Some(&Surface::Cone {
         apex, half_angle, ..
     }) = t.body.get_surface(t.body.get_face(slant).unwrap().surface)
@@ -56,7 +56,7 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     };
     assert!(apex.distance(geom_core::Point3::new(0.0, 1.0, 0.0)) < 1e-12);
     assert!((half_angle - FRAC_PI_4).abs() < 1e-12);
-    assert_eq!(t.walls[0][2], None);
+    assert_eq!(t.walls()[0][2], None);
     let RevolvedKind::Full {
         meridians, pi_rims, ..
     } = &t.kind

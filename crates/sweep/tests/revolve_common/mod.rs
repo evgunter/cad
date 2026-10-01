@@ -303,7 +303,7 @@ pub fn dump(t: &sweep::Revolved<f64>) -> String {
     for (k, h) in t.body.half_edges() {
         s.push_str(&format!("{k:?} {h:?}\n"));
     }
-    s.push_str(&format!("{:?} {:?} {:?}\n", t.walls, t.rims, t.kind));
+    s.push_str(&format!("{:?} {:?} {:?}\n", t.walls(), t.rims, t.kind));
     s
 }
 

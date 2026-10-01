@@ -145,7 +145,7 @@ fn a_cusp_extrude_is_legal_either_way_it_extrudes() {
         let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
         let cusps = tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
         assert!(
-            built.strut_edges[0].contains(&cusps[0]),
+            built.strut_edges()[0].contains(&Some(cusps[0])),
             "the tangency is the strut the cusp joint swept"
         );
     }
@@ -162,7 +162,7 @@ fn a_hole_cusp_extrudes_to_a_legal_slit() {
     let profile = validated(vec![plate, lune()]);
     let built = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap();
     let cusps = tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
-    assert!(built.strut_edges[1].contains(&cusps[0]), "the hole's strut");
+    assert!(built.strut_edges()[1].contains(&Some(cusps[0])), "the hole's strut");
 }
 
 #[test]

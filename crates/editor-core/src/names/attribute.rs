@@ -219,7 +219,7 @@ mod tests {
             path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
                 step: crate::node::StepId(0),
                 role: crate::names::PieceRole::Leg,
-            })],
+            }.into())],
         }
     }
 

@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P0
 cost: D
+parent: swept-continuation-walls-reach-the-boolean-unmerged
 refs: [swept-continuation-walls-reach-the-boolean-unmerged, torus-operand-gate-admission]
 ---
 

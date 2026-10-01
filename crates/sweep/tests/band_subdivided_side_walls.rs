@@ -115,15 +115,15 @@ fn volume(body: &Body<f64>, t: Tol) -> f64 {
 fn extruded_continuation_walls_share_a_key_and_refuse_until_merged() {
     let t = Tol::witness();
     let ex = subdivided_prism(t);
-    let (w0, w1) = (ex.side_faces[0][0], ex.side_faces[0][1]);
+    let (w0, w1) = (ex.side_faces()[0][0], ex.side_faces()[0][1]);
     assert_eq!(
         key_of(&ex.body, w0),
         key_of(&ex.body, w1),
         "the declared continuation's two walls share one plane key"
     );
     assert!(is_plane(&ex.body, w0));
-    assert_ne!(key_of(&ex.body, w1), key_of(&ex.body, ex.side_faces[0][2]));
-    let interior = ex.strut_edges[0][1];
+    assert_ne!(key_of(&ex.body, w1), key_of(&ex.body, ex.side_faces()[0][2]));
+    let interior = ex.strut_edges()[0][1].unwrap();
     assert_eq!(edges_between(&ex.body, w0, w1), vec![interior]);
     assert_eq!(validate_closed(&ex.body), Ok(()), "tier 2");
     assert_eq!(topo::validate_geometric(&ex.body, t), Ok(()), "tier 3");
@@ -196,7 +196,7 @@ fn revolved_continuation_walls_share_a_key_and_refuse_until_merged() {
     let cube = cube_at(1.5, -0.5, -0.5, 1.0);
     for rev in [Revolution::Full, Revolution::Partial(FRAC_PI_2)] {
         let r = revolve(&v, axis, rev, t).unwrap();
-        let w = |j: usize| r.walls[0][j].expect("off-axis segment has a wall");
+        let w = |j: usize| r.walls()[0][j].expect("off-axis segment has a wall");
         assert_eq!(key_of(&r.body, w(0)), key_of(&r.body, w(1)), "{rev:?}");
         assert!(is_plane(&r.body, w(0)), "{rev:?}");
         assert_eq!(key_of(&r.body, w(2)), key_of(&r.body, w(3)), "{rev:?}");
@@ -259,7 +259,7 @@ fn subdivided_rim_fillet_refuses_as_junction_carry_through() {
     assert_eq!(topo::validate_geometric(&f.body, t), Ok(()));
 
     let ex = subdivided_prism(t);
-    let interior = ex.strut_edges[0][1];
+    let interior = ex.strut_edges()[0][1].unwrap();
     let mut merged = ex.body.clone();
     merged.merge_coplanar_faces(t).unwrap();
     for (label, body) in [("split", &ex.body), ("merged", &merged)] {

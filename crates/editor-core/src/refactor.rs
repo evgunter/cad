@@ -2785,7 +2785,7 @@ mod remap_moves_the_step {
         StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(node),
-            path: vec![RoleSeg::Lateral(e)],
+            path: vec![RoleSeg::Lateral(e.into())],
         }
     }
 

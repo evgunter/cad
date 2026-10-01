@@ -57,7 +57,7 @@ fn wall(
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::Lateral(piece)],
+        path: vec![RoleSeg::Lateral(piece.into())],
     }
 }
 
@@ -602,7 +602,7 @@ fn a_cluster_act_is_carried_but_not_worded() {
             path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
                 step: StepId(tagged(1)),
                 role: PieceRole::Leg,
-            })],
+            }.into())],
         },
     };
     assert_eq!(

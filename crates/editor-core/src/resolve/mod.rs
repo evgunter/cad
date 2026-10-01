@@ -532,6 +532,13 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         MeridianEnd::Pi => "half-turn",
     };
     let seg_of = |e: &crate::names::ProfileEdgeRef| piece_words(e);
+    let run_of = |r: &crate::names::PieceRun| {
+        r.pieces()
+            .iter()
+            .map(piece_words)
+            .collect::<Vec<_>>()
+            .join(", then ")
+    };
     let vert_of = |v: &crate::names::ProfileVertexRef| {
         use crate::names::{ProfileEdgeRef, ProfileVertexRef};
         let piece = match *v {
@@ -543,7 +550,7 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
     match seg {
         RoleSeg::OutputBody => write!(f, "the output body"),
         RoleSeg::Cap(e) => write!(f, "the {} cap", cap(e)),
-        RoleSeg::Lateral(e) => write!(f, "the side wall over {}", seg_of(e)),
+        RoleSeg::Lateral(r) => write!(f, "the side wall over {}", run_of(r)),
         RoleSeg::RimEdge(c, e) => write!(f, "the {} rim edge over {}", cap(c), seg_of(e)),
         RoleSeg::LateralEdge(v) => write!(f, "the lateral edge over {}", vert_of(v)),
         RoleSeg::CapVertex(c, v) => write!(f, "the {} cap vertex over {}", cap(c), vert_of(v)),
@@ -565,12 +572,12 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
                 .collect::<Vec<_>>()
                 .join(", then ")
         ),
-        RoleSeg::Band(e) => write!(f, "the band face over {}", seg_of(e)),
+        RoleSeg::Band(r) => write!(f, "the band face over {}", run_of(r)),
         RoleSeg::BandRim(v) => write!(f, "the band rim over {}", vert_of(v)),
         RoleSeg::BandRimPi(v) => write!(f, "the second band rim over {}", vert_of(v)),
-        RoleSeg::BandPi(e) => write!(f, "the second band face over {}", seg_of(e)),
-        RoleSeg::Meridian(m, e) => {
-            write!(f, "the {} meridian edge over {}", meridian(m), seg_of(e))
+        RoleSeg::BandPi(r) => write!(f, "the second band face over {}", run_of(r)),
+        RoleSeg::Meridian(m, r) => {
+            write!(f, "the {} meridian edge over {}", meridian(m), run_of(r))
         }
         RoleSeg::MeridianVertex(m, v) => {
             write!(f, "the {} meridian vertex over {}", meridian(m), vert_of(v))
@@ -2028,32 +2035,21 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 ///   row is found whole and at its own depth; a candidate that merely
 ///   embeds it deeper (a seam across it) needs no separate offer, the
 ///   row itself still resolving at the node whose table minted it.
+/// - **Runs.** A sweep's run wall holds its pieces' walls the same way
+///   (`names::merged::constituents`, the one view): a wall a station
+///   joined into a run is offered the run wall that covers it, and a
+///   run wall an edit broke is offered the live walls that cover its
+///   pieces.
 ///
 /// [`rebind_suggestions`] answers a different question — every
 /// derivation WRAPPING a name, so a paint can follow the entity
 /// forward — and every answer it gives is a whole table row, so
 /// depth costs it nothing.
 fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
-    let mut offers = Vec::new();
-    // Unmerge: the name IS a merged name — offer its constituents.
-    for seg in &name.path {
-        if let RoleSeg::Merged(constituents) = seg {
-            offers.extend(constituents.iter().cloned());
-        }
-    }
-    // Merge: a live Merged row covers `name`.
-    for (_, table) in tables(eval) {
-        for (candidate, _) in table.iter() {
-            let covers = candidate.path.iter().any(|seg| match seg {
-                RoleSeg::Merged(constituents) => crate::names::merged::covers(constituents, name),
-                _ => false,
-            });
-            if covers && !offers.contains(candidate) {
-                offers.push(candidate.clone());
-            }
-        }
-    }
-    offers
+    let rows: Vec<&StableName> = tables(eval)
+        .flat_map(|(_, table)| table.iter().map(|(candidate, _)| candidate))
+        .collect();
+    crate::names::merged::offers(name, rows.iter().copied())
 }
 
 /// Rebind suggestions for a vanished-or-gapped name (spec D9's
@@ -2087,14 +2083,12 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
                     wraps = true;
                 }
             });
-            // A merged row wraps every face it lists, and so wraps a
-            // merged face those faces came from: the flat set covers
-            // it (`names::merged::covers`) though no segment embeds
+            // A set-holding row wraps every face it holds, and so wraps
+            // a merged face those faces came from, or a wall of fewer
+            // of its pieces: its set covers it
+            // (`names::merged::row_covers`) though no segment embeds
             // it.
-            wraps |= candidate.path.iter().any(|seg| match seg {
-                RoleSeg::Merged(constituents) => crate::names::merged::covers(constituents, name),
-                _ => false,
-            });
+            wraps |= crate::names::merged::row_covers(candidate, name);
             if wraps {
                 out.push(candidate.clone());
             }
@@ -2525,7 +2519,7 @@ mod tests {
             path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
                 step: crate::node::StepId(u64::from(seg)),
                 role: crate::names::PieceRole::Leg,
-            })],
+            }.into())],
         }
     }
 

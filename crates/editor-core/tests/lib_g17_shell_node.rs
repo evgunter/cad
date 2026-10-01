@@ -430,7 +430,7 @@ fn cup_with(
 fn the_refusals_are_typed_and_their_texts_pinned() {
     // (a) a name the target never minted — Vanished through N5.
     let piece = fixture::no_piece_of(&cup::document().doc);
-    let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece));
+    let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(piece.into()));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
     let blank = test_utils::refusal::tag(blank_of(&doc).0);
@@ -551,8 +551,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
 /// list the same way.
 #[test]
 fn the_shell_door_keeps_designation_order_and_drops_repeats() {
-    let a = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(0)));
-    let b = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(1)));
+    let a = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(0).into()));
+    let b = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(1).into()));
     let node: Node<ProfileProgram> = Node::shell(
         RecipeNodeId(1),
         fixture::len(0.1),

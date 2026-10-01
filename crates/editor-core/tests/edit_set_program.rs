@@ -113,12 +113,12 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
 /// The wall at canonical segment `k` of loop `l` of the profile `ext`
 /// sweeps, spelled by the piece it is under `doc`'s current values.
 fn wall_of(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, l: usize, k: usize) -> StableName {
-    fname(ext, RoleSeg::Lateral(fixture::piece(doc, ext, l, k)))
+    fname(ext, RoleSeg::Lateral(fixture::piece(doc, ext, l, k).into()))
 }
 
 /// A wall spelled by a step id and a role directly.
 fn wall_by(ext: RecipeNodeId, step: StepId, role: PieceRole) -> StableName {
-    fname(ext, RoleSeg::Lateral(ProfileEdgeRef::Piece { step, role }))
+    fname(ext, RoleSeg::Lateral(ProfileEdgeRef::Piece { step, role }.into()))
 }
 
 /// The ids a profile node holds, per loop.
@@ -1623,12 +1623,12 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
         },
     );
     let piece = fixture::piece(&doc, profile, 0, 2);
-    assert_eq!(wall_of(&doc, a, 0, 2), fname(a, RoleSeg::Lateral(piece)));
-    assert_eq!(wall_of(&doc, b, 0, 2), fname(b, RoleSeg::Lateral(piece)));
+    assert_eq!(wall_of(&doc, a, 0, 2), fname(a, RoleSeg::Lateral(piece.into())));
+    assert_eq!(wall_of(&doc, b, 0, 2), fname(b, RoleSeg::Lateral(piece.into())));
     let applied = set_value(&doc, "p", 0.75);
     assert_eq!(applied.maintenance, Vec::new());
     for ext in [a, b] {
-        let side = corners_of(&applied.doc, ext, &fname(ext, RoleSeg::Lateral(piece)));
+        let side = corners_of(&applied.doc, ext, &fname(ext, RoleSeg::Lateral(piece.into())));
         assert!(
             has_corner3(&side, (2.0, 2.0, 0.0)) && has_corner3(&side, (0.0, 2.0, 0.0)),
             "{side:?}"

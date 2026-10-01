@@ -86,7 +86,7 @@ fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
             bar,
             0,
             segment as usize,
-        ))],
+        ).into())],
     }
 }
 

@@ -169,7 +169,7 @@ pub use names::{
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
     FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef,
-    NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, ProfileEdgeRef,
+    NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef,
     ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
     SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, StableName,
     SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,

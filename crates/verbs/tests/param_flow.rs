@@ -391,7 +391,7 @@ fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
         panic!("an extrude run produced another family's record");
     };
     assert!(
-        built.side_faces.iter().any(|loop_| !loop_.is_empty()),
+        built.side_faces().iter().any(|loop_| !loop_.is_empty()),
         "the extruded disc minted no side walls"
     );
 
@@ -405,7 +405,7 @@ fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
         panic!("a revolve run produced another family's record");
     };
     assert!(
-        built.walls.iter().flatten().any(Option::is_some),
+        built.walls().iter().flatten().any(Option::is_some),
         "the revolved disc minted no walls"
     );
 

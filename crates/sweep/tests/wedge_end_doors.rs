@@ -282,8 +282,9 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
     let cusp = extruded(vec![lune()], 0.0, 1.0);
     let slit = extruded(vec![rect(-1.0, -1.0, 3.0, 5.0), lune()], 0.0, 1.0);
     for (name, built, loop_index) in [("cusp", &cusp, 0), ("slit", &slit, 1)] {
-        let strut = built.strut_edges[loop_index]
+        let strut = built.strut_edges()[loop_index]
             .iter()
+            .flatten()
             .copied()
             .find(|&e| tangent_edges(&built.body).iter().any(|(t, _)| *t == e))
             .expect("the strut the cusp joint swept is marked Tangent");

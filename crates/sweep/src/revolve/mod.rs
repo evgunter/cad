@@ -165,12 +165,13 @@ pub enum Revolution<T: Real> {
 /// shape): the body plus the handles downstream passes address it by.
 ///
 /// Indexing convention: outer Vecs are per **canonical** loop (loop 0
-/// the outer, then holes); inner Vecs are per canonical segment
-/// (`walls`) or canonical vertex (`rims`).
-/// `None` marks the axis-contact special classes: an on-axis segment
-/// has no wall (partial: the edge is shared by the wedge caps; full:
-/// omitted entirely), an on-axis vertex has no latitude edge (partial:
-/// fixed point; full: pole/apex).
+/// the outer, then holes); inner Vecs are per wall run (`bands`),
+/// canonical segment ([`Revolved::walls`]) or canonical vertex
+/// (`rims`). `None` marks the axis-contact special classes: an on-axis
+/// segment has no wall (partial: the edge is shared by the wedge caps;
+/// full: omitted entirely), an on-axis vertex has no latitude edge
+/// (partial: fixed point; full: pole/apex) — and a station inside a
+/// run has none either.
 #[derive(Debug)]
 pub struct Revolved<T: Real> {
     /// The built body — a closed solid passing tiers 1–3. A declared
@@ -188,11 +189,15 @@ pub struct Revolved<T: Real> {
     /// there are extrude-shaped tunnels in the one shell) and for
     /// unholed profiles.
     pub cavities: Vec<ShellKey>,
-    /// Wall faces, per loop, per canonical segment (`None`: on-axis).
-    pub walls: Vec<Vec<Option<FaceKey>>>,
+    /// Wall faces, per loop, one per run of segments on one carrier
+    /// (crate README, "Walls: one per run"), in swept order of their
+    /// first segment. The per-segment view is [`Revolved::walls`].
+    pub bands: Vec<Vec<BandWall>>,
     /// Latitude edges (partial: wedge arcs; full: full-period rims,
     /// self-loops at the surviving meridian vertices), per loop, per
-    /// canonical vertex (`None`: on-axis vertex).
+    /// canonical vertex (`None`: on-axis vertex, or a station inside a
+    /// run — partial: the wedge caps' meridian chains carry it; full:
+    /// it has no entity).
     pub rims: Vec<Vec<Option<EdgeKey>>>,
     /// Pole vertices, per loop, per canonical vertex: the ONE body
     /// vertex an on-axis profile vertex revolves to (the rotation
@@ -209,6 +214,55 @@ pub struct Revolved<T: Real> {
     pub poles: Vec<Vec<Option<VertexKey>>>,
     /// The wedge caps and meridian edges — shaped by the case split.
     pub kind: RevolvedKind,
+}
+
+/// One wall of a revolve: the run of profile segments it sweeps.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BandWall {
+    /// The wall face.
+    pub face: FaceKey,
+    /// The canonical segments the wall sweeps, in swept-traversal order
+    /// (wrapping through the loop's start where the run does).
+    pub segments: Vec<usize>,
+}
+
+impl<T: Real> Revolved<T> {
+    /// The wall face of every segment, per loop, per canonical segment
+    /// (`None`: on-axis): a run's segments read its one wall.
+    #[must_use]
+    pub fn walls(&self) -> Vec<Vec<Option<FaceKey>>> {
+        self.bands
+            .iter()
+            .zip(&self.rims)
+            .map(|(bands, rims)| {
+                let mut out = vec![None; rims.len()];
+                for band in bands {
+                    for &s in &band.segments {
+                        out[s] = Some(band.face);
+                    }
+                }
+                out
+            })
+            .collect()
+    }
+}
+
+/// The bands of one loop, from its canonical per-segment walls and its
+/// runs (canonical segments in swept order; a run of an on-axis
+/// segment has no wall and no band).
+pub(super) fn bands_of(walls: &[Option<FaceKey>], runs: &[Vec<usize>]) -> Vec<BandWall> {
+    runs.iter()
+        .filter_map(|run| {
+            let Some(&first) = run.first() else {
+                unreachable!("a run holds at least one segment")
+            };
+            let face = walls[first]?;
+            Some(BandWall {
+                face,
+                segments: run.clone(),
+            })
+        })
+        .collect()
 }
 
 /// The per-case keys of a [`Revolved`] (see the ratified case split in
@@ -237,13 +291,19 @@ pub enum RevolvedKind {
     /// holes are strictly off-axis by validated containment) sweeps
     /// two π-bands so poles/apexes keep valence 2 (tier 2's strut
     /// ban): `walls`/`rims` are the angle-0…π band, the `pi_*` fields
-    /// the π…2π band. Hole loops are always lamina-shaped: their
+    /// the π…2π band. In either case a PLANE wall is one face with no
+    /// meridian — an annulus whose inner circle is a ring, or a disc
+    /// whose centre is no vertex — so its `meridians` and `pi_*`
+    /// entries are `None`. Hole loops are always lamina-shaped: their
     /// `meridians` entries are their cavity seam chains, and the
     /// `pi_*` fields (outer-loop shaped) never name hole entities.
     Full {
+        /// The outer loop touches the axis: the wire case.
+        wire: bool,
         /// Angle-0 meridian edges (the `u = 0` seam chain), per
         /// canonical loop, per canonical segment (`None`: omitted
-        /// on-axis segment of the outer loop).
+        /// on-axis segment of the outer loop, or a plane wall; a run's
+        /// segments read its one meridian).
         meridians: Vec<Vec<Option<EdgeKey>>>,
         /// Wire case: the π…2π band's wall faces, per canonical
         /// segment of the OUTER loop.

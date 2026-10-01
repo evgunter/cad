@@ -185,8 +185,8 @@ fn extruded_l_profile_passes_all_tiers() {
     );
     // Every profile join is a corner: all six struts carry the upgraded
     // Intersection description (prefer-intrinsic, D2).
-    assert_eq!(t.strut_edges[0].len(), 6);
-    for &edge in &t.strut_edges[0] {
+    assert_eq!(t.strut_edges()[0].len(), 6);
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
             EdgeDescription::Intersection { .. }
@@ -239,9 +239,9 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     assert_eq!(t.body.get_face(t.bottom).unwrap().rings.len(), 1);
     // The hole wall is TWO faces (the carrier is split at the profile's
     // seam vertices) on ONE shared cylinder surface.
-    assert_eq!(t.side_faces[1].len(), 2);
-    let k0 = t.body.get_face(t.side_faces[1][0]).unwrap().surface;
-    let k1 = t.body.get_face(t.side_faces[1][1]).unwrap().surface;
+    assert_eq!(t.side_faces()[1].len(), 2);
+    let k0 = t.body.get_face(t.side_faces()[1][0]).unwrap().surface;
+    let k1 = t.body.get_face(t.side_faces()[1][1]).unwrap().surface;
     assert_eq!(k0, k1, "same-carrier hole walls share one surface key");
     assert!(matches!(
         t.body.get_surface(k0).unwrap(),
@@ -257,11 +257,11 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     // the variant no longer separates a declared locus from a derived
     // one. The authority record (U2 Q3) does, and the chart key — the
     // very key asserted shared two lines above — is now pinned too.
-    for &edge in &t.strut_edges[1] {
+    for edge in t.strut_edges()[1].iter().map(|e| e.unwrap()) {
         assert_declared_image_in(&t.body, edge, k0);
     }
     // The outer square's corners upgrade to Intersection.
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
             EdgeDescription::Intersection { .. }
@@ -330,7 +330,7 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // so the eight struts now carry the intrinsic TangentIntersection
     // description — the fillet-grade class, upgraded exactly as
     // transverse joins upgrade to Intersection.
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
             EdgeDescription::TangentIntersection { .. }
@@ -351,10 +351,10 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     assert_eq!(intersections, 16);
     // Adjacent walls at each tangent join really are distinct surfaces.
     for j in 0..8 {
-        let a = t.body.get_face(t.side_faces[0][j]).unwrap().surface;
+        let a = t.body.get_face(t.side_faces()[0][j]).unwrap().surface;
         let b = t
             .body
-            .get_face(t.side_faces[0][(j + 1) % 8])
+            .get_face(t.side_faces()[0][(j + 1) % 8])
             .unwrap()
             .surface;
         assert_ne!(a, b, "line–arc tangency keeps distinct surfaces");
@@ -378,8 +378,8 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     assert_eq!(v - e + f - r, 2);
     // 2 cap planes + exactly one shared cylinder.
     assert_eq!(t.body.surfaces().count(), 3);
-    let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
-    let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
+    let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
+    let k1 = t.body.get_face(t.side_faces()[0][1]).unwrap().surface;
     assert_eq!(k0, k1);
     // Both joins smooth on ONE shared carrier: the surfaces
     // under-determine each strut's locus, so each is an image in that
@@ -388,7 +388,7 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     // support. (Pre-U2 this asserted the `MappedCurve` variant; the
     // authority record is where "the profile declared it" lives now,
     // and the shared chart is pinned besides.)
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert_declared_image_in(&t.body, edge, k0);
     }
 }
@@ -414,7 +414,7 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     let (v, e, f, r) = counts(&t.body);
     assert_eq!((v, e, f, r), (4, 6, 4, 0));
     assert_eq!(t.body.surfaces().count(), 4);
-    for &edge in &t.strut_edges[0] {
+    for edge in t.strut_edges()[0].iter().map(|e| e.unwrap()) {
         assert!(matches!(
             description(&t.body, edge),
             EdgeDescription::Intersection { .. }
@@ -632,10 +632,10 @@ fn rebuild_is_byte_identical() {
     let b = build();
     assert_eq!(dump(&a), dump(&b));
     assert_eq!(
-        format!("{:?}", a.strut_edges),
-        format!("{:?}", b.strut_edges)
+        format!("{:?}", a.strut_edges()),
+        format!("{:?}", b.strut_edges())
     );
-    assert_eq!(format!("{:?}", a.side_faces), format!("{:?}", b.side_faces));
+    assert_eq!(format!("{:?}", a.side_faces()), format!("{:?}", b.side_faces()));
 }
 
 #[test]

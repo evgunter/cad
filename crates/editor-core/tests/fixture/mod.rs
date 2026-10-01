@@ -1396,7 +1396,7 @@ pub fn no_piece_of(doc: &editor_core::ProfileDoc) -> ProfileEdgeRef {
 /// A wall (lateral) role for outer-loop canonical segment `seg` of the
 /// profile the extrude `ext` sweeps, spelled by the piece it is.
 pub fn wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleSeg {
-    RoleSeg::Lateral(piece(doc, ext, 0, seg as usize))
+    RoleSeg::Lateral(piece(doc, ext, 0, seg as usize).into())
 }
 
 /// **The four flush families two x-offset blocks share** — the walls

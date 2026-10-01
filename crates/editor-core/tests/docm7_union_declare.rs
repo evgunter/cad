@@ -350,7 +350,7 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
             member,
             fname(
                 proto,
-                RoleSeg::Lateral(crate::fixture::piece(&doc, union, 0, seg as usize)),
+                RoleSeg::Lateral(crate::fixture::piece(&doc, union, 0, seg as usize).into()),
             ),
         );
         assert!(
@@ -478,7 +478,7 @@ fn a_declared_name_that_denotes_nothing_refuses() {
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
         SitedRef::new(
             b,
-            fname(b, RoleSeg::Lateral(crate::fixture::no_piece_of(&doc))),
+            fname(b, RoleSeg::Lateral(crate::fixture::no_piece_of(&doc).into())),
         ),
     )];
     let (doc, union, _) = declared_union(doc, &[a, b], named2);

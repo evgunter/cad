@@ -625,6 +625,69 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
     }
 }
 
+/// One wall's run of a swept loop (crate README, "Walls: one per
+/// run"): segments `first, first + 1, …, first + len − 1` (mod n) in
+/// swept order. Vertex `first` carries the wall's leading strut; the
+/// `len − 1` vertices after it are the run's stations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Run {
+    /// The run's first segment (and leading vertex), swept order.
+    pub(crate) first: usize,
+    /// How many segments the run holds (≥ 1).
+    pub(crate) len: usize,
+}
+
+impl Run {
+    /// The run's segments, swept order, wrapping at `n`.
+    pub(crate) fn segments(self, n: usize) -> impl Iterator<Item = usize> {
+        (0..self.len).map(move |k| (self.first + k) % n)
+    }
+
+    /// The vertex the run ends at: the next run's leading vertex.
+    pub(crate) fn end(self, n: usize) -> usize {
+        (self.first + self.len) % n
+    }
+}
+
+/// The wall runs of one swept loop, in ascending order of their first
+/// segment, read off the loop's cosurface verdicts: `pair[j]` says
+/// segment `j` continues segment `j − 1`'s carrier (`pair[0]` is the
+/// wrap join), and `walled(j)` whether segment `j` sweeps a wall.
+///
+/// A run joins LINE segments only. Cocircular arcs keep one wall each on
+/// one shared surface key (a curved same-key pair is the maximal-faces
+/// gate's canonical form) until curved runs are built whole
+/// (`work/band/swept-cocircular-arc-runs-build-one-wall.md`). So no run
+/// is the whole closed loop: collinear lines cannot close a simple
+/// profile loop.
+pub(crate) fn wall_runs<T: Real, S: SweptChord<T>>(
+    segs: &[S],
+    pair: &[bool],
+    walled: impl Fn(usize) -> bool,
+) -> Vec<Run> {
+    let n = segs.len();
+    let is_line = |j: usize| matches!(segs[j].kind().get(), SegmentKind::Line);
+    let joined = |j: usize| {
+        let p = (j + n - 1) % n;
+        pair[j] && walled(p) && walled(j) && is_line(p) && is_line(j)
+    };
+    let starts: Vec<usize> = (0..n).filter(|&j| !joined(j)).collect();
+    if starts.is_empty() {
+        unreachable!("a run of collinear lines closes the whole loop, which validation refuses");
+    }
+    starts
+        .iter()
+        .enumerate()
+        .map(|(i, &first)| {
+            let next = starts.get(i + 1).copied().unwrap_or(starts[0] + n);
+            Run {
+                first,
+                len: next - first,
+            }
+        })
+        .collect()
+}
+
 /// Resolves a face's surface key (total: a stale key surfaces as the
 /// operator-layer typed error, which every sweep verb's error enum
 /// absorbs through its `From<EulerOpError>`).

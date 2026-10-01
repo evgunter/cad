@@ -1140,7 +1140,7 @@ mod tests {
             path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
                 step: program.ids[0][named],
                 role: PieceRole::Leg,
-            })],
+            }.into())],
         };
         let (doc, carrier) = inserted(
             &doc,
@@ -1225,8 +1225,11 @@ mod tests {
             panic!("a profile")
         };
         assert_eq!(program.ids[0].len(), 6);
-        let RoleSeg::Lateral(piece) = wall.path[0].clone() else {
+        let RoleSeg::Lateral(run) = wall.path[0].clone() else {
             unreachable!("built as a lateral wall")
+        };
+        let Some(piece) = run.single() else {
+            unreachable!("built as a one-piece wall")
         };
         let ProfileEdgeRef::Piece { step, role } = piece else {
             unreachable!("built as a piece")

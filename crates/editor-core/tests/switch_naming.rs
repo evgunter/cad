@@ -426,7 +426,7 @@ fn hole_circle_anchor_recovers_reversal() {
                 doc.order()[2],
                 1,
                 seg as usize,
-            ))],
+            ).into())],
         };
         assert!(
             table.lookup(&name).is_some(),

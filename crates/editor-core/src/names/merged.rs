@@ -1,5 +1,7 @@
-//! **Reading a merged face's flat constituent set** (N3): the two
-//! questions every consumer of a `Merged` row asks, answered once.
+//! **Reading a set-holding face's constituents** (N3): the questions
+//! every consumer of a `Merged` row — or of a sweep's run wall
+//! (`names/README.md`, N1 "Swept walls over a run") — asks, answered
+//! once.
 //!
 //! A merged face's name is a FLAT set of face names; a merge over a
 //! merged face lists the faces, never the merge. Two things follow
@@ -15,7 +17,7 @@
 //! use the second to read what was published. Neither flattens a
 //! name: the set is flat because the mint made it so.
 
-use super::role::{EntityKind, NameRef, RoleSeg, StableName};
+use super::role::{EntityKind, NameRef, PieceRun, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
 /// that is itself a merged face, through any wrapping — refused at
@@ -63,19 +65,132 @@ pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<Sta
     )
 }
 
-/// True iff a merged row whose constituent set is `set` covers
-/// `name`: `name` is a constituent, or `name` is a merged face (read
-/// through its wrappers) every one of whose re-wrapped constituents
-/// is. `set` is sorted, as every minted set is (name order), so both
-/// halves are binary searches.
+/// The one-piece walls a run wall of two or more pieces stands for —
+/// its `Lateral`, `Band` or `BandPi` segment spelled once per piece —
+/// read through its descent wrappers and re-wrapped by that same chain,
+/// or `None` when the name, peeled to its foot, is not such a wall. A
+/// run wall is not a merge: it holds its pieces' walls the way a merged
+/// face holds its constituents, and is read the same way, but nothing
+/// mints it as `Merged` and nothing flattens it.
+pub(crate) fn run_constituents(name: &StableName) -> Option<Vec<StableName>> {
+    type Side = fn(NameRef) -> RoleSeg;
+    let mut wrappers: Vec<(Side, crate::node::RecipeNodeId)> = Vec::new();
+    let mut at = name;
+    let (seg, run): (fn(PieceRun) -> RoleSeg, &PieceRun) = loop {
+        let (side, inner): (Side, &NameRef) = match at.path.as_slice() {
+            [RoleSeg::Lateral(run)] => break (RoleSeg::Lateral, run),
+            [RoleSeg::Band(run)] => break (RoleSeg::Band, run),
+            [RoleSeg::BandPi(run)] => break (RoleSeg::BandPi, run),
+            [RoleSeg::FromA(inner)] => (RoleSeg::FromA, inner),
+            [RoleSeg::FromB(inner)] => (RoleSeg::FromB, inner),
+            _ => return None,
+        };
+        wrappers.push((side, at.node));
+        at = inner;
+    };
+    if run.pieces().len() < 2 {
+        return None;
+    }
+    Some(
+        run.pieces()
+            .iter()
+            .map(|p| {
+                let foot = StableName {
+                    kind: at.kind,
+                    node: at.node,
+                    path: vec![seg(PieceRun::one(*p))],
+                };
+                wrappers
+                    .iter()
+                    .rev()
+                    .fold(foot, |inner, &(side, node)| StableName {
+                        kind: at.kind,
+                        node,
+                        path: vec![side(NameRef::new(inner))],
+                    })
+            })
+            .collect(),
+    )
+}
+
+/// **N3's one constituents view**: the faces a set-holding row stands
+/// for — a merged face's constituents or a run wall's one-piece walls,
+/// each read through the row's descent wrappers — or `None` for a row
+/// that holds no set.
+pub(crate) fn constituents(name: &StableName) -> Option<Vec<StableName>> {
+    constituents_through_wrappers(name).or_else(|| run_constituents(name))
+}
+
+/// True iff a row whose constituent set is `set` covers `name`: `name`
+/// is a constituent or is held by one (a run wall the merge listed
+/// holds its pieces' walls), or `name` is itself a set-holding face
+/// ([`constituents`]) every one of whose constituents is so covered.
 pub(crate) fn covers(set: &[StableName], name: &StableName) -> bool {
-    if set.binary_search(name).is_ok() {
+    let one = |n: &StableName| {
+        set.contains(n)
+            || set
+                .iter()
+                .any(|c| run_constituents(c).is_some_and(|held| held.contains(n)))
+    };
+    if one(name) {
         return true;
     }
-    match constituents_through_wrappers(name) {
-        Some(cs) => !cs.is_empty() && cs.iter().all(|c| set.binary_search(c).is_ok()),
+    match constituents(name) {
+        Some(cs) => !cs.is_empty() && cs.iter().all(one),
         None => false,
     }
+}
+
+/// True iff the live row `row` covers `name` by a set it holds: a
+/// merged row by its flat constituent set, a run wall by its pieces'
+/// walls (`Lateral([p0, p1])` covers `Lateral([p0])` and a run inside
+/// its own).
+pub(crate) fn row_covers(row: &StableName, name: &StableName) -> bool {
+    let merged = row.path.iter().any(|seg| match seg {
+        RoleSeg::Merged(set) => covers(set, name),
+        _ => false,
+    });
+    merged || run_constituents(row).is_some_and(|set| covers(&set, name))
+}
+
+/// N3's offers for a name that no longer resolves, read off the live
+/// `rows`: a merged name's constituents as spelled (the merge stopped
+/// happening, so they are live again); for a run wall, the live walls
+/// that cover its pieces (an edit broke the run); and every live row
+/// that covers the name (it was merged away, or a station joined it
+/// into a run). Deterministic: first-seen order, no repeats.
+pub(crate) fn offers<'r>(
+    name: &StableName,
+    rows: impl Iterator<Item = &'r StableName> + Clone,
+) -> Vec<StableName> {
+    let mut out: Vec<StableName> = Vec::new();
+    let push = |n: &StableName, out: &mut Vec<StableName>| {
+        if !out.contains(n) {
+            out.push(n.clone());
+        }
+    };
+    for seg in &name.path {
+        if let RoleSeg::Merged(constituents) = seg {
+            for c in constituents {
+                push(c, &mut out);
+            }
+        }
+    }
+    if let Some(pieces) = run_constituents(name) {
+        for piece in &pieces {
+            for row in rows.clone() {
+                if row == piece || row_covers(row, piece) {
+                    push(row, &mut out);
+                }
+            }
+        }
+    }
+    for row in rows {
+        if row_covers(row, name) {
+            push(row, &mut out);
+        }
+    }
+    out
 }
 
 #[cfg(test)]

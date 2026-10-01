@@ -276,13 +276,14 @@ fn survives_wire_four_segment_dome_two_band_structure() {
         pi_walls,
         pi_meridians,
         pi_rims,
+        ..
     } = &t.kind
     else {
         panic!("full");
     };
     let meridians = &meridians[0];
     for (j, pw) in pi_walls.iter().enumerate().take(4) {
-        let b1 = t.walls[0][j].expect("band-1 wall");
+        let b1 = t.walls()[0][j].expect("band-1 wall");
         let b2 = pw.expect("band-2 wall");
         assert_ne!(b1, b2, "bands are distinct faces");
         assert_eq!(
@@ -292,29 +293,29 @@ fn survives_wire_four_segment_dome_two_band_structure() {
         );
     }
     assert!(
-        t.walls[0][4].is_none() && pi_walls[4].is_none(),
+        t.walls()[0][4].is_none() && pi_walls[4].is_none(),
         "axis run omitted"
     );
     // Wall catalog: plane, cylinder, cone, plane.
     let kind_of = |f: FaceKey| t.body.get_surface(wall_key(&t.body, f)).unwrap().clone();
     assert!(matches!(
-        kind_of(t.walls[0][0].unwrap()),
+        kind_of(t.walls()[0][0].unwrap()),
         Surface::Plane { .. }
     ));
     assert!(matches!(
-        kind_of(t.walls[0][1].unwrap()),
+        kind_of(t.walls()[0][1].unwrap()),
         Surface::Cylinder { .. }
     ));
     let Surface::Cone {
         apex, half_angle, ..
-    } = kind_of(t.walls[0][2].unwrap())
+    } = kind_of(t.walls()[0][2].unwrap())
     else {
         panic!("cone wall");
     };
     assert!(apex.distance(Point3::new(0.0, 2.0, 0.0)) < 1e-12);
     assert!((half_angle - FRAC_PI_2 / 2.0).abs() < 1e-12);
     assert!(matches!(
-        kind_of(t.walls[0][3].unwrap()),
+        kind_of(t.walls()[0][3].unwrap()),
         Surface::Plane { .. }
     ));
     // Tips (axis endpoints) have valence exactly 2 (the two-band
@@ -350,7 +351,7 @@ fn survives_wire_four_segment_dome_two_band_structure() {
     // Q3) saying a profile entity determined the locus. The row reads
     // those, and additionally pins each image to ITS OWN wall's chart
     // — teeth the variant test never had.
-    let wall_of = |seg: usize| wall_key(&t.body, t.walls[0][seg].unwrap());
+    let wall_of = |seg: usize| wall_key(&t.body, t.walls()[0][seg].unwrap());
     assert_declared_image_in(&t.body, meridians[0].unwrap(), wall_of(0));
     assert_seam_of(&t.body, meridians[1].unwrap(), wall_of(1));
     assert_seam_of(&t.body, meridians[2].unwrap(), wall_of(2));
@@ -407,8 +408,8 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
         panic!("full");
     };
     let keys: Vec<_> = [
-        t.walls[0][1].unwrap(),
-        t.walls[0][2].unwrap(),
+        t.walls()[0][1].unwrap(),
+        t.walls()[0][2].unwrap(),
         pi_walls[1].unwrap(),
         pi_walls[2].unwrap(),
     ]
@@ -566,7 +567,7 @@ fn survives_washer_zip_lineage_and_seam_state() {
     // The Seam state: each wall's outer loop traverses its own
     // meridian TWICE (both halves in one face), each full-period rim
     // is a self-loop (start vertex = end vertex) spanning exactly τ.
-    for (j, w) in t.walls[0].iter().enumerate() {
+    for (j, w) in t.walls()[0].iter().enumerate() {
         let face = t.body.get_face(w.unwrap()).unwrap();
         let LoopBoundary::Cycle { first } = t.body.get_loop(face.outer).unwrap().boundary else {
             panic!("wall loop");
@@ -621,7 +622,7 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     // V4 E8 F4 R0: E–P = 0 ⇒ g = 1.
     assert_eq!(counts(&t.body), (4, 8, 4, 0));
     assert_eq!(t.body.surfaces().count(), 1, "one torus for all four walls");
-    let keys: Vec<_> = t.walls[0]
+    let keys: Vec<_> = t.walls()[0]
         .iter()
         .map(|w| wall_key(&t.body, w.unwrap()))
         .collect();
@@ -684,7 +685,7 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
         panic!("full")
     };
     let pi_edge = pi_meridians[0].unwrap();
-    let sphere_key = wall_key(&t.body, t.walls[0][0].unwrap());
+    let sphere_key = wall_key(&t.body, t.walls()[0][0].unwrap());
     let e = t.body.get_edge(pi_edge).unwrap();
     let c = t.body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let (carrier, (t0, t1)) = (c.carrier().clone(), c.params());
@@ -1038,7 +1039,7 @@ fn survives_tight_but_definite_torus_clearance_is_accepted() {
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    let torus_walls = t.walls[0]
+    let torus_walls = t.walls()[0]
         .iter()
         .filter(|w| {
             matches!(
@@ -1336,7 +1337,7 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
     // Canonical segment 1 ((2,0)->(2,1)) is a cylinder; segment 0
     // ((1,0)->(2,0)) sweeps the bottom plane annulus.
     let plane_meridian = meridians[0].unwrap();
-    let plane_key = wall_key(&t.body, t.walls[0][0].unwrap());
+    let plane_key = wall_key(&t.body, t.walls()[0][0].unwrap());
     // Its honest state before the forgery: an image in the plane
     // annulus's chart, NOT that chart's seam, declared by the profile
     // segment. (Pre-U2 this was the `MappedCurve` variant; the seam
@@ -1397,8 +1398,8 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
         panic!("full")
     };
     let cone_faces = [
-        t.walls[0][0].unwrap(),
-        t.walls[0][1].unwrap(),
+        t.walls()[0][0].unwrap(),
+        t.walls()[0][1].unwrap(),
         pi_walls[0].unwrap(),
         pi_walls[1].unwrap(),
     ];
@@ -1505,7 +1506,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
         panic!("full")
     };
     let meridians = &meridians[0];
-    let sphere_key = wall_key(&t.body, t.walls[0][2].unwrap());
+    let sphere_key = wall_key(&t.body, t.walls()[0][2].unwrap());
     assert!(matches!(
         t.body.get_surface(sphere_key),
         Some(Surface::Sphere { .. })

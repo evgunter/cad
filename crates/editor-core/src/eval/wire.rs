@@ -1834,7 +1834,7 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
 fn tube_pieces<T: Decide>(
     built: &sweep::Revolved<T>,
 ) -> Result<super::ProfilePieces, NodeErrorKind> {
-    let counts: Vec<usize> = built.walls.iter().map(Vec::len).collect();
+    let counts: Vec<usize> = built.rims.iter().map(Vec::len).collect();
     super::ProfilePieces::section(&counts).map_err(NodeErrorKind::Naming)
 }
 

@@ -1803,17 +1803,17 @@ pub(super) mod tests {
             vec![
                 R::OutputBody,
                 R::Cap(CapEnd::Start),
-                R::Lateral(e),
+                R::Lateral(e.into()),
                 R::RimEdge(CapEnd::End, e2),
                 R::LateralEdge(v),
                 R::CapVertex(CapEnd::Start, v),
                 R::LoftWall(vec![e, e2]),
                 R::LoftSeam(vec![v]),
-                R::Band(e),
+                R::Band(e.into()),
                 R::BandRim(v),
                 R::BandRimPi(v),
-                R::BandPi(e),
-                R::Meridian(MeridianEnd::Seam, e),
+                R::BandPi(e.into()),
+                R::Meridian(MeridianEnd::Seam, e.into()),
                 R::MeridianVertex(MeridianEnd::Pi, v),
                 R::RevolveCap(MeridianEnd::End),
                 R::Pole(v),
@@ -2268,7 +2268,7 @@ pub(super) mod tests {
                 vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
                     step: StepId(7),
                     role: PieceRole::Leg,
-                })],
+                }.into())],
             );
             let copy = |r: NameRef| RoleSeg::Instance { i: 1, of: r };
             assert_eq!(
@@ -2313,7 +2313,7 @@ pub(super) mod tests {
                 vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
                     step: StepId(i as u64),
                     role: PieceRole::Leg,
-                })],
+                }.into())],
             )
         };
         let member = |i: usize| {

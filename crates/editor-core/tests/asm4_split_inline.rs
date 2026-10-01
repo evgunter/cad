@@ -1582,7 +1582,7 @@ fn reshaped_component(
             doc,
             Node::Datum(editor_core::Datum::FaceFrame {
                 at: e2,
-                face: fixture::fname(e2, RoleSeg::Lateral(dropped)),
+                face: fixture::fname(e2, RoleSeg::Lateral(dropped.into())),
                 spin: fixture::ang(0.0),
             }),
         );
@@ -1674,7 +1674,10 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
         other => panic!("a face frame, got {other:?}"),
     };
     let dropped_step = match dropped.path.as_slice() {
-        [RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece { step, .. })] => *step,
+        [RoleSeg::Lateral(run)] => match run.single() {
+            Some(editor_core::ProfileEdgeRef::Piece { step, .. }) => step,
+            other => panic!("a wall spelled by one piece, got {other:?}"),
+        },
         other => panic!("a wall spelled by a piece, got {other:?}"),
     };
     assert!(

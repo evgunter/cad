@@ -666,6 +666,100 @@ pub enum ProfileEdgeRef {
     },
 }
 
+/// **The profile pieces one swept wall holds** (`names/README.md`, N1
+/// "Swept walls over a run"): the run of pieces an extrude or a revolve
+/// built one wall over, their locators in authored order, never empty.
+///
+/// A one-piece run is spelled as that one locator, on the wire and in
+/// words, so a name minted before runs existed reads back unchanged; a
+/// run of several is spelled as the list.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PieceRun(Vec<ProfileEdgeRef>);
+
+impl PieceRun {
+    /// The run of `pieces`, or `None` when there are none.
+    #[must_use]
+    pub fn new(pieces: Vec<ProfileEdgeRef>) -> Option<Self> {
+        (!pieces.is_empty()).then_some(Self(pieces))
+    }
+
+    /// The run of one piece.
+    #[must_use]
+    pub fn one(piece: ProfileEdgeRef) -> Self {
+        Self(vec![piece])
+    }
+
+    /// The pieces, in authored order.
+    #[must_use]
+    pub fn pieces(&self) -> &[ProfileEdgeRef] {
+        &self.0
+    }
+
+    /// The piece of a one-piece run.
+    #[must_use]
+    pub fn single(&self) -> Option<ProfileEdgeRef> {
+        match self.0.as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        }
+    }
+
+    /// Whether `piece` is one of the run's.
+    #[must_use]
+    pub fn holds(&self, piece: &ProfileEdgeRef) -> bool {
+        self.0.contains(piece)
+    }
+
+    /// The run with each piece passed through `f`.
+    ///
+    /// # Errors
+    ///
+    /// The first error `f` returns.
+    pub fn try_map<E>(
+        &self,
+        mut f: impl FnMut(ProfileEdgeRef) -> Result<ProfileEdgeRef, E>,
+    ) -> Result<Self, E> {
+        Ok(Self(
+            self.0.iter().map(|e| f(*e)).collect::<Result<_, _>>()?,
+        ))
+    }
+}
+
+impl From<ProfileEdgeRef> for PieceRun {
+    fn from(piece: ProfileEdgeRef) -> Self {
+        Self::one(piece)
+    }
+}
+
+/// [`PieceRun`]'s wire spelling: the bare locator for one piece, the
+/// list for several.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+enum PieceRunWire {
+    One(ProfileEdgeRef),
+    Many(Vec<ProfileEdgeRef>),
+}
+
+impl serde::Serialize for PieceRun {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self.single() {
+            Some(one) => PieceRunWire::One(one),
+            None => PieceRunWire::Many(self.0.clone()),
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for PieceRun {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        match PieceRunWire::deserialize(d)? {
+            PieceRunWire::One(one) => Ok(Self::one(one)),
+            PieceRunWire::Many(many) => Self::new(many)
+                .ok_or_else(|| serde::de::Error::custom("a run of profile pieces holds at least one")),
+        }
+    }
+}
+
 /// **A profile vertex by what made it**: the vertex where the piece of
 /// the same spelling starts, in authored order ([`ProfileEdgeRef`]'s
 /// two forms, read at the piece's start).
@@ -902,8 +996,9 @@ pub enum RoleSeg {
     // ---- Extrude ----
     /// A cap face.
     Cap(CapEnd),
-    /// A side-wall face swept from a profile segment.
-    Lateral(ProfileEdgeRef),
+    /// A side-wall face swept from a run of profile pieces on one
+    /// carrier (N1, "Swept walls over a run").
+    Lateral(PieceRun),
     /// A cap–wall rim edge (cap end × profile segment).
     RimEdge(CapEnd, ProfileEdgeRef),
     /// A strut (join) edge swept from a profile vertex.
@@ -922,17 +1017,19 @@ pub enum RoleSeg {
     LoftSeam(Vec<ProfileVertexRef>),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
-    /// A wall (band) face swept from a profile segment.
-    Band(ProfileEdgeRef),
+    /// A wall (band) face swept from a run of profile pieces on one
+    /// carrier (N1, "Swept walls over a run").
+    Band(PieceRun),
     /// A latitude (rim) edge at a profile vertex (partial: wedge
     /// arcs; full: full-period rims).
     BandRim(ProfileVertexRef),
     /// Full, wire case: the π…2π band's latitude half-rim.
     BandRimPi(ProfileVertexRef),
     /// Full, wire case: the π…2π band's wall face.
-    BandPi(ProfileEdgeRef),
-    /// A meridian edge (per profile segment, per meridian).
-    Meridian(MeridianEnd, ProfileEdgeRef),
+    BandPi(PieceRun),
+    /// A meridian edge (per meridian, per wall run: a partial revolve's
+    /// stations split its meridian chains, so there it is per piece).
+    Meridian(MeridianEnd, PieceRun),
     /// A meridian vertex: the copy of a profile vertex on a wedge
     /// cap plane (partial) or the surviving meridian vertex (full).
     MeridianVertex(MeridianEnd, ProfileVertexRef),
@@ -1291,7 +1388,7 @@ pub fn band(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::Band(piece)],
+        path: vec![RoleSeg::Band(piece.into())],
     }
 }
 
@@ -1304,7 +1401,7 @@ pub fn band_pi(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::BandPi(piece)],
+        path: vec![RoleSeg::BandPi(piece.into())],
     }
 }
 
@@ -1811,7 +1908,7 @@ impl RoleSeg {
             // Neither a locator nor a name: verbatim.
             inert_seg!() => self.clone(),
             // The locators.
-            R::Lateral(e) => R::Lateral(w.edge(*e)?),
+            R::Lateral(run) => R::Lateral(run.try_map(|e| w.edge(e))?),
             R::RimEdge(c, e) => R::RimEdge(*c, w.edge(*e)?),
             R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
             R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
@@ -1821,11 +1918,11 @@ impl RoleSeg {
             R::LoftSeam(vs) => {
                 R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
             }
-            R::Band(e) => R::Band(w.edge(*e)?),
+            R::Band(run) => R::Band(run.try_map(|e| w.edge(e))?),
             R::BandRim(v) => R::BandRim(w.vertex(*v)?),
             R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
-            R::BandPi(e) => R::BandPi(w.edge(*e)?),
-            R::Meridian(m, e) => R::Meridian(*m, w.edge(*e)?),
+            R::BandPi(run) => R::BandPi(run.try_map(|e| w.edge(e))?),
+            R::Meridian(m, run) => R::Meridian(*m, run.try_map(|e| w.edge(e))?),
             R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
             R::Pole(v) => R::Pole(w.vertex(*v)?),
             R::AxisEdge(e) => R::AxisEdge(w.edge(*e)?),
@@ -2125,7 +2222,7 @@ mod tests {
                 StableName {
                     kind: EntityKind::Face,
                     node: N,
-                    path: vec![RoleSeg::Band(e)],
+                    path: vec![RoleSeg::Band(e.into())],
                 }
             );
         }
@@ -2139,7 +2236,7 @@ mod tests {
                 StableName {
                     kind: EntityKind::Face,
                     node: N,
-                    path: vec![RoleSeg::BandPi(e)],
+                    path: vec![RoleSeg::BandPi(e.into())],
                 }
             );
         }
@@ -2209,7 +2306,7 @@ mod tests {
             path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
                 step: StepId(step),
                 role: PieceRole::Leg,
-            })],
+            }.into())],
         };
         let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
         assert_eq!(

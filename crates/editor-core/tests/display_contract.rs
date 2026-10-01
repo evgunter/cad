@@ -1344,7 +1344,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
                         step: StepId(tagged(8)),
                         role: editor_core::PieceRole::Leg,
-                    })],
+                    }.into())],
                 }),
                 step: StepId(tagged(8)),
             },
@@ -1605,7 +1605,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
         path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
             step: StepId(tagged(step)),
             role: editor_core::PieceRole::Leg,
-        })],
+        }.into())],
     };
     // A union member's wall, as a union's seams spell it.
     let member_wall = StableName {
