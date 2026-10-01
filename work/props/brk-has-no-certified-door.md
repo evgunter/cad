@@ -52,3 +52,19 @@ Also noted, not a design question: the per-corner `c.is_nan()` guard
 is unreachable once the entry guard has passed — `atan2` of two
 non-NaN `f64`s (±1 times a non-NaN end) is never NaN. Deleting it or
 keeping it as belt-and-braces is the owner's call.
+
+## A permissive root on the same carrier
+
+Found by `linalg/certification-gains-a-sqrt-door`'s sweep for
+private outward roots. `Brk::sqrt_nonneg` (`crates/geom/src/curves/boxes.rs`)
+is one more: it clamps a `lo` below zero to `0`, roots both ends to
+nearest, and steps each one ulp outward through `Brk::out`. The clamp
+is argued at each caller. At `:287` (the circle's `amp`, `u² + v²`) the
+radicand is a sum of squares. At `:467`–`:468` (the spiric `f` range,
+`ρ² − d²`) the comment there argues the one-oval regime. Certification
+arithmetic spells the same shape as `clamped_to(0.0, f64::INFINITY)`
+followed by `Certification::sqrt`, so the clamp is stated where the
+fact is and the root is tight at exact squares. That spelling is open
+to `Brk` only if choice 2 above moves it onto `Interval`. Under
+choice 1 the root stays as written, and this note just records that
+the sweep saw it.
