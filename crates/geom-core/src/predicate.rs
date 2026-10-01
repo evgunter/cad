@@ -384,6 +384,16 @@ impl Band {
         Ok(Self { zero, escalate })
     }
 
+    /// **The tolerance below which `margin` is decided**, `|m|/K`: below
+    /// it the band's escalation edge falls under `|m|`. The one home of
+    /// the value every sized recourse offers to tighten below
+    /// ([`MarginDiag::sized_recourse`]) and of every reader that checks
+    /// an offer against its margin.
+    #[must_use]
+    pub fn tolerance_deciding(self, margin: f64) -> f64 {
+        margin.abs() / (self.escalate / self.zero)
+    }
+
     /// The band for **linear** margins (meters): (ε, K·ε) from the run's
     /// global [`Tolerance`](crate::tolerance::Tolerance) (its ε and its K).
     ///
@@ -1108,9 +1118,9 @@ impl SizedPass {
 
     /// The tolerance every margin in `[lo, hi]` is decided passing below,
     /// where both ends tighten on one side.
-    fn below(self, lo: f64, hi: f64, k: f64) -> Option<f64> {
+    fn below(self, lo: f64, hi: f64, band: Band) -> Option<f64> {
         (self.tightens(lo) && self.tightens(hi) && (lo > 0.0) == (hi > 0.0))
-            .then(|| lo.abs().min(hi.abs()) / k)
+            .then(|| band.tolerance_deciding(lo.abs().min(hi.abs())))
     }
 }
 
@@ -1205,10 +1215,9 @@ impl MarginDiag {
             may_tighten,
             otherwise,
         } = words;
-        let k = band.escalate() / band.zero();
         let below = match self.0 {
-            Reading::Value(m) => passes.tightens(m).then(|| m.abs() / k),
-            Reading::Enclosure { lo, hi } => passes.below(lo, hi, k),
+            Reading::Value(m) => passes.tightens(m).then(|| band.tolerance_deciding(m)),
+            Reading::Enclosure { lo, hi } => passes.below(lo, hi, band),
             Reading::Invalid => return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}"),
         };
         match (below, otherwise) {
@@ -1848,7 +1857,7 @@ mod tests {
     #[test]
     fn an_enclosure_tightens_only_with_both_ends_on_one_side() {
         use SizedPass::{Negative, NonZero, Positive};
-        let k = 10.0;
+        let band = Band::new(1e-9, 1e-8).unwrap();
         let rows = [
             (NonZero, 2e-9, 5e-9, Some(2e-10)),
             (NonZero, -5e-9, -2e-9, Some(2e-10)),
@@ -1863,7 +1872,7 @@ mod tests {
         ];
         for (pass, lo, hi, want) in rows {
             assert_eq!(
-                pass.below(lo, hi, k),
+                pass.below(lo, hi, band),
                 want,
                 "{pass:?} over [{lo:e}, {hi:e}]"
             );

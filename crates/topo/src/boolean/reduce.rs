@@ -3290,9 +3290,11 @@ mod declaration_order_rows {
             assert!(
                 text.starts_with("whether a face of each solid lies on one plane is undecided: ")
                     && text.ends_with(
-                        "Recourse: tilt one face so the two are clearly parallel or clearly not"
+                        "Whichever way it reads, the Boolean cannot yet act on a Tangent \
+                         contact declared between two plane faces. There is no way through yet"
                     )
-                    && !text.contains("declare"),
+                    && !text.contains("declare the")
+                    && !text.contains("Recourse"),
                 "{label}: {text}"
             );
         }

@@ -4539,8 +4539,8 @@ mod tests {
                 arm.contains("the transversality margin's lever arm")
                     && arm.ends_with(&format!(
                         "Recourse: move the geometry so that edge is clearly longer, and its \
-                         faces curve less tightly there, or, if this edge length or radius of \
-                         curvature is intended, tighten the tolerance below {below} m"
+                         faces curve less tightly there, or, if this length or the gap its faces \
+                         open is intended, tighten the tolerance below {below} m"
                     )),
                 "{arm}"
             );

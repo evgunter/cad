@@ -9598,7 +9598,7 @@ mod tests {
                 "whether an edge is long enough, for how its faces curve, to measure the angle \
                  between them is too close to call at this tolerance. Recourse: move the \
                  geometry so that edge is clearly longer, and its faces curve less tightly \
-                 there, or, if this edge length or radius of curvature is intended, tighten the \
+                 there, or, if this length or the gap its faces open is intended, tighten the \
                  tolerance below 5e-10 m"
                     .to_owned(),
             ),
@@ -9606,7 +9606,7 @@ mod tests {
                 "wedge arm, zero band",
                 sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
                 "Recourse: move the geometry so that edge is clearly longer, and its faces curve \
-                 less tightly there, or, if this edge length or radius of curvature is intended, \
+                 less tightly there, or, if this length or the gap its faces open is intended, \
                  tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),

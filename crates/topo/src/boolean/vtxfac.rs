@@ -59,7 +59,7 @@ use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
     PierceRingRecord, SideCode, VfContact,
 };
-use super::{Coincide, DeclarationRead};
+use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
 use crate::euler::MevSite;
@@ -210,8 +210,35 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         // `Tangent` lump descends to the second order), so only an
         // undeclared pair refuses it here, and the class the door admits
         // for this pierced face would change its verdict. A tilt decided
-        // off refuses whatever is declared.
+        // off is no coincidence a declaration settles: a declared pair's
+        // claim is contradicted by it, and an undeclared pair's sector is
+        // undecided on its bounds' margin with no declaration to offer.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
+        let decided_tilt = matches!(tilt, Ok(Sign::Positive | Sign::Negative));
+        if let (true, Some(class)) = (decided_tilt, class) {
+            let (a, b) = match piercing {
+                Operand::A => (s.face, contact.face),
+                Operand::B => (contact.face, s.face),
+            };
+            let planar = plane.is_some()
+                && matches!(
+                    super::rest::face_carrier(piercing_body, s.face),
+                    Some(super::carrier_eq::CarrierDesc::Plane { .. })
+                );
+            let fact = (planar && class == crate::contact::ContactClass::Rest)
+                .then_some(Contradiction::PlanesNotParallel);
+            return Err(BooleanError::ContactContradicted {
+                declaration: crate::contact::DeclaredContact { a, b, class },
+                steer: fact.and_then(super::contact_verify::fit_steer),
+                fact,
+                margin: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("bool_sector_coplanar"),
+                    terminal_sliver: false,
+                },
+            });
+        }
         let refused = match (&tilt, class) {
             (Ok(Sign::Zero), _) | (Err(_), Some(_)) => false,
             (Ok(Sign::Positive | Sign::Negative), _) | (Err(_), None) => true,
@@ -244,6 +271,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 (false, true) => &[crate::contact::ContactClass::Tangent],
                 (false, false) => &[],
             };
+            // A decided tilt admits no class: no declaration settles it.
+            let admitted = if decided_tilt { &[] } else { admitted };
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::Sectors,

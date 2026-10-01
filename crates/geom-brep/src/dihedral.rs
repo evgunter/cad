@@ -100,11 +100,13 @@ use crate::recourse::{SizedDecision, SizedPass, StoredDefinite};
 /// passes only on a definitely positive arm; a zero-band one is a size
 /// a smaller tolerance decides. Every door that reads the dihedral's
 /// [`crate::LeverRung::Arm`] ends it here, since the arm is a length and
-/// the wedge an angle.
+/// the wedge an angle. Its margin is the wedge the arm meters,
+/// `sin θ · arm` (the arm's own where that is exactly zero), so the
+/// tolerance it offers decides the arm and the wedge both.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     lever: "move the geometry so that edge is clearly longer, and its faces curve less tightly \
             there",
-    size: "edge length or radius of curvature",
+    size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
     at_zero: None,
@@ -234,7 +236,7 @@ pub(crate) fn wedge_decided<T: Decide>(
     // Negative one as Invalid, and an in-band or poisoned arm as the
     // funnel's own escalation.
     crate::enters::decide_arm("dihedral_arm", Margin::of(arm), band)
-        .map_err(LeverEscalation::arm)?;
+        .map_err(|diag| LeverEscalation::arm(at_wedge(diag, sin_theta * arm, band)))?;
     let margin = Margin::levered(sin_theta, arm);
     let Decided { sign, margin } =
         decide_reported("dihedral_wedge", margin, band).map_err(LeverEscalation::reading)?;
@@ -249,6 +251,40 @@ pub(crate) fn wedge_decided<T: Decide>(
         Sign::Negative => DihedralClass::Transverse,
     };
     Ok((class, margin))
+}
+
+/// **The arm gate's escalation, quoted at the wedge it meters**: the arm
+/// is in band or decided zero, and the reading it meters is the wedge
+/// `sin θ · arm`, no longer than the arm. A tolerance that decides the
+/// arm but leaves that wedge in band reads no class, so the escalation
+/// carries the wedge's own margin, through the arm gate's funnel
+/// (`"dihedral_arm_wedge"`), and the tolerance it offers decides both.
+/// An exactly zero wedge reads smooth at every tolerance that decides the
+/// arm, so there the arm binds and keeps its own margin, as does a
+/// poisoned arm.
+fn at_wedge<T: Decide>(arm: Indeterminate, wedge: T, band: Band) -> Indeterminate {
+    if arm.margin.is_invalid() {
+        return arm;
+    }
+    match geom_core::k_stats::decide_positive_reported(
+        "dihedral_arm_wedge",
+        Margin::of(wedge.abs()),
+        band,
+    ) {
+        Err(diag)
+            if matches!(
+                diag.margin.diagnostic_f64_for_error_text(),
+                geom_core::ErrorTextReading::Value(m) if m != 0.0
+            ) =>
+        {
+            diag
+        }
+        // An exactly zero wedge, an unreadable one (a gradient the arm's
+        // decided zero left unread, at a cone's apex), or (unreachable:
+        // the wedge is no longer than an arm that did not read positive)
+        // a positive one.
+        Err(_) | Ok(()) => arm,
+    }
 }
 
 /// **The folded lever arm** of a surface pair at `p` (module docs):
@@ -741,7 +777,43 @@ mod tests {
         let err = classify_dihedral(&floor, &wall, Point3::origin(), mid, b).unwrap_err();
         assert_eq!(
             (err.rung, err.diag.predicate),
+            (LeverRung::Arm, Some("dihedral_arm_wedge"))
+        );
+    }
+
+    /// **The arm's escalation quotes the wedge it meters** (`at_wedge`):
+    /// two planes at an angle θ over an in-band extent escalate the arm
+    /// with the margin `sin θ · extent`, the value whose tolerance decides
+    /// the arm and the wedge both (the coincfr4 review's MINOR-1: at one
+    /// radian the arm's own offer met the wedge in band); in the zero
+    /// band alike; and two coincident planes, whose wedge is exactly zero
+    /// at every tolerance that decides the arm, keep the arm's own.
+    #[test]
+    fn an_arm_escalation_quotes_the_wedge_it_meters() {
+        let b = band();
+        let mid = (b.zero() + b.escalate()) / 2.0;
+        let floor = plane(Vec3::unit_z(), Vec3::unit_x());
+        let theta = 1.0_f64;
+        let leaning = plane(Vec3::new(0.0, theta.sin(), theta.cos()), Vec3::unit_x());
+        for extent in [mid, 0.5 * b.zero()] {
+            let err = classify_dihedral(&floor, &leaning, Point3::origin(), extent, b).unwrap_err();
+            let geom_core::ErrorTextReading::Value(m) =
+                err.diag.margin.diagnostic_f64_for_error_text()
+            else {
+                panic!("a point margin: {err:?}");
+            };
+            assert_eq!(err.rung, LeverRung::Arm);
+            assert_eq!(err.diag.predicate, Some("dihedral_arm_wedge"));
+            assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
+        }
+        let err = classify_dihedral(&floor, &floor, Point3::origin(), mid, b).unwrap_err();
+        assert_eq!(
+            (err.rung, err.diag.predicate),
             (LeverRung::Arm, Some("dihedral_arm"))
+        );
+        assert_eq!(
+            err.diag.margin.diagnostic_f64_for_error_text(),
+            geom_core::ErrorTextReading::Value(mid)
         );
     }
 

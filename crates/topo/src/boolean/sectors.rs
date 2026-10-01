@@ -494,7 +494,7 @@ pub(super) fn side_code<T: Decide>(
                 Err(escalation) => {
                     return Err(BooleanError::of_lever(
                         LeverArm::SectorSide,
-                        BooleanDecision::Coincidence(Coincide::SectorSide, DeclarationRead::Moot),
+                        DeclarationRead::Moot,
                         at_departure(escalation, dir.normalize().dot(n) * lever_arm, band),
                     ));
                 }
@@ -549,7 +549,11 @@ pub(super) fn side_code<T: Decide>(
 /// than the arm. A tolerance that decides the arm but leaves the
 /// departure in band reads no side, so the escalation carries the
 /// departure's own margin, through the arm gate's funnel, and the
-/// tolerance it offers decides both. A poisoned arm keeps its own.
+/// tolerance it offers decides both, logged under its own name
+/// (`"enters_material_rise"`). An exactly zero departure (a bound in the
+/// face's plane) reads `On` at every tolerance that decides the arm, so
+/// there the arm binds and keeps its own margin, the edge's length, as a
+/// poisoned arm does.
 fn at_departure<T: Decide>(
     escalation: geom_brep::LeverEscalation,
     departure: T,
@@ -559,17 +563,25 @@ fn at_departure<T: Decide>(
         return escalation;
     }
     match geom_core::k_stats::decide_positive_reported(
-        "enters_material_arm",
+        "enters_material_rise",
         Margin::of(departure.abs()),
         band,
     ) {
-        Err(diag) => geom_brep::LeverEscalation {
-            rung: geom_brep::LeverRung::Arm,
-            diag,
-        },
-        // Unreachable: the departure is no longer than an arm that did
-        // not read positive.
-        Ok(()) => escalation,
+        Err(diag)
+            if matches!(
+                diag.margin.diagnostic_f64_for_error_text(),
+                geom_core::ErrorTextReading::Value(m) if m != 0.0
+            ) =>
+        {
+            geom_brep::LeverEscalation {
+                rung: geom_brep::LeverRung::Arm,
+                diag,
+            }
+        }
+        // An exactly zero departure, an unreadable one, or (unreachable:
+        // the departure is no longer than an arm that did not read
+        // positive) a positive one.
+        Err(_) | Ok(()) => escalation,
     }
 }
 
@@ -716,7 +728,7 @@ pub(super) fn tangent_relative_side<T: Decide>(
         Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
         Err(escalation) => Err(BooleanError::of_lever(
             LeverArm::SectorCurving,
-            BooleanDecision::Coincidence(Coincide::TangentSide, read),
+            read,
             escalation,
         )),
     }
@@ -1342,7 +1354,7 @@ mod tests {
             panic!("the arm gate escalates: {err:?}");
         };
         assert_eq!(decision, BooleanDecision::LeverArm(LeverArm::SectorSide));
-        assert_eq!(diag.predicate, Some("enters_material_arm"));
+        assert_eq!(diag.predicate, Some("enters_material_rise"));
         let text = BooleanError::Escalated { decision, diag }.to_string();
         assert_eq!(recourse_markers(&text), 1, "{text}");
         assert!(
@@ -1355,7 +1367,7 @@ mod tests {
                  leaves on is undecided: "
             ) && text.ends_with(&format!(
                 "Recourse: make the edges at the corner where the two faces meet clearly longer \
-                 than the tolerance, or, if this edge's rise off the face is intended, tighten \
+                 than the tolerance, or, if this edge's length or rise is intended, tighten \
                  the tolerance below {:e} m",
                 departure(mid) / (e / z)
             )) && !text.contains("declare"),
@@ -1384,9 +1396,37 @@ mod tests {
                 "margin {:e} lies within the zero band",
                 departure(short)
             )) && text.ends_with(&format!(
-                "if this edge's rise off the face is intended, tighten the tolerance below {:e} m",
+                "if this edge's length or rise is intended, tighten the tolerance below {:e} m",
                 departure(short) / (e / z)
             )) && !text.contains("kernel bug"),
+            "{text}"
+        );
+        // A bound in the face's plane departs by exactly zero, which reads
+        // `On` at every tolerance that decides the arm: the arm binds, and
+        // the refusal quotes the edge's length under the arm's own name
+        // (the coincfr4 review's in-plane pose).
+        let err = side_code(
+            Vec3::new(1.0, 0.0, 0.0),
+            Reach::Extent(mid),
+            n,
+            1.0,
+            NO_CURVATURE(),
+            b,
+        )
+        .expect_err("an in-band extent escalates the arm gate");
+        let BooleanError::Escalated { decision, diag } = err else {
+            panic!("the arm gate escalates: {err:?}");
+        };
+        assert_eq!(decision, BooleanDecision::LeverArm(LeverArm::SectorSide));
+        assert_eq!(diag.predicate, Some("enters_material_arm"));
+        let text = BooleanError::Escalated { decision, diag }.to_string();
+        assert!(
+            text.contains(&format!("margin {mid:e} lies inside the ambiguity band"))
+                && text.ends_with(&format!(
+                    "if this edge's length or rise is intended, tighten the \
+                     tolerance below {:e} m",
+                    mid / (e / z)
+                )),
             "{text}"
         );
         // The reading's own escalation, over a clear extent: a direction

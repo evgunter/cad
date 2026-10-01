@@ -1343,8 +1343,8 @@ mod tests {
             );
             assert!(
                 err.to_string().ends_with(
-                    "Recourse: make the edges at the corner where the two faces meet clearly \
-                     longer than the tolerance"
+                    "Recourse: reshape the parts so the faces along that edge are planes that \
+                     only touch there"
                 ),
                 "{label}: {err}"
             );

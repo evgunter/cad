@@ -1617,14 +1617,16 @@ impl BooleanError {
     /// An escalation of a reading metered over a lever arm at `gate`,
     /// routed by the rung that raised it
     /// ([`BooleanDecision::of_lever`]): the arm is the gate's own
-    /// length, and the reading is the decision `reading`.
+    /// length, and the reading is the decision the gate meters
+    /// ([`refusal_routes::LeverArm::reading`]), with what its door read
+    /// of the declaration.
     pub(crate) const fn of_lever(
         gate: refusal_routes::LeverArm,
-        reading: BooleanDecision,
+        read: DeclarationRead,
         escalation: geom_brep::LeverEscalation,
     ) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::of_lever(gate, reading, escalation.rung),
+            decision: BooleanDecision::of_lever(gate, read, escalation.rung),
             diag: escalation.diag,
         }
     }

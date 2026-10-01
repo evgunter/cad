@@ -1803,7 +1803,7 @@ pub(super) fn seam_class<T: Decide>(
     geom_brep::classify_dihedral(surf1, surf2, witness, extent, band).map_err(|escalation| {
         BooleanError::of_lever(
             super::LeverArm::Seam,
-            BooleanDecision::SeamWedge,
+            super::DeclarationRead::Moot,
             escalation,
         )
     })
