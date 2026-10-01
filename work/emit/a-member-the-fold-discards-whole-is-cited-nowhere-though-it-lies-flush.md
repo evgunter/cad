@@ -2,12 +2,12 @@
 id: a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush
 kind: issue
 title: A union member the fold discards whole, inside the accumulation and flush with it, is cited nowhere, while folded earlier it parents the merged faces it lies in
-status: open
+status: review
 opened: 2026-10-01
 priority: P1
 cost: M
-pr: 3734
-branch: emit/fold-discarded-member
+pr: 3753
+branch: emit/union-member-space-linking
 ---
 
 
