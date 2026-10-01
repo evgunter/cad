@@ -3465,4 +3465,38 @@ mod tests {
             }]
         );
     }
+
+    /// **The kept faces' boundaries are the merge door's, not this
+    /// worklist's.** After a merge that kept one face and skipped
+    /// nothing, the boolean's description worklist over no seam edges
+    /// is empty: the door re-described the kept face's boundary before
+    /// it returned, and the boolean does not describe it a second time.
+    #[test]
+    fn the_description_worklist_carries_no_kept_boundary() {
+        let tol = Tol::witness();
+        let prism = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let mut body = prism.body;
+        let surface = |face| body.get_face(face).unwrap().surface;
+        let pair = (surface(prism.side_faces[0]), surface(prism.side_faces[1]));
+        let merged = body.merge_coplanar_faces_declared(&[pair], tol).unwrap();
+        assert_eq!(merged.groups.len(), 1, "the split wall merges: {merged:?}");
+        assert!(merged.skipped.is_empty(), "nothing is skipped: {merged:?}");
+        let mut kept_boundary = Vec::new();
+        super::boundary_edges(&body, [merged.groups[0].kept], &mut kept_boundary).unwrap();
+        assert_eq!(
+            kept_boundary.len(),
+            6,
+            "the merged wall is bounded by two bottom edges, two top edges and two struts"
+        );
+        assert_eq!(
+            super::describe_worklist(&body, &[], &merged).unwrap(),
+            Vec::new(),
+            "the boolean's worklist holds none of the kept face's boundary"
+        );
+    }
 }

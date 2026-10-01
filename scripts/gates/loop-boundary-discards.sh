@@ -147,7 +147,7 @@ REGISTER=(
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
   "crates/topo/src/boolean/join.rs|resolve_roles_geometric||2|unaudited"
-  "crates/topo/src/boolean/ops.rs|describe_minted_edges||1|unaudited"
+  "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
   "crates/topo/src/boolean/ops.rs|sphere_extent_scan||1|unaudited"
   "crates/topo/src/boolean/rest.rs|bfs_order||1|unaudited"
   "crates/topo/src/boolean/rest.rs|cycle_starts||1|unaudited"
