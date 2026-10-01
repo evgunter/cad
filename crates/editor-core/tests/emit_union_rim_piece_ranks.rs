@@ -410,8 +410,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// `work/emit/a-member-the-fold-discards-whole-is-cited-nowhere-though-it-lies-flush.md`
 /// owns it.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r4tri", "U", 96, 10741176430396264091),
-    ("r4trig", "U", 372, 5554359638117515661),
+    ("r4tri", "U", 168, 4231530857450118831),
+    ("r4trig", "U", 564, 7570011804769676243),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.

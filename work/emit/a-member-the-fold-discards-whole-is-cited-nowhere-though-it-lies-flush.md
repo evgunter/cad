@@ -55,3 +55,14 @@ keeps, is a parent of those faces (the declared pair says its face is
 coplanar with the kept face), or whether the orders that fold it before
 the others should stop citing it. Either one makes the table
 order-free.
+
+## Re-measured (CLEAVE, 2026-10-01, origin/main `9d0b86ec2` merged)
+
+Main now names some member-edge pieces by their ends
+(`Fragment(Ends([..]))`), and those ends cite `b`'s corners. With that
+change the absences grow to 168 over `r4tri` and 564 over `r4trig`.
+The cause is the same: `b` is cited nowhere in the orders that discard
+it whole. `KNOWN_ABSENT` pins both the counts and an FNV digest of the
+absent (order, name) set. The same row asserts that every fused order of
+the two cases publishes one multiset of entity geometries, and that
+assertion holds.
