@@ -2,8 +2,9 @@
 id: persist-door-refusals-speak-the-node
 kind: unit
 title: The load and save doors' refusals (SnapshotError, PersistError) speak the node from the document they judge
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
 priority: P2
 cost: M
 branch: emit/persist-speak
