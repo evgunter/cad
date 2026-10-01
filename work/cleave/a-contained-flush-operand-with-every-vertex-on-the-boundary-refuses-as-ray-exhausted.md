@@ -2,12 +2,13 @@
 id: a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted
 kind: issue
 title: A shell with every vertex on the other operand's boundary exhausts the uncut-shell vertex probe and refuses as Containment(RayExhausted), though no ray was cast to exhaustion
-status: dispatched
+status: review
 opened: 2026-09-25
 priority: P0
 cost: M
 refs: [two-parts-of-one-body-at-one-boolean-refuse-as-ray-exhausted, union-refuses-in-some-member-orders-and-publishes-in-others]
 branch: cleave/interior-witness
+pr: 3655
 ---
 
 
