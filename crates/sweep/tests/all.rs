@@ -206,6 +206,8 @@ mod contact_edge_must_carry;
 mod contained_flush_cylinder;
 #[path = "contfp_reads_arcs_on_their_carriers.rs"]
 mod contfp_reads_arcs_on_their_carriers;
+#[path = "copied_carriers_at_interval.rs"]
+mod copied_carriers_at_interval;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
 #[path = "euler_site_row_frontiers.rs"]
@@ -430,6 +432,8 @@ mod s49_census_jurisdiction;
 mod seat6_germ_channel;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
+#[path = "split_section_rings.rs"]
+mod split_section_rings;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -561,6 +565,8 @@ mod mate7a_r1_probes;
 mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "snowman.rs"]
+mod snowman;
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
@@ -785,9 +791,6 @@ mod wire_loft_end_profile_lift;
 
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
-
-#[path = "review_recourse_roster_r1_probes.rs"]
-mod review_recourse_roster_r1_probes;
 
 #[path = "review_ring2_r1_e2e.rs"]
 mod review_ring2_r1_e2e;

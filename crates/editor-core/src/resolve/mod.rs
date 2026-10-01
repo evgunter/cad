@@ -873,8 +873,8 @@ impl core::fmt::Display for Walls<'_> {
 /// reused).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecipeEditRef {
-    /// The node was deleted (it once existed: its id is below the
-    /// document's mint counter).
+    /// The node was deleted (it once existed: the document's mint log
+    /// holds its id).
     NodeDeleted {
         /// The deleted node.
         node: RecipeNodeId,
@@ -1225,7 +1225,9 @@ impl<U: Decide> Prior<'_, U> {
         flips: &FlipSet,
         nodes: &BTreeSet<RecipeNodeId>,
     ) -> Option<Evidence> {
-        if let Some((node, f)) = flips.flips_on_nodes(nodes).first() {
+        if let Some((node, f)) =
+            in_document_order(self.doc(), new.doc, flips.flips_on_nodes(nodes)).first()
+        {
             return Some(Evidence::Flip(*node, *f));
         }
         let ddiff = self.doc().diff(new.doc);
@@ -1236,6 +1238,23 @@ impl<U: Decide> Prior<'_, U> {
         }
         recipe_edit_change(self.doc(), new.doc, &ddiff, Some(nodes)).map(Evidence::Edit)
     }
+}
+
+/// `found` in the order the lanes read evidence: by where its node
+/// stands in the current document, then in the last-good one — the
+/// node the author placed first answers first, whatever its id. Stable,
+/// so one node's flips keep their own order.
+fn in_document_order<V>(
+    old: &Doc<ProfileProgram>,
+    new: &Doc<ProfileProgram>,
+    mut found: Vec<(RecipeNodeId, V)>,
+) -> Vec<(RecipeNodeId, V)> {
+    let (in_new, in_old) = (new.positions(), old.positions());
+    let at = |positions: &BTreeMap<RecipeNodeId, usize>, id| {
+        positions.get(&id).copied().unwrap_or(usize::MAX)
+    };
+    found.sort_by_key(|&(id, _)| (at(&in_new, id), at(&in_old, id)));
+    found
 }
 
 /// One lane's find ([`Prior::lanes`]), before a scope wraps it in the
@@ -1270,8 +1289,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
         let flips = diff_verdicts(self.ctx.eval, new.eval);
-        let family = flips
-            .flips_on_nodes(path)
+        let family = in_document_order(self.doc(), new.doc, flips.flips_on_nodes(path))
             .into_iter()
             .find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY));
         let flip = |f: VerdictFlip| Diagnosis::PredicateFlip {
@@ -2170,6 +2188,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetTolerance { .. }
         | DocEdit::SetRoots { .. }
         | DocEdit::SetPlacement { .. }
+        | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {
@@ -2397,10 +2416,13 @@ fn structural_param_change(
     path: Option<&BTreeSet<RecipeNodeId>>,
 ) -> Option<(RecipeNodeId, SlotId)> {
     let changed_params: Vec<&crate::doc::ParamName> = ddiff.params.iter().collect();
-    let candidates: Vec<RecipeNodeId> = match path {
-        Some(p) => p.iter().copied().collect(),
-        None => new.order().to_vec(),
-    };
+    // In document order: a node both runs hold is in `new`'s order.
+    let candidates: Vec<RecipeNodeId> = new
+        .order()
+        .iter()
+        .copied()
+        .filter(|id| path.is_none_or(|p| p.contains(id)))
+        .collect();
     for id in candidates {
         let (Some(a), Some(b)) = (old.node(id), new.node(id)) else {
             continue;

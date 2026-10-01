@@ -1401,7 +1401,7 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
     let mut dst = ops_ring_bridge(tol).body;
     let before = deep_snapshot(&dst);
     assert!(
-        crate::graft_disjoint_all_keyed(&mut dst, &src, tol).is_err(),
+        crate::graft_disjoint_all_keyed(&mut dst, &src).is_err(),
         "the torn source must refuse to graft"
     );
     assert_ne!(

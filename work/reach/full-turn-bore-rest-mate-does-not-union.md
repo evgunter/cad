@@ -42,3 +42,16 @@ crossing the partner's seam ruling in its interior, "recorded by
 NOBODY"): on a full-turn bore every rim is one circle with its vertex
 at the collar's seam, so every partner ruling not at that azimuth is
 misaligned.
+
+## Evidence (2026-10-01, `reach-snowman`): lily wall 12 now stops here
+
+With a line × sphere root lane in the crossing layer, lily wall probe 12
+(corm ∪ stem foot, declared cylindrical `Rest`) gets past the corm's
+sphere zone and stops at this row's door:
+`CurvedPierceUnsupported { operand: B, face: FaceKey(3v1), edge: EdgeKey(5v1) }`.
+Measured at `curved_face_arm`: edge `5v1` is the foot's seam ruling at
+azimuth 120°, `(-0.03, 0.052, z)`, `z ∈ [-0.92, 0]`; face `3v1` is the
+corm's bore wall (axis `-z`, radius 0.06); the pair is declared-covered,
+both residuals are zero, and both ends lie past the bore's height
+window, so the `(Zero, Zero) if covered` arm records nothing and keeps
+the door — the partial-engagement case above, on the plant.

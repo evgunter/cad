@@ -78,7 +78,7 @@ fn overhang_seat_full() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey, FaceK
     let post_side_ha = post.side_faces[7];
     let post_side_ab = post.side_faces[0];
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let shelf_side_y030 = keys.face(shelf.side_faces[2]).unwrap();
     (
@@ -214,7 +214,7 @@ fn r2_the_touching_boundary_residue_is_not_the_new_arms_doing() {
         Tol::witness(),
     );
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let found = errors(
         &body,

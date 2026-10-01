@@ -821,7 +821,10 @@ class TestAssemblyRefusals(BenchWorkspace):
             refusal.fault.clash.meters,
             refusal.fault.lever_tilt.radians * refusal.fault.lever_arm.meters,
         )
-        self.assertIn("mate_clocking_redundant", str(refusal))
+        # The predicate's name rides `fault.predicate`; the sentence says
+        # in words what it found.
+        self.assertNotIn("mate_clocking_redundant", str(refusal))
+        self.assertIn("the clocking disagrees", str(refusal))
         self.assertEqual(doc.roots, before, "a refused mate enters nothing")
         # The same rider INSIDE the band is redundant and admitted, and
         # the solve places the pair.
@@ -1729,7 +1732,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
     id in `of`'s space. A bare node id with no document is not
     something a caller can look up."""
 
-    def stand_doc(self, label, class_=ContactClass.Rest, axis=None, b_seat=None):
+    def stand_doc(self, seed, class_=ContactClass.Rest, axis=None, b_seat=None):
         """The bench stand as its OWN document, so it can be
         instantiated.
 
@@ -1739,7 +1742,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         shelf's edge is the GRAZING case: the post's top square lies
         outside the shelf's footprint and shares one edge with it, so
         the census can decide the pair in neither direction."""
-        doc = Doc(label)
+        doc = Doc(seed)
         post_a = doc.insert(Node.instantiate_part(self.post_ref))
         doc.apply(
             DocEdit.set_placement(
@@ -1766,8 +1769,8 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         self.ws.create(doc)
         return doc, mate, DocRef(doc.id, content_pin(doc))
 
-    def instantiated(self, label, ref):
-        doc = Doc(label)
+    def instantiated(self, seed, ref):
+        doc = Doc(seed)
         return doc, doc.insert(Node.instantiate_part(ref))
 
     def carried(self, findings, relation):
@@ -1881,8 +1884,8 @@ class TestMateFrameFromFace(BenchWorkspace):
         self.assertEqual(len(found), 1, found)
         return found[0]
 
-    def seated(self, label, post_frame):
-        doc = Doc(label)
+    def seated(self, seed, post_frame):
+        doc = Doc(seed)
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         a_top = self.instance_face(doc, post_i, CapEnd.End)
@@ -1933,11 +1936,16 @@ class TestMateFrameFromFace(BenchWorkspace):
         evaluate(doc, resolver=self.ws).value(mate)
         before = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
         self.assertAlmostEqual(before.origin[2].meters, POST_HEIGHT, places=12)
-        # The post grows on disk; the reference moves; the shelf comes
-        # up with the cap, by exactly the height change.
-        taller = bench_scene.post(height=POST_HEIGHT + 0.1)
-        self.ws.resave(taller)
-        for edit in pncad.update_references(doc, self.post.id, content_pin(taller)):
+        # The post grows on disk, edited in place so its cap keeps the
+        # name the frame holds; the reference moves; the shelf comes up
+        # with the cap, by exactly the height change.
+        self.post.apply(
+            DocEdit.set_param(
+                self.post.roots[0], "distance", Expr.length_in(POST_HEIGHT + 0.1, m)
+            )
+        )
+        self.ws.resave(self.post)
+        for edit in pncad.update_references(doc, self.post.id, content_pin(self.post)):
             doc.apply(edit, resolver=self.ws)
         evaluate(doc, resolver=self.ws).value(mate)
         after = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)

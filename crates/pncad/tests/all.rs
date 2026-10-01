@@ -327,6 +327,24 @@ fn blend_site_and_convexity_are_matchable(
     (where_it_broke, removes_material)
 }
 
+/// `BlendError::Escalated`'s decision: which question could not be
+/// taken, and so which lever the refusal hands its reader.
+fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
+    match decision {
+        BlendDecision::RadiusHeadroom => "radius_headroom",
+        BlendDecision::FaceClearance => "face_clearance",
+        BlendDecision::SpineRegularity => "spine_regularity",
+        BlendDecision::ChainG1 => "chain_g1",
+        BlendDecision::ChainArm => "chain_arm",
+        BlendDecision::ConvexitySign => "convexity_sign",
+        BlendDecision::RingClearance => "ring_clearance",
+        BlendDecision::SupportCoaxiality => "support_coaxiality",
+        BlendDecision::ContactSecondOrder => "contact_second_order",
+        BlendDecision::CornerIndependence => "corner_independence",
+        BlendDecision::CapTransverse => "cap_transverse",
+    }
+}
+
 /// `ValidationError::UndeclaredContact`'s payload. The branch that
 /// matters is not "a census contact happened" but WHICH: an
 /// `EdgeFacePierce` is interpenetration and categorically undeclarable
@@ -559,6 +577,10 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
             Convexity::Concave
         ),
         ("joint", false)
+    );
+    assert_eq!(
+        blend_decision_is_matchable(BlendDecision::CornerIndependence),
+        "corner_independence"
     );
 
     // Declarable vs categorically undeclarable, off the same refusal.
@@ -981,11 +1003,11 @@ fn the_f64_seam_is_exact() {
 fn the_polygon_door_authors_through_the_lattice() {
     let tol = Tol::witness();
 
-    let square: ProfileLoop<f64> =
+    let square: ConstructedLoop<f64> =
         polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)], tol).expect("a square authors");
     assert_eq!(square.vertices().len(), 4);
 
-    let triangle: ProfileLoop<f64> =
+    let triangle: ConstructedLoop<f64> =
         polygon(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], tol).expect("a triangle authors");
     assert_eq!(triangle.vertices().len(), 3);
 
@@ -1024,14 +1046,14 @@ fn the_polygon_door_authors_through_the_lattice() {
 fn the_polygon_door_emits_the_raw_vertex_table() {
     let tol = Tol::witness();
     let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
-    let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
+    let loop_: ConstructedLoop<f64> = polygon(&table, tol).expect("the outline authors");
 
-    let want: Vec<(Point2<f64>, f64)> = table.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect();
+    let want: Vec<Point2<f64>> = table.iter().map(|&(x, y)| p2(x, y)).collect();
     let got = loop_.vertices();
     assert_eq!(got.len(), want.len(), "one vertex per authored point");
-    for (i, (g, (pos, bulge))) in got.iter().zip(&want).enumerate() {
+    for (i, (g, pos)) in got.iter().zip(&want).enumerate() {
         assert_eq!((g.x, g.y), (pos.x, pos.y), "vertex {i}");
-        assert_eq!(loop_.bulges()[i], *bulge, "vertex {i} bulge");
+        assert_eq!(format!("{:?}", loop_.segments()[i]), "Line", "segment {i}");
     }
     assert!(
         loop_.tangent_joints().is_empty(),
@@ -1053,7 +1075,11 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     assert_eq!(hand.len(), got.len());
     for (i, (g, h)) in got.iter().zip(hand).enumerate() {
         assert_eq!((g.x, g.y), (h.x, h.y), "vertex {i}");
-        assert_eq!(loop_.bulges()[i], chain.bulges()[i], "vertex {i} bulge");
+        assert_eq!(
+            format!("{:?}", loop_.segments()[i]),
+            format!("{:?}", chain.segments()[i]),
+            "segment {i}"
+        );
     }
     assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
 }
@@ -2181,15 +2207,16 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     let steps = lifted
         .resolve(&ParamEnv::<f64>::default(), 0)
         .expect("literal arguments resolve");
-    let replayed =
-        pncad::profile::replay(&steps, Tol::witness()).expect("the lifted program replays");
+    let replayed = pncad::profile::replay(&steps, Tol::witness())
+        .expect("the lifted program replays")
+        .into_loop();
     assert_eq!(replayed.vertices().len(), authored.loop_.vertices().len());
     for (got, want) in replayed.vertices().iter().zip(authored.loop_.vertices()) {
         assert_eq!(got.x.to_bits(), want.x.to_bits());
         assert_eq!(got.y.to_bits(), want.y.to_bits());
     }
-    for (got, want) in replayed.bulges().iter().zip(authored.loop_.bulges()) {
-        assert_eq!(got.to_bits(), want.to_bits());
+    for (got, want) in replayed.segments().iter().zip(authored.loop_.segments()) {
+        assert_eq!(format!("{got:?}"), format!("{want:?}"));
     }
 
     // And it evaluates as a document node.
@@ -4640,11 +4667,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-/// - **The step mint** (`StepMint`): the chain and log a document mints
-///   its profile step ids from, which `Doc::step_mint` answers. The
-///   doors read it and a consumer never writes it; what a consumer
-///   holds is the ids themselves (`StepId`), carried.
-const NOT_CARRIED: [&str; 92] = [
+/// - **The mint** (`Mint` and its log's `Minted` entries): the chain
+///   and log a document mints its node and profile step ids from,
+///   which `Doc::mint` answers. The doors read it and a consumer never
+///   writes it; what a consumer holds is the ids themselves
+///   (`RecipeNodeId`, `StepId`), carried.
+const NOT_CARRIED: [&str; 93] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4679,6 +4707,8 @@ const NOT_CARRIED: [&str; 92] = [
     "MetaValue",
     "MinClearanceLane",
     "MinClearanceOperand",
+    "Mint",
+    "Minted",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
@@ -4698,7 +4728,6 @@ const NOT_CARRIED: [&str; 92] = [
     "RunStatus",
     "SectionScalar",
     "SeedScalar",
-    "StepMint",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
@@ -6426,4 +6455,116 @@ mod the_hollowed_box_through_the_facade {
             "the interval hollow is a body"
         );
     }
+}
+
+/// The three consistency checks D1 puts on a stored arc.
+const CONSISTENCY: [&str; 3] = ["arc_start_on_carrier", "arc_landing", "arc_sweep_range"];
+
+/// Which of [`CONSISTENCY`] `run` asked, decided or escalated.
+fn consistency_asked(run: impl FnOnce()) -> Vec<&'static str> {
+    let bracket = pncad::geom_core::k_stats::Bracket::open();
+    run();
+    let recorded = bracket.finish();
+    recorded
+        .verdicts
+        .iter()
+        .map(|v| v.predicate)
+        .chain(recorded.escalations.iter().map(|e| e.predicate()))
+        .filter(|n| CONSISTENCY.contains(n))
+        .collect()
+}
+
+/// A lattice-authored D-shape, 40 km out: the arc whose landing the
+/// public door once read as a definite inconsistency at ε 1e-12.
+fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
+    Open.at(p2(40_699.090_051_304_694, -8_736.154_085_499_025))
+        .arc_to(
+            Bulge {
+                p: p2(36_968.901_970_701_314, -16_772.046_835_665_85),
+                b: -1.308_736_876_905_907_8,
+            },
+            tol,
+        )
+        .and_then(|c| c.line_to(Start, tol))
+        .expect("the builder authors the arc")
+}
+
+/// **The public door validates a lattice-built loop by its provenance.**
+/// `validated` takes the loops the lattice constructed, whose arcs were
+/// verified at their construction (D1), and decides none of their
+/// consistency checks; the same loop given up to a table and validated
+/// as one decides them.
+#[test]
+fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
+    let tol = Tol::witness();
+    let mut door = None;
+    let asked = consistency_asked(|| {
+        door = Some(validated(
+            SketchPlane::xy(),
+            vec![far_d_shape(tol).into()],
+            tol,
+        ));
+    });
+    assert!(
+        asked.is_empty(),
+        "the door re-decided a constructed arc: {asked:?}"
+    );
+    assert!(
+        !matches!(
+            door,
+            Some(Err(
+                ProfileError::InconsistentArc { .. } | ProfileError::ArcBelowSceneResolution { .. }
+            ))
+        ),
+        "a constructed arc refused on its consistency: {door:?}"
+    );
+    let asked = consistency_asked(|| {
+        let _ = Profile::new(SketchPlane::xy(), vec![far_d_shape(tol).into()]).validate(tol);
+    });
+    assert!(
+        asked.contains(&"arc_start_on_carrier"),
+        "the table decides the checks: {asked:?}"
+    );
+}
+
+/// **A loft section built by the lattice is validated by its
+/// provenance.** The same two sections (a D-shape, then the same shape
+/// raised), as constructed loops and as tables: the skin's door decides
+/// no consistency check on the first and decides them on the second.
+#[test]
+fn a_lattice_built_loft_section_decides_no_consistency_check() {
+    let tol = Tol::witness();
+    let d_shape = || -> ClosedLoop<f64> {
+        Open.at(p2(0.0, 0.0))
+            .arc_to(
+                Bulge {
+                    p: p2(1.0, 0.0),
+                    b: -0.5,
+                },
+                tol,
+            )
+            .and_then(|c| c.line_to(Start, tol))
+            .expect("the section authors")
+    };
+    let places = [
+        pncad::geom_core::Affine3::identity(),
+        pncad::geom_core::Affine3::translation(pncad::geom_core::Vec3::new(0.0, 0.0, 1.0)),
+    ];
+    let constructed: Vec<Vec<ConstructedLoop<f64>>> = vec![vec![d_shape().into()]; 2];
+    let asked = consistency_asked(|| {
+        pncad::sweep::loft_parameters(&constructed, &places, 1, tol)
+            .expect("the constructed sections skin");
+    });
+    assert!(
+        asked.is_empty(),
+        "the skin re-decided a constructed arc: {asked:?}"
+    );
+    let tables: Vec<Vec<ProfileLoop<f64>>> = vec![vec![d_shape().into()]; 2];
+    let asked = consistency_asked(|| {
+        pncad::sweep::loft_parameters(&tables, &places, 1, tol).expect("the tables skin");
+    });
+    assert!(
+        asked.contains(&"arc_start_on_carrier"),
+        "the tables decide the checks: {asked:?}"
+    );
 }

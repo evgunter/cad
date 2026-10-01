@@ -810,6 +810,11 @@ pub enum BoundaryEdit<'a> {
     /// held by the constructor there, so the binding answers with the
     /// constructor's own refusal at the call that offered the text.
     ParamName(&'a pncad::document::ParamNameFault),
+    /// A text that is not a label. A label crosses as text, and the
+    /// document layer's rule for one — non-blank, one line, no control
+    /// character — is held by `Label::new`, so the binding answers with
+    /// that constructor's refusal at the call that offered the text.
+    Label(&'a pncad::document::LabelFault),
 }
 
 /// Which `#[non_exhaustive]` kernel enum at the SELECTION boundary has

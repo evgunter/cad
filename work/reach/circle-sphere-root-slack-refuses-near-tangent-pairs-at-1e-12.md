@@ -1,0 +1,40 @@
+---
+id: circle-sphere-root-slack-refuses-near-tangent-pairs-at-1e-12
+kind: issue
+title: At eps 1e-12 the circle x sphere root-slack meter refuses a near-tangent snowman the default band builds
+status: open
+opened: 2026-10-01
+refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, sphere-union-sphere-refuses-though-the-section-is-closed-form]
+---
+
+The sphere instance of `circle-torus-root-slack-crowds-the-zero-band-at-1e-12`,
+found by the PR 3659 review: the same meter shape, crowding the band
+at the finest ε row, but here it REFUSES rather than flagging.
+
+## Measured (review of PR 3659 at `7ac4b0ce`)
+
+Two full-revolve balls, r 1.0 at `y = 0` and r 0.8 at `y = 1.8 − δ`
+(the near-tangent snowman, `crates/sweep/tests/snowman.rs`):
+
+- at the default band (ε 1e-9) every op builds down to `δ = 1e-6`, and
+  `δ = 1e-8` escalates on `bool_vertex_face_side` (pinned by
+  `the_near_tangent_family_builds_to_1e_6_and_escalates_at_1e_8`);
+- at ε 1e-12, `δ = 1e-7` refuses at the pierce door. The roots exist
+  (the extremes are definite), but `bool_circle_sphere_root_slack`
+  — `ρ·noise / √(A₁² − c₀²)`, with the slope shrinking as `√δ` near
+  the pole — is no longer definitely inside a band of 1e-12, so
+  `circle_sphere_roots` answers `Uncertain` and the arm keeps its door.
+
+So the build window narrows at the finer band instead of widening,
+which is the opposite of what a finer tolerance should buy. The noise
+the meter charges is `f64` rounding (`NOISE_ULPS` half-ulps of the
+terms), a fixed absolute quantity, held against a band that shrinks
+with ε: at 1e-12 the rounding meter rather than the geometry decides.
+
+## What a fix has to look at
+
+Whether the charge is tighter than `NOISE_ULPS · u · terms` for this
+first harmonic (its chain is a squared norm and a dot product), or
+whether the root's position needs a refinement step (one Newton step
+on the exact residual) before the slack is metered — the torus row
+asks the same question of its quartic.

@@ -615,7 +615,6 @@ fn the_types_public_surface_mints_nothing() {
     // scalar); `reversed` derives from an existing loop. None of them
     // takes a vertex table.
     let pinned = [
-        "bulges",
         "map_scalar",
         "reversed",
         "segments",

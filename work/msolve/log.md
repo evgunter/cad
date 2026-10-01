@@ -962,3 +962,86 @@ The review also found:
 The fix pass has twelve rulings (R1–R12) and went to the
 implementer lane with its context. Accepted as built: the doubled
 solve in the A2 fixture check, and the probe sink order.
+
+MSOLVE-11 fix pass (implementer lane, PR 3680), rulings R1–R12:
+- R1: a `Part` index outside its value refuses as the evaluation does,
+  at the `Part`, before the name is compared. It is
+  `PlacerRefused { InstanceOutOfRange, States }`, pinned by the
+  reviewer's P2 as a row.
+- R2: the `States`-over-a-poisoned-row class is filed as
+  `a-placer-row-states-what-a-poisoned-row-cannot` (P2). The one-liner
+  it wants is named in the item. P3 is pinned as a row of today's
+  behaviour.
+- R3: `Arm`'s doc names the clocking rider's exception.
+- R4: recourses that named a door no edit has now re-author the mate.
+- R5: a lever half that is not finite prints no metre figure.
+- R6, R10: the one-home check says what it compares. The vacuous
+  escalation half is dropped, with the reason.
+- R7: `mate::Refuted` holds each contradiction predicate's name and
+  words in one exhaustive enum. The decide sites pass its name, and
+  every row is asserted.
+- R8: `Indeterminate`'s recourse is `NO_DECLARATION_RECOURSE`.
+- R9: the mate arm asserts the frame holds exactly the spliced
+  recording.
+- R11: a box run over an escalating mate refuses
+  `WitnessDoesNotBuild`, because the driver carries no resolver. So
+  read (2) is latent. The measurement is appended to
+  `a-box-independent-mate-fault-bisects-the-whole-leaf-budget` and
+  pinned as a row.
+- R12: LIB's `part-unresolved-names-two-facts` names the moved arm.
+
+Friction: main moved twice during the pass (node tags; the cluster's
+`root`), and each merge cost a conflict in the touched sentences.
+
+## 2026-10-01 — MSOLVE-11 MERGED (PR 3680)
+
+The whole-document solve records each decision on the log of the one
+mate whose answer it decided, and each mate node splices its own
+recording. Under `parallel` and under the memo, a reused mate carries
+the same log as a fresh one, and an assert makes "a mate op decides
+nothing" fail loud. The lever is `coset::Arm`, finite by construction,
+so `parallel`'s hand-minted escalation is unreachable. A `Part`'s
+index refuses at the `Part`; an index out of range refuses as the
+evaluation does. Four riders rode with it:
+- `MateRole` reads in words;
+- every mate refusal ends on a recourse that is true at its raise
+  site, re-authoring the mate where no edit reaches the frame;
+- no document id appears in a mate sentence;
+- `LeverRefusal` and `FaceRefusal` each carry the reach's refusal once.
+
+The predicates' words have one home (`mate::Refuted`).
+
+Review tier: single, full, on `fff779e03`. Fix pass R1–R12, green at
+`9cdb91efb`; the orchestrator spot-checked the diff.
+
+Closes MSOLVE-11, `mate-lane-escalations-reach-no-nodes-log`,
+`placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`,
+`materole-has-no-display`, `msolve-refusals-short-of-the-shape-guard`,
+`mate-refusals-name-documents-by-hex-id` and
+`lever-refusal-respells-reach-refusal`. Filed:
+- `a-clocking-rider-is-levered-unreduced` (P3), which plan item 22's
+  `[ev]` PR 3681 would delete with the rider;
+- `a-placer-row-states-what-a-poisoned-row-cannot` (P2).
+
+Spec deleted, with a note in `docs/doc-ledger/msolve-11-spec.md`.
+Next: item 21's design fork, which is with two designers.
+
+## 2026-10-01 — MSOLVE-11 merged; item 21 to Ev; MSOLVE-12 dispatched
+
+MSOLVE-11 merged on PR 3680. Its MERGED entry rode the unit branch.
+
+Item 21's two designers agreed on their first reports. The solve
+should not refuse, because the two layers answer two different
+questions. The question is on `[ev]` PR 3695 (fork-log row 36), as
+one sentence in A11 (4).
+
+Friction, a triage miss: four rows were routed onto this slate on
+2026-09-20 by the P0 scoring pass (`d0ad286f6`). Three of them are P0.
+They came in through a main merge, and `incoming` listed them, but I
+never placed them, so they sat for eleven days. A review of all open
+`work/msolve/` rows by priority found them. The rule I take from it:
+at each check-in, `incoming` is followed by placing every new row on
+the plan, not only reading it. Three of the rows are now MSOLVE-12
+(plan item 23), dispatched on Opus with a single full review. The
+fourth, the null-payload spelling, is blocked on item 22 (plan item
+24).
