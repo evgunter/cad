@@ -864,3 +864,47 @@ fn r1_the_memo_moves_instances_when_their_gauge_or_root_moves() {
     let ev3 = evaluate::<f64>(&shifted, Some(&ev), &editor_core::CancelToken::new(), &o, Tol::witness());
     assert!((minz(&ev3, top) - (t0 + 3.0)).abs() < 1e-9, "the mated member moved with its root: {} -> {}", t0, minz(&ev3, top));
 }
+
+/// Inline at the empty offset on a non-world gauge, over a part whose
+/// root is plain geometry: the geometry must not move (or the inline
+/// refuses).
+#[test]
+fn r1_inline_on_a_gauge_at_the_empty_offset_over_plain_geometry() {
+    let p = parts("r1-inline-plain");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-inline-plain"), Tol::witness());
+    let (doc, g) = insert(doc, Node::gauge(None, Placement::literal(&Frame::translation([0.0, 10.0, 0.0]))));
+    let (doc, h) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let doc = set_gauge(doc, h, Some(g));
+    let before = world_bounds(&doc, &run(&doc, &o));
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(p.store.clone());
+    match editor_core::inline(&doc, h, &resolver, Tol::witness()) {
+        Err(e) => eprintln!("inline refused: {e}"),
+        Ok(out) => {
+            let after = world_bounds(&out.doc, &run(&out.doc, &o));
+            eprintln!("before {before:?} after {after:?}");
+            assert!((before.0[1] - after.0[1]).abs() < 1e-9, "inline moved the geometry");
+        }
+    }
+}
+
+/// `InlineError::MatePlaced`'s recourse — "give instance i an offset
+/// (SetOffset), then inline" — followed literally, on a top mated onto
+/// an earlier base.
+#[test]
+fn r1_the_mate_placed_inline_recourse_followed() {
+    let p = parts("r1-mateplaced");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-mateplaced"), Tol::witness());
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, _) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(p.store.clone());
+    let first = editor_core::inline(&doc, top, &resolver, Tol::witness());
+    eprintln!("first: {:?}", first.as_ref().map(|_| ()).map_err(|e| e.to_string()));
+    let solved = solve(&doc, &o, Tol::witness()).placement(&doc, top).unwrap();
+    let doc = set_offset(doc, top, Some(Placement::literal(&solved)));
+    let second = editor_core::inline(&doc, top, &resolver, Tol::witness());
+    eprintln!("after the recourse: {:?}", second.as_ref().map(|_| ()).map_err(|e| e.to_string()));
+    assert!(second.is_ok(), "the recourse did not lead to an inline");
+}
