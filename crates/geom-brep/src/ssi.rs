@@ -126,7 +126,7 @@ use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::norm_sup;
-use geom_core::{Band, Indeterminate, Margin, Point3};
+use geom_core::{Band, Indeterminate, Margin, Point3, Real};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
 pub use exhaust::{
@@ -808,7 +808,7 @@ pub fn cylinder_sphere_ssi(
     let (big_r, c) = (*radius, *center);
     let q = c - origin;
     let d = (q - axis * q.dot(axis)).norm();
-    let tangency = ((d - r).abs() - big_r).abs().min((d + r - big_r).abs());
+    let tangency = Real::min(((d - r).abs() - big_r).abs(), (d + r - big_r).abs());
     match crate::dihedral::decide("ssi_cs_tangency", Margin::of(tangency), band) {
         Ok(geom_core::Sign::Positive | geom_core::Sign::Negative) => {}
         Ok(geom_core::Sign::Zero) => {
@@ -921,9 +921,7 @@ fn finish_r3(
     let march_tol = seam_tol(tol, band)?;
     let points = trace_points::<2, 3, _>(sys, trace);
     let (carrier, _, _) = fit_branch(&points, None)?;
-    let arm = crate::implicit::curvature_lever_arm(a, points[0])
-        .min(crate::implicit::curvature_lever_arm(b, points[0]))
-        .min(domain.extent);
+    let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let cert = certify::certify_branch(
         &carrier,
         None,
