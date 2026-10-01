@@ -2707,7 +2707,7 @@ fn chart_azimuth_margin<T: Decide>(
     }
     let r_hat = radial / radial.norm();
     let half = T::from_f64(0.5);
-    let m_hat = chart_dir(axis, u_ref, (w_min + w_max) * half);
+    let m_hat = chart_dir(axis, u_ref, geom::mid_param(w_min, w_max));
     let (_, c_h) = (width * half).sin_cos();
     // Ledger row F8: the cone term's (cosΔ − cos h)·r collapses
     // quadratically for narrow windows — conservative direction, the
@@ -3003,7 +3003,7 @@ pub(super) fn sphere_chart_trim<T: Decide>(
                 // and has no angular gate to test: out of the class.
                 Sign::Zero | Sign::Negative => return Ok(None),
             }
-            let m_hat = chart_dir(n_c, u_c, (t0 + t1) * half);
+            let m_hat = chart_dir(n_c, u_c, geom::mid_param(t0, t1));
             let (_, c_h) = (width * half).sin_cos();
             for pole in [axis, axis * (T::zero() - T::one())] {
                 match decide(
@@ -3311,7 +3311,7 @@ pub(super) fn point_on_sphere_in_face<T: Decide>(
     .collect();
     if let Some((w_min, w_max)) = trim.az {
         let width = w_max - w_min;
-        let m_hat = chart_dir(axis, u_ref, (w_min + w_max) * half);
+        let m_hat = chart_dir(axis, u_ref, geom::mid_param(w_min, w_max));
         let (_, c_h) = (width * half).sin_cos();
         // The azimuth direction is the radial one, and at a POLE there
         // is none: every azimuth meets there, so the window cannot

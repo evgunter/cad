@@ -1665,7 +1665,7 @@ fn plan_edge<T: Decide>(
     let (t0, t1) = curve.params();
     let old_carrier = curve.carrier().clone();
     let description = curve.description().clone();
-    let mid = old_carrier.eval((t0 + t1) * T::from_f64(0.5));
+    let mid = curve.mid_point();
 
     // The one description that gets an EXACT carrier rather than a
     // transported one: an iso-curve of a fitted chart is a row of the
@@ -1788,7 +1788,7 @@ fn plan_edge<T: Decide>(
             edge,
             what: "this (surface kind, carrier kind) pair has no closed-form offset action",
         })?;
-    let new_mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+    let new_mid = carrier.mid_point(t0, t1);
 
     // **The declaring pushforward travels with the face** (PCURVE
     // P-1b), and it travels the same way whichever arm below the
@@ -2397,7 +2397,7 @@ fn plan_reanchors<T: Decide>(
         // fails `WitnessMidpoint` at the very gate that re-attaches it.
         // The carrier did not move, so the new witness is that carrier
         // read at the new midpoint.
-        let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
+        let mid = carrier.mid_point(t0, t1);
         description = match description {
             EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
                 s1,

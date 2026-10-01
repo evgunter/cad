@@ -1628,9 +1628,8 @@ fn window_mid<T: Decide + Bounds>(uv: &FaceUv<T>) -> T {
     };
     visit(&uv.outer);
     uv.rings.iter().for_each(&mut visit);
-    let half = T::one() / (T::one() + T::one());
     match (lo, hi) {
-        (Some(l), Some(h)) => (l + h) * half,
+        (Some(l), Some(h)) => geom::mid_param(l, h),
         // A `FaceUv` exists only past extraction, which refuses every
         // loop under three vertices — an empty window is a kernel
         // invariant violation (D2 row 4), and a poison return here
@@ -2063,7 +2062,7 @@ fn decomposition_witness<T: Decide + Bounds>(
     let mut spent = 0usize;
     let abscissae = event_abscissae(&segments);
     for slab in abscissae.windows(2) {
-        let x = midpoint(slab[0], slab[1]);
+        let x = geom::mid_param(slab[0], slab[1]);
         // An adjacent-float slab has no interior to sample.
         if !(x > slab[0] && x < slab[1]) {
             continue;
@@ -2071,7 +2070,7 @@ fn decomposition_witness<T: Decide + Bounds>(
         let mut ys: Vec<f64> = segments.iter().filter_map(|s| s.at_abscissa(x)).collect();
         ys.sort_by(f64::total_cmp);
         for cell in ys.windows(2) {
-            let y = midpoint(cell[0], cell[1]);
+            let y = geom::mid_param(cell[0], cell[1]);
             if !(y > cell[0] && y < cell[1]) {
                 continue;
             }
@@ -2183,7 +2182,10 @@ fn boundary_segments<T: Decide + Bounds>(
                 continue;
             }
             let nominal = |p: &Point2<T>| {
-                let c = [midpoint(p.x.lo(), p.x.hi()), midpoint(p.y.lo(), p.y.hi())];
+                let c = [
+                    geom::mid_param(p.x.lo(), p.x.hi()),
+                    geom::mid_param(p.y.lo(), p.y.hi()),
+                ];
                 (c[0].is_finite() && c[1].is_finite()).then_some(c)
             };
             for i in 0..poly.len() {
@@ -2216,41 +2218,6 @@ fn event_abscissae(segments: &[NominalSeg]) -> Vec<f64> {
     xs.sort_by(f64::total_cmp);
     xs.dedup();
     xs
-}
-
-/// A point between two `f64`s — `a + (b − a)/2` rather than
-/// `(a + b)/2`.
-///
-/// # What it guarantees, which is less than "the midpoint"
-///
-/// It is NOT exact: `midpoint(1.0, 1e16)` is an ulp off the true middle,
-/// because `b − a` rounds. It does not remove overflow either, it trades
-/// one family for another: `(a + b)/2` overflows on two same-sign
-/// halves of the range, this form overflows on OPPOSITE ends —
-/// `midpoint(-1e308, 1e308)` is `inf`. What it does guarantee is what
-/// both callers need and nothing more: for finite `a < b` the result is
-/// finite-or-`inf` and lies in `[a, b]`, never outside the bracket.
-///
-/// Which is why **both call sites re-test the result** rather than
-/// trusting it. [`decomposition_witness`] takes a slab or cell centre
-/// only when it is STRICTLY between the two ends, so an ulp of drift or
-/// a collapse onto an endpoint drops that cell instead of proposing a
-/// point outside it; and a non-finite coordinate is rejected at
-/// [`boundary_segments`]. The rounding therefore reaches the answer only
-/// as a missed candidate, never as a bad one.
-///
-/// # Siblings, not one utility
-///
-/// Two other bracket-midpoint spellings exist — `geom_brep`'s
-/// `props/quad.rs` `mid` and `topo`'s `props.rs` `mid_pad` — and this is
-/// deliberately not unified with either. They compute different
-/// quantities for different jobs (`mid_pad` pads, quad's `mid` is a
-/// quadrature abscissa on a certified path); this one is an uncertified
-/// hint that its own callers re-validate. Merging three formulas whose
-/// only shared property is the word "midpoint" would give one of them
-/// the wrong rounding contract.
-fn midpoint(a: f64, b: f64) -> f64 {
-    a + 0.5 * (b - a)
 }
 
 /// The witness schedule of one trim polygon (fixed order, D9): its

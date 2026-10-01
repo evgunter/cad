@@ -45,8 +45,9 @@ The same three vertices carried as arcs answer `In` at every δ. That
 case is pinned as `validate::tests::a_ray_level_margin_retries_the_ray`.
 
 **Why it was not fixed there.** `point_in_loop` has four consumers
-(`boolean::contfp`, `chord_join::rehome_rings`, the solid-containment
-sweep, check 9), and ATREST-12 kept its escalation stream frozen for
+(`boolean::contfp`, `chord_join::rehome_rings` — on all-line runs only
+since 2026-10-01, PR 3660, which reads arc-bearing runs through
+`point_in_carrier_loop` — the solid-containment sweep, check 9), and ATREST-12 kept its escalation stream frozen for
 them. Changing it moves each consumer's refusal surface, so it needs
 its own measurement. The fix is small: pass `ArmBand::Retry` and map
 `ray_verdict`'s error to a graze, the way the arc path does.
