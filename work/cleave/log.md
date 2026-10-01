@@ -165,3 +165,10 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   Noted: a stored recipe naming SectionFace 0 on a holed section now
   rebinds silently to the holed outline face. The delta review weighs
   that.
+- Schedule midpoint, PR 3697 (merged on the orchestrator's read). PR
+  3645 had split one point into two spellings: the certification
+  schedule's middle station and WitnessMidpoint. The symbolic walk
+  therefore built both chains, and PR 3684 re-pinned the inflated
+  ledger. The schedule now assigns its ½ station from `mid_param`, and
+  the ledger is back to PR 3652's counts (the slab's Plain/Decision is
+  9426, and the plate's frozen counts are 672 and 372).
