@@ -455,7 +455,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   continuation (the two walls are one carrier by that declaration, so
   they share a surface key and merge on the structural rung). In
   either case the recipe records one node, not hidden healing. Merge glues on the structural and declared rungs
-  only; numeric coincidence never merges. A boolean whose output
+  only; numeric coincidence never merges. A boolean licenses a
+  cross-operand coplanar pair to merge by a declared continuation
+  (`crates/topo/README.md`, C4); a same-sense cosurface adjacency it
+  has no licence for refuses at the op that would create it, on every
+  carrier kind. A boolean whose output
   stage cannot glue a planar group it was licensed to merge refuses
   the step with the merge's own typed reason, so every boolean output
   is a legal boolean operand; only a curved group's skip is recorded

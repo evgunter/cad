@@ -158,6 +158,32 @@ aborts. Failures, all typed: `UndeclaredContact`, `ContactContradicted`
 (at use and at rest), `StaleContactDeclaration`, `CensusEscalated`.
 Invariant: every definite verdict wins over every declaration.
 
+**Continuation.** Two faces, one from each operand, on one carrier
+with their senses ALIGNED, interiors disjoint, sharing only a boundary
+curve, are a *continuation*: one surface carried on across the seam.
+A continuation is not a contact and is not a `ContactClass`. It is
+declared on a boolean node and nowhere else: a mate cannot state one, and at rest two flush walls carry
+nothing to verify. Its verification is `Rest`'s carrier rung with the
+sense bit reversed: carrier non-contradiction through the kind ladder,
+senses aligned as an exact bit. Opposed senses contradict it, as
+aligned senses contradict `Rest` at every door. A union merges a
+declared continuation pair (the merge stage's declared rung). An
+undeclared continuation refuses at the reduction for every carrier
+kind, naming the face pair and the recourse (declare it), exactly as
+an undeclared opposed coincidence does.
+
+**The crossing layer's one-sided cover.** An edge lying on, or
+touching, the other operand's carrier is recorded at its endpoints only
+when the edge's parent carrier is certified to lie in one closed side
+of that carrier. That certificate has exactly these sources: a verified
+`Rest` (residual ≡ 0), a verified `Tangent` (the witness lane), a
+verified continuation, or a structural tangency (an edge described
+`TangentIntersection`) on either operand, to a face verified as one
+carrier with the target. It is never read from values: a root
+verdict of "tangent" is a band decision, so a graze within the band
+refuses, and an exact tangency is reached only through structure or a
+declaration.
+
 **C5 — The signed gap.** For a declared pair on same-kind carriers with a
 shared mating frame, g is the carrier-relative signed offset: parallel
 planes, the material separation along the outer face's outward normal;
