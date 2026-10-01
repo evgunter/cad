@@ -2,10 +2,11 @@
 id: at-rest-badge-repeats-a-gather-refusal-another-channel-carries
 kind: issue
 title: the at-rest badge repeats every gather refusal of an assembly-shaped document, including the ones frame::badge_site sends to the feature tree or to product_badge
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P3
 cost: E
+branch: chrome/at-rest-result
 ---
 
 ## Question (answered by Ev, 2026-10-01)
