@@ -437,6 +437,7 @@ fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
         Err(EulerOpError::RechartStrandsDescriptions { edges: rim }),
     );
 
+    // Lifts both refusals: the stranded state tier 3 detects at rest is the row.
     body.set_face_surface_stranding_for_tests(t.seed.face, swap())
         .unwrap();
 

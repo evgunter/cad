@@ -4,14 +4,13 @@ kind: issue
 title: viewer: below a 400-point window the toolbar's theme picker, and below the message floor its canceled line, are drawn past the panel
 status: open
 opened: 2026-09-29
-needs_ev: true
 priority: P3
 cost: M
 design: true
 refs: [the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window]
 ---
 
-## Question
+## Question (answered by Ev, 2026-10-01)
 
 What does the chrome owe a window narrower than it was laid out for? The toolbar's theme picker, an egui `ComboBox`, does not wrap and runs past the panel. Below about 190 points, the canceled line runs past too. The Checks window and the part chooser clip below a floor-wide screen. The choice is the chrome's contract with window width: what number it is stated in, and what happens below it.
 
@@ -65,3 +64,16 @@ same narrow regime, not driven.
 Whether windows this narrow are in scope is the question to answer
 first: `NARROW` holds the chrome at 400 points, and every overrun here
 is below it.
+
+## Ev's answer (2026-10-01, on PR 3607)
+
+> sounds good!
+
+The ruling is the recommendation both designers converged on:
+- **Theme picker:** it becomes a wrapping `menu_button` over `Theme::ALL`. Its overrun does not depend on window width.
+- **Width contract:** the chrome's width contract is stated in `message_floor`, about 190 points and derived from the font.
+  - At or above the floor, every control and sentence in the toolbar sits inside the panel.
+  - Below the floor, the toolbar is laid out at the floor and scrolls sideways as one unit. The status row's private scroll area and the `panel_width` workaround go.
+- **Windows:** the Checks window and the part chooser get `hscroll`. The Checks window derives its width the way the part chooser does, replacing `default_width(420)`.
+- **Tests:** `NARROW` retires as a contract. The holds become a sweep from 120 to 1280 points, plus a check that nothing in a `horizontal_wrapped` row ends past its region at any width.
+- **No zoom clamp.**

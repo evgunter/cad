@@ -92,6 +92,7 @@ fn masqueraded(
         !masq.is_placeholder(),
         "the masquerade reads described since PR 1558"
     );
+    // Lifts both refusals: the masquerade wall is the consumer's input, edges as they were.
     body.set_face_surface_stranding_for_tests(
         wall,
         FaceSurface::New {
