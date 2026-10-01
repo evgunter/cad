@@ -839,7 +839,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     #[cfg(debug_assertions)]
     {
         // Exhaustive, so a new row kind cannot join the records without
-        // saying here where its source half is. `dead` is the walk above.
+        // saying here where its source half is; `dead`'s fields are the
+        // walk above.
         let BlendNaming {
             blends,
             corners,
@@ -852,7 +853,11 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             meridian_splits,
             meridian_remnants,
             slits,
-            dead: _,
+            dead:
+                super::naming::Retired {
+                    edges: _,
+                    vertices: _,
+                },
         } = &rec;
         let edge_sources = blends
             .iter()
@@ -2680,14 +2685,15 @@ pub(super) struct ExpectedSource {
 ///
 /// **A caller that already knows the source passes it as `expected`**,
 /// and a lookup that disagrees refuses BEFORE the split, naming the
-/// sequential recourse. The annulus rim phase does: its plan key is
-/// resolved against the caller's body, so a disagreement would record
-/// this band's remnant against one key and its other rows against
-/// another. NOT KNOWN REACHABLE (every refreshed seam the suite meets
-/// is an earlier band's far piece, recorded against that same key); a
-/// refusal rather than an `unreachable!` because its premise is what
-/// earlier carves in this call recorded, not a fact this split
-/// established.
+/// sequential recourse. The annulus rim phase does: its plan key is the
+/// seam resolved against the caller's body, so a lookup that disagrees
+/// recovers some other key — one this call minted, where no earlier row
+/// covers the piece (which [`blend_surgery`]'s postcondition catches at
+/// rest) — and every row named from it would name that key instead.
+/// NOT KNOWN REACHABLE (every refreshed seam the suite meets is an
+/// earlier band's far piece, recorded against that same key); a refusal
+/// rather than an `unreachable!` because its premise is what earlier
+/// carves in this call recorded, not a fact this split established.
 ///
 /// **Which piece is `near` is the split's own answer, not the caller's
 /// guess.** [`Body::split_edge`] hands the parent key to the child
@@ -2720,8 +2726,8 @@ pub(super) fn split_fragment<T: Decide>(
     {
         return Err(unbuilt_chain(
             chain,
-            "an earlier band's split record names another source for a seam this rim \
-             splits; blend in SEQUENTIAL calls",
+            "an earlier band recorded this rim's seam under another source; blend in \
+             SEQUENTIAL calls",
         ));
     }
     let created = body.split_edge(edge, t, tol).map_err(|e| op(site, e))?;

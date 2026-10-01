@@ -435,7 +435,7 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
 /// remnant recorded against the split row's own seam. Membership in the
 /// source (the surgery postcondition, and the row above) cannot see a
 /// row that names ANOTHER crossing's seam of the same band: red under
-/// `ann.crossings[(ix + 1) % n].mate_seam` at the birth block, which
+/// `mate_feet[(ix + 1) % n].source` at the birth block, which
 /// every other `sweep` rim row passes.
 #[test]
 fn every_band_crossing_names_the_seam_its_foot_split() {
