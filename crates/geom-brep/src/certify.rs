@@ -1685,12 +1685,17 @@ pub(crate) fn schedule_fraction(i: u32, samples: u32) -> f64 {
 /// **The one uniform sample schedule** over a parameter interval: sample
 /// `i` of `samples` (both ends included) over `[t₀, t₁]`.
 ///
-/// The ends are ASSIGNED — `t₀` at sample 0, `t₁` at the last — and
-/// the interior is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in that
-/// association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in `f64` in
-/// general, and an image re-expressed on `[t₀, t₁]` exactly has its
-/// last knot at `t₁` itself, so a last sample computed rather than
-/// assigned sits an ulp outside it.
+/// The stations the interval itself names are ASSIGNED, not computed:
+/// `t₀` at fraction 0, `t₁` at fraction 1, and at fraction ½ the
+/// interval's middle, [`geom::mid_param`] — the one middle every
+/// reader of an edge shares, so the middle sample is the parameter
+/// [`Curve3::mid_point`] evaluates at and a certificate that samples
+/// the carrier and checks its midpoint witness evaluates that point
+/// once. Every other station is `t₀ + (t₁ − t₀)·(i/(samples − 1))` in
+/// that association order (D9). `t₀ + (t₁ − t₀)·1` is not `t₁` in
+/// `f64` in general, and an image re-expressed on `[t₀, t₁]` exactly
+/// has its last knot at `t₁` itself, so a last sample computed rather
+/// than assigned sits an ulp outside it.
 ///
 /// Every fixed sample schedule over a carrier's parameter interval
 /// reads this: the certification schedule ([`sample_param`], and
@@ -1710,12 +1715,11 @@ pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
         samples >= 2 && i < samples,
         "schedule_param: sample {i} of a {samples}-point schedule"
     );
-    if i == 0 {
-        t0
-    } else if i == samples - 1 {
-        t1
-    } else {
-        t0 + (t1 - t0) * T::from_f64(schedule_fraction(i, samples))
+    match schedule_fraction(i, samples) {
+        0.0 => t0,
+        0.5 => geom::mid_param(t0, t1),
+        1.0 => t1,
+        f => t0 + (t1 - t0) * T::from_f64(f),
     }
 }
 
@@ -2935,6 +2939,29 @@ mod tests {
             t1.to_bits(),
             "last end"
         );
+    }
+
+    /// The middle station of every odd schedule is the parameter
+    /// [`Curve3::mid_point`] evaluates at, bit for bit, on an interval
+    /// where the uniform spelling `t₀ + (t₁ − t₀)·½` lands an ulp away.
+    #[test]
+    fn the_middle_station_is_the_edges_mid_param() {
+        let (t0, t1) = (0.3_f64, 0.9_f64);
+        let mid = geom::mid_param(t0, t1);
+        let uniform = t0 + (t1 - t0) * 0.5;
+        assert_ne!(
+            mid.to_bits(),
+            uniform.to_bits(),
+            "the fixture must split the spellings"
+        );
+        for samples in [CERT_SAMPLES, crate::edge_nurbs::PXN_FIT_SAMPLES] {
+            let station = schedule_param(t0, t1, (samples - 1) / 2, samples);
+            assert_eq!(
+                station.to_bits(),
+                mid.to_bits(),
+                "{samples}-point schedule: middle station {station} vs mid_param {mid}"
+            );
+        }
     }
 
     /// Every member of the residual taxonomy, for the two censuses

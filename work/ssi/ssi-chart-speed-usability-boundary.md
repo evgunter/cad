@@ -2,12 +2,13 @@
 id: ssi-chart-speed-usability-boundary
 kind: issue
 title: ssi: wrong diagnoses survive at finite-but-unusable speeds — the usability boundary is ~5.6e-312, not 0, and both guards test only the class
-status: open
+status: dispatched
 opened: 2026-08-29
 github: 1238
 refs: [762, 1221]
 priority: P0
 cost: M
+branch: ssi/chart-floor
 ---
 
 ## From GitHub issue 1238
