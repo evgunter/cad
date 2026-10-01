@@ -74,7 +74,7 @@ use crate::chord_join::SplitJoinError;
 use crate::chord_join::ring_representative;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
-use crate::validate::{RingOuterVerdict, ring_outer_contact};
+use crate::validate::{RingOuterVerdict, ring_outer_contact_about};
 use geom::Surface;
 use geom_core::Tol;
 
@@ -285,7 +285,8 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::NestingContradiction { hole } => write!(
                 f,
-                "two cut faces each read as enclosing the other around hole {hole:?} (kernel bug)"
+                "two cut faces each read as enclosing the other around hole {hole:?}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::SectionCusp { .. } => write!(
                 f,
@@ -370,18 +371,16 @@ pub(super) fn split_finish<T: Decide>(
         };
         // Deterministic in-plane u axis: the below loop's first chord.
         let u_ref = below_chord_u_ref(&body, section)?;
-        let plane_for = |side: PlaneSide| -> Surface<T> {
-            let normal = match side {
-                // Derived (module docs): above section face m = −n_SP,
-                // below section face m = +n_SP.
-                PlaneSide::Above => -red.plane.normal,
-                _ => red.plane.normal,
-            };
-            Surface::Plane {
-                origin: red.plane.origin,
-                normal,
-                u_ref,
-            }
+        // Derived (module docs): above section face m = −n_SP, below
+        // section face m = +n_SP.
+        let normal_of = |side: PlaneSide| match side {
+            PlaneSide::Above => -red.plane.normal,
+            _ => red.plane.normal,
+        };
+        let plane_for = |side: PlaneSide| Surface::Plane {
+            origin: red.plane.origin,
+            normal: normal_of(side),
+            u_ref,
         };
         let ring_side = if ring == section.above_loop {
             PlaneSide::Above
@@ -395,8 +394,8 @@ pub(super) fn split_finish<T: Decide>(
         // Each section face's sense is its loop's winding about its
         // chart normal: tier 3's check 6 reading (`planar_loop_winding`),
         // taken before the re-chart and stated with it.
-        let ring_sense = section_sense(&body, section.face, ring, &plane_for(ring_side), band)?;
-        let outer_sense = section_sense(&body, section.face, outer, &plane_for(other_side), band)?;
+        let ring_sense = section_sense(&body, section.face, ring, normal_of(ring_side), band)?;
+        let outer_sense = section_sense(&body, section.face, outer, normal_of(other_side), band)?;
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
         body.set_face_surfaces_describing(
             vec![Rechart::new(
@@ -430,7 +429,14 @@ pub(super) fn split_finish<T: Decide>(
 
     // ---- Nesting: a section that is a hole in another becomes its
     // ring, so a holed section is one face. ----
-    nest_hole_sections(&mut body, &mut section_side, &mut naming, band, tol)?;
+    nest_hole_sections(
+        &mut body,
+        &mut section_side,
+        &mut naming,
+        red.plane.normal,
+        band,
+        tol,
+    )?;
 
     // ---- D6 (M3 PR 6a): honest descriptions on the section boundary,
     // AT MINT TIME — both parent surfaces are known here (the section
@@ -491,34 +497,17 @@ pub(super) fn split_finish<T: Decide>(
 
 /// Each section face that is a hole — sense `false`: its loop winds
 /// clockwise about its outward normal — becomes a ring of the section
-/// face of its side that immediately encloses it, and the hole's face
-/// dies (`kfmrh`). A section with holes is then one face whose rings
-/// are the holes' sections, the encoding tier 3 reads, rather than a
-/// face over the whole outline plus a coplanar face per hole that
-/// cancels it.
-///
-/// A face encloses the hole when the two outlines are decided
-/// disjoint ([`outlines_disjoint`]), as the hole is from every ring
-/// the face already holds, and the hole's anchor vertex is
-/// certified inside the face's outline on the loops' own carriers
-/// ([`point_in_carrier_loop`]). Disjoint outlines nest or are apart
-/// (Jordan), so among several enclosing faces — an island in a hole in
-/// a face — exactly one is enclosed by all the others, and the hole
-/// goes to it; two such would be two outlines each enclosing the other,
-/// which disjoint outlines cannot be, and that refuses as a kernel bug
-/// ([`SplitFinishError::NestingContradiction`]). The hole moves onto
-/// that face's chart first, its boundary restated with it, so the ring
+/// face of its side that [`nest_holes`] finds immediately enclosing
+/// it, and the hole's face dies (`kfmrh`). A section with holes is
+/// then one face whose rings are the holes' sections, the encoding
+/// tier 3 reads, rather than a face over the whole outline plus a
+/// coplanar face per hole that cancels it. The hole moves onto that
+/// face's chart first, its boundary restated with it, so the ring
 /// rides the chart of the face that keeps it.
 ///
-/// **Where nothing decides, the hole keeps its own face** — the
-/// encoding the split produced before this step, sound by
+/// **Where nothing decides, the hole keeps its own face** — sound by
 /// cancellation (volumes and point-in-solid read it right; tier 3
-/// passes it). That is the case for an outline edge on a spiric or
-/// NURBS carrier, whose contacts nothing here decides; for a
-/// containment or contact reading in the band; and for the clockwise
-/// polygons the join mints when it chords a curved face across the
-/// wrong arc, which touch the outline around them
-/// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
+/// passes it).
 ///
 /// # Errors
 ///
@@ -528,66 +517,40 @@ fn nest_hole_sections<T: Decide>(
     body: &mut Body<T>,
     section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
     naming: &mut SplitNaming,
+    normal: Vec3<T>,
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
-    let mut holes = Vec::new();
-    for &(face, side) in &naming.sections {
-        if !body.get_face(face).ok_or_else(corrupt)?.sense {
-            holes.push((face, side));
+    let mut parent_of: SecondaryMap<FaceKey, FaceKey> = SecondaryMap::new();
+    for (side, side_normal) in [(PlaneSide::Above, -normal), (PlaneSide::Below, normal)] {
+        let mut outlines = Vec::new();
+        let mut holes = Vec::new();
+        for &(face, s) in &naming.sections {
+            if s != side {
+                continue;
+            }
+            let data = body.get_face(face).ok_or_else(corrupt)?;
+            if data.sense {
+                outlines.push((face, data.outer));
+            } else {
+                holes.push((face, data.outer));
+            }
+        }
+        let outline_loops: Vec<_> = outlines.iter().map(|&(_, l)| l).collect();
+        let parents = nest_holes(body, &outline_loops, &holes, side_normal, band)?;
+        for (&(hole, _), parent) in holes.iter().zip(parents) {
+            if let Some(parent) = parent {
+                parent_of.insert(hole, outlines[parent].0);
+            }
         }
     }
-    for (hole, side) in holes {
-        let encloses = |outer: FaceKey, inner: FaceKey| -> Result<bool, SplitFinishError> {
-            let outer_data = body.get_face(outer).ok_or_else(corrupt)?;
-            let inner_loop = body.get_face(inner).ok_or_else(corrupt)?.outer;
-            let Some(&Surface::Plane { normal, .. }) = body.get_surface(outer_data.surface) else {
-                return Err(corrupt());
-            };
-            if !outlines_disjoint(body, outer_data.outer, inner_loop, band)? {
-                return Ok(false);
-            }
-            let q = ring_representative(body, inner_loop).map_err(|_| corrupt())?;
-            Ok(matches!(
-                point_in_carrier_loop(body, outer_data.outer, normal, q, band),
-                Ok(Some(LoopContainment::In))
-            ))
-        };
-        let mut enclosing = Vec::new();
-        for &(f, s) in &naming.sections {
-            if s == side && body.get_face(f).ok_or_else(corrupt)?.sense && encloses(f, hole)? {
-                enclosing.push(f);
-            }
-        }
-        let mut innermost = Vec::new();
-        for &f in &enclosing {
-            let mut inside_all = true;
-            for &g in &enclosing {
-                if g != f && !encloses(g, f)? {
-                    inside_all = false;
-                }
-            }
-            if inside_all {
-                innermost.push(f);
-            }
-        }
-        let parent = match innermost[..] {
-            [] => continue,
-            [parent] => parent,
-            _ => return Err(SplitFinishError::NestingContradiction { hole }),
-        };
-        // Tier 3 compares a ring with its face's outer loop only, so a
-        // ring that met another ring would pass it: a hole joins only
-        // rings it is decided disjoint from.
-        let hole_loop = body.get_face(hole).ok_or_else(corrupt)?.outer;
-        let mut clear = true;
-        for &r in &body.get_face(parent).ok_or_else(corrupt)?.rings {
-            clear = clear && outlines_disjoint(body, r, hole_loop, band)?;
-        }
-        if !clear {
-            continue;
-        }
+    let nested: Vec<(FaceKey, FaceKey)> = naming
+        .sections
+        .iter()
+        .filter_map(|&(f, _)| parent_of.get(f).map(|&p| (f, p)))
+        .collect();
+    for (hole, parent) in nested {
         let chart = body.get_face(parent).ok_or_else(corrupt)?.surface;
         let restated = section_plane_restatements(body, hole)?;
         body.set_face_surfaces_describing(
@@ -602,12 +565,106 @@ fn nest_hole_sections<T: Decide>(
     Ok(())
 }
 
-/// Whether two loops in the section plane are DECIDED disjoint: `true`
-/// only where every pair of their edges is.
+/// **The section nesting rule**: for each hole loop, the index into
+/// `outlines` of the outline that immediately encloses it, or `None`
+/// where nothing decides. Every loop lies in one section plane and is
+/// read about `normal`; `holes` carry the face each bounds, for the
+/// refusal.
+///
+/// An outline encloses the hole when the two are decided disjoint
+/// ([`outlines_disjoint`]) and the hole's anchor vertex is certified
+/// inside the outline on the loops' own carriers
+/// ([`point_in_carrier_loop`]). Disjoint outlines nest or are apart
+/// (Jordan), so among several enclosing outlines — an island in a hole
+/// in a face — exactly one is enclosed by all the others, and the hole
+/// goes to it; two such would be two outlines each enclosing the other,
+/// which disjoint outlines cannot be, and that refuses as a kernel bug
+/// ([`SplitFinishError::NestingContradiction`]). A hole also goes only
+/// where it is decided disjoint from every hole placed there before
+/// it, in `holes` order: tier 3 compares a ring with its face's outer
+/// loop only, so a ring that met another ring would pass it.
+///
+/// **What decides nothing**: an outline edge on a spiric or NURBS
+/// carrier, whose contacts nothing here decides; a containment or
+/// contact reading in the band; and the clockwise polygons the join
+/// mints when it chords a curved face across the wrong arc, which touch
+/// the outline around them
+/// (`work/cleave/split-pairs-curved-face-crossings-across-the-wrong-arc.md`).
+///
+/// # Errors
+///
+/// [`SplitFinishError::NestingContradiction`];
+/// [`SplitFinishError::Corrupt`] on a torn loop.
+pub(super) fn nest_holes<T: Decide>(
+    body: &Body<T>,
+    outlines: &[crate::entity::LoopKey],
+    holes: &[(FaceKey, crate::entity::LoopKey)],
+    normal: Vec3<T>,
+    band: geom_core::Band,
+) -> Result<Vec<Option<usize>>, SplitFinishError> {
+    let corrupt = || SplitFinishError::Corrupt;
+    let encloses = |outer: crate::entity::LoopKey,
+                    inner: crate::entity::LoopKey|
+     -> Result<bool, SplitFinishError> {
+        if !outlines_disjoint(body, outer, inner, normal, band)? {
+            return Ok(false);
+        }
+        let q = ring_representative(body, inner).map_err(|_| corrupt())?;
+        Ok(matches!(
+            point_in_carrier_loop(body, outer, normal, q, band),
+            Ok(Some(LoopContainment::In))
+        ))
+    };
+    let mut placed: Vec<Vec<crate::entity::LoopKey>> = vec![Vec::new(); outlines.len()];
+    let mut parents = Vec::with_capacity(holes.len());
+    for &(hole, hole_loop) in holes {
+        let mut enclosing = Vec::new();
+        for (i, &outline) in outlines.iter().enumerate() {
+            if encloses(outline, hole_loop)? {
+                enclosing.push(i);
+            }
+        }
+        let mut innermost = Vec::new();
+        for &i in &enclosing {
+            let mut inside_all = true;
+            for &j in &enclosing {
+                if j != i && !encloses(outlines[j], outlines[i])? {
+                    inside_all = false;
+                }
+            }
+            if inside_all {
+                innermost.push(i);
+            }
+        }
+        let parent = match innermost[..] {
+            [] => None,
+            [parent] => Some(parent),
+            _ => return Err(SplitFinishError::NestingContradiction { hole }),
+        };
+        let parent = match parent {
+            Some(p) => {
+                let mut clear = true;
+                for &r in &placed[p] {
+                    clear = clear && outlines_disjoint(body, r, hole_loop, normal, band)?;
+                }
+                clear.then_some(p)
+            }
+            None => None,
+        };
+        if let Some(p) = parent {
+            placed[p].push(hole_loop);
+        }
+        parents.push(parent);
+    }
+    Ok(parents)
+}
+
+/// Whether two loops in the section plane, with `normal`, are DECIDED
+/// disjoint: `true` only where every pair of their edges is.
 ///
 /// - **Line and circle edges**: tier 3's check 9 contact reading
-///   ([`ring_outer_contact`]), which on a planar face whose loops carry
-///   only these kinds decides every shared point — at a vertex of
+///   ([`ring_outer_contact_about`]), which on loops in one plane that
+///   carry only these kinds decides every shared point — at a vertex of
 ///   either loop, along an arc, or where two edges cross.
 /// - **A pair with an ellipse edge**, which check 9's edge arms skip:
 ///   separated on the CARRIERS, a superset of the arcs. A line against
@@ -627,10 +684,11 @@ fn outlines_disjoint<T: Decide>(
     body: &Body<T>,
     a: crate::entity::LoopKey,
     b: crate::entity::LoopKey,
+    normal: Vec3<T>,
     band: geom_core::Band,
 ) -> Result<bool, SplitFinishError> {
     if !matches!(
-        ring_outer_contact(body, a, b, band),
+        ring_outer_contact_about(body, a, b, Some(normal), band),
         RingOuterVerdict::Disjoint
     ) {
         return Ok(false);
@@ -808,29 +866,26 @@ fn conics_clear<T: Decide>(e: &Conic<T>, h: &Conic<T>, band: geom_core::Band) ->
         || positive("split_nest_conic_conic", outside, band)
 }
 
-/// The sense of the section face a promoted loop will bound, charted
-/// on `plane`: the loop's winding about the chart normal (interior-left
-/// ⇒ counter-clockwise about the outward normal), read by the function
-/// tier 3's check 6 falsifies the bit with. A section's outer boundary
-/// winds counter-clockwise about the normal `plane_for` gives it; a
-/// hole's polygon winds clockwise and is `false`, which is how
-/// `nest_hole_sections` finds it.
+/// The sense of the section face a promoted loop will bound, on a
+/// chart with outward `normal`: the loop's winding about it
+/// (interior-left ⇒ counter-clockwise about the outward normal), read
+/// by the function tier 3's check 6 falsifies the bit with. A
+/// section's outer boundary winds counter-clockwise about its side's
+/// normal; a hole's polygon winds clockwise and is `false`, which is
+/// how [`nest_holes`] and `plane_section` tell the two apart.
 ///
 /// # Errors
 ///
 /// [`SplitFinishError::SectionWindingUndecided`] where the winding has
 /// no sign (in the band, zero, or a loop with an edge that states no
 /// certified curve); [`SplitFinishError::Corrupt`] on a torn loop.
-fn section_sense<T: Decide>(
+pub(super) fn section_sense<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     l: crate::entity::LoopKey,
-    plane: &Surface<T>,
+    normal: Vec3<T>,
     band: geom_core::Band,
 ) -> Result<bool, SplitFinishError> {
-    let Surface::Plane { normal, .. } = *plane else {
-        return Err(SplitFinishError::Corrupt);
-    };
     match body
         .planar_loop_winding(l, normal, band)
         .map_err(|_| SplitFinishError::Corrupt)?

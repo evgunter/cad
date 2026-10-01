@@ -549,10 +549,10 @@ pub use source::{
 pub use split::SplitEdgeCreated;
 pub use splitting::{
     ArcWindowCase, ConicRootFault, CrossingDecision, LoopContainment, NullEdgeRecord, PlaneSide,
-    PointInLoopError, Section, SectionPolygon, SectorEntry, SectorEntryKind, SplitError,
-    SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError, SplitReduction,
-    SplitResult, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
-    vertex_sides,
+    PointInLoopError, Section, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind,
+    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
+    SplitReduction, SplitResult, classify_neighborhood, plane_section, point_in_loop, split,
+    split_reduce, vertex_sides,
 };
 pub use transform::{
     TransformError, check_rigid, not_rigid_reading, transform_rigid, transform_rigid_via,

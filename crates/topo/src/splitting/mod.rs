@@ -85,7 +85,7 @@ pub use crate::chord_join::{ArcWindowCase, SplitJoinError};
 pub use containment::{LoopContainment, PointInLoopError, point_in_loop};
 pub use finish::{SplitFinishError, SplitNaming, SplitPart, SplitResult};
 pub use neighborhood::classify_neighborhood;
-pub use section::{Section, SectionPolygon, plane_section};
+pub use section::{Section, SectionPolygon, SectionRegion, plane_section};
 
 /// The splitting plane: a point on the plane and its **unit** normal
 /// (conventional, unchecked — same posture as `Surface::Plane`). The
@@ -528,7 +528,9 @@ pub enum SplitError {
     /// The joining stage refused (incl. the degenerate one-sided
     /// tangency section).
     Join(SplitJoinError),
-    /// The finish stage refused (incl. the degenerate-component net).
+    /// The finish stage refused (incl. the degenerate-component net),
+    /// or — from [`plane_section`] — the section-winding reading or the
+    /// hole nesting it shares with the finish.
     Finish(SplitFinishError),
     /// The pcurve minting pass refused (M5 PR 6): a curved face's
     /// per-half-edge chart-image cache failed certification, or a
@@ -536,6 +538,14 @@ pub enum SplitError {
     /// itself succeeded topologically; the refusal is loud rather
     /// than shipping a body whose caches are uncertified (D4 ¶2).
     Pcurves(crate::pcurves::PcurveMintError),
+    /// [`plane_section`] found a hole polygon whose enclosing outline
+    /// nothing decides (an outline edge on a spiric or NURBS carrier,
+    /// or a contact in the band), so the section's regions cannot be
+    /// stated. [`split`] keeps such a hole as a face of its own.
+    UnplacedHole {
+        /// The hole's null face (in the discarded scratch body).
+        face: FaceKey,
+    },
 }
 
 impl From<SplitReduceError> for SplitError {
@@ -575,6 +585,12 @@ impl core::fmt::Display for SplitError {
             Self::Join(e) => write!(f, "{e}"),
             Self::Finish(e) => write!(f, "{e}"),
             Self::Pcurves(e) => write!(f, "{e}"),
+            Self::UnplacedHole { .. } => write!(
+                f,
+                "a hole in the section cannot be placed in the outline around it: \
+                 their edges come too close to tell apart, or one lies on a curve \
+                 the nesting cannot read. Recourse: move the section plane"
+            ),
         }
     }
 }

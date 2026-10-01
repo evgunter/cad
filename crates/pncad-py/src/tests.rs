@@ -5744,7 +5744,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "split_op_error_tag",
-        values: &["finish", "join", "pcurves", "reduce"],
+        values: &["finish", "join", "pcurves", "reduce", "unplaced_hole"],
         delegates: &[],
     },
     TagEntry {

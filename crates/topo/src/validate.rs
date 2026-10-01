@@ -6463,6 +6463,28 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> RingOuterVerdict {
+    let normal = match body
+        .get_loop(outer)
+        .and_then(|l| body.get_face(l.face))
+        .and_then(|f| body.surfaces.get(f.surface))
+    {
+        Some(&Surface::Plane { normal, .. }) => Some(normal),
+        _ => None,
+    };
+    ring_outer_contact_about(body, outer, ring, normal, band)
+}
+
+/// [`ring_outer_contact`] for two loops in the plane with `normal`,
+/// whatever face they bound — the split's section loops, read before
+/// their faces wear the section plane. `None` is the recorded residue
+/// of a face with no plane: the edge-pair arm sees nothing.
+pub(crate) fn ring_outer_contact_about<T: Decide>(
+    body: &Body<T>,
+    outer: LoopKey,
+    ring: LoopKey,
+    normal: Option<geom_core::Vec3<T>>,
+    band: Band,
+) -> RingOuterVerdict {
     let (Some(ring_cycle), Some(outer_cycle)) =
         (loop_cycle_of(body, ring), loop_cycle_of(body, outer))
     else {
@@ -6646,7 +6668,7 @@ pub(crate) fn ring_outer_contact<T: Decide>(
             });
         }
     }
-    ring_outer_meeting(body, outer, ring, &ring_cycle, &outer_cycle, band)
+    ring_outer_meeting(body, outer, ring, normal, &ring_cycle, &outer_cycle, band)
 }
 
 /// Check 9's arm 2 for one pair: the edge under `he` if the vertex
@@ -6725,8 +6747,9 @@ fn edge_trim<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: 
 ///   against both edges' trims ([`window`]) — a line's by its span, an
 ///   arc's by distances to its ends and to its two apexes.
 ///
-/// Both run in the plane of `outer`'s face and are silent off one: a
-/// non-planar face has no plane to intersect in, and an `Ellipse`,
+/// Both run in the plane with `normal` (`outer`'s face's, under
+/// [`ring_outer_contact`]) and are silent without one: a non-planar
+/// face has no plane to intersect in, and an `Ellipse`,
 /// `Spiric` or `Nurbs` edge has no closed-form meeting point here.
 /// Those are check 9's recorded residue.
 ///
@@ -6738,15 +6761,12 @@ fn ring_outer_meeting<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
     ring: LoopKey,
+    normal: Option<geom_core::Vec3<T>>,
     ring_cycle: &[HalfEdgeKey],
     outer_cycle: &[HalfEdgeKey],
     band: Band,
 ) -> RingOuterVerdict {
-    let normal = body
-        .get_loop(outer)
-        .and_then(|l| body.get_face(l.face))
-        .and_then(|f| body.surfaces.get(f.surface));
-    let Some(&Surface::Plane { normal, .. }) = normal else {
+    let Some(normal) = normal else {
         return RingOuterVerdict::Disjoint; // the recorded residue: no plane
     };
 
