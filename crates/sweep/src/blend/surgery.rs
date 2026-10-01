@@ -39,7 +39,10 @@
 //! module and narrated there, once: the plane–plane band between
 //! trivalent corners in [`super::open::planar`], the ruled band cut off
 //! at transverse caps in [`super::open::ruled`]. Both are admitted here
-//! ([`AdmittedOpen`]) and carve on the clone this door makes.
+//! ([`OpenBand`]) and carve on the clone this door makes. A planar band
+//! may run across [`Joint`]s — consecutive links on the same two
+//! support faces, which a coplanar-face merge leaves wherever a wall
+//! was subdivided — and is carved as ONE face over all its links.
 //!
 //! **Closed chains** (any link whose blend is a TORUS) come in TWO
 //! shapes, which
@@ -122,7 +125,8 @@
 //!
 //! # Out of scope, refused typed
 //!
-//! Multi-link open chains (junction carry-through),
+//! Multi-link open chains other than plane–plane links joined on one
+//! support pair (junction carry-through),
 //! partially-requested corners (run-outs), a ruled band ending at an
 //! oblique or curved face (the run-out the mid-curve taxonomy
 //! reserves; the battery's `fillet3_cap_transverse` refuses it),
@@ -186,12 +190,12 @@ use topo::{
     ShellKey, SolidKey, SurfaceKey, VertexKey,
 };
 
-use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
+use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, Joint, OpenBand, RequestedBoundary};
 use super::arms::EdgeBlend;
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
 use super::build::{Blended, face_cycle, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
-use super::open::planar::{BlankPlan, Corner, blank_phase, corner_plan};
+use super::open::planar::{BlankPlan, Corner, JointPlan, blank_phase, corner_plan, joint_plan};
 use super::open::ruled::{RuledPlan, ruled_phase};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, CornerConfig, classify};
 use geom_core::Tol;
@@ -533,13 +537,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let kind = verdict.kind;
 
     // ---- Classify the verdict's chains (structural only). The open
-    // chains go through the door as [`AdmittedOpen`], which IS the
-    // three-clause admission below. ----
-    let mut opens: Vec<AdmittedOpen<'_, T>> = Vec::new();
+    // chains go through the door as [`OpenBand`], which IS the
+    // admission below. ----
+    let mut bands: Vec<OpenBand<'_, T>> = Vec::new();
     let mut rims: Vec<RimPlan<'_, T>> = Vec::new();
     for chain in &verdict.chains {
         match chain.closure {
-            ChainClosure::Open { .. } => opens.push(AdmittedOpen::admit(chain)?),
+            ChainClosure::Open { .. } => bands.push(OpenBand::admit(source, chain)?),
             // The band replacement is the rolling ball's torus over a
             // closed rim, whatever kinds its two supports are. A chamfer has no closed-chain band at
             // all — its one arm is plane–plane, whose closed chains
@@ -558,6 +562,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             },
         }
     }
+    // A band is keyed by its lowest link edge, the order its face takes
+    // among the blend faces.
+    bands.sort_by_key(|b| b.lowest().edge());
+    let mut opens: Vec<AdmittedOpen<'_, T>> = bands.iter().flat_map(OpenBand::links).collect();
     opens.sort_by_key(AdmittedOpen::edge);
     rims.sort_by_key(|r| r.chain.first().edge);
     shared_support_gate(&rims)?;
@@ -568,14 +576,30 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         .iter()
         .copied()
         .partition(|o| !o.link().arm.is_ruled());
+    // A ruled chain is admitted with one link only, so its band is that
+    // link's; the planar bands are carved whole by the blank phase.
+    let planar_bands: Vec<&OpenBand<'_, T>> = bands
+        .iter()
+        .filter(|b| !b.first().link().arm.is_ruled())
+        .collect();
 
-    // ---- Corners: every planar open-link end must be a
-    // fully-requested trivalent vertex. Each end's incidence list is
-    // seeded by the link that discovered it, so it is non-empty by
+    // ---- Joints: each one's two feet, read off the source. ----
+    let mut joints: Vec<JointPlan<'_, T>> = Vec::new();
+    for joint in planar_bands.iter().flat_map(|b| b.joints()) {
+        joints.push(joint_plan(source, joint, &planar)?);
+    }
+    let is_joint = |v: VertexKey| joints.iter().any(|j| j.joint.vertex() == v);
+
+    // ---- Corners: every planar open-link end that is not a joint must
+    // be a fully-requested trivalent vertex. Each end's incidence list
+    // is seeded by the link that discovered it, so it is non-empty by
     // shape rather than by a check three functions deep. ----
     let mut ends: Vec<CornerLinks<'_, T>> = Vec::new();
     for o in &planar {
         for v in [o.link().start, o.link().end] {
+            if is_joint(v) {
+                continue;
+            }
             match ends.iter_mut().find(|c| c.vertex() == v) {
                 Some(c) => c.also(*o)?,
                 None => ends.push(CornerLinks::seed(v, *o)?),
@@ -636,9 +660,17 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         .iter()
         .map(|c| (c.links.vertex(), &c.faces, c.feet))
         .collect();
+    let joint_rows: Vec<(&Joint, [Point3<T>; 2])> =
+        joints.iter().map(|j| (j.joint, j.feet)).collect();
     let mut supports: Vec<RequestedBoundary<T>> = Vec::with_capacity(support_keys.len());
     for f in support_keys {
-        supports.push(RequestedBoundary::admit(source, f, &planar, &corner_rows)?);
+        supports.push(RequestedBoundary::admit(
+            source,
+            f,
+            &planar,
+            &corner_rows,
+            &joint_rows,
+        )?);
     }
 
     // ---- The ruled bands' caps, read off the source before anything
@@ -675,16 +707,23 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     let mut body = blended.begin_surgery();
     let mut rec = BlendNaming::default();
     let blank = BlankPlan {
+        bands: &planar_bands,
         opens: &planar,
         corners: &corners,
+        joints: &joints,
         supports: &supports,
     };
     let (planar_faces, corner_faces, mut described) =
         blank_phase(&mut body, &blank, &sources, &mut rec, tol, kind)?;
-    // One blend face per open link, paired with its link and put back
-    // in the opens' own edge order once both bands have carved.
-    let mut blend_rows: Vec<(AdmittedOpen<'_, T>, FaceKey)> =
-        planar.iter().copied().zip(planar_faces).collect();
+    // One blend face per open band, paired with its lowest-keyed link —
+    // whose surface and convexity the whole band carries, the links of
+    // one band sharing both supports — and put back in that edge order
+    // once both bands have carved.
+    let mut blend_rows: Vec<(AdmittedOpen<'_, T>, FaceKey)> = planar_bands
+        .iter()
+        .map(|b| b.lowest())
+        .zip(planar_faces)
+        .collect();
     for plan in &ruled_plans {
         let (face, mut arcs) = ruled_phase(&mut body, plan, &sources, &mut rec, tol)?;
         described.append(&mut arcs);
@@ -839,6 +878,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         // walk above.
         let BlendNaming {
             blends,
+            joined_blends,
             corners,
             trims,
             feet,
@@ -858,6 +898,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         let edge_sources = blends
             .iter()
             .map(|(_, e)| e)
+            .chain(joined_blends.iter().flat_map(|(_, b)| b))
             .chain(trims.iter().map(|(_, e, _)| e))
             .chain(arcs.iter().map(|(_, _, e)| e))
             .chain(bands.iter().flat_map(|(_, b)| b))

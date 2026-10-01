@@ -1057,6 +1057,7 @@ pub fn assert_naming_totality<T: Real>(
         .blends
         .iter()
         .map(|(f, _)| *f)
+        .chain(rec.joined_blends.iter().map(|(f, _)| *f))
         .chain(rec.corners.iter().map(|(f, _)| *f))
         .chain(rec.bands.iter().map(|(f, _)| *f))
         .collect();
@@ -1177,13 +1178,19 @@ pub fn assert_naming_totality<T: Real>(
             "{what}: a retired vertex does not survive: {v:?}"
         );
     }
-    // The edges a band replaced: a closed chain's arcs (`bands`) or an
-    // open link's edge (`blends`) — together, exactly the request.
+    // The edges a band replaced: a closed chain's arcs (`bands`), an
+    // open link's edge (`blends`) or a joined open chain's edges
+    // (`joined_blends`) — together, exactly the request.
     let mut banded: Vec<EdgeKey> = rec
         .bands
         .iter()
         .flat_map(|(_, edges)| edges.iter().copied())
         .chain(rec.blends.iter().map(|(_, e)| *e))
+        .chain(
+            rec.joined_blends
+                .iter()
+                .flat_map(|(_, edges)| edges.iter().copied()),
+        )
         .collect();
     // (c)
     for (k, _) in source.edges() {
