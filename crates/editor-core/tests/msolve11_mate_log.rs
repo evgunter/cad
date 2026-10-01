@@ -340,3 +340,116 @@ fn a_reused_mate_carries_the_log_a_fresh_one_does() {
     };
     assert_eq!(escalations(&later), escalations(&fresh));
 }
+
+// ---- the lever ----
+
+/// The `Unleverable` refusal a mate carries, panicking on any other.
+fn unleverable(fault: &editor_core::MateFault) -> &editor_core::LeverRefusal {
+    match fault {
+        editor_core::MateFault::Unleverable { refusal, .. } => refusal,
+        other => panic!("expected an unleverable mate, got {other:?}"),
+    }
+}
+
+/// **A lever out of the format's range refuses at its one door,
+/// through the solve.** A rest authored at an offset of `1e300` m is
+/// a finite datum whose lever is finite too, and a pin beside it on
+/// the same pair would have the fold decide the pair's angular splits
+/// over that lever: a sine levered by `1e300` is a vector whose
+/// squared length overflows unless the sine is exactly zero. The fold forms each mate's lever through
+/// `Arm::of`, which refuses it typed — the rest, the first mate whose
+/// lever is formed, carrying both halves and the range recourse — so
+/// no predicate is handed it, and no escalation names the parallelism
+/// predicate.
+#[test]
+fn a_lever_out_of_range_refuses_typed_through_the_solve() {
+    let mut s = scene("msolve11-range-solve");
+    let rest = s.add(seat(
+        s.base_top(),
+        s.other_bottom(),
+        (2.0, 2.0),
+        MatePrimitive::PlanarRest { offset: 1e300 },
+        None,
+    ));
+    let pin = s.add(seat(
+        s.base_top(),
+        s.other_bottom(),
+        (2.0, 2.0),
+        MatePrimitive::Coaxial,
+        Some(0.0),
+    ));
+    let ev = fixture::run(&s.doc, &s.opts);
+    let fault = match ev.result(rest) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            editor_core::NodeErrorKind::Mate(fault) => (**fault).clone(),
+            other => panic!("expected a mate refusal, got {other:?}"),
+        },
+        other => panic!("expected the rest to fail, got {other:?}"),
+    };
+    let editor_core::LeverRefusal::OutOfRange { parts, datum } = *unleverable(&fault) else {
+        panic!("expected the range refusal, got {fault:?}");
+    };
+    assert!(
+        parts.is_finite() && parts > 0.0,
+        "the parts' reach is in hand: {parts}"
+    );
+    assert!(
+        datum.is_finite() && datum >= 1e300,
+        "the datum's own terms carry the offset: {datum}"
+    );
+    let said = fault.to_string();
+    assert!(said.contains(geom_core::RANGE_RECOURSE), "{said}");
+    for id in [rest, pin] {
+        let escalations = match ev.result(id) {
+            Some(NodeResult::Ok(v)) => v.escalations.to_vec(),
+            Some(NodeResult::Failed(e)) => e.escalations.to_vec(),
+            _ => Vec::new(),
+        };
+        assert!(
+            escalations.is_empty(),
+            "mate {}: no predicate decided over the lever: {escalations:?}",
+            id.0
+        );
+    }
+}
+
+/// **The same door, through the edit door.** A coincidence's rider is
+/// the one row of the table that levers a decision of a mate alone, so
+/// the insert door forms that mate's lever — through the same door —
+/// and refuses one whose datum is a frame `1e200` m from its part's
+/// origin, a distance whose own square overflows.
+#[test]
+fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
+    let s = scene("msolve11-range-door");
+    let node = Node::Mate {
+        a: s.base_top(),
+        b: s.other_bottom(),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: MateFrame::authored([1e200, 0.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Opposed,
+            clocking: Some(0.0),
+        },
+    };
+    let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
+    let err = s
+        .doc
+        .apply(&DocEdit::InsertNode { node }, Tol::witness(), &reach)
+        .expect_err("the door refuses the lever");
+    let editor_core::EditError::MateRefused { fault, .. } = err else {
+        panic!("expected MateRefused, got {err:?}");
+    };
+    assert!(
+        matches!(
+            unleverable(&fault),
+            editor_core::LeverRefusal::OutOfRange { datum, .. } if !datum.is_finite()
+        ),
+        "{fault:?}"
+    );
+    assert!(
+        fault.to_string().contains(geom_core::RANGE_RECOURSE),
+        "{fault}"
+    );
+}

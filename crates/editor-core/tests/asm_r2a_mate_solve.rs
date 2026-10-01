@@ -25,6 +25,11 @@ use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
+/// A one-metre lever, through the one door a lever is formed by.
+fn unit_arm() -> editor_core::mate::coset::Arm {
+    editor_core::mate::coset::Arm::of(0.0, 1.0).expect("a metre is in range")
+}
+
 /// `step`, with the minted id unwrapped — every insert in this suite
 /// mints one.
 fn mint(doc: ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
@@ -753,8 +758,9 @@ fn row5_the_closure_set_is_closed_under_intersection() {
         point: p,
         direction: d,
     };
-    let meet =
-        |a, b| editor_core::mate::coset::intersect_subgroups(a, b, band, 1.0).expect("decided");
+    let meet = |a, b| {
+        editor_core::mate::coset::intersect_subgroups(a, b, band, unit_arm()).expect("decided")
+    };
     // The universal rows: SE(3) is the identity, empty absorbs,
     // trivial is the zero.
     for g in [
@@ -921,7 +927,7 @@ fn row5b_the_folded_representative_is_the_solved_clocking() {
         },
         representative: Affine3::from_parts(Mat3::identity(), Vec3::new(1.0, -1.0, 0.0)),
     };
-    let out = intersect(held, added, band, 1.0).expect("the pair is assemblable");
+    let out = intersect(held, added, band, unit_arm()).expect("the pair is assemblable");
     assert_eq!(out.subgroup.name(), "prismatic");
     let turned = out
         .representative

@@ -42,7 +42,7 @@ use geom_core::linalg::frame::{FrameError, FrameInput, FrameVector};
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
 use geom_core::predicate::Band;
 
-use super::coset::{Coset, FoldStop, Measured, Subgroup};
+use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
 use super::member::{Member, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
 use super::{
@@ -513,8 +513,8 @@ fn side_frame(
 /// witness to nothing.
 ///
 /// `lever` forms this mate's lever — the two mated parts' reach
-/// summed ([`pair_reach`]) plus the datum's own terms
-/// ([`Alignment::lever_arm`]) — and is asked at exactly one site: the
+/// summed ([`pair_reach`]) plus the datum's own terms, through
+/// [`lever`]'s one door — and is asked at exactly one site: the
 /// rider on a coincidence, the one row of the table that levers a
 /// decision. Every other row decides on the datum alone, so a caller
 /// with no lever in hand (the edit door, [`admit_mate`]) forms none
@@ -527,7 +527,7 @@ fn mate_coset(
     alignment: &Alignment,
     a: &AuthoredFrame,
     b: &AuthoredFrame,
-    lever: impl FnOnce() -> Result<f64, Box<MateFault>>,
+    lever: impl FnOnce() -> Result<Arm, Box<MateFault>>,
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
@@ -560,7 +560,7 @@ fn mate_coset(
                 let arm = lever()?;
                 let roll = Measured::Lever(Lever::Roll {
                     radians: theta,
-                    arm,
+                    arm: arm.get(),
                 });
                 let sign =
                     geom_core::k_stats::decide("mate_clocking_redundant", roll.margin(), band)
@@ -936,12 +936,12 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     };
     let a = resolve_side(doc, reach, mate, MateSide::A, &wa.member, &alignment.a)?;
     let b = resolve_side(doc, reach, mate, MateSide::B, &wb.member, &alignment.b)?;
-    let lever = || {
-        pair_reach(doc, reach, first, second)
-            .map(|parts| parts + alignment.lever_arm(&a, &b))
-            .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))
+    let form = || {
+        let parts = pair_reach(doc, reach, first, second)
+            .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
+        lever(mate, parts, alignment, &a, &b)
     };
-    mate_coset(mate, alignment, &a, &b, lever, band, tol).map(|_| ())
+    mate_coset(mate, alignment, &a, &b, form, band, tol).map(|_| ())
 }
 
 /// **The per-pair fold** (A11 rule 1): every mate on the ordered
@@ -986,7 +986,7 @@ fn fold_pair<P: crate::ProfilePayload>(
     // lever — after that mate's own class and self-mate checks, so a
     // part that does not resolve never pre-empts a refusal the mate
     // earns on its own.
-    let mut arm = 0.0_f64;
+    let mut arm: Option<Arm> = None;
     let mut parts_reach: Option<f64> = None;
     for pm in mates {
         let mate = pm.mate;
@@ -1017,8 +1017,9 @@ fn fold_pair<P: crate::ProfilePayload>(
             };
             // This mate's lever, formed once: the pair's parts plus its
             // own datum terms. The fold's is the largest so far.
-            let mate_arm = parts + alignment.lever_arm(&a, &b);
-            arm = arm.max(mate_arm);
+            let mate_arm = lever(mate, parts, alignment, &a, &b)?;
+            let fold_arm = arm.map_or(mate_arm, |held| held.max(mate_arm));
+            arm = Some(fold_arm);
             let mut coset = mate_coset(mate, alignment, &a, &b, || Ok(mate_arm), band, tol)?;
             // The authored order is `a`'s coordinates from `b`'s; the
             // tree may need the other direction. The transported
@@ -1033,7 +1034,7 @@ fn fold_pair<P: crate::ProfilePayload>(
                     })
                 })?;
             }
-            held = match super::coset::intersect(held, coset, band, arm) {
+            held = match super::coset::intersect(held, coset, band, fold_arm) {
                 Ok(next) => next,
                 Err(FoldStop::Indeterminate(diag)) => {
                     return Err(Box::new(MateFault::Indeterminate { mate, diag }));
@@ -1060,6 +1061,26 @@ fn fold_pair<P: crate::ProfilePayload>(
         held_mate.get_or_insert(mate);
     }
     Ok(held)
+}
+
+/// **A mate's lever, formed**: the pair's parts' reach `parts` plus
+/// the datum's own terms over its two resolved sides, through the one
+/// door that admits a length the predicates can decide over
+/// ([`Arm::of`]) — the door both the fold and the edit door
+/// ([`admit_mate`]) form a lever through.
+///
+/// # Errors
+///
+/// [`MateFault::Unleverable`] carrying [`super::LeverRefusal::OutOfRange`].
+fn lever(
+    mate: RecipeNodeId,
+    parts: f64,
+    alignment: &Alignment,
+    a: &AuthoredFrame,
+    b: &AuthoredFrame,
+) -> Result<Arm, Box<MateFault>> {
+    Arm::of(parts, alignment.lever_arm(a, b))
+        .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))
 }
 
 /// **The two mated parts' reach, summed** — the body terms of the

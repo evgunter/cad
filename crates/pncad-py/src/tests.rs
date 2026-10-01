@@ -4993,6 +4993,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "no_extent",
             "no_finite_bound",
             "not_an_instance",
+            "out_of_range",
             "part_unresolved",
         ],
         delegates: &[],

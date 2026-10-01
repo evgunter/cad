@@ -5625,7 +5625,8 @@ class MateFault:
         (`invalid_value`, `invalid_lever_arm`, `empty`), or the lever
         refusal's (`part_unresolved`, `face_unbounded`, `no_extent`,
         `no_finite_bound`, `not_an_instance`, with the instance it is
-        about as `instance`), or the face refusal's on
+        about as `instance`, or `out_of_range`, about the pair's lever
+        rather than one part), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
         `ambiguous`, `not_a_face`, `readback`, `unpinned`,
         `not_an_instance`, with the

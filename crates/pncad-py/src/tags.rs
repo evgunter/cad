@@ -1719,6 +1719,7 @@ pub fn lever_refusal_tag(refusal: &LeverRefusal) -> &'static str {
         LeverRefusal::NoExtent { .. } => "no_extent",
         LeverRefusal::NoFiniteBound { .. } => "no_finite_bound",
         LeverRefusal::NotAnInstance { .. } => "not_an_instance",
+        LeverRefusal::OutOfRange { .. } => "out_of_range",
     }
 }
 

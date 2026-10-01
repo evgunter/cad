@@ -700,6 +700,16 @@ pub enum LeverRefusal {
         /// The node.
         node: RecipeNodeId,
     },
+    /// Both parts' reach is in hand, but the lever they form with the
+    /// datum's own terms is a length the format cannot decide a tilt
+    /// over ([`coset::Arm::of`]): each half is finite where it is
+    /// read, and their sum, or its square, overflows.
+    OutOfRange {
+        /// The two parts' reach, summed.
+        parts: f64,
+        /// The datum's own terms ([`Alignment::lever_arm`]).
+        datum: f64,
+    },
 }
 
 impl LeverRefusal {
@@ -775,6 +785,12 @@ impl core::fmt::Display for LeverRefusal {
                 "node {} is not a live instantiate node, so it has no part whose extent \
                  could lever a verdict",
                 node.0
+            ),
+            Self::OutOfRange { parts, datum } => write!(
+                f,
+                "its lever, {parts} m of its parts' reach plus {datum} m of its datum, is too \
+                 long for a tilt to be decided over it. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
         }
     }

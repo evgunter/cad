@@ -424,16 +424,18 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                 LeverRefusal::PartUnresolved { instance, .. }
                 | LeverRefusal::MalformedBody { instance, .. }
                 | LeverRefusal::NoExtent { instance, .. }
-                | LeverRefusal::NoFiniteBound { instance, .. } => (*instance, None),
+                | LeverRefusal::NoFiniteBound { instance, .. } => (Some(*instance), None),
                 LeverRefusal::FaceUnbounded { instance, kind, .. } => {
-                    (*instance, Some(kind.name()))
+                    (Some(*instance), Some(kind.name()))
                 }
-                LeverRefusal::NotAnInstance { node } => (*node, None),
+                LeverRefusal::NotAnInstance { node } => (Some(*node), None),
+                // The lever is the pair's, not one part's.
+                LeverRefusal::OutOfRange { .. } => (None, None),
             };
             MateFaultPayload {
                 mate: Some(*mate),
                 inner_variant: Some(lever_refusal_tag(refusal)),
-                instance: Some(instance),
+                instance,
                 what,
                 ..none
             }

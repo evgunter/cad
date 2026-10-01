@@ -33,9 +33,9 @@
 
 use geom_core::k_stats::decide;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, UnitVec3Error, Vec3};
-use geom_core::predicate::{Band, Indeterminate, Margin, MarginDiag, Sign};
+use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 
-use super::{Clash, Lever};
+use super::{Clash, Lever, LeverRefusal};
 
 /// A residual SE(3) subgroup — the closure set the table is closed
 /// over. Its directions are [`UnitVec3`] witnesses: the predicates
@@ -370,7 +370,52 @@ impl From<Indeterminate> for FoldStop {
     }
 }
 
-// ---- The table's case splits, each a named decided predicate ----
+// ---- The lever, and the table's case splits, each a named decided predicate ----
+
+/// **The lever a mate's angular decisions turn on**, as the predicates
+/// receive it: a length minted only by [`Arm::of`], which refuses one
+/// the format cannot decide over.
+///
+/// Every levered predicate multiplies the arm by a pure number of
+/// magnitude below 4 — a sine or a cosine of two unit witnesses, a
+/// departure of a rotation from the identity (at most `2√3`), a
+/// reachability defect (at most 2) — and [`parallel`] hands that
+/// product to the direction door, which squares it. An arm whose
+/// sixteenfold square is finite keeps every one of those finite, so a
+/// margin here is never infinite for want of range, which `Decide`
+/// would read as maximally definite.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct Arm(f64);
+
+impl Arm {
+    /// **The one door a lever is formed through**: the mated parts'
+    /// reach `parts` (`R_a + R_b`) plus the datum's own terms `datum`
+    /// ([`super::Alignment::lever_arm`]).
+    ///
+    /// # Errors
+    ///
+    /// [`LeverRefusal::OutOfRange`], carrying both halves, when the sum
+    /// is not a number, or is a length whose sixteenfold square
+    /// overflows the format.
+    pub fn of(parts: f64, datum: f64) -> Result<Self, LeverRefusal> {
+        let arm = parts + datum;
+        if (arm * arm * 16.0).is_finite() {
+            Ok(Self(arm))
+        } else {
+            Err(LeverRefusal::OutOfRange { parts, datum })
+        }
+    }
+
+    /// The arm, in metres.
+    pub fn get(self) -> f64 {
+        self.0
+    }
+
+    /// The longer of two arms, which is one of them.
+    pub fn max(self, other: Self) -> Self {
+        Self(self.0.max(other.0))
+    }
+}
 
 /// Predicate: two directions are parallel (either sense), decided as
 /// ONE mint. The margin is the sine of the angle between them — which
@@ -389,24 +434,26 @@ impl From<Indeterminate> for FoldStop {
 /// sine that underflowed the format (below ~1e-162, a length the band
 /// calls zero at every ε; the door refuses it before the funnel, so
 /// that vanishing sample is not recorded — reachable by no pair of
-/// witnesses at any arm the reach bounds); a length that is no number
-/// is what the classifier says of a poisoned margin.
+/// witnesses at any arm the reach bounds). A length that is no number
+/// has no input to come from: the arm is an [`Arm`].
 fn parallel(
     u: UnitVec3<f64>,
     v: UnitVec3<f64>,
     band: Band,
-    arm: f64,
+    arm: Arm,
 ) -> Result<Option<UnitVec3<f64>>, Indeterminate> {
-    match UnitVec3::new(u.get().cross(v.get()) * arm, "mate_axes_parallel", band) {
+    match UnitVec3::new(
+        u.get().cross(v.get()) * arm.get(),
+        "mate_axes_parallel",
+        band,
+    ) {
         Ok(line) => Ok(Some(line)),
         Err(UnitVec3Error::Degenerate | UnitVec3Error::UnderflowedLength) => Ok(None),
         Err(UnitVec3Error::Escalated(diag)) => Err(diag),
-        Err(UnitVec3Error::NonFiniteLength) => Err(Indeterminate {
-            margin: MarginDiag::INVALID,
-            band,
-            predicate: Some("mate_axes_parallel"),
-            terminal_sliver: false,
-        }),
+        Err(UnitVec3Error::NonFiniteLength) => unreachable!(
+            "a sine of two unit witnesses levered by an `Arm` has a finite squared length: \
+             `Arm::of` admits no arm whose sixteenfold square overflows"
+        ),
     }
 }
 
@@ -417,11 +464,11 @@ fn perpendicular(
     u: UnitVec3<f64>,
     n: UnitVec3<f64>,
     band: Band,
-    arm: f64,
+    arm: Arm,
 ) -> Result<bool, Indeterminate> {
     Ok(decide(
         "mate_axis_normal_perpendicular",
-        Margin::levered(u.get().dot(n.get()), arm),
+        Margin::levered(u.get().dot(n.get()), arm.get()),
         band,
     )? == Sign::Zero)
 }
@@ -461,7 +508,7 @@ pub fn intersect_subgroups(
     g1: Subgroup,
     g2: Subgroup,
     band: Band,
-    arm: f64,
+    arm: Arm,
 ) -> Result<Subgroup, Indeterminate> {
     use Subgroup::{Cylindrical, Empty, Planar, Prismatic, Revolute, Se3, Trivial};
     Ok(match (g1, g2) {
@@ -679,7 +726,8 @@ impl Measured {
 /// [`FoldStop::Clash`] naming the failing predicate with what it
 /// measured — the CONTRADICTORY refusal's own quotation — or
 /// [`FoldStop::Indeterminate`] when a check landed in the band.
-fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: f64) -> Result<(), FoldStop> {
+fn member_of(g: Subgroup, x: Affine3<f64>, band: Band, arm: Arm) -> Result<(), FoldStop> {
+    let arm = arm.get();
     let residual = |value: f64| Measured::Lever(Lever::Residual { value, arm });
     let axis_fixed = |axis: UnitVec3<f64>| {
         (
@@ -776,7 +824,7 @@ fn rotation_residual(q: Mat3<f64>) -> f64 {
 /// [`FoldStop::Indeterminate`] when a case split or membership check
 /// lands in the ambiguity band; [`FoldStop::Clash`] when the
 /// intersection is empty.
-pub fn intersect(held: Coset, added: Coset, band: Band, arm: f64) -> Result<Coset, FoldStop> {
+pub fn intersect(held: Coset, added: Coset, band: Band, arm: Arm) -> Result<Coset, FoldStop> {
     if matches!(held.subgroup, Subgroup::Empty) || matches!(added.subgroup, Subgroup::Empty) {
         return Ok(Coset {
             subgroup: Subgroup::Empty,
@@ -819,7 +867,7 @@ fn candidate_rotation(
     held: Coset,
     added: Coset,
     band: Band,
-    arm: f64,
+    arm: Arm,
 ) -> Result<Mat3<f64>, FoldStop> {
     let q1 = held.representative.linear;
     let q2 = added.representative.linear;
@@ -855,7 +903,7 @@ fn candidate_rotation(
                     let v = m * a2;
                     let reach = Measured::Lever(Lever::Residual {
                         value: v.dot(a1) - a2.dot(a1),
-                        arm,
+                        arm: arm.get(),
                     });
                     if decide("mate_rotation_two_axis_reachable", reach.margin(), band)?
                         != Sign::Zero
