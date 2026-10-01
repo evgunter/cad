@@ -24,12 +24,17 @@ fn wide() -> ChartWindow<f64> {
 /// sign. The two are the same locus; the cut below lies on the `+axis`
 /// nappe of the first and the mirror nappe of the second.
 fn cone(axis_sign: f64) -> Surface<f64> {
+    cone_at(axis_sign, 0.45)
+}
+
+/// [`cone`] at another half-angle.
+fn cone_at(axis_sign: f64, half_angle: f64) -> Surface<f64> {
     let axis = Vec3::new(0.2, -0.3, 1.0).normalize() * axis_sign;
     let seed = Vec3::unit_x();
     Surface::Cone {
         apex: Point3::new(0.4, -0.7, 0.2),
         axis,
-        half_angle: 0.45,
+        half_angle,
         u_ref: (seed - axis * seed.dot(axis)).normalize(),
     }
 }
@@ -37,20 +42,26 @@ fn cone(axis_sign: f64) -> Surface<f64> {
 /// The section of `cone(+1)` by a plane tilted 0.5 rad off its axis,
 /// 2.5 along it from the apex: an ellipse on the `+axis` nappe.
 fn section() -> Curve3<f64> {
-    let Surface::Cone { apex, axis, .. } = cone(1.0) else {
+    section_of(0.45, 0.5)
+}
+
+/// The section of `cone_at(1, half_angle)` by a plane tilted `tilt` off
+/// its axis, 2.5 along it from the apex.
+fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
+    let surface = cone_at(1.0, half_angle);
+    let Surface::Cone { apex, axis, .. } = surface else {
         unreachable!()
     };
     let side = axis.cross(Vec3::unit_x()).normalize();
-    let normal = (axis * 0.5f64.cos() + side * 0.5f64.sin()).normalize();
+    let normal = (axis * tilt.cos() + side * tilt.sin()).normalize();
     let plane = Surface::Plane {
         origin: apex + axis * 2.5,
         normal,
         u_ref: side.cross(normal),
     };
-    let Ok(PlaneConeSection::TiltedEllipse(e)) =
-        plane_cone_section(&plane, &cone(1.0), 3.0, band())
+    let Ok(PlaneConeSection::TiltedEllipse(e)) = plane_cone_section(&plane, &surface, 3.0, band())
     else {
-        panic!("a 0.5 rad tilt of a 0.45 rad cone is an ellipse");
+        panic!("a {tilt} rad tilt of a {half_angle} rad cone is an ellipse");
     };
     e
 }
@@ -184,51 +195,54 @@ fn a_wrong_number_in_the_image_refuses() {
 /// the moved slant `δ·(cos t | sin t)` along a unit generator — the
 /// harmonic part carries only `cos α` of it, the Kepler remainder the
 /// `sin α` rest. The certified envelope must cover the residual sampled
-/// densely over the span, so a remainder dropped or shrunk is red here.
+/// densely over the span. At `α = 1.2`, `cos α + sin α / 2 < 1`, so even
+/// a HALVED remainder leaves the envelope under the residual: a
+/// remainder dropped or shrunk is red here.
 #[test]
 fn the_envelope_covers_an_admitted_slant_error() {
-    let surface = cone(1.0);
-    let carrier = section();
-    let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-    let Pcurve::ConeSection {
-        u0,
-        v0,
-        va,
-        vb,
-        beta,
-        sense,
-    } = image
-    else {
-        unreachable!()
-    };
-    let h = 0.25 * crate::shared::tol::eps();
-    for (name, va, vb) in [("va", va + h, vb), ("vb", va, vb + h)] {
-        let moved = Pcurve::ConeSection {
+    for (half_angle, tilt) in [(0.45, 0.5), (1.2, 0.2)] {
+        let surface = cone_at(1.0, half_angle);
+        let carrier = section_of(half_angle, tilt);
+        let image = chart_pcurve(&carrier, &surface, band()).unwrap();
+        let Pcurve::ConeSection {
             u0,
             v0,
             va,
             vb,
             beta,
             sense,
+        } = image
+        else {
+            unreachable!()
         };
-        let (t0, t1) = (0.3, 4.0);
-        let cache = PcurveCache::certify(moved.clone(), t0, t1, &carrier, &surface, wide(), band())
-            .unwrap_or_else(|e| panic!("{name} moved by ε/4: {e}"));
-        let envelope = cache.certificate().envelope;
-        let sup = (0..=4096)
-            .map(|i| {
-                let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
-                let uv = moved.eval(t);
-                surface.eval(uv.x, uv.y).distance(carrier.eval(t))
-            })
-            .fold(0.0, f64::max);
-        assert!(
-            sup > 0.9 * h,
-            "{name}: the moved image is off its carrier by {sup:e}"
-        );
-        assert!(
-            envelope >= sup,
-            "{name}: envelope {envelope:e} under the sampled residual {sup:e}"
-        );
+        let h = 0.25 * crate::shared::tol::eps();
+        for (name, va, vb) in [("va", va + h, vb), ("vb", va, vb + h)] {
+            let what = format!("alpha {half_angle}, {name} moved by eps/4");
+            let moved = Pcurve::ConeSection {
+                u0,
+                v0,
+                va,
+                vb,
+                beta,
+                sense,
+            };
+            let (t0, t1) = (0.3, 4.0);
+            let cache =
+                PcurveCache::certify(moved.clone(), t0, t1, &carrier, &surface, wide(), band())
+                    .unwrap_or_else(|e| panic!("{what}: {e}"));
+            let envelope = cache.certificate().envelope;
+            let sup = (0..=4096)
+                .map(|i| {
+                    let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
+                    let uv = moved.eval(t);
+                    surface.eval(uv.x, uv.y).distance(carrier.eval(t))
+                })
+                .fold(0.0, f64::max);
+            assert!(sup > 0.9 * h, "{what}: off its carrier by {sup:e}");
+            assert!(
+                envelope >= sup,
+                "{what}: envelope {envelope:e} under the sampled residual {sup:e}"
+            );
+        }
     }
 }

@@ -1312,6 +1312,22 @@ pub(crate) fn loop_reach<T: Decide>(
     Ok((anchor, reach_from(&lp.verts, &lp.edges, anchor)))
 }
 
+/// [`loop_reach`]'s radius about a centre of the caller's choosing: the
+/// loop lies within `|x − from| ≤` the answer.
+///
+/// # Errors
+///
+/// As [`loop_reach`].
+pub(crate) fn loop_reach_about<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    from: Point3<T>,
+    band: Band,
+) -> Result<T, PointInLoopError> {
+    let lp = carrier_loop(body, r#loop, WALK_ROWS, band)?;
+    Ok(reach_from(&lp.verts, &lp.edges, from))
+}
+
 /// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —
 /// `None` for a graze, and for an in-band margin on any of its rows
 /// (why that is sound: the ray loop in [`carrier_walk`]). `on_carrier` says the pre-pass put `q` on the

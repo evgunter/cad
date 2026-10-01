@@ -102,3 +102,12 @@ tilts each): narrowing frustum 10–22 refused of 2662 per tilt, widening
 2, upright cone 0, and **0 wrong** throughout. `cone_face_trim`, the
 face-scoped door, still refuses. The fix proper is unchanged: the
 section's side along each generator.
+
+**Two policies for one situation.** A ray meeting an unreadable face
+inside its ball is set aside on the cone (`FaceGeo::PartialCone`: the
+schedule tries the next ray, and the query refuses only when none
+clears), while the cylinder's `WallOutline::Unsupported { reach }`
+refuses the whole query at the first such hit (`wall_hit`). Both are
+sound; the cone's answers strictly more queries. One policy for both —
+likely the cone's, with the refusal named after the face that set the
+last ray aside — belongs with this item's fix.

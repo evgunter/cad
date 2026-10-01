@@ -118,9 +118,8 @@ What a check could have seen, from the edge dump:
   against its ADJACENT planar faces, and the base is not adjacent to
   the arc.
 
-The first is the cheaper statement: a loop-simplicity check on a planar
-face, edge against edge on its own carriers, the walk check 9 already
-owns. The split's arc-side rule now takes the window from the apex-
+The first is the cheaper statement, and it has its own item:
+`tier3-never-checks-a-planar-loop-is-simple`. The split's arc-side rule now takes the window from the apex-
 closed lift (`chord_join::run_azimuth_window`), and the 144-pose sweep
 of that cone is a row
 (`sweep/tests/reach_cone_split.rs`

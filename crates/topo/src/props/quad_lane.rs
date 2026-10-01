@@ -2,7 +2,7 @@ use geom_brep::Pcurve;
 use geom_brep::props::quad::{
     self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::{LoopEdge, PropsError, cone_face_closed_form, loop_vector_area};
+use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
 use geom_core::Tol;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
@@ -134,8 +134,8 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 /// — the cylinder chart's closed-form lane plus the described-NURBS
 /// patch lane (M6-3), entered and left where the window says (the
 /// quadrature module's two levels); [`super::QuadLane`] holds this
-/// and reads it at either level. A cone face needs no quadrature: it
-/// converges at once on its closed form
+/// and reads it at either level. A cone face never arrives: the face
+/// walk routes it to its closed form
 /// ([`geom_brep::props::cone_face_closed_form`]). Sphere and torus
 /// charts mint stored pcurves but have no flux lane here, and refuse
 /// typed.
@@ -160,25 +160,12 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     if let Some(payload) = surface.spline_chart() {
         return nurbs_face(body, payload, outer, hes, band, tol, window);
     }
-    if let Surface::Cone {
-        apex,
-        axis,
-        half_angle,
-        ..
-    } = *surface
-    {
-        let face = cone_face_closed_form(apex, axis, half_angle, outer, band)?;
-        return Ok(RoundOutcome::Converged(FaceCutBounds {
-            flux: Interval::from_certified(face.flux),
-            area: Interval::from_certified(face.area),
-        }));
-    }
     let Surface::Cylinder { origin, radius, .. } = surface else {
         return Err(PropsError::QuadratureUnsupported {
-            what: "conic trim on a sphere/torus chart — those charts mint stored \
-                   pcurves, but this lane's chart-normal flux algebra is the \
-                   cylinder's and the cone's; the other analytic charts' closed-form \
-                   flux has no lane",
+            what: "conic trim on a cone/sphere/torus chart — a cone face takes its \
+                   closed form before this lane (`cone_face_closed_form`); sphere and \
+                   torus charts mint stored pcurves, but this lane's chart-normal flux \
+                   algebra is the cylinder's",
         });
     };
     let eps = tol.eps();

@@ -969,8 +969,8 @@ impl<T: SpanLocate> Pcurve<T> {
     /// `[t₀, t₁]` — a box over-approximation (module docs), always
     /// sound in the containment direction: it can only make a
     /// containment claim harder to satisfy, never falsely satisfied.
-    /// A harmonic or iso-line image's box is
-    /// [`Pcurve::harmonic_span_box`]'s.
+    /// A harmonic or iso-line image's box is `harmonic_span_box`'s, and
+    /// a cone-section image's [`Pcurve::closed_form_span_box`]'s.
     ///
     /// **Restriction-monotone on every arm**: a sub-span's box lies
     /// inside the span's (the net and arc-segment arms ignore the span;

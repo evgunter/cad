@@ -42,8 +42,11 @@
 //! landing ON a loop boundary (edge/vertex hit), a tangent crossing
 //! (`d·n` in band), a tie between two crossings' advances, or an
 //! in-band advance sign all abandon the ray and retry with the next
-//! schedule member; exhaustion is the typed
-//! [`PointInSolidError::RayExhausted`]. A boundary pre-pass reports
+//! schedule member. So does a ray that may meet an untrimmable cone
+//! face (`FaceGeo::PartialCone`) ahead of `q`. Exhaustion is the typed
+//! [`PointInSolidError::RayExhausted`], or
+//! [`PointInSolidError::PartialConeFace`] when such a face set aside any
+//! ray. A boundary pre-pass reports
 //! `q` ON the solid's boundary as [`SolidContainment::OnBoundary`]
 //! before any ray is cast.
 //!
@@ -56,6 +59,10 @@
 //!   skipped, not grazed).
 //! - **`bool_point_in_solid_advance`**: the crossing's advance `t`
 //!   along the ray (Zero ⇒ crossing at `q` — graze, retry).
+//! - **`bool_cone_partial_reach`**: a point's distance from a cone's
+//!   apex against the ball an untrimmable cone face lies in (Positive ⇒
+//!   that face cannot hold the point; anything else refuses or sets the
+//!   ray aside).
 //! - The in-face walk's rows are its own module's (`point_in_loop_*`
 //!   for a loop of lines, `point_in_arc_loop_*` for a loop with arcs —
 //!   [`point_in_carrier_loop`] lists them).
@@ -146,7 +153,8 @@ use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
 use crate::null::CurveGeom;
 use crate::splitting::containment::{
-    LoopContainment, PointInLoopError, SCHEDULE, loop_reach, point_in_carrier_loop,
+    LoopContainment, PointInLoopError, SCHEDULE, loop_reach, loop_reach_about,
+    point_in_carrier_loop,
 };
 use crate::validate::decide;
 
@@ -790,10 +798,8 @@ fn face_geo<T: Decide>(
             let (az, representative, v, nappe) =
                 match cone_chart_trim(body, face, charts, apex, axis, half_angle, band) {
                     Ok(trim) => trim,
-                    Err(partial @ PointInSolidError::PartialConeFace { .. }) => {
-                        let Some(reach) = partial_cone_reach(body, face, apex)? else {
-                            return Err(partial);
-                        };
+                    Err(PointInSolidError::PartialConeFace { .. }) => {
+                        let reach = partial_cone_reach(body, face, apex, band)?;
                         return Ok(FaceGeo::PartialCone {
                             apex,
                             axis,
@@ -1720,51 +1726,34 @@ fn cone_window_premise<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<(), P
 /// reach [`FaceGeo::PartialCone`] refuses inside.
 ///
 /// On a cone, `|p − apex|` is the slant `|v|`, a chart coordinate, so a
-/// face on one nappe reaches no farther than its boundary does. A
-/// generator runs between its ends and a rim holds one distance, so
-/// their vertices bound them; an ellipse lies within
-/// `|centre − apex| + semi-major`. `None` for a boundary edge of any
-/// other carrier, which nothing here bounds.
+/// face reaches no farther from its apex than its boundary does; each
+/// loop's ball about the apex is the containment walk's own
+/// ([`loop_reach_about`]: vertices, and each curved edge's carrier ball).
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for an unwalkable face.
+/// [`PointInSolidError::CorruptFace`] for an unwalkable face, and the
+/// loop walk's own refusals.
 fn partial_cone_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     apex: Point3<T>,
-) -> Result<Option<T>, PointInSolidError> {
+    band: Band,
+) -> Result<T, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.get_face(face).ok_or_else(corrupt)?;
     let mut reach = T::zero();
     for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let first = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
-            LoopBoundary::Cycle { first } => first,
+        let ball = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
+            LoopBoundary::Cycle { .. } => loop_reach_about(body, lk, apex, band)?,
             // A lone vertex is a point of the face like any other.
             LoopBoundary::Empty { vertex } => {
-                let p = crate::readback::vertex_point(body, vertex).map_err(|_| corrupt())?;
-                reach = reach.max((p - apex).norm());
-                continue;
+                (crate::readback::vertex_point(body, vertex).map_err(|_| corrupt())? - apex).norm()
             }
         };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let half = body.get_half_edge(he).ok_or_else(corrupt)?;
-            let start = crate::readback::vertex_point(body, half.start).map_err(|_| corrupt())?;
-            reach = reach.max((start - apex).norm());
-            let curve = body.get_edge(half.edge).ok_or_else(corrupt)?.curve;
-            let Some(CurveGeom::Certified(c)) = body.get_curve_geom(curve) else {
-                return Err(corrupt());
-            };
-            match *c.carrier() {
-                geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => {}
-                geom::Curve3::Ellipse { center, major, .. } => {
-                    reach = reach.max((center - apex).norm() + major);
-                }
-                geom::Curve3::Nurbs(_) | geom::Curve3::Spiric { .. } => return Ok(None),
-            }
-        }
+        reach = reach.max(ball);
     }
-    Ok(Some(reach))
+    Ok(reach)
 }
 
 /// The face's slant window, folded over its outer cycle's vertices.

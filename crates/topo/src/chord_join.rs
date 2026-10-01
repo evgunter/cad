@@ -135,12 +135,13 @@ pub enum ArcWindowCase {
     /// one full period, so containment does not distinguish the arcs.
     /// Ambiguous by construction — refused, never broken by convention.
     BothContained,
-    /// The window would be read across a cone face's APEX by a walk
-    /// that cannot close there: the face meets its apex more than once,
-    /// carries a ring, or reaches it from both nappes
-    /// ([`cone_apex_closure`]'s `Open`). Every azimuth maps to the apex,
-    /// so no branch pin crosses it, and a window guessed there selects
-    /// the complement arc without any later check seeing it.
+    /// The window would be read across a cone face's APEX, where every
+    /// azimuth maps to one point and no branch pin carries: either a
+    /// walk was asked to pin across the apex, or the face has no single
+    /// lift that closes there (it meets its apex more than once, carries
+    /// a ring, or reaches it from both nappes — [`cone_apex_closure`]'s
+    /// `Open`). A window guessed there selects the complement arc
+    /// without any later check seeing it.
     ApexUnlifted,
 }
 
@@ -179,9 +180,10 @@ impl core::fmt::Display for ArcWindowCase {
             ),
             Self::ApexUnlifted => write!(
                 f,
-                "the divided cone face's boundary reaches its apex in a way no single chart \
-                 lift closes (twice, from both nappes, or around a ring), so its azimuth \
-                 window across the apex is undetermined"
+                "the divided cone face's azimuth window would be read across its apex, \
+                 where the chart has no azimuth: the walk reached the apex, or the face \
+                 meets it in a way no single chart lift closes (twice, from both nappes, \
+                 or around a ring)"
             ),
         }
     }
@@ -2188,12 +2190,8 @@ fn run_azimuth_images<T: Decide>(
                 if let geom::Surface::Cone { apex, .. } = surface {
                     let entry_v = he_data.start;
                     let p = vertex_point(body, entry_v).map_err(|_| corrupt_vertex(entry_v))?;
-                    if decide(
-                        "split_cone_window_apex",
-                        Margin::of((p - *apex).norm()),
-                        band,
-                    )
-                    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                    if decide("bool_cone_apex_visit", Margin::of((p - *apex).norm()), band)
+                        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
                         == Sign::Zero
                     {
                         return Err(SplitJoinError::SectionArcWindow {
