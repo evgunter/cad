@@ -401,10 +401,7 @@ pub(crate) fn instance_frame<T: Decide>(
         .map_err(|error| NodeErrorKind::Mate(Box::new(crate::mate::MateFault::Band { error })))?;
     crate::mate::solve::group_frame(doc, root, env, band)
         .map(Some)
-        .map_err(|(node, error)| NodeErrorKind::PlacementRefused {
-            node,
-            error: error.into(),
-        })
+        .map_err(|(node, error)| NodeErrorKind::PlacementRefused { node, error })
 }
 
 /// ASM-2A D-3: materialize an instance through the shipped doors.

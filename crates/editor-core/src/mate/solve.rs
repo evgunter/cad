@@ -322,11 +322,8 @@ impl SolvedPoses {
         let band = Band::linear(self.tol)
             .map_err(|error| PoseRefusal::Mate(Box::new(MateFault::Band { error })))?;
         let env = doc.param_env::<f64>();
-        let frame =
-            group_frame(doc, root, &env, band).map_err(|(node, error)| PoseRefusal::Placement {
-                node,
-                error: error.into(),
-            })?;
+        let frame = group_frame(doc, root, &env, band)
+            .map_err(|(node, error)| PoseRefusal::Placement { node, error })?;
         let pose = self.pose.get(&instance).copied().unwrap_or(Pose {
             left: None,
             right: Frame::IDENTITY,
@@ -468,14 +465,15 @@ pub(crate) fn gauge_frame<P, T: geom_core::Decide>(
     gauge: Option<RecipeNodeId>,
     env: &ParamEnv<T>,
     band: Band,
-) -> Result<crate::placement::Motion<T>, (RecipeNodeId, crate::eval::NodeErrorKind)> {
+) -> Result<crate::placement::Motion<T>, (RecipeNodeId, crate::eval::NodeRefusal)> {
     let chain = gauge_chain(doc, gauge).map_err(|dead| {
         (
             dead,
             crate::eval::NodeErrorKind::Unplaced {
                 group: dead,
                 cause: Unplaced::DeadGauge { gauge: dead },
-            },
+            }
+            .into(),
         )
     })?;
     let mut frame = crate::placement::Motion::Identity;
@@ -483,7 +481,7 @@ pub(crate) fn gauge_frame<P, T: geom_core::Decide>(
         let Some(Node::Gauge { placement, .. }) = doc.node(g) else {
             unreachable!("gauge_chain yields live gauges only")
         };
-        let step = placement.motion_at(env, band).map_err(|e| (g, e))?;
+        let step = placement.motion_at(env, band).map_err(|e| (g, e.into()))?;
         frame = frame.compose(step);
     }
     Ok(frame)
@@ -500,13 +498,13 @@ pub(crate) fn group_frame<P, T: geom_core::Decide>(
     root: RecipeNodeId,
     env: &ParamEnv<T>,
     band: Band,
-) -> Result<crate::placement::Motion<T>, (RecipeNodeId, crate::eval::NodeErrorKind)> {
+) -> Result<crate::placement::Motion<T>, (RecipeNodeId, crate::eval::NodeRefusal)> {
     let Some(Node::InstantiatePart { gauge, offset, .. }) = doc.node(root) else {
         return Ok(crate::placement::Motion::Identity);
     };
     let frame = gauge_frame(doc, *gauge, env, band)?;
     let offset = match offset {
-        Some(offset) => offset.motion_at(env, band).map_err(|e| (root, e))?,
+        Some(offset) => offset.motion_at(env, band).map_err(|e| (root, e.into()))?,
         None => crate::placement::Motion::Identity,
     };
     Ok(frame.compose(offset))
@@ -1667,14 +1665,8 @@ fn check_offsets<P: crate::ProfilePayload>(
         instance,
         cause: Box::new(cause),
     };
-    let placement = |instance, node, error: crate::eval::NodeErrorKind| {
-        unchecked(
-            instance,
-            OffsetCheck::Placement {
-                node,
-                error: error.into(),
-            },
-        )
+    let placement = |instance, node, error: crate::eval::NodeRefusal| {
+        unchecked(instance, OffsetCheck::Placement { node, error })
     };
     let mut out = Vec::new();
     for &instance in group {
@@ -1687,11 +1679,11 @@ fn check_offsets<P: crate::ProfilePayload>(
         let check = || -> Result<(), MateFault> {
             let stated = stated
                 .eval(env, band)
-                .map_err(|e| placement(instance, instance, e))?;
+                .map_err(|e| placement(instance, instance, e.into()))?;
             let root_offset = match offset_of(root) {
                 Some(o) => o
                     .eval(env, band)
-                    .map_err(|e| placement(instance, root, e))?,
+                    .map_err(|e| placement(instance, root, e.into()))?,
                 None => Affine3::identity(),
             };
             let left = match pose.left {
