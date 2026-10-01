@@ -782,7 +782,10 @@ Five commitments:
    its intensional description (D2). Kernel invariant: `residual ≤ ε`
    for every derived item in a valid body; the `topo` validator checks
    it, at `f64` as a conservative estimate and at `Interval` as an
-   enclosure.
+   enclosure. A certified upper bound on a vector-valued residual is
+   read from the Euclidean norm of each coefficient, never from a
+   per-coordinate box folded into a norm: the bound is then a function
+   of the geometry, and a rigid map moves it only by its rounding width.
 3. **Failure is a typed, actionable error naming the failing check and
    the entity** — consumable by humans and by the error-propagation
    machinery. The carrier is `CertifyError::ResidualExceeded { check,
