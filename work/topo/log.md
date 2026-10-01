@@ -5733,3 +5733,43 @@ The review is re-dispatched topo-only (`mefchart-rc-brief.md`). C1's
 downstream half is answered by hosted CI run 36852480689, which ran the
 dependent crates green with the refusals in place. **Reported to Ev**:
 build-target growth now needs Ev's call on deletions, or more disk.
+
+## kef/kfmrh fork, round 1: a clear split on one question (2026-10-01)
+
+Both designers were shown each other's first report. The results are
+recorded A/B-only in `design-kef-round1.md`, alongside round 0.
+
+**Now agreed by both, so no fork:**
+1. **The coplanar merge door re-describes what it moves.** This is the
+   filed P2 row.
+2. **Transient faces wear "no chart yet."** Chord-join slivers, the
+   boolean's section faces and the null face take the `mvfs`
+   placeholder, refused at rest as `UncertifiableSurface`, instead of a
+   borrowed key. Its reach is CLEAVE, HONE, REACH, TANG and ZIP ground,
+   plus BAND and CARVE for the blend's band faces.
+3. **A debug assertion at the outermost surgery-scope close**, that no
+   certified edge names a key neither face wears (D2 row 5). It can only
+   land after (1).
+
+**Split, on one question: the final state of `kef`/`kfmrh`.**
+- **B:** refuse keys-only through `vouch_move` (with an explicit
+  chartless-destination arm, as A pointed out), and add describing twins
+  that absorb `_minting`. This keeps the ratified text, and it follows
+  Ev's ruling 4 in PR 2527 (`5137001525`, verified): chart-relative
+  facts are stated at the site.
+- **A:** "C". Descriptions name sides rather than keys, which makes a
+  strand unrepresentable. It edits D2's ratified type listing, so it is
+  Ev's to decide regardless. In the interim the kills stay unchanged,
+  with the assertion as the backstop. A "would not fight" B's step 1
+  given (2).
+
+**No crossover**, so a further round would not narrow it. The `[ev]`
+PR opens once PR 3673 merges, since it carries the row. It will:
+- edit the row to state the question;
+- set `needs_ev: true`;
+- carry both `For Ev` sections verbatim, labelled A and B;
+- include the protocol row's recommendation half.
+
+The agreed part (1) is TOPO's and goes on the next free target. Parts (2)
+and (3) wait for the PR's package, because (2) spans other programs'
+ground and (3) needs (1) first.
