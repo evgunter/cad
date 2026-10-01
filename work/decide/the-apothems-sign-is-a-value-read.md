@@ -2,13 +2,13 @@
 id: the-apothems-sign-is-a-value-read
 kind: issue
 title: the apothem's sign: six arc-family decisions on a parameter bulge are zero exactly where the apothem L(1-b^2)/(4b) is positive, which only a value read reaches
-status: dispatched
+status: closed
 opened: 2026-09-25
 priority: P2
 cost: H
 refs: [rule-d-reaches-the-unit-bulge-only, 3186]
 parent: DECIDE-4
-needs_ev: true
+closed: 2026-10-01
 ---
 
 **Filed from DECIDE-4's fork, on Ev's ruling on `[ev]` #3186 (2026-09-25):**
@@ -104,3 +104,18 @@ The implementation row is PATHS':
 The certified-sign read does not ship for these six. Whether it has a
 case of its own waits on the bracket's 28 having the same structural
 look: `the-brackets-fillet-decisions-owe-a-structural-look`.
+
+## Ruled (Ev, 2026-10-01, on `[ev]` #3283)
+
+Yes to all three ("this all makes sense, and i definitely agree with not
+merging 3282"):
+1. **The six are answered in the profile's pair pass, not the tier.** The
+   implementation row is PATHS':
+   `work/paths/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root.md`.
+2. **The certified-sign read does not ship.** #3282 closes unmerged, and
+   its code stays on the branch `decide/8-apothem-sign`.
+3. **The bracket's 28 get a structural look before any read is proposed
+   again:** `the-brackets-fillet-decisions-owe-a-structural-look`.
+
+This item closes on the ruling. Nothing in the tier decides the apothem's
+sign, because nothing needs it.
