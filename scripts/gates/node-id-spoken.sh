@@ -32,11 +32,16 @@
 # WHAT IT CANNOT SEE, stated:
 #  - an id laundered through a binding first (`let n = id.0;` then
 #    `{n}`), or read inside a larger expression (`id.0 + 1`,
-#    `id.0.to_string()`);
+#    `id.0.to_string()`, a block `{ id.0 }`, a spaced `id .0`);
+#  - an id held as a raw `u64` field of some other type, which is a
+#    number by the time a sentence reads it;
+#  - `{:?}` of an id, which prints `RecipeNodeId(3)` and is no `.0`;
+#  - a macro outside the list above (`anyhow!`, `bail!`, `log`'s and
+#    `tracing`'s macros), and the assert family, whose leading
+#    arguments are conditions;
 #  - a wrapper around an id formatting its own `self.0` (the exemption
 #    above): `pncad-py`'s `NodeId` and `StepId` are the two today, and
 #    both print `.full()`;
-#  - the assert family, whose leading arguments are conditions;
 #  - any crate outside `SCOPE`, a test module, and a test-only mount.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh

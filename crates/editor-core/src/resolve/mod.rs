@@ -505,7 +505,7 @@ fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
     use crate::names::{ProfileEdgeRef, SectionCircle};
     match e {
         ProfileEdgeRef::Piece { step, role } => {
-            format!("the {role} of the profile step minted #{}", step)
+            format!("the {role} of the profile step {}", step)
         }
         ProfileEdgeRef::Section { circle, role } => format!(
             "the {role} of the {} circle",

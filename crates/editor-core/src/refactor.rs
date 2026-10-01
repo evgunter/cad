@@ -191,10 +191,10 @@ pub struct StepMapDivergence {
 
 impl core::fmt::Display for StepMapDivergence {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let id = |s: Option<StepId>| s.map_or_else(|| "none".to_owned(), |s| format!("#{}", s));
+        let id = |s: Option<StepId>| s.map_or_else(|| "none".to_owned(), |s| s.to_string());
         write!(
             f,
-            "the profile step minted #{} was predicted to be re-minted as {} and was minted as \
+            "the profile step {} was predicted to be re-minted as {} and was minted as \
              {}, which is a kernel bug",
             self.step,
             id(self.precomputed),
@@ -558,7 +558,7 @@ impl core::fmt::Display for SplitError {
             }
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "split: the {name} spells a piece of the profile step minted #{}, which no profile of this \
+                "split: the {name} spells a piece of the profile step {}, which no profile of this \
                  document draws any more — repair the stranded reference before splitting",
                 step
             ),
@@ -754,7 +754,7 @@ impl core::fmt::Display for InlineError {
             ),
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "inline: the {name} spells a piece of the profile step minted #{}, which no profile of the \
+                "inline: the {name} spells a piece of the profile step {}, which no profile of the \
                  referenced document draws any more — repair the stranded reference before \
                  inlining",
                 step

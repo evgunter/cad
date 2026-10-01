@@ -1073,7 +1073,7 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::IdBeyondCounter { id, next_id } => write!(
                 f,
-                "node id {} is at or beyond the mint counter {next_id} — replay would \
+                "node id {} is at or beyond the mint counter {next_id:012x} — replay would \
                  re-mint a referenced id",
                 id
             ),
@@ -1088,7 +1088,7 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
-                "the {name} spells the profile step id #{}, which the document's mint log does not \
+                "the {name} spells the profile step id {}, which the document's mint log does not \
                  hold — the document never minted it",
                 step
             ),

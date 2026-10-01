@@ -1094,7 +1094,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 id: node,
                 next_id: 4,
             },
-            vec!["node id 000000000005", "mint counter 4"],
+            vec!["node id 000000000005", "mint counter 000000000004"],
         ),
         (
             SnapshotError::DanglingInput {
@@ -1341,7 +1341,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             },
             vec![
                 "minted by node 000000000005",
-                "profile step id #000000000008",
+                "profile step id 000000000008",
                 "mint log does not hold",
             ],
         ),
@@ -1614,7 +1614,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![],
             },
             "the parent's seams with the vertex name minted by node 000000000005 (the end cap vertex \
-             over the start of the leg of the profile step minted #000000000001) are gone",
+             over the start of the leg of the profile step 000000000001) are gone",
         ),
         (
             GroupCutters::Read {
@@ -1622,7 +1622,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![member_wall],
             },
             "the parent has new seams with the face name minted by node 000000000008 (the side wall \
-             over the leg of the profile step minted #000000000002, minted by node 000000000006)",
+             over the leg of the profile step 000000000002, minted by node 000000000006)",
         ),
         (
             GroupCutters::Read {
@@ -1630,10 +1630,10 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![wall(0)],
             },
             "the parent's seams with 2 cutters (the face name minted by node 000000000006 (the side \
-             wall over the leg of the profile step minted #000000000001); the face name minted by node 000000000006 (the \
-             side wall over the leg of the profile step minted #000000000003)) are gone, and the parent \
+             wall over the leg of the profile step 000000000001); the face name minted by node 000000000006 (the \
+             side wall over the leg of the profile step 000000000003)) are gone, and the parent \
              has new seams with the face name minted by node 000000000006 (the side wall over the leg \
-             of the profile step minted #000000000000)",
+             of the profile step 000000000000)",
         ),
         (
             GroupCutters::Read {
@@ -3116,7 +3116,7 @@ fn a_step_id_fault_names_the_id_or_the_count() {
         },
         &[
             "edge name minted by node 000000000003",
-            "profile step id #000000000009",
+            "profile step id 000000000009",
             "never minted",
             "mint log does not hold it",
         ],

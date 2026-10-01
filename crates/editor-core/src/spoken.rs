@@ -22,7 +22,9 @@ use core::fmt;
 use crate::doc::Doc;
 use crate::node::{Datum, Node, RecipeNodeId, StepId};
 
-/// How many hex digits a tag shows.
+/// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
+/// mirrors it, so the refusal-shape oracle does not read a tag as a
+/// leaked document id).
 const TAG_DIGITS: usize = 12;
 
 /// The bits a tag shows: the low [`TAG_DIGITS`] hex digits of the id.

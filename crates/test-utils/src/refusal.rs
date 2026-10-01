@@ -340,10 +340,10 @@ pub fn arena_key(text: &str) -> bool {
 /// exactly an id's length as one, which a refusal has no other reason
 /// to print.
 ///
-/// **A word of exactly [`HEX_ID_MIN`] digits counts only after `@`**,
-/// where a `DocRef` prints its pin prefix: twelve hex digits standing
-/// alone are a node's or a step's tag (`editor_core::spoken`), the
-/// spelling a sentence names a node by on purpose.
+/// **A word of exactly [`NODE_TAG_DIGITS`] digits counts only after
+/// `@`**, where a `DocRef` prints its pin prefix: twelve hex digits
+/// standing alone are a node's or a step's tag (`editor_core::spoken`),
+/// the spelling a sentence names a node by on purpose.
 #[must_use]
 pub fn hex_ids(text: &str) -> Vec<&str> {
     let mut found = Vec::new();
@@ -361,7 +361,7 @@ pub fn hex_ids(text: &str) -> Vec<&str> {
         let mixed = hex && !digits && word.chars().any(|c| c.is_ascii_digit());
         let decimal_part = before == Some('.')
             || (after.starts_with('.') && after[1..].starts_with(|c: char| c.is_ascii_digit()));
-        let tag = word.len() == HEX_ID_MIN && before != Some('@');
+        let tag = word.len() == NODE_TAG_DIGITS && before != Some('@');
         if !decimal_part
             && !tag
             && ((mixed && word.len() >= HEX_ID_MIN)
@@ -378,6 +378,12 @@ pub fn hex_ids(text: &str) -> Vec<&str> {
 /// The shortest run of hex digits [`arena_key`] reads as a document id:
 /// a `DocRef`'s pin prefix, the shorter of its two halves.
 pub const HEX_ID_MIN: usize = 12;
+
+/// The length of a node's or a step's tag — `editor_core::spoken`'s
+/// `TAG_DIGITS`, mirrored because this crate sits below that one. It
+/// equals [`HEX_ID_MIN`] by coincidence of the two choices, and the
+/// shape rule above reads it, not that.
+pub const NODE_TAG_DIGITS: usize = 12;
 
 /// The lengths a hex id is printed at: a `DocRef`'s pin prefix, a
 /// `DocumentId`, and a whole pin.

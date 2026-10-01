@@ -2003,7 +2003,7 @@ impl EditError {
             Self::NameStepNeverMinted { name, step } => {
                 write!(
                     f,
-                    "the {name} spells the profile step id #{}, which this document never minted \
+                    "the {name} spells the profile step id {}, which this document never minted \
                      (its mint log does not hold it)",
                     step
                 )?;
