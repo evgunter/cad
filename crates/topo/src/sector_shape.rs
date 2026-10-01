@@ -153,13 +153,12 @@
 //! the boolean's `dir_start`).
 
 use geom_brep::OutwardNormal;
-use geom_core::k_stats::decide_positive;
 use geom_core::{
     Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3, is_finite_length,
     is_underflowed_length,
 };
 
-use crate::validate::decide;
+use crate::validate::{decide, decide_negative, decide_positive};
 
 /// Rung 1's K name: the metering arm is positive.
 ///
@@ -174,7 +173,9 @@ const SECTOR_ARM: &str = "sector_arm";
 const SECTOR_REFLEX: &str = "sector_reflex";
 
 /// Rung 3's K name: the straight/spike disambiguation (`cos θ` levered
-/// at the arm), reached only when rung 2 is not definitely signed.
+/// at the arm, so a straight corner reads NEGATIVE), reached only when
+/// rung 2 is not definitely signed. `boolean::refusal_routes`' sized
+/// recourse reads that sign.
 const SECTOR_STRAIGHT: &str = "sector_straight";
 
 /// What each rung decides, in the words a flip report states
@@ -352,7 +353,7 @@ pub(crate) struct SectorShape<T: Real> {
 /// for a definite verdict the rung does not admit (non-positive arm; a
 /// spike between distinct edges) is the gate's
 /// [`MarginKind::Invalid`](geom_core::MarginKind::Invalid) diagnostic
-/// from [`decide_positive`], on the frame's log. Each lane
+/// from [`decide_positive`] or [`decide_negative`], on the frame's log. Each lane
 /// wraps this in its own error type — the two wrappings are the only
 /// thing that was ever genuinely per-lane here.
 pub(crate) fn sector_shape<T: Decide>(
@@ -399,18 +400,17 @@ pub(crate) fn sector_shape<T: Decide>(
             // `unit_next.dot(unit_own)`: componentwise products, same
             // summation order — bit-identical under the same scalar
             // scope as above, not for every `T: Real` unconditionally.
-            // Metered as `−cos θ`, so a straight corner (θ ≈ π) is the
-            // positive reading.
-            let straight_margin = Margin::levered(-unit_own.dot(unit_next), arm);
+            let straight_margin = Margin::levered(unit_own.dot(unit_next), arm);
             let rung = SectorRung::Straight { full_circle };
             if full_circle {
                 // A one-edge orbit admits every definite reading: θ ≈ π,
                 // or θ ≈ 0 / ≈ 2π, the legitimate full-circle sector.
                 decide(SECTOR_STRAIGHT, straight_margin, band).map_err(refused(rung))?;
             } else {
-                // Between two distinct edges only θ ≈ π is a corner; a
-                // spike has no interior direction to guess.
-                decide_positive(SECTOR_STRAIGHT, straight_margin, band).map_err(refused(rung))?;
+                // Between two distinct edges only θ ≈ π (a negative
+                // `cos θ`) is a corner; a spike has no interior
+                // direction to guess.
+                decide_negative(SECTOR_STRAIGHT, straight_margin, band).map_err(refused(rung))?;
             }
             // 90° into the interior, valid throughout the band.
             Some(n.cross(unit_next))

@@ -420,6 +420,27 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
+/// [`decide`] gated on a definitely positive margin
+/// ([`geom_core::k_stats::decide_positive`]): the rejection is the
+/// funnel's escalation, on the frame's log.
+pub(crate) fn decide_positive<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_positive(name, margin, band)
+}
+
+/// [`decide`] gated on a definitely negative margin
+/// ([`geom_core::k_stats::decide_negative`]).
+pub(crate) fn decide_negative<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_negative(name, margin, band)
+}
+
 /// [`decide`], keeping the reporting margin for a sized decision's
 /// refusal ([`geom_core::k_stats::decide_reported`]).
 pub(crate) fn decide_reported<T: Decide>(

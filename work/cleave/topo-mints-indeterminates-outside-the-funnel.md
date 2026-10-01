@@ -168,3 +168,14 @@ corner/tangency mints and `carrier_eq.rs`'s `KindsDiffer` /
 `solid_contain.rs`'s `bool_ray_torus_count` (two bounds that
 disagree), and `splitting/order.rs`'s `in_plane_frame` fallback (every
 schedule member decided and none positive — no escalation to return).
+
+**Correction to the paragraph above (review of PR #3686).**
+`splitting/order.rs`'s `in_plane_frame` fallback IS this row's shape:
+every schedule member's `split_join_frame_arm` decision answered a
+definite `Ok(Sign::Zero | Sign::Negative)`, and the function then
+mints `Indeterminate { margin: INVALID, predicate:
+Some("split_join_frame_arm") }` by hand, on no frame's log. The fix is
+not a one-line `decide_positive` — gating each member would log an
+escalation for every member a later one rescues — so it wants a
+decision at the site (log one gate escalation after the loop, through
+`k_stats`, rather than per member).
