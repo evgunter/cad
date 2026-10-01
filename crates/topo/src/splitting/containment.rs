@@ -582,7 +582,7 @@ impl<T: Decide> ConicArc<T> {
         }
         let (s0, c0) = t0.sin_cos();
         let (s1, c1) = t1.sin_cos();
-        let (sm, cm) = ((t0 + t1) * T::from_f64(0.5)).sin_cos();
+        let (sm, cm) = geom::mid_param(t0, t1).sin_cos();
         Ok(Some(Self {
             kind,
             center,

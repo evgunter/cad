@@ -147,6 +147,7 @@ mod convention;
 pub mod curves;
 mod datum;
 mod net;
+mod param;
 mod projection_policy;
 mod scalar_lift;
 pub mod surfaces;
@@ -161,10 +162,11 @@ pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_secon
 pub use curves::{
     ComposeError, Curve3, CurveData, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
     FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3,
-    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain, mid_param,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
     spiric_curvature_sup, spiric_f_range, spiric_radial,
 };
 pub use datum::{AnalyticData, DatumValue};
+pub use param::mid_param;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
 // public names both halves' callers have always used.

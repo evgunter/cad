@@ -433,6 +433,19 @@ pub enum CurveData<'a, T: Real> {
 }
 
 impl<T: Real> Curve3<T> {
+    /// Whether the carrier bends — every kind but `Line`. Matched
+    /// exhaustively, so a new kind decides here: a curved span's chord
+    /// midpoint is off it, and its chord is not its extent.
+    pub fn is_curved(&self) -> bool {
+        match self {
+            Curve3::Line { .. } => false,
+            Curve3::Circle { .. }
+            | Curve3::Ellipse { .. }
+            | Curve3::Spiric { .. }
+            | Curve3::Nurbs(_) => true,
+        }
+    }
+
     /// **The carrier's stored data** — the one walk of the analytic
     /// kinds' fields, which each reader that visits them field by field
     /// folds with its own question (a poison read, a hash key), and the
@@ -798,13 +811,6 @@ pub fn spiric_radial<T: Real>(major: T, minor: T, offset: T, c: T) -> (T, T) {
     (rho, (rho.powi(2) - offset.powi(2)).sqrt())
 }
 
-/// The middle of the parameter interval `[t0, t1]`, spelled
-/// `t0 + (t1 − t0)·½` — bitwise station `k` of any `2k + 1`-point
-/// uniform schedule `t0 + (t1 − t0)·(i/2k)`, since `k/2k` is exactly ½.
-pub fn mid_param<T: Real>(t0: T, t1: T) -> T {
-    t0 + (t1 - t0) * T::from_f64(0.5)
-}
-
 impl<T: SpanLocate> Curve3<T> {
     /// The point at parameter `t` (see the variant docs for each
     /// parameterization; the crate docs for units and periodicity).
@@ -860,10 +866,10 @@ impl<T: SpanLocate> Curve3<T> {
         }
     }
 
-    /// The point at [`mid_param`]`(t0, t1)` — ON the curve whatever its
-    /// kind, where a curved span's chord midpoint is not.
+    /// The point at [`crate::mid_param`]`(t0, t1)` — ON the curve
+    /// whatever its kind, where a curved span's chord midpoint is not.
     pub fn mid_point(&self, t0: T, t1: T) -> Point3<T> {
-        self.eval(mid_param(t0, t1))
+        self.eval(crate::mid_param(t0, t1))
     }
 
     /// The first derivative `dP/dt` at parameter `t`.

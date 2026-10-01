@@ -561,7 +561,8 @@ fn section_plane_restatements<T: Decide>(
 
 /// D6 (M3 PR 6a): describes every boundary edge of one just-promoted
 /// section face as the transverse `Intersection` of its two faces'
-/// surfaces (witness at the chord midpoint), through the certified
+/// surfaces (read through [`geom_brep::IntersectionDraft`]: witness ON
+/// the edge, at its carrier's mid-parameter), through the certified
 /// [`crate::Body::set_edge_curve`] lane. Smooth neighbors (flush
 /// ON-faces — parallel planes under-determine the locus) carry a
 /// conventional description (D2's conventional split): one already
@@ -623,59 +624,15 @@ fn describe_section_boundary<T: Decide>(
             else {
                 return Err(corrupt());
             };
-            // A curved section edge keeps its certified carrier and
-            // interval — only the description upgrades, the witness
-            // re-minted at the carrier's mid-parameter (the witness
-            // contract) — and the dihedral reads that point and the
-            // carrier's extent (the chord collapses on near-closed
-            // arcs, and its midpoint is off the edge). A straight edge
-            // takes a fresh chord, whose midpoint is on it.
             let existing = body
                 .get_curve_geom(edge_data.curve)
                 .and_then(crate::null::CurveGeom::certified)
                 .cloned();
-            let curved = existing.as_ref().and_then(|c| match c.carrier() {
-                geom::Curve3::Line { .. } => None,
-                geom::Curve3::Circle { .. }
-                | geom::Curve3::Ellipse { .. }
-                | geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_) => {
-                    let (t0, t1) = c.params();
-                    let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
-                    Some((c.clone(), c.mid_point(), arm))
-                }
-            });
-            let (witness, arm) = match &curved {
-                Some((_, mid, arm)) => (*mid, *arm),
-                None => (p0.lerp(p1, T::from_f64(0.5)), p0.distance(p1)),
-            };
+            let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
+            let (witness, arm) = (draft.witness, draft.extent);
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, arm, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
-                    let spec = match curved {
-                        Some((curve, _, _)) => {
-                            let (t0, t1) = curve.params();
-                            geom_brep::EdgeCurveSpec {
-                                description: geom_brep::EdgeDescriptionSpec::Intersection {
-                                    s1: s_self,
-                                    s2: s_other,
-                                    witness,
-                                },
-                                carrier: curve.carrier().clone(),
-                                param_start: t0,
-                                param_end: t1,
-                            }
-                        }
-                        None => {
-                            let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                            spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
-                                s1: s_self,
-                                s2: s_other,
-                                witness,
-                            };
-                            spec
-                        }
-                    };
-                    body.set_edge_curve(edge, spec, tol)?;
+                    body.set_edge_curve(edge, draft.into_spec(s_self, s_other), tol)?;
                 }
                 // Smooth: the surfaces under-determine the locus, so
                 // the honest class is conventional (D2). A description

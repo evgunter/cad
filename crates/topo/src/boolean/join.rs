@@ -1659,9 +1659,7 @@ fn curved_edge_midpoint<T: Decide>(
             what: "region half has no edge",
         })?;
     Ok(match body.get_curve_geom(edge.curve) {
-        Some(crate::null::CurveGeom::Certified(curve))
-            if !matches!(curve.carrier(), geom::Curve3::Line { .. }) =>
-        {
+        Some(crate::null::CurveGeom::Certified(curve)) if curve.carrier().is_curved() => {
             Some(curve.mid_point())
         }
         _ => None,
@@ -1750,7 +1748,7 @@ impl Anchor {
 ///   original M3 PR 5 anchor first, so a pose it resolves sees a
 ///   bit-identical predicate stream);
 /// - [`Anchor::ChordMidpoint`], the CHORD midpoint of each region edge
-///   (`lerp` at ½, the [`super::ops`] witness-point precedent), for
+///   (`lerp` at ½ — on the edge only when it is straight), for
 ///   regions bounded entirely by seam vertices (all `OnBoundary`)
 ///   whose non-seam edges' interiors classify definitively. Seam-chord
 ///   midpoints lie ON the other boundary and are skipped by the

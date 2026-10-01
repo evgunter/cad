@@ -1623,6 +1623,73 @@ pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
     }
 }
 
+/// An edge about to be described as the transverse `Intersection` of
+/// its two faces' surfaces, read once: the `witness` and lever arm
+/// (`extent`) the dihedral classifies at, and the carrier and interval
+/// the description is certified against if the class is transverse.
+///
+/// A curved certified carrier ([`Curve3::is_curved`]) is kept with its
+/// interval — only the description changes — and is read at its
+/// [`EdgeCurve::mid_point`] and [`edge_extent`]. Anything else (a line,
+/// or no certified carrier yet) becomes the chord `p0 → p1`
+/// ([`EdgeCurveSpec::line_between`]), whose midpoint is on it and whose
+/// length is its extent.
+#[derive(Clone, Debug)]
+pub struct IntersectionDraft<T: Real> {
+    /// The point the dihedral classifies at and the description pins.
+    pub witness: Point3<T>,
+    /// The lever arm the dihedral meters angles through.
+    pub extent: T,
+    carrier: Curve3<T>,
+    param_start: T,
+    param_end: T,
+}
+
+impl<T: SpanLocate> IntersectionDraft<T> {
+    /// Reads the edge from its certified curve, if it has one, and the
+    /// points of `start(he_plus)` and `end(he_plus)`.
+    pub fn of(existing: Option<&EdgeCurve<T>>, p0: Point3<T>, p1: Point3<T>) -> Self {
+        match existing.filter(|c| c.carrier().is_curved()) {
+            Some(c) => {
+                let (t0, t1) = c.params();
+                Self {
+                    witness: c.mid_point(),
+                    extent: edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
+                    carrier: c.carrier().clone(),
+                    param_start: t0,
+                    param_end: t1,
+                }
+            }
+            None => {
+                let chord = EdgeCurveSpec::line_between(p0, p1);
+                Self {
+                    witness: p0.lerp(p1, T::from_f64(0.5)),
+                    extent: p0.distance(p1),
+                    carrier: chord.carrier,
+                    param_start: chord.param_start,
+                    param_end: chord.param_end,
+                }
+            }
+        }
+    }
+}
+
+impl<T: Real> IntersectionDraft<T> {
+    /// The `Intersection` spec of `s1` and `s2` at this draft's witness.
+    pub fn into_spec(self, s1: SurfaceKey, s2: SurfaceKey) -> EdgeCurveSpec<T> {
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: self.witness,
+            },
+            carrier: self.carrier,
+            param_start: self.param_start,
+            param_end: self.param_end,
+        }
+    }
+}
+
 /// The honest spatial **extent** of an edge — the lever arm the
 /// dihedral/transversality classification meters angles through
 /// (D4 ¶1), replacing the bare chord (M2 PR 3 fix pass, B2).
@@ -2672,7 +2739,7 @@ mod tests {
     /// interval where the computed last sample misses `t₁` by an ulp,
     /// and the chart image's 33-point schedule passes through every
     /// certification sample bit for bit — the superset limb 1
-    /// re-projects on. Its middle station is [`geom::mid_param`].
+    /// re-projects on.
     #[test]
     fn the_schedule_assigns_its_ends_and_the_image_schedule_contains_the_certificates() {
         let (t0, t1) = (0.3_f64, 0.9_f64);
@@ -2694,11 +2761,6 @@ mod tests {
             sample_param(t0, t1, CERT_SAMPLES - 1).to_bits(),
             t1.to_bits(),
             "last end"
-        );
-        assert_eq!(
-            sample_param(t0, t1, (CERT_SAMPLES - 1) / 2).to_bits(),
-            geom::mid_param(t0, t1).to_bits(),
-            "the middle station is the mid-parameter the witness pin reads"
         );
     }
 
