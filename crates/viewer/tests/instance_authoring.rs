@@ -608,7 +608,7 @@ fn failed_badge(path: &Path, node: RecipeNodeId, tol: Tol) -> String {
     };
     assert_eq!(
         message,
-        error.to_string(),
+        error.spoken(session.committed_doc()),
         "the badge is the payload's own rendering"
     );
     message

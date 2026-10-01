@@ -97,9 +97,18 @@ pub struct SpokenNode {
     id: RecipeNodeId,
     /// The kind noun, `None` for an id the document does not hold.
     kind: Option<&'static str>,
-    /// The node's label, `None` when it has none or is not held.
-    label: Option<Label>,
+    /// The node's label, `None` when it has none or is not held. Boxed
+    /// so that a spoken node stays 32 bytes on a 64-bit target (the id,
+    /// the kind's two words, the box): the edit refusals hold up to
+    /// two, and every edit door returns them by value.
+    label: Option<Box<Label>>,
 }
+
+// The width the label's box buys, held where clippy measures it: an
+// unboxed label makes it 48 bytes, and `PersistError`, which carries an
+// `EditError`, crosses clippy's 128-byte large-`Err` line.
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<SpokenNode>() == 32);
 
 impl SpokenNode {
     /// A spoken node with no document behind it, for a fixture that
@@ -110,7 +119,11 @@ impl SpokenNode {
         kind: Option<&'static str>,
         label: Option<Label>,
     ) -> Self {
-        Self { id, kind, label }
+        Self {
+            id,
+            kind,
+            label: label.map(Box::new),
+        }
     }
 
     /// A node no document at hand holds: `node <tag>`, what
@@ -120,6 +133,16 @@ impl SpokenNode {
         Self {
             id,
             kind: None,
+            label: None,
+        }
+    }
+
+    /// The node an insert is minting, before the document holds it:
+    /// its kind and tag. An insert carries no label, so it has none.
+    pub(crate) fn entering<P>(id: RecipeNodeId, node: &Node<P>) -> Self {
+        Self {
+            id,
+            kind: Some(node_kind_noun(node)),
             label: None,
         }
     }
@@ -141,7 +164,7 @@ impl SpokenNode {
     /// `None` when it had none.
     #[must_use]
     pub fn label(&self) -> Option<&Label> {
-        self.label.as_ref()
+        self.label.as_deref()
     }
 }
 
@@ -174,7 +197,7 @@ impl<P> Doc<P> {
             Some(node) => SpokenNode {
                 id,
                 kind: Some(node_kind_noun(node)),
-                label: self.label(id).cloned(),
+                label: self.label(id).cloned().map(Box::new),
             },
             None => SpokenNode::absent(id),
         }

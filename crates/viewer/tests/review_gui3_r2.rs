@@ -685,7 +685,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
         .find(|row| row.id == bad)
         .expect("the failing node has a row");
     let expected = match evaluation.result(bad).expect("the node has a result") {
-        pncad::document::NodeResult::Failed(error) => error.to_string(),
+        pncad::document::NodeResult::Failed(error) => error.spoken(session.committed_doc()),
         other => panic!("expected a failure, got {other:?}"),
     };
     assert_eq!(
