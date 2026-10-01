@@ -2836,29 +2836,11 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
         }
         (false, true) => {
             let body = carve_kept(&red.a, &a_keep)?;
-            finish_fallback(
-                op,
-                body,
-                &red.contacts,
-                &red.covered,
-                decls,
-                BooleanResultKind::OperandA,
-                band,
-                tol,
-            )
+            finish_fallback(op, body, red, decls, BooleanResultKind::OperandA, band, tol)
         }
         (true, false) => {
             let body = carve_kept(&red.b, &b_keep)?;
-            finish_fallback(
-                op,
-                body,
-                &red.contacts,
-                &red.covered,
-                decls,
-                BooleanResultKind::OperandB,
-                band,
-                tol,
-            )
+            finish_fallback(op, body, red, decls, BooleanResultKind::OperandB, band, tol)
         }
         (false, false) => {
             let mut body = carve_kept(&red.a, &a_keep)?;
@@ -2956,13 +2938,13 @@ fn fallback<T: Decide + crate::props::AtRestPolicy>(
 fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
-    contacts: &ContactRecords,
-    covered: &[(FaceKey, FaceKey)],
+    red: &BooleanReduction<T>,
     decls: &BooleanDeclarations,
     kind: BooleanResultKind,
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
+    let (contacts, covered) = (&red.contacts, &red.covered);
     let reduction_contacts = contacts.clone();
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {

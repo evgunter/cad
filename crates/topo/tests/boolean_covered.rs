@@ -28,8 +28,17 @@ use topo::{
     Body, BooleanResult, BooleanResultKind, CarrierDesc, FaceKey, face_carrier, union_with,
 };
 
+/// A face's outward normal, rounded to a unit axis.
+type Axis = [i8; 3];
+
+/// Two faces' axes, operand A's then operand B's.
+type AxisPair = (Axis, Axis);
+
+/// An edge's two ends in thousandths, sorted.
+type Ends = [[i64; 3]; 2];
+
 /// The outward normal of `body`'s face `f`, rounded to a unit axis.
-fn normal(body: &Body<f64>, f: FaceKey) -> [i8; 3] {
+fn normal(body: &Body<f64>, f: FaceKey) -> Axis {
     let Some(CarrierDesc::Plane { normal, .. }) = face_carrier(body, f) else {
         panic!("face {f:?} is not a plane of its operand");
     };
@@ -38,7 +47,7 @@ fn normal(body: &Body<f64>, f: FaceKey) -> [i8; 3] {
 
 /// The union of `x` and `y` with every flush pair declared: its kind and
 /// the normals of each covered pair, operand A's then operand B's.
-fn covered(x: &Body<f64>, y: &Body<f64>) -> (BooleanResultKind, BTreeSet<([i8; 3], [i8; 3])>) {
+fn covered(x: &Body<f64>, y: &Body<f64>) -> (BooleanResultKind, BTreeSet<AxisPair>) {
     let tol = Tol::witness();
     let decls = declare_all(&find_flush_candidates(x, y, tol).expect("the flush detector decides"));
     let BooleanResult::Body(out) = union_with(x, y, &decls, tol).expect("the union fuses") else {
@@ -59,7 +68,7 @@ fn covered(x: &Body<f64>, y: &Body<f64>) -> (BooleanResultKind, BTreeSet<([i8; 3
 }
 
 /// Same-normal pairs on each of `normals`.
-fn flush_on(normals: &[[i8; 3]]) -> BTreeSet<([i8; 3], [i8; 3])> {
+fn flush_on(normals: &[Axis]) -> BTreeSet<AxisPair> {
     normals.iter().map(|&n| (n, n)).collect()
 }
 
@@ -135,7 +144,7 @@ fn a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it() {
     };
     // Each holding row: `a`'s face's normal, and each held edge's ends,
     // sorted.
-    let mut got: Vec<([i8; 3], Vec<[[i64; 3]; 2]>)> = out
+    let mut got: Vec<(Axis, Vec<Ends>)> = out
         .naming
         .discards
         .iter()
