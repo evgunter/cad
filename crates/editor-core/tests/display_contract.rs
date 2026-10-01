@@ -1127,21 +1127,30 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 node: node(),
                 input: absent(9),
             },
-            vec!["Extrude \"base plate\" (000000000005) takes input from node 000000000009", "not live"],
+            vec![
+                "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
+                "not live",
+            ],
         ),
         (
             SnapshotError::ForwardInput {
                 node: node(),
                 input: absent(9),
             },
-            vec!["Extrude \"base plate\" (000000000005) takes input from node 000000000009", "does not precede it"],
+            vec![
+                "Extrude \"base plate\" (000000000005) takes input from node 000000000009",
+                "does not precede it",
+            ],
         ),
         (
             SnapshotError::DeclareInput {
                 node: node(),
                 input: absent(9),
             },
-            vec!["Extrude \"base plate\" (000000000005)'s declare input names node 000000000009", "not a declaration"],
+            vec![
+                "Extrude \"base plate\" (000000000005)'s declare input names node 000000000009",
+                "not a declaration",
+            ],
         ),
         (
             SnapshotError::WitnessSite { node: node() },
@@ -1176,7 +1185,11 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 slot: SlotId::Radius,
                 name: ParamName::from_static("fillet"),
             },
-            vec!["Extrude \"base plate\" (000000000005): slot radius", "fillet", "does not declare"],
+            vec![
+                "Extrude \"base plate\" (000000000005): slot radius",
+                "fillet",
+                "does not declare",
+            ],
         ),
         (
             SnapshotError::SlotDocParamDimension {
@@ -1233,7 +1246,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         ),
         (
             SnapshotError::PlacementSite { node: node() },
-            vec!["keyed by Extrude \"base plate\" (000000000005)", "does not instantiate a part"],
+            vec![
+                "keyed by Extrude \"base plate\" (000000000005)",
+                "does not instantiate a part",
+            ],
         ),
         (
             SnapshotError::PlacementNonFinite {
@@ -1301,7 +1317,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                     refs: 2,
                 },
             },
-            vec!["Extrude \"base plate\" (000000000005): ", "reads reference 3"],
+            vec![
+                "Extrude \"base plate\" (000000000005): ",
+                "reads reference 3",
+            ],
         ),
         (
             SnapshotError::InputList {
@@ -1315,7 +1334,9 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 node: node(),
                 input: held(9, "Revolve"),
             },
-            vec!["Extrude \"base plate\" (000000000005): Revolve 000000000009 is taken as an input twice"],
+            vec![
+                "Extrude \"base plate\" (000000000005): Revolve 000000000009 is taken as an input twice",
+            ],
         ),
         (
             SnapshotError::AssertionTarget {
@@ -1323,7 +1344,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 measure: held(4, "Measure"),
                 bound: Dimension::Count,
             },
-            vec!["carries a count bound against Measure 000000000004", "which is not a measure"],
+            vec![
+                "carries a count bound against Measure 000000000004",
+                "which is not a measure",
+            ],
         ),
         (
             SnapshotError::AssertionBound {
@@ -1332,7 +1356,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 measured: Dimension::Length,
                 bound: Dimension::Angle,
             },
-            vec!["bounds a length measure (Measure 000000000004)", "with an angle expression"],
+            vec![
+                "bounds a length measure (Measure 000000000004)",
+                "with an angle expression",
+            ],
         ),
         (
             SnapshotError::MetadataUnversioned {
@@ -1347,7 +1374,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 key: "swatch".to_string(),
                 error: MetaVersionError::MissingVersion,
             },
-            vec!["metadata \"swatch\" on the face name minted by Extrude \"base plate\" (000000000005)", "\"v\" version field"],
+            vec![
+                "metadata \"swatch\" on the face name minted by Extrude \"base plate\" (000000000005)",
+                "\"v\" version field",
+            ],
         ),
         (
             SnapshotError::StepIds {

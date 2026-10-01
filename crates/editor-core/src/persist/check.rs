@@ -644,10 +644,7 @@ fn record_non_finite(rec: &AppearanceRecord) -> Option<(String, String)> {
 /// is DATA — it has not necessarily been applied by this process),
 /// a name among them spoken from `snapshot`, the document the log
 /// starts from.
-fn edit_non_finite(
-    snapshot: &ProfileDoc,
-    edit: &DocEdit<ProfileProgram>,
-) -> Option<NonFiniteSite> {
+fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
     match edit {
         DocEdit::SetDocParam { name, value } => param_site(name, value),
         // The value door carries no distribution of its own — the

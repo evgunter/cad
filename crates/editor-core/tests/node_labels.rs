@@ -258,11 +258,8 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
             } else {
                 format!("Profile \"outline\" ({})", tag(profile.0))
             };
-            let sentence = PersistError::Snapshot(SnapshotError::ForwardInput {
-                node,
-                input,
-            })
-            .to_string();
+            let sentence =
+                PersistError::Snapshot(SnapshotError::ForwardInput { node, input }).to_string();
             assert!(
                 sentence.contains(&format!("{said} takes input from")),
                 "the sentence speaks the node with its label: {sentence}"
