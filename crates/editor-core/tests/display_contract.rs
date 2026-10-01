@@ -21,7 +21,7 @@ use editor_core::{
     HitTestError, InputFault, InterrogateError, Lever, LeverRefusal, Maintenance, MateFault,
     MateSide, MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal, NamingError,
     NodeErrorKind, NodePickError, ParamName, ParseError, PartFault, PlacementRuleFault,
-    ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
+    ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
     ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
     SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
@@ -2150,7 +2150,7 @@ fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
         &itself,
         &[
             "mate 000000000006 contradicts itself",
-            "mate_clocking_redundant",
+            "the clocking disagrees with the roll the coincidence already pins",
             editor_core::CONTRADICTORY_RECOURSE,
         ],
         &["Contradictory"],
@@ -2216,7 +2216,7 @@ fn a_residual_clash_prints_its_pure_number_and_the_product() {
     let shown = fault.to_string();
     for want in [
         "mates 000000000003 and 000000000005 cannot both hold",
-        "predicate `mate_member_rotation_identity`",
+        "the relative rotation is not the identity",
         "a dimensionless residual of 0.25",
         "on a 4 m arm",
         "a deviation of 1 m",
@@ -2332,40 +2332,38 @@ fn a_lever_refusal_names_the_instance_and_why() {
         .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap()
         .face;
+    let reach = |refusal| LeverRefusal::Reach {
+        instance,
+        part,
+        refusal,
+    };
     assert_f6(
-        &LeverRefusal::PartUnresolved {
-            instance,
+        &reach(ReachRefusal::PartUnresolved {
             fault: PartFault::NoResolver,
-        },
+        }),
         &["instance 000000000007", "no part resolver"],
         &["PartUnresolved", "NoResolver"],
     );
     assert_f6(
-        &LeverRefusal::FaceUnbounded {
-            instance,
-            part,
+        &reach(ReachRefusal::FaceUnbounded {
             face,
             kind: SurfaceKind::Nurbs,
-        },
+        }),
         &["instance 000000000007", "nurbs face", "cannot be bounded"],
         &["FaceUnbounded", "Nurbs"],
     );
     assert_f6(
-        &LeverRefusal::MalformedBody {
-            instance,
-            part,
-            face,
-        },
+        &reach(ReachRefusal::MalformedBody { face }),
         &["instance 000000000007", "not well formed"],
         &["MalformedBody"],
     );
     assert_f6(
-        &LeverRefusal::NoExtent { instance, part },
+        &reach(ReachRefusal::NoExtent),
         &["instance 000000000007", "no faces"],
         &["NoExtent"],
     );
     assert_f6(
-        &LeverRefusal::NoFiniteBound { instance, part },
+        &reach(ReachRefusal::NoFiniteBound),
         &["instance 000000000007", "non-finite"],
         &["NoFiniteBound"],
     );
@@ -2373,6 +2371,28 @@ fn a_lever_refusal_names_the_instance_and_why() {
         &LeverRefusal::NotAnInstance { node: instance },
         &["node 000000000007", "not a live instantiate node"],
         &["NotAnInstance"],
+    );
+    assert_f6(
+        &LeverRefusal::OutOfRange {
+            parts: 2.0,
+            datum: f64::INFINITY,
+        },
+        &[
+            "2 m of its parts' reach",
+            "a length of its datum that is not finite",
+            "too long",
+            geom_core::RANGE_RECOURSE,
+        ],
+        &["OutOfRange"],
+    );
+    let said = LeverRefusal::OutOfRange {
+        parts: 2.0,
+        datum: f64::INFINITY,
+    }
+    .to_string();
+    assert!(
+        !said.contains("inf"),
+        "a length that is not finite has no metre figure: {said}"
     );
 }
 

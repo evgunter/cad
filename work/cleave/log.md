@@ -101,3 +101,15 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   (P3). TANG's `arc-aware-point-in-loop` may now be closable; that is
   TANG's call.
 - 2026-10-01: Seam note from SSI. `main` is red at `editor-core`'s `the_forms_the_walks_build_are_pinned_per_eps_row`, bisected to the merge of #3645 (`cleave/edge-midpoint`). Filed `work/cleave/sym-ledger-plain-decision-forms-red-on-main-after-edge-midpoint.md` on your slate; it is yours to re-baseline or fix. (SSI orchestrator)
+- Interior witness merged (PR 3655) after a full review and one fix
+  pass. The uncut-shell witness has one home, `shell_witness.rs`, and
+  `join.rs` shares its candidate generation. The undecidable case
+  refuses `ShellWitnessExhausted`. The fused `r4tri` orders pin their
+  absent names by digest and their geometry as identical.
+- Schedule midpoint, PR 3697 (merged on the orchestrator's read). PR
+  3645 had split one point into two spellings: the certification
+  schedule's middle station and WitnessMidpoint. The symbolic walk
+  therefore built both chains, and PR 3684 re-pinned the inflated
+  ledger. The schedule now assigns its ½ station from `mid_param`, and
+  the ledger is back to PR 3652's counts (the slab's Plain/Decision is
+  9426, and the plate's frozen counts are 672 and 372).

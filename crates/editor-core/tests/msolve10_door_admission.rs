@@ -373,13 +373,17 @@ fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     assert!(
         matches!(
             &fault,
-            MateFault::Unleverable {
-                mate,
-                refusal: LeverRefusal::PartUnresolved {
-                    instance,
-                    fault: PartFault::NoResolver,
-                },
-            } if *mate == named && *instance == ids[0]
+            MateFault::Unleverable { mate, refusal }
+                if *mate == named && matches!(
+                    refusal.as_ref(),
+                    LeverRefusal::Reach {
+                        instance,
+                        refusal: editor_core::ReachRefusal::PartUnresolved {
+                            fault: PartFault::NoResolver,
+                        },
+                        ..
+                    } if *instance == ids[0]
+                )
         ),
         "{fault:?}"
     );

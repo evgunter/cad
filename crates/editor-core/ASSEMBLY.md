@@ -457,7 +457,8 @@ predicates, no numeric fitting, no geometry inspected inside the
 fold — and nothing is stored twice: the face name is the state, the
 frame is derived. A mated part that does not resolve faults its
 mate in the resolver's own voice, carrying the part fault unaltered —
-`MateFault::FaceUnresolved` (`FaceRefusal::PartUnresolved`) where a
+`MateFault::FaceUnresolved` (`FacePoseRefusal::PartUnresolved`, in
+`FaceRefusal::Reach`) where a
 `FromFace` side stands on it, since a side's frame is read before the
 lever, else `MateFault::Unleverable` — and that fault poisons the
 cluster as any mate fault does. The two questions that DO need a number are

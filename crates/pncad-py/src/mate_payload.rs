@@ -64,8 +64,8 @@
 //! `FrameError::Band` as well as through `Band` itself.
 
 use pncad::document::{
-    Clash, DocumentId, FaceRefusal, Lever, LeverRefusal, MateFault, MateSide, OffsetCheck,
-    RecipeNodeId, Subgroup,
+    Clash, DocumentId, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault, MateSide,
+    OffsetCheck, ReachRefusal, RecipeNodeId, Subgroup,
 };
 use pncad::geom_core::{BandError, FrameError, Indeterminate};
 use pncad::prelude::StableName;
@@ -423,24 +423,31 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             },
             diag,
         ),
-        // No lever could be formed: one mated part's reach is not in
-        // hand. The instance it is about rides beside the refusal's
-        // word; a face that cannot be bounded names its kind in `what`.
+        // No lever could be formed. A part's reach not in hand names
+        // the instance it is about beside the refusal's word, and a
+        // face that cannot be bounded names its kind in `what`; an
+        // out-of-range lever is the pair's, and names no instance.
         MateFault::Unleverable { mate, refusal } => {
-            let (instance, what) = match refusal {
-                LeverRefusal::PartUnresolved { instance, .. }
-                | LeverRefusal::MalformedBody { instance, .. }
-                | LeverRefusal::NoExtent { instance, .. }
-                | LeverRefusal::NoFiniteBound { instance, .. } => (*instance, None),
-                LeverRefusal::FaceUnbounded { instance, kind, .. } => {
-                    (*instance, Some(kind.name()))
-                }
-                LeverRefusal::NotAnInstance { node } => (*node, None),
+            let (instance, what) = match refusal.as_ref() {
+                LeverRefusal::Reach {
+                    instance, refusal, ..
+                } => (
+                    Some(*instance),
+                    match refusal {
+                        ReachRefusal::FaceUnbounded { kind, .. } => Some(kind.name()),
+                        ReachRefusal::PartUnresolved { .. }
+                        | ReachRefusal::MalformedBody { .. }
+                        | ReachRefusal::NoExtent
+                        | ReachRefusal::NoFiniteBound => None,
+                    },
+                ),
+                LeverRefusal::NotAnInstance { node } => (Some(*node), None),
+                LeverRefusal::OutOfRange { .. } => (None, None),
             };
             MateFaultPayload {
                 mate: Some(*mate),
                 inner_variant: Some(lever_refusal_tag(refusal)),
-                instance: Some(instance),
+                instance,
                 what,
                 ..none
             }
@@ -461,14 +468,21 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             refusal,
         } => {
             let (instance, what) = match refusal.as_ref() {
-                FaceRefusal::PartUnresolved { instance, .. }
-                | FaceRefusal::NoSuchName { instance, .. }
-                | FaceRefusal::Ambiguous { instance, .. }
-                | FaceRefusal::Readback { instance, .. }
-                | FaceRefusal::Unpinned { instance, .. } => (*instance, None),
-                FaceRefusal::NotAFace {
-                    instance, found, ..
-                } => (*instance, Some(crate::tags::entity_kind_tag(*found))),
+                FaceRefusal::Reach {
+                    instance, refusal, ..
+                } => (
+                    *instance,
+                    match refusal {
+                        FacePoseRefusal::NotAFace { found } => {
+                            Some(crate::tags::entity_kind_tag(*found))
+                        }
+                        FacePoseRefusal::PartUnresolved { .. }
+                        | FacePoseRefusal::NoSuchName
+                        | FacePoseRefusal::Ambiguous { .. }
+                        | FacePoseRefusal::Readback(_)
+                        | FacePoseRefusal::Unpinned => None,
+                    },
+                ),
                 FaceRefusal::NotAnInstance { node } => (*node, None),
             };
             MateFaultPayload {
