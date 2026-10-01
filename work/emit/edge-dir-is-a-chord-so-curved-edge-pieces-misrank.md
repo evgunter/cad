@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: M
+refs: [edge-pieces-are-named-by-their-ends]
 ---
 
 
@@ -29,3 +30,13 @@ yet measured with a fixture.
 If Ev takes the designer recommendation that retires `OrderAlong` for
 all edge pieces (`curved-seam-pieces-have-no-ranking-direction`), this
 row closes with it. Otherwise it needs its own rule.
+
+## Ruled (2026-10-01, PR 3553)
+
+Ev took the recommendation of fork-log row 22 ("the recommendation
+sounds good, including the change to what was decided in 512!"). The
+rule is `crates/editor-core/src/names/README.md` N2. Edge pieces no
+longer project onto `edge_dir`: they take `Ends`. The one ordinal left,
+on crossing vertices, is by the crossed edge's own curve parameter, not
+by projection onto a chord. `edge-pieces-are-named-by-their-ends`
+implements it and closes this row.

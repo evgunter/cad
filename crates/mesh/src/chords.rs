@@ -251,57 +251,35 @@ fn nurbs_chord_count(
     let m_bound = if rational {
         rational_carrier_m_bound(n, ek)?
     } else {
-        let mut sum_sq = Interval::zero();
-        for comp in 0..3 {
-            let coeffs: Vec<Interval> = n
-                .control()
-                .iter()
-                .map(|pt| {
-                    Interval::point(match comp {
-                        0 => pt.x,
-                        1 => pt.y,
-                        _ => pt.z,
-                    })
-                })
-                .collect();
-            let q1 = kv.difference_coeffs(&coeffs);
-            let inner = kv.derivative_knot_slice().to_vec();
-            let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
+        // The non-rational hull is `geom`'s, so the export lane's
+        // node-count schedule and this chord schedule read one
+        // spelling of the iterated difference-coefficient bound — and
+        // the door hands back WHICH structure denied a bound, so this
+        // caller's refusal keeps naming the same three classes it
+        // named when the arithmetic was inline here.
+        match geom::nonrational_second_derivative_sup(kv, n.control()) {
+            Ok(bound) => bound,
+            Err(why) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
-                    note: "B-spline carrier whose derivative knot vector fails to \
-                           materialise — outside the certified chord inventory",
+                    note: match why {
+                        geom::SecondDerivativeUnbounded::DegreeBelowTwo => {
+                            "B-spline carrier of degree below 2 — the hull sagitta bound \
+                             needs a second derivative to hull"
+                        }
+                        geom::SecondDerivativeUnbounded::DerivativeKnotVector => {
+                            "B-spline carrier whose derivative knot vector fails to \
+                             materialise — outside the certified chord inventory"
+                        }
+                        geom::SecondDerivativeUnbounded::PoisonedHull => {
+                            "B-spline carrier second-derivative hull is \
+                             unbounded/refused — outside the certified chord inventory"
+                        }
+                    },
                 });
-            };
-            // The hull of the SECOND-difference net, through the
-            // geom-core door rather than a fold spelled here: the
-            // second difference is the first difference of `q1`
-            // against the derivative vector `kv1`, which is exactly
-            // what `derivative_domain_hull` answers. A length the
-            // mint refuses arrives refused, as `difference_coeffs`
-            // would have delivered it.
-            let hull = kv1
-                .with_coeffs(&q1)
-                .map_or_else(Interval::refused, SplineCoeffs::derivative_domain_hull);
-            sum_sq = sum_sq + hull.sqr();
-        }
-        // A refused hull has no bound to report: `NaN` is what the
-        // `is_finite` test below reads as "unbounded/refused", and
-        // the refusal is asked by name because interval arithmetic carries it in
-        // the decoration rather than in the endpoints.
-        if !sum_sq.is_certified() {
-            f64::NAN
-        } else {
-            sum_sq.hi().sqrt().next_up()
+            }
         }
     };
-    if !m_bound.is_finite() {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "B-spline carrier second-derivative hull is unbounded/refused — \
-                   outside the certified chord inventory",
-        });
-    }
     if m_bound == 0.0 {
         return Ok(1);
     }
@@ -609,6 +587,19 @@ fn nurbs_tighten(
             // the image's own differenced control net
             // ([`general_uv_speeds`]).
             Pcurve::General(image) => general_uv_speeds(image, params, ek)?,
+            // Unreachable by construction, and refused rather than
+            // given a bound: this loop runs only on SPLINE charts, and
+            // a spiric image certifies on a plane or a torus chart and
+            // nowhere else (`geom_brep::SpiricImage`). A cache that
+            // reached here would be a corrupt one, not a frontier.
+            Pcurve::Spiric { .. } => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
+                           chart images live on its own cutting plane and its own \
+                           torus, so no spline chart mints one",
+                });
+            }
         };
         n = n
             .max(ceil_count(su * span, hu)?)

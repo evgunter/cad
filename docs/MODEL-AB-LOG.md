@@ -4810,6 +4810,60 @@ FILLET-RIM RECORDED AT MERGE (2026-09-05, PR #1821, sample **#131** — prior hi
 slot 2 = TRIM-3 PR-2 (OPUS) — concluded 2026-09-15 at merge, ordinal 2502, sample #201 (no candidate: R2's MAJOR-1 unilateral but guards/claims-class; both reviewer arms paused once by the usage limit, R2 also killed by a model-side 429 — 3(e) excludes the pair). **Block TRIM-B1 CONCLUDED** — {OPUS, FABLE, OPUS} all executed; this record folds to main at this merge, per the branch-side shape.
 
 
+CURVED-SPIRIC PR-1b RECORDED AT MERGE (2026-09-30, PR #2861, sample #247 — prior highest #246 on main at merge; block CURVED-B2 slot 2 concluded — the block CONCLUDES and its record folds below; recorded under the A/B protocol it started in, per the 2026-09-23 suspension entry's clause for a unit still finishing):
+
+| SP1B | 2026-09-30 | CURVED-SPIRIC PR-1b (PR #2861; spec docs/CURVED-SPIRIC-SPEC.md §3, §5, rows 9–10, §7's C4 line): `Pcurve::Spiric` with `SpiricImage::{Cap, Wall}` minted by `chart_pcurve`'s plane and torus arms and certified beside the harmonic lane (`SpiricIdentity` for the wall, the closed-form `span{1, f, sin}` statement for the cap), fourteen consumer sites, `shift_polar_branch`'s wall arm, and STEP export of a spiric edge as an export-only cubic B-spline with its stated bound and the `FILE_DESCRIPTION` sentence. The opening measurement found the whole torus face's cache set EMPTY at the merge base (the missing arm made `mint_faces` clear the face, circle rims included); after, the vessel's caches mint and certify and its hollow's door does not move. Filed against the ratified §5: `spiric-step-spline-bound-is-second-order` (the certificate is sound and second-order-loose; `ε/4` unreachable at the 1024-node cap). Fix pass from the dual: both new predicates through `Margin::levered` (they had divided a cosine and a dimensionless residue by a lever) with the envelope's `sense` term on both channels; four chart-vs-carrier gates priced into the envelope (a drifted chart had certified `SpiricIdentity` with envelope 0); `mirror_v` answers `None` for a `Wall` (it had returned a wrong locus) with the every-kind census extended; rows for the three silent mutants; the node-cap row one doubling short; `spiric_export_spline` public with a node-exactness row; the uncertainty validated before geometry | M / STRUCTURAL (pre-logged on the block branch at dispatch) | OPUS (block CURVED-B2 slot 2) | **DUAL (ordinal 2205; byte 240 parity 0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen b0afaf200; briefs stored with sha256 pre-dispatch; both reviewers disclosed `ps`/slot-holder glimpses of other units' lanes, benign; v6 instrument).** R1 MERGEABLE-AFTER-FIXES, rubric 4/4/2/4/4, 2 MAJ + 7 MIN + 7 NOTE — unique: MAJ-1 `mirror_v` on a `Wall` yields a wrong locus (executed: `max|v+v′| = 1.78`, the whole span) while the involution-only census stayed green; the cheaper node-cap reader; the unvalidated `uncertainty_m`; `step-export/lib.rs`'s "every arm exact" claim. R2 MERGEABLE-AFTER-FIXES, rubric 4/4/3/5/5, 1 MAJ + 5 MIN + 7 NOTE — unique: the writer's node premise measured by no writer row; the collapsed refusal class in `nurbs_chord_count`; the `sense` band's `u`-channel coupling. CONVERGED: the wrong dimensional door on both predicates (both executed the Zero window's position), the identity's chart-equals-carrier premise gated by nothing, three silent mutants, the banded-vs-bit-equal doc, the STEP finding and its candidate bound checked right (76×). **Tally: R1's MAJ-1 unilateral and code-class — a CANDIDATE; R2 killed once by a model-side 429 during the weekly limit and resumed from transcript — 3(e) EXCLUDES the pair; recorded for the blinded reading.** | 0 silent — every deviation reported before review (the banded compare as deviation 1, argued; the export parameterisation, the `shift_chart_v` closed form) | 4 | R1 2 / R2 3 | R1 4 / R2 5 | substantial, ADJUDICATED — fourteen union items all taken; eight mutants red after the pass (M7, the 2048-node cap, not run: an 84-minute debug fit, per the suite-cost rule — both reviewers had executed the boundary); both reviewers' probes adopted authorship-preserving. Incidents disclosed in the PR body: a pushed commit carried a planted mutant (`8769d9abf`, corrected by `ed8af71cd`); `pull_request` runs did not fire while the PR was conflicting | impl CI 35435836485 GREEN; fix-pass `pull_request` run 36698504534 green on every spiric row at three ε, red on one editor-core census row that was main's (fixed on main by #3538, merged in before this row); the merged head's run before merge; merged #2861 at sample #247 | impl ~483k / fix ~784k cumulative across a nine-day session-limit gap / R1 ~448k / R2 ~334k | impl ~6.5 h / fix ~4 h agent time over ten days wall (one session-limit death, nine days idle) / R1 ~6 h / R2 ~6 h across a 429 death |
+
+## Block TRIM-B2 — CLOSED record (folded from `trim/b1-block` at TRIM's close; slots 0–1 concluded, slot 2 unspent at the 2026-09-23 suspension; 2026-10-01)
+
+Block TRIM-B2 (branch-side on `trim/b1-block`; B1's slot 2 = TRIM-3 PR-2 open):
+
+Block TRIM-B2 pre-draw fields (2026-09-13, logged before the draw):
+slot 0 = TRIM-2 PR-1 (`docs/TRIM-2-SPEC.md` §1, the trimmed-region
+quadrature by Green's theorem on chords; branch `trim/2-quadrature`) —
+difficulty **M**, task-class **NUMERIC** (pre-logged at the spec). Slots
+1–2 bank for the next dispatches in order (TRIM-2 PR-2, the General
+tessellation arm, pre-logged S / NUMERIC; then the next TRIM unit),
+pre-draw fields at their specs.
+
+Block TRIM-B2 draw (2026-09-13, after the pre-draw fields above; one
+/dev/urandom byte, reject ≥252): byte **53**, 53 mod 3 = 2 = fable's
+position ⇒ **fable at slot 2**. Recorded branch-side; reaches main
+when the block's last slot's reviews conclude; each ordinal claim at
+review dispatch goes to main on its own.
+
+Block TRIM-B2 slot record (branch-side, appended as each slot concludes):
+
+slot 0 = TRIM-2 PR-1 (OPUS) — concluded 2026-09-19 at merge a833156d4 (PR #2564), ordinal 2503, sample #222 (R2's A1 a code-class candidate; pair EXCLUDED under 3(e): R2 killed by a 429 and resumed; seam gate closed on Ev's in-chat ruling that PROPS is paused).
+slot 1 = TRIM-2 PR-2 (`docs/TRIM-2-SPEC.md` §2 the tessellation arms, E2; branch `trim/2-tess`) — pre-draw fields logged 2026-09-19 before dispatch: difficulty **S**, task-class **NUMERIC** (pre-logged at the spec §6). Arm by the block's draw (byte 53 ⇒ fable at slot 2): **OPUS**. Seam to TESS announced on #2564 (comment 5739405116) before dispatch.
+slot 1 = TRIM-2 PR-2 (OPUS) — concluded 2026-09-20 at merge d0e577121 (PR #2863), ordinal 2504, sample #224 (no candidate; a clean pair — neither reviewer arm killed or paused). Slot 2 (FABLE by the draw) draws its unit at the next TRIM dispatch.
+slot 2 = never dispatched — **block TRIM-B2 CLOSED BY THE SUSPENSION** of the A/B protocol (Ev, 2026-09-23). TRIM's last unit (`boundary-iso-doors-panic-before-they-can-refuse`, PR 3525) ran outside the protocol on a single Opus style review.
+
+## Block CURVED-B2 — CONCLUDED record (folded from `curved/b1-block` at the last slot's merge, per the branch-side shape; 2026-09-30)
+
+Block CURVED-B2 (branch-side on `curved/b1-block`, the CURVED block branch; B1 concluded 2026-09-14):
+
+Block CURVED-B2 pre-draw fields (2026-09-13, logged before the draw):
+slot 0 = CURVED-TORUS PR-2 (`docs/CURVED-TORUS-SPEC.md` §PR-2, the
+circle-residual torus arm by subdivision with a certified `f2`; branch
+`curved/torus-arm`) — difficulty **M**, task-class **NUMERIC**
+(pre-logged at the spec). Slots 1–2 bank for the next dispatches in
+order (the spiric carrier unit from `docs/CURVED-SPIRIC-DESIGN.md` §8
+PR-1, pre-logged M–H / STRUCTURAL there; then the next CURVED unit),
+pre-draw fields at their specs.
+
+Block CURVED-B2 draw (2026-09-13, after the pre-draw fields above; one
+/dev/urandom byte, reject ≥252): byte **22**, 22 mod 3 = 1 = fable's
+position ⇒ **fable at slot 1**. Recorded branch-side; reaches main
+when the block's last slot's reviews conclude; each ordinal claim at
+review dispatch goes to main on its own.
+
+Block CURVED-B2 slot record (branch-side, appended as each slot concludes):
+slot 0 = CURVED-TORUS PR-2 (OPUS) — concluded 2026-09-15 at merge 4617fcc5b, ordinal 2203, sample #200 (headline bilateral, no candidate; R2 paused once by the usage limit, 3(e)).
+slot 1 = CURVED-SPIRIC PR-1a (FABLE) — concluded 2026-09-19 at merge 9b865b1d4, ordinal 2204, sample #221 (no MAJOR on either arm, no candidate; R2 killed once by a 429, 3(e)). Slot 2 draws next (pre-draw fields at the next unit's spec: leading candidate spiric PR-1b, pre-logged at docs/CURVED-SPIRIC-SPEC.md §12 ruling 1).
+slot 2 = CURVED-SPIRIC PR-1b (`docs/CURVED-SPIRIC-SPEC.md` §3 the exact `Pcurve::Spiric` variant and its certification, §5 STEP export, rows 9–10; branch `curved/spiric-1b`) — pre-draw fields logged 2026-09-19 before dispatch: difficulty **M**, task-class **STRUCTURAL** (the spec pre-logs the unit H; 1b is its narrower second PR — a data-free variant with thirteen named consumers and one export arm). Arm by the block's draw (byte 22 ⇒ fable at slot 1): **OPUS**.
+slot 2 = CURVED-SPIRIC PR-1b (OPUS) — concluded 2026-09-30 at merge, ordinal 2205, sample #247 (R1's `mirror_v` MAJOR a code-class candidate; pair EXCLUDED under 3(e): R2 killed by a 429 and resumed). **Block CURVED-B2 CONCLUDED** — {OPUS, FABLE, OPUS} all executed; folded to main at this merge. The A/B protocol is suspended (2026-09-23), so no further CURVED block opens.
+
 ## Block CURVED-B1 — CONCLUDED record (folded from `curved/b1-block` at the last slot's merge, per the branch-side shape; 2026-09-14)
 
 ## CURVED program rows (work/curved/; band 2200–2299; blocks named CURVED-B<n>)
