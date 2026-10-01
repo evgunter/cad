@@ -1456,7 +1456,7 @@ fn a_predicate_flip_names_its_signs_as_words() {
             to: geom_core::predicate::Sign::Negative,
         },
         &[
-            "the margin deciding the order of two pieces along an edge flipped from positive \
+            "the margin deciding the order of two crossings along an edge flipped from positive \
              to negative",
         ],
         // Every `Sign`, not the two this row happens to construct: a
@@ -2406,10 +2406,7 @@ test_utils::f6_variants! {
         MergedChord,
         MergedChordOffRim,
         MergedChordConstituents,
-        SeamLineSides,
         MemberEdgeTied,
-        SplitReference,
-        NarrowBand,
         Band,
         Escalated,
     ];
@@ -2545,13 +2542,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["merged face", "holds 2 faces", "no rule picks"],
         ),
         (
-            NamingError::SeamLineSides {
-                node: RecipeNodeId(31),
-                edge,
-            },
-            vec!["node 31", "each side of its recorded pair"],
-        ),
-        (
             NamingError::MemberEdgeTied {
                 member: RecipeNodeId(37),
                 edge: Box::new(StableName {
@@ -2573,29 +2563,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["naming band", "5e-324"],
         ),
         (
-            NamingError::NarrowBand {
-                zero: 1e-9,
-                escalate: 1.5e-9,
-            },
-            vec!["naming band is too narrow", "below 2"],
-        ),
-        (
-            NamingError::SplitReference {
-                group: Box::new(StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId(41),
-                    path: vec![RoleSeg::Cap(CapEnd::Start)],
-                }),
-                reference: Box::new(StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId(43),
-                    path: vec![RoleSeg::Cap(CapEnd::Start)],
-                }),
-                curved: false,
-            },
-            vec!["node 41", "node 43", "several faces on different carriers"],
-        ),
-        (
             NamingError::Escalated {
                 predicate: "name_frag_order_along",
                 source: geom_core::Indeterminate {
@@ -2605,7 +2572,10 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     terminal_sliver: false,
                 },
             },
-            vec!["the order of two pieces along an edge", "too close to call"],
+            vec![
+                "the order of two crossings along an edge",
+                "too close to call",
+            ],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);

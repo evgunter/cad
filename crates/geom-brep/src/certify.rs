@@ -1002,14 +1002,6 @@ pub struct EdgeCurve<T: Real> {
 }
 
 impl<T: Decide> EdgeCurve<T> {
-    /// The carrier point at the middle of the certified parameter
-    /// interval — a point ON the edge, interior to it, whatever the
-    /// carrier kind (a curved edge's chord midpoint is not on it).
-    pub fn mid_point(&self) -> Point3<T> {
-        self.carrier
-            .eval(self.param_start + (self.param_end - self.param_start) * T::from_f64(0.5))
-    }
-
     /// Certifies `spec` against the edge's endpoint points and the
     /// owning body's surfaces, returning the certified carrier.
     ///
@@ -1053,7 +1045,7 @@ impl<T: Decide> EdgeCurve<T> {
     ///      residual `|w·v_ref|`, wrong-side excess `max(0, −w·u_ref)`.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
-    ///    `|carrier((t₀+t₁)/2) − witness| ≤ ε`
+    ///    `|carrier.mid_point(t₀, t₁) − witness| ≤ ε`
     ///    ([`CertCheck::WitnessMidpoint`]): the witness contract is
     ///    that the stored witness IS the edge's mid-parameter point —
     ///    constructors mint it as `carrier(mid)` (the upgrade helpers'
@@ -1445,6 +1437,13 @@ impl<T: Real> EdgeCurve<T> {
 }
 
 impl<T: SpanLocate> EdgeCurve<T> {
+    /// The carrier point at the middle of the certified parameter
+    /// interval ([`Curve3::mid_point`]) — a point ON the edge, interior
+    /// to it, whatever the carrier kind.
+    pub fn mid_point(&self) -> Point3<T> {
+        self.carrier.mid_point(self.param_start, self.param_end)
+    }
+
     /// The two **uncertified child specs** of splitting this certified
     /// carrier at interior parameter `t` (M3 PR 1, for `split_edge`):
     /// the carrier is unchanged and the interval splits at `t`
@@ -1473,13 +1472,9 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     EdgeDescriptionSpec::Intersection {
                         s1: k1,
                         s2: k2,
-                        // The child's mid-parameter point, computed
-                        // exactly as the certification schedule's
-                        // middle sample (bitwise — zero
-                        // WitnessMidpoint residual).
-                        witness: self
-                            .carrier
-                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                        // The point the WitnessMidpoint pin reads:
+                        // zero residual by construction.
+                        witness: self.carrier.mid_point(ta, tb),
                     }
                 }
                 // TangentIntersection splits exactly as Intersection:
@@ -1489,9 +1484,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                     EdgeDescriptionSpec::TangentIntersection {
                         s1: k1,
                         s2: k2,
-                        witness: self
-                            .carrier
-                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                        witness: self.carrier.mid_point(ta, tb),
                     }
                 }
                 EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1)),
@@ -1640,6 +1633,73 @@ pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
         t1
     } else {
         t0 + (t1 - t0) * T::from_f64(schedule_fraction(i, samples))
+    }
+}
+
+/// An edge about to be described as the transverse `Intersection` of
+/// its two faces' surfaces, read once: the `witness` and lever arm
+/// (`extent`) the dihedral classifies at, and the carrier and interval
+/// the description is certified against if the class is transverse.
+///
+/// A curved certified carrier ([`Curve3::is_curved`]) is kept with its
+/// interval — only the description changes — and is read at its
+/// [`EdgeCurve::mid_point`] and [`edge_extent`]. Anything else (a line,
+/// or no certified carrier yet) becomes the chord `p0 → p1`
+/// ([`EdgeCurveSpec::line_between`]), whose midpoint is on it and whose
+/// length is its extent.
+#[derive(Clone, Debug)]
+pub struct IntersectionDraft<T: Real> {
+    /// The point the dihedral classifies at and the description pins.
+    pub witness: Point3<T>,
+    /// The lever arm the dihedral meters angles through.
+    pub extent: T,
+    carrier: Curve3<T>,
+    param_start: T,
+    param_end: T,
+}
+
+impl<T: SpanLocate> IntersectionDraft<T> {
+    /// Reads the edge from its certified curve, if it has one, and the
+    /// points of `start(he_plus)` and `end(he_plus)`.
+    pub fn of(existing: Option<&EdgeCurve<T>>, p0: Point3<T>, p1: Point3<T>) -> Self {
+        match existing.filter(|c| c.carrier().is_curved()) {
+            Some(c) => {
+                let (t0, t1) = c.params();
+                Self {
+                    witness: c.mid_point(),
+                    extent: edge_extent(c.carrier(), t0, t1, p0.distance(p1)),
+                    carrier: c.carrier().clone(),
+                    param_start: t0,
+                    param_end: t1,
+                }
+            }
+            None => {
+                let chord = EdgeCurveSpec::line_between(p0, p1);
+                Self {
+                    witness: p0.lerp(p1, T::from_f64(0.5)),
+                    extent: p0.distance(p1),
+                    carrier: chord.carrier,
+                    param_start: chord.param_start,
+                    param_end: chord.param_end,
+                }
+            }
+        }
+    }
+}
+
+impl<T: Real> IntersectionDraft<T> {
+    /// The `Intersection` spec of `s1` and `s2` at this draft's witness.
+    pub fn into_spec(self, s1: SurfaceKey, s2: SurfaceKey) -> EdgeCurveSpec<T> {
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1,
+                s2,
+                witness: self.witness,
+            },
+            carrier: self.carrier,
+            param_start: self.param_start,
+            param_end: self.param_end,
+        }
     }
 }
 
@@ -2610,9 +2670,7 @@ fn run_checks<T: Decide>(
             band,
             &mut max_residual,
         )?;
-        let mid = spec
-            .carrier
-            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        let mid = spec.carrier.mid_point(t0, t1);
         check_residual(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
@@ -2638,9 +2696,7 @@ fn run_checks<T: Decide>(
             band,
             &mut max_residual,
         )?;
-        let mid = spec
-            .carrier
-            .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
+        let mid = spec.carrier.mid_point(t0, t1);
         check_residual(
             "witness_at_mid_parameter",
             CertCheck::WitnessMidpoint,
