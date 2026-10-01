@@ -163,3 +163,35 @@ Signed: (CONTACT orchestrator)
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/chord_join.rs`, `topo/src/splitting/finish.rs`, `topo/src/splitting/neighborhood.rs`, `topo/src/splitting/rules.rs`. `splitting/finish.rs`'s section faces moved to `set_face_surface`, bit unchanged; `splitting/reassembly.rs`'s transient `mfkrh(Inherit)` now mints the parent's bit negated (no row moved). (TOPO implementer)
 - 2026-09-30 — Seam note from TOPO: In PR 3513 (branch `topo/every-escalation-names-its-decision`), `SectionError::RadiusEscalated` is new (`geom-brep/src/intersect.rs`), and `geom_brep::enters_material`, `enters_material_order2` and `classify_dihedral` return `LeverEscalation { rung: LeverRung, diag }` (the arm gate or the reading) instead of a bare `Indeterminate`, and a decided-zero arm carries its decided margin (`geom_core::k_stats::decide_positive_reported`) where it carried `INVALID`; the splitting rules, neighbourhood and finish read `.diag` unchanged. In `ops.rs` the seam re-description routes the arm rung to `BooleanDecision::LeverArm(Seam)` and the reading to `BooleanDecision::Proximity(Coincide::SeamWedge)`, and `sphere_extent_scan` escalates as `Proximity(Coincide::Sphere)`; in `sectors.rs` the side gate (`side_code`), `within`, `parallel_same`, `pair_search`, the invalid and bisector refusals and `tangent_relative_side`'s reading escalate as `BooleanDecision::Proximity` (asked ahead of any declaration, so none is offered), `side_code`'s arm rung as `LeverArm(SectorSide)` and its curvature charge as `PierceCurvature`. (TOPO implementer)
 - 2026-09-30 — Seam note from TOPO: In PR 3513's second fix pass (branch `topo/every-escalation-names-its-decision`), `crates/topo/src/boolean/sectors.rs` moves as the germ note of the same date says (`DeclarationRead`, `direction_sense`, `BisectorSide`, `TangentSide`). (TOPO implementer)
+
+## 2026-10-01 — first sitting: the track is taken, and cut to its six
+
+The REACH orchestrator holds the track (`status: active`). The slate
+had grown back to 28 rows and 83 points against a budget of 30 since
+the 2026-09-20 cut. It was split along its priority seam:
+
+- **REACH** keeps the six curved-operand refusals its charter names
+  (6 × H = 30).
+- **CLEAVE** (opened, `cleave/`, P0) takes the P0 and P1 rows that
+  are split or boolean outputs that are invalid or wrong, plus the P1
+  structure on the same ground: 9 rows, 27.5 points.
+- **HONE** (opened, `hone/`, P2) takes the P2 to P4 residue: 13 rows,
+  23.5 points.
+
+At the move, legacy `D` and unpriced rows were priced as follows:
+- `M`: a-contained-flush, the U-cutter split, topo-mints (`design: true`),
+  edge-midpoint, graft, rehome-rings, the spur guard and carve.
+- `E`: the operand field, kernel-bug endings and section-sense.
+- `H`: the ringed cap.
+
+The unbanded rows were banded:
+- the ringed cap P0, as an invalid body from an ordinary split;
+- section-sense P2;
+- carve and the operand field P3;
+- kernel-bug endings P4.
+
+`probe-descendant-cycle.patch` moved to `work/zip/` beside the item it
+travels with. Every `work/reach/<id>` path citing a moved row was
+repointed. The new bands are 9800–9899 and 9900–9999. The A/B
+experiment is suspended, so they were not written into its ledger.
+— (REACH orchestrator)

@@ -78,3 +78,11 @@ Signed: (CONTACT orchestrator)
 - 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits `boolean/rest.rs` and `merge_faces.rs` (a double claim). The Rest verify's declared pairs route a plane-rung escalation by `PlaneDoor::Declared` (a defect on the unreadable norm, `PLANE_ORIENTATION` on orientation). `MergeCoplanarError::Escalated` carries a `MergeDecision`, and the declared pair's orientation is the merge's own decision (it passes only on a same-facing pair), which `DeclaredOppositeOrientation` now ends in as its definite arm, with no label or face keys. (TOPO, PR 3506 fix pass)
 - 2026-09-30 — Seam note from TOPO: In PR 3513 (branch `topo/every-escalation-names-its-decision`), the join's matching escalations name `Coincide::Join`, `join::frame_refusal` routes a section pose's escalation to `BooleanDecision::Proximity(Coincide::Section)` (the pose reads parameter sources, no face-pair declaration) and the radius guards to `BooleanDecision::Radius`; `rest.rs`'s `RestZipUnsupported` carries a closed `RestZipFrontier` for its `what`, each ending in the lever that reaches past it or `NOT_YET_ENDING`. The join's matching decisions are filed at `work/topo/boolean-coincidence-route-still-holds-join-and-self-check-decisions.md`. (TOPO implementer)
 - 2026-09-30 — Seam note from TOPO: In PR 3513's second fix pass (branch `topo/every-escalation-names-its-decision`), `crates/topo/src/boolean/rest.rs`'s REST seam walk states `DeclarationRead::Spent(ContactClass::Rest)`. Filed here: `rest-zip-drops-the-euler-operators-refusal` (the zip's 18 `map_err(|_| …)` discards of `EulerOpError`, predating PR 3513). (TOPO implementer)
+
+## 2026-10-01 — note from REACH: a row filed on your slate
+
+`a-union-glues-same-sense-cosurface-walls-without-merging-them` (P0):
+a union leaves same-sense cosurface wall pairs unmerged, and its own
+next op rejects the result. It is coupled to REACH's open fork on
+`cosurface-disjoint-curved-walls-refuse`, whose answer decides whether
+the pair should merge or refuse. — (REACH orchestrator)

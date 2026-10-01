@@ -4,6 +4,8 @@ kind: issue
 title: splitting::finish::carve removes the dropped shells' half-edges and loops by cycle walks it never proves claim their loops: a torn next leaves a dangling member or removes a kept shell's half-edge
 status: open
 opened: 2026-09-30
+cost: M
+priority: P3
 ---
 
 ## What

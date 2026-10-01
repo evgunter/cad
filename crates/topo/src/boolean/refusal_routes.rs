@@ -1587,7 +1587,7 @@ mod tests {
          there";
 
     /// The split door's own clause, a stage for a subject, filed with
-    /// its owner: `work/reach/reach-refusals-short-of-the-shape-guard.md`.
+    /// its owner: `work/hone/reach-refusals-short-of-the-shape-guard.md`.
     const SPLIT_DOOR_FILED: &str = "inserting the plane crossing on edge";
 
     /// **`split_edge`'s in-band interiority reads whole at every door
