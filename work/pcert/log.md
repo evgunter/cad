@@ -229,3 +229,22 @@ be cached — the fitted Circle route exists, no mint site reaches it
 (filed here as `mint-has-no-route-to-the-fitted-general-circle-arm`).
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — 3614 and the ledger re-baseline merged
+
+PR 3652 re-baselined `editor-core`'s sym walk ledger (main red since
+3612's merge): only the decision walks moved, the same calls building
+fewer forms, at every ε row for the slab and once for the plate, whose
+move was hidden behind the slab's failing assertion until that one was
+fixed. Measured locally at all three ε rows; green hosted.
+
+PR 3614 (`placeholder-chart-sup-arms-are-not-a-bound`) merged with the
+re-baseline ported in. Its one remaining red was confirmed at the step
+level as inherited: default ε, the slow set and doc-tests green; the
+off-ε step failed on exactly the four `reach_volume_backstop` rows
+REACH has filed (`reach-volume-backstop-fails-off-the-default-eps`,
+PR 3611's). Annotated on the PR before merging; REACH keeps the debt.
+
+`D36` resumes now that its gate (3614) has landed.
+
+Signed (PCERT orchestrator).

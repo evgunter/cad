@@ -2,12 +2,13 @@
 id: placeholder-chart-sup-arms-are-not-a-bound
 kind: issue
 title: chart_stretch_sup answers unit arms for a placeholder chart while chart_stretch_inf answers certifies-nothing
-status: review
+status: closed
 opened: 2026-09-15
 priority: P0
 cost: H
 branch: pcert/placeholder-chart-sup
 pr: 3614
+closed: 2026-10-01
 ---
 
 
@@ -41,3 +42,22 @@ cite the gate, or it can, in which case the door must refuse it.
 Filed by SCALAR's RATE-PAIR lane in its fix pass, as the weaker half of
 the reviewer finding that produced the cone refusal. TRIM owns
 `crates/geom-brep/src/pcurve_cache.rs`.
+
+## Closed (PR 3614, 2026-10-01)
+
+A placeholder chart could reach a metred verdict: the public
+`topo::chart_boundary` took its chart from the caller and walked a
+placeholder's unit arms to an `Ok(ChartBound)` carrying NaN images.
+`chart_stretch_sup` now refuses it (`NoChartSup::Placeholder`);
+`topo`'s meters take a `DescribedChart` that cannot hold one, and
+`chart_boundary` refuses it typed (`PcurveMintError::PlaceholderChart`).
+"Is this the placeholder chart" has one home,
+`geom::Surface::is_placeholder_chart`, which also catches an `Approx`
+whose fit is the placeholder; the refusal text has one home,
+`geom::PLACEHOLDER_SURFACE`. `weight_ratio_factor` answers poison for
+weights knot insertion can write and `validate_counts` would refuse
+(filed upstream on PROPS:
+`surface-knot-insertion-writes-weights-validate-counts-refuses`).
+Merged with one red inherited from main and annotated on the PR:
+`sweep`'s `reach_volume_backstop` off the default ε (REACH's, caused by
+PR 3611).
