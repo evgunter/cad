@@ -5276,3 +5276,37 @@ torn" ending. The split is filed as a design row.
 - the conditional ending at both kinds of raise site;
 - the editor-core chains;
 - the second lever.
+
+## PR 3621 reviewed: NOT-MERGEABLE-AS-IS; fix pass dispatched (2026-10-01)
+
+The single full review ran on the frozen head `331526d8f2`.
+
+**What held:**
+- the kernel-defect ending, since no public path reaches a torn body
+  from a file;
+- every mutant, M1–M8;
+- the `require_vertex_unnamed` routing.
+
+**MAJOR-1.** In the three mixed variants (`StaleKey`, `StaleGeometry`,
+`NotSameEdge`), the conditional ending "pass keys this body holds…"
+is false in all 11 feature-tree chains, where the caller is a kernel
+driver. `Shell/Partition` contradicts itself. Removing their
+`FILED_NO_RECOURSE` admissions turned tracked debt into an untracked
+false recourse.
+
+**Ruled:**
+- **MAJOR-1:** revert those three arms to their pre-PR endings and
+  restore the 11 admissions. No single text is true until the split
+  lands.
+- **MINOR-1:** make `MergeRebasesCarriers`' second lever true; it is
+  false with a null edge in the far fan.
+- **MINOR-2:** amend the split row with the driver case.
+- **MINOR-3:** complete the STEP door list.
+- **MINOR-4:** complete the receipt (four misses, plus main's
+  `VolumeCorrupt`).
+- **MINOR-5:** check the shape-guard counts once the admissions are
+  back.
+- **NOTE-2 and NOTE-3:** file both.
+
+The fix pass is out on the walk target. It merges after CI and an
+orchestrator read.
