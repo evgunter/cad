@@ -232,7 +232,10 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     let session = DocSession::inline(die.doc, tol);
 
     let leaf = session.delete_affordance(die.fillets[1]);
-    assert_eq!(leaf.label, "Delete feature 'Fillet'");
+    assert_eq!(
+        leaf.label,
+        format!("Delete Fillet {:012x}", die.fillets[1].0)
+    );
     assert_eq!(
         leaf.hover, None,
         "nothing depends on it, so nothing to warn"
@@ -241,7 +244,10 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     let mid = session.delete_affordance(die.booleans[10]);
     assert_eq!(
         mid.label,
-        "Delete feature 'Boolean' and 12 dependent features"
+        format!(
+            "Delete Boolean {:012x} and 12 dependent features",
+            die.booleans[10].0
+        )
     );
     assert_eq!(
         mid.hover.as_deref(),
@@ -254,12 +260,21 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     let blank_cascade = session.delete_affordance(die.booleans[0]);
     assert_eq!(
         blank_cascade.label,
-        "Delete feature 'Boolean' and 22 dependent features"
+        format!(
+            "Delete Boolean {:012x} and 22 dependent features",
+            die.booleans[0].0
+        )
     );
 
     // Singular reads as singular.
     let one = session.delete_affordance(die.fillets[0]);
-    assert_eq!(one.label, "Delete feature 'Fillet' and 1 dependent feature");
+    assert_eq!(
+        one.label,
+        format!(
+            "Delete Fillet {:012x} and 1 dependent feature",
+            die.fillets[0].0
+        )
+    );
     assert_eq!(
         one.hover.as_deref(),
         Some("Also deletes 1 feature that depends on it: 1 × Fillet")

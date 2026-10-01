@@ -90,6 +90,7 @@ from pathlib import Path
 
 import bench_scene
 import pncad
+from spoken import tag
 from bench_scene import (
     FLAT_PACK_GAP,
     FLAT_PACK_SHELF_Y,
@@ -416,7 +417,7 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertEqual(refusal.kind, "part_root_failed")
         text = str(refusal)
         self.assertLessEqual(len(text.split()), self.BUDGET, text)
-        self.assertIn(f"repair node {repr(bracket_root)[7:-1]}", text)
+        self.assertIn(f"repair node {tag(bracket_root)}", text)
 
         # One level down: the bracket's root, itself a part whose root
         # failed — in the bracket's own id space.
@@ -509,8 +510,8 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
         self.assertEqual(refusal.kind, "part_root_poisoned")
         text = str(refusal)
-        self.assertIn(f"its root, node {repr(self.root)[7:-1]}", text)
-        self.assertIn(f"repair node {repr(self.extrude)[7:-1]}", text)
+        self.assertIn(f"its root, node {tag(self.root)}", text)
+        self.assertIn(f"repair node {tag(self.extrude)}", text)
 
         cause = refusal.__cause__
         self.assertIsInstance(cause, pncad.EvaluationError)
@@ -692,12 +693,12 @@ class TestNestingPastTheBound(unittest.TestCase):
         self.assertNotIn("lost sys.stderr", child.stderr)
         self.assertIn(f"deeper than {DEPTH_BOUND} documents", child.stderr)
         self.assertEqual(
-            child.stderr.count("the part's node 0 failed"),
+            child.stderr.count("the part's node 000000000000 failed"),
             DEPTH_BOUND,
             "one line for the instance and one for each document above the bound",
         )
         self.assertTrue(
-            child.stderr.rstrip().splitlines()[-1].startswith("pncad.EvaluationError: node 0 failed"),
+            child.stderr.rstrip().splitlines()[-1].startswith("pncad.EvaluationError: node 000000000000 failed"),
             "the traceback ends at the refusal that was raised",
         )
 
