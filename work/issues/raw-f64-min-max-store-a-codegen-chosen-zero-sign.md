@@ -17,14 +17,21 @@ section).
 `f64::min`/`f64::max` are IEEE 754-2008 `minNum`/`maxNum`, which leave
 the sign unspecified when the operands are zeros of opposite sign. What
 rustc 1.97 on x86-64 answers depends on the optimisation level and on
-whether the operands are constants. A standalone probe (both operand
-orders):
+whether the operands are constants, and on the surrounding code. A
+standalone probe (both operand orders):
 
 | build | `min(-0,+0)` | `min(+0,-0)` | `max(-0,+0)` | `max(+0,-0)` |
 |---|---|---|---|---|
 | debug | `+0` | `-0` | `+0` | `-0` |
-| release, opaque operands | `+0` | `+0` | `+0` | `+0` |
+| release, fresh `black_box` operands per call | `+0` | `-0` | `+0` | `-0` |
 | release, constant operands | `-0` | `-0` | `+0` | `+0` |
+| release, one `black_box`ed pair reused for both orders | `+0` | `+0` | `+0` | `+0` |
+
+The last row is LLVM merging `minnum(a, b)` with `minnum(b, a)`, which
+it treats as commutative. Inside a fold the answer differs again: the
+interval backend's old `×` upper-bound fold stored `-0` in debug and
+`+0` in release for `[0, 2^-600]·[-2^-474]`, and the reverse for
+`[-2^-1074, -0]·[1.3]`.
 
 So a stored value taken from one of these at a zero tie is a function
 of the build as well as of the source and inputs. D9's "same build"
