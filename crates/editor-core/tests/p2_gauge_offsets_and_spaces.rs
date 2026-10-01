@@ -297,8 +297,8 @@ fn set_offset(doc: ProfileDoc, instance: RecipeNodeId, offset: Option<Placement>
 /// compose itself.
 fn seat_rel(p: &Parts) -> M4 {
     let doc = ProfileDoc::empty(DocumentId::derive("r1-seat-control"), Tol::witness());
-    let (doc, b) = insert(doc, Node::instantiate_part(p.base.clone()));
-    let (doc, t) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, b) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, t) = insert(doc, Node::instantiate_part(p.top));
     let (doc, _) = insert(doc, seat(head(p.top_cap(t)), head(p.base_cap(b))));
     let poses = solve(&doc, &p.opts(), Tol::witness());
     of_frame(&poses.placement(&doc, t).unwrap())
@@ -338,8 +338,8 @@ fn a_placer_on_each_side_under_nested_parametric_gauges_poses_as_composed_and_ch
     let gin_frame =
         Frame::rotate_then_translate([1.0, 0.0, 0.0], 0.4, [5.0, 0.0, 0.0], band()).unwrap();
     let (doc, gin) = insert(doc, Node::gauge(Some(gout), Placement::literal(&gin_frame)));
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(doc, base, Some(gin));
     let doc = set_gauge(doc, top, Some(gin));
     let off_frame =
@@ -457,8 +457,8 @@ fn a_member_the_tree_cannot_reach_faults_its_offset_naming_the_stranded_mate() {
     let p = parts("r1-strand");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-strand"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
@@ -539,8 +539,8 @@ fn a_dead_gauge_group_checks_its_offsets_in_its_own_space() {
             Placement::literal(&Frame::translation([0.0, 5.0, 0.0])),
         ),
     );
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(doc, base, Some(g));
     let doc = set_gauge(doc, top, Some(g));
     let (doc, _) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
@@ -573,8 +573,8 @@ fn the_mate_door_clears_a_checked_offset_in_the_moving_group_too() {
     let p = parts("r1-door-order");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-door-order"), Tol::witness());
-    let (doc, pp) = insert(doc, Node::instantiate_part(p.top.clone()));
-    let (doc, q) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, pp) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, q) = insert(doc, Node::instantiate_part(p.top));
     let (doc, _) = insert(
         doc,
         seat_on(
@@ -586,7 +586,7 @@ fn the_mate_door_clears_a_checked_offset_in_the_moving_group_too() {
     let doc = fixture::offsets_where_solved(doc, &o);
     assert!(offset_of(&doc, q).is_some());
     assert_eq!(solve(&doc, &o, Tol::witness()).fault(q), None);
-    let (doc, r) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, r) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(
         doc,
         r,
@@ -659,8 +659,8 @@ fn a_declaring_mate_across_gauges_certifies_only_at_contact() {
             doc,
             Node::gauge(None, Placement::literal(&Frame::translation([0.0, 0.0, d]))),
         );
-        let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
-        let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+        let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+        let (doc, top) = insert(doc, Node::instantiate_part(p.top));
         let doc = set_gauge(doc, top, Some(g));
         let doc = set_offset(doc, top, Some(Placement::literal(&to_frame(&rel))));
         let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
@@ -687,8 +687,8 @@ fn a_measure_reused_across_an_offset_clear_refuses_across_spaces() {
     let p = parts("r1-measure");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-measure"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_offset(
         doc,
         top,
@@ -759,7 +759,7 @@ fn every_saved_document_in_the_tree_loads_or_refuses_typed() {
 fn an_instance_missing_its_gauge_or_offset_key_refuses_typed() {
     let p = parts("r1-wire");
     let doc = ProfileDoc::empty(DocumentId::derive("r1-wire"), Tol::witness());
-    let (doc, inst) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, inst) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(doc, inst, None);
     let text = editor_core::save(&doc, &[], Tol::witness()).unwrap();
     let loaded = editor_core::load(&text, Tol::witness()).expect("the keys at null load");
@@ -824,7 +824,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
             Placement::literal(&Frame::translation([0.0, 10.0, 0.0])),
         ),
     );
-    let (world_doc, x) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (world_doc, x) = insert(doc, Node::instantiate_part(p.base));
     let gauged = set_gauge(world_doc.clone(), x, Some(g));
     let plain_cut = |doc: ProfileDoc| {
         let before: std::collections::BTreeSet<RecipeNodeId> =
@@ -908,7 +908,7 @@ fn a_cut_of_a_gauged_instance_and_its_transform_lands_on_two_anchors() {
             Placement::literal(&Frame::translation([0.0, 10.0, 0.0])),
         ),
     );
-    let (doc, x) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, x) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, x, Some(g));
     let (doc, t) = insert(doc, xform(x, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5));
     let o = p.opts();
@@ -943,7 +943,7 @@ fn a_cut_group_unplaced_for_lack_of_a_root_casts_no_vote() {
             Placement::literal(&Frame::translation([0.0, 10.0, 0.0])),
         ),
     );
-    let (doc, x) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, x) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, x, Some(g));
     let doc = set_offset(doc, x, None);
     let before: std::collections::BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
@@ -995,7 +995,7 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
     let p = parts("r1-alone");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-alone"), Tol::witness());
-    let (doc, x) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, x) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(doc, x, None);
     let ev = run(&doc, &o);
     match editor_core::product(&doc, &ev, Tol::witness()) {
@@ -1021,8 +1021,8 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
     }
     // Two tops seated at one spot on the unplaced base: they overlap
     // inside the one group's own space.
-    let (doc, a) = insert(doc, Node::instantiate_part(p.top.clone()));
-    let (doc, b) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, a) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, b) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_offset(set_offset(doc, a, None), b, None);
     let (doc, _) = insert(doc, seat(head(p.top_cap(a)), head(p.base_cap(x))));
     let (doc, _) = insert(doc, seat(head(p.top_cap(b)), head(p.base_cap(x))));
@@ -1041,7 +1041,7 @@ fn a_document_of_unplaced_material_alone_names_its_groups_and_still_checks_them(
     // With placed material far off in the world, the world gathers and
     // certifies, and the gate over that product still checks the own
     // space: the product carries it (`Product::spaces`).
-    let (doc, far) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, far) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(
         doc,
         far,
@@ -1076,14 +1076,14 @@ fn the_group_hoist_keeps_a_parametric_root_offset_in_the_host() {
             },
         ),
     );
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let offset = Placement::from(Step::Rigid {
         translation: [Expr::param(lift(), Dimension::Length), len(0.0), len(0.0)],
         axis: [0.0, 0.0, 1.0].map(scl),
         angle: ang(0.0),
     });
     let doc = set_offset(doc, base, Some(offset.clone()));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let cut: std::collections::BTreeSet<RecipeNodeId> = [base, top, mate].into_iter().collect();
     let out = editor_core::split(
@@ -1127,8 +1127,8 @@ fn the_memo_moves_instances_when_their_gauge_or_their_root_moves() {
             },
         ),
     );
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(doc, base, Some(g));
     let doc = set_gauge(doc, top, Some(g));
     let (doc, _) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
@@ -1194,7 +1194,7 @@ fn inline_on_a_gauge_over_plain_geometry_refuses_rather_than_move_it() {
             Placement::literal(&Frame::translation([0.0, 10.0, 0.0])),
         ),
     );
-    let (doc, h) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, h) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, h, Some(g));
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(p.store.clone());
     match editor_core::inline(&doc, h, &resolver, Tol::witness()) {
@@ -1216,13 +1216,13 @@ fn the_mate_placed_recourse_followed_inlines_in_place() {
     let p = parts("r1-mateplaced");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-mateplaced"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(
         doc,
         base,
         Some(Placement::literal(&to_frame(&inv(&seat_rel(&p))))),
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(p.store.clone());
     match editor_core::inline(&doc, top, &resolver, Tol::witness()) {
@@ -1265,13 +1265,13 @@ fn the_flush_detector_refuses_an_unplaced_group_against_the_world() {
     let p = parts("r1-flush");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-flush"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_offset(
         doc,
         base,
         Some(Placement::literal(&Frame::translation([0.0, 0.0, -1.0]))),
     );
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let unplaced = set_offset(doc.clone(), top, None);
     let ev = run(&unplaced, &o);
     assert!(ev.unplaced.contains_key(&top) && !ev.unplaced.contains_key(&base));
@@ -1305,16 +1305,16 @@ fn the_compound_door_refuses_a_regauge_that_would_start_a_declaring_mate_placing
             Placement::literal(&Frame::translation([0.0, 0.0, 0.0])),
         ),
     );
-    let (doc, c) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, c) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, c, Some(g));
     let doc = set_offset(
         doc,
         c,
         Some(Placement::literal(&Frame::translation([20.0, 0.0, 0.0]))),
     );
-    let (doc, b) = insert(doc, Node::instantiate_part(p.base.clone()));
+    let (doc, b) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, b, Some(g));
-    let (doc, a1) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, a1) = insert(doc, Node::instantiate_part(p.top));
     let (doc, m1) = insert(doc, seat(head(p.top_cap(a1)), head(p.base_cap(c))));
     match editor_core::regauge_then_mate(&doc, seat(head(p.top_cap(a1)), head(p.base_cap(b)))) {
         Err(e @ editor_core::EditError::WouldStartPlacing { .. }) => {
@@ -1347,8 +1347,8 @@ fn the_needs_a_gauge_recourse_followed_moves_nothing_and_inlines() {
     let p = parts("r1-needs-gauge");
     let o = p.opts();
     let sub = ProfileDoc::empty(DocumentId::derive("r1-needs-gauge-sub"), Tol::witness());
-    let (sub, s1) = insert(sub, Node::instantiate_part(p.base.clone()));
-    let (sub, s2) = insert(sub, Node::instantiate_part(p.base.clone()));
+    let (sub, s1) = insert(sub, Node::instantiate_part(p.base));
+    let (sub, s2) = insert(sub, Node::instantiate_part(p.base));
     let _ = s1;
     let sub = set_offset(
         sub,
@@ -1400,8 +1400,8 @@ fn a_pick_across_spaces_refuses_and_each_space_picks_by_itself() {
     let p = parts("r1-pick");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-pick"), Tol::witness());
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base.clone()));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_offset(doc, top, None);
     let ev = run(&doc, &o);
     let mesh = |id| mesh::tessellate(&body_of(&ev, id), 0.1, Tol::witness()).expect("tessellates");
@@ -1456,9 +1456,9 @@ fn two_instances_on_one_gauge_are_one_component_with_no_mate() {
             Placement::literal(&Frame::translation([0.0, 0.0, 1.0])),
         ),
     );
-    let (doc, a) = insert(doc, Node::instantiate_part(p.base.clone()));
-    let (doc, b) = insert(doc, Node::instantiate_part(p.top.clone()));
-    let (doc, c) = insert(doc, Node::instantiate_part(p.top.clone()));
+    let (doc, a) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, b) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, c) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(
         set_gauge(set_gauge(doc, a, Some(g)), b, Some(g)),
         c,

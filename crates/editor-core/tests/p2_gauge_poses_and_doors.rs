@@ -1006,7 +1006,7 @@ fn a_declaring_mate_across_gauges_never_certifies_a_real_gap_or_overlap() {
         );
         let verdict = match editor_core::assemble(&doc, &run(&doc, &o), Tol::witness()) {
             Ok(a) => format!("certified, minted {}", a.minted.len()),
-            Err(e) => format!("{}", e.to_string().chars().take(140).collect::<String>()),
+            Err(e) => e.to_string(),
         };
         report.push((delta, verdict));
     }

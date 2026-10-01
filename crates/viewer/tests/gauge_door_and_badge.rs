@@ -86,8 +86,8 @@ fn the_at_rest_badge_checks_an_unplaced_groups_own_space() {
     let bench = asm::bench("r2badge", tol);
     let text = std::fs::read_to_string(&bench.asm_path).unwrap();
     let mut doc = load(&text, tol).unwrap().doc;
-    let mut step = |doc: &mut pncad::document::Doc<pncad::document::ProfileProgram>,
-                    edit: DocEdit<pncad::document::ProfileProgram>| {
+    let step = |doc: &mut pncad::document::Doc<pncad::document::ProfileProgram>,
+                edit: DocEdit<pncad::document::ProfileProgram>| {
         let applied = apply(doc, &edit, tol, &RefusingReach).unwrap();
         *doc = applied.doc;
         applied.record.minted

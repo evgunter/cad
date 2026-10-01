@@ -4551,6 +4551,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "at_rest",
             "carried_mint_refusal",
+            "own_space",
             "uncertified",
             "unminted_mates",
         ],
@@ -4847,6 +4848,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "update_on_non_instance",
             "witness_on_non_sketch",
             "would_cycle",
+            "would_start_placing",
         ],
         delegates: &["root_fault_tag"],
     },
@@ -4912,6 +4914,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "step_refused",
             "unknown_node",
             "unplaced",
+            "unplaced_below",
         ],
         delegates: &["product_error_tag"],
     },
@@ -4993,7 +4996,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "hit_test_error_tag",
-        values: &["ambiguous", "evaluation_of_another_document", "unnamed"],
+        values: &[
+            "across_spaces",
+            "ambiguous",
+            "evaluation_of_another_document",
+            "unnamed",
+        ],
         delegates: &["node_standing_tag"],
     },
     TagEntry {
@@ -5312,7 +5320,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "offset_check_tag",
-        values: &["indeterminate", "placement_refused", "unleverable"],
+        values: &[
+            "indeterminate",
+            "placement_refused",
+            "unleverable",
+            "unreached",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5437,6 +5450,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "root_invalid",
             "root_poisoned",
             "unknown_node",
+            "unplaced",
         ],
         delegates: &[],
     },
@@ -5616,6 +5630,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "select_refusal_tag",
         values: &[
+            "across_spaces",
             "bad_value",
             "datum_has_no_value",
             "in_band",
@@ -5780,6 +5795,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
+            "placing_mate_left",
             "remainder_edit",
             "severed_edge",
             "split_pin",
@@ -6107,6 +6123,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
+    // One fact (A9, A11 (2)): two nodes in different spaces, which the
+    // pick and the flush detector each refuse to order or compare.
+    ("across_spaces", 2),
     ("ambiguous", 4),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
@@ -6214,15 +6233,19 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unminted", 2),
     ("unnamed", 2),
     // One fact (A11 (2)): a group nothing places — the node that read
-    // across its space, the inline that has no frame to splice at, and
-    // the STEP export that writes one world.
-    ("unplaced", 3),
+    // across its space, the inline that has no frame to splice at, the
+    // STEP export that writes one world, and the world gather a
+    // document of unplaced material alone leaves empty.
+    ("unplaced", 4),
     ("unreadable", 2),
     ("validate", 2),
     ("vertex", 2),
     ("vertex_on_edge", 2),
     ("vertex_on_face", 2),
     ("vertex_vertex", 3),
+    // One fact (A4, A11 (2)): a declaring mate a re-gauge would turn
+    // placing — split's anchor and the compound door's copied gauge.
+    ("would_start_placing", 2),
     ("wrong_kind", 2),
 ];
 

@@ -68,7 +68,9 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     });
     let applied = editor_core::apply(
         &r.doc,
-        &DocEdit::InsertNode { node: profile },
+        &DocEdit::InsertNode {
+            node: Box::new(profile),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )

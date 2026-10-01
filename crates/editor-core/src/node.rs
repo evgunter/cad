@@ -2505,7 +2505,7 @@ pub enum Node<P> {
         /// the group it unplaces can name its cause. Required on the
         /// wire, `null` for the world, so a file written before gauges
         /// refuses typed rather than loading as unplaced.
-        #[serde(deserialize_with = "Option::deserialize")]
+        #[serde(deserialize_with = "crate::persist::wire::present")]
         gauge: Option<RecipeNodeId>,
         /// The instance's offset in its gauge, `None` when it carries
         /// none. On its group's root it places the group; on any other
@@ -2513,7 +2513,7 @@ pub enum Node<P> {
         /// ([`crate::mate::MateFault::OffsetDisagrees`]). Its rigid
         /// steps are slots ([`SlotId::rigid`]). Required on the wire,
         /// `null` for none, as `gauge` is.
-        #[serde(deserialize_with = "Option::deserialize")]
+        #[serde(deserialize_with = "crate::persist::wire::present")]
         offset: Option<crate::placement::Placement>,
     },
     /// **A gauge** (A11 (2)): a frame that instances and other gauges
