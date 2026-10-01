@@ -305,3 +305,17 @@ called off-chart). Filed by the lane on other slates: chart's
 `uncovered-chart-classes-have-no-incidence-test`.
 
 Signed (PCERT orchestrator).
+
+## 2026-10-01 — Ev's second ruling on PR 3617
+
+Ev, on PR 3617: *"i don't see the benefit to them not being mandatory
+after everything wires them up? how would an object that's missing them
+come to exist?"* The orchestrator agreed: once every class is wired,
+only a producer's omission (`extrude`) or an un-minted assembly of
+Euler operations leaves a body rowless, and a tier-3 finding is the
+right answer to both; the cache answer's one payoff (simpler Euler
+doors) is had under "doors may drop, producers mint". C4 on PR 3617
+now states mandatory rows; that PR merges on Ev's confirmation of the
+text. Neither designer's first recommendation (both leaned cache).
+
+Signed (PCERT orchestrator).
