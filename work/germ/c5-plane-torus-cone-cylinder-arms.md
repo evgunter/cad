@@ -56,6 +56,13 @@ the seam re-author (an orchestrator question raised by PR-1a) and the
 props quadrature lane for a spiric-bounded face (the spiric unit's
 PR-2, after PR-1b's pcurve variant and STEP spline).
 
+**2026-09-30 (`curved/equator-seam`).** The equator seams re-author
+onto the corners the moved caps turned about the axis; the elbow now
+has its spiric rims' windows read forward. The sealed elbow reaches
+check 7's props door, `VolumeUncomputable` at a spiric-bounded cap
+(`Unimplemented`). The opened elbow stops at the rim stage's lift
+(`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).
+
 ## A second consumer: lily wall 1 (GERM, 2026-09-28)
 
 With the circle × torus root lane landed, the lily's stem glue
@@ -67,3 +74,15 @@ wall 1) is past the crossing layer and refuses
 cap against the arch's tube wall. The weld plane contains the arch
 torus's axis, so this is the easy meridian-plane configuration above,
 at the join's frame dispatch rather than at `route`.
+
+## Moved to GERM at CURVED's close (2026-10-01)
+
+Both section arms and the spiric carrier are delivered; the elbow's
+seams re-author on the moved corners and its rim window reads forward
+(PR 3626), so the sealed klein elbow hollows to check 7's props door.
+What this row still carries: (1) the lily's stem glue at
+`pair_section_frame`'s plane×torus germ frame, GERM's live consumer
+above; (2) the Klein demo's wall-pair re-authoring (rows 3/4/8), which
+waits on the props lane for a spiric-bounded face
+(`work/props/spiric-bounded-face-area-is-unimplemented.md`) and on
+SHELL's opened-arm lift (`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`).

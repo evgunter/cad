@@ -54,8 +54,8 @@ const LABELS: &[(&str, &str)] = &[
     ("at rest, product", "at rest"),
     ("product", "product"),
     ("at rest, product", "product"),
-    ("product", "root 5 output 0"),
-    ("at rest, product", "root 5 output 0"),
+    ("product", "root 000000000005 output 0"),
+    ("at rest, product", "root 000000000005 output 0"),
     ("refuted, carried", "refuted"),
     ("declined, carried", "declined"),
     // A sentence whose clause carries no word the shape check reads as

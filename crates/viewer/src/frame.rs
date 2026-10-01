@@ -229,9 +229,10 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
-    PartFault, ProductError, ProductErrorKind, RecipeNodeId, ResolveFault, SlotId,
+    ChecksReport, Doc, Evaluation, Maintenance, NodeErrorKind, NodeStanding, ParamName, ParseError,
+    PartFault, ProductError, ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, SlotId,
 };
+use pncad::quantity::LengthUnit;
 use pncad::select::HitTestError;
 
 use crate::blend::BlendEvent;
@@ -2207,21 +2208,25 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
 /// say (`wording` absent, which is a fit that did not move δ). The
 /// second was a second condition at the call site.
 ///
-/// **The δ is rendered, not formatted**
-/// ([`crate::scene::DisplayTolerance::render_mm`]). The badge's whole
+/// **The δ is rendered, not formatted**, in `unit` — the working
+/// notation's length unit
+/// ([`crate::scene::DisplayTolerance::render_in`]). The badge's whole
 /// sentence is which δ the picture is at, and the δ it announces is the
 /// budget's own choice — `constant / TRIANGLE_BUDGET`, a quotient with
-/// no short spelling — so a fixed `{:.3}` read `δ 0.000 mm chosen` for
-/// every body whose cost constant is under a triangle·millimetre. A
+/// no short spelling — so a fixed precision would read it as zero. A
 /// label wide enough for the render is the price, and a badge is a
 /// label rather than a fixed-width field.
-pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
+pub fn delta_badge(fitted: Option<&FittedDelta>, unit: LengthUnit) -> Option<Badge> {
     let fitted = fitted?;
-    let wording = fitted.wording()?;
+    let wording = fitted.wording(unit)?;
     Some(
         Badge::read(
             Subject::Display,
-            format!("δ {} mm chosen", fitted.delta.render_mm()),
+            format!(
+                "δ {} {} chosen",
+                fitted.delta.render_in(unit),
+                unit.symbol()
+            ),
             Tone::Advisory,
         )
         .detailed(wording),
@@ -2399,8 +2404,8 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// DERIVED: the failure it follows from is already on screen, as the
 /// one [`Tone::Actionable`] row the tree draws for it. So it takes the
 /// tree's own reading of a downstream row — [`Tone::Advisory`], naming
-/// the row that carries the cause ([`crate::tree::cause_row`], spelled
-/// [`crate::tree::node_number`]) — and the index's own words move to
+/// the row that carries the cause ([`crate::tree::cause_row`], as the
+/// document speaks it) — and the index's own words move to
 /// the tooltip, unaltered.
 ///
 /// **It is placed under the cause, not dropped**, because it carries
@@ -2433,6 +2438,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// where the louder news it defers to is actually drawn.
 pub fn index_badge(
     error: Option<&PickIndexError>,
+    doc: &Doc<ProfileProgram>,
     evaluation: Option<&Evaluation<f64>>,
 ) -> Option<Badge> {
     let error = error?;
@@ -2449,7 +2455,7 @@ pub fn index_badge(
             format!(
                 "pick index: waits on {}, which failed — until the index builds, no pick is \
                  answered and the picture is not redrawn",
-                crate::tree::node_number(cause)
+                doc.spoken(cause)
             ),
             Tone::Advisory,
         )
@@ -3338,7 +3344,7 @@ mod tests {
         // line instead of to the notices is erased by its own cause.
         let notice = superseded_text(&[constrained(7, &[9])]).expect("a supersession is news");
         assert!(
-            notice.contains("instance 7"),
+            notice.contains("instance 000000000007"),
             "the notice names which of the user's placements went — here in \
              the part-instance vocabulary, because the MateConstrained arm's \
              subject is an instance. That is `AdmissionFault`'s per-arm rule \
@@ -3403,7 +3409,7 @@ mod tests {
         .expect("news");
         assert_eq!(
             gone,
-            "free move: a committed placement was discarded — node 4 is not in the document"
+            "free move: a committed placement was discarded — node 000000000004 is not in the document"
         );
     }
 
@@ -3505,7 +3511,7 @@ mod tests {
         assert_eq!(
             dropped_hide_text(core::slice::from_ref(&gone)).expect("news"),
             "hide: a hide was dropped with the instance it was on — \
-             node 4 is not in the document"
+             node 000000000004 is not in the document"
         );
     }
 
@@ -3519,7 +3525,7 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             instance 3 is mate-constrained (mate node(s) 5): its pose is \
+             instance 000000000003 is mate-constrained (mate node(s) 000000000005): its pose is \
              mate-derived, so the free-move probe refuses — delete the mate(s) if \
              free relative motion is intended"
         );

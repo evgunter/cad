@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-29
 priority: P2
 cost: M
+design: true
 ---
 
 Filed by the EDIT orchestrator from the design-fork review of the

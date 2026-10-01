@@ -54,7 +54,12 @@ the boundary case:
    spline outer edge, the query inside the ball holding the loop).
    `ring_nesting` now shares its walk with `solid_contain::point_in_face`;
    `contfp` still dispatches on `loop_shape` and `rehome_rings` on
-   nothing.
+   nothing. **2026-10-01 (CLEAVE,
+   `rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`):
+   `rehome_rings` reads the run through `point_in_carrier_loop` too**,
+   so the two now share the instrument and differ on the sample set
+   (one representative against every vertex) and on the boundary
+   posture, which is this row's question.
 
 Two of the three agree on the instrument and disagree on the sample set
 and on the boundary; the first agrees with neither and is not a

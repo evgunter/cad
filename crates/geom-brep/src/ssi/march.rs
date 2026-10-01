@@ -104,9 +104,10 @@
 //!   in band.
 
 use geom_core::linalg::svd::Svd;
-use geom_core::{Band, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Margin, Point3, Real, Sign, Vec3};
 
-use crate::dihedral::{decide, decide_positive};
+use crate::dihedral::{decide, decide_positive, decide_reported};
+use crate::recourse::Refused;
 
 use super::SsiError;
 use super::system::LocalSystem;
@@ -317,7 +318,10 @@ pub(crate) trait TransversalityData<const N: usize> {
     /// Unit normals of the two operands at the state.
     fn normals(&self, x: &[f64; N]) -> NormalPair;
     /// The folded curvature lever arm at the state, in meters
-    /// (`f64::MAX` where no curvature bounds it — the plane identity).
+    /// (`f64::MAX` where no curvature bounds it — the plane identity;
+    /// the march clamps it to the run's extent). A poisoned operand
+    /// makes the arm poison, so the arm guard escalates rather than
+    /// levering against the sibling's.
     fn lever_arm(&self, x: &[f64; N]) -> f64;
 }
 
@@ -364,32 +368,26 @@ where
         // ---- 2. ssi_transversality (the σ₂ sliver band ⇒ C7) ----
         let (n1, n2) = sys.normals(&x);
         let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
-        let arm = sys.lever_arm(&x).min(ctx.extent);
+        let arm = Real::min(sys.lever_arm(&x), ctx.extent);
         decide_positive("ssi_transversality_arm", Margin::of(arm), band)
             .map_err(SsiError::Escalated)?;
         let transversality = Margin::levered(sin_theta, arm);
         if transversality.value() < min_transversality {
             min_transversality = transversality.value();
         }
-        match decide("ssi_transversality", transversality, band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => {
-                // The sliver band: a tangential (or in-band tangential)
-                // contact along the candidate locus. C7's regime.
-                return Err(SsiError::TransversalityBand {
-                    sin_theta,
-                    arm,
-                    sigma_min: sigma,
-                });
-            }
-            Ok(Sign::Negative) => {
-                // sin θ · arm is a magnitude; a definite negative can
-                // only be poison arithmetic. Refuse rather than march.
-                return Err(SsiError::TransversalityBand {
-                    sin_theta,
-                    arm,
-                    sigma_min: sigma,
-                });
+        // Zero is the sliver band: a tangential (or in-band tangential)
+        // contact along the candidate locus, C7's regime. `sin θ · arm`
+        // is a magnitude, so a definite negative cannot arise.
+        match decide_reported("ssi_transversality", transversality, band) {
+            Ok(decided) => {
+                if let Some(verdict) = Refused::of(decided, band) {
+                    return Err(SsiError::TransversalityBand {
+                        sin_theta,
+                        arm,
+                        sigma_min: sigma,
+                        verdict,
+                    });
+                }
             }
             Err(diag) => return Err(SsiError::Escalated(diag)),
         }
@@ -444,18 +442,25 @@ where
                 let b3 = sys.rhs3(&x, &d1, &d2);
                 let mut d3 = svd.solve_min_norm(&b3);
                 // Frenet: γ₃ = −κ².
+                let kappa_sq = kappa * kappa;
                 for (i, v) in d3.iter_mut().enumerate() {
-                    *v -= kappa * kappa * d1[i];
+                    *v -= kappa_sq * d1[i];
                 }
                 let n3 = norm(&d3);
                 // (a) Hoffmann's relative heuristic: |h²κ/2| ≤ ρ·h and
                 //     |h³‖d₃‖/6| ≤ ρ·h.
-                let h_quad = if kappa > 0.0 {
+                // κ and ‖d₃‖ are the system's own answers, so each
+                // bound is unbounded only at an exact zero and a
+                // poisoned one carries through `h` to the step guard.
+                // An overflowed κ² is not poison but makes ‖d₃‖ NaN
+                // through ∞·0 in the correction above; `h_quad` already
+                // binds there, so the cubic rung stands aside.
+                let h_quad = if kappa != 0.0 {
                     2.0 * SSI_STEP_RELATIVE / kappa
                 } else {
                     f64::INFINITY
                 };
-                let h_cub = if n3 > 0.0 {
+                let h_cub = if n3 != 0.0 && kappa_sq != f64::INFINITY {
                     (6.0 * SSI_STEP_RELATIVE / n3).sqrt()
                 } else {
                     f64::INFINITY
@@ -463,6 +468,10 @@ where
                 // (b) the fit's between-sample budget (module docs).
                 // κ and ‖d₃‖ are in state units; the curvature that
                 // governs the 3-D fit is κ/speed², so convert once.
+                // `> 0.0`, not `!= 0.0`: the quotient is NaN at an
+                // underflowing speed (0/0) or an overflowing one (∞/∞),
+                // which is the speed's fault, not a poisoned κ — and a
+                // poisoned κ already reaches `h` through `h_quad`.
                 let kappa3d = kappa / (speed * speed);
                 let h_fit = if kappa3d > 0.0 {
                     // ¼ power as TWO square roots, not `powf(0.25)`:
@@ -480,7 +489,7 @@ where
                     f64::INFINITY
                 };
                 let h_max = (SSI_STEP_MAX * ctx.extent) / speed;
-                let h = h_quad.min(h_cub).min(h_fit).min(h_max);
+                let h = [h_cub, h_fit, h_max].into_iter().fold(h_quad, Real::min);
                 let mut step = [0.0f64; N];
                 for (i, s) in step.iter_mut().enumerate() {
                     *s = h * d1[i] + 0.5 * h * h * d2[i] + (h * h * h / 6.0) * d3[i];
@@ -726,7 +735,7 @@ where
     for (i, s) in scales.iter().enumerate() {
         let lo = (x[i] - ctx.domain[i][0]) * s;
         let hi = (ctx.domain[i][1] - x[i]) * s;
-        worst = worst.min(lo).min(hi);
+        worst = [lo, hi].into_iter().fold(worst, Real::min);
     }
     worst
 }
@@ -872,14 +881,35 @@ mod tests {
     use geom_core::{Band, Point3, Vec3};
 
     /// A two-plane system in ℝ³ whose locus is the `x` axis, with the
-    /// chart speed dictated by the row. The residual is exact at the
-    /// seed, the Jacobian is constant, and the two normals meet at a
-    /// right angle with an unbounded lever arm — so the only thing a
-    /// march over this system can refuse on is the speed, and the
-    /// refusal it produces is the speed guard's own.
+    /// chart speed, the order-2 and order-3 right-hand sides, the `x`
+    /// coordinate scale and the lever arm dictated by the row. The
+    /// residual is exact at the seed, the Jacobian is constant, and the
+    /// two normals meet at a right angle — so the only thing a march
+    /// over this system can refuse on is the one value the row spoils,
+    /// and the refusal it produces names that value's guard.
     struct FixedSpeedR3 {
         /// Meters per unit of the march parameter.
         speed: f64,
+        /// Both components of the order-2 right-hand side.
+        rhs2: f64,
+        /// Both components of the order-3 right-hand side.
+        rhs3: f64,
+        /// Meters per unit of the `x` coordinate.
+        x_scale: f64,
+        /// The lever arm the system reports, before the march's clamp.
+        arm: f64,
+    }
+
+    impl FixedSpeedR3 {
+        fn at_speed(speed: f64) -> Self {
+            Self {
+                speed,
+                rhs2: 0.0,
+                rhs3: 0.0,
+                x_scale: 1.0,
+                arm: f64::MAX,
+            }
+        }
     }
 
     impl LocalSystem<2, 3> for FixedSpeedR3 {
@@ -892,11 +922,11 @@ mod tests {
         }
 
         fn rhs2(&self, _x: &[f64; 3], _d1: &[f64; 3]) -> [f64; 2] {
-            [0.0, 0.0]
+            [self.rhs2, self.rhs2]
         }
 
         fn rhs3(&self, _x: &[f64; 3], _d1: &[f64; 3], _d2: &[f64; 3]) -> [f64; 2] {
-            [0.0, 0.0]
+            [self.rhs3, self.rhs3]
         }
 
         fn point(&self, x: &[f64; 3]) -> Point3<f64> {
@@ -904,7 +934,7 @@ mod tests {
         }
 
         fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
-            [1.0, 1.0, 1.0]
+            [self.x_scale, 1.0, 1.0]
         }
 
         fn tangent_speed(&self, _x: &[f64; 3], _d: &[f64; 3]) -> f64 {
@@ -918,7 +948,7 @@ mod tests {
         }
 
         fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
-            f64::MAX
+            self.arm
         }
     }
 
@@ -934,7 +964,7 @@ mod tests {
     /// stepper cannot progress at this ε when the truth is that this
     /// system has no usable chart speed and no ε would have helped.
     /// The chart lane states the same duty one door over, in
-    /// `plane_nurbs_ssi`'s seeding guard.
+    /// `plane_nurbs_ssi`'s chart-speed mint.
     ///
     /// All five non-positive-finite values are pinned together because
     /// the guard's obligation is the class, not the one member of it a
@@ -949,7 +979,7 @@ mod tests {
             max_steps: 64,
         };
         for speed in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -1.0] {
-            let sys = FixedSpeedR3 { speed };
+            let sys = FixedSpeedR3::at_speed(speed);
             match march(
                 &sys,
                 [0.0, 0.0, 0.0],
@@ -973,6 +1003,110 @@ mod tests {
                 ),
                 other => panic!("expected the speed guard for {speed:e}, got {other:?}"),
             }
+        }
+    }
+
+    /// The context every row below marches in.
+    fn unit_ctx(band: Band) -> MarchContext<3> {
+        MarchContext::<3> {
+            domain: [[-1.0, 1.0]; 3],
+            extent: 1.0,
+            tol: MarchTol::from_band(band),
+            max_steps: 64,
+        }
+    }
+
+    /// **A poisoned value reaches the guard that decides it**, rather
+    /// than being folded away by a `min` that keeps the other operand.
+    /// Each row poisons one input of one guarded fold and pins the
+    /// escalation by that guard's name: the lever arm through the
+    /// extent clamp to `ssi_transversality_arm`; the order-3 right-hand
+    /// side (with a finite, zero κ) through the cubic rung of the step
+    /// fold to `ssi_step_progress`; the order-2 right-hand side (κ
+    /// itself) to the same guard, through both `h_quad` and the κ²
+    /// correction in `‖d₃‖`, so this row goes red only when both paths
+    /// drop it; and a coordinate scale through the domain-margin fold
+    /// to `ssi_branch_open_end`.
+    #[test]
+    fn a_poisoned_fold_operand_escalates_at_its_own_guard() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let rows = [
+            (
+                FixedSpeedR3 {
+                    arm: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Idealized,
+                "ssi_transversality_arm",
+            ),
+            (
+                FixedSpeedR3 {
+                    rhs3: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Realized,
+                "ssi_step_progress",
+            ),
+            (
+                FixedSpeedR3 {
+                    rhs2: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Realized,
+                "ssi_step_progress",
+            ),
+            (
+                FixedSpeedR3 {
+                    x_scale: f64::NAN,
+                    ..FixedSpeedR3::at_speed(1.0)
+                },
+                StepperMode::Idealized,
+                "ssi_branch_open_end",
+            ),
+        ];
+        for (sys, mode, guard) in rows {
+            match march(&sys, [0.0, 0.0, 0.0], unit_ctx(band), mode, 1.0, band) {
+                Err(SsiError::Escalated(diag)) => {
+                    assert_eq!(diag.predicate, Some(guard), "the poisoned operand's guard");
+                }
+                other => panic!("expected {guard} to escalate, got {other:?}"),
+            }
+        }
+    }
+
+    /// **A NaN the arithmetic manufactures from finite inputs is not a
+    /// poisoned answer**, and must not escalate the step guard. A flat
+    /// locus at an underflowing speed makes the fit rung's `κ/speed²`
+    /// a `0/0`; a curvature whose square overflows makes the Frenet
+    /// correction's `κ²·0` an `∞·0`. Neither is the system's fault at
+    /// the step, so neither may surface as `ssi_step_progress`.
+    #[test]
+    fn a_nan_manufactured_from_finite_inputs_is_not_a_step_escalation() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let mut rows: Vec<FixedSpeedR3> = [1.0e-170, 1.0e-200, 1.0e-300]
+            .into_iter()
+            .map(FixedSpeedR3::at_speed)
+            .collect();
+        rows.push(FixedSpeedR3 {
+            rhs2: 1.0e200,
+            ..FixedSpeedR3::at_speed(1.0)
+        });
+        for sys in rows {
+            let r = march(
+                &sys,
+                [0.0; 3],
+                unit_ctx(band),
+                StepperMode::Realized,
+                1.0,
+                band,
+            );
+            assert!(
+                !matches!(&r, Err(SsiError::Escalated(d))
+                    if d.predicate == Some("ssi_step_progress")),
+                "speed {:e}, rhs2 {:e}: {r:?}",
+                sys.speed,
+                sys.rhs2
+            );
         }
     }
 

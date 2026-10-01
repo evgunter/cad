@@ -49,8 +49,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram, Node,
-    ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepId,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, LoopProgram, Node, ParamEnv,
+    ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId, StepId,
     ValuePayload, resolve_loops, unparse,
 };
 use pncad::geom_core::{Point2, Tol};
@@ -59,9 +59,9 @@ use pncad::profile::{
     ProfileLoop, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms, Step,
     Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_recording,
 };
-use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
 use crate::frame::Tone;
+use crate::props::Notation;
 use crate::session::refuse::{NodeKindWanted, admits};
 
 /// One loop of the add-profile door: a template shape, or a PATH
@@ -223,63 +223,28 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
     }
 }
 
-/// **The notation a form is authoring in** — one length unit and one
-/// angle unit, carried into every literal a lowering mints.
+/// **`notation` over every argument `program` holds** — each `Length`
+/// argument written in its length unit, each `Angle` one in its angle
+/// unit, and every other argument (a bulge, a director component) left
+/// with the one spelling a dimensionless number has.
 ///
-/// It exists because the units are a fact about the PERSON at the
-/// keyboard rather than about any one field (`app`'s drafts say so):
-/// a form writes every literal it mints in one notation, so the
-/// notation is one value handed to the lowering rather than a unit per
-/// field.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Notation {
-    /// Every `Length` literal is written in this.
-    pub length: LengthUnit,
-    /// Every `Angle` literal is written in this.
-    pub angle: AngleUnit,
-}
-
-impl Notation {
-    /// The canonical spellings — metres and radians, said out loud.
-    /// The forms' own default is `app`'s, not this.
-    pub const CANONICAL: Self = Self {
-        length: quantity::M,
-        angle: quantity::RAD,
-    };
-
-    /// A `Length` literal from an already-canonical value, remembering
-    /// this notation — the form's shape (`WrittenLength::canonical_in`:
-    /// a draft field holds metres whatever the picker shows).
-    fn length(self, metres: f64) -> Result<Expr, DimensionError> {
-        Expr::written_length(WrittenLength::canonical_in(metres, self.length))
-    }
-
-    /// A literal point.
-    fn point(self, p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
-        Ok([self.length(p[0])?, self.length(p[1])?])
-    }
-
-    /// **This notation over every argument `program` holds** — each
-    /// `Length` argument written in [`Notation::length`], each `Angle`
-    /// one in [`Notation::angle`], and every other argument (a bulge, a
-    /// director component) left with the one spelling a dimensionless
-    /// number has.
-    ///
-    /// Asked of the PROGRAM, through its own argument enumeration,
-    /// rather than of the steps: which roles a step holds is the
-    /// document layer's table, and a second copy of it here is how a
-    /// verb's radius would come to be minted without its unit.
-    fn over(self, program: &LoopProgram) -> Result<RecordedNotation, DimensionError> {
-        let mut notation = RecordedNotation::new();
-        for (step, arg) in program.step_args() {
-            match arg.dimension() {
-                Dimension::Length => notation.set(step, arg, self.length.def())?,
-                Dimension::Angle => notation.set(step, arg, self.angle.def())?,
-                Dimension::Scalar | Dimension::Count => {}
-            }
+/// Asked of the PROGRAM, through its own argument enumeration, rather
+/// than of the steps: which roles a step holds is the document layer's
+/// table, and a second copy of it here is how a verb's radius would
+/// come to be minted without its unit.
+fn recorded_notation(
+    notation: Notation,
+    program: &LoopProgram,
+) -> Result<RecordedNotation, DimensionError> {
+    let mut recorded = RecordedNotation::new();
+    for (step, arg) in program.step_args() {
+        match arg.dimension() {
+            Dimension::Length => recorded.set(step, arg, notation.length.def())?,
+            Dimension::Angle => recorded.set(step, arg, notation.angle.def())?,
+            Dimension::Scalar | Dimension::Count => {}
         }
-        Ok(notation)
     }
+    Ok(recorded)
 }
 
 /// Lower one template shape to its loop program, minting every literal
@@ -334,7 +299,7 @@ pub fn loop_program(
             let corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)];
             let corners = corners
                 .into_iter()
-                .map(|(x, y)| notation.point([x, y]))
+                .map(|(x, y)| notation.point_literals([x, y]))
                 .collect::<Result<Vec<_>, DimensionError>>()?;
             Ok(LoopProgram::polygon_expr(corners))
         }
@@ -342,7 +307,7 @@ pub fn loop_program(
             // Lifted once to learn which arguments the program holds,
             // then again with the notation written over them: the lift
             // is the only thing that knows the roles.
-            let written = notation.over(&LoopProgram::from_recorded(steps)?)?;
+            let written = recorded_notation(notation, &LoopProgram::from_recorded(steps)?)?;
             LoopProgram::from_recorded_with_notation(steps, &written)
         }
     }
@@ -523,13 +488,13 @@ pub enum HeldRefusal {
 impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAProfile { node } => write!(f, "feature {} is not a profile", node.0),
+            Self::NotAProfile { node } => write!(f, "node {} is not a profile", node),
             Self::Driven { node, slots } => {
                 write!(
                     f,
-                    "feature {}'s program is driven by expressions, which the editor's \
+                    "node {}'s program is driven by expressions, which the editor's \
                      number fields cannot hold — edit those in the slot rows: ",
-                    node.0
+                    node
                 )?;
                 for (index, (slot, source)) in slots.iter().enumerate() {
                     if index > 0 {

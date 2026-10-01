@@ -473,12 +473,6 @@ fn chain_sample_at<T: Decide>(t0: T, t1: T, i: u32) -> T {
     geom_brep::schedule_param(t0, t1, i, CHAIN_SAMPLES)
 }
 
-/// The midpoint parameter of a link — the dihedral classifier's
-/// sample, spelled once.
-fn mid_param<T: Decide>(t0: T, t1: T) -> T {
-    (t0 + t1) / T::from_f64(2.0)
-}
-
 /// The lever arm of a link's edge — the curvature-free straight
 /// extent every angular predicate folds against: the **maximum
 /// pairwise chord** over the battery's own per-link schedule
@@ -912,7 +906,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
     let extent = extent_of(&carrier, t0, t1);
-    let mid = mid_param(t0, t1);
+    let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;

@@ -6,7 +6,9 @@
 use std::collections::BTreeMap;
 
 use eframe::egui;
-use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
+use pncad::document::{
+    AxisSense, BooleanOp, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, SpokenNode,
+};
 use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
@@ -23,7 +25,7 @@ use crate::generation::Generation;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
-use crate::props::render_number;
+use crate::props::{Notation, render_number};
 use crate::seats::{Seats, seat_line};
 use crate::session::{
     DeclareOffer, FaceFrameFault, FaceSelection, ProfilePlane, Refusal, Selection, SessionOp,
@@ -151,8 +153,13 @@ pub(crate) fn duplicate_note() -> String {
 /// has no roles to re-list and no line to compose; a free function over
 /// the `Ui` so a headless row can read what it paints
 /// (`crate::pane::headless`).
-pub(crate) fn seats_row(ui: &mut egui::Ui, seats: &Seats, theme: &Theme) {
-    crate::widgets::message_toned(ui, seat_line(seats), theme, Tone::Advisory);
+pub(crate) fn seats_row(
+    ui: &mut egui::Ui,
+    seats: &Seats,
+    doc: &Doc<ProfileProgram>,
+    theme: &Theme,
+) {
+    crate::widgets::message_toned(ui, seat_line(seats, doc), theme, Tone::Advisory);
 }
 
 /// **The offer to declare a refused contact, in the boolean tool** —
@@ -168,6 +175,7 @@ pub(crate) fn declare_offer_rows(
     ui: &mut egui::Ui,
     held: &mut Option<DeclareOffer>,
     (now, op, tool): (Generation, BooleanOp, BooleanTool),
+    doc: &Doc<ProfileProgram>,
     ops: &mut Vec<SessionOp>,
     theme: &Theme,
 ) {
@@ -182,7 +190,7 @@ pub(crate) fn declare_offer_rows(
     for finding in offer.findings() {
         crate::widgets::message_toned(
             ui,
-            Refusal::declare_pair_wording(finding),
+            Refusal::declare_pair_wording(doc, finding),
             theme,
             Tone::Advisory,
         );
@@ -202,8 +210,13 @@ pub(crate) fn declare_offer_rows(
 /// **The mate tool's held picks, drawn** — [`MateToolState::line`],
 /// the seated tools' line over the mate's two sides, in the same voice
 /// as [`seats_row`].
-pub(crate) fn mate_picks_row(ui: &mut egui::Ui, state: &MateToolState, theme: &Theme) {
-    crate::widgets::message_toned(ui, state.line(), theme, Tone::Advisory);
+pub(crate) fn mate_picks_row(
+    ui: &mut egui::Ui,
+    state: &MateToolState,
+    doc: &Doc<ProfileProgram>,
+    theme: &Theme,
+) {
+    crate::widgets::message_toned(ui, state.line(doc), theme, Tone::Advisory);
 }
 
 /// **The smallest pattern count the form offers.**
@@ -630,7 +643,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
-        mate_picks_row(ui, tool.state(), &self.theme);
+        mate_picks_row(ui, tool.state(), self.session.doc(), &self.theme);
         // The class choice, offered THROUGH the kernel's admission
         // table: each class is shown with its verdict, and the
         // deferral (Fit and every future class) is a sentence here
@@ -688,13 +701,7 @@ impl ViewerBehavior<'_> {
                             },
                             clocking: None,
                         };
-                        match tool.proposal(
-                            doc,
-                            eval,
-                            &self.session.eval_options(),
-                            self.session.tol(),
-                            choice,
-                        ) {
+                        match tool.proposal(doc, eval, choice) {
                             Ok(proposal) => {
                                 // Exactly one committed DocEdit; the
                                 // tool closes with it.
@@ -853,11 +860,11 @@ impl ViewerBehavior<'_> {
                     &mut self.drafts.datum_frame,
                     names,
                 );
-                let unit = self.drafts.length_unit.def();
+                let unit = self.notation.length.def();
                 ui.horizontal(|ui| {
                     ui.label("origin");
                     point_fields(ui, unit, &mut self.drafts.datum_in_frame_origin);
-                    length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
+                    length_picker(ui, "datum_origin", &mut self.notation.length);
                 });
                 ui.horizontal(|ui| {
                     ui.label("direction");
@@ -904,9 +911,10 @@ impl ViewerBehavior<'_> {
         // KIND — the two picking kinds want different things from
         // different places, so one sentence for the form would be
         // false of whichever is not showing.
-        let datum = self
-            .drafts
-            .datum_spec(seat.as_ref().and_then(|seat| seat.as_ref().ok()));
+        let datum = self.drafts.datum_spec(
+            seat.as_ref().and_then(|seat| seat.as_ref().ok()),
+            *self.notation,
+        );
         let unpicked = matches!(datum, Ok(None));
         if unpicked && let Some(wanted) = kind.unmet_seat() {
             crate::widgets::message_toned(ui, wanted, &self.theme, Tone::Advisory);
@@ -970,11 +978,11 @@ impl ViewerBehavior<'_> {
             ui.label("spin");
             unit_field(
                 ui,
-                self.drafts.angle_unit.def(),
+                self.notation.angle.def(),
                 ANGLE_DRAG_SPEED,
                 &mut self.drafts.datum_spin,
             );
-            angle_picker(ui, "datum_spin", &mut self.drafts.angle_unit);
+            angle_picker(ui, "datum_spin", &mut self.notation.angle);
         });
         // What the number MEANS, said where it is typed: the origin
         // and the normal are the face's, so this rotation is the whole
@@ -992,11 +1000,11 @@ impl ViewerBehavior<'_> {
             unit_vec3_row(
                 ui,
                 label,
-                self.drafts.length_unit.def(),
+                self.notation.length.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.datum_origin,
             );
-            length_picker(ui, "datum_origin", &mut self.drafts.length_unit);
+            length_picker(ui, "datum_origin", &mut self.notation.length);
         });
     }
 
@@ -1011,28 +1019,23 @@ impl ViewerBehavior<'_> {
     }
 
     /// **How a picker names one frame node**: [`tree::node_label`],
-    /// against the same landed document [`Self::frames`] listed.
+    /// against the same landed document [`Self::frames`] listed — the
+    /// same words that node's tree row reads.
     ///
-    /// One reading for the list and for the closed text. A combo
-    /// entry and that node's tree row do not read alike — the row
-    /// leads with the node's KIND and this leads with its number —
-    /// but the half that says WHICH frame is the same string from the
-    /// same function ([`tree::frame_pose`]), so the two agree about
-    /// the thing they are both trying to tell apart.
-    ///
-    /// Total, and that is what it is for: a held pick outlives the
-    /// frame it names, and an id the landed document does not hold is
-    /// named by its number alone — the text every refusal in this
-    /// crate calls a node by, and the text this combo drew for every
-    /// frame before it drew their poses.
+    /// One reading for the list and for the closed text. Total, and
+    /// that is what it is for: a held pick outlives the frame it names,
+    /// and an id the landed document does not hold is named by its tag
+    /// alone (`node 000000000003`), as the document speaks a node it
+    /// does not hold.
     fn frame_names(&self) -> impl Fn(&RecipeNodeId) -> String + use<> {
         let named: BTreeMap<RecipeNodeId, String> = self
             .session
             .landed_pair()
             .map(|(doc, _)| {
+                let files = self.session.part_files();
                 sketch::frames(doc)
                     .into_iter()
-                    .filter_map(|id| doc.node(id).map(|node| (id, tree::node_label(node, id))))
+                    .map(|id| (id, tree::node_label(doc, id, files)))
                     .collect()
             })
             .unwrap_or_default();
@@ -1040,7 +1043,7 @@ impl ViewerBehavior<'_> {
             named
                 .get(id)
                 .cloned()
-                .unwrap_or_else(|| tree::node_number(*id))
+                .unwrap_or_else(|| SpokenNode::absent(*id).to_string())
         }
     }
 
@@ -1105,7 +1108,7 @@ impl ViewerBehavior<'_> {
             // a shape nobody picked, and no preview in the viewport.
             None => withholds.push(Withheld::Waiting("choose a shape to add")),
             Some(ShapeKind::Circle) => {
-                let unit = self.drafts.length_unit.def();
+                let unit = self.notation.length.def();
                 ui.horizontal(|ui| {
                     ui.label("centre");
                     unit_field(
@@ -1122,7 +1125,7 @@ impl ViewerBehavior<'_> {
                     );
                     ui.label("radius");
                     unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_radius);
-                    length_picker(ui, "profile_circle", &mut self.drafts.length_unit);
+                    length_picker(ui, "profile_circle", &mut self.notation.length);
                 });
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.drafts.profile_bored, "with bore");
@@ -1138,7 +1141,7 @@ impl ViewerBehavior<'_> {
                 ));
             }
             Some(ShapeKind::Rectangle) => {
-                let unit = self.drafts.length_unit.def();
+                let unit = self.notation.length.def();
                 ui.horizontal(|ui| {
                     ui.label("width");
                     unit_field(
@@ -1154,21 +1157,21 @@ impl ViewerBehavior<'_> {
                         FIELD_DRAG_SPEED,
                         &mut self.drafts.profile_extent[1],
                     );
-                    length_picker(ui, "profile_rectangle", &mut self.drafts.length_unit);
+                    length_picker(ui, "profile_rectangle", &mut self.notation.length);
                 });
             }
             Some(ShapeKind::Path) => {
                 notation_row(
                     ui,
                     "path",
-                    &mut self.drafts.length_unit,
-                    &mut self.drafts.angle_unit,
+                    &mut self.notation.length,
+                    &mut self.notation.angle,
                 );
                 if let Some(row) = path_steps_ui(
                     ui,
                     "path",
                     self.session.tol(),
-                    (self.drafts.length_unit.def(), self.drafts.angle_unit.def()),
+                    (self.notation.length.def(), self.notation.angle.def()),
                     &mut self.drafts.profile_path,
                 ) {
                     row.apply(&mut self.drafts.profile_path);
@@ -1214,7 +1217,10 @@ impl ViewerBehavior<'_> {
             // Lowered HERE rather than in the session: the notation is
             // the form's, and a literal that forgot it between the two
             // is exactly the gap this carries across.
-            match (self.drafts.profile_plane, self.drafts.profile_programs()) {
+            match (
+                self.drafts.profile_plane,
+                self.drafts.profile_programs(*self.notation),
+            ) {
                 (Some(plane), Ok(loops)) => {
                     self.ops.push(SessionOp::AddProfile { plane, loops });
                 }
@@ -1249,19 +1255,19 @@ impl ViewerBehavior<'_> {
             ui.label("distance");
             unit_field(
                 ui,
-                self.drafts.length_unit.def(),
+                self.notation.length.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.extrude_distance,
             );
-            length_picker(ui, "extrude_distance", &mut self.drafts.length_unit);
+            length_picker(ui, "extrude_distance", &mut self.notation.length);
         });
         match self.session.selection().node() {
             Some(node) => {
                 if ui
-                    .button(format!("{EXTRUDE} {}", tree::node_number(node)))
+                    .button(format!("{EXTRUDE} {}", self.session.doc().spoken(node)))
                     .clicked()
                 {
-                    match self.drafts.length(self.drafts.extrude_distance) {
+                    match self.notation.length_literal(self.drafts.extrude_distance) {
                         Ok(distance) => self.ops.push(SessionOp::AddExtrude {
                             profile: node,
                             distance,
@@ -1303,19 +1309,19 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Revolve.says(&"pick the profile, then the axis"),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(
                 ui,
-                self.drafts.angle_unit.def(),
+                self.notation.angle.def(),
                 ANGLE_DRAG_SPEED,
                 &mut self.drafts.revolve_angle,
             );
-            angle_picker(ui, "revolve_angle", &mut self.drafts.angle_unit);
+            angle_picker(ui, "revolve_angle", &mut self.notation.angle);
         });
-        self.tool_commit_row(ui, ToolKind::Revolve, |drafts| {
-            Ok(tool.op(drafts.angle(drafts.revolve_angle)?)?)
+        self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
+            Ok(tool.op(notation.angle_literal(drafts.revolve_angle)?)?)
         });
     }
 
@@ -1336,7 +1342,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Boolean.says(&"pick the first body, then the second"),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
@@ -1353,13 +1359,14 @@ impl ViewerBehavior<'_> {
                 Tone::Advisory,
             );
         }
-        self.tool_commit_row(ui, ToolKind::Boolean, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Boolean, |drafts, _| {
             Ok(tool.op(drafts.boolean_op)?)
         });
         declare_offer_rows(
             ui,
             &mut self.drafts.declare_offer,
             (self.session.generation(), self.drafts.boolean_op, tool),
+            self.session.doc(),
             self.ops,
             &self.theme,
         );
@@ -1378,8 +1385,8 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Split.says(&"pick the body, then the datum plane"),
         );
-        seats_row(ui, tool.seats(), &self.theme);
-        self.tool_commit_row(ui, ToolKind::Split, |_| Ok(tool.op()?));
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
+        self.tool_commit_row(ui, ToolKind::Split, |_, _| Ok(tool.op()?));
     }
 
     /// The transform tool's panel: one body pick plus the placement
@@ -1392,16 +1399,16 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
                 "translation",
-                self.drafts.length_unit.def(),
+                self.notation.length.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.transform_translation,
             );
-            length_picker(ui, "transform_translation", &mut self.drafts.length_unit);
+            length_picker(ui, "transform_translation", &mut self.notation.length);
         });
         vec3_row(
             ui,
@@ -1413,17 +1420,17 @@ impl ViewerBehavior<'_> {
             ui.label("rotation angle");
             unit_field(
                 ui,
-                self.drafts.angle_unit.def(),
+                self.notation.angle.def(),
                 ANGLE_DRAG_SPEED,
                 &mut self.drafts.transform_angle,
             );
-            angle_picker(ui, "transform_angle", &mut self.drafts.angle_unit);
+            angle_picker(ui, "transform_angle", &mut self.notation.angle);
         });
-        self.tool_commit_row(ui, ToolKind::Transform, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Transform, |drafts, notation| {
             Ok(tool.op(
-                drafts.lengths(drafts.transform_translation)?,
+                notation.length_literals(drafts.transform_translation)?,
                 scalars(drafts.transform_axis)?,
-                drafts.angle(drafts.transform_angle)?,
+                notation.angle_literal(drafts.transform_angle)?,
             )?)
         });
     }
@@ -1447,7 +1454,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Pattern.says(&"pick the body, then (circular) the axis"),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
@@ -1482,11 +1489,11 @@ impl ViewerBehavior<'_> {
                     ui.label("spacing");
                     unit_field(
                         ui,
-                        self.drafts.length_unit.def(),
+                        self.notation.length.def(),
                         FIELD_DRAG_SPEED,
                         &mut self.drafts.pattern_spacing,
                     );
-                    length_picker(ui, "pattern_spacing", &mut self.drafts.length_unit);
+                    length_picker(ui, "pattern_spacing", &mut self.notation.length);
                 });
             }
             PatternKindChoice::Circular => {
@@ -1494,26 +1501,28 @@ impl ViewerBehavior<'_> {
                     ui.label("step");
                     unit_field(
                         ui,
-                        self.drafts.angle_unit.def(),
+                        self.notation.angle.def(),
                         ANGLE_DRAG_SPEED,
                         &mut self.drafts.pattern_step,
                     );
-                    angle_picker(ui, "pattern_step", &mut self.drafts.angle_unit);
+                    angle_picker(ui, "pattern_step", &mut self.notation.angle);
                 });
             }
         }
-        self.tool_commit_row(ui, ToolKind::Pattern, |drafts| match drafts.pattern_kind {
-            PatternKindChoice::Linear => Ok(tool.linear_op(
-                drafts.pattern_output,
-                drafts.pattern_count,
-                scalars(drafts.pattern_direction)?,
-                drafts.length(drafts.pattern_spacing)?,
-            )?),
-            PatternKindChoice::Circular => Ok(tool.circular_op(
-                drafts.pattern_output,
-                drafts.pattern_count,
-                drafts.angle(drafts.pattern_step)?,
-            )?),
+        self.tool_commit_row(ui, ToolKind::Pattern, |drafts, notation| {
+            match drafts.pattern_kind {
+                PatternKindChoice::Linear => Ok(tool.linear_op(
+                    drafts.pattern_output,
+                    drafts.pattern_count,
+                    scalars(drafts.pattern_direction)?,
+                    notation.length_literal(drafts.pattern_spacing)?,
+                )?),
+                PatternKindChoice::Circular => Ok(tool.circular_op(
+                    drafts.pattern_output,
+                    drafts.pattern_count,
+                    notation.angle_literal(drafts.pattern_step)?,
+                )?),
+            }
         });
     }
 
@@ -1547,7 +1556,7 @@ impl ViewerBehavior<'_> {
                   of",
             ),
         );
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         part_selector_rows(
             ui,
             &self.theme,
@@ -1555,7 +1564,7 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.part_half,
             &mut self.drafts.part_instance,
         );
-        self.tool_commit_row(ui, ToolKind::Part, |drafts| {
+        self.tool_commit_row(ui, ToolKind::Part, |drafts, _| {
             Ok(match drafts.part_select {
                 PartSelectChoice::Half => tool.half_op(drafts.part_half)?,
                 PartSelectChoice::Instance => tool.instance_op(drafts.part_instance)?,
@@ -1579,9 +1588,9 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
-        seats_row(ui, tool.seats(), &self.theme);
+        seats_row(ui, tool.seats(), self.session.doc(), &self.theme);
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
-        self.tool_commit_row(ui, ToolKind::Duplicate, |_| Ok(tool.op()?));
+        self.tool_commit_row(ui, ToolKind::Duplicate, |_, _| Ok(tool.op()?));
     }
 
     /// The blend tool's panel: activation, the freeze sentence, the
@@ -1623,11 +1632,11 @@ impl ViewerBehavior<'_> {
             ui.label(self.drafts.blend_kind.size_label());
             unit_field(
                 ui,
-                self.drafts.length_unit.def(),
+                self.notation.length.def(),
                 FIELD_DRAG_SPEED,
                 &mut self.drafts.blend_size,
             );
-            length_picker(ui, "blend_size", &mut self.drafts.length_unit);
+            length_picker(ui, "blend_size", &mut self.notation.length);
         });
         self.blend_commit_row(ui, count);
     }
@@ -1702,7 +1711,7 @@ impl ViewerBehavior<'_> {
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Blend.commit()).clicked() {
-                match self.drafts.length(self.drafts.blend_size) {
+                match self.notation.length_literal(self.drafts.blend_size) {
                     Ok(size) => {
                         let op: Option<Result<SessionOp, BlendError>> =
                             self.tools.blend().map(|tool| match self.drafts.blend_kind {
@@ -1755,12 +1764,12 @@ impl ViewerBehavior<'_> {
         &mut self,
         ui: &mut egui::Ui,
         kind: ToolKind,
-        op: impl FnOnce(&Drafts) -> Result<SessionOp, CommitFault>,
+        op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(kind.commit()).clicked() {
-                match op(self.drafts) {
+                match op(self.drafts, *self.notation) {
                     Ok(op) => self.ops.push(op),
                     Err(error) => {
                         self.notices
@@ -1842,19 +1851,23 @@ mod tests {
     /// FEATURE, which is what every other panel calls a node.
     #[test]
     fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
-        let painted =
-            |state: &MateToolState| painted_text(|ui| mate_picks_row(ui, state, &Theme::DEFAULT));
+        // The picks' nodes are not in this document, so each is spoken
+        // as a bare tag.
+        let doc = Doc::<ProfileProgram>::empty_derived("mate-row", Tol::witness());
+        let painted = |state: &MateToolState| {
+            painted_text(|ui| mate_picks_row(ui, state, &doc, &Theme::DEFAULT))
+        };
         assert_eq!(painted(&MateToolState::Idle), "no picks yet");
         assert_eq!(
             painted(&MateToolState::One(face_on(3))),
-            "pick a: face of feature 3; pick b: —"
+            "pick a: face of node 000000000003; pick b: —"
         );
         assert_eq!(
             painted(&MateToolState::Two {
                 a: face_on(3),
                 b: face_on(5),
             }),
-            "pick a: face of feature 3; pick b: face of feature 5"
+            "pick a: face of node 000000000003; pick b: face of node 000000000005"
         );
     }
 
@@ -1865,18 +1878,19 @@ mod tests {
     fn the_boolean_panel_says_which_operand_each_pick_is() {
         let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
         let mut tool = BooleanTool::new();
-        let painted =
-            |tool: &BooleanTool| painted_text(|ui| seats_row(ui, tool.seats(), &Theme::DEFAULT));
+        let painted = |tool: &BooleanTool| {
+            painted_text(|ui| seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT))
+        };
         assert_eq!(painted(&tool), "no picks yet");
         tool.pick(&doc, RecipeNodeId(3));
         assert_eq!(
             painted(&tool),
-            "first operand: feature 3; second operand: —"
+            "first operand: node 000000000003; second operand: —"
         );
         tool.pick(&doc, RecipeNodeId(5));
         assert_eq!(
             painted(&tool),
-            "first operand: feature 3; second operand: feature 5"
+            "first operand: node 000000000003; second operand: node 000000000005"
         );
     }
 
@@ -2000,7 +2014,7 @@ mod tests {
     /// A stand-in labeller: the number alone, so a row asserting on
     /// the pose half is asserting on text this closure did not write.
     fn numbers(id: &RecipeNodeId) -> String {
-        format!("feature {}", id.0)
+        format!("node {:012x}", id.0)
     }
 
     /// The add-profile form's plane row, on an EMPTY document, offers
@@ -2047,8 +2061,8 @@ mod tests {
             drawn.contains(NEW_XY_LABEL),
             "the mint is on the open list beside the frames that exist: {drawn}"
         );
-        assert!(drawn.contains("feature 2"), "{drawn}");
-        assert!(drawn.contains("feature 5"), "{drawn}");
+        assert!(drawn.contains("node 000000000002"), "{drawn}");
+        assert!(drawn.contains("node 000000000005"), "{drawn}");
     }
 
     /// The mint's own name reaches the widget: with it picked, the
@@ -2070,12 +2084,12 @@ mod tests {
     #[test]
     fn the_plane_row_draws_the_name_it_is_handed() {
         let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(4)));
-        let names = |id: &RecipeNodeId| format!("feature {} — xy at (0, 0, 0) m", id.0);
+        let names = |id: &RecipeNodeId| format!("node {:012x} — xy at (0, 0, 0) m", id.0);
         let drawn = painted_text(|ui| {
             profile_plane_row(ui, &Theme::DEFAULT, &[RecipeNodeId(4)], &names, &mut picked)
         });
         assert!(
-            drawn.contains("feature 4 — xy at (0, 0, 0) m"),
+            drawn.contains("node 000000000004 — xy at (0, 0, 0) m"),
             "the closed combo says which frame, in the labeller's words: {drawn}"
         );
     }
@@ -2088,7 +2102,7 @@ mod tests {
         let drawn =
             painted_text(|ui| profile_plane_row(ui, &Theme::DEFAULT, &[], &numbers, &mut picked));
         assert!(
-            drawn.contains("feature 9"),
+            drawn.contains("node 000000000009"),
             "a pick outside the list is named, not silently drawn as unfilled: {drawn}"
         );
         assert!(!drawn.contains("pick one"), "{drawn}");
@@ -2165,7 +2179,7 @@ mod layout_tests {
                 "salt",
                 &[],
                 &mut picked,
-                |id| format!("feature {}", id.0),
+                |id| format!("node {:012x}", id.0),
             );
         });
         let empty = find(&painted, NO_FRAMES);
@@ -2426,7 +2440,7 @@ mod tone_tests {
             Some(voices.actionable)
         );
         assert_eq!(
-            find_opening(&painted, "feature 4's value is several bodies").ink,
+            find_opening(&painted, "node 000000000004's value is several bodies").ink,
             Some(voices.actionable)
         );
         assert_eq!(
@@ -2621,6 +2635,7 @@ mod declared_union {
                 ui,
                 &mut held,
                 (session.generation(), op, tool),
+                session.doc(),
                 &mut ops,
                 &Theme::DEFAULT,
             );
@@ -2692,10 +2707,10 @@ mod declared_union {
             painted,
             format!(
                 "declare this contact and commit the boolean?\n\
-                 a face of {} against a face of {} — {} contact\n\
+                 a face of Extrude {:012x} against a face of Extrude {:012x} — {} contact\n\
                  Declare\nDecline",
-                tree::node_number(block),
-                tree::node_number(boss),
+                block.0,
+                boss.0,
                 ContactClass::Rest.name()
             )
         );
