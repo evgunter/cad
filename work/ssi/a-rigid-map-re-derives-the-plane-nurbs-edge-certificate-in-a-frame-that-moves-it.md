@@ -8,6 +8,7 @@ priority: P3
 cost: M
 pr: 3668
 branch: ssi/probes
+design: true
 ---
 
 ## Found (ENCL rigid-map headroom lane, branch `encl/rigid-map-approx-headroom`, 2026-09-28)
