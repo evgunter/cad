@@ -719,7 +719,11 @@ pub struct Computed {
 
 impl PartialEq for Computed {
     fn eq(&self, other: &Self) -> bool {
-        self.canonical.to_bits() == other.canonical.to_bits() && self.dimension == other.dimension
+        let Self {
+            canonical,
+            dimension,
+        } = self;
+        canonical.to_bits() == other.canonical.to_bits() && *dimension == other.dimension
     }
 }
 
