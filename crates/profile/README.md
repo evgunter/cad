@@ -209,6 +209,33 @@ plus a corpus scene with a real parameter driven from geometry into a
 typed refusal naming the step
 (`crates/editor-core/tests/corpus/plate_param.rs`).
 
+## Where an arc's consistency is decided
+
+D1 asks that an arc's consistency conditions (start on the carrier, the
+sweep landing on the far vertex, 0 < |Δθ| ≤ 2π) each be checked at
+validate or hold by construction, and never be decided twice. Which one
+applies is a fact of the loop's provenance, carried by its type.
+
+- **A table** (`ProfileLoop`: the fixture door, a hand-built loop,
+  `map_scalar`, a pinned lift) is checked: `Profile::validate` decides
+  the three as ε-decisions at the validating scalar (`arc_start_on_carrier`,
+  `arc_landing`, `arc_sweep_range`) and refuses `InconsistentArc`. A
+  check whose difference the scene cannot resolve at ε (its scale times
+  the check's stated rounding bound in ulps past the band) refuses
+  `ArcBelowSceneResolution` instead, never `InconsistentArc`.
+- **A loop the path lattice closes** (`ConstructedLoop`, minted at the
+  lattice's closing by the builder and by every replay) holds by
+  construction: `ConstructedProfile`'s validate doors, `pncad::validated`
+  and the loft's constructed sections do not decide the three again. A
+  `Center` arc's landing is the path door's own predicate
+  (`path_arc_center_equidistant`), decided inline at every scalar; a
+  lowered arc's facts are the identities `lower_arc` registers, which an
+  exact scalar's witness checks and a point scalar takes on the
+  lowering's proof. Re-deciding them could only confirm Zero or escalate
+  on dependency width, never catch an inconsistency.
+- Giving up the provenance (`ConstructedLoop::into_loop`) makes the loop
+  a table again, and it is checked.
+
 ## Enclosing tangency
 
 A fillet rounds the corner between two legs with a blend arc tangent to
