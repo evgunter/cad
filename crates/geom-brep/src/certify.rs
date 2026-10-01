@@ -1237,16 +1237,14 @@ impl<T: Decide> EdgeCurve<T> {
 ///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Option<Surface<f64>>,
 ///     band: Band,
 /// ) {
-///     let forged = |_: &NurbsCurve3<f64>, _: &Surface<f64>, _: &NurbsSurface<f64>, _: f64, _: Band|
+///     // Honest limbs for some other pair, with the two limbs a door
+///     // checks zeroed.
+///     let forged = |c: &NurbsCurve3<f64>, p: &Surface<f64>, w: &NurbsSurface<f64>, e: f64, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
-///         Ok(PlaneNurbsLimbs {
-///             on_locus_max: 0.0,
-///             hull_sup: 0.0,
-///             tube_radius: 1.0,
-///             tube_transversality: 1.0,
-///             tube_boxes: 1,
-///             min_sin_theta: 1.0,
-///         })
+///         let mut limbs = geom_brep::plane_nurbs_limbs(c, p, w, e, b)?;
+///         limbs.on_locus_max = 0.0;
+///         limbs.hull_sup = 0.0;
+///         Ok(limbs)
 ///     };
 ///     let _ = EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, band, Some(&forged));
 /// }
@@ -1273,16 +1271,14 @@ impl<T: Decide> EdgeCurve<T> {
 ///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Option<Surface<f64>>,
 ///     band: Band,
 /// ) {
-///     let forged = |_: &NurbsCurve3<f64>, _: &Surface<f64>, _: &NurbsSurface<f64>, _: f64, _: Band|
+///     // Honest limbs for some other pair, with the two limbs a door
+///     // checks zeroed.
+///     let forged = |c: &NurbsCurve3<f64>, p: &Surface<f64>, w: &NurbsSurface<f64>, e: f64, b: Band|
 ///      -> Result<PlaneNurbsLimbs<f64>, PlaneNurbsRefusal> {
-///         Ok(PlaneNurbsLimbs {
-///             on_locus_max: 0.0,
-///             hull_sup: 0.0,
-///             tube_radius: 1.0,
-///             tube_transversality: 1.0,
-///             tube_boxes: 1,
-///             min_sin_theta: 1.0,
-///         })
+///         let mut limbs = geom_brep::plane_nurbs_limbs(c, p, w, e, b)?;
+///         limbs.on_locus_max = 0.0;
+///         limbs.hull_sup = 0.0;
+///         Ok(limbs)
 ///     };
 ///     let _ = forged;
 ///     let lane = Some(NurbsLane::certified());
