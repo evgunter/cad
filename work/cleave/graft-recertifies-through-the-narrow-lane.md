@@ -2,12 +2,13 @@
 id: graft-recertifies-through-the-narrow-lane
 kind: issue
 title: boolean graft re-certifies through the plain certify door, the second instance of the transform split
-status: review
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: M
 branch: cleave/nurbs-lane
 pr: 3678
+closed: 2026-10-01
 ---
 
 

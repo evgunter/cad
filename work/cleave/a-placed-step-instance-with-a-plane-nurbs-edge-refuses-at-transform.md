@@ -2,7 +2,7 @@
 id: a-placed-step-instance-with-a-plane-nurbs-edge-refuses-at-transform
 kind: issue
 title: step-import places an instance through the plain transform_rigid, which refuses the plane x NURBS edges the importer itself certified (by reading; unexecuted)
-status: review
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: E
@@ -10,6 +10,7 @@ refs: [graft-recertifies-through-the-narrow-lane, plain-transform-rigid-still-re
 parent: graft-recertifies-through-the-narrow-lane
 pr: 3678
 branch: cleave/nurbs-lane
+closed: 2026-10-01
 ---
 
 
