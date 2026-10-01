@@ -509,15 +509,18 @@ fn stand_doc(
     let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
     let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
 
+    // Each mate names the part it moves first: "mate the shelf to the
+    // post" places the shelf's group on the post's (A11 (2)'s mate
+    // door), so the placed post roots the stand.
     let mate_1 = insert(
         &mut doc,
         Node::Mate {
-            a: head(post_a, post_top),
-            b: head(shelf_i, shelf_bottom),
+            a: head(shelf_i, shelf_bottom),
+            b: head(post_a, post_top),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: mate_frame(POST_SEAT),
-                b: mate_frame(SEAT_A),
+                a: mate_frame(SEAT_A),
+                b: mate_frame(POST_SEAT),
                 primitive,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -528,12 +531,12 @@ fn stand_doc(
     let mate_2 = insert(
         &mut doc,
         Node::Mate {
-            a: head(shelf_i, shelf_bottom),
-            b: head(post_b, post_top),
+            a: head(post_b, post_top),
+            b: head(shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: mate_frame(SEAT_B),
-                b: mate_frame(POST_SEAT),
+                a: mate_frame(POST_SEAT),
+                b: mate_frame(SEAT_B),
                 primitive,
                 sense: AxisSense::Aligned,
                 clocking: None,
