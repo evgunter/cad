@@ -5004,3 +5004,32 @@ The defects are in the text:
 
 Fix pass dispatched on the walk target. It merges after CI and an
 orchestrator read.
+
+## PR 3592 fix pass delivered; rows closed; merge on CI (2026-10-01)
+
+The fix pass landed `315d7c1e3a`, and CI run 36803663339 went green.
+
+My read of the diff:
+- `require_killed_halves_unnamed` (renamed) refuses `KillLeavesDangling
+  { from, to: HalfEdge }` on every arm, one variant for the one
+  question.
+- `NotOwned` says the two records "do not own each other both ways",
+  which is true at R7, R8 and R9.
+- `Body::proven_mate` is the one home for the proven mate hop, read by
+  kev, kef and movefac.
+- The census points at the scan. The header's premise is narrowed to
+  what holds.
+
+**The null-edge question (N3) is closed by probe.** A null self-loop
+cannot be built through public doors, so no `kev` fan holds both halves.
+
+**N2 filed:** `movefac-hops-to-a-mates-face-without-proving-the-face-lists-its-loop`.
+
+The three rows are closed on the branch (`6989593f11`). PR 3592 merges
+when CI is green there.
+
+**Carried to the corruption-ending row's brief.** The lane noticed one
+PR 3570 route of the same shape as N1: `require_vertex_unnamed` refuses
+an Empty loop's anchor naming the removed vertex as `LoopCycleBroken`.
+It is a different relation, but it is the same kept-names-removed
+question, so the variant unification belongs with that row.
