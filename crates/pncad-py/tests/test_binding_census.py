@@ -1035,8 +1035,9 @@ BOUND_AS = {
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
     # `malformed_body`, `no_extent`, `no_finite_bound`,
-    # `not_an_instance`). The instance it is about crosses as
-    # `MateFault.instance`, and a face that cannot be bounded names its
+    # `not_an_instance`), or why the lever the two form is out of the
+    # format's range (`out_of_range`). The instance a part's refusal is
+    # about crosses as `MateFault.instance`, and a face that cannot be bounded names its
     # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
     # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
