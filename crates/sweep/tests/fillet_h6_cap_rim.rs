@@ -4,10 +4,12 @@
 //!
 //! `extrude` admits only an extrusion vector trilean-parallel to the
 //! sketch plane's normal `n` (a definite in-plane component is
-//! `ObliqueExtrusion`), so every wall is ruled in `n` and every cap is
-//! a plane of normal `±n`. A wall's normal is therefore perpendicular
-//! to `n` at every rim point and the cap-wall tangent planes never
-//! coincide: at the shipped K, `classify_dihedral` decides
+//! `ObliqueExtrusion`, an in-band one escalates), so every cap is a
+//! plane of normal `±n`, an arc leg's wall is a cylinder ruled in `n`
+//! exactly, and a line leg's wall is a plane ruled in `w`, which the
+//! gates hold within a tilt of `1/K` of `n`. The cap–wall dihedral is
+//! therefore a right angle at every arc rim point and within `1/K` of
+//! one at every line rim point: at the shipped K, `classify_dihedral` decides
 //! `Transverse` wherever it decides at all, and the only other outcome
 //! is the typed escalation (`SliverRim`). At a K below the crossover
 //! the same doors admit a chord short enough for the wedge to read
@@ -22,7 +24,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::cap_rims::{chart_counts, description, face_across, face_edges};
-use geom_brep::{DihedralClass, EdgeDescription, classify_dihedral, edge_extent};
+use geom_brep::{
+    DihedralClass, EdgeDescription, MustCarryVerdict, classify_dihedral, edge_extent,
+    must_carry_over_edge,
+};
 use geom_core::{Band, Point2, Tol, Vec3};
 use profile::{
     Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
@@ -35,9 +40,20 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
     Profile::new(plane, loops).validate(Tol::witness()).unwrap()
 }
 
-/// The classifier's verdict at one cap rim, on the arm's own inputs.
-fn verdict(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> Result<DihedralClass, String> {
-    let band = Band::linear(Tol::witness()).unwrap();
+/// One cap rim's inputs as `upgrade_rim` reads them: the cap and wall
+/// surfaces, the certified carrier, its interval, the mid-parameter
+/// witness and the honest extent.
+struct RimInputs {
+    s_cap: geom::Surface<f64>,
+    s_wall: geom::Surface<f64>,
+    carrier: geom::Curve3<f64>,
+    t0: f64,
+    t1: f64,
+    witness: geom_core::Point3<f64>,
+    extent: f64,
+}
+
+fn rim_inputs(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> RimInputs {
     let wall = face_across(body, edge, cap);
     let s_cap = body
         .get_surface(body.get_face(cap).unwrap().surface)
@@ -57,7 +73,30 @@ fn verdict(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> Result<DihedralClas
     let witness = curve.carrier().eval(t0 + (t1 - t0) * 0.5);
     let ends = curve.carrier().eval(t0).distance(curve.carrier().eval(t1));
     let extent = edge_extent(curve.carrier(), t0, t1, ends);
-    classify_dihedral(&s_cap, &s_wall, witness, extent, band).map_err(|e| format!("{e:?}"))
+    RimInputs {
+        s_cap,
+        s_wall,
+        carrier: curve.carrier().clone(),
+        t0,
+        t1,
+        witness,
+        extent,
+    }
+}
+
+/// The classifier's verdict at one cap rim, on the arm's own inputs.
+fn verdict(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> Result<DihedralClass, String> {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let r = rim_inputs(body, cap, edge);
+    classify_dihedral(&r.s_cap, &r.s_wall, r.witness, r.extent, band).map_err(|e| format!("{e:?}"))
+}
+
+/// The must-carry rule's verdict over one cap rim, on the arm's own
+/// inputs — what the smooth arm stores by.
+fn rule_verdict(body: &Body<f64>, cap: FaceKey, edge: EdgeKey) -> MustCarryVerdict {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let r = rim_inputs(body, cap, edge);
+    must_carry_over_edge(&r.s_cap, &r.s_wall, &r.carrier, r.t0, r.t1, r.extent, band)
 }
 
 /// Asserts that every cap rim of `built` reached the transverse arm —
@@ -326,6 +365,60 @@ fn the_direction_gates_refuse_before_the_arm() {
     );
 }
 
+/// **Only a LINE leg's wall carries the admitted tilt** — the premise
+/// `upgrade_rim`'s smooth arm states for which pairs can reach it.
+/// Under a tilted admitted `w`, a line leg's wall is the plane through
+/// its quad swept along `w`, so its normal leans off the cap by the
+/// tilt; an arc leg's wall is a cylinder whose axis is the sketch
+/// normal `n` EXACTLY, not `w`, so its normal is perpendicular to the
+/// cap at every rim point and the cap–cylinder pair never reads smooth
+/// at any K. The obround carries both kinds, and the tilt runs ACROSS
+/// its straight legs so their walls do lean.
+///
+/// The tilt is half the worst the gates admit, at unit height: at the
+/// full `ε` in-plane the obround's arc walls do not build at all
+/// (`work/carve/extrude-arc-walls-are-ruled-in-n-not-w.md`).
+#[test]
+fn only_line_walls_carry_the_admitted_tilt() {
+    let tol = Tol::witness();
+    let n = Vec3::new(0.0, 0.0, 1.0);
+    let w = Vec3::new(0.0, 0.5 * tol.eps(), 1.0);
+    let built = extrude(
+        &validated(SketchPlane::xy(), vec![obround_loop()]),
+        Extrusion::Vector(w),
+        tol,
+    )
+    .expect("an admitted tilt extrudes");
+    let (mut cylinders, mut tilted_planes) = (0usize, 0usize);
+    for &face in built.side_faces.iter().flatten() {
+        let surface = built
+            .body
+            .get_surface(built.body.get_face(face).unwrap().surface)
+            .unwrap();
+        match surface {
+            geom::Surface::Cylinder { axis, .. } => {
+                cylinders += 1;
+                assert!(
+                    axis.cross(n).norm() == 0.0,
+                    "an arc leg's wall must be ruled in the sketch normal, not in w: \
+                     axis {axis:?}",
+                );
+            }
+            geom::Surface::Plane { normal, .. } => {
+                tilted_planes += usize::from(normal.dot(n) != 0.0);
+            }
+            other => panic!("unexpected side-wall surface {other:?}"),
+        }
+    }
+    assert_eq!(cylinders, 2, "the obround has two arc legs");
+    assert_eq!(
+        tilted_planes, 2,
+        "both straight legs' walls must lean with the admitted tilt, or the row \
+         does not exercise the contrast",
+    );
+    assert_every_cap_rim_transverse("obround under an admitted tilt", &built);
+}
+
 // ---------------------------------------------------------------------
 // The arm below the crossover: reachable, built, and refused at rest.
 // ---------------------------------------------------------------------
@@ -377,6 +470,25 @@ fn print_the_arm_at_a_small_k() {
             println!("KPROBE non_intersection_rims={conventional}");
             println!("KPROBE wall_chart_rims={wall_chart}");
             println!("KPROBE cap_chart_rims={cap_chart}");
+            // The rule re-read on each rim that kept the conventional
+            // description: it reads these plane pairs under-determined,
+            // the premise the smooth arm's comment states. This pins
+            // the rule's answer on them, not that the arm asks it.
+            let mut under_determined = 0usize;
+            for cap in [built.bottom, built.top] {
+                for edge in face_edges(&built.body, cap) {
+                    if matches!(
+                        description(&built.body, edge),
+                        EdgeDescription::Intersection { .. }
+                    ) {
+                        continue;
+                    }
+                    let rule = rule_verdict(&built.body, cap, edge);
+                    println!("KPROBE rim_rule={rule:?}");
+                    under_determined += usize::from(rule == MustCarryVerdict::UnderDetermined);
+                }
+            }
+            println!("KPROBE rule_under_determined_rims={under_determined}");
             match topo::validate_geometric(&built.body, tol) {
                 Ok(()) => println!("KPROBE tier3=Ok"),
                 Err(errs) => {
@@ -483,6 +595,10 @@ fn the_cap_rim_arm_is_unreachable_above_the_crossover_and_is_reached_below_it() 
     assert!(
         below.contains("KPROBE cap_chart_rims=0"),
         "the cap's chart is not where a smooth rim rests:\n{below}",
+    );
+    assert!(
+        below.contains("KPROBE rule_under_determined_rims=4"),
+        "the must-carry rule must read each smooth rim under-determined:\n{below}",
     );
     assert!(
         below.contains("KPROBE tier3=Err n=4"),

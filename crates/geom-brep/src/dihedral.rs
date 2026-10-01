@@ -432,12 +432,13 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// fewer: an extruded wall is ruled in the sweep direction and the
 /// strut is one of its rulings, along which both surfaces' Hessians
 /// and the transverse direction are constant — so `κ_rel` is constant
-/// along it; and a revolve's latitude join carries a circle coaxial
-/// with both surfaces of revolution, along which the configuration is
-/// carried by a symmetry flow of both — so `κ_rel` is constant there
-/// too. Each fact holds for the pairs ONE verb mints, while this walk
-/// must hold for every pair it is handed, so neither licenses reading
-/// one station.
+/// along it; an extruded cap rim that reads smooth is a line between
+/// two planes, whose normals are constant along it; and a revolve's
+/// latitude join carries a circle coaxial with both surfaces of
+/// revolution, along which the configuration is carried by a symmetry
+/// flow of both — so `κ_rel` is constant there too. Each fact holds
+/// for the pairs ONE caller mints, while this walk must hold for every
+/// pair it is handed, so none licenses reading one station.
 ///
 /// **The one home** [`folded_lever_arm`]'s doc calls aspirational, one
 /// level up: the fold has a single spelling and so does the metered
@@ -477,6 +478,63 @@ pub fn must_carry_over_edge<T: Decide>(
         MustCarryVerdict::JetDeterminate
     } else {
         MustCarryVerdict::UnderDetermined
+    }
+}
+
+/// What a join entered as definitely smooth stores, by the must-carry
+/// rule's verdict ([`MustCarryVerdict::description`]).
+#[derive(Clone, Debug)]
+pub enum MustCarryDescription<T: Real> {
+    /// The intrinsic [`crate::EdgeDescriptionSpec::TangentIntersection`]
+    /// over the pair the rule was asked about, in that order; the caller
+    /// stores it on its carrier.
+    Intrinsic(crate::EdgeDescriptionSpec<T>),
+    /// The conventional description: a chart image where the edge
+    /// rests. Which adjacent chart, and whether the stored carrier is
+    /// restated or the exact carrier stated, is the caller's: a
+    /// sweep-minted edge already stores its locus and restates it,
+    /// while a blend contact edge stores a chord scaffold and states
+    /// the locus fresh.
+    Conventional,
+}
+
+/// Why a join entered as definitely smooth gets no description: each
+/// caller maps it to its own typed refusal.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MustCarryRefusal {
+    /// [`MustCarryVerdict::InBand`]: certifiable as neither, refused
+    /// typed with the deciding station's escalation (D4 ¶3) — never
+    /// folded into either description.
+    InBand(Indeterminate),
+    /// [`MustCarryVerdict::Transverse`]: a station read the join a
+    /// corner, refuting the smooth premise the caller entered on.
+    Refuted,
+}
+
+impl MustCarryVerdict {
+    /// The one mapping from the verdict to what the join stores:
+    /// jet-determinate ⇒ the intrinsic `TangentIntersection { s1, s2,
+    /// witness }`, under-determined ⇒ conventional, in-band and
+    /// transverse ⇒ a typed refusal. `s1`/`s2` are the keys of the
+    /// surfaces [`must_carry_over_edge`] was asked about, in its order.
+    ///
+    /// # Errors
+    ///
+    /// [`MustCarryRefusal`] on an in-band or transverse verdict.
+    pub fn description<T: Real>(
+        self,
+        s1: crate::SurfaceKey,
+        s2: crate::SurfaceKey,
+        witness: Point3<T>,
+    ) -> Result<MustCarryDescription<T>, MustCarryRefusal> {
+        match self {
+            Self::JetDeterminate => Ok(MustCarryDescription::Intrinsic(
+                crate::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness },
+            )),
+            Self::UnderDetermined => Ok(MustCarryDescription::Conventional),
+            Self::InBand(source) => Err(MustCarryRefusal::InBand(source)),
+            Self::Transverse => Err(MustCarryRefusal::Refuted),
+        }
     }
 }
 
@@ -713,6 +771,43 @@ mod tests {
 
     fn eps() -> f64 {
         Tol::witness().get().eps
+    }
+
+    /// The one verdict-to-description mapping every smooth-join caller
+    /// stores by: each verdict lands on its own answer, and the
+    /// intrinsic one names the pair in the order the rule was asked.
+    #[test]
+    fn must_carry_description_maps_each_verdict() {
+        let mut keys = slotmap::SlotMap::<crate::SurfaceKey, ()>::with_key();
+        let (a, b) = (keys.insert(()), keys.insert(()));
+        let witness = Point3::new(1.0, 2.0, 3.0);
+        match MustCarryVerdict::JetDeterminate.description(a, b, witness) {
+            Ok(MustCarryDescription::Intrinsic(
+                crate::EdgeDescriptionSpec::TangentIntersection { s1, s2, witness: w },
+            )) => assert!(
+                s1 == a && s2 == b && w.distance(witness) == 0.0,
+                "{s1:?} {s2:?} {w:?}"
+            ),
+            other => panic!("jet-determinate must be the intrinsic tangency: {other:?}"),
+        }
+        assert!(matches!(
+            MustCarryVerdict::UnderDetermined.description(a, b, witness),
+            Ok(MustCarryDescription::Conventional)
+        ));
+        let source = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: band(),
+            predicate: Some("tangent_second_order"),
+            terminal_sliver: false,
+        };
+        assert!(matches!(
+            MustCarryVerdict::InBand(source).description(a, b, witness),
+            Err(MustCarryRefusal::InBand(s)) if s == source
+        ));
+        assert!(matches!(
+            MustCarryVerdict::Transverse.description(a, b, witness),
+            Err(MustCarryRefusal::Refuted)
+        ));
     }
 
     fn plane(normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f64> {

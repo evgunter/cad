@@ -330,15 +330,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-core/src/interval.rs",
-        19,
+        23,
         5,
         "the type's own body. The 5 that ask are the two refusal doors \
          (`certified_bracket`, `sign_within`) and the directed helpers `norm_sup`, \
-         `div_down` and `div_up`. The other 14 are not certification \
+         `div_down` and `div_up`. The other 18 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
-         `repr_bits`, `copysign` and the kink selectors), which test NaI and empty \
-         themselves and carry the decoration forward rather than certifying",
+         `repr_bits`, `copysign`, the kink selectors and the two `select_le_zero` \
+         arms), which test NaI and empty themselves and carry the decoration forward \
+         rather than certifying",
     ),
     (
         "crates/geom-core/src/interval/certification.rs",
@@ -347,7 +348,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "the doors that read an endpoint (`clamped_to`, `width`, `mag`), each refusing first",
     ),
     ("crates/geom-core/src/spline/compose/tensor.rs", 6, 6, ""),
-    ("crates/geom-core/src/sym/signed.rs", 2, 2, ""),
+    (
+        "crates/geom-core/src/sym/signed.rs",
+        17,
+        11,
+        "the 6 that do not ask read a bracket `enclose_deep` returned (the decision \
+         read's halves, 4, and the profiling instrument's denominator, 2), and \
+         `enclose_deep` hands back `None` for a refused bracket \
+         (`is_certified().then_some`), so every bracket read there certifies by \
+         construction",
+    ),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
     ("crates/mesh/src/chords.rs", 1, 1, ""),

@@ -21,7 +21,7 @@
 //! recipe at need ([`reading_edges`]) and never stored beside it. The
 //! partitions
 //! divide on that distinction — A9's relative-freedom components and
-//! A11's placement clusters run over consuming ∪ reading edges, while
+//! A11's placement groups run over consuming ∪ reading edges, while
 //! A10's coverage, ancestor-freedom, maintenance and product gather
 //! run over consuming edges only. A mate is therefore an ordinary
 //! non-body root: an isolated sink under consuming edges, listed like
@@ -83,8 +83,8 @@ pub use reach::{
 };
 pub(crate) use solve::solve_with_env;
 pub use solve::{
-    ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
-    relative_freedom_components, solve_document,
+    ClusterMaintenance, MateRole, SolvedPoses, groups, reading_edges, relative_freedom_components,
+    root_of, solve_document,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
@@ -1277,7 +1277,7 @@ pub enum MateFault {
     /// CARRIES it, as a line of its own under the mate's
     /// ([`crate::NodeErrorKind::carried_chain`]), is `placer_row`'s:
     ///
-    /// - **Raised while a cluster's fold derives an offset**, at a
+    /// - **Raised while a group's fold derives an offset**, at a
     ///   placer on the reference's chain: the fault reaches the
     ///   instance under that placer, so the placer is POISONED, never
     ///   evaluates and never states its own cause. This fault is the
