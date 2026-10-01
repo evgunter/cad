@@ -943,7 +943,7 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 /// blames none of them, and points the eye nowhere** — and no mate
 /// can be INSERTED under it, since the edit door asks the solve's own
 /// admission, which begins with the band (a loaded snapshot can still
-/// hold one).
+/// hold one: [`child_band_snapshot_load`]).
 ///
 /// `MateFault::Band` is the one fault arm that reaches rows without
 /// naming a subject, so it is the one arm `blamed_mates` answers empty
@@ -1615,4 +1615,212 @@ fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
         "upstream failure at Mate {:012x} — that row carries the cause",
         mate.0
     )
+}
+
+// ---- A mate's band refusal, reached by a loaded snapshot ----
+
+/// The env var naming the child that AUTHORS the snapshot, at a sound
+/// tolerance, and prints it.
+const SNAPSHOT_AUTHOR: &str = "TREE_BADGES_BAND_SNAPSHOT_AUTHOR";
+
+/// The env var carrying the snapshot's text to the child that LOADS it
+/// where no band exists.
+const SNAPSHOT_TEXT: &str = "TREE_BADGES_BAND_SNAPSHOT_TEXT";
+
+/// The ε both children commit: a length whose band exists at the
+/// default K (16 m to 160 m) and overflows at [`SNAPSHOT_LOAD_K`]. A
+/// document records its ε and not its K, which is the process's
+/// (`CAD_AMBIGUITY_K`), so one file meets both.
+const SNAPSHOT_EPS: &str = "16";
+
+/// The K the loading child commits: finite, so the run's validator
+/// admits it, and large enough that K·ε overflows at [`SNAPSHOT_EPS`].
+const SNAPSHOT_LOAD_K: &str = "8.98846567431158e307";
+
+/// Bracket the authored snapshot in the author child's stdout.
+const SNAPSHOT_BEGIN: &str = "BAND-SNAPSHOT-BEGIN";
+const SNAPSHOT_END: &str = "BAND-SNAPSHOT-END";
+
+/// What the loading child prints once its last assertion has run.
+const SNAPSHOT_LOAD_DONE: &str = "BAND-SNAPSHOT-LOAD-COMPLETE";
+
+/// The mate both instances carry: frame coincidence on authored frames
+/// whose vectors clear the author's band by two orders.
+fn snapshot_mate(
+    a: pncad::document::RecipeNodeId,
+    b: pncad::document::RecipeNodeId,
+) -> pncad::document::Node<pncad::document::ProfileProgram> {
+    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node};
+    use pncad::prelude::StableName;
+    use pncad::select::EntityKind;
+    let face_of = |instance| {
+        common::head(StableName {
+            kind: EntityKind::Face,
+            node: instance,
+            path: Vec::new(),
+        })
+    };
+    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1e4], [1e4, 0.0, 0.0]);
+    Node::Mate {
+        a: face_of(a),
+        b: face_of(b),
+        class: ContactClass::Rest,
+        alignment: Alignment {
+            a: frame.clone(),
+            b: frame,
+            primitive: MatePrimitive::FrameCoincidence,
+            sense: AxisSense::Opposed,
+            clocking: None,
+        },
+    }
+}
+
+/// CHILD MODE, the author. No-op unless [`SNAPSHOT_AUTHOR`] is set.
+/// At [`SNAPSHOT_EPS`] and the default K a band exists, so the edit
+/// door admits the mate; the document is saved through the save door
+/// and printed between the brackets.
+#[test]
+fn child_band_snapshot_author() {
+    use pncad::document::{DocRef, Node, ProfileDoc, content_pin, save};
+    use pncad::geom_core::Band;
+
+    if std::env::var(SNAPSHOT_AUTHOR).is_err() {
+        return;
+    }
+    let tol = Tol::witness();
+    Band::linear(tol).expect("the author's tolerance has a band");
+    let part = ProfileDoc::empty_derived("band-snapshot-part", tol);
+    let doc_ref = DocRef {
+        id: part.id(),
+        pin: content_pin(&part, tol).expect("the pin computes"),
+    };
+    let mut asm = ProfileDoc::empty_derived("band-snapshot-asm", tol);
+    let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    common::insert_into(&mut asm, snapshot_mate(a, b), tol);
+    let text = save(&asm, &[], tol).expect("the document saves");
+    println!("{SNAPSHOT_BEGIN}\n{text}{SNAPSHOT_END}");
+}
+
+/// CHILD MODE, the loader. No-op unless [`SNAPSHOT_TEXT`] is set.
+///
+/// **A mate's band refusal, reached the way a state reaches it.** The
+/// insert door refuses a mate where no band exists
+/// ([`child_band_refusal_rows`]' DOOR 2a), so no edit and no replay
+/// lands one there; a SNAPSHOT is a state, and one authored where its
+/// ε had a band loads in a process whose K leaves it none. The mate's
+/// own value is then the solve's `Band`, and the tree draws its row
+/// FAILED in the payload's own words with nothing pointed at it: the
+/// fault names no mate, so `blamed_mates` answers empty for it.
+#[test]
+fn child_band_snapshot_load() {
+    use pncad::document::{MateFault, Node, NodeErrorKind, RecipeNodeId, load};
+    use pncad::geom_core::Band;
+
+    let Ok(text) = std::env::var(SNAPSHOT_TEXT) else {
+        return;
+    };
+    let tol = Tol::witness();
+    Band::linear(tol).expect_err("no band exists at the loader's K");
+    let loaded = load(&text, tol).expect("a state loads where an edit could not land");
+    let doc = loaded.doc;
+    let mates: Vec<RecipeNodeId> = doc
+        .order()
+        .iter()
+        .copied()
+        .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
+        .collect();
+    let [mate] = mates[..] else {
+        panic!("the snapshot holds one mate: {mates:?}");
+    };
+
+    let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let Some(NodeResult::Failed(error)) = evaluation.result(mate) else {
+        panic!("the mate fails: {:?}", evaluation.result(mate));
+    };
+    assert!(
+        matches!(&error.kind, NodeErrorKind::Mate(f) if matches!(**f, MateFault::Band { .. })),
+        "the mate's own value is the solve's band refusal: {error:?}"
+    );
+
+    let rows = tree::rows(
+        &doc,
+        Some(&evaluation),
+        &viewer::parts::PartFiles::default(),
+    );
+    let status = common::status_of(&rows, mate);
+    assert_eq!(status.badge(), "FAILED", "{status:?}");
+    assert_eq!(
+        status.message(),
+        Some(error.to_string().as_str()),
+        "the mate row carries the payload's own rendering"
+    );
+    let pointed: Vec<RecipeNodeId> = rows
+        .iter()
+        .filter(|row| matches!(row.status, RowStatus::Poisoned { .. }))
+        .map(|row| row.id)
+        .collect();
+    assert_eq!(
+        pointed,
+        Vec::<RecipeNodeId>::new(),
+        "a band refusal blames no mate, so no row points at the mate or from it"
+    );
+    println!("{SNAPSHOT_LOAD_DONE}");
+}
+
+/// Runs the child `name` of this module with `envs` and the ambient
+/// tolerance variables removed, answering its stdout once it exits 0.
+fn run_child(name: &str, envs: &[(&str, &str)]) -> String {
+    let exe = std::env::current_exe().expect("test exe path");
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::{name}"),
+        None => name.to_string(),
+    };
+    let mut command = std::process::Command::new(exe);
+    command
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env_remove("CAD_TOLERANCE_EPS")
+        .env_remove("CAD_AMBIGUITY_K");
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+    let out = command.output().expect("child spawns");
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(out.status.success(), "{name} failed:\n{text}");
+    text
+}
+
+/// The parent of [`child_band_snapshot_author`] and
+/// [`child_band_snapshot_load`]: author at a sound tolerance, carry
+/// the saved text, load it where no band exists.
+#[test]
+fn a_loaded_snapshot_reaches_a_mates_band_refusal() {
+    let authored = run_child(
+        "child_band_snapshot_author",
+        &[(SNAPSHOT_AUTHOR, "1"), ("CAD_TOLERANCE_EPS", SNAPSHOT_EPS)],
+    );
+    let snapshot = authored
+        .split_once(&format!("{SNAPSHOT_BEGIN}\n"))
+        .and_then(|(_, rest)| rest.split_once(SNAPSHOT_END))
+        .map(|(text, _)| text)
+        .unwrap_or_else(|| panic!("the author printed no snapshot:\n{authored}"));
+    let loaded = run_child(
+        "child_band_snapshot_load",
+        &[
+            (SNAPSHOT_TEXT, snapshot),
+            ("CAD_TOLERANCE_EPS", SNAPSHOT_EPS),
+            ("CAD_AMBIGUITY_K", SNAPSHOT_LOAD_K),
+        ],
+    );
+    assert!(
+        loaded.contains(SNAPSHOT_LOAD_DONE),
+        "the loader exited 0 without reaching its assertions — a filter that matches \
+         nothing greens. Child output:\n{loaded}"
+    );
 }
