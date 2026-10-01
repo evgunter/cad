@@ -82,7 +82,7 @@ fn with_void(mut dst: Body<f64>, cavity: Body<f64>) -> Body<f64> {
             })
             .collect(),
     };
-    insert_void(&mut dst, solid, cavity, &evidence, tol()).expect("the void inserts");
+    insert_void(&mut dst, solid, cavity, &evidence).expect("the void inserts");
     dst
 }
 

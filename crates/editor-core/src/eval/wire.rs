@@ -4285,12 +4285,12 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         // a union of separated bodies has, and the only one the seamed
         // boolean path accepts as an operand.
         let keys = if i == 0 {
-            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed, tol)
+            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed)
                 .map_err(NodeErrorKind::Boolean)?;
             targets = keys.solids().to_vec();
             keys
         } else {
-            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed, tol)
+            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed)
                 .map_err(NodeErrorKind::Boolean)?
         };
         bridges.push(keys);

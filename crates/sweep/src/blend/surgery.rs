@@ -4643,12 +4643,8 @@ mod tests {
     #[test]
     fn a_body_that_is_not_one_solid_and_one_shell_is_refused_at_the_door() {
         let mut dst = cube(L, Tol::witness());
-        topo::instance::graft_disjoint_all(
-            &mut dst,
-            &cube(L * 0.5, Tol::witness()),
-            Tol::witness(),
-        )
-        .expect("the public transplant door accepts a disjoint cube");
+        topo::instance::graft_disjoint_all(&mut dst, &cube(L * 0.5, Tol::witness()))
+            .expect("the public transplant door accepts a disjoint cube");
         assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
         assert_eq!(dst.shells().count(), 2, "and a second shell");
         let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();

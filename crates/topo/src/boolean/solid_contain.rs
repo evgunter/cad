@@ -4956,7 +4956,7 @@ mod per_solid_entry_tests {
         let tol = Tol::witness();
         let mut body = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
         let other = quad_prism(&[(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], 1.0, tol);
-        crate::instance::graft_disjoint(&mut body, &other, tol).unwrap();
+        crate::instance::graft_disjoint(&mut body, &other).unwrap();
         body
     }
 

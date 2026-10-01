@@ -2671,11 +2671,12 @@ mod wiring_rows {
 /// bounds admit; this trait only decides which scalars'
 /// evaluation-service gates consult them.
 ///
-/// The trait also carries the three INJECTED DOORS whose presence is a
+/// The trait also carries the four INJECTED DOORS whose presence is a
 /// per-scalar fact, for the same reason it carries the gates: it is
 /// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
 /// the offset fit's, [`AtRestPolicy::fitted_lane`] is the fitted
-/// pcurve derivations', and [`AtRestPolicy::shell_door`] is the
+/// pcurve derivations', [`AtRestPolicy::nurbs_lane`] is the plane ×
+/// NURBS edge certificate's, and [`AtRestPolicy::shell_door`] is the
 /// hollowing verb's; each answers `None` for its own reason — a
 /// derivation written at one scalar, or certification rights (DL1) —
 /// and the doc on each method says which. What a reader gets from the
@@ -2708,9 +2709,10 @@ pub trait AtRestPolicy: Decide {
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
-    /// of the fitted-pcurve and shell doors beside it
-    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::shell_door`]) —
-    /// three doors, one policy, no trait apiece.
+    /// of the fitted-pcurve, plane × NURBS and shell doors beside it
+    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::nurbs_lane`],
+    /// [`AtRestPolicy::shell_door`]) — four doors, one policy, no trait
+    /// apiece.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
 
     /// **This scalar's fitted-pcurve door, or `None` where it may not
@@ -2732,6 +2734,22 @@ pub trait AtRestPolicy: Decide {
     /// at the mint's rim arms, keeps the refusal the arm already had,
     /// since no foot is measured.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>>;
+
+    /// **This scalar's plane × NURBS lane, or `None` where it may not
+    /// certify** — the ONE seam the `Some` comes from for an operation
+    /// generic over its scalar that re-certifies edge carriers (the
+    /// transform, [`crate::transform_rigid`]).
+    ///
+    /// `None` is certification rights (DL1), the same fact as
+    /// [`AtRestPolicy::fitted_lane`]'s: the certificate of an
+    /// `Intersection` between a plane and a described NURBS wall (M7-8)
+    /// is C9 certification arithmetic, and
+    /// [`geom_brep::NurbsLane`]'s one constructor is bounded on
+    /// [`geom_core::CertifiedBounds`]. An operation holding `None`
+    /// refuses that class typed, naming the scalar
+    /// ([`crate::TransformError::NurbsLaneUnsupported`] at the
+    /// transform).
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
@@ -2834,6 +2852,12 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::FittedLane::certified())
     }
 
+    /// The decide-with-escalation lane certifies, so it derives the
+    /// plane × NURBS limbs.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
+    }
+
     /// The decide-with-escalation lane certifies, so it runs the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
@@ -2890,6 +2914,12 @@ impl AtRestPolicy for geom_core::Probe {
         Some(geom_brep::FittedLane::certified())
     }
 
+    /// As the fitted door above: certification rights decide it, and
+    /// the recording scalar holds them.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
+    }
+
     /// The recording scalar is `f64` with a sink attached, so it
     /// carries exactly what `f64` carries — here, the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
@@ -2941,6 +2971,12 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// brackets are what the C2 certificate's hull bound is made of.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
         Some(geom_brep::FittedLane::certified())
+    }
+
+    /// The certified interval scalar derives the plane × NURBS limbs:
+    /// its brackets are what their hull bounds are made of.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     /// The certified interval scalar runs the door: its brackets are
@@ -3004,6 +3040,12 @@ where
     /// certifying scalar still mints and re-derives fitted caches.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
         Some(geom_brep::FittedLane::certified())
+    }
+
+    /// The base scalar's lane, run at `Sym<T>`, for the reason the
+    /// fitted door above gives.
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+        Some(geom_brep::NurbsLane::certified())
     }
 
     /// For the reason [`QuadLane`] gives at the symbolic tier: the
@@ -3076,6 +3118,13 @@ where
     /// checks 1–3, which read no door and so answer as at every other
     /// scalar.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+        None
+    }
+
+    /// **A dual does not certify** (DL1), and the plane × NURBS limbs
+    /// are certification arithmetic, so no `Dual` can hold the lane
+    /// ([`geom_brep::NurbsLane::certified`]'s bound).
+    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
         None
     }
 
@@ -3232,6 +3281,12 @@ mod at_rest_policy_tests {
             T::fitted_lane().is_some(),
             "a certifying scalar holds the fitted-pcurve door"
         );
+        // The plane × NURBS lane likewise: `NurbsLane::certified()` or
+        // nothing.
+        assert!(
+            T::nurbs_lane().is_some(),
+            "a certifying scalar holds the plane x NURBS lane"
+        );
         // The volume backstop runs, on a planted wrong result: a union
         // "result" half the size of an operand.
         let (cube, half) = planted_union::<T>(tol);
@@ -3338,6 +3393,10 @@ mod at_rest_policy_tests {
             <geom_core::Dual64 as AtRestPolicy>::shell_door().is_none(),
             "a dual may not certify, so it holds no shell door"
         );
+        assert!(
+            <geom_core::Dual64 as AtRestPolicy>::nurbs_lane().is_none(),
+            "a dual may not certify, so it holds no plane x NURBS lane"
+        );
     }
 }
 
@@ -3426,10 +3485,10 @@ mod face_list_door_tests {
         let skew = quad_prism(&[(0.0, 0.0), (2.0, 0.3), (1.7, 1.9), (-0.4, 1.2)], 0.7, tol);
         let tall = quad_prism(&[(3.0, 3.0), (3.5, 3.0), (3.5, 3.5), (3.0, 3.5)], 4.0, tol);
         let mut pair = unit.clone();
-        crate::instance::graft_disjoint(&mut pair, &tall, tol).unwrap();
+        crate::instance::graft_disjoint(&mut pair, &tall).unwrap();
         let mut trio = skew.clone();
-        crate::instance::graft_disjoint(&mut trio, &tall, tol).unwrap();
-        crate::instance::graft_disjoint(&mut trio, &unit, tol).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &tall).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &unit).unwrap();
         vec![
             ("unit", unit),
             ("skew", skew),
