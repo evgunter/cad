@@ -170,7 +170,7 @@ impl MarchTol {
     /// coordinates in `reach` resolve, by the floors' own rule.
     fn mint(meters: f64, reach: Box3) -> Result<Self, SsiError> {
         let tol = Self(meters);
-        if !(tol.settling() > 0.0) {
+        if tol.settling() <= 0.0 {
             return Err(SsiError::InvalidMarchTol { value: meters });
         }
         exhaust::settles_r3(reach, tol.settling())?;
@@ -1314,7 +1314,9 @@ mod tests {
     /// length is a caller error, not a value to repair silently.
     #[test]
     fn a_decoupled_march_tolerance_refuses_typed_on_a_non_length() {
-        for bad in [0.0_f64, -1.0e-9, f64::NAN, f64::INFINITY] {
+        // The least subnormal is a length, but its settling residual
+        // underflows to zero.
+        for bad in [0.0_f64, -1.0e-9, f64::NAN, f64::INFINITY, f64::from_bits(1)] {
             match MarchTol::decoupled(bad, reaching(1.0)) {
                 Err(SsiError::InvalidMarchTol { value }) => {
                     assert!(value.is_nan() || value == bad, "{value:e} vs {bad:e}");
