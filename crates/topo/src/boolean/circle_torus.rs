@@ -76,12 +76,11 @@
 //! `u·T` (`T` the sum of the terms' magnitudes, [`NOISE_ULPS`] of them
 //! charged), which is a residual error of `u·T / (2r(R² − r²))` metres
 //! everywhere on the carrier (`F = 2r·res·Q` with `Q ≥ R² − r²`).
-//! The door refuses unless that error is definitely inside the band's
-//! zero class (`bool_circle_torus_noise` deciding `Positive`, or
-//! escalating in the band's gap): the representation cannot resolve
-//! what the band asks of it, and a meter that cannot be read licenses
-//! nothing it meters. The same error moves each root by `error/|F′|`
-//! radians; that arc length is held to the same test
+//! The door refuses when that error is DEFINITELY past the band's
+//! escalation threshold (`bool_circle_torus_noise` deciding
+//! `Positive`): the representation cannot resolve what the band asks
+//! of it. The same error moves each root by `error/|F′|` radians; that
+//! arc length is held to the same threshold
 //! (`bool_circle_torus_root_slack`), or a caller's span and trim
 //! decisions would be made on the wrong point.
 //!
@@ -464,13 +463,13 @@ pub(super) fn half_angle_roots<T: Decide>(
     // **The noise meter** (module docs): it bounds the harmonics'
     // evaluation error, `noise`, a residual error of up to
     // `noise / f_per_metre` metres everywhere on the carrier, and refuses
-    // unless that is definitely inside the band's zero class. The
+    // when that is definitely past the band's escalation threshold. The
     // stages after it (rotation, pole division, rescale, depression,
     // discriminant) round again; those are left to the ladder's own band
     // decisions, which is the premise the module docs state.
     match decide(rows.noise, Margin::of(noise / f_per_metre), band) {
-        Ok(Sign::Zero | Sign::Negative) => {}
-        Ok(Sign::Positive) | Err(_) => return Ok(HalfAngleRoots::Uncertain),
+        Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
     }
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
@@ -562,8 +561,8 @@ pub(super) fn half_angle_roots<T: Decide>(
                             Margin::of(radius * noise / slope.abs()),
                             band,
                         ) {
-                            Ok(Sign::Zero | Sign::Negative) => {}
-                            Ok(Sign::Positive) | Err(_) => return Ok(HalfAngleRoots::Uncertain),
+                            Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
+                            Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
                         }
                     }
                     HalfAngleRoots::Certified { count, thetas }

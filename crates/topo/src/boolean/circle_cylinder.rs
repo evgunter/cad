@@ -42,9 +42,12 @@
 //!   [`super::circle_torus::half_angle_roots`], with the wall's
 //!   `f_per_metre = 2r` and the carrier's own `2ρ` as its lever.
 //!
-//! Both arms' noise and root-slack meters REFUSE an unreadable reading
-//! (an escalation in the band's gap, or a NaN slope): a meter that
-//! cannot be read licenses nothing it meters.
+//! The meters keep their doors' postures. The parallel arm's REFUSE an
+//! unreadable reading (an escalation in the band's gap, or a NaN
+//! slope), the sphere door's. The ladder's refuse only a reading
+//! definitely past the band, and pass one in the gap — the posture
+//! `work/germ/circle-torus-meters-accept-an-unreadable-reading.md` holds
+//! open, measured there against what refusing costs at `ε = 1e-12`.
 //!
 //! The noise meter's term bound is `(|C₀ − o| + ρ)² + r²`, which
 //! dominates every term the harmonics are built from (`|e| ≤ |C₀ − o|`,
@@ -454,32 +457,20 @@ mod tests {
         ));
     }
 
-    /// **Both arms' meters refuse an unreadable reading.** A circle
-    /// against a unit wall 2000 m off: a definite miss whose harmonics
-    /// are built from terms of order 2000², whose rounding lies in the
-    /// default band's escalation gap. Square to the axis (the parallel
-    /// arm) and tilted (the half-angle ladder) each refuse. With the
-    /// ladder's `Err` arm reading as a pass, the tilted pose (`ρ = 10`)
-    /// answered `Miss`.
+    /// **The parallel arm's meter refuses an unreadable reading.** A
+    /// unit circle square to a unit wall 2000 m off: a definite miss
+    /// whose harmonics are built from terms of order 2000², whose
+    /// rounding lies in the default band's escalation gap.
     #[test]
-    fn both_noise_meters_refuse_a_reading_in_the_band_gap() {
+    fn the_parallel_noise_meter_refuses_a_reading_in_the_band_gap() {
         if !default_band() {
             return;
         }
-        let s = core::f64::consts::FRAC_1_SQRT_2;
-        let tilted = Pose {
-            c: [0.0, 0.0, 0.0],
-            n: [0.0, s, s],
-            u: [1.0, 0.0, 0.0],
-            rho: 10.0,
-        };
-        for (label, pose) in [("square", flat(0.0, 0.0, 0.0, 1.0)), ("tilted", tilted)] {
-            let got = door(pose, -1.0, 1.0, [pose.rho + 2000.0, 0.0, 1.0]);
-            assert!(
-                matches!(got, CircleRoots::Uncertain),
-                "{label}: the noise meter refuses, got {got:?}"
-            );
-        }
+        let got = door(flat(0.0, 0.0, 0.0, 1.0), -1.0, 1.0, [2001.0, 0.0, 1.0]);
+        assert!(
+            matches!(got, CircleRoots::Uncertain),
+            "the noise meter refuses, got {got:?}"
+        );
     }
 
     /// **A desynced caller is a kernel defect, loudly.**

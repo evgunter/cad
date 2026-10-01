@@ -2,9 +2,8 @@
 id: circle-torus-meters-accept-an-unreadable-reading
 kind: issue
 title: The circle x torus half-angle door's noise and root-slack meters accept an Err reading (NaN or in-gap), where its parallel-axes sibling refuses
-status: closed
+status: open
 opened: 2026-10-01
-closed: 2026-10-01
 refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12, sphere-union-sphere-refuses-though-the-section-is-closed-form]
 ---
 
@@ -37,24 +36,32 @@ those figures, so the change wants the lane that owns them to re-run
 its measurement, alongside the 1e-12 crowding in
 `circle-torus-root-slack-crowds-the-zero-band-at-1e-12`.
 
-## Outcome (2026-10-01, TANG's circle × cylinder cell)
+## Evidence (2026-10-01, TANG's circle × cylinder cell): what refusing costs, measured
 
-Fixed in `circle_torus::half_angle_roots`: both rows now read
-`Ok(Zero | Negative) => {}`, `Ok(Positive) | Err(_) => Uncertain`, the
-sphere door's posture. It was fixed there rather than left for this
-row's owner because the circle × cylinder cell calls the same door, and
-a cylinder lane inheriting a posture already filed as wrong, or a flag
-choosing the posture per caller, would each have been a defect of its
-own.
+The circle × cylinder cell (`topo::boolean::circle_cylinder`) calls
+`half_angle_roots` for a circle tilted to the wall, so this posture now
+covers a second surface. TANG tried the sphere door's posture in the
+shared door (`Ok(Zero | Negative) => {}`, `Ok(Positive) | Err(_) =>
+Uncertain`, both rows) and measured it before deciding not to land it:
 
-The re-measurement this row asked for: the circle × torus ρ-sweep
-(`no_wrong_certified_answer_across_circle_radii`, the module docs'
-"What that costs, measured") answers `[16, 0, 0, 0]` of 32 at
-ρ = 10, 30, 100, 300 under both postures, so the documented figures
-stand unchanged. The posture's red-then-green row is the cylinder
-door's `both_noise_meters_refuse_a_reading_in_the_band_gap`: a circle
-of radius 10 tilted 45° against a unit wall 2000 m off answered `Miss`
-on an in-gap noise reading and answers `Uncertain` now. On a grid of
-far misses (ρ ∈ {1, 10, 30, 100}, r ∈ {1, 0.1, 0.01}, 3 to 2000 m off)
-the change turns 9 of the 48 answers from `Miss` into `Uncertain`, each
-a miss whose noise reading lies in the band's gap.
+- **Default band**: the circle × torus ρ-sweep
+  (`no_wrong_certified_answer_across_circle_radii`) answers
+  `[16, 0, 0, 0]` of 32 at ρ = 10, 30, 100, 300 under both postures, so
+  the module docs' figures would stand. On a grid of far misses against
+  a wall (ρ ∈ {1, 10, 30, 100}, r ∈ {1, 0.1, 0.01}, 3 to 2000 m off), 9
+  of 48 answers move from `Miss` to `Uncertain`, each a miss whose noise
+  reading lies in the gap — for example a circle of radius 10 tilted
+  45° against a unit wall 2000 m off.
+- **`ε = 1e-12`**: three rows red that are green at the merge base,
+  every one an ordinary unit-scale pose whose 16-ulp term-bound charge
+  lands in the band's gap: `circle_torus::tests::a_clear_circle_is_a_miss`
+  (a unit circle 4 m off the torus answers `Uncertain`),
+  `roots_are_reported_within_half_a_turn_of_the_arc` (no certified
+  count), and `germ_circle_torus::a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm`
+  (the sweep refuses `CurvedPierceUnsupported`).
+
+So refusing on `Err` in the ladder is the right reading of an
+unreadable meter, and the term bound it reads is too coarse for
+`1e-12` to afford it: the charge, not the posture, is what wants work
+first. The cylinder cell keeps the ladder's posture, and its own
+first-harmonic arm keeps the sphere door's.
