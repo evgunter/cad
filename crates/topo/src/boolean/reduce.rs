@@ -673,9 +673,10 @@ pub(super) fn refuse_undeclared_continuations<T: Decide + Bounds>(
     };
     let (a_faces, b_faces) = (boxed(a)?, boxed(b)?);
     let mut edge_boxes: Option<[FaceEdges; 2]> = None;
-    for &(fa, ref box_a) in &a_faces {
-        for &(fb, ref box_b) in &b_faces {
-            if !box_a.overlaps(box_b) || declared.class_of(Operand::A, fa, Operand::B, fb).is_some()
+    for &(fa, box_a) in &a_faces {
+        for &(fb, box_b) in &b_faces {
+            if !box_a.overlaps(&box_b)
+                || declared.class_of(Operand::A, fa, Operand::B, fb).is_some()
             {
                 continue;
             }
@@ -698,9 +699,12 @@ pub(super) fn refuse_undeclared_continuations<T: Decide + Bounds>(
                     what: "continuation scan: edge boxes not built",
                 })?;
             let mut meets = false;
-            for &(ex, ref bx) in ea.get(&fa).map_or(&[][..], Vec::as_slice) {
-                for &(ey, ref by) in eb.get(&fb).map_or(&[][..], Vec::as_slice) {
-                    if bx.overlaps(by) && edges_share_a_curve(a, ex, b, ey, bx, by, pad, band)? {
+            for &(ex, bx) in ea.get(&fa).map_or(&[][..], Vec::as_slice) {
+                for &(ey, by) in eb.get(&fb).map_or(&[][..], Vec::as_slice) {
+                    if !meets
+                        && bx.overlaps(&by)
+                        && edges_share_a_curve(a, ex, b, ey, &bx, &by, pad, band)?
+                    {
                         meets = true;
                     }
                 }
@@ -733,7 +737,7 @@ fn face_edge_boxes<T: Decide + Bounds>(
             .face_of_half_edge(edge.he_minus)
             .filter(|&f| Some(f) != f1);
         for f in [f1, f2].into_iter().flatten() {
-            out.entry(f).or_default().push((key, bx.clone()));
+            out.entry(f).or_default().push((key, bx));
         }
     }
     Ok(out)
