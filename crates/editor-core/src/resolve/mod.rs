@@ -112,7 +112,7 @@ pub enum ResolveError {
         last_good: Option<Tombstone>,
     },
     /// The name is tie-marked (N2): the reference cannot pick among
-    /// equally-admissible candidates — never auto-picked.
+    /// equally-admissible candidates — a tied row is never auto-picked.
     Ambiguous {
         /// The referenced name.
         name: StableName,

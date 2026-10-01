@@ -4,6 +4,8 @@ kind: issue
 title: splitting::finish::carve removes the dropped shells' half-edges and loops by cycle walks it never proves claim their loops: a torn next leaves a dangling member or removes a kept shell's half-edge
 status: open
 opened: 2026-09-30
+cost: M
+priority: P3
 ---
 
 ## What
@@ -51,3 +53,10 @@ a dropped edge, or a kept solid other than `solid` listing a dropped
 shell. The fix can call those helpers with the dropped sets as the
 clearing, once per record kind rather than per record, since `carve`
 removes many.
+
+TOPO PR 3592 adds the half-edge side: `Body::require_killed_halves_unnamed`
+proves that no kept half-edge's `next`/`prev`, loop's `first`,
+vertex's `emanating` or edge's slot names a half-edge a kill removes.
+`carve` removes the dropped shells' half-edges with the same four
+namers unproven. The helper takes a kill's two halves; a caller that
+removes many needs that parameter widened to a set.

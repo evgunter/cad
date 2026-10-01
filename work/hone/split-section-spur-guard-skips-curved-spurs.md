@@ -5,7 +5,7 @@ title: The split join's spur guard decides straight tips only; a curved out-and-
 status: open
 opened: 2026-09-24
 priority: P3
-cost: D
+cost: M
 ---
 
 
