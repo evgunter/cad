@@ -843,38 +843,12 @@ fn classify<T: Decide>(
     decide(name, margin, band).map_err(|cause| PropsError::Escalated { cause })
 }
 
-/// Every name [`require_zero`] decides a stored-data consistency
-/// residual under. A [`PropsError::NotIsoRectangle`] carrying one of
-/// these is a definite contradiction between a face's stored data and
-/// its surface, not a shape outside the inventory
-/// ([`PropsError::contradicts_stored_data`]); `require_zero` asserts in
-/// debug builds that the name it is handed is listed here.
-pub(super) const CONSISTENCY_RESIDUALS: &[&str] = &[
-    "props_du_consistent",
-    "props_meridian_apex",
-    "props_meridian_axial",
-    "props_meridian_fit",
-    "props_meridian_generator",
-    "props_meridian_great",
-    "props_meridian_on_surface",
-    "props_meridian_plane",
-    "props_rim_axis_parallel",
-    "props_rim_center_on_axis",
-    "props_rim_fit",
-    "props_rim_only_closed",
-    "props_rim_only_join",
-];
-
 /// Require a consistency residual to be coincident with zero.
 fn require_zero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    debug_assert!(
-        CONSISTENCY_RESIDUALS.contains(&name),
-        "`{name}` decides a consistency residual and is not in CONSISTENCY_RESIDUALS"
-    );
     match classify(name, margin, band)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(PropsError::NotIsoRectangle { what: name }),

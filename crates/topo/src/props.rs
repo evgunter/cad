@@ -35,7 +35,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::props::quad::{RoundOutcome, RoundWindow};
+use geom_brep::props::quad::{self, RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
@@ -598,6 +598,59 @@ pub struct SignCertificate<'b, T: Decide> {
     refused: Option<(FaceKey, PropsError)>,
 }
 
+impl<T: Decide> SignCertificate<'_, T> {
+    /// The certificate's volume and area as they stand, enclosure pads
+    /// included — the reporting walk's own properties when every face
+    /// has met the target.
+    pub(crate) fn props(&self) -> MassProperties<T> {
+        fold_runs(&self.runs).0
+    }
+
+    /// **One round past the reporting target** on every face that met
+    /// the target at a round below
+    /// [`quad::LAST_ROUND_EVERY_LANE_RUNS`] — for a caller whose sign
+    /// the reporting enclosure leaves open. A face's rounds are
+    /// independent recomputations, so each later round's enclosure is
+    /// as sound as the reporting one and, until interval rounding
+    /// floors it, narrower. Answers whether any face moved: `false`
+    /// is the schedule's end for this certificate. A round that
+    /// refuses leaves every face as it was and ends the refinement —
+    /// the enclosures held are sound either way.
+    pub(crate) fn refine_past_target(&mut self) -> bool {
+        let next: Vec<(usize, FaceKey, usize)> = self
+            .runs
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, run)| {
+                run.converged_at
+                    .filter(|&round| round < quad::LAST_ROUND_EVERY_LANE_RUNS)
+                    .map(|round| (slot, run.face, round + 1))
+            })
+            .collect();
+        if next.is_empty() {
+            return false;
+        }
+        let hook = round_hook(self.quad);
+        let (body, band, tol) = (self.body, self.band, self.tol);
+        match decide_faces(&next, |&(_, face, round)| {
+            face_flux(body, face, band, &hook, tol, RoundWindow::at(round))
+        }) {
+            Ok(runs) => {
+                for ((slot, _, _), run) in next.iter().zip(runs) {
+                    self.runs[*slot] = run;
+                }
+                true
+            }
+            Err(_) => {
+                for (slot, _, _) in &next {
+                    self.runs[*slot].converged_at = None;
+                }
+                false
+            }
+        }
+    }
+}
+
 impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
     /// The certificate, not the body it reads: the bracket, the rounds
     /// its faces reached, and whether a number is still refused.
@@ -1085,55 +1138,6 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
 }
 
-/// The last round [`mass_properties_at_round`] may be asked for: the
-/// shortest schedule among the quadrature lanes `lane` can enter
-/// (`geom_brep::props::quad`'s `QUAD2_MAX_ROUNDS`, the spline and
-/// trimmed-patch lanes; the cylinder lane runs to 12). Each lane
-/// asserts that a window it is handed starts inside its own schedule.
-pub(crate) const LAST_SHARED_ROUND: usize = 6;
-
-/// The body's enclosure with every quadrature face computed at ONE
-/// round of its schedule, `round ≤` [`LAST_SHARED_ROUND`], whether or
-/// not the reporting target was met before it — the refinement a
-/// caller deciding a sign past the reporting target needs. A round's
-/// enclosure is the lane's own at that round (its rounds are
-/// independent recomputations), so it is sound at every round; past the
-/// reporting round it is tighter until interval rounding floors it.
-/// A face whose lane runs out of budget at `round` still contributes
-/// its enclosure, as at the sign level.
-///
-/// # Errors
-///
-/// A face with no enclosure at that round (poison, an escalation), as
-/// the reporting walk.
-pub(crate) fn mass_properties_at_round<T: Decide>(
-    body: &Body<T>,
-    band: Band,
-    tol: Tol,
-    lane: QuadLane<T>,
-    round: usize,
-) -> Result<MassProperties<T>, MassPropsError> {
-    debug_assert!(
-        round <= LAST_SHARED_ROUND,
-        "round {round} is past every lane's schedule"
-    );
-    let window = RoundWindow::at(round);
-    let hook = move |body: &Body<T>,
-                     surface: &Surface<T>,
-                     outer: &[LoopEdge<T>],
-                     hes: &[HalfEdgeKey],
-                     band: Band,
-                     tol: Tol,
-                     _window: RoundWindow| {
-        (lane.cut_face_rounds)(body, surface, outer, hes, band, tol, window).map(Some)
-    };
-    let faces = crate::query::all_faces(body);
-    let runs = decide_faces(&faces, |&face| {
-        face_flux(body, face, band, &hook, tol, window)
-    })?;
-    Ok(fold_runs(&runs).0)
-}
-
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
 /// attempted (the closed form then answers, refusing typed on trimmed
 /// faces), `Ok(Some(outcome))` = the lane's answer over the window it
@@ -1307,6 +1311,7 @@ mod face_walk_composition_tests {
                 area_pad: 0.0,
             },
             open_at: None,
+            converged_at: None,
             refusal: None,
         }
     }
@@ -1473,6 +1478,7 @@ mod continuation_refusal_order_tests {
                 area_pad: 0.0,
             },
             open_at,
+            converged_at: None,
             refusal,
         }
     }
@@ -1670,6 +1676,11 @@ struct FaceRun<T> {
     /// and for one whose schedule has nothing further to offer — in
     /// every case there is no round to resume at.
     open_at: Option<usize>,
+    /// The round a single-round window met the reporting target at —
+    /// where [`SignCertificate::refine_past_target`] resumes. `None`
+    /// for a closed-form face, for one that has not met the target, and
+    /// for one read through the whole schedule at once.
+    converged_at: Option<usize>,
     /// The refusal a target-level reading of this face earns. A face
     /// can carry one and still contribute a sound enclosure: that is
     /// the whole difference between the two levels.
@@ -1706,6 +1717,7 @@ fn face_flux<T: Decide>(
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
     let mut open_at = None;
+    let mut converged_at = None;
     let mut refusal = None;
     let contribution: FaceContribution<T> = match *surface {
         Surface::Plane { origin, .. } => {
@@ -1752,7 +1764,13 @@ fn face_flux<T: Decide>(
             match quad_out {
                 Some(outcome) => {
                     let bounds = match outcome {
-                        RoundOutcome::Converged(bounds) => bounds,
+                        RoundOutcome::Converged(bounds) => {
+                            // A window of one round returns at that
+                            // round: the lane tests convergence before
+                            // it would end the window.
+                            converged_at = (window.first == window.last).then_some(window.first);
+                            bounds
+                        }
                         RoundOutcome::Open {
                             bounds,
                             round,
@@ -1795,6 +1813,7 @@ fn face_flux<T: Decide>(
             area_pad,
         },
         open_at,
+        converged_at,
         refusal,
     })
 }
@@ -2603,7 +2622,8 @@ mod wiring_rows {
 /// ([`geom_brep::OffsetFitLane::recertify`]), encloses volume flux
 /// through the quadrature lane, and certifies the contact census —
 /// so it belongs to the scalars with certification rights (`f64`,
-/// the telemetry probe, the interval scalar), whose impls here
+/// the telemetry probe, the interval scalar, and the symbolic tier
+/// over any of them), whose impls here
 /// delegate to the validation doors verbatim. At a
 /// [`Dual`](geom_core::Dual) the gate is **structurally absent**:
 /// the impl calls nothing, and its success arm SAYS so — the outcome

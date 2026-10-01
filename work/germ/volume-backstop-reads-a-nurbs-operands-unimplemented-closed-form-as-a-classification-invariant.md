@@ -29,13 +29,26 @@ is a typed capability refusal naming the kind, at the backstop.
 ## The backstop changed under this row (REACH, branch `reach/volume-backstop`, 2026-10-01)
 
 `volume_backstop` no longer reads the closed form or raises
-`ClassificationInvariant`. It measures the operands and the result
-through the scalar's own lane (`AtRestPolicy::quad_lane`): at a
-certifying scalar that is `topo::mass_properties`' walk, whose face
-dispatch sends every spline face (`Surface::spline_chart`) to the
-NURBS-patch quadrature lane; at a dual it is the closed form. Any props
-refusal now surfaces as `BooleanError::VolumeUnmeasured { operand,
-source }`, carrying the `MassPropsError` whole — at a dual a NURBS
-face's `Face { source: Unimplemented }`. That is the typed capability
-refusal this row asks for; still unmeasured end to end, for the reason
-above (the containment probe refuses first).
+`ClassificationInvariant`. It measures the operands and the result with
+the certified quadrature, through the sign-level walk run to its
+reporting target. That walk's face dispatch sends every spline face
+(`Surface::spline_chart`) to the NURBS-patch quadrature lane, so a NURBS
+operand whose patch lane encloses it is measured, not refused.
+
+The scalar's policy decides whether the backstop runs at all
+(`AtRestPolicy::gate_volume_backstop`). A dual runs nothing (DL3), so it
+has no closed-form refusal to give here.
+
+A props refusal at a certifying scalar surfaces in tier 3's reading
+(`validate::classify_mass_props`), as one of two errors:
+- `BooleanError::VolumeCorrupt { operand, source }` when the body's
+  structure does not resolve;
+- `BooleanError::VolumeUnmeasured { operand, source }` otherwise. For a
+  NURBS face that is the patch lane's typed refusal, e.g. a trim it
+  cannot enclose.
+
+A sign the enclosures still leave open beyond the band at the last
+round refuses `VolumeUndecided`.
+
+Still unmeasured end to end, for the reason above (the containment
+probe refuses first).

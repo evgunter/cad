@@ -248,11 +248,12 @@ fn planted(
 /// **Wrong results planted on quadrature-measured bodies.** `A` is the
 /// oblique rod, whose reporting enclosure is ±9.2e-7 m³ wide; a
 /// subtraction's "result" that is the same rod fattened by a relative
-/// `δ` is too big by `≈ 5.5·δ` m³. Above the resolution the backstop
-/// states (about 1.5e-9 m³ on this pair, the quadrature's interval
-/// floor at its last shared round) each refuses — by refinement past
-/// the reporting target where the reporting enclosures alone could not
-/// decide — and below it the fattening is accepted.
+/// `δ` is too big by `≈ 5.5·δ` m³. Above the quadrature's interval
+/// floor at the last round every lane runs (about 1.5e-9 m³ on this
+/// pair) each refuses — by refinement past the reporting target where
+/// the reporting enclosures alone could not decide — and below it, at
+/// this size, the open range metres far inside the band and the
+/// fattening is accepted.
 #[test]
 fn planted_subtraction_results_refuse_down_to_the_stated_resolution() {
     let a = oblique_rod(0.0, 0.5);
@@ -382,4 +383,63 @@ fn a_dual_builds_the_tilted_boss_on_the_f64_bits() {
     let f: Vec<_> = real.points().map(|(_, p)| bits([p.x, p.y, p.z])).collect();
     assert!(!f.is_empty());
     assert_eq!(d, f, "the dual's points are the f64 run's, in arena order");
+}
+
+/// [`oblique_rod`] at `x0 = 0` with every length scaled by `s`.
+fn scaled_oblique_rod(s: f64, r: f64) -> Body<f64> {
+    let disc = profile::circle(Point2::new(0.0, 0.0), r * s, tol()).unwrap();
+    let rod = extruded(SketchPlane::xy(), vec![disc.into()], 4.0 * s, tol());
+    body_of(
+        topo::subtract(&rod, &scaled_cutter(s), tol()),
+        "the scaled oblique rod",
+    )
+}
+
+/// [`oblique_cutter`] at `x0 = 0` with every length scaled by `s`.
+fn scaled_cutter(s: f64) -> Body<f64> {
+    let square = bulge_loop(
+        [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+            .into_iter()
+            .map(|(x, y)| (Point2::new(x * s, y * s), 0.0))
+            .collect(),
+    );
+    extruded(
+        tilted_about_x(Point3::new(0.0, 0.0, 3.5 * s), 20f64.to_radians()),
+        vec![square],
+        2.0 * s,
+        tol(),
+    )
+}
+
+/// **The last round fails loud.** The interval floor the refinement
+/// stops at grows with the body, so on a large enough body what the
+/// last round leaves open is larger than the model's resolution. At
+/// scale 10⁴ (the rod 40 km tall, ε = 1e-9) a result fattened by
+/// δ = 1e-11 is ≈ 55 m³ too big — a 2.2e-8 m boundary displacement,
+/// 22ε — and its sign is still open at the last round: the backstop
+/// refuses `VolumeUndecided` rather than accept it. The same holds of a
+/// CORRECT result at scale 10³, whose open range is beyond the band
+/// too: the gate cannot tell it from a wrong one, and says so.
+#[test]
+fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
+    let (a, b) = (scaled_oblique_rod(1e4, 0.5), scaled_cutter(1e4));
+    assert_eq!(
+        planted(
+            BooleanOp::Subtract,
+            &a,
+            &b,
+            &scaled_oblique_rod(1e4, 0.5 * (1.0 + 1e-11))
+        ),
+        Err(BooleanErrorKind::VolumeUndecided),
+        "22ε too big at scale 10⁴"
+    );
+    let (a, b) = (scaled_oblique_rod(1e3, 0.5), scaled_cutter(1e3));
+    assert_eq!(
+        planted(BooleanOp::Subtract, &a, &b, &a),
+        Err(BooleanErrorKind::VolumeUndecided),
+        "the right answer at scale 10³ is undecidable at the last round"
+    );
+    let err = topo::test_support::volume_backstop(BooleanOp::Subtract, &a, &b, &a, tol())
+        .expect_err("undecided");
+    assert!(err.to_string().contains("vol(A ∖ B) ≤ vol(A)"), "{err}");
 }

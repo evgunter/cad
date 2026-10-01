@@ -538,29 +538,6 @@ pub enum PropsError {
     },
 }
 
-impl PropsError {
-    /// Whether this refusal says the face's stored data contradicts
-    /// itself — a definitely nonzero consistency residual
-    /// (`curved::CONSISTENCY_RESIDUALS`), a face enclosing no area, or a
-    /// cone face across both nappes — rather than that the property
-    /// layer has no measurement for a valid face. On a body that passed
-    /// the structural tiers the first is corruption and the second a
-    /// capability gap, and a caller that reports the two differently
-    /// reads the difference here.
-    #[must_use]
-    pub fn contradicts_stored_data(&self) -> bool {
-        match self {
-            Self::NotIsoRectangle { what } => curved::CONSISTENCY_RESIDUALS.contains(what),
-            Self::DegenerateFace | Self::NappeSpanning => true,
-            Self::Unimplemented
-            | Self::NotOneChartBranch { .. }
-            | Self::Escalated { .. }
-            | Self::QuadratureBudget { .. }
-            | Self::QuadratureUnsupported { .. } => false,
-        }
-    }
-}
-
 impl core::fmt::Display for PropsError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

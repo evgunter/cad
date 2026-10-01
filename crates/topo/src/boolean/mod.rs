@@ -1429,19 +1429,30 @@ pub enum BooleanError {
         /// The property layer's refusal, whole.
         source: crate::props::MassPropsError,
     },
-    /// The volume backstop found a body whose stored data contradicts
-    /// itself where its volume is measured — a definitely nonzero
-    /// consistency residual, a face enclosing no area, unresolvable or
-    /// placeholder structure (`geom_brep::props::PropsError::
-    /// contradicts_stored_data`). On a result that has passed the
-    /// structural tiers that is a **kernel defect**, the Corrupt class
-    /// [`BooleanError::ResultVolumeImplausible`] is in.
+    /// The volume backstop found a body whose structure does not
+    /// resolve where its volume is measured — a key that names
+    /// nothing, a placeholder edge. Tier 3 reads the same refusals the
+    /// same way (one reading, `validate::classify_mass_props`). On the
+    /// result that is a **kernel defect**, the Corrupt class
+    /// [`BooleanError::ResultVolumeImplausible`] is in; on an operand
+    /// it is the kernel's or the file's the operand came from.
     VolumeCorrupt {
-        /// The operand whose data contradicts itself; `None` is the
+        /// The operand whose structure does not resolve; `None` is the
         /// result.
         operand: Option<Operand>,
         /// The property layer's refusal, whole.
         source: crate::props::MassPropsError,
+    },
+    /// The volume backstop measured all three bodies, refined their
+    /// enclosures as far as the quadrature's schedule reaches, and
+    /// still could not decide whether the bound named by `which` holds:
+    /// what the enclosures leave open, metered as a boundary
+    /// displacement, is certified larger than the model's resolution.
+    /// The result may be right; nothing here can say, so no body is
+    /// returned.
+    VolumeUndecided {
+        /// The bound left open (e.g. "vol(A ∖ B) ≤ vol(A)").
+        which: &'static str,
     },
     /// The result would be unbounded (only reachable with complement
     /// operands, e.g. ∪ of a body with its own complement) — no
@@ -1572,6 +1583,8 @@ pub enum BooleanErrorKind {
     VolumeUnmeasured,
     /// [`BooleanError::VolumeCorrupt`].
     VolumeCorrupt,
+    /// [`BooleanError::VolumeUndecided`].
+    VolumeUndecided,
     /// [`BooleanError::UnrepresentableResult`].
     UnrepresentableResult,
     /// [`BooleanError::GraftRecertify`].
@@ -1699,6 +1712,7 @@ impl BooleanError {
             Self::ResultVolumeImplausible { .. } => BooleanErrorKind::ResultVolumeImplausible,
             Self::VolumeUnmeasured { .. } => BooleanErrorKind::VolumeUnmeasured,
             Self::VolumeCorrupt { .. } => BooleanErrorKind::VolumeCorrupt,
+            Self::VolumeUndecided { .. } => BooleanErrorKind::VolumeUndecided,
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
         }
@@ -2100,21 +2114,35 @@ impl core::fmt::Display for BooleanError {
                  {KERNEL_DEFECT_ENDING}"
             ),
             Self::VolumeUnmeasured { operand, source } => {
-                let (why, recourse) = crate::validate::classify_mass_props(source);
+                let reading = crate::validate::classify_mass_props(source);
                 write!(
                     f,
                     "the Boolean checks its result against its inputs' volumes, and the \
-                     volume of {} cannot be measured — {why} — so no body is returned. \
-                     {recourse}",
-                    backstop_subject(*operand)
+                     volume of {} cannot be measured — {} — so no body is returned. {}",
+                    backstop_subject(*operand),
+                    reading.why,
+                    reading.recourse
                 )
             }
-            Self::VolumeCorrupt { operand, source } => write!(
+            Self::VolumeCorrupt { operand, source } => {
+                let ending = match operand {
+                    Some(_) => geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                    None => KERNEL_DEFECT_ENDING,
+                };
+                write!(
+                    f,
+                    "the Boolean checks its result against its inputs' volumes, and the \
+                     volume of {} cannot be measured — {} — so no body is returned. {ending}",
+                    backstop_subject(*operand),
+                    crate::validate::classify_mass_props(source).why
+                )
+            }
+            Self::VolumeUndecided { which } => write!(
                 f,
-                "the Boolean checks its result against its inputs' volumes, and the stored \
-                 data of {} contradicts itself where its volume is measured ({source}), so \
-                 no body is returned. {KERNEL_DEFECT_ENDING}",
-                backstop_subject(*operand)
+                "the Boolean checks its result against its inputs' volumes, and measuring \
+                 them as finely as the kernel can still leaves open whether {which} holds, \
+                 by more than the tolerance, so no body is returned. There is no way \
+                 through yet"
             ),
             Self::UnrepresentableResult => write!(
                 f,
@@ -3295,6 +3323,9 @@ mod tests {
                 operand: Some(Operand::A),
                 source: crate::props::MassPropsError::Corrupt { what: "a face key" },
             },
+            BooleanError::VolumeUndecided {
+                which: "vol(A ∖ B) ≤ vol(A)",
+            },
             BooleanError::UnrepresentableResult,
         ]
     }
@@ -3373,6 +3404,7 @@ mod tests {
                 BooleanErrorKind::ResultVolumeImplausible => "ResultVolumeImplausible",
                 BooleanErrorKind::VolumeUnmeasured => "VolumeUnmeasured",
                 BooleanErrorKind::VolumeCorrupt => "VolumeCorrupt",
+                BooleanErrorKind::VolumeUndecided => "VolumeUndecided",
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
             }

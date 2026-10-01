@@ -4617,6 +4617,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unrepresentable_result",
             "unsupported_declaration_class",
             "volume_corrupt",
+            "volume_undecided",
             "volume_unmeasured",
             "zip_correspondence",
         ],
