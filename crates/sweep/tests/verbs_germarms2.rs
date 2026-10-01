@@ -265,9 +265,9 @@ fn every_pose_of_the_family_answers_typed_and_pose_independently() {
 ///   (`boolean::join`) — this row's job is that the pose never gets
 ///   that far.
 /// - Parallel equal radii: the crossing events are a rim CIRCLE against
-///   a wall, whose parameters are the roots of a degree-2 trigonometric
-///   polynomial. No root lane for that exists anywhere in this tree, so
-///   this row is untouched by this unit and says so.
+///   a wall, certified by the circle × cylinder root lane; at one height
+///   the two pairs of cap discs then overlap in their planes, an
+///   undeclared coincidence, which stops the pose before any join.
 ///
 /// **Which crossing-layer door each pose takes is not the assertion.**
 /// A pierce that is never found and a pierce whose sector sides cannot
@@ -314,7 +314,14 @@ fn the_fenced_poses_keep_their_own_doors() {
     short_of_the_join("skew axes", &e);
     assert_same_door(&e, &union_err(&repose(&a), &repose(&skew)), "skew axes");
 
-    // Parallel axes, walls definitely crossing: the rim circle row.
+    // Parallel axes, walls definitely crossing: the rim circle row,
+    // whose cap discs are coplanar.
+    fn short_of_the_join_at_the_caps(name: &str, e: &BooleanError) {
+        assert!(
+            matches!(e, BooleanError::UndeclaredCoincidence { .. }),
+            "{name}: expected the cap discs' undeclared coincidence, got {e:?}"
+        );
+    }
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(1.2, 0.0), 1.0, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
@@ -326,7 +333,7 @@ fn the_fenced_poses_keep_their_own_doors() {
     .unwrap()
     .body;
     let e = union_err(&a, &parallel);
-    short_of_the_join("parallel-equal-r", &e);
+    short_of_the_join_at_the_caps("parallel-equal-r", &e);
     assert_same_door(
         &e,
         &union_err(&repose(&a), &repose(&parallel)),

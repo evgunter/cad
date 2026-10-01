@@ -531,8 +531,10 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
 
 /// **Phase-1 ground, kept as pins.** The `CylinderCylinderCylinder`
 /// consumer — two parallel cylinders of one height, overlapping,
-/// unioned — has no body: the union refuses at the boolean's
-/// curved-pierce door, so the concave ruled band has no fixture. And a
+/// unioned — has no body: the rims' crossings of the walls are
+/// certified, but the two pairs of cap discs overlap in their planes,
+/// an undeclared coincidence the boolean never infers, so the concave
+/// ruled band has no fixture. And a
 /// box's single edge is NOT a ruled link, so it still refuses as the
 /// run-out it always was: the cut-off is not widened to plane–plane.
 #[test]
@@ -548,8 +550,8 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out()
     };
     let err = topo::union(&cyl(0.0), &cyl(0.6), tol()).expect_err("the parallel pair refuses");
     assert!(
-        matches!(err, topo::BooleanError::CurvedPierceUnsupported { .. }),
-        "the boolean's curved-pierce door, got {err:?}"
+        matches!(err, topo::BooleanError::UndeclaredCoincidence { .. }),
+        "the boolean's undeclared-coincidence door on the cap discs, got {err:?}"
     );
 
     let body = cube(1.0, tol());

@@ -68,6 +68,7 @@
 
 pub(crate) mod boxes;
 pub mod carrier_eq;
+mod circle_cylinder;
 mod circle_sphere;
 mod circle_torus;
 pub(crate) mod combine;

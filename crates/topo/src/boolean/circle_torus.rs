@@ -65,7 +65,8 @@
 //! margins. The machinery
 //! is the surface-generic [`half_angle_roots`]: any surface whose
 //! implicit composed with a circle is a degree-2 trigonometric
-//! polynomial (a cone's is too) can hand it its harmonics.
+//! polynomial hands it its harmonics — the cylinder wall's does
+//! ([`super::circle_cylinder`]), and a cone's would.
 //!
 //! # The noise meter
 //!
@@ -75,11 +76,12 @@
 //! `u·T` (`T` the sum of the terms' magnitudes, [`NOISE_ULPS`] of them
 //! charged), which is a residual error of `u·T / (2r(R² − r²))` metres
 //! everywhere on the carrier (`F = 2r·res·Q` with `Q ≥ R² − r²`).
-//! The door refuses when that error is DEFINITELY past the band's
-//! escalation threshold (`bool_circle_torus_noise` deciding
-//! `Positive`): the representation cannot resolve what the band asks
-//! of it. The same error moves each root by `error/|F′|` radians; that
-//! arc length is held to the same threshold
+//! The door refuses unless that error is definitely inside the band's
+//! zero class (`bool_circle_torus_noise` deciding `Positive`, or
+//! escalating in the band's gap): the representation cannot resolve
+//! what the band asks of it, and a meter that cannot be read licenses
+//! nothing it meters. The same error moves each root by `error/|F′|`
+//! radians; that arc length is held to the same test
 //! (`bool_circle_torus_root_slack`), or a caller's span and trim
 //! decisions would be made on the wrong point.
 //!
@@ -141,7 +143,7 @@
 //!   the quartic is `F·(1 + t²)²` — a repeated complex pair the ladder
 //!   would read as a tangency. It is decided FIRST, geometrically
 //!   (`bool_circle_torus_coaxial_tilt`, `_offset`, both metres), and
-//!   answered [`CircleTorusRoots::Coaxial`]: the residual is constant
+//!   answered [`CircleRoots::Coaxial`]: the residual is constant
 //!   along the carrier, and the caller decides what that means.
 //! - **Parallel axes** (the circle's plane perpendicular to `â`, off
 //!   the axis — the lily's pose): `h` is constant, the plane meets the
@@ -184,16 +186,18 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
     },
 };
 
-/// What the certified circle × torus roots say about a whole carrier.
+/// What the certified roots of a circle against a torus or a cylinder
+/// wall ([`super::circle_cylinder`]) say about a whole carrier.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum CircleTorusRoots<T> {
-    /// The carrier is coaxial with the torus: its residual is constant.
+pub(super) enum CircleRoots<T> {
+    /// The carrier's residual is constant along it: coaxial with the
+    /// torus (any value), or lying on the wall.
     Coaxial,
-    /// A certified count of zero: the carrier misses the torus.
+    /// A certified count of zero: the carrier misses the surface.
     Miss,
-    /// No certain count — a tangency, a carrier on the torus, a crossing
-    /// whose bump is inside the band, or no anchor whose pole is
-    /// definitely off the torus AND well conditioned.
+    /// No certain count — a tangency, a carrier on the surface, a
+    /// crossing whose bump is inside the band, or no anchor whose pole
+    /// is definitely off the surface AND well conditioned.
     Uncertain,
     /// A certified count (2 or 4) and the carrier parameters `θ` of
     /// those roots, unordered, in `thetas[..count]`. Every `θ` lies
@@ -227,7 +231,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     t1: T,
     torus: &geom::Surface<T>,
     band: Band,
-) -> Result<CircleTorusRoots<T>, Indeterminate> {
+) -> Result<CircleRoots<T>, Indeterminate> {
     let geom::Surface::Torus {
         center: t_center,
         axis: t_axis,
@@ -236,7 +240,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
         ..
     } = *torus
     else {
-        return Ok(CircleTorusRoots::Uncertain);
+        return Ok(CircleRoots::Uncertain);
     };
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
@@ -258,7 +262,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
     );
     if parallel {
         return match decide("bool_circle_torus_coaxial_offset", Margin::of(offset), band) {
-            Ok(Sign::Zero) => Ok(CircleTorusRoots::Coaxial),
+            Ok(Sign::Zero) => Ok(CircleRoots::Coaxial),
             Ok(Sign::Positive) => parallel_axes_roots(
                 &ParallelPose {
                     center,
@@ -279,7 +283,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
             ),
             // A negative length is not an answer; an in-band one is a
             // near-coaxial pose neither arm can stand behind.
-            Ok(Sign::Negative) | Err(_) => Ok(CircleTorusRoots::Uncertain),
+            Ok(Sign::Negative) | Err(_) => Ok(CircleRoots::Uncertain),
         };
     }
 
@@ -318,29 +322,21 @@ pub(super) fn circle_torus_roots<T: Decide>(
     let h_abs = h0.abs() + h1c.abs() + h1s.abs();
     let terms = s_abs.powi(2) + four_rr * (s0.abs() + s1c.abs() + s1s.abs() + h_abs.powi(2));
     let f_per_metre = two * minor_radius * (rr - minor_radius.powi(2));
-    Ok(
-        match half_angle_roots(
-            &harmonics,
-            |theta| geom_brep::implicit_residual(torus, point_at(theta)),
-            HalfAngleFrame {
-                t0,
-                t1,
-                radius,
-                lever,
-                noise: rounding_charge(terms),
-                f_per_metre,
-            },
-            &CIRCLE_TORUS_ROWS,
-            band,
-        )? {
-            HalfAngleRoots::Miss => CircleTorusRoots::Miss,
-            HalfAngleRoots::Uncertain => CircleTorusRoots::Uncertain,
-            HalfAngleRoots::Certified { count, thetas } => {
-                CircleTorusRoots::Certified { count, thetas }
-            }
-            HalfAngleRoots::CountDisagrees => CircleTorusRoots::CountDisagrees,
+    half_angle_roots(
+        &harmonics,
+        |theta| geom_brep::implicit_residual(torus, point_at(theta)),
+        HalfAngleFrame {
+            t0,
+            t1,
+            radius,
+            lever,
+            noise: rounding_charge(terms),
+            f_per_metre,
         },
+        &CIRCLE_TORUS_ROWS,
+        band,
     )
+    .map(CircleRoots::from)
 }
 
 /// A degree-2 trigonometric polynomial
@@ -411,6 +407,17 @@ pub(super) enum HalfAngleRoots<T> {
     CountDisagrees,
 }
 
+impl<T> From<HalfAngleRoots<T>> for CircleRoots<T> {
+    fn from(roots: HalfAngleRoots<T>) -> Self {
+        match roots {
+            HalfAngleRoots::Miss => Self::Miss,
+            HalfAngleRoots::Uncertain => Self::Uncertain,
+            HalfAngleRoots::Certified { count, thetas } => Self::Certified { count, thetas },
+            HalfAngleRoots::CountDisagrees => Self::CountDisagrees,
+        }
+    }
+}
+
 /// The conditioning floor `κ` (module docs): the pole's `|F|` must be at
 /// least this share of `F`'s amplitude bound.
 const POLE_CONDITIONING: f64 = 1.0 / 16.0;
@@ -457,13 +464,13 @@ pub(super) fn half_angle_roots<T: Decide>(
     // **The noise meter** (module docs): it bounds the harmonics'
     // evaluation error, `noise`, a residual error of up to
     // `noise / f_per_metre` metres everywhere on the carrier, and refuses
-    // when that is definitely past the band's escalation threshold. The
+    // unless that is definitely inside the band's zero class. The
     // stages after it (rotation, pole division, rescale, depression,
     // discriminant) round again; those are left to the ladder's own band
     // decisions, which is the premise the module docs state.
     match decide(rows.noise, Margin::of(noise / f_per_metre), band) {
-        Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
-        Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
+        Ok(Sign::Zero | Sign::Negative) => {}
+        Ok(Sign::Positive) | Err(_) => return Ok(HalfAngleRoots::Uncertain),
     }
     let two = T::from_f64(2.0);
     let four = T::from_f64(4.0);
@@ -555,8 +562,8 @@ pub(super) fn half_angle_roots<T: Decide>(
                             Margin::of(radius * noise / slope.abs()),
                             band,
                         ) {
-                            Ok(Sign::Positive) => return Ok(HalfAngleRoots::Uncertain),
-                            Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
+                            Ok(Sign::Zero | Sign::Negative) => {}
+                            Ok(Sign::Positive) | Err(_) => return Ok(HalfAngleRoots::Uncertain),
                         }
                     }
                     HalfAngleRoots::Certified { count, thetas }
@@ -639,7 +646,7 @@ fn parallel_axes_roots<T: Decide>(
     major_radius: T,
     minor_radius: T,
     band: Band,
-) -> Result<CircleTorusRoots<T>, Indeterminate> {
+) -> Result<CircleRoots<T>, Indeterminate> {
     let &ParallelPose {
         center,
         radius,
@@ -672,9 +679,9 @@ fn parallel_axes_roots<T: Decide>(
                 Sign::Negative
             ) =>
         {
-            return Ok(CircleTorusRoots::Miss);
+            return Ok(CircleRoots::Miss);
         }
-        _ => return Ok(CircleTorusRoots::Uncertain),
+        _ => return Ok(CircleRoots::Uncertain),
     }
     let rho_max = radius + offset;
     let rho_min = (radius - offset).abs();
@@ -723,7 +730,7 @@ fn parallel_axes_roots<T: Decide>(
     };
     let (Some(far), Some(near)) = (place(theta0, rho_max)?, place(theta0 + T::pi(), rho_min)?)
     else {
-        return Ok(CircleTorusRoots::Uncertain);
+        return Ok(CircleRoots::Uncertain);
     };
     let half = ((minor_radius.powi(2) - h0.powi(2)).max(T::zero())).sqrt();
     // Contour ρ− lies between the extremes iff the near one is in the
@@ -767,11 +774,11 @@ fn parallel_axes_roots<T: Decide>(
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
         match decide("bool_circle_torus_root_slack", Margin::of(slack), band) {
-            Ok(Sign::Positive) => return Ok(CircleTorusRoots::Uncertain),
+            Ok(Sign::Positive) => return Ok(CircleRoots::Uncertain),
             // A NaN slack (a zero slope, which the placements above have
             // already refused as a graze) is `Err` and refuses too.
             Ok(Sign::Zero | Sign::Negative) => {}
-            Err(_) => return Ok(CircleTorusRoots::Uncertain),
+            Err(_) => return Ok(CircleRoots::Uncertain),
         }
         for theta in [theta0 + spread, theta0 - spread] {
             thetas[count] = mid + (theta - mid).reduce_periodic_centred(T::tau());
@@ -779,9 +786,9 @@ fn parallel_axes_roots<T: Decide>(
         }
     }
     Ok(if count == 0 {
-        CircleTorusRoots::Miss
+        CircleRoots::Miss
     } else {
-        CircleTorusRoots::Certified { count, thetas }
+        CircleRoots::Certified { count, thetas }
     })
 }
 
@@ -875,7 +882,7 @@ mod tests {
         out
     }
 
-    fn door(pose: Pose, t0: f64, t1: f64) -> CircleTorusRoots<f64> {
+    fn door(pose: Pose, t0: f64, t1: f64) -> CircleRoots<f64> {
         circle_torus_roots(
             Point3::from_array(pose.c),
             v3(pose.n),
@@ -891,7 +898,7 @@ mod tests {
 
     /// The door's roots that fall in `[t0, t1]`, sorted.
     fn in_arc(pose: Pose, t0: f64, t1: f64) -> (usize, Vec<f64>) {
-        let CircleTorusRoots::Certified { count, thetas } = door(pose, t0, t1) else {
+        let CircleRoots::Certified { count, thetas } = door(pose, t0, t1) else {
             panic!("expected a certified count");
         };
         let mut ts: Vec<f64> = thetas[..count]
@@ -987,7 +994,7 @@ mod tests {
             u: [1.0, 0.0, 0.0],
         };
         assert!(
-            matches!(door(pose, 2.0, 4.0), CircleTorusRoots::Uncertain),
+            matches!(door(pose, 2.0, 4.0), CircleRoots::Uncertain),
             "a graze is not a certified count"
         );
     }
@@ -1006,7 +1013,7 @@ mod tests {
                 u: [1.0, 0.0, 0.0],
             };
             assert!(
-                matches!(door(pose, 0.0, 1.0), CircleTorusRoots::Coaxial),
+                matches!(door(pose, 0.0, 1.0), CircleRoots::Coaxial),
                 "coaxial at z {z}, radius {rho}"
             );
         }
@@ -1023,7 +1030,7 @@ mod tests {
             rho: RT,
             u: [1.0, 0.0, 0.0],
         };
-        assert!(matches!(door(pose, 0.0, 1.0), CircleTorusRoots::Uncertain));
+        assert!(matches!(door(pose, 0.0, 1.0), CircleRoots::Uncertain));
     }
 
     /// Clear of the torus: a certified zero count.
@@ -1035,7 +1042,7 @@ mod tests {
             rho: 1.0,
             u: [0.3_f64.cos(), 0.0, -(0.3_f64.sin())],
         };
-        assert!(matches!(door(pose, 0.0, 1.0), CircleTorusRoots::Miss));
+        assert!(matches!(door(pose, 0.0, 1.0), CircleRoots::Miss));
     }
 
     /// The pole lands ON the torus at the arc's antipode: the first
@@ -1066,7 +1073,7 @@ mod tests {
             rho: RT,
             u: [1.0, 0.0, 0.0],
         };
-        assert!(matches!(door(pose, 2.0, 4.0), CircleTorusRoots::Uncertain));
+        assert!(matches!(door(pose, 2.0, 4.0), CircleRoots::Uncertain));
     }
 
     /// The parallel pose passing a few millimetres INSIDE a contour's
@@ -1095,7 +1102,7 @@ mod tests {
                 Band::new(eps, 10.0 * eps).unwrap(),
             )
             .unwrap();
-            let CircleTorusRoots::Certified { count, .. } = got else {
+            let CircleRoots::Certified { count, .. } = got else {
                 panic!("ε {eps}: a certified count, got {got:?}");
             };
             assert_eq!(count, 2, "ε {eps}: the inner contour only");
@@ -1137,7 +1144,7 @@ mod tests {
                 band(),
             )
             .unwrap();
-            let CircleTorusRoots::Certified { count, thetas } = got else {
+            let CircleRoots::Certified { count, thetas } = got else {
                 panic!("interval lane: expected a certified count");
             };
             let want = oracle(pose, -3.1, 3.1);
@@ -1225,7 +1232,7 @@ mod tests {
             assert!(
                 matches!(
                     &got,
-                    Ok(CircleTorusRoots::Uncertain)
+                    Ok(CircleRoots::Uncertain)
                         | Err(Indeterminate {
                             predicate: Some("bool_circle_torus_contour_residual"),
                             ..
@@ -1268,7 +1275,7 @@ mod tests {
         for (i, pose) in poses.into_iter().enumerate() {
             for (t0, t1) in [(0.0, 1.0), (2.0, 4.5)] {
                 assert!(
-                    matches!(door(pose, t0, t1), CircleTorusRoots::Uncertain),
+                    matches!(door(pose, t0, t1), CircleRoots::Uncertain),
                     "pose {i}, arc [{t0}, {t1}]: an on-torus circle is not a root set"
                 );
             }
@@ -1322,7 +1329,7 @@ mod tests {
             rho: 1.0,
             u: [1.0, 0.0, 0.0],
         };
-        assert!(matches!(door(pose, -3.0, 3.0), CircleTorusRoots::Miss));
+        assert!(matches!(door(pose, -3.0, 3.0), CircleRoots::Miss));
     }
 
     /// **The tilt a parallel pose was admitted with is charged.** The far
@@ -1357,7 +1364,7 @@ mod tests {
         assert!(
             matches!(
                 &got,
-                Ok(CircleTorusRoots::Uncertain)
+                Ok(CircleRoots::Uncertain)
                     | Err(Indeterminate {
                         predicate: Some("bool_circle_torus_contour_residual"),
                         ..
@@ -1447,10 +1454,10 @@ mod tests {
         )
         .unwrap();
         assert!(
-            !matches!(got, CircleTorusRoots::Miss),
+            !matches!(got, CircleRoots::Miss),
             "a real dip is not a certified miss: {got:?}"
         );
-        if let CircleTorusRoots::Certified { count, .. } = got {
+        if let CircleRoots::Certified { count, .. } = got {
             assert_eq!(count, 2, "the whole turn holds the dip's two roots");
         }
         // The interval lane encloses the rounding the meter estimates,
@@ -1470,7 +1477,7 @@ mod tests {
             fixed_band(),
         );
         assert!(
-            !matches!(got, Ok(CircleTorusRoots::Miss)),
+            !matches!(got, Ok(CircleRoots::Miss)),
             "interval lane: a real dip is not a certified miss: {got:?}"
         );
     }
@@ -1532,14 +1539,14 @@ mod tests {
                     )
                     .unwrap();
                     match got {
-                        CircleTorusRoots::Uncertain => {}
-                        CircleTorusRoots::Coaxial => panic!("{label}: not coaxial"),
-                        CircleTorusRoots::CountDisagrees => panic!("{label}: counts disagree"),
-                        CircleTorusRoots::Miss => {
+                        CircleRoots::Uncertain => {}
+                        CircleRoots::Coaxial => panic!("{label}: not coaxial"),
+                        CircleRoots::CountDisagrees => panic!("{label}: counts disagree"),
+                        CircleRoots::Miss => {
                             assert!(truth.is_empty(), "{label}: a certified miss on a dip");
                             answered[i] += 1;
                         }
-                        CircleTorusRoots::Certified { count, thetas } => {
+                        CircleRoots::Certified { count, thetas } => {
                             let mut got: Vec<f64> = thetas[..count]
                                 .iter()
                                 .copied()
@@ -1603,7 +1610,7 @@ mod tests {
                 fixed_band(),
             );
             if tilt == 0.0 {
-                let Ok(CircleTorusRoots::Certified { count, thetas }) = got else {
+                let Ok(CircleRoots::Certified { count, thetas }) = got else {
                     panic!("untilted: a certified count, got {got:?}");
                 };
                 assert_eq!(count, 4, "untilted: both contours");
@@ -1620,7 +1627,7 @@ mod tests {
                 }
             } else {
                 assert!(
-                    matches!(got, Ok(CircleTorusRoots::Uncertain)),
+                    matches!(got, Ok(CircleRoots::Uncertain)),
                     "tilt {tilt}: roots displaced past the band are not certified: {got:?}"
                 );
             }

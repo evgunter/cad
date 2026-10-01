@@ -119,13 +119,25 @@ fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {
     }
 }
 
-/// The adopted arm's candidate set on the corpus: 98 examined pairs
-/// (the base arm examined 134 — the 36 lost are the landing PR's
-/// table, each on loci separated by more than the pad with no
-/// reference-accepted event), and no reference-accepted pair
-/// unexamined wherever the reference runs.
+/// Corpus pairs whose idealized trace counts, as the pair's event, a
+/// face-free vertex record made against a face its edge's box never
+/// meets — the same v-v record the face holding the vertex makes, which
+/// the accumulator dedups, so the realized sweep loses no contact by
+/// pruning it
+/// (`work/hone/sweep-trace-counts-a-face-free-vertex-record-as-the-pairs-event.md`).
+/// The count is pinned, so a pair this exemption hides cannot join it
+/// unseen.
+const FACE_FREE_RECORDS: &[(&str, usize)] = &[("cylinder x cylinder shifted 0.3", 16)];
+
+/// The adopted arm's candidate set on the corpus: 154 examined pairs —
+/// the landing PR's 98 (the base arm examined 134; the 36 lost are that
+/// PR's table, each on loci separated by more than the pad with no
+/// reference-accepted event), and the 56 of the cylinder pair shifted
+/// 0.3, whose rim crossings the circle × cylinder root lane now
+/// certifies — and no reference-accepted pair unexamined wherever the
+/// reference runs, but the face-free records above.
 #[test]
-fn n3r1_prune_corpus_examines_98_pairs_and_loses_no_accepted_one() {
+fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
     let mut total_prune_pairs = 0usize;
     for (name, a, b) in corpus() {
         // A pair the realized sweep refuses typed (a curved pierce the
@@ -146,9 +158,17 @@ fn n3r1_prune_corpus_examines_98_pairs_and_loses_no_accepted_one() {
                 .iter()
                 .filter(|p| !ex(&real.1).contains(p))
                 .count();
-            assert_eq!(lx + ly, 0, "{name}: an accepted pair was never examined");
+            let face_free = FACE_FREE_RECORDS
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map_or(0, |&(_, k)| k);
+            assert_eq!(
+                lx + ly,
+                face_free,
+                "{name}: an accepted pair was never examined"
+            );
         }
         let _ = digest(&topo::boolean::subtract(&a, &b, Tol::witness()));
     }
-    assert_eq!(total_prune_pairs, 98, "the corpus's candidate total moved");
+    assert_eq!(total_prune_pairs, 154, "the corpus's candidate total moved");
 }

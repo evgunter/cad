@@ -210,8 +210,6 @@ cases! {
     endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE,
         Withdrawn(Because::Refuses("WallRoots(Discriminant)")) =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
-    arc_clear_of_a_wall: "Coincidence(ArcClearsCurvedFace)", D, CURVED_ARM_SITE, Valued =>
-        arc_against_a_wall(1.0 + D, None);
     // Declared `Rest` through the door, the walls are one carrier and the
     // arc's ends are read; a smaller tolerance decides the radii apart.
     arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", D, CURVED_ARM_SITE,
@@ -2107,11 +2105,18 @@ fn top_level_fn(line: &str) -> Option<String> {
 /// decision, mentions)`.
 const SITES: &[(&str, &str, &str, usize)] = &[
     (
-        "circle_sphere.rs",
-        "circle_sphere_roots",
-        "BooleanDecision::ArcSphereRoots",
+        "circle_cylinder.rs",
+        "-",
+        "BooleanDecision::ArcCylinderRoots",
         1,
     ),
+    (
+        "circle_cylinder.rs",
+        "circle_cylinder_roots",
+        "BooleanDecision::ArcCylinderRoots",
+        1,
+    ),
+    ("circle_sphere.rs", "-", "BooleanDecision::ArcSphereRoots", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
     ("insert.rs", "germ_dir", "SelfCheck::GermLine", 1),
     ("insert.rs", "mint_directed", "Coincide::Sectors", 1),
@@ -2239,12 +2244,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("recl.rs", "resolve_edge_edge", "Coincide::FlankSense", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
-    (
-        "reduce.rs",
-        "curved_face_arm",
-        "Coincide::ArcClearsCurvedFace",
-        1,
-    ),
     (
         "reduce.rs",
         "curved_face_arm",
