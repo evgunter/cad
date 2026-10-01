@@ -825,7 +825,8 @@ pub enum PcurveCertifyError {
         /// The refused class, named.
         what: &'static str,
     },
-    /// The chart's own row or column would not re-wrap as a curve —
+    /// The chart's control net disagrees with its knot vectors, or the
+    /// row or column read from it would not re-wrap as a curve —
     /// unreachable for a chart that already validated, and surfaced
     /// with the spline layer's own refusal rather than swallowed
     /// (D4 ¶2).
@@ -952,8 +953,8 @@ impl core::fmt::Display for PcurveCertifyError {
             ),
             Self::ChartRow { source } => write!(
                 f,
-                "pcurve certification: the chart's own row or column is not valid spline \
-                 structure — {source}"
+                "pcurve certification: the chart's control net, or the row or column read \
+                 from it, is not valid spline structure — {source}"
             ),
             Self::FittedCertificate {
                 limb,

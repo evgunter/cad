@@ -72,3 +72,22 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Evidence (TOPO, PR 3598, 2026-10-01)
+
+`Body::set_face_surfaces_describing` (`crates/topo/src/attach.rs`)
+checks a moved face's boundary residuals on a plane only. On a curved
+chart it takes the swap unchecked, as tier 3 does at rest.
+
+The keys-only `set_face_surface` refuses such a swap
+(`RechartUnvouched`). Its text says the describing door does not check
+a curved chart, and cites this row.
+
+Seven of `boolean::boxes`' arc-sector relabels (sphere ×2, the bulged
+patch, the kinds list, torus ×2 and the two-lane row) go through the
+describing door only because of this gap. When curved containment is
+checked there, they move back to `set_face_surface_stranding_for_tests`,
+whose rule is a `// Lifts …` reason at each call site.
+
+`attach::tests::a_curved_swap_is_refused_keys_only_and_taken_unchecked_by_the_describing_door`
+pins today's `Ok` and names this row in its message.

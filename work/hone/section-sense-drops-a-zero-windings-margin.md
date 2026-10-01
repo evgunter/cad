@@ -4,6 +4,8 @@ kind: issue
 title: topo: section_sense refuses a zero winding with no margin, and conflates it with a carrier that has no winding
 status: open
 opened: 2026-09-30
+cost: E
+priority: P2
 ---
 
 (TOPO, the D262 unit's sweep, PR 3532: the same shape as the merge's

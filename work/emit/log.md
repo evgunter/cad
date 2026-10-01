@@ -1222,3 +1222,28 @@ It was checked with a per-document salted scramble: main failed 419 tests and th
 Nothing yet catches a body paired with the wrong part's instance while ids come from the counter. That is filed as `tint/part-body-paired-with-the-wrong-instance-stays-green-under-the-counter` (P3).
 
 **Next:** node-id unit 2, the digest mint, is unblocked on the test side. The display half waits on [ev] #3565.
+
+## 2026-09-30 / 10-01 — node-id unit 2 (PRs 3593, 3594), held on #3565
+
+**PR 3593 (merged).** `eval::schedule` breaks ties by position in `Doc::order`. Under the counter nothing moved; ratified text named no id-order tie-break.
+
+**PR 3594 (open, held until [ev] #3565 decides how a person sees a node).**
+- Node ids mint from one document `Mint` shared with step ids, and `next_id` is gone.
+- Old files refuse with the regenerate advice.
+- Split and inline carry nodes one insert at a time.
+- The id-ordered walks are restated in `Doc::order`: the mate tree edge, resolve lanes, `drive`, the appearance tie site (a real regression the walk caught) and the placement backstop.
+
+**Review.** No defect in the mint, the load door or refactor. Two blocking findings, both folded:
+- **B1.** Memo rows built from two documents became true by id alone. They now carry teeth independent of ids, such as content-key inequality. 117 sites were swept.
+- **B2.** The corpus name evidence had blanked `FromMember` members. It was re-measured with each id read as its position in `Doc::order` (`name_tables_by_position`, `#[ignore]`d):
+  - 353 of 359 tables are identical;
+  - 6 respell only the wall order inside `Borders`, naming the same entities;
+  - all 819 `FromMember` segments are unchanged.
+
+The optional findings also landed: per-variant mint pins, one collision recourse, `Doc::positions()`, and a narrowed API.
+
+**Filed:**
+- `name-order-was-insertion-order-under-the-counter` (P2, design): what "least name" should mean;
+- `edit/di1-may-simplify-now-node-ids-are-digests` (P1, design).
+
+The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.
