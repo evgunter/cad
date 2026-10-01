@@ -5636,3 +5636,35 @@ and row 5 is `debug_assert`.
 
 The fix pass is out on the walk target. It merges after CI and an
 orchestrator read.
+
+## PR 3673 delivered with its guard fired; review dispatched; the kef/kfmrh fork goes to designers (2026-10-01)
+
+The Euler-doors lane delivered PR 3673 (`74c301c76d`), and CI run
+36852480689 went green.
+- `mef`, `mef_lone`, `mfkrh` and `ring_move` refuse a move they cannot
+  vouch for, through one home (`Body::vouch_move` over PR 3598's walk).
+- `RechartDoor` names the door in each refusal.
+- `mfkrh`'s one production caller (`shell.rs`'s rim promotion) was
+  reordered through `set_face_surfaces_describing`, with output
+  `Debug`-identical in 18/18 cases.
+
+**The measurement guard fired for `kef` and `kfmrh`.** About 32,500
+production calls across 11 sites strand edges for the length of a
+composing door that kills or re-describes them afterwards. The lane
+stopped and filed the row.
+
+A single full review is dispatched on the rebase target, frozen
+`74c301c76d`.
+
+**The kef/kfmrh fork.** I first checked whether an option keeps the
+ratified decisions as they stand (the PR 3156 lesson). PR 2527 ratified
+the keys-only/describing pattern. It did not settle how a door whose
+composing callers strand transiently should apply it: reordering the
+boolean core, blend and names against twins, or a different framing
+altogether. So it is a genuine fork.
+
+Two designers are dispatched concurrently with one problem statement
+(`design-kef-problem.md`), which carries no candidate solutions. The
+blinding byte and the protocol hash are on
+`analysis/design-fork/topo-kef-kfmrh-across-keys`. Neither designer
+sees the other's report until both are in.
