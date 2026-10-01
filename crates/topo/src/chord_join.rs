@@ -135,6 +135,13 @@ pub enum ArcWindowCase {
     /// one full period, so containment does not distinguish the arcs.
     /// Ambiguous by construction — refused, never broken by convention.
     BothContained,
+    /// The window would be read across a cone face's APEX by a walk
+    /// that cannot close there: the face meets its apex more than once,
+    /// carries a ring, or reaches it from both nappes
+    /// ([`cone_apex_closure`]'s `Open`). Every azimuth maps to the apex,
+    /// so no branch pin crosses it, and a window guessed there selects
+    /// the complement arc without any later check seeing it.
+    ApexUnlifted,
 }
 
 impl ArcWindowCase {
@@ -147,7 +154,7 @@ impl ArcWindowCase {
     fn is_containment_verdict(self) -> bool {
         match self {
             Self::NeitherContained | Self::BothContained => true,
-            Self::NoChartedRun => false,
+            Self::NoChartedRun | Self::ApexUnlifted => false,
         }
     }
 }
@@ -169,6 +176,12 @@ impl core::fmt::Display for ArcWindowCase {
                 f,
                 "both arcs of the section conic lie inside the divided face's azimuth \
                  window (the window spans at least one full period — an ambiguous chord)"
+            ),
+            Self::ApexUnlifted => write!(
+                f,
+                "the divided cone face's boundary reaches its apex in a way no single chart \
+                 lift closes (twice, from both nappes, or around a ring), so its azimuth \
+                 window across the apex is undetermined"
             ),
         }
     }
@@ -1843,21 +1856,30 @@ fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
 /// **The chart images here are consumed UNCERTIFIED.** This is a
 /// selection-time read of [`geom_brep::chart_pcurve`]'s closed form, not
 /// a minted cache: no residual, envelope, winding or trim check runs on
-/// it. That is deliberate and bounded — the run's edges are already
-/// certified against their own surfaces, so a chart image that does not
-/// represent one is corrupt-input territory, and the *chord this rule
-/// selects* is certified by the ordinary `mef` gate and then re-derived
-/// and certified again by PR 6's mint pass at the end of the split. A
-/// wrong window can therefore only make this rule REFUSE (or, in the
-/// unreachable corrupt case, mint an arc the downstream certification
-/// rejects) — never quietly widen what ships.
+/// it. The run's edges are certified against their own surfaces, so a
+/// chart image that does not represent one is corrupt input.
 ///
-/// The branch of each run edge is pinned exactly as the PR 6 loop walk
-/// pins it: the whole number of periods that lands this edge's entry
-/// azimuth on the previous edge's exit. No per-sample unwrapping exists
-/// here either. Null scaffolding halves are zero-length coincident
-/// copies — they carry no azimuth extent and no branch information, and
-/// are stepped over without breaking the chain.
+/// **Nothing downstream re-asks which arc this window selects.** The
+/// complement arc lies on the same wall and the same plane, so the `mef`
+/// gate certifies it; the mint pass hulls its window out of the face's
+/// own images, which then contain it; and no tier-3 check compares a
+/// trim against the face it bounds. A wrong window ships a wrong body,
+/// so the window is right by construction or it refuses:
+///
+/// - The branch of each run edge is pinned exactly as the PR 6 loop
+///   walk pins it — the whole number of periods that lands this edge's
+///   entry azimuth on the previous edge's exit — which is exact at
+///   every junction that is a chart point.
+/// - A cone APEX is not one. A cone face whose boundary visits its apex
+///   takes the run's images from the face's apex-closed lift
+///   ([`cone_apex_closure`]), which never pins across the apex and
+///   supplies the jump there from the closed boundary; a face no single
+///   lift describes refuses [`ArcWindowCase::ApexUnlifted`], and so does
+///   the walk itself if it is ever asked to pin across an apex.
+///
+/// Null scaffolding halves are zero-length coincident copies — they
+/// carry no azimuth extent and no branch information, and are stepped
+/// over without breaking the chain.
 fn run_azimuth_window<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
@@ -1865,6 +1887,25 @@ fn run_azimuth_window<T: Decide>(
     halves: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
+    if let geom::Surface::Cone { .. } = surface {
+        match cone_apex_closure(body, surface, face, band)? {
+            ApexClosure::Clear => {}
+            ApexClosure::Closed { images, .. } => {
+                let run: Vec<AzimuthImage<T>> = images
+                    .into_iter()
+                    .filter(|image| halves.contains(&image.he))
+                    .collect();
+                return Ok(azimuth_hull(&run));
+            }
+            ApexClosure::Open => {
+                return Err(SplitJoinError::SectionArcWindow {
+                    face,
+                    case: ArcWindowCase::ApexUnlifted,
+                    band,
+                });
+            }
+        }
+    }
     Ok(azimuth_hull(&run_azimuth_images(
         body, surface, face, halves, band,
     )?))
@@ -2139,6 +2180,25 @@ fn run_azimuth_images<T: Decide>(
                 // pole test and its side are named trileans and an
                 // in-band junction escalates (F6).
                 let mut k = (prev - raw).periodic_branch(tau);
+                // A cone APEX junction carries no azimuth at all, and
+                // unlike a sphere pole no orientation bit recovers it:
+                // the jump there is the whole lift's
+                // ([`cone_apex_closure`]), which never pins across it.
+                // A walk that would is refused rather than pinned.
+                if let geom::Surface::Cone { apex, .. } = surface {
+                    let entry_v = he_data.start;
+                    let p = vertex_point(body, entry_v).map_err(|_| corrupt_vertex(entry_v))?;
+                    if decide("split_cone_window_apex", Margin::of((p - *apex).norm()), band)
+                        .map_err(|diag| SplitJoinError::Escalated { face, diag })?
+                        == Sign::Zero
+                    {
+                        return Err(SplitJoinError::SectionArcWindow {
+                            face,
+                            case: ArcWindowCase::ApexUnlifted,
+                            band,
+                        });
+                    }
+                }
                 if let geom::Surface::Sphere {
                     center,
                     radius,

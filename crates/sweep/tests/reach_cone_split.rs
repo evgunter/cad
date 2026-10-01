@@ -342,3 +342,46 @@ fn a_tilted_cone_cut_is_never_misread_by_containment() {
         }
     }
 }
+
+/// The upright cone, `revolve` of the triangle `(0,0), (1,0), (0,1)`:
+/// its lateral faces run from the base rim to the APEX at `y = 1`, on
+/// the stored cone's mirror nappe. A cut's chord on such a face co-bounds
+/// a run that crosses the apex, where the chart has no azimuth — the
+/// window is the face's apex-closed lift's, never a branch pinned across
+/// it. Every tilt × height × azimuth of the plane (the azimuth moves the
+/// cut against the faces' seams), plus the axis-normal circle: valid
+/// halves, volumes that close on the cone's `π/3`, and the slice oracle.
+#[test]
+fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
+    let cone = revolved(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]);
+    let total = PI / 3.0;
+    assert!((vol(&cone) - total).abs() < 1e-12, "the uncut cone");
+    for qy in [0.15, 0.4, 0.75] {
+        let what = format!("axis-normal circle at y = {qy}");
+        let result = split(&cone, &plane(0.0, qy), Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: {e}"));
+        let (above, below) = halves(&result, &what);
+        let tip = PI * (1.0 - qy).powi(3) / 3.0;
+        assert!((vol(&above) - tip).abs() < 1e-12, "{what}: the tip cone");
+        assert!(
+            (vol(&above) + vol(&below) - total).abs() < 1e-12,
+            "{what}: sum"
+        );
+        for psi in (0..12).map(|i| f64::from(i) * 0.53) {
+            for phi in [0.05f64, 0.2, 0.5, 0.7] {
+                let what = format!("psi {psi:.2}, phi {phi}, through y = {qy}");
+                let cut = SplitPlane {
+                    origin: Point3::new(0.0, qy, 0.0),
+                    normal: Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin()),
+                };
+                let result =
+                    split(&cone, &cut, Tol::witness()).unwrap_or_else(|e| panic!("{what}: {e}"));
+                let (above, below) = halves(&result, &what);
+                let (va, vb) = (vol(&above), vol(&below));
+                assert!((va + vb - total).abs() < 1e-12, "{what}: sum {}", va + vb);
+                let oracle = slice_oracle(|y| 1.0 - y, phi, qy);
+                assert!((va - oracle).abs() < 1e-8, "{what}: {va} vs {oracle}");
+            }
+        }
+    }
+}

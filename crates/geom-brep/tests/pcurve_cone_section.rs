@@ -178,3 +178,57 @@ fn a_wrong_number_in_the_image_refuses() {
         "the image certified against another cone"
     );
 }
+
+/// The envelope BOUNDS what it certifies. An image with `va` or `vb`
+/// moved by a quarter of ε still certifies, and its residual is then
+/// the moved slant `δ·(cos t | sin t)` along a unit generator — the
+/// harmonic part carries only `cos α` of it, the Kepler remainder the
+/// `sin α` rest. The certified envelope must cover the residual sampled
+/// densely over the span, so a remainder dropped or shrunk is red here.
+#[test]
+fn the_envelope_covers_an_admitted_slant_error() {
+    let surface = cone(1.0);
+    let carrier = section();
+    let image = chart_pcurve(&carrier, &surface, band()).unwrap();
+    let Pcurve::ConeSection {
+        u0,
+        v0,
+        va,
+        vb,
+        beta,
+        sense,
+    } = image
+    else {
+        unreachable!()
+    };
+    let h = 0.25 * crate::shared::tol::eps();
+    for (name, va, vb) in [("va", va + h, vb), ("vb", va, vb + h)] {
+        let moved = Pcurve::ConeSection {
+            u0,
+            v0,
+            va,
+            vb,
+            beta,
+            sense,
+        };
+        let (t0, t1) = (0.3, 4.0);
+        let cache = PcurveCache::certify(moved.clone(), t0, t1, &carrier, &surface, wide(), band())
+            .unwrap_or_else(|e| panic!("{name} moved by ε/4: {e}"));
+        let envelope = cache.certificate().envelope;
+        let sup = (0..=4096)
+            .map(|i| {
+                let t = t0 + (t1 - t0) * f64::from(i) / 4096.0;
+                let uv = moved.eval(t);
+                surface.eval(uv.x, uv.y).distance(carrier.eval(t))
+            })
+            .fold(0.0, f64::max);
+        assert!(
+            sup > 0.9 * h,
+            "{name}: the moved image is off its carrier by {sup:e}"
+        );
+        assert!(
+            envelope >= sup,
+            "{name}: envelope {envelope:e} under the sampled residual {sup:e}"
+        );
+    }
+}
