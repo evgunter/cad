@@ -650,9 +650,10 @@ pub fn spine_regularity<T: Decide + Bounds>(
 /// on a flip rather than blending each run silently.
 ///
 /// The fold is gated by `fillet3_chain_arm` exactly as the chain-G1
-/// margin is: an angle at a collapsed arm is not a question, so a
-/// non-positive arm escalates `Invalid` rather than classifying —
-/// the same predicate at the LINK site instead of the joint.
+/// margin is: an angle at an arm not definitely positive is not a
+/// question, so such an arm refuses as that gate, carrying the arm it
+/// read (`short_arm`), rather than classifying — the same predicate at
+/// the LINK site instead of the joint.
 ///
 /// # Errors
 ///
@@ -705,9 +706,9 @@ pub fn convexity_at<T: Decide + Bounds>(
 /// classifier uses one dimension up, with `θ` the angle between the
 /// two carriers' unit tangents at the junction and `arm` the smaller
 /// of the two links' extents. It is gated by `fillet3_chain_arm`
-/// exactly as the dihedral is: an angle at a collapsed arm is not a
-/// question, so a non-positive arm escalates `Invalid` rather than
-/// classifying.
+/// exactly as the dihedral is: an angle at an arm not definitely
+/// positive is not a question, so such an arm refuses as that gate,
+/// carrying the arm it read (`short_arm`), rather than classifying.
 ///
 /// A closed chain must be G1 at EVERY junction (including the
 /// wrap-around) for a constant-radius spine to exist through it;
@@ -1852,7 +1853,16 @@ fn corner_at<T: Decide + Bounds>(
     // In key order, so the supports below are gathered — and their
     // normals reach the independence determinant — in an order that
     // does not depend on where the vertex's orbit starts.
-    let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(indeterminate)?;
+    // An unresolved key at the corner is a body that does not hold
+    // together there, not a configuration: every such arm below
+    // refuses as `BodyNotIntact`.
+    let not_intact = |at: EntityId, detail: &'static str| BlendError::BodyNotIntact { at, detail };
+    let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(|| {
+        not_intact(
+            EntityId::Vertex(vertex),
+            "a chain end's edge fan, for its corner configuration",
+        )
+    })?;
     edges.sort_unstable();
     let valence = edges.len();
     // A chart seam crossing a smooth rim is NOT a corner, so it is
@@ -1870,9 +1880,14 @@ fn corner_at<T: Decide + Bounds>(
     // any neighbour is resolved as a link — the cap's rim edges are
     // not blended and need no arm.
     if link.arm.is_ruled() && valence == 3 {
+        // `None` only at a non-manifold vertex or a stale key
+        // (`cap_incidence`).
         let Some((_, _, cap)) = cap_incidence(body, vertex, link.edge, link.face_a, link.face_b)
         else {
-            return Err(indeterminate());
+            return Err(not_intact(
+                EntityId::Vertex(vertex),
+                "a ruled link's end, whose three faces do not meet as a cap",
+            ));
         };
         let Some(Surface::Plane { normal, .. }) =
             body.get_face(cap).and_then(|f| body.get_surface(f.surface))
@@ -1947,15 +1962,20 @@ fn corner_at<T: Decide + Bounds>(
         .get_vertex(vertex)
         .and_then(|v| body.get_point(v.point))
     else {
-        return Err(indeterminate());
+        return Err(not_intact(
+            EntityId::Vertex(vertex),
+            "a chain end's vertex point, for its support normals",
+        ));
     };
     if faces.len() != 3 {
         return corner_config(vertex, faces.len(), convex, normals, radius, band).map(|()| None);
     }
     for (i, f) in faces.iter().enumerate() {
-        normals[i] = outward(body, *f, *p).ok_or(BlendError::BodyNotIntact {
-            at: EntityId::Face(*f),
-            detail: "a corner's support face or its stored surface, for its outward normal",
+        normals[i] = outward(body, *f, *p).ok_or_else(|| {
+            not_intact(
+                EntityId::Face(*f),
+                "a corner's support face or its stored surface, for its outward normal",
+            )
         })?;
     }
     corner_config(vertex, valence, convex, normals, radius, band).map(|()| None)

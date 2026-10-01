@@ -368,23 +368,21 @@ fn an_in_band_reading_is_offered_the_tolerance_exactly_where_its_sign_passes() {
 
 /// **`fillet3_chain_arm` tells one story on its band-decided arms**
 /// (D4 ¶1 (iv)): a junction arm decided zero ends as an in-band one
-/// does — the chain lever and the tolerance its own reading gives —
-/// and neither reads as an unreadable margin. The in-band ending is
-/// pinned whole.
+/// does — the chain lever and the tolerance its own reading gives — and
+/// neither reads as an unreadable margin. The ending is pinned whole,
+/// and its offer followed: below the offered tolerance the same
+/// tangent junction passes.
 #[test]
 fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
     use sweep::blend::battery::chain_g1;
     let b = Band::linear(Tol::witness()).expect("the run's band forms");
     let k = b.escalate() / b.zero();
     let v = topo::VertexKey::default();
-    let (x, y) = (
-        geom_core::Vec3::new(1.0, 0.0, 0.0),
-        geom_core::Vec3::new(0.0, 1.0, 0.0),
-    );
+    let x = geom_core::Vec3::new(1.0, 0.0, 0.0);
     let mid = (b.zero() + b.escalate()) / 2.0;
     let short = b.zero() / 2.0;
     for (arm, what) in [(mid, "in band"), (short, "decided zero")] {
-        let err = chain_g1(x, y, arm, v, b).unwrap_err();
+        let err = chain_g1(x, x, arm, v, b).unwrap_err();
         assert!(
             matches!(
                 err,
@@ -396,12 +394,12 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
             "{what}: {err:?}"
         );
         let text = err.to_string();
+        let offered = arm / k;
         assert!(
             text.ends_with(&format!(
                 "Recourse: {}, or, if this link length is intended, tighten the tolerance \
-                 below {:e} m",
+                 below {offered:e} m",
                 sweep::blend::FILLET3_CHAIN_RECOURSE,
-                arm / k
             )),
             "{what}: {text}"
         );
@@ -409,7 +407,33 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
             !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
             "{what}: a short link is the caller's geometry: {text}"
         );
+        let tighter = Band::new(offered / 2.0, offered / 2.0 * k).expect("a tighter band");
+        chain_g1(x, x, arm, v, tighter)
+            .unwrap_or_else(|e| panic!("{what}: below the offer the junction passes: {e}"));
     }
+}
+
+/// **The convexity sign's tolerance offer names its margin as a length**:
+/// the dihedral's sine levered by the arm, "wedge opening", in metres.
+#[test]
+fn the_convexity_sign_offer_names_the_wedge_opening() {
+    let b = Band::linear(Tol::witness()).expect("the run's band forms");
+    let mid = (b.zero() + b.escalate()) / 2.0;
+    let text = BlendError::Escalated {
+        site: BlendSite::Chain,
+        decision: BlendDecision::ConvexitySign,
+        source: escalation(Some(BlendDecision::ConvexitySign.predicate())),
+    }
+    .to_string();
+    assert!(
+        text.ends_with(&format!(
+            "Recourse: {}, or, if this wedge opening is intended, tighten the tolerance below \
+             {:e} m",
+            sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
+            mid / (b.escalate() / b.zero())
+        )),
+        "{text}"
+    );
 }
 
 /// **Nothing in the crate's `src` is invisible to the reader.**
