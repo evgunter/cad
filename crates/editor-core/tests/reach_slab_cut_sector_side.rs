@@ -1,6 +1,5 @@
-//! **A planar slab through a cylinder wall: the sector side certifies,
-//! and the op answers its closed form or stops at the pierce ring's
-//! join door.**
+//! **A planar slab through a cylinder wall answers its closed form or
+//! stops at the pierce ring's join door.**
 //!
 //! Two fixtures, each the first move of a common part:
 //!
@@ -12,9 +11,8 @@
 //! In both, the slab's edges pierce the cylinder wall transversally,
 //! and each pierce vertex's sector bounds have a definite first-order
 //! side. A bound longer than the wall's radius used to fail the
-//! curvature charge, which was read at the bound's far end. The charge
-//! is read at the distance where it is largest, so these fixtures now
-//! reach the join, where a ring in a wall face has no arm yet
+//! curvature charge, which was read at the bound's far end; it is read
+//! where it peaks, so these fixtures now reach the join, where a ring in a wall face has no arm yet
 //! (`work/tang/pierce-ring-has-no-join-arm`). Each row admits that door
 //! or a body at its closed form, and nothing else: when the ring lane
 //! lands, these rows check its volumes.
@@ -80,7 +78,7 @@ fn volume_or_ring_door(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> Opt
 /// less a slab `40 × 6 mm` from `z = 31 mm` up past its top: the drum
 /// less the band `|y| ≤ 3 mm` across its disc, over the top 5 mm.
 #[test]
-fn a_slab_cut_through_a_drum_certifies_its_sector_sides() {
+fn a_slab_cut_through_a_drum_answers_its_volume_or_the_ring_door() {
     let (r, z0, h) = (0.013, 0.028, 0.008);
     let (half_t, cut_z) = (0.003, 0.031);
     let doc = ProfileDoc::empty_derived("round_crenellation", Tol::witness());
@@ -111,7 +109,7 @@ fn a_slab_cut_through_a_drum_certifies_its_sector_sides() {
 /// slab's two ends below the plate's top beyond its `y` sides, and the
 /// slab above the plate less the band it shares with the boss.
 #[test]
-fn a_slab_across_a_round_boss_certifies_its_sector_sides_in_every_order() {
+fn a_slab_across_a_round_boss_answers_its_volume_or_the_ring_door_in_every_order() {
     let (r, cx, cy) = (0.6, 1.5, 1.0);
     let doc = ProfileDoc::empty_derived("round_boss_slab", Tol::witness());
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);

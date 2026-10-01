@@ -27,15 +27,19 @@ the face's curvature is charged.
   and no charge is taken.
 
 So a bound departing a curved sector face within about
-`2·sqrt(band·R)` of tangent reads a definite side in the vertex-vertex
-lane, and refuses `CurvedSectorSideUnsupported` in the pierce lane.
+`2·sqrt(band/R)` radians of tangent reads a definite side in the
+vertex-vertex lane, and refuses `CurvedSectorSideUnsupported` in the
+pierce lane.
 
-## Unmeasured
+## Measured, partly
 
-Found by reading the code (the REACH slab-cut sweep, 2026-10-01). No
-fixture has been built that reaches `pair_codes` with a curved sector
-face and a near-tangent bound, so it is not known whether the missing
-charge produces a wrong body, a refusal elsewhere, or nothing. A
+Found by reading the code (the REACH slab-cut sweep, 2026-10-01). The
+PR's dual review then ran 16 vertex-vertex touches (a bar corner on a
+cylinder's rim vertex, one edge leaving within `1e-2` to `1e-6` of the
+wall's tangent plane): every one that built was correct, and from
+`1e-4` down they refused (`CurvedPierceUnsupported` or an escalation).
+Which of them reached `pair_codes` was not traced, so whether the
+missing charge can produce a wrong body is still unknown. A
 definite first-order sign is the bound's correct side near the vertex
 whatever the curvature, so what is in question is whether that side
 is resolved at the band, which is what the pierce lane's charge

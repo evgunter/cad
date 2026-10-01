@@ -306,6 +306,8 @@ mod r1_probes_issue1362_donut;
 mod r2_sense_fold_probes;
 #[path = "reach_volume_backstop.rs"]
 mod reach_volume_backstop;
+#[path = "reach_wall_chord_rows.rs"]
+mod reach_wall_chord_rows;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "recourse_roster.rs"]

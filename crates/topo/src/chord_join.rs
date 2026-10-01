@@ -1555,10 +1555,12 @@ fn skip_adjacent_chord<T: Decide>(
 
 /// Whether the (real) edge under `he` lies IN the split plane over its
 /// whole span — the adjacency-skip guard's question (M1 fix pass):
-/// `None` = escalated. Lines and null scaffolding answer `true` with
-/// NO predicate evaluation (the M3 path, bit-identical: a line whose
-/// join-adjacent role puts it between two ON copies is the in-plane
-/// section edge); conics ask the named trilean
+/// `None` = escalated. Null scaffolding answers `true`, and so does a
+/// line in the planar and split lanes, with NO predicate evaluation
+/// (the M3 path, bit-identical: a line whose join-adjacent role puts it
+/// between two ON copies is the in-plane section edge); in the boolean
+/// planar-side lane a line asks whether it lies on the wall
+/// (`bool_between_line_on_wall`); conics ask the named trilean
 /// `split_conic_inplane_mid` of the lane's section plane — margin the
 /// mid-parameter plane distance (meters). A conic not lying in the
 /// plane meets it in at most two points, and both endpoints are ON, so
@@ -1589,7 +1591,45 @@ fn between_edge_in_plane<T: Decide>(
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
-        geom::Curve3::Line { .. } => Ok(Some(true)),
+        geom::Curve3::Line { .. } => match lane {
+            JoinLane::Planar { .. } | JoinLane::Split(_) => Ok(Some(true)),
+            // A curved germ's section is a conic or a ruling, so a line
+            // between two ON copies is the section segment only when it
+            // lies ON the wall. A line meets a cylinder or a sphere in
+            // at most two points unless it lies in it, and both ends are
+            // on the wall, so the midpoint decides: on the wall, a
+            // ruling; definitely off it, a chord across the section
+            // that the conic's own arc must be minted beside.
+            JoinLane::BoolPlanar { wall, .. } => {
+                let mid = curve.mid_point();
+                let off_wall = match wall {
+                    geom::Surface::Cylinder {
+                        origin,
+                        axis,
+                        radius,
+                        ..
+                    } => {
+                        let w = mid - *origin;
+                        (w - *axis * w.dot(*axis)).norm() - *radius
+                    }
+                    geom::Surface::Sphere { center, radius, .. } => {
+                        (mid - *center).norm() - *radius
+                    }
+                    _ => {
+                        return Err(SplitJoinError::SectionInvariant {
+                            face: owning_face()?,
+                            what: "boolean planar-side germ partner is neither a cylinder \
+                                   nor a sphere (arm not wired)",
+                        });
+                    }
+                };
+                match decide("bool_between_line_on_wall", Margin::of(off_wall), band) {
+                    Ok(Sign::Zero) => Ok(Some(true)),
+                    Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
+                    Err(_) => Ok(None),
+                }
+            }
+        },
         // The join lanes are fenced against the spiric and the spline
         // (both operand gates refuse the kinds), so a run edge carrying
         // one is an invariant break, never assumed ON.

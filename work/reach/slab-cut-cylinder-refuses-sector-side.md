@@ -57,13 +57,24 @@ wall, with a DEFINITE first-order side:
 The charge was read at the sector's arm and at the bound's far end,
 both past `R·|d̂·n̂|`, where the sagitta outgrows the first-order term.
 Second order is not the missing information: the charge peaks at
-`l* = |d̂·n̂|·R/2` (`1.7e-4` and `0.146` m of certified displacement
-here). It is now read there, capped at the reach; what still refuses
-is a bound within about `2·sqrt(band·R)` of tangent, whose side is
-second order — the residue the `enters_material_order2` recourse
-still names.
+`l* = |d̂·n̂|·R/2` (`1.7e-4` and `0.146` m of certified separation
+here). It is now read there, capped at the reach. What still refuses
+is a bound leaving the face within about `2·sqrt(band/R)` radians of
+tangent (or with a reach too short to witness its slope), whose side
+is second order: the residue the `enters_material_order2` recourse
+still names. No real pose has been found that reaches it end to end
+(72 near-tangent bars and 16 vertex-vertex touches, 2026-10-01: each
+stops earlier, at `CurvedPierceUnsupported` or an escalation); its
+witness is `boolean::sectors`' unit rows.
 
-Both fixtures then stop at the join, `SectionArcWindow { NoChartedRun }`:
-a pierce ring in a wall face has no join arm
-(`work/tang/pierce-ring-has-no-join-arm`). The rows are
-`editor-core`'s `reach_slab_cut_sector_side`.
+## What blocks the repros now, and what is left of this row
+
+Both fixtures stop at the join, `SectionArcWindow { NoChartedRun }`:
+a pierce ring in a wall face has no join arm. That is TANG's
+`work/tang/pierce-ring-has-no-join-arm` (#1291), and the round rook
+crown waits on it. `editor-core`'s `reach_slab_cut_sector_side` rows
+admit that door or the closed-form volume, so they become volume
+checks the day the ring lane lands.
+
+Left on this row: the near-tangent residue above, which no fixture
+reaches; and the round crown in the story suite, which is #1291's.

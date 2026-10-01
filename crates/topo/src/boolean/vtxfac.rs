@@ -8,11 +8,12 @@
 //!    against the OUTWARD normal — `side_code`; 15.7's printed
 //!    `IN = +1` is never consulted).
 //!
-//!    The datum is a DIRECTION and a lever arm, never an origin:
-//!    `side_code` (`sectors.rs`) takes `(dir, OutwardNormal, arm,
-//!    band)` and the germ direction takes a cross product, so both are
-//!    purely first-order primitives and generalize to a curved pierced
-//!    face by substituting the per-point outward normal
+//!    The datum is a DIRECTION, never an origin: `side_code`
+//!    (`sectors.rs`) takes `(dir, reach, OutwardNormal, lever, band)`
+//!    and the germ direction takes a cross product, so both are
+//!    first-order primitives (charged for the face's curvature through
+//!    `lever`) and generalize to a curved pierced face by substituting
+//!    the per-point outward normal
 //!    ([`crate::face_normal::face_outward_normal_at`]). On a plane that
 //!    normal is the plane's own, so the planar lane's arithmetic is
 //!    bit-identical. What does NOT generalize is Delta 2's carrier
