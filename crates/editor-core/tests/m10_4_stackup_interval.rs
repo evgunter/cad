@@ -798,7 +798,12 @@ fn the_pairing_hook_is_red_capable_on_a_stale_build() {
             rebuilt,
         })) => {
             assert_ne!(handed, rebuilt);
-            assert!(edited.node(node).is_some());
+            assert!(edited.node(node.id()).is_some());
+            assert_eq!(
+                node,
+                edited.spoken(node.id()),
+                "spoken from the edited document"
+            );
         }
         other => panic!("a stale handed build must be a ContentKey violation: {other:?}"),
     }
@@ -996,7 +1001,9 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     }
     assert_eq!(
         sensitivities(&doc, plate_node, None, None, false, Tol::witness()).err(),
-        Some(SensitivityRefusal::NotAMeasure { node: plate_node })
+        Some(SensitivityRefusal::NotAMeasure {
+            node: doc.spoken(plate_node)
+        })
     );
 }
 
@@ -1080,7 +1087,12 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
             replayed,
             ..
         }) => {
-            assert!(edited.node(node).is_some());
+            assert!(edited.node(node.id()).is_some());
+            assert_eq!(
+                node,
+                edited.spoken(node.id()),
+                "a node the replay holds is spoken from the document asked about"
+            );
             assert_ne!(recorded, replayed);
         }
         other => panic!("a stale verdict must be refused by content: {other:?}"),

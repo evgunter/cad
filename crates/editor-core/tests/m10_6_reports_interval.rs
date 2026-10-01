@@ -181,7 +181,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
     // The two doors are DIFFERENT: the goldening form carries bits, the
     // human form carries percentages and prose. Neither is the other's
     // substitute, which is what makes shipping both worth it.
-    let rendered = one.render(&analyzed);
+    let rendered = one.render(&doc, &analyzed);
     assert!(
         rendered.contains("CERTIFIED WORST CASE"),
         "the human form leads with the gating number: {rendered}"
@@ -417,7 +417,7 @@ fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
         );
         assert!(row.mass.is_ok(), "a uniform law prices every leaf");
     }
-    let rendered = histogram.render();
+    let rendered = histogram.render(&doc);
     assert!(
         rendered.contains("ADVISORY") && rendered.contains("Not a density"),
         "the advisory label and the E11.6 disclaimer are the first line: {rendered}"
@@ -493,7 +493,7 @@ fn the_mc_report_is_deterministic_and_labeled() {
     assert_ne!(a.serialize(), other.serialize(), "the seed is the draw");
 
     // Every advisory line carries the count and the seed.
-    let rendered = a.render();
+    let rendered = a.render(&doc);
     for line in rendered.lines().filter(|l| l.contains("node")) {
         assert!(
             line.contains("64 samples") && line.contains("0x4d435f4531315f31"),

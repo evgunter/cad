@@ -759,7 +759,7 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
     };
     let (node, cause) = match refusal {
         a::McRefusal::NominalDoesNotBuild { node, cause } => (
-            match super::doc::NodeId(*node).into_pyobject(py) {
+            match super::doc::NodeId(node.id()).into_pyobject(py) {
                 Ok(id) => id.into_any().unbind(),
                 Err(failed) => return failed,
             },
@@ -989,7 +989,7 @@ impl McAssertion {
 /// included, so it estimates the quantity the certified lane
 /// deliberately does not.
 #[pyclass(frozen, module = "pncad")]
-pub(crate) struct McReport(a::McReport);
+pub(crate) struct McReport(a::McReport, d::ProfileDoc);
 
 #[pymethods]
 impl McReport {
@@ -1033,8 +1033,10 @@ impl McReport {
     /// line does not survive. It is the kernel's own rendering, so the
     /// discipline E11.1 requires does not stop at the language
     /// boundary.
+    ///
+    /// Its nodes are spoken from the document the run was drawn from.
     fn render(&self) -> String {
-        self.0.render()
+        self.0.render(&self.1)
     }
 
     fn __repr__(&self) -> String {
@@ -1082,7 +1084,7 @@ fn monte_carlo(
     // price, so the interpreter runs while it is paid.
     let answer = py.detach(|| a::monte_carlo(recipe, box_, &config, tol));
     match answer {
-        Ok(report) => Ok(McReport(report)),
+        Ok(report) => Ok(McReport(report, recipe.clone())),
         Err(refusal) => Err(mc_err(py, &refusal)),
     }
 }

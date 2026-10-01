@@ -285,16 +285,17 @@ impl LeafHistogram {
 
     /// The human form. The advisory label is the first line, and the
     /// uncovered mass is the last: a reader meets both without looking
-    /// for them.
-    pub fn render(&self) -> String {
+    /// for them. The measure is spoken from `doc`, the document the
+    /// histogram was taken of.
+    pub fn render<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
         let _ = writeln!(
             s,
-            "ADVISORY leaf-mass histogram of node {} — leaf mass against the measure's \
+            "ADVISORY leaf-mass histogram of {} — leaf mass against the measure's \
              certified enclosure over that leaf. Not a density: a true output density is v2 \
              (E11.6), and nothing here claims one.",
-            self.measurement
+            doc.spoken(self.measurement)
         );
         let _ = writeln!(s, "{}", self.basis);
         for row in &self.rows {

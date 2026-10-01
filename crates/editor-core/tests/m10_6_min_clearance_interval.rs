@@ -576,7 +576,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
         "the goldening form records the forfeit: {}",
         report.serialize()
     );
-    let human = report.render(&analyzed);
+    let human = report.render(&f.doc, &analyzed);
     assert!(
         human.contains("UNAVAILABLE") && human.contains("still gates"),
         "the human form says the column forfeited AND that the gate stands: {human}"
