@@ -478,20 +478,20 @@ writes its cleared value, at one site, by hand. That is the whole
 mechanism — one site to update instead of three, and a compiler error
 instead of a silent omission.
 
-`LandedRun` is the same rule one level down. The seven things a
-landing produces — the evaluation, the document it answers, its
-generation, the gather's refusal, the A5 badge, the advisory report
-and the gathered body — are statements about one (document,
-evaluation) pair, taken from that pair's single gather in `land`. As
-one value they cannot come from different runs, which is the property
+`LandedRun` is the same rule one level down. Its seven fields — the
+evaluation, the resolver it ran through, the document it answers, its
+generation, the gather's outcome, the advisory report and the part
+files the resolver could name — are statements about one (document,
+evaluation) pair, taken in that pair's single `land`. As one value
+they cannot come from different runs, which is the property
 `landed_pair` needs: it returns two of the seven, and the two it
 returns are the pair a single run answered. The gather's outcome is
-one `Result` within it: the refusal on one side, the A5 badge and the
-body on the other, so no verdict about a product can sit beside that
-product's refusal.
+one `Result`, the refusal or what the gather left (the A5 badge and
+the body); `LandedRun`'s doc says what that shape does and does not
+rule out.
 
-The body is the one of the seven that is not always there, and the one
-with a cost on the other side of the ledger. It is kept so that the
+The body is the one thing a landing keeps with a cost on the other
+side of the ledger. It is kept so that the
 display fit does not gather the same product a second time — 87 ms
 against an `Arc` clone, on a 165-root, 990-face document — and the
 price is that the session retains one gathered aggregate for the life

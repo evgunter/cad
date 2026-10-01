@@ -534,8 +534,10 @@ impl core::fmt::Debug for Derived {
 /// forgotten at the other.
 ///
 /// The gather's outcome is one `Result`: a refusal carries nothing
-/// the gather would have produced, so no verdict about a product can
-/// sit beside a refusal of that product.
+/// the gather would have produced, so no A5 verdict and no body can
+/// sit beside a gather refusal. That is all the shape rules out.
+/// [`Gathered`] can still spell pairs only `land` keeps out — a
+/// `Certified` badge with no body, a `Refused` one with a body.
 struct LandedRun {
     evaluation: Arc<Evaluation<f64>>,
     /// The resolver [`LandedRun::evaluation`] resolved through.
@@ -597,11 +599,11 @@ struct Gathered {
     /// no guard.** They chose between two designs that are both
     /// CORRECT — gather again where it is wanted, or clone at every
     /// gate — so nothing here breaks if the ratio drifts; what would
-    /// break is the TRADE, and
-    /// a trade is re-decided by re-measuring, not by a failing
-    /// assertion. A wall-clock guard in the gate would be a flake
-    /// rather than a witness, and a scheduled re-measure would be a
-    /// standing chore over a number no behaviour reads.
+    /// break is the TRADE, and a trade is re-decided by re-measuring,
+    /// not by a failing assertion. A wall-clock guard in the gate
+    /// would be a flake rather than a witness, and a scheduled
+    /// re-measure would be a standing chore over a number no
+    /// behaviour reads.
     ///
     /// Half of it is re-taken anyway, and by someone else: the gather
     /// column of `editor-core/tests/m4_pr8_latency.rs` (`gather_ms`)

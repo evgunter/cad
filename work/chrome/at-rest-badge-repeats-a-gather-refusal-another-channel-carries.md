@@ -29,8 +29,8 @@ gives the same refusal:
 
 - a `Frame` class (a naming collision across roots, a graft, a validity
   verdict) is also drawn by `frame::product_badge` in the same column,
-  so the reader sees *"product: …"* and *"at rest: product: …"* one
-  badge apart;
+  so the reader sees *"product: …"* and *"at rest: assembly: product:
+  …"* one badge apart;
 - a `FeatureTree` class (`RootFailed`, `RootPoisoned`, `UnknownNode`)
   is badged at the node by the Features pane, and `badge_site`'s doc
   argues that a frame badge for it "would say strictly less, in a
@@ -67,7 +67,7 @@ at `product_badge`.
   second policy or makes it answer to the first.
 - **The badge's words claim a gate run that did not happen.** The
   `Refused` built in that arm renders
-  `AssemblyError::product_refusal(&fault)` — *"at rest: product: …"* —
+  `AssemblyError::product_refusal(&fault)` — *"assembly: product: …"* —
   though on a gather refusal the A5 gate never ran: there was no
   product to hand it. That is a further argument for option 1 (no
   at-rest verdict when the gather refused).
@@ -92,3 +92,8 @@ has no class policy of its own; `frame::badge_site` is the one router.
 `tree::product_refusal_wording` and `AssemblyError::product_refusal`
 are gone. `work/vnews/the-at-rest-badge-restates-a-failed-root-louder-than-its-row.md`
 closes with it.
+
+**Moved since** the finding was written: e4478ac4f dropped
+`product_refusal`'s `"assembly: "` prefix, so until PR 3632 the badge
+read *"at rest: product: …"*, its own `"at rest: "` before the
+kernel's words.

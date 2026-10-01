@@ -23,7 +23,7 @@ an absence rather than a fault — that is the classification WIRE's PR
 `AtRestBadge::Refused { message: AssemblyError::product_refusal(&fault) }`
 for **every** fault, `NoBodyRoots` included, whenever the document is
 assembly-shaped. So a body-less assembly document gets an at-rest badge
-reading *"at rest: product: no product root denotes a body"* — exactly
+reading *"assembly: product: no product root denotes a body"* — exactly
 the *"deleting the last feature looks like a failure"* outcome that the
 line above it, and `frame::product_badge`, and `pickindex.rs` all exist
 to avoid. The viewer says both things at once about one document.
@@ -100,8 +100,12 @@ against the tree: `DocSession::land`'s `Err(fault)` arm built
 `AtRestBadge::Refused` for every class, and the derivation above is
 constructible — `landing_gathers::a_body_less_assembly_takes_no_at_rest_badge`
 builds it (one `InstantiatePart` plus a `Measure` read at it), gathers
-`NoBodyRoots`, and read `Some(Refused { "product: no product root
-denotes a body …" })` before the fix.
+`NoBodyRoots`, and read `Some(Refused { "assembly: product: no product
+root denotes a body …" })` before the fix.
+
+**Moved since:** e4478ac4f dropped `AssemblyError::product_refusal`'s
+`"assembly: "` prefix, and PR 3632 took the at-rest badge off every
+gather refusal and deleted `product_refusal`.
 
 The guard sits at the landing, not in `assembly_shaped`: the arm now
 asks `fault.kind().means_no_body()` once and both the registry's subject
