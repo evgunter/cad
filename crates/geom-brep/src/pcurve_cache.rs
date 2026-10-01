@@ -1245,9 +1245,7 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
                    image sits cannot be measured",
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
         }),
-        Err(_) => Err(PcurveCertifyError::UnsupportedChart {
-            chart: "the mvfs placeholder is not a surface to derive a chart image on",
-        }),
+        Err(_) => Err(PLACEHOLDER_CHART),
     }
 }
 
@@ -2201,9 +2199,16 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
             ..
         } => major_radius + minor_radius,
         Surface::Cone { half_angle, .. } => v_sup * half_angle.sin(),
-        // Non-periodic charts have no azimuth: plane, spline payload,
-        // and an approximating surface's fitted chart alike.
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::one(),
+        // Non-periodic charts have no azimuth, so there is no lever to
+        // answer — not even 1. Every caller asks on a periodic chart
+        // only: `chart_windings` and `chart_arms_at` on the cone arm,
+        // the harmonic lane's angular gates and snap slack behind their
+        // own non-periodic exclusion.
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
+            "azimuth_lever: a {} chart has no azimuth, and every caller asks on a \
+             periodic chart only",
+            chart_name(surface)
+        ),
     }
 }
 
@@ -2573,6 +2578,12 @@ pub enum NoChartSup {
     /// supplies (`v_sup·sin α`). The `v` channel still has an exact
     /// answer and [`chart_stretch_sup_v`] is the door for it.
     ConeAzimuthGrowsWithV,
+    /// The chart is the mvfs placeholder (`NurbsSurface::placeholder`):
+    /// its control net is all-poison, so every evaluation of it is
+    /// poison and there is no locus for either arm to be an arm of.
+    /// Both channels refuse, [`chart_stretch_sup_v`] included — the
+    /// sup-side twin of [`chart_stretch_inf`]'s all-zero answer.
+    Placeholder,
 }
 
 /// **`(sup |S_u|, sup |S_v|)`** — the chart's UPPER stretch bounds:
@@ -2586,7 +2597,9 @@ pub enum NoChartSup {
 /// every `(u, v)` of the chart's domain. That is what a [`SupSpeed`]
 /// asserts, so the kind that cannot honour it **refuses**: a cone has
 /// no surface-level azimuth arm and this door answers
-/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number. A cone
+/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number, and the
+/// mvfs placeholder has no locus at all and answers
+/// [`NoChartSup::Placeholder`]. A cone
 /// caller goes through [`chart_arms_at`], which supplies
 /// `v_sup·sin α` from the check's own boxes, or through
 /// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
@@ -2649,23 +2662,12 @@ pub fn chart_stretch_sup<T: Real>(
         // `nurbs_stretch_bounds` carries the Floater weight-ratio
         // factor for exactly this.
         //
-        // **The PLACEHOLDER's unit arms bound nothing.** Its control
-        // net is all-poison, so every evaluation of it is poison and
-        // there is no locus for an arm to be an arm of;
-        // `chart_stretch_inf` answers all-zero — "certifies nothing" —
-        // for that reason and this door does not, which is the
-        // asymmetry scheduled as
-        // `work/trim/placeholder-chart-sup-arms-are-not-a-bound.md`.
-        //
         // The catch-all is SPLIT: an approximating surface's arms are
         // its FIT's derivative-net bounds — the same statement about
         // the same chart. Unit arms would under-state in the unsafe
         // direction here (see the rational note above).
-        Surface::Nurbs(ref payload) => Ok(if payload.is_placeholder() {
-            (SupSpeed::new(T::one()), SupSpeed::new(T::one()))
-        } else {
-            nurbs_stretch_bounds(payload)
-        }),
+        Surface::Nurbs(ref payload) if payload.is_placeholder() => Err(NoChartSup::Placeholder),
+        Surface::Nurbs(ref payload) => Ok(nurbs_stretch_bounds(payload)),
         Surface::Approx(ref a) => Ok(nurbs_stretch_bounds(a.fit())),
         // A plane chart's parameters are already metres.
         Surface::Plane { .. } => Ok((SupSpeed::new(T::one()), SupSpeed::new(T::one()))),
@@ -2673,21 +2675,28 @@ pub fn chart_stretch_sup<T: Real>(
 }
 
 /// The SECOND component of [`chart_stretch_sup`] alone — `sup |S_v|`,
-/// which **every** chart kind has, the cone included.
+/// which every described chart kind has, the cone included.
 ///
-/// [`chart_stretch_sup`] refuses the cone, and it refuses over the `u`
-/// channel only: a cone's `v` is a SLANT LENGTH along the ruling, so
-/// `|S_v| = 1` exactly, everywhere. The tag is minted here because
-/// here it is true. Every other kind answers the pair's second
-/// component, which is where that answer lives.
+/// [`chart_stretch_sup`] refuses the cone over the `u` channel only: a
+/// cone's `v` is a SLANT LENGTH along the ruling, so `|S_v| = 1`
+/// exactly, everywhere. The tag is minted here because here it is
+/// true. Every other kind answers the pair's second component, which
+/// is where that answer lives — and the placeholder, which has no
+/// second channel either, refuses here exactly as it does there.
 ///
 /// The direction argument is [`chart_stretch_sup`]'s in every
 /// respect: this is the escape side, unsafe for a positive-extent
 /// claim.
-pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
+///
+/// # Errors
+///
+/// [`NoChartSup::Placeholder`] for the mvfs placeholder, and nothing
+/// else.
+pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>, NoChartSup> {
     match chart_stretch_sup(surface) {
-        Ok((_, v)) => v,
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => SupSpeed::new(T::one()),
+        Ok((_, v)) => Ok(v),
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok(SupSpeed::new(T::one())),
+        Err(NoChartSup::Placeholder) => Err(NoChartSup::Placeholder),
     }
 }
 
@@ -2697,13 +2706,17 @@ pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
 /// `v_sup` the larger `|v|` reach of the pcurve's box and the window
 /// (dominating the local arm everywhere either object lives — the
 /// safe direction); every other kind answers as [`chart_stretch_sup`].
+///
+/// The placeholder has arms in no window, and refuses as
+/// [`PLACEHOLDER_CHART`] — the same refusal every lane's check 1
+/// answers for it before this is reached.
 fn chart_arms_at<T: Real>(
     surface: &Surface<T>,
     boxed: &ChartWindow<T>,
     window: &ChartWindow<T>,
-) -> (SupSpeed<T>, SupSpeed<T>) {
+) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
     match chart_stretch_sup(surface) {
-        Ok(pair) => pair,
+        Ok(pair) => Ok(pair),
         Err(NoChartSup::ConeAzimuthGrowsWithV) => {
             let v_sup = boxed
                 .v_min
@@ -2711,13 +2724,20 @@ fn chart_arms_at<T: Real>(
                 .max(boxed.v_max.abs())
                 .max(window.v_min.abs())
                 .max(window.v_max.abs());
-            (
+            Ok((
                 SupSpeed::new(azimuth_lever(surface, v_sup)),
-                chart_stretch_sup_v(surface),
-            )
+                SupSpeed::new(T::one()),
+            ))
         }
+        Err(NoChartSup::Placeholder) => Err(PLACEHOLDER_CHART),
     }
 }
+
+/// The mvfs placeholder offered as a chart: it has no description yet,
+/// so nothing can be imaged on it or metred through it.
+const PLACEHOLDER_CHART: PcurveCertifyError = PcurveCertifyError::UnsupportedChart {
+    chart: "the mvfs placeholder is not a surface to derive a chart image on",
+};
 
 /// `(sup |S_u|, sup |S_v|)` bounds for a NURBS chart — **rational
 /// nets included** — from the derivative control net (the B-spline
@@ -3039,21 +3059,28 @@ fn curve_rate_bound<T: Real>(c: &NurbsCurve3<T>) -> SupSpeed<T> {
     SupSpeed::new(sup * weight_ratio_factor::<T>(c.weights()))
 }
 
-/// `(w_max/w_min)²` for a positive weight list, `1` when the list is
-/// unit, empty or non-positive (a non-positive weight fails its own
-/// gate elsewhere; answering 1 here never widens a bound that the
-/// caller then trusts).
+/// `(w_max/w_min)²` — exactly 1 on a unit-weight net.
+///
+/// Every payload's weights are a non-empty list of strictly positive,
+/// finite numbers, by construction (`geom`'s `net::validate_counts`,
+/// which every spline constructor runs; the structural maps keep the
+/// values). A list outside that is a payload no constructor makes, and
+/// it fails loud: any number answered for it would be a factor on a
+/// SUP arm that bounds nothing, and one below the true ratio (an empty
+/// list folds to `0`) under-states the arm in the unsafe direction.
 fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
     let (mut lo, mut hi) = (f64::INFINITY, 0.0f64);
     for w in weights {
         lo = lo.min(*w);
         hi = hi.max(*w);
     }
-    if lo > 0.0 && hi.is_finite() {
-        T::from_f64((hi / lo).powi(2))
-    } else {
-        T::one()
-    }
+    assert!(
+        lo > 0.0 && lo <= hi && hi.is_finite(),
+        "weight_ratio_factor: a spline payload whose weights no constructor admits \
+         (min {lo}, max {hi}, {} weights)",
+        weights.len()
+    );
+    T::from_f64((hi / lo).powi(2))
 }
 
 /// Check 3 for either lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
@@ -3096,7 +3123,7 @@ fn trim_containment<T: Decide>(
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
     let boxed = pcurve.chart_box(t0, t1);
-    let (u_arm, v_arm) = chart_arms_at(surface, &boxed, &window);
+    let (u_arm, v_arm) = chart_arms_at(surface, &boxed, &window)?;
     let escapes = [
         Margin::metered_sup(window.u_min - boxed.u_min, u_arm),
         Margin::metered_sup(boxed.u_max - window.u_max, u_arm),
@@ -3166,6 +3193,12 @@ fn run_fitted_checks<T: Decide>(
     if !matches!(carrier, Curve3::Nurbs(_) | Curve3::Circle { .. }) {
         return Err(PcurveCertifyError::UnsupportedCarrier);
     }
+    if surface
+        .spline_chart()
+        .is_some_and(NurbsSurface::is_placeholder)
+    {
+        return Err(PLACEHOLDER_CHART);
+    }
     let Some(mate) = mate else {
         return Err(PcurveCertifyError::FittedMateMissing);
     };
@@ -3202,7 +3235,7 @@ fn run_fitted_checks<T: Decide>(
         // the LEVERED door's, not the metric one's: the arm is metres
         // per radian at a `v`, not a rate per parameter unit, and the
         // sup tag comes off at the call.
-        let (u_arm, _) = chart_arms_at(surface, &boxed, &window);
+        let (u_arm, _) = chart_arms_at(surface, &boxed, &window)?;
         let headroom = decide(
             "pcurve_azimuth_period",
             Margin::levered(T::tau() - (boxed.u_max - boxed.u_min), u_arm.get()),
@@ -5324,7 +5357,7 @@ mod tests {
             v_min: 0.25,
             v_max: 2.25,
         };
-        let (arm, v_arm) = chart_arms_at(&cone, &boxed, &window);
+        let (arm, v_arm) = chart_arms_at(&cone, &boxed, &window).unwrap();
         let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
@@ -5734,7 +5767,7 @@ mod cone_azimuth_sup {
     #[test]
     fn a_cones_second_channel_is_exactly_unit_and_stays_minted() {
         let (cone, _) = cone();
-        let rate = chart_stretch_sup_v(&cone);
+        let rate = chart_stretch_sup_v(&cone).unwrap();
         assert_eq!(rate.get(), 1.0);
         let (v, dv) = (4.0_f64, 0.25_f64);
         let chord = cone.eval(0.0, v).distance(cone.eval(0.0, v + dv));
@@ -5742,6 +5775,50 @@ mod cone_azimuth_sup {
             (chord - rate.to_meters(dv)).abs() <= 4.0 * f64::EPSILON * dv,
             "a slant step of {dv} moves {chord} m, metred as {} m",
             rate.to_meters(dv)
+        );
+    }
+}
+
+/// **The mvfs placeholder has no sup arms, and both doors say so.**
+#[cfg(test)]
+mod placeholder_sup {
+    use super::{
+        ChartWindow, NoChartSup, PLACEHOLDER_CHART, chart_arms_at, chart_stretch_inf,
+        chart_stretch_sup, chart_stretch_sup_v,
+    };
+    use geom::{NurbsSurface, Surface};
+    use std::sync::Arc;
+
+    /// The placeholder refuses on both sup doors and on the boxed one,
+    /// where it used to answer unit arms; the inf door's all-zero
+    /// answer is the same statement on the other side.
+    #[test]
+    fn the_placeholder_refuses_every_sup_door() {
+        let ph: Surface<f64> = Surface::Nurbs(Arc::new(NurbsSurface::placeholder()));
+        assert!(
+            matches!(chart_stretch_sup(&ph), Err(NoChartSup::Placeholder)),
+            "pair"
+        );
+        assert!(
+            matches!(chart_stretch_sup_v(&ph), Err(NoChartSup::Placeholder)),
+            "v only"
+        );
+        let unit = ChartWindow {
+            u_min: 0.0,
+            u_max: 1.0,
+            v_min: 0.0,
+            v_max: 1.0,
+        };
+        assert_eq!(
+            chart_arms_at(&ph, &unit, &unit).err(),
+            Some(PLACEHOLDER_CHART),
+            "the boxed door, which trim containment reads"
+        );
+        let inf = chart_stretch_inf(&ph);
+        assert_eq!(
+            (inf.inf_u, inf.inf_v, inf.sup_u, inf.sup_v, inf.area_inf),
+            (0.0, 0.0, 0.0, 0.0, 0.0),
+            "the inf door certifies nothing for it"
         );
     }
 }

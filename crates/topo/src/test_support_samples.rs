@@ -349,6 +349,7 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
             cause: diag(),
