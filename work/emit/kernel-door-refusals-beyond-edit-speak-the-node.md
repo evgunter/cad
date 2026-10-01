@@ -2,8 +2,9 @@
 id: kernel-door-refusals-beyond-edit-speak-the-node
 kind: unit
 title: Kernel refusals raised at a door that holds the document, beyond EditError, speak the node with its label
-status: review
+status: closed
 opened: 2026-10-01
+closed: 2026-10-01
 priority: P2
 cost: M
 parent: node-labels-are-document-data
