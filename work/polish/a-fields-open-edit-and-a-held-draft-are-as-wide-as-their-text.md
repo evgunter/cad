@@ -4,9 +4,8 @@ kind: issue
 title: viewer: a value field's open keyboard edit, and the draft a refused expression leaves in it, are as wide as their text
 status: open
 opened: 2026-09-29
-priority: P3
+priority: P4
 cost: M
-design: true
 refs: [a-driven-slots-field-draws-its-expression-source-at-any-width]
 ---
 
