@@ -1197,7 +1197,7 @@ pub struct SplitOutcome {
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance `part_edits` reported, in edit order
     /// ([`Maintenance`]): a cut mate that joins two groups as it lands
-    /// clears the joined root's offset, as at every mate insert.
+    /// clears its first operand's root offset, as at every mate insert.
     pub part_maintenance: Vec<Maintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
@@ -1221,7 +1221,8 @@ pub struct InlineOutcome {
     pub edits: Vec<DocEdit<ProfileProgram>>,
     /// The maintenance `edits` reported, in edit order
     /// ([`Maintenance`]): a spliced mate that joins two groups as it
-    /// lands clears the joined root's offset, as at every mate insert.
+    /// lands clears its first operand's root offset, as at every mate
+    /// insert.
     /// An accepted edit travels whole; a caller holding
     /// a document with the maintenance of its last accepted edit swaps
     /// `doc` and this in together.

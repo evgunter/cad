@@ -6180,16 +6180,24 @@ def split(
     placement groups. Pure — `doc` is untouched. Raises SplitError,
     typed, naming the offending edge, group, parameter or name.
 
-    `resolver` is the document seam the split's own edits lever
-    through where one moves a group's root (the remainder's mate
-    deletes split the group they cut; the part's mate inserts
-    re-form it): its cluster-record maintenance mints the group's
-    frame from a solve of the prior document, whose lever is the
-    mated parts' own extent. The part being minted answers its own
-    reference; `resolver` answers every other. Absent, a cut that
-    moves a root raises `SplitError` carrying an `EditError` with
-    variant `maintenance_refused`; a cut that moves none is
-    unaffected."""
+    `resolver` is the document seam the part's mate inserts lever
+    through where one carries a clocking rider, decided over the mated
+    parts' own extent. The part being minted answers its own
+    reference; `resolver` answers every other. Absent, such a rider
+    raises `SplitError` carrying an `EditError` with variant
+    `mate_refused`; a cut with none is unaffected.
+
+    The gauge rules (A4): every gauge reference leaving the cut lands
+    on ONE anchor — a kept gauge or the world — which the instance
+    left behind names (`two_anchors`); a cut that is exactly one placed
+    group HOISTS its root's offset onto that instance and lands the
+    root at the empty offset in the part, any other cut moves
+    verbatim; a cut holding a gauge refuses (`cut_holds_gauge`), as do
+    a dead gauge reference (`dead_gauge_reference`), a cut of unplaced
+    material alone (`unplaced_alone`), a hoisted member's further
+    offset (`hoisted_member_offset`), and a kept mate that would start
+    placing (`would_start_placing`) or whose cut side would change
+    coordinates (`mate_frame_crosses`)."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the

@@ -426,8 +426,8 @@ impl SplitOutcome {
     /// The new part document, carrying the cut nodes.
     ///
     /// Its `last_maintenance` is what building the part from empty
-    /// did to the placement registry — a cut group re-forms as one
-    /// join per mate that welded two members still separate.
+    /// reported — an offset a cut mate's insert cleared as it joined
+    /// two groups.
     #[getter]
     fn part(&self) -> Doc {
         Doc {
@@ -748,7 +748,7 @@ impl InlineOutcome {
     ///
     /// The document and the maintenance its edits performed travel
     /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
-    /// what the splice did to the placement registry.
+    /// what the splice's edits reported.
     #[getter]
     fn doc(&self) -> Doc {
         Doc {
