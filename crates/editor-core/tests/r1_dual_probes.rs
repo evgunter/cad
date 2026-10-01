@@ -230,7 +230,12 @@ where
                             for (vx, s) in lp.vertices().iter().zip(lp.segments()) {
                                 d.sc(vx.x);
                                 d.sc(vx.y);
-                                d.sc(s.bulge);
+                                if let profile::SegmentKind::Arc { arc, .. } = s.kind {
+                                    d.sc(arc.centre.x);
+                                    d.sc(arc.centre.y);
+                                    d.sc(arc.radius);
+                                    d.sc(arc.sweep);
+                                }
                             }
                         }
                     }

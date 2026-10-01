@@ -2626,7 +2626,10 @@ NOT_BOUND = {
     # a door projecting its arms' FIELDS, which is
     # `work/lib/pncad-py-seven-doors-lack-field-projection.md`'s
     # (the `path` door is one of the six it names), and not a missing
-    # binding for these five types.
+    # binding for these five types. `ArcCheck` is the sixth, on the
+    # same footing: `InconsistentArc`'s payload, crossing as the word
+    # `inconsistent_arc` with its check left behind.
+    "ArcCheck": INTERIOR,
     "ContactKind": INTERIOR,
     "EscalationSite": INTERIOR,
     "FilletLeg": INTERIOR,
@@ -2776,6 +2779,10 @@ NOT_BOUND = {
     "TargetShape": INTERIOR,
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
+    # The loop the lattice constructed, carrying that provenance into
+    # validation. Python holds a `ClosedLoop` whole and validates
+    # through the document, never taking the loop out.
+    "ConstructedLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
     "ProfileVertexRef": INTERIOR,
     "ProgramArcData": INTERIOR,
