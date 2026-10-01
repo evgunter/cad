@@ -1035,8 +1035,9 @@ BOUND_AS = {
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
     # `malformed_body`, `no_extent`, `no_finite_bound`,
-    # `not_an_instance`). The instance it is about crosses as
-    # `MateFault.instance`, and a face that cannot be bounded names its
+    # `not_an_instance`), or why the lever the two form is out of the
+    # format's range (`out_of_range`). The instance a part's refusal is
+    # about crosses as `MateFault.instance`, and a face that cannot be bounded names its
     # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
     # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
@@ -1825,7 +1826,7 @@ FAMILIES: dict[str, str] = {
 #: `MintedDeclaration`, `RefusedRef`), mates and the solve
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateRole`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
-#: `Maintenance`, `clusters`, `gauge_of`, `reading_edges`,
+#: `Maintenance`, `groups`, `root_of`, `reading_edges`,
 #: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
 #: `class_admission`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
@@ -3596,7 +3597,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::OperandSeveredFromMate": "SplitError.variant",
-    "SplitError::TornCluster": "SplitError.variant",
+    "SplitError::TornGroup": "SplitError.variant",
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",

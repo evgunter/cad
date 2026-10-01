@@ -209,21 +209,21 @@ fn the_tree_marks_the_documents_product_roots() {
 /// **A refused mate solve badges the MATE as the cause and everything
 /// else it reached as downstream.**
 ///
-/// The kernel records one cluster refusal against every instance in
-/// the cluster and every mate holding it together, each as that node's
+/// The kernel records one group refusal against every instance in
+/// the group and every mate holding it together, each as that node's
 /// own `Failed` — mates and instances are DAG leaves, so the placement
 /// solve poisons across a graph the result DAG has no edges for. The
 /// tree must not read that verbatim: the fault names the mate it is
 /// about, so that mate's row is the cause and every other row it
 /// reached — including instances the mate does not touch, and the
-/// other mate in the cluster — reads as downstream of it.
+/// other mate in the group — reads as downstream of it.
 #[test]
 fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-refusal", tol);
     let mut session = common::asm::open_bench(&bench, tol);
 
-    // Two seat mates joining all three instances into ONE cluster:
+    // Two seat mates joining all three instances into ONE group:
     // post_a under the shelf's middle, post_b under its quarter point.
     // The second is a planar rest alone, which leaves its pair free
     // to slide and spin, so the solve refuses UNDER naming that mate
@@ -249,12 +249,12 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     );
     // ONE evaluation over both mates. Pumping between them would give
     // the same rows: a mate's key carries the solve's answer, so the
-    // sound mate re-runs when the cluster breaks around it. What this
+    // sound mate re-runs when the group breaks around it. What this
     // row pins is the attribution, not that.
     session.pump();
 
     let rows = session.tree_rows();
-    assert!(tree::has_faults(&rows), "the cluster refused: {rows:?}");
+    assert!(tree::has_faults(&rows), "the group refused: {rows:?}");
     let status_of = |id| common::status_of(&rows, id);
 
     // The offending mate is the cause, and the only row that is.
@@ -290,8 +290,8 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
             "an instance the offending mate does not touch",
         ),
         (bench.post_b, "an instance the offending mate does touch"),
-        (bench.shelf_i, "the shelf the cluster hangs from"),
-        (sound, "the sound mate in the refused cluster"),
+        (bench.shelf_i, "the shelf the group hangs from"),
+        (sound, "the sound mate in the refused group"),
     ] {
         match status_of(id) {
             RowStatus::Poisoned { through, message } => {
@@ -403,7 +403,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
             other => panic!("a mated instance must read as downstream, got {other:?}"),
         }
     }
-    // post_b is in no cluster with them: an independent subgraph
+    // post_b is in no group with them: an independent subgraph
     // completes, exactly as GQ2 says.
     assert_eq!(status_of(bench.post_b), RowStatus::Ok);
 
@@ -413,7 +413,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
 /// **A row poisoned through a row that is ITSELF downstream points at
 /// the terminal cause, not at a POISONED row.**
 ///
-/// The reachable document: a boolean over two instances of a cluster
+/// The reachable document: a boolean over two instances of a group
 /// that then refuses. The kernel poisons the boolean through its first
 /// blocking input — an instance — and reports that instance as its own
 /// `Failed`; the tree redraws the instance as downstream of the mate.
@@ -421,7 +421,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
 /// weak, so the user's walk would be two hops through a row with
 /// nothing to act on.
 #[test]
-fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
+fn a_boolean_over_a_refused_groups_instances_points_at_the_mate() {
     let tol = Tol::witness();
     let bench = common::asm::bench("badge-two-hop", tol);
     let mut session = common::asm::open_bench(&bench, tol);
@@ -441,7 +441,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
     assert_eq!(
         common::status_of(&session.tree_rows(), boolean),
         RowStatus::Ok,
-        "the boolean builds before the cluster refuses"
+        "the boolean builds before the group refuses"
     );
 
     common::session_insert(
@@ -503,7 +503,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
 }
 
 /// **Every surface that says why a node has no value names the row the
-/// tree names** — over one cluster refusal, the node the kernel reports
+/// tree names** — over one group refusal, the node the kernel reports
 /// as its own `Failed` and the node it poisons through it.
 ///
 /// The kernel's standing for `post_a` is `Failed` and for the boolean
@@ -515,7 +515,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
 /// them: the tree badges the refused root at its row, and the at-rest
 /// badge takes no verdict on a product that did not gather.
 #[test]
-fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
+fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
     use pncad::document::{NodeStanding, ProductError};
     use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
@@ -547,7 +547,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
         session.standing().live(),
-        "the premise: the picked face resolves before the cluster refuses: {:?}",
+        "the premise: the picked face resolves before the group refuses: {:?}",
         session.standing()
     );
     let mut mate_tool = MateTool::new();
@@ -581,7 +581,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_cluster_refused_node() {
     assert_eq!(
         ev.usable(bench.post_a).err(),
         Some(NodeStanding::Failed { node: bench.post_a }),
-        "the kernel reports the cluster-refused instance as its own failure"
+        "the kernel reports the group-refused instance as its own failure"
     );
     assert_eq!(
         ev.usable(boolean).err(),
@@ -950,9 +950,9 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 /// for on rows a user can actually meet. What this row pins is what
 /// that costs and what it must not buy back:
 ///
-/// - the refusal is the RUN's, not a cluster's — every instance is
-///   reached, each a singleton cluster of its own, which is why a
-///   badge wording scoped to "this cluster" would name the wrong set;
+/// - the refusal is the RUN's, not a group's — every instance is
+///   reached, each a singleton group of its own, which is why a
+///   badge wording scoped to "this group" would name the wrong set;
 /// - every reached row keeps the payload's own words, byte-identical,
 ///   so nothing here composes a sentence onto a failing row;
 /// - and NO row is drawn downstream of another, because the fault
@@ -1005,8 +1005,8 @@ fn child_band_refusal_rows() {
     let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     // A third instance, which no mate could touch: every instance is
-    // its own singleton cluster here, and the row that decides whether
-    // this refusal is a cluster's or the run's is that ALL of them
+    // its own singleton group here, and the row that decides whether
+    // this refusal is a group's or the run's is that ALL of them
     // refuse.
     let lone = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     let face_of = |instance| {
@@ -1084,8 +1084,8 @@ fn child_band_refusal_rows() {
     assert_eq!(
         reached,
         vec![a, b, lone],
-        "the band refusal reaches every instance, each a cluster of its own — it is the \
-         RUN's refusal, not one cluster's"
+        "the band refusal reaches every instance, each a group of its own — it is the \
+         RUN's refusal, not one group's"
     );
 
     // Every reached row draws its own FAILED, carrying the payload's

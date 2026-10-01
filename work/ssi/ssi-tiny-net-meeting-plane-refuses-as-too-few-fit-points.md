@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-01
 priority: P1
 cost: M
+rides_with: ssi-chart-speed-usability-boundary
 ---
 
 

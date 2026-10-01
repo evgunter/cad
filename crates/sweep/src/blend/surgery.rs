@@ -177,7 +177,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, edge_extent, must_carry_over_edge,
+    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, edge_extent,
+    must_carry_over_edge,
 };
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
@@ -827,6 +828,87 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 source.get_vertex(*v).is_some(),
                 "surgery postcondition: a retirement names {v:?}, which the source body \
                  does not carry (kernel bug)",
+            );
+        }
+    }
+    // **A birth row's SOURCE half names a SOURCE key** — the same
+    // predicate over the birth records. A row says which entity of the
+    // caller's body an output was minted for, so every key on its source
+    // side is one the source body carries; a key this carve minted is
+    // absent there, which is how a row naming a mid-call fragment (a
+    // seam piece an earlier band of this call split, say) shows up. The
+    // output-side walks cannot see it: the name such a row renders is
+    // well-formed, just rooted at an entity the caller never had.
+    #[cfg(debug_assertions)]
+    {
+        // Exhaustive, so a new row kind cannot join the records without
+        // saying here where its source half is; `dead`'s fields are the
+        // walk above.
+        let BlendNaming {
+            blends,
+            corners,
+            trims,
+            feet,
+            arcs,
+            bands,
+            rim_trims,
+            rim_feet,
+            meridian_splits,
+            meridian_remnants,
+            slits,
+            dead:
+                super::naming::Retired {
+                    edges: _,
+                    vertices: _,
+                },
+        } = &rec;
+        let edge_sources = blends
+            .iter()
+            .map(|(_, e)| e)
+            .chain(trims.iter().map(|(_, e, _)| e))
+            .chain(arcs.iter().map(|(_, _, e)| e))
+            .chain(bands.iter().flat_map(|(_, b)| b))
+            .chain(rim_trims.iter().map(|(_, e, _)| e))
+            .chain(
+                meridian_splits
+                    .iter()
+                    .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
+            )
+            .chain(meridian_remnants.iter().map(|(_, e)| e))
+            .chain(
+                slits
+                    .iter()
+                    .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
+            );
+        for e in edge_sources {
+            assert!(
+                source.get_edge(*e).is_some(),
+                "surgery postcondition: a birth row names {e:?} as its source, which the \
+                 source body does not carry (kernel bug)",
+            );
+        }
+        let vertex_sources = corners
+            .iter()
+            .map(|(_, v)| v)
+            .chain(feet.iter().map(|(_, v, _)| v))
+            .chain(arcs.iter().map(|(_, v, _)| v))
+            .chain(rim_feet.iter().map(|(_, v)| v));
+        for v in vertex_sources {
+            assert!(
+                source.get_vertex(*v).is_some(),
+                "surgery postcondition: a birth row names {v:?} as its source, which the \
+                 source body does not carry (kernel bug)",
+            );
+        }
+        let face_sources = trims
+            .iter()
+            .map(|(_, _, f)| f)
+            .chain(feet.iter().map(|(_, _, f)| f));
+        for f in face_sources {
+            assert!(
+                source.get_face(*f).is_some(),
+                "surgery postcondition: a birth row names {f:?} as its source, which the \
+                 source body does not carry (kernel bug)",
             );
         }
     }
@@ -2832,6 +2914,8 @@ pub(super) struct SplitFragments {
     /// The piece still touching the vertex the split was taken beside:
     /// a cap rim's dying remnant, a ladder meridian's UPPER remnant.
     pub(super) near: EdgeKey,
+    /// The other piece, recorded as a fragment of `source`.
+    pub(super) far: EdgeKey,
     /// The ORIGINAL source edge both pieces are fragments of — the key
     /// the caller handed in, not the key that was split.
     pub(super) source: EdgeKey,
@@ -2839,10 +2923,19 @@ pub(super) struct SplitFragments {
     pub(super) vertex: VertexKey,
 }
 
+/// **The source a caller already knows its split must recover** — the
+/// annulus rim phase's plan key, resolved against the body the caller
+/// handed in — and the chain a disagreement refuses.
+pub(super) struct ExpectedSource {
+    pub(super) source: EdgeKey,
+    pub(super) chain: EdgeKey,
+}
+
 /// **Split a source edge beside `vertex`, recording the far piece as a
 /// fragment of the ORIGINAL source** — the one home of the band
-/// surgery's split provenance, for the ruled band's cap rims and the
-/// ladder rim phase's meridians alike.
+/// surgery's split provenance, for the ruled band's cap rims, the
+/// ladder rim phase's meridians and the annulus rim phase's seams
+/// alike.
 ///
 /// **The edge may already be a fragment.** Two creases on one cap share
 /// the rim between them (the rod's two creases share the flat's chord),
@@ -2858,13 +2951,23 @@ pub(super) struct SplitFragments {
 ///
 /// **That arm carries no assertion, and cannot.** It is reachable by
 /// construction — the ruled band takes it whenever one cap carries two
-/// creases, and a rim phase would take it the day one call carves two
-/// rims off one cap seam — so a guard that it is never taken would
-/// assert away the generality the lookup exists for. Which callers take
-/// it is a measurement, not an invariant: over every carve the `sweep`
-/// suite runs, the ruled band's cap-rim split meets an existing row and
-/// the two rim phases' seam splits do not. A caller that wants its own
-/// arm pinned pins it with a body, not here.
+/// creases, and the annulus rim phase whenever two of one call's bands
+/// share a wall and so both split its seam — so a guard that it is
+/// never taken would assert away the generality the lookup exists for.
+/// A caller that wants its own arm pinned pins it with a body, not
+/// here; the annulus's is `blend_tworims`' twice-split seam row.
+///
+/// **A caller that already knows the source passes it as `expected`**,
+/// and a lookup that disagrees refuses BEFORE the split, naming the
+/// sequential recourse. The annulus rim phase does: its plan key is the
+/// seam resolved against the caller's body, so a lookup that disagrees
+/// recovers some other key — one this call minted, where no earlier row
+/// covers the piece (which [`blend_surgery`]'s postcondition catches at
+/// rest) — and every row named from it would name that key instead.
+/// NOT KNOWN REACHABLE (every refreshed seam the suite meets is an
+/// earlier band's far piece, recorded against that same key); a refusal
+/// rather than an `unreachable!` because its premise is what earlier
+/// carves in this call recorded, not a fact this split established.
 ///
 /// **Which piece is `near` is the split's own answer, not the caller's
 /// guess.** [`Body::split_edge`] hands the parent key to the child
@@ -2873,30 +2976,45 @@ pub(super) struct SplitFragments {
 /// when it ends there. Both orientations are ordinary revolve and
 /// boolean outputs, which is why neither is read off the key and why
 /// [`retire_fragment`] exists.
+#[allow(clippy::too_many_arguments)] // three call sites, each the split's own inputs.
 pub(super) fn split_fragment<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
     vertex: VertexKey,
     t: T,
+    expected: Option<ExpectedSource>,
     rec: &mut BlendNaming,
     site: &'static str,
     tol: Tol,
 ) -> Result<SplitFragments, BlendError> {
+    let source = rec
+        .meridian_remnants
+        .iter()
+        .find(|(piece, _)| *piece == edge)
+        .map_or(edge, |(_, source)| *source);
+    if let Some(ExpectedSource {
+        source: want,
+        chain,
+    }) = expected
+        && want != source
+    {
+        return Err(unbuilt_chain(
+            chain,
+            "an earlier band recorded this rim's seam under another source; blend in \
+             SEQUENTIAL calls",
+        ));
+    }
     let created = body.split_edge(edge, t, tol).map_err(|e| op(site, e))?;
     let (near, far) = if edge_touches(body, edge, vertex) {
         (edge, created.new_edge)
     } else {
         (created.new_edge, edge)
     };
-    let source = rec
-        .meridian_remnants
-        .iter()
-        .find(|(piece, _)| *piece == edge)
-        .map_or(edge, |(_, source)| *source);
     rec.meridian_remnants.retain(|(piece, _)| *piece != edge);
     rec.meridian_remnants.push((far, source));
     Ok(SplitFragments {
         near,
+        far,
         source,
         vertex: created.vertex,
     })
@@ -3045,7 +3163,7 @@ fn rim_phase<T: Decide + Bounds>(
         // choice, while a minted key in this row refuses loudly at the
         // document layer rather than resolving to another entity's
         // name.
-        let frag = split_fragment(body, m, v, t_split, rec, "meridian split", tol)?;
+        let frag = split_fragment(body, m, v, t_split, None, rec, "meridian split", tol)?;
         rec.meridian_splits
             .push((frag.vertex, m, band_named.clone()));
         remnants.push((v, frag.near, frag.source));
@@ -3415,6 +3533,8 @@ enum HostAnchor {
         foot: VertexKey,
         rim_side: EdgeKey,
         far_side: EdgeKey,
+        /// The source seam both pieces are fragments of.
+        source: EdgeKey,
     },
     /// A strut was minted from the crossing out to the foot. There is no
     /// far side — that is the whole difference at a hostless crossing —
@@ -3616,10 +3736,11 @@ struct ArcPlan<T: Real> {
 /// `live` carries the crossings' seam meridians under their CARVE-time
 /// keys, one entry per crossing in `ann.crossings` order — the plan's
 /// own keys unless an earlier band's carve on a shared wall split them
-/// ([`refresh_annulus_seams`]). The SPLITS below run on the live keys;
-/// every naming row keeps the PLAN's key, because a birth record names
-/// the SOURCE entity an output was minted for and the live piece is a
-/// mid-call fragment of it.
+/// ([`refresh_annulus_seams`]). The SPLITS below run on the live keys,
+/// through [`split_fragment`] with the plan's key as the expected
+/// source; every naming row names the source the split recovers,
+/// because a birth record names the SOURCE entity an output was minted
+/// for and the live piece is a mid-call fragment of it.
 fn rim_phase_annulus<T: Decide + Bounds>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
@@ -3756,41 +3877,45 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // ---- (1)+(2) The seam splits. Each mints one foot vertex on
     // EXISTING geometry; the piece still touching the crossing vertex is
     // the rim-side one. ----
+    //
+    // Every split goes through [`split_fragment`], told the PLAN's seam
+    // key as the source it must recover: the plan is resolved against
+    // the body the caller handed in, so every row of this band names
+    // that key, read back off the split as `source`.
     let split = |body: &mut Body<T>,
+                 rec: &mut BlendNaming,
                  seam: EdgeKey,
+                 plan: EdgeKey,
                  at: VertexKey,
                  target: Point3<T>,
                  named: EdgeKey,
                  site: &'static str|
-     -> Result<(VertexKey, EdgeKey, EdgeKey), BlendError> {
+     -> Result<SplitFragments, BlendError> {
         let t = seam_split_param(body, seam, named, target)?;
-        let created = body.split_edge(seam, t, tol).map_err(|e| op(site, e))?;
-        let (rim_side, far_side) = if edge_touches(body, seam, at) {
-            (seam, created.new_edge)
-        } else {
-            (created.new_edge, seam)
+        let expected = ExpectedSource {
+            source: plan,
+            chain: rim.chain.first().edge,
         };
-        Ok((created.vertex, rim_side, far_side))
+        split_fragment(body, seam, at, t, Some(expected), rec, site, tol)
     };
-    // A split of an edge an EARLIER band recorded as a meridian
-    // remnant supersedes that record: the piece it named is subdivided
-    // here, and this band's own rows re-cover both children (the far
-    // piece as its remnant, the rim-side piece as its slit or as a
-    // death). Retiring the row before the split is what keeps the
-    // records a partition — one row per output entity, which the
-    // emitter refuses to violate.
-    let mut mate_feet = Vec::with_capacity(n);
+    let mut mate_feet: Vec<SplitFragments> = Vec::with_capacity(n);
     for (ix, c) in ann.crossings.iter().enumerate() {
-        rec.meridian_remnants.retain(|(e, _)| *e != live[ix].mate);
         mate_feet.push(split(
             body,
+            rec,
             live[ix].mate,
+            c.mate_seam,
             c.vertex,
             feet_targets[ix].mate,
             feet_targets[ix].named,
             "annulus mate seam split",
         )?);
     }
+    // The mate feet in the row shape `trim_chords` reads.
+    let mate_chord_feet: Vec<(VertexKey, EdgeKey, EdgeKey)> = mate_feet
+        .iter()
+        .map(|f| (f.vertex, f.near, f.far))
+        .collect();
     // The HOST foot, by whichever move this crossing's plan says. A seam
     // split lands it on existing geometry; a hostless crossing mints it
     // with the LADDER's strut, from the arc that starts here so the
@@ -3798,24 +3923,35 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // seam split targets, reached without a seam.
     let mut host_feet = Vec::with_capacity(n);
     for (ix, c) in ann.crossings.iter().enumerate() {
-        let anchor = match live[ix].host {
-            HostFoot::Seam(seam) => {
-                rec.meridian_remnants.retain(|(e, _)| *e != seam);
-                let (foot, rim_side, far_side) = split(
+        let anchor = match (live[ix].host, c.host) {
+            (HostFoot::Seam(seam), HostFoot::Seam(plan)) => {
+                let frag = split(
                     body,
+                    rec,
                     seam,
+                    plan,
                     c.vertex,
                     feet_targets[ix].host,
                     feet_targets[ix].named,
                     "annulus host seam split",
                 )?;
                 HostAnchor::Seam {
-                    foot,
-                    rim_side,
-                    far_side,
+                    foot: frag.vertex,
+                    rim_side: frag.near,
+                    far_side: frag.far,
+                    source: frag.source,
                 }
             }
-            HostFoot::Strut => {
+            // Both producers of `live` keep the plan's host KIND: the
+            // identity map copies it, and the refresh maps a seam to a
+            // seam and a strut to a strut or refuses.
+            (HostFoot::Seam(_), HostFoot::Strut) | (HostFoot::Strut, HostFoot::Seam(_)) => {
+                unreachable!(
+                    "annulus band: a crossing's live host foot is the plan's kind — both \
+                     producers of `live` preserve it"
+                )
+            }
+            (HostFoot::Strut, HostFoot::Strut) => {
                 let i = starters[ix];
                 let l = rim.chain.links().nth(i).ok_or_else(|| {
                     not_intact(
@@ -3857,6 +3993,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                 foot,
                 rim_side,
                 far_side,
+                ..
             } => Some((foot, rim_side, far_side)),
             HostAnchor::Strut { .. } => None,
         })
@@ -3929,7 +4066,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         };
         let lp = loop_of_half(body, mhalf)
             .ok_or_else(|| not_intact(EntityId::HalfEdge(mhalf), "a rim arc's mate-side loop"))?;
-        let (he1, he2) = trim_chords(body, lp, &mate_feet).ok_or_else(|| {
+        let (he1, he2) = trim_chords(body, lp, &mate_chord_feet).ok_or_else(|| {
             not_intact(
                 EntityId::Loop(lp),
                 "a split seam's rim-side and far-side halves at this support's feet",
@@ -3982,7 +4119,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         // closure's piece survives as the slit, whose final description
         // below states the band's meridian, and every other one dies by
         // the `kef` after.
-        let member = mate_feet[ix].1;
+        let member = mate_feet[ix].near;
         let chord = merged_chord_spec(body, member, dying, "annulus closure kev")?;
         body.kev_describing(dying, &[(member, chord)], tol)
             .map_err(|e| op("annulus closure kev", e))?;
@@ -3992,7 +4129,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         // The mate piece now spans the two feet with a sector on each
         // side; killing it merges them, which is what carrying the walk
         // through this crossing means.
-        let Some((mp, _)) = halves_of(body, mate_feet[ix].1) else {
+        let Some((mp, _)) = halves_of(body, mate_feet[ix].near) else {
             unreachable!(
                 "annulus band: the mate seam's rim-side piece came out of this phase's \
                  own `split_edge` and only the closure crossing keeps one"
@@ -4004,7 +4141,6 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // ---- The band's chart is SEAMED at the slit (certification demands
     // a Seam edge lie in its surface's own `u_ref` half-plane; the chart
     // reference is conventional data, D2). ----
-    let closure = &ann.crossings[ann.closure];
     let Some(closure_arc) = arcs.iter().position(|a| a.at.0 == ann.closure) else {
         unreachable!(
             "annulus band: every crossing is the host-side START of exactly one arc — \
@@ -4067,7 +4203,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // The slit is the band's own seam; the arc the closure crossing
     // starts is the link it belongs to.
     described.push((
-        mate_feet[ann.closure].1,
+        mate_feet[ann.closure].near,
         ContactCarrier::SeamArc {
             center: tc + radial * tmaj,
             radius: tmin,
@@ -4084,23 +4220,17 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     for (ix, c) in ann.crossings.iter().enumerate() {
         rec.rim_feet.push((host_feet[ix].foot(), c.vertex));
     }
-    for (ix, c) in ann.crossings.iter().enumerate() {
+    for f in &mate_feet {
         rec.meridian_splits
-            .push((mate_feet[ix].0, c.mate_seam, band_named.clone()));
+            .push((f.vertex, f.source, band_named.clone()));
     }
-    for (ix, c) in ann.crossings.iter().enumerate() {
-        rec.meridian_remnants.push((mate_feet[ix].2, c.mate_seam));
-        // A hostless crossing leaves no host remnant: nothing of the
-        // host was subdivided, so there is no fragment of a source
-        // meridian to name. The STRUT is not one either — this call
-        // minted it and the closure `kev` consumes it, so it reaches
-        // neither the output nor the source and owes no row in either
-        // direction.
-        if let (HostAnchor::Seam { far_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
-        {
-            rec.meridian_remnants.push((*far_side, *seam));
-        }
-    }
+    // Each seam split's far piece is already recorded as its source's
+    // remnant, by [`split_fragment`] at the split. A hostless crossing
+    // leaves no host remnant: nothing of the host was subdivided, so
+    // there is no fragment of a source meridian to name. The STRUT is
+    // not one either — this call minted it and the closure `kev`
+    // consumes it, so it reaches neither the output nor the source and
+    // owes no row in either direction.
     for (i, l) in rim.chain.links().enumerate() {
         rec.rim_trims
             .push((host_trims[i].edge, l.edge, RimSide::Host));
@@ -4108,37 +4238,27 @@ fn rim_phase_annulus<T: Decide + Bounds>(
             .push((mate_trims[i].edge, l.edge, RimSide::Mate));
     }
     rec.slits.push((
-        mate_feet[ann.closure].1,
-        closure.mate_seam,
+        mate_feet[ann.closure].near,
+        mate_feet[ann.closure].source,
         band_named.clone(),
     ));
     for l in rim.chain.links() {
         rec.dead.edges.push(l.edge);
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
-        // The dying piece against the seam it came from, through
-        // [`retire_fragment`] — the one spelling of "only a SOURCE key
-        // is a retirement", shared with the ladder's meridian splits
-        // and the ruled band's cap rims.
-        //
-        // The seam keys here are the PLAN's, and that is what keeps a
-        // source key a source key: the plan is read off the body the
-        // caller handed in, while the key this band SPLIT is the live
-        // one, which an earlier band on a shared wall may already have
-        // moved onto a piece THIS call minted. So the comparison is a
-        // live-derived dying piece against a plan key, and where the
-        // refresh has moved the seam the two cannot be equal — which is
-        // sound rather than lucky: `split_edge` keeps the parent key
-        // for the `[t0, t]` child and a seam meridian's two ends are
-        // its wall's two latitude rims, so a moved live key puts THIS
-        // band at the seam's t1 end, where the dying rim-side piece is
-        // the fresh one and no retirement is owed.
-        if let (HostAnchor::Seam { rim_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
-        {
-            retire_fragment(rec, *rim_side, *seam);
+        // The dying piece against the source seam it is a fragment of,
+        // through [`retire_fragment`] — the one spelling of "only a
+        // SOURCE key is a retirement", shared with the ladder's meridian
+        // splits and the ruled band's cap rims. A STRUT is a mid-call
+        // entity, not a fragment of anything, and owes no row.
+        match host_feet[ix] {
+            HostAnchor::Seam {
+                rim_side, source, ..
+            } => retire_fragment(rec, rim_side, source),
+            HostAnchor::Strut { .. } => {}
         }
         if ix != ann.closure {
-            retire_fragment(rec, mate_feet[ix].1, c.mate_seam);
+            retire_fragment(rec, mate_feet[ix].near, mate_feet[ix].source);
         }
         rec.dead.vertices.push(c.vertex);
     }
@@ -4403,10 +4523,31 @@ fn attach_contact<T: Decide + Bounds>(
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
             must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
         };
-        match verdict {
-            MustCarryVerdict::JetDeterminate => {
-                EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
-            }
+        // In-band: a separation certifiable as neither positive nor
+        // zero — a band a few K·ε in radius, or a corner arc whose
+        // extent is the lever — escalated typed with the deciding
+        // station's own reading, at the link the contact edge belongs
+        // to. Refuted: a station reads the join a corner, so this
+        // branch's premise — a definitely-smooth join — is refuted by
+        // the geometry. The carrier kind routed the edge here, and
+        // every kind whose surfaces cross at an angle is routed to the
+        // transverse branch above, so that is the surgery
+        // contradicting its own routing, announced rather than
+        // repaired by storing a description the routing did not
+        // choose.
+        let refused = |refusal| match refusal {
+            MustCarryRefusal::InBand(source) => BlendError::Escalated {
+                site: BlendSite::Link { edge: link },
+                source,
+            },
+            MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
+                at: EntityId::Edge(edge),
+                detail: "a contact edge routed as a smooth join reads definitely \
+                         transverse at a certification station",
+            },
+        };
+        match verdict.description(s1, s2, witness).map_err(refused)? {
+            MustCarryDescription::Intrinsic(description) => description,
             // The surfaces under-determine the locus, so the
             // description stays CONVENTIONAL: an image in a chart,
             // derived by the certification door from the exact carrier
@@ -4424,39 +4565,13 @@ fn attach_contact<T: Decide + Bounds>(
             // is the folded lever arm, or any band under a run with
             // `K < 2`. A pair the lane REFUSES lands here too once
             // every station has read smooth first-order (a crossing
-            // out of lane answers `Transverse` below, as in lane): the
+            // out of lane is refuted above, as in lane): the
             // certificate cannot store an intrinsic tangency there, so
             // the conventional image is the honest description, and
             // the door derives it — `geom_brep::chart_pcurve` images a
             // ruling `Line` in a `Cone`'s chart as readily as in a
             // plane's. No arm the battery admits mints such a pair.
-            MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::chart(s1),
-            // In-band: a separation certifiable as neither positive nor
-            // zero — a band a few K·ε in radius, or a corner arc whose
-            // extent is the lever — escalated typed with the deciding
-            // station's own reading, at the link the contact edge
-            // belongs to.
-            MustCarryVerdict::InBand(source) => {
-                return Err(BlendError::Escalated {
-                    site: BlendSite::Link { edge: link },
-                    source,
-                });
-            }
-            // A station reads the join a corner: this branch's premise
-            // — a definitely-smooth join — is refuted by the geometry.
-            // The carrier kind routed the edge here, and every kind
-            // whose surfaces cross at an angle is routed to the
-            // transverse branch above, so reaching this arm is the
-            // surgery contradicting its own routing, announced rather
-            // than repaired by storing a description the routing did
-            // not choose.
-            MustCarryVerdict::Transverse => {
-                return Err(BlendError::SurgeryInvariant {
-                    at: EntityId::Edge(edge),
-                    detail: "a contact edge routed as a smooth join reads definitely \
-                             transverse at a certification station",
-                });
-            }
+            MustCarryDescription::Conventional => EdgeDescriptionSpec::chart(s1),
         }
     };
     body.set_edge_curve(

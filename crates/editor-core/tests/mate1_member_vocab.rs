@@ -19,7 +19,7 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
     Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, clusters,
+    RoleSeg, StableName, assemble, groups,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -161,23 +161,23 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
 
     // The reading edges: the pattern-member mate reads through the
     // pattern's INPUT instance — the vertex that joins the top into
-    // the pattern's cluster.
+    // the pattern's group.
     assert_eq!(
         editor_core::reading_edges(&doc),
         vec![(mate, leg), (mate, top)],
         "a pattern-placed head contributes the reading edge at the pattern's input instance"
     );
     assert_eq!(
-        clusters(&doc),
+        groups(&doc),
         vec![vec![leg, top]],
-        "the mate joins the top into the pattern's cluster; the gauge is the leg (document-first)"
+        "the mate joins the top into the pattern's group; the root is the leg (document-first)"
     );
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
-    assert_eq!(poses.gauge(top), Some(leg));
+    assert_eq!(poses.root(top), Some(leg));
 
     // Hand-composed: copy 2 sits at `translation(spacing·2 · x̂)` (the
     // pattern's own parameters, nothing read back from the solve); the

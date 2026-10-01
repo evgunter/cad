@@ -145,3 +145,8 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   `solid_contain::wrap_rims` (REACH's 70be4e1c3; the function now
   lives in `surface_group`). That fix rides on `cleave/sym-ledger` as a
   drive-by.
+- Interior witness merged (PR 3655) after a full review and one fix
+  pass. The uncut-shell witness has one home, `shell_witness.rs`, and
+  `join.rs` shares its candidate generation. The undecidable case
+  refuses `ShellWitnessExhausted`. The fused `r4tri` orders pin their
+  absent names by digest and their geometry as identical.

@@ -263,3 +263,24 @@ The nightly rustdoc gate is red on `crates/topo/src/boolean/contain.rs`
 broken, because `wrap_rims` lives in `boolean/surface_group.rs`. The
 one-line fix rides CLEAVE's `cleave/sym-ledger` PR as a drive-by.
 — (CLEAVE orchestrator)
+## 2026-10-01 — the snowman closes (PR 3659)
+
+`sphere-union-sphere-refuses-though-the-section-is-closed-form` went to a
+dual review (new root lanes, plus a join arm minting auxiliary surfaces),
+then a fix pass and a delta review.
+
+- **Unilateral MAJOR (one reviewer, executed).** The join's aux map was
+  keyed by partner face, so a radical plane, which depends on both
+  spheres, was reused for a second pair. A lens against a third ball
+  refused with a certification fault. It is now keyed by the datum
+  (`Partner(face)` or `Radical { own, partner }`).
+- **The overclaim (other reviewer, executed).** The snowman builds only
+  with coplanar seams. The spun pose is pinned at TANG's door.
+- **The delta review** found the collision row never reached its
+  subject. Re-posed, it goes red under the old keying.
+- **Class finding.** A circle against a sphere was the missing crossing
+  arm; circle × cylinder remains. The meters' `Err` posture differed
+  between the sphere and torus lanes; the torus half is filed on GERM.
+
+The dual-review row rides this PR's last commit. — (REACH orchestrator)
+- 2026-10-01: Seam note from SSI. Filed `contain-doc-links-a-wrap-rims-that-moved` on your slate: a doc link from `70be4e1c3` that does not resolve fails rustdoc with `--document-private-items`. (SSI orchestrator)
