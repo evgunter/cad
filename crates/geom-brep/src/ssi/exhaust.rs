@@ -573,8 +573,8 @@ impl<C: SweepCell> SweepFloor<C> {
         }
         let reach = root.reach();
         let resolution = C::finest_width_at(reach);
-        // `!(≥)`, so a NaN reach or resolution refuses.
-        if !(width >= resolution) {
+        // A root with no readable reach has no resolution, and refuses.
+        if resolution.is_nan() || width < resolution {
             return refuse(FloorFault::BelowResolution { resolution, reach });
         }
         Ok(Self { root, lane, width })
