@@ -1192,14 +1192,6 @@ pub enum EulerOpError {
     },
 }
 
-/// The tail of a refusal a caller reaches as well as a torn body
-/// ([`EulerOpError::StaleKey`], [`EulerOpError::StaleGeometry`],
-/// [`EulerOpError::NotSameEdge`]), after the caller's repair: the
-/// variant does not say which reached it, so the sentence names the
-/// repair first and the report for a call that already met it. Every
-/// other corruption refusal ends in [`geom_core::KERNEL_DEFECT_ENDING`].
-const TORN_IF_THE_CALL_WAS_RIGHT: &str = "the body is torn, which is a kernel defect: report it";
-
 impl EulerOpError {
     /// This refusal's text, a certification refusal's ending read at
     /// `reading` ([`CertifyError::ending`]): the door that reports the
@@ -1225,7 +1217,7 @@ impl EulerOpError {
                 "kev: the fan merge re-bases certified edges {edges:?} onto the surviving \
                  vertex, and the keys-only kill takes no band to certify them there. \
                  Recourse: re-describe those edges at the surviving vertex, or kill the edge's \
-                 other end where its fan holds no certified edge (kev_describing takes their \
+                 other end where it meets no other edge (kev_describing takes their \
                  re-descriptions under a band, and kev on the other half kills the other end)"
             ),
             Self::NotMergedMember { edge } => format!(
@@ -1277,14 +1269,12 @@ impl EulerOpError {
             Self::FaceMovedTwice { face } => {
                 format!("set_face_surfaces_describing: face {face:?} is moved twice")
             }
-            Self::StaleKey { key } => format!(
-                "euler op requires {key}, which does not resolve. Recourse: pass keys this \
-                 body holds; if the call did, {TORN_IF_THE_CALL_WAS_RIGHT}"
-            ),
-            Self::StaleGeometry { key } => format!(
-                "euler op requires {key}, which does not resolve. Recourse: pass geometry keys \
-                 this body holds; if the call did, {TORN_IF_THE_CALL_WAS_RIGHT}"
-            ),
+            Self::StaleKey { key } => {
+                format!("euler op requires {key}, which does not resolve")
+            }
+            Self::StaleGeometry { key } => {
+                format!("euler op requires {key}, which does not resolve")
+            }
             Self::FanStartMismatch { he1, he2 } => format!(
                 "mev fan: half-edges {he1:?} and {he2:?} start at different \
                  vertices"
@@ -1317,9 +1307,8 @@ impl EulerOpError {
                 loop = r#loop
             ),
             Self::NotSameEdge { he1, he2 } => format!(
-                "half-edges {he1:?} and {he2:?} are not the two halves of one edge. \
-                 Recourse: pass kemr the two halves of one edge; if the call did, or was not \
-                 kemr, {TORN_IF_THE_CALL_WAS_RIGHT}"
+                "half-edges {he1:?} and {he2:?} are not the two halves of one \
+                 edge"
             ),
             Self::UnclaimedHalfEdge { he, edge } => format!(
                 "half-edge {he:?}'s edge {edge:?} does not claim it in either \
@@ -1644,22 +1633,21 @@ impl EulerOpError {
     ///
     /// The membership is this enum's own documentation: a variant
     /// answers `true` exactly when its doc comment says the state is
-    /// tier-1-invalid input, plus the two dangling-reference variants
-    /// whose whole subject is a key that did not resolve. Callers
+    /// tier-1-invalid input, plus [`EulerOpError::StaleKey`] and
+    /// [`EulerOpError::StaleGeometry`], whose whole subject is a key
+    /// that did not resolve. Callers
     /// that place a refusal — a driver deciding whether to record it
     /// and carry on, or to refuse — ask here instead of keeping a
     /// second copy of the list.
     ///
-    /// **`true` reads the call's own keys as right.** A caller also
-    /// reaches [`EulerOpError::StaleKey`] and
+    /// **For three variants `true` assumes the call's keys are
+    /// right.** A caller also reaches [`EulerOpError::StaleKey`] and
     /// [`EulerOpError::StaleGeometry`] by passing a key the body does
     /// not hold, and [`EulerOpError::NotSameEdge`] by passing `kemr` two
     /// half-edges that are not mates, and the variant does not say
-    /// which reached it. A driver passing keys it read from the body
-    /// asks the question this answers; a refusal's text cannot assume
-    /// it, so those three name the caller's repair before the report,
-    /// and every other variant answering `true` ends in
-    /// [`geom_core::KERNEL_DEFECT_ENDING`].
+    /// which reached it. The answer holds for them only where every
+    /// key the call passed resolves in this body and `kemr`'s two are
+    /// mates.
     ///
     /// The match is exhaustive on purpose: a new variant does not
     /// compile until someone says which side of this line it is on.
@@ -6629,12 +6617,11 @@ mod tests {
 
     /// **The corruption refusals end one way** (D4 ¶1 (i)): every
     /// variant [`EulerOpError::reports_tier1_corruption`] answers `true`
-    /// for ends in [`geom_core::KERNEL_DEFECT_ENDING`], but for the three
-    /// a caller reaches too, which end in the caller's repair and then
-    /// [`TORN_IF_THE_CALL_WAS_RIGHT`]; no other variant names a defect.
-    /// Each corruption refusal states one recourse. `PcurveMint` answers
-    /// by its payload, so both of its sides are sampled beside the
-    /// shared array.
+    /// for ends in [`geom_core::KERNEL_DEFECT_ENDING`], its one recourse,
+    /// but for the three a caller reaches too, which state the fact and
+    /// claim neither a recourse nor a defect; no other variant names a
+    /// defect. `PcurveMint` answers by its payload, so both of its sides
+    /// are sampled beside the shared array.
     #[test]
     fn corruption_refusals_end_in_the_kernel_defect_ending() {
         use crate::pcurves::SiteRowRefusal;
@@ -6661,19 +6648,19 @@ mod tests {
             corrupt += 1;
             if CALLERS_TOO.contains(&K::from(&error)) {
                 assert!(
-                    text.ends_with(&format!("; if the call did, {TORN_IF_THE_CALL_WAS_RIGHT}"))
-                        || text.ends_with(&format!(
-                            "; if the call did, or was not kemr, {TORN_IF_THE_CALL_WAS_RIGHT}"
-                        )),
+                    !text.contains("kernel defect")
+                        && !text.contains("malformed")
+                        && !text.contains("torn"),
                     "{text}"
                 );
+                assert_eq!(test_utils::refusal::recourse_markers(&text), 0, "{text}");
             } else {
                 assert!(
                     text.ends_with(&format!(". {}", geom_core::KERNEL_DEFECT_ENDING)),
                     "{text}"
                 );
+                assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
             }
-            assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
         }
         assert_eq!(corrupt, 12, "the corruption samples this row reads");
     }

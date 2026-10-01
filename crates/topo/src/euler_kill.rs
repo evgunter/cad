@@ -2476,28 +2476,58 @@ mod tests {
 
     /// **The keys-only merge refusal ends in its own lever** (D4 ¶1
     /// (i)): the members' descriptions, or the other end, before the
-    /// door. On the real raise, and the other end is a way through:
-    /// `kev` on the strut's other half kills its tip, whose fan holds
-    /// no certified edge.
+    /// door. On the real raise, in two poses of the strut's tip: where
+    /// the tip meets no other edge, `kev` on the strut's other half
+    /// kills it; where a null edge also meets it, a fan with no
+    /// certified edge, the lever's condition fails and so does the
+    /// kill, for the null edge's sake.
     #[test]
     fn the_keys_only_merge_refusal_ends_in_its_lever() {
-        let (mut body, _seed, _seg, strut) = strutted();
-        let text = body
-            .kev(strut.he_minus)
-            .map(|_| ())
-            .unwrap_err()
-            .to_string();
-        assert!(
-            text.ends_with(
-                "Recourse: re-describe those edges at the surviving vertex, or kill the \
-                 edge's other end where its fan holds no certified edge (kev_describing takes \
-                 their re-descriptions under a band, and kev on the other half kills the \
-                 other end)"
-            ),
-            "{text}"
-        );
-        assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
-        body.kev(strut.he_plus).unwrap();
+        let lever = "Recourse: re-describe those edges at the surviving vertex, or kill the \
+                     edge's other end where it meets no other edge (kev_describing takes \
+                     their re-descriptions under a band, and kev on the other half kills the \
+                     other end)";
+        let (bare, _seed, _seg, strut) = strutted();
+        let mut nulled = bare.clone();
+        let null = nulled
+            .mev_null(
+                MevSite::Fan {
+                    he1: strut.he_minus,
+                    he2: strut.he_minus,
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        for (pose, mut body) in [("bare tip", bare), ("null edge at the tip", nulled)] {
+            let text = body
+                .kev(strut.he_minus)
+                .map(|_| ())
+                .unwrap_err()
+                .to_string();
+            assert!(text.ends_with(lever), "{pose}: {text}");
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "{pose}: {text}"
+            );
+            let others: Vec<EdgeKey> = body
+                .edges_of_vertex(strut.vertex)
+                .unwrap()
+                .into_iter()
+                .filter(|&e| e != strut.edge)
+                .collect();
+            let killed = body.kev(strut.he_plus).map(|_| ());
+            if others.is_empty() {
+                assert_eq!(killed, Ok(()), "{pose}: the lever's condition holds");
+            } else {
+                assert_eq!(others, [null.edge], "{pose}: the edges the tip meets");
+                assert_eq!(
+                    killed,
+                    Err(EulerOpError::RebasedNullEdge { edge: null.edge }),
+                    "{pose}: the lever's condition fails, and so does the kill"
+                );
+            }
+        }
     }
 
     #[test]
