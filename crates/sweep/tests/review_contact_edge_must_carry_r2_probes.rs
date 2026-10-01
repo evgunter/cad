@@ -27,7 +27,8 @@ use geom_brep::{
 };
 use geom_core::{Band, ErrorTextReading, Margin, Tol};
 use sweep::blend::{
-    BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
+    BlendDecision, BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted,
+    fillet_edges,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, rod_creases, rod_upper_crease, rod_with_flat,
@@ -116,6 +117,7 @@ fn in_band(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> (f64, Str
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
                 site: BlendSite::Link { .. },
+                decision: BlendDecision::ContactSecondOrder,
                 source,
             } = &error
             else {
@@ -316,9 +318,7 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
         "the rod at R/r = 1.5, margin 0.75·Kε",
     );
     assert!(
-        shown.contains(
-            "smaller on one curving the band's own way, where the margin is past its peak"
-        ),
+        shown.contains("smaller on one curving the band's way (past the margin's peak)"),
         "the rendered sentence names the peak and the direction past it: {shown}"
     );
     // Each branch is scoped to the support that makes it true: the SUM
@@ -327,7 +327,7 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
     // under the tolerance, where it builds — it is never "raised".
     assert!(
         shown.contains("larger on a plane support or one curving away from the band")
-            && shown.contains("slim corner arc, which then builds conventionally")
+            && shown.contains("slim corner arc, which builds conventionally")
             && !shown.contains("on a curved one"),
         "every clause is true at the support it names: {shown}"
     );

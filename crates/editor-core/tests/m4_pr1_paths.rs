@@ -11,7 +11,7 @@ use geom_core::Tol;
 
 /// The opaque profile payload for tests: this crate never looks
 /// inside `P` (spec D1/D3 — PR 2 instantiates the real profile type).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
@@ -194,7 +194,7 @@ fn self_reference_cannot_forge_the_next_id() {
     // Guessing the about-to-mint id is still an unresolved ref: refs
     // must resolve among EXISTING nodes, so insertion cannot cycle.
     let doc = TDoc::empty_derived("m4_pr1_paths", Tol::witness());
-    let guessed = RecipeNodeId(0); // empty doc will mint 0 next
+    let guessed = RecipeNodeId(0); // no node holds it
     let err = doc
         .apply(
             &TEdit::InsertNode {

@@ -42,6 +42,7 @@ pub mod mate;
 pub mod mc;
 pub mod measure;
 pub mod meta;
+pub mod mint;
 pub mod names;
 pub mod node;
 pub mod param_source;
@@ -76,7 +77,6 @@ pub mod spoken;
 /// enclosure.
 pub mod stackup;
 pub mod step_handle;
-pub mod step_mint;
 // Test fixtures (the literals and the pick door); see the module's
 // docs. The gate is this crate's `test-support` feature, on only
 // through dev-dependency edges. `doc(hidden)` because the rustdoc gate
@@ -160,6 +160,8 @@ pub use measure::{
     WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
+pub(crate) use mint::NodeIdCollides;
+pub use mint::{Mint, Minted};
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
@@ -201,8 +203,8 @@ pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, StepMap, StepMapDivergence,
-    Unmapped, inline, remap_name, split,
+    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, StepMap, Unmapped, inline,
+    remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
@@ -223,7 +225,6 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use step_mint::StepMint;
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
