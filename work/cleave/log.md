@@ -225,3 +225,11 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
   the split's finish and `plane_section` both read. The ring-vs-ring
   guard is split-only. Filed `plane-section-polygons-drop-their-arcs`
   (P2).
+- Witness ladders merged (PR 3716) after a full review and one fix
+  pass. There is one cell-dimension ladder (`complex_side`) with one
+  "inconclusive" rule, and first-decisive applies to both callers.
+  Join's loop-roles cross-check is now a pure function pinned by
+  synthetic rows, and the contact skip is deleted under a debug guard.
+  Refusals no longer name a remote witness. The contact-skip row closed
+  with it. Filed `point-in-solid-reads-in-band-against-a-face-plane-far-from-the-face`
+  (P2), for the 26-in-band `wide_wedge` case.

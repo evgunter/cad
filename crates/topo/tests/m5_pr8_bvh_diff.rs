@@ -383,25 +383,38 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
             );
         }
         // The VALUE-channel pin: out of band the full boolean is
-        // byte-equal through either strategy. IN band, BOTH refuse —
-        // the in-band margin that the realized sweep prunes is caught
-        // again by the disjoint-operands containment stage
-        // (`bool_point_in_solid_plane`), so no strategy ever returns
-        // a silent value; the divergence is confined to the REFUSAL
-        // SITE (sweep side test vs solid containment), pinned here
-        // predicate-by-predicate.
+        // byte-equal through either strategy. IN band the idealized
+        // sweep refuses at its grazing side test, and the realized one,
+        // having pruned the remote pair, answers: the operands are
+        // disjoint, and the containment witness that classifies A's
+        // shell reads its first corner off the in-band plane of B's top
+        // (A's bottom corners read in-band and are passed over).
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
             let decls = topo::BooleanDeclarations::none();
             let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized, Tol::witness());
             let ideal =
                 boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized, Tol::witness());
             if k > 1.0 && k < tol.k {
-                let re = real.expect_err("in-band realized refuses at containment");
-                let ie = ideal.expect_err("in-band idealized refuses at the sweep");
+                let re = real.unwrap_or_else(|e| panic!("k = {k} / {op:?}: realized: {e:?}"));
+                let volume = re.body().map(|bb| {
+                    topo::mass_properties(&bb.body, Tol::witness())
+                        .unwrap()
+                        .volume
+                });
+                let disjoint = match op {
+                    BooleanOp::Union => Some(2.0),
+                    BooleanOp::Intersect => None,
+                    BooleanOp::Subtract => Some(1.0),
+                };
                 assert!(
-                    format!("{re:?}").contains("bool_point_in_solid_plane"),
-                    "k = {k} / {op:?}: realized refusal site, got {re:?}"
+                    match (volume, disjoint) {
+                        (Some(v), Some(w)) => (v - w).abs() < 1e-9,
+                        (None, None) => true,
+                        _ => false,
+                    },
+                    "k = {k} / {op:?}: the disjoint answer, got volume {volume:?}"
                 );
+                let ie = ideal.expect_err("in-band idealized refuses at the sweep");
                 assert!(
                     format!("{ie:?}").contains("bool_vertex_face_side"),
                     "k = {k} / {op:?}: idealized refusal site, got {ie:?}"

@@ -22,12 +22,12 @@
 //!   an edge grazes a face's *infinite* plane far from the face
 //!   itself; the realized path never examines it. Pruning can drop
 //!   only such spurious escalations, never an accepted event — the
-//!   value channel is pinned bit-equal. In the full boolean the same
-//!   in-band margin typically resurfaces at a LATER stage anyway (the
-//!   disjoint-operands containment walk decides against the same
-//!   plane), so what actually diverges is the refusal SITE, not
-//!   success: pinned predicate-by-predicate in the suite's grazing
-//!   fixture.
+//!   value channel is pinned bit-equal. In the full boolean the
+//!   disjoint-operands containment witness passes over a point that
+//!   reads in-band against the same plane (`super::shell_witness`), so
+//!   the realized path answers wherever another witness of the shell
+//!   decides, and refuses where none does; the suite's grazing fixture
+//!   pins one that answers.
 //! - **Worklist, not recursion** (Problem 15.3 / F12): a proper
 //!   crossing splits the edge through the certified `split_edge` lane
 //!   and pushes BOTH children back with the *next* face index (a line
