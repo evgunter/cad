@@ -33,7 +33,7 @@ use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
     EditError, EvalOptions, FacePoseRefusal, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc,
-    ReachRefusal, RecipeNodeId, RefusingReach, gauge_of, load, mate_reach, save,
+    ReachRefusal, RecipeNodeId, RefusingReach, load, mate_reach, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
@@ -244,10 +244,9 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
         lever_of(&doc, &opts, &ids, &alignment).to_bits(),
         "the door's lever is the solve's, to the bit"
     );
-    // The id the door named is the one a mate inserted next mints.
-    let (_, minted) =
-        at_the_door(&doc, &reach, mate(body, ids[0], ids[1], seat(None))).expect("admitted");
-    assert_eq!(minted, named);
+    // The id the door named is the one the insert would have minted:
+    // drawn for this mate, and none the document holds.
+    assert!(!doc.has_minted(named), "the named id is not the document's");
     // The refusal's sentence names the node and forwards the fault's.
     let err = doc
         .apply(
@@ -263,7 +262,8 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     };
     let sentence = err.to_string();
     assert!(
-        sentence.contains(&format!("node {}", named.0)) && sentence.contains(&fault.to_string()),
+        sentence.contains(&format!("node {}", test_utils::refusal::tag(named.0)))
+            && sentence.contains(&fault.to_string()),
         "{sentence}"
     );
 }
@@ -355,23 +355,29 @@ fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
 /// **A rider through the refusing reach refuses `Unleverable`** in the
 /// resolver's own voice — exactly as the solve answers it — and a
 /// coincidence WITHOUT a rider through the same reach is admitted with
-/// no ask at all: the door levers only what the table decides.
+/// no ask at all: the door levers only what the table decides. The id
+/// the refusal names is the one the same mate mints through the store's
+/// reach, which admits it.
 #[test]
 fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
-    let (doc, ids, _, body) = instances("msolve10-a4-reach", 2);
+    let (doc, ids, opts, body) = instances("msolve10-a4-reach", 2);
     let counting = Counting::over(&RefusingReach);
     let (named, fault) = at_the_door(&doc, &counting, mate(body, ids[0], ids[1], seat(Some(0.0))))
         .expect_err("refused");
     assert!(
         matches!(
             &fault,
-            MateFault::Unleverable {
-                mate,
-                refusal: LeverRefusal::PartUnresolved {
-                    instance,
-                    fault: PartFault::NoResolver,
-                },
-            } if *mate == named && *instance == ids[0]
+            MateFault::Unleverable { mate, refusal }
+                if *mate == named && matches!(
+                    refusal.as_ref(),
+                    LeverRefusal::Reach {
+                        instance,
+                        refusal: editor_core::ReachRefusal::PartUnresolved {
+                            fault: PartFault::NoResolver,
+                        },
+                        ..
+                    } if *instance == ids[0]
+                )
         ),
         "{fault:?}"
     );
@@ -379,7 +385,11 @@ fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     let (_, plain) =
         at_the_door(&doc, &counting, mate(body, ids[0], ids[1], seat(None))).expect("admitted");
     assert_eq!(counting.0.get(), 1, "no rider, no ask");
-    assert_eq!(plain, named);
+    assert_ne!(plain, named, "another mate, another id");
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let (_, admitted) = at_the_door(&doc, &reach, mate(body, ids[0], ids[1], seat(Some(0.0))))
+        .expect("the store's reach admits the rider");
+    assert_eq!(admitted, named, "the refusal named the id the mate mints");
 }
 
 // ---- A `FromFace` side at the door, and on replay ----
@@ -475,8 +485,7 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
 // ---- The history and the log ----
 
 /// **A refused insert leaves no entry**: the document is the one it
-/// was, and the next insert mints the id the refused one was named
-/// with.
+/// was, and the next insert mints one id, not the refused one's.
 #[test]
 fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     let (doc, ids, _, body) = instances("msolve10-a1-history", 2);
@@ -490,8 +499,18 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     assert_eq!(doc.order(), before.order());
     assert_eq!(doc.node(named), None);
     let (after, minted) = insert(doc, mate(body, ids[0], ids[1], seat(None)));
-    assert_eq!(minted, named, "nothing was minted for the refusal");
+    assert_ne!(minted, named, "another mate, another id");
+    assert!(
+        !after.has_minted(named),
+        "nothing was minted for the refusal"
+    );
     assert_eq!(after.order().len(), before.order().len() + 1);
+    let (unasked, _) = insert(before, mate(body, ids[0], ids[1], seat(None)));
+    assert_eq!(
+        after.mint(),
+        unasked.mint(),
+        "the refusal left the chain and the log as though it was never asked"
+    );
 }
 
 /// **Replay re-applies what the recording door decided, and refuses
@@ -664,11 +683,11 @@ fn a3_a_doctored_snapshot_carrying_a_table_gap_loads_and_the_solve_refuses_it() 
 
 /// **A mate on a pair the fold never reads is refused on the datum
 /// alone**: two members over ONE instance — the instance and a copy
-/// of it — form a pair `solve_cluster` never folds, so the solve
+/// of it — form a pair `solve_group` never folds, so the solve
 /// records NOTHING against such a mate whatever its datum says (it
 /// declares, fault-free), while the insert door refuses a table gap
 /// and a contradictory rider on it all the same. Which pairs the fold
-/// reads is a cluster fact the door does not decide; the datum is
+/// reads is a group fact the door does not decide; the datum is
 /// malformed by itself. The two documents are reached the only way
 /// they can be, through a doctored snapshot.
 #[test]
@@ -1146,7 +1165,7 @@ fn corpus() -> Vec<Row> {
         // re-decides nothing, so the document holds it.
         let (doc, ids, opts, body) = instances("msolve10-corpus-hand-edited", 2);
         let text = save(&doc, &[], Tol::witness()).expect("saves");
-        // The mate joins the two instances' clusters, and a log entry
+        // The mate joins the two instances' groups, and a log entry
         // carries the rows its edit performs — so the hand-edited entry
         // records the join, as the save door would have.
         let entry = LoggedEdit {
@@ -1173,9 +1192,9 @@ fn corpus() -> Vec<Row> {
         });
         let loaded = load(&doctored, Tol::witness()).expect("replay re-decides nothing");
         assert_eq!(
-            gauge_of(&loaded.doc, ids[1]),
+            root_of(&loaded.doc, ids[1]),
             ids[0],
-            "the recorded join names the gauge the joined cluster keeps"
+            "the recorded join names the root the joined group keeps"
         );
         ("msolve10-corpus-hand-edited", loaded.doc, opts)
     });
@@ -1209,7 +1228,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                     assert!(
                         twin.is_ok(),
                         "{label}: the solve admits mate {}; the door refused its twin: {:?}",
-                        id.0,
+                        test_utils::refusal::tag(id.0),
                         twin.err()
                     );
                     admitted += 1;
@@ -1220,14 +1239,14 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                         Ok(_) => panic!(
                             "{label}: the solve refuses mate {} on its own datum ({fault}); \
                              the door admitted its twin",
-                            id.0
+                            test_utils::refusal::tag(id.0)
                         ),
                     };
                     assert_eq!(
                         renamed(got, named, id),
                         *fault,
                         "{label}: mate {} — the door's fault is the solve's",
-                        id.0
+                        test_utils::refusal::tag(id.0)
                     );
                     refused += 1;
                 }

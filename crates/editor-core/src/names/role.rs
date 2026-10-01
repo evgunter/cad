@@ -572,12 +572,7 @@ pub struct StableName {
 // re-spelling it.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{} name minted by node {}",
-            self.kind.noun(),
-            self.node.0
-        )
+        write!(f, "{} name minted by node {}", self.kind.noun(), self.node)
     }
 }
 
@@ -1368,7 +1363,7 @@ pub fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
 /// It matters because such an id is a LOCAL node reference like the
 /// minting one — it must be re-mapped when a subgraph is copied into
 /// another document, fed to the naming key, and held to the document's
-/// mint counter when a file is read — and a walk that only visits
+/// mint log when a file is read — and a walk that only visits
 /// embedded NAMES cannot see it.
 ///
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a

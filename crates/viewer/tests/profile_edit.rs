@@ -171,7 +171,7 @@ fn with_profile(loops: &[ProfileShape], notation: Notation) -> (DocSession, Reci
 fn program(session: &DocSession, node: RecipeNodeId) -> &ProfileProgram {
     match session.committed_doc().node(node) {
         Some(Node::Profile(program)) => program,
-        other => panic!("feature {} is not a profile: {other:?}", node.0),
+        other => panic!("node {node} is not a profile: {other:?}"),
     }
 }
 
@@ -274,7 +274,7 @@ fn committed_expr(session: &DocSession, node: RecipeNodeId, slot: SlotId) -> Exp
         .node(node)
         .and_then(|held| held.expr(slot))
         .cloned()
-        .unwrap_or_else(|| panic!("feature {} has no {}", node.0, slot.label()))
+        .unwrap_or_else(|| panic!("node {node} has no {}", slot.label()))
 }
 
 /// **A moved number is one undoable edit, written in the editor's
@@ -346,7 +346,7 @@ fn a_moved_number_is_one_edit_and_undoes() {
 fn original_program(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> &ProfileProgram {
     match doc.node(node) {
         Some(Node::Profile(program)) => program,
-        other => panic!("feature {} is not a profile: {other:?}", node.0),
+        other => panic!("node {node} is not a profile: {other:?}"),
     }
 }
 

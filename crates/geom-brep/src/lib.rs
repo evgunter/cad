@@ -86,16 +86,18 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DihedralClass, MaterialPairing, MaterialWedge, MustCarryVerdict, SecondOrder,
-    classify_dihedral, classify_material_pairing, classify_material_pairing_as, folded_lever_arm,
-    material_kappa_rel, must_carry_over_edge, tangent_second_order,
+    DIHEDRAL_ARM, DihedralClass, MaterialPairing, MaterialWedge, MustCarryDescription,
+    MustCarryRefusal, MustCarryVerdict, SecondOrder, classify_dihedral, classify_material_pairing,
+    classify_material_pairing_as, folded_lever_arm, material_kappa_rel, must_carry_over_edge,
+    tangent_second_order,
 };
 pub use edge_nurbs::{
     CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
     PlaneNurbsRefusal, plane_nurbs_limbs,
 };
 pub use enters::{
-    EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
+    EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, enters_material,
+    enters_material_order2,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -103,15 +105,16 @@ pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// doors above read it by the name they already use.
 pub use geom::ring_torus;
 pub use implicit::{
-    ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
-    circle_residual_extremes, cone_elevation, curvature_lever_arm, implicit_gradient,
-    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
-    implicit_residual, min_radius_of_curvature,
+    ARC_RESIDUAL_SAMPLES, CircleSphereHarmonic, circle_arc_residual_range,
+    circle_residual_curvature_bound, circle_residual_extremes, circle_sphere_harmonic,
+    cone_elevation, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
+    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
+    min_radius_of_curvature,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
     PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
-    Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
+    Rung, SectionError, SectionRadius, SphereSphereSection, SurfaceKind, cone_cylinder_section,
     cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
     plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };
@@ -141,10 +144,11 @@ pub use props::{
     require_one_chart_branch,
 };
 pub use ssi::{
-    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS,
-    SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode,
-    certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
-    trace_plane_nurbs_uncertified,
+    ChartAxis, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
+    ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal, SSI_FIT_DEGREE, SSI_FLOOR,
+    SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome,
+    SsiTube, StepFault, StepperMode, TubeDegeneracy, certify_rung3, cylinder_sphere_ssi,
+    idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

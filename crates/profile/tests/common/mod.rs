@@ -16,8 +16,26 @@ use geom_core::{Arc2, Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
-    PathError, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
+    PathError, Profile, ProfileLoop, Segment, SketchPlane, Start, test_support::bulge_loop,
 };
+
+/// The quarter tangent `tan(Δθ/4)` a stored segment's sweep reads as —
+/// zero for a line: the bulge the segment would be written with. It is
+/// DERIVED from the stored sweep, so it rounds away from an authored
+/// bulge (`1` comes back `0.9999999999999999`); a comparison of stored
+/// bits belongs on [`segment_bits`].
+pub fn quarter_tan(segment: &Segment<f64>) -> f64 {
+    match segment {
+        Segment::Line => 0.0,
+        Segment::Arc(arc) => arc.quarter_tan(),
+    }
+}
+
+/// Every stored field of a segment, spelled bit for bit: the kind, and
+/// an arc's centre, radius and sweep.
+pub fn segment_bits<T: Real>(segment: &Segment<T>) -> String {
+    format!("{segment:?}")
+}
 
 /// **The one accessor**: a refusal's corner entries, in the order the
 /// kernel reported them (nearest the bracketing anchors first), or the
@@ -157,6 +175,44 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     )
 }
 
+/// A fixture profile carried to the guided door the way the evaluator
+/// carries a document: each loop lifted to its program
+/// ([`profile::lift`]), replayed at `f64` recording its structure, and
+/// replayed at `T` guided by that record. Returns the pass-1 profile
+/// (the recorded `f64` replays, which is what `validate_recording`
+/// records the canonical structure of) and the guided profile at `T`.
+///
+/// Guided validation takes only loops a guided replay constructed
+/// ([`profile::ConstructedProfile`]), so a fixture reaches it through its
+/// program; the pass-1 profile, not the fixture, is the one its record
+/// describes, because the lift's `Center` writer re-derives an arc's
+/// sweep and can move bits.
+pub fn replayed<T: profile::ArcCarrierScalar>(
+    p: &Profile<f64>,
+) -> (
+    profile::ConstructedProfile<f64>,
+    profile::ConstructedProfile<T>,
+) {
+    let mut recorded = Vec::with_capacity(p.loops.len());
+    let mut guided = Vec::with_capacity(p.loops.len());
+    for (li, lp) in p.loops.iter().enumerate() {
+        let program = profile::lift(lp, tol()).unwrap_or_else(|e| panic!("loop {li} lifts: {e:?}"));
+        let (rec, structure) = profile::replay_recording(&program, tol())
+            .unwrap_or_else(|e| panic!("loop {li} replays at f64: {e:?}"));
+        let lifted: Vec<profile::Step<T>> =
+            program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
+        guided.push(
+            profile::replay_guided(&lifted, &structure, tol())
+                .unwrap_or_else(|e| panic!("loop {li} replays guided: {e:?}")),
+        );
+        recorded.push(rec);
+    }
+    (
+        profile::ConstructedProfile::new(p.plane, recorded),
+        profile::ConstructedProfile::new(p.plane.map(T::from_f64), guided),
+    )
+}
+
 /// Replays a recorded `f64` program at `T`, at the suite tolerance: each
 /// step lifted through `Step::map_scalar(T::from_f64)`, the exact
 /// embedding.
@@ -164,7 +220,7 @@ pub fn try_replay_at<T: profile::ArcCarrierScalar>(
     program: &[profile::Step<f64>],
 ) -> Result<ProfileLoop<T>, profile::ReplayError<T>> {
     let lifted: Vec<profile::Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
-    profile::replay(&lifted, tol())
+    profile::replay(&lifted, tol()).map(profile::ConstructedLoop::into_loop)
 }
 
 /// A loop from `(x, y, bulge)` triples.
@@ -331,13 +387,13 @@ pub fn near_tangent_hole(eps: f64) -> Profile<f64> {
 /// was already asserting on the loop.
 pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
     let replayed = match profile::replay(&closed.program, Tol::witness()) {
-        Ok(lp) => lp,
+        Ok(lp) => lp.into_loop(),
         Err(e) => panic!("the recorded program refused at replay: {e}"),
     };
     assert_bit_identical(&closed.loop_, &replayed);
     assert_spans_partition(&closed);
     assert_pieces_name_one_segment_each(&closed);
-    closed.loop_
+    closed.loop_.into_loop()
 }
 
 /// **Every segment is exactly one piece, and no piece is two
@@ -384,7 +440,7 @@ pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
 /// circle rebuilt from its chord, and the largest of their misses is
 /// compared against the run's escalation threshold Kε — the point
 /// deviation production's `PendingRunOut::rides` decides, in the same
-/// convention (the apex is `seg::ChordFrame::apex`'s), and for the same
+/// convention (the apex is `Arc2::apex`'s), and for the same
 /// reason: it rounds at ε·R whatever the run's length, and samples a
 /// quarter turn apart see a long arc whose ends alone look right.
 pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
@@ -511,7 +567,11 @@ pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
                     let (hx, hy) = ((e.x - a.x) / 2.0, (e.y - a.y) / 2.0);
                     Point2::new(a.x + hx + hy * b, a.y + hy - hx * b)
                 };
-                let (a, e, bulge) = (verts[k], verts[(k + 1) % n], closed.loop_.bulges()[k]);
+                let (a, e, bulge) = (
+                    verts[k],
+                    verts[(k + 1) % n],
+                    quarter_tan(&closed.loop_.segments()[k]),
+                );
                 let mid = apex(a, e, bulge);
                 let quarter = bulge / (1.0 + (1.0 + bulge * bulge).sqrt());
                 let samples = [
@@ -610,9 +670,9 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
         assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
         assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
         assert_eq!(
-            lowered.bulges()[i].to_bits(),
-            replayed.bulges()[i].to_bits(),
-            "vertex {i} bulge"
+            segment_bits(&lowered.segments()[i]),
+            segment_bits(&replayed.segments()[i]),
+            "segment {i}"
         );
     }
     let mut la = lowered.tangent_joints().to_vec();
@@ -1057,7 +1117,7 @@ pub fn arc_arc(case: [f64; 8], r: f64) -> Result<ProfileLoop<f64>, PathError<f64
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())?;
-    Ok(closed.loop_)
+    Ok(closed.loop_.into_loop())
 }
 
 /// **Grid A**, PR 1895's grid verbatim: R_in in {0.2, 0.4, 0.15}, R_out
@@ -1121,7 +1181,7 @@ pub fn line_arc(
             Tol::witness(),
         )?
         .line_to(Start, Tol::witness())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The line×arc grid**: R ∈ {2, 1, 0.5}, sx ∈ {0.2, 0.8, 1.4, 1.9},

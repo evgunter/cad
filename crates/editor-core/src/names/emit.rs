@@ -394,7 +394,7 @@ impl core::fmt::Display for NamingError {
                 f,
                 "{EMISSION_FRAMING}: the name table of upstream node {} lacks an entity the \
                  emission needed",
-                node.0
+                node
             ),
             Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
             // The category IS an emission inconsistency, so the framing
@@ -431,7 +431,7 @@ impl core::fmt::Display for NamingError {
                 "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand node {}'s body \
                  share {found} where a seam chord's rim, derived from adjacency alone, needs \
                  exactly one",
-                node.0
+                node
             ),
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
@@ -465,14 +465,14 @@ impl core::fmt::Display for NamingError {
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
                  does not lie within the rim {rim:?} of operand node {}'s body its key reads \
                  through to",
-                node.0
+                node
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: the crossings of member node {}'s edge (the {edge}) cannot \
                  be ranked along it, because a tie stands where one edge is needed (the member \
                  ties that name to several edges, or two of its crossings were tied)",
-                member.0
+                member
             ),
             Self::Band(error) => write!(
                 f,
@@ -1079,14 +1079,14 @@ mod pattern_tests {
     /// to these rows (they pin the wrapping); minting a faithful key
     /// bridge across a graft is the consumer's job, not this door's.
     fn two_solid_master() -> (Body<f64>, NameTable) {
-        let (mut body, a) = cube(RecipeNodeId(1), 0.0);
-        let (second, b) = cube(RecipeNodeId(2), 10.0);
+        let (mut body, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
+        let (second, b) = cube(RecipeNodeId(test_utils::refusal::tagged(2)), 10.0);
         let was: (BTreeSet<_>, BTreeSet<_>, BTreeSet<_>) = (
             body.faces().map(|(k, _)| k).collect(),
             body.edges().map(|(k, _)| k).collect(),
             body.vertices().map(|(k, _)| k).collect(),
         );
-        topo::graft_disjoint(&mut body, &second, Tol::witness()).expect("a two-solid master");
+        topo::graft_disjoint(&mut body, &second).expect("a two-solid master");
         let fresh_f: Vec<_> = body
             .faces()
             .map(|(k, _)| k)
@@ -1171,7 +1171,7 @@ mod pattern_tests {
         assert_eq!(master_body.solids().count(), 2, "a two-solid master");
         let n = 3_i64;
         let bodies = instances(&master_body, n, 5.0);
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t =
             name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
 
@@ -1213,7 +1213,7 @@ mod pattern_tests {
         let (master_body, master) = two_solid_master();
         let (n, step) = (3_i64, 5.0);
         let bodies = instances(&master_body, n, step);
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
 
         let mut checked = 0;
@@ -1265,10 +1265,16 @@ mod pattern_tests {
     /// another placement's range.
     #[test]
     fn a_master_row_past_the_masters_body_count_refuses_typed() {
-        let (body, a) = cube(RecipeNodeId(1), 0.0);
+        let (body, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
         let master = at_body(&a, 1);
-        let err = name_pattern(RecipeNodeId(9), &master, 2, 1, &[Arc::new(body)])
-            .expect_err("a row past the master's body count must refuse");
+        let err = name_pattern(
+            RecipeNodeId(test_utils::refusal::tagged(9)),
+            &master,
+            2,
+            1,
+            &[Arc::new(body)],
+        )
+        .expect_err("a row past the master's body count must refuse");
         assert!(
             format!("{err:?}").contains("does not have"),
             "typed, and about the body: {err:?}"
@@ -1282,8 +1288,8 @@ mod pattern_tests {
     /// holds over all six.
     #[test]
     fn a_multi_output_body_master_lays_out_placement_major() {
-        let (b0, a) = cube(RecipeNodeId(1), 0.0);
-        let (b1, b) = cube(RecipeNodeId(2), 10.0);
+        let (b0, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
+        let (b1, b) = cube(RecipeNodeId(test_utils::refusal::tagged(2)), 10.0);
         let mut master = at_body(&a, 0);
         for (name, entry) in at_body(&b, 1).iter() {
             let Entry::Unique(e) = entry else {
@@ -1307,7 +1313,7 @@ mod pattern_tests {
                 }));
             }
         }
-        let node = RecipeNodeId(9);
+        let node = RecipeNodeId(test_utils::refusal::tagged(9));
         let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
         assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
         for j in 0..n {
@@ -1535,7 +1541,7 @@ mod display_tests {
     fn every_variant_names_its_subject() {
         let name = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7),
+            node: RecipeNodeId(test_utils::refusal::tagged(7)),
             path: vec![RoleSeg::Cap(super::super::role::CapEnd::End)],
         };
         // Locators the rows below sample by value, so a refusal that
@@ -1546,11 +1552,11 @@ mod display_tests {
         // them: the same cap vertex of two different operands' sweeps.
         let partner = |node| StableName {
             kind: EntityKind::Vertex,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId(test_utils::refusal::tagged(node)),
             path: vec![RoleSeg::CapVertex(
                 super::super::role::CapEnd::End,
                 super::super::role::ProfileVertexRef::Piece {
-                    step: crate::node::StepId(0),
+                    step: crate::node::StepId(test_utils::refusal::tagged(0)),
                     role: crate::names::PieceRole::Leg,
                 },
             )],
@@ -1577,9 +1583,9 @@ mod display_tests {
             ),
             (
                 NamingError::MissingUpstream {
-                    node: RecipeNodeId(11),
+                    node: RecipeNodeId(test_utils::refusal::tagged(11)),
                 },
-                vec!["11"],
+                vec!["00000000000b"],
             ),
             (
                 // A refusal that still EXISTS (ties propagate, so there
@@ -1618,12 +1624,17 @@ mod display_tests {
                 // ONE arena: two `two_faces()` calls hand out keys from
                 // two bodies, which are not guaranteed distinct.
                 NamingError::SharedRim {
-                    node: RecipeNodeId(23),
+                    node: RecipeNodeId(test_utils::refusal::tagged(23)),
                     face: pair.0,
                     other: pair.1,
                     found: RimShare::Several,
                 },
-                vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
+                vec![
+                    face0.as_str(),
+                    face1.as_str(),
+                    "000000000017",
+                    "more than one edge",
+                ],
             ),
             (
                 NamingError::SeamVertexPartners {
@@ -1633,8 +1644,8 @@ mod display_tests {
                 vec![
                     vtx_shown.as_str(),
                     "2 differently named vertices",
-                    "vertex name minted by node 3",
-                    "vertex name minted by node 4",
+                    "vertex name minted by node 000000000003",
+                    "vertex name minted by node 000000000004",
                 ],
             ),
             (
@@ -1646,10 +1657,10 @@ mod display_tests {
             (
                 NamingError::MergedChordOffRim {
                     edge: two_edges().0,
-                    node: RecipeNodeId(29),
+                    node: RecipeNodeId(test_utils::refusal::tagged(29)),
                     rim: two_edges().1,
                 },
-                vec!["merged faces", "29", "does not lie within"],
+                vec!["merged faces", "00000000001d", "does not lie within"],
             ),
             (
                 NamingError::MergedChordConstituents {
@@ -1661,21 +1672,21 @@ mod display_tests {
             ),
             (
                 NamingError::MemberEdgeTied {
-                    member: RecipeNodeId(37),
+                    member: RecipeNodeId(test_utils::refusal::tagged(37)),
                     edge: Box::new(StableName {
                         kind: EntityKind::Edge,
-                        node: RecipeNodeId(37),
+                        node: RecipeNodeId(test_utils::refusal::tagged(37)),
                         path: vec![RoleSeg::LateralEdge(
                             super::super::role::ProfileVertexRef::Piece {
-                                step: crate::node::StepId(2),
+                                step: crate::node::StepId(test_utils::refusal::tagged(2)),
                                 role: crate::names::PieceRole::Leg,
                             },
                         )],
                     }),
                 },
                 vec![
-                    "member node 37",
-                    "edge name minted by node 37",
+                    "member node 000000000025",
+                    "edge name minted by node 000000000025",
                     "a tie stands",
                 ],
             ),

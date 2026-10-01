@@ -633,13 +633,13 @@ impl core::fmt::Display for NodePickError {
                 "pick: node {}'s value is not body-denoting (a datum, profile, declaration, or \
                  mate), so there is nothing to tessellate and index — offer a body-producing \
                  node instead",
-                node.0
+                node
             ),
             Self::NoSuchBody { node, body } => write!(
                 f,
                 "pick: node {}'s value has no output body at index {} — the index is stale, or \
                  that body is currently empty (an annihilated boolean, an empty split side)",
-                node.0, body
+                node, body
             ),
             Self::Tessellate(error) => write!(f, "{error}"),
             Self::Index(error) => write!(f, "{error}"),

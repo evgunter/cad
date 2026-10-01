@@ -2,10 +2,13 @@
 id: cap-rim-smooth-arm-decides-by-argument-not-by-the-rule
 kind: issue
 title: sweep: the cap-rim smooth arm decides a description by an in-code argument, not by the must-carry rule
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: D
+closed: 2026-10-01
+pr: 3667
+branch: band/cap-rim-smooth-arm
 ---
 
 
@@ -71,3 +74,14 @@ priority order:
 Either way the claim wants a row. Nothing fails today if the obliquity
 bound changes, and the arm's unreachability is exactly the kind of fact
 that is true until a door is added.
+
+## Closed (2026-10-01, PR #3667) — the diagnosis above was wrong
+
+The arm is REACHABLE, not unreachable on both doors: `Tol` admits any K > 1
+(Ev, PR 2119: "leave no constraint on K"; PR 2149 removed `SmoothCapRim`),
+and below K* = √φ plane–plane line rims classify Smooth through a definite
+arm (`fillet_h6_cap_rim`'s below-crossover row builds four). So the arm is
+routed through `geom_brep::must_carry_over_edge`, which answers
+UnderDetermined there (stored descriptions unchanged), and the verdict →
+description mapping got one home (`MustCarryVerdict::description`) shared by
+extrude's strut and rim arms, revolve's latitude join and the blend contact.

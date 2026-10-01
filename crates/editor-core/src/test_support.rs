@@ -274,3 +274,26 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
 /// row can hold it against the deepest body a save writes
 /// (`tests/expr_nesting_bound.rs`).
 pub const BODY_NESTING: usize = crate::persist::nesting::BODY_NESTING;
+
+// --- the mint's preimage --------------------------------------------
+
+/// **The node id an insert of `node` draws from an empty document's
+/// mint**: `Mint::insert`, lifted out of the crate so a row can pin the
+/// preimage node shape by node shape
+/// (`tests/switch_slots.rs`, `every_node_shapes_mint_is_pinned`).
+///
+/// Carries no oracle: it IS the mint's draw, with no document around
+/// it, so a shape whose inputs name no live node still draws.
+pub fn first_node_id(node: &Node<ProfileProgram>) -> RecipeNodeId {
+    crate::Mint::empty()
+        .insert(node)
+        .expect("an empty log holds no id")
+}
+
+/// **A spoken node built by hand**: what a document holding `id` as a
+/// `kind` would say (`None`: a document that does not hold it), for a
+/// fixture that builds a row by hand rather than through a document.
+#[must_use]
+pub fn spoken(id: RecipeNodeId, kind: Option<&'static str>) -> crate::SpokenNode {
+    crate::SpokenNode::forged(id, kind)
+}

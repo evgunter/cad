@@ -185,6 +185,26 @@ Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
 MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
 `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
 has its measured red-first row.
+
+## 2026-09-26 — `ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver` closed (PR #3271)
+
+The silent-wrong path the D-hole unit widened is shut: before any `mef`,
+a convex ruled cut-off meters every cap edge but the two rims it
+shortens — other rings and the cut cycle's own other edges — against a
+region enclosing the removed sliver (annulus about the section centre,
+cut by a half-plane), and refuses `RingClearance` on the cap. Full
+review found two MAJORs: the first meter tested straight edges by their
+infinite line (a square drive hole on a D-shaft's axis refused), and the
+cut cycle's own edges were unmetered (an L-channel into the sliver carved
+silently wrong — the lane had filed it P1 "unmeasured"). The fix pass
+gave edge metering one windowed home (the ladder rim's outer walk now
+uses it too) and closed both; a delta review found them closed by rows
+that go red on revert, plus one MINOR (the sentence said "removes" on
+concave bands), fixed by `RingClearance` carrying the chain's convexity.
+Remaining false refusals are disclosed on
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` (P2).
+Filed: `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned` (P2),
+`arc-window-membership-has-three-spellings` (P1).
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/band/blend-endings-say-lower-the-tolerance-and-route-by-name.md`. `sweep::blend::ClassifiedMargin` is a third spelling of a decided margin beside `recourse::Classified`; convergence is noted on the encl certify-span row. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 
@@ -216,3 +236,48 @@ changes.
   `debug_assert!`s it through `kev_merged_members`, where before the
   claim was only measured.
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `sweep/src/blend/surgery.rs`. `blend/surgery.rs`'s three re-charts moved from `set_face_surface_and_sense` to `set_face_surface`, bit unchanged. (TOPO implementer)
+
+## 2026-10-01 — `cap-rim-smooth-arm-decides-by-argument-not-by-the-rule` closed (PR #3667)
+
+The row's diagnosis was wrong: the arm is reachable at 1 < K < √φ (Ev's
+PR 2119 ruling admits any K > 1), so it is routed through the must-carry
+rule rather than made unreachable; stored descriptions are unchanged
+(plane pairs read UnderDetermined). The verdict → description mapping
+gained one home, `MustCarryVerdict::description`, used by all four smooth
+arms. Single review (style + claims), then a fix pass and a delta review;
+both clean. Filed: CARVE's `extrude-arc-walls-are-ruled-in-n-not-w`,
+CLEAVE's `topo-smooth-arms-decide-descriptions-outside-the-must-carry-rule`,
+and the residue row `blend-split-rows-and-must-carry-prose-residue` (P4).
+
+## 2026-10-01 — `annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance` closed (PR #3670)
+
+The annulus rim phase splits its seams through `split_fragment`, which
+now takes the expected source and refuses inside the one home if its
+lookup disagrees; every annulus row names `frag.source`, as the ladder's
+`slits` row does. `blend_surgery`'s debug postcondition checks the SOURCE
+half of every birth row (an exhaustive destructure of `BlendNaming`). No
+name moved (sweep, editor-core naming, tour teapot rows). Full review,
+fix pass, delta review; the review's row
+`every_band_crossing_names_the_seam_its_foot_split` is what tells a
+right source from a merely valid one. Residue (the ladder still names
+`meridian_splits` by the split key) is on
+`blend-split-rows-and-must-carry-prose-residue`.
+
+## 2026-10-01 — the three recourse rows and ENCL's ending row closed (PR #3690)
+
+`corner-config-recourse-and-policy-assert-a-default-for-any-tag`,
+`every-escalation-carries-the-coincidence-recourse-first`,
+`in-band-corner-verdicts-route-to-the-corner-configuration-recourse` and
+`blend-endings-say-lower-the-tolerance-and-route-by-name` closed as one
+unit. `BlendError::Escalated` carries a closed `BlendDecision` (11
+decisions at 13 construction points); subject, lever and ending are
+exhaustive matches; no blend refusal renders "declare the coincidence";
+sized endings go through `geom_brep::recourse`. Full review, fix pass,
+delta review, a last small pass, and a python-census fix (`BlendDecision`
+listed interior beside `BlendSite`). Known cost: `ContactSecondOrder`
+offers no tolerance until ENCL's must-carry row says which reading
+escalated. Filed: ENCL's `recourse-table-has-no-lever-only-ending` and
+`must-carry-in-band-verdict-does-not-say-which-decision-escalated`;
+BAND's `dependent-normals-refusal-carries-no-margin-for-its-ending`,
+`dependent-normals-names-a-run-out-policy-the-tag-says-cannot-help`.
+`blend-surgery-invariant-ends-in-a-tag` priced P4/E.

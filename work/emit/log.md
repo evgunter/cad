@@ -1287,3 +1287,33 @@ Ev approved, including the form proposals. The unit `node-labels-are-document-da
 3. then labels.
 
 **Fork-log numbering:** rows 21–24 each appear twice in the log; the fork column tells them apart.
+
+## 2026-10-01 — edge pieces are named by their ends (PR 3629)
+
+Implements the ruling on PR 3553.
+
+**What it does.**
+- Every edge piece takes `Ends`: seam chains, operand-edge pieces, earlier seams, union member edges, and section chords, which replaces #512 A2's tie.
+- A split's same-side faces take `Keeps`.
+- A crossing vertex is ranked along the crossed edge by its carrier's parameter.
+- Retired: `SplitReference`, `SeamLineSides`, `NarrowBand`, the cell count, and the plane-reading helpers.
+- Recipes that used to refuse now name: the cylinder across a plate, the cylinder split twice, the rim crossed twice, and the slot along x across a sunk boss.
+- In the corpus, 90 edge rows changed, from `OrderAlong` to `Ends`. No face, vertex or body name moved.
+
+**Review.** Two blocking findings, both fixed:
+- **N5's locality sentence overclaimed.** A second crossing by a face that already crosses the parent renames the first crossing and every piece whose ends cite it. The sentence is qualified, a test pins the case, and the question is filed as a design row.
+- **Departures from the rule had no rows.** These are now filed:
+  - NURBS crossings tie;
+  - a union seam made of several curves ties;
+  - crossings whose sides' names don't settle which side is first tie;
+  - whether the Upstream-flip and RecipeEdit diagnosis rungs are still reachable from emitted names.
+
+`m10_sym_profile_interval`'s ledger move was main's (#3612, re-pinned by #3652), not this PR's.
+
+## 2026-10-01 — node ids are digests (PR 3594 merged); spoken node (PR 3631); main red fixed (PR 3684)
+
+**PR 3631** (first slice of the labels unit): a node is spoken as kind + 12-hex tag in kernel sentences, the tree, pickers and headings; machine channels print the full 16 hex; the `node-id-spoken` gate refuses a bare `.0` in format macros. Two seams carried onto `node-labels-are-document-data`: refusal values still print `node <tag>` without kind; the memoized `NodeError` keeps a bare id.
+
+**PR 3684** (unblocked main, cleave's row): #3645's `geom::mid_param` changed which forms the m10 sym walks build (same points, different forms); re-baselined slab and plate after confirming the old formula restores the pins exactly.
+
+**PR 3594** merged: node ids mint from the document's one `Mint` shared with step ids; the tag switched to the id's high 48 bits (a 12-hex prefix, the `DocRef` rule). Merged main twice; evidence on the merged tree: 359/359 value channels bit-identical, 353/359 name tables identical (6 reorder `Borders` walls), 966 `FromMember` segments identical. One diagnosis probe's edge key moved (`9v1`→`15v1`, same group, same diagnosis). Next: the labels unit (dispatched).

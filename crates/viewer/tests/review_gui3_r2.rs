@@ -706,7 +706,13 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             assert_eq!(*through, bad, "the poison names the failed ancestor");
             assert_eq!(
                 message.as_deref(),
-                Some(viewer::tree::downstream_wording(bad).as_str()),
+                Some(
+                    format!(
+                        "upstream failure at Extrude {} — that row carries the cause",
+                        test_utils::refusal::tag(bad.0)
+                    )
+                    .as_str()
+                ),
                 "a poisoned row points at the ancestor's row and recites nothing"
             );
         }
@@ -718,9 +724,10 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     for row in &rows {
         if let Some(message) = row.status.message() {
             let allowed = match &row.status {
-                viewer::tree::RowStatus::Poisoned { through, .. } => {
-                    viewer::tree::downstream_wording(*through)
-                }
+                viewer::tree::RowStatus::Poisoned { through, .. } => format!(
+                    "upstream failure at {} — that row carries the cause",
+                    session.doc().spoken(*through)
+                ),
                 _ => expected.clone(),
             };
             assert_eq!(

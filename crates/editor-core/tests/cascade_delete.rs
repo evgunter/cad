@@ -17,7 +17,7 @@ use editor_core::{Doc, DocEdit, EditError, Node, RecipeNodeId, apply, cascade_de
 use geom_core::Tol;
 
 /// The opaque profile payload: this suite never looks inside `P`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 impl editor_core::ProfilePayload for FakeProfile {}
 
@@ -154,12 +154,16 @@ fn the_dangle_refusal_states_the_remedy() {
     assert!(
         sentence.contains(&format!(
             "node {} is still an input to node {}",
-            profile.0, body.0
+            test_utils::refusal::tag(profile.0),
+            test_utils::refusal::tag(body.0)
         )),
         "the direction of the reference is stated: {sentence}"
     );
     assert!(
-        sentence.contains(&format!("delete node {} first", body.0)),
+        sentence.contains(&format!(
+            "delete node {} first",
+            test_utils::refusal::tag(body.0)
+        )),
         "and the immediate remedy: {sentence}"
     );
     assert!(

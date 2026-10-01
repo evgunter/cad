@@ -784,16 +784,12 @@ pub struct Doc<P> {
     /// in this crate. Survives every edit; excluded from the content
     /// pin (the pin answers "which version", the id "which part").
     pub(crate) id: DocumentId,
-    /// The monotone id counter: the next [`RecipeNodeId`] to mint.
-    /// Never decremented — deletion does not free ids (spec D3).
-    pub(crate) next_id: u64,
-    /// The step mint: the chain an authored profile step's
-    /// [`crate::StepId`] is minted from and the log of every id minted
-    /// (`names/README.md`, "N1, the profile pieces"). A step a
-    /// `SetProgram` drops keeps its log entry, so its id is never
-    /// minted again. Apart from the node counter, so an authored step
-    /// moves no node id.
-    pub(crate) step_mint: crate::StepMint,
+    /// The mint: the chain a node's [`RecipeNodeId`] and an authored
+    /// profile step's [`crate::StepId`] are minted from, and the log of
+    /// every id minted (`names/README.md`, N1). A node `DeleteNode`
+    /// removes and a step a `SetProgram` drops keep their log entries,
+    /// so neither id is minted again.
+    pub(crate) mint: crate::Mint,
     /// The nodes, by stable id.
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
@@ -940,8 +936,7 @@ impl<P> Doc<P> {
     pub fn empty(id: DocumentId, tol: Tol) -> Self {
         Self {
             id,
-            next_id: 0,
-            step_mint: crate::StepMint::empty(),
+            mint: crate::Mint::empty(),
             nodes: BTreeMap::new(),
             order: Vec::new(),
             roots: Vec::new(),
@@ -966,11 +961,11 @@ impl<P> Doc<P> {
         self.id
     }
 
-    /// The document's step mint: its chain, and the log of every
-    /// [`crate::StepId`] it has minted.
+    /// The document's mint: its chain, and the log of every node and
+    /// step id it has minted.
     #[must_use]
-    pub fn step_mint(&self) -> &crate::StepMint {
-        &self.step_mint
+    pub fn mint(&self) -> &crate::Mint {
+        &self.mint
     }
 
     /// The same document under a different identity: `id` replaces
@@ -999,34 +994,41 @@ impl<P> Doc<P> {
     }
 
     /// **Could this document have minted `id`** — the one reading of
-    /// the mint counter that leaves this crate, and the one DI1's
-    /// minting-entry walk asks of a history entry
-    /// (`crates/editor-core/IDENTITY.md`).
+    /// the mint log that DI1's minting-entry walk asks of a history
+    /// entry (`crates/editor-core/IDENTITY.md`).
     ///
-    /// True exactly when `id` is below the counter. The counter is
-    /// monotone — never decremented, because deletion does not free
-    /// ids (spec D3) — so along any forward path of [`Doc::apply`]s
-    /// this answer goes false to true and never back. That is what
-    /// makes DI1's walk — up the history until the counter drops
-    /// below the held id — land on the entry that minted it: the
-    /// predicate is false above the mint and true from the mint on.
+    /// True exactly when the mint log holds `id` as a node's. The log
+    /// only grows — deletion does not free ids (spec D3) — so along any
+    /// forward path of [`Doc::apply`]s this answer goes false to true
+    /// and never back. That is what makes DI1's walk — up the history
+    /// until the document no longer holds the id — land on the entry
+    /// that minted it: the predicate is false above the mint and true
+    /// from the mint on.
     ///
     /// **What a `true` does NOT mean**: not that the node is there.
     /// A minted id may since have been deleted, and its id is not
     /// reused, so the predicate keeps answering true for it forever.
     /// Liveness is [`Doc::node`]'s question, and DI1's rule asks both
     /// — descent first, then liveness.
-    ///
-    /// The counter itself stays private: a caller can ask whether a
-    /// particular id is behind it and cannot read where it stands, so
-    /// the monotonicity argument stays on the side that owns it.
     pub fn has_minted(&self, id: RecipeNodeId) -> bool {
-        id.0 < self.next_id
+        self.mint.has_node(id)
     }
 
     /// Live node ids in insertion order.
     pub fn order(&self) -> &[RecipeNodeId] {
         &self.order
+    }
+
+    /// **Each live node's position in [`Doc::order`]**: the order the
+    /// author placed the nodes in, which is what every tie between
+    /// nodes breaks by, since an id is a digest and says nothing of
+    /// seniority.
+    pub fn positions(&self) -> BTreeMap<RecipeNodeId, usize> {
+        self.order
+            .iter()
+            .enumerate()
+            .map(|(at, &id)| (id, at))
+            .collect()
     }
 
     /// The ordered product roots (A10): the gather order of the
@@ -1047,7 +1049,7 @@ impl<P> Doc<P> {
     /// cluster in a mate-less document.
     pub fn placement(&self, node: RecipeNodeId) -> crate::placement::Frame {
         self.placements
-            .get(&crate::mate::gauge_of(self, node))
+            .get(&crate::mate::root_of(self, node))
             .copied()
             .unwrap_or(crate::placement::Frame::IDENTITY)
     }
@@ -1268,8 +1270,7 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     /// (conflates `±0.0`); use THIS for replay pins and audits.
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
-            && self.next_id == other.next_id
-            && self.step_mint == other.step_mint
+            && self.mint == other.mint
             && self.order == other.order
             && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
@@ -1514,15 +1515,11 @@ mod tests {
     /// this order is the clause's payload-strands-before-store-strands
     /// order; `dm7_delete_strands` holds that end of it at the door.
     /// The fixture is built by poking `Doc`'s fields, not through
-    /// the edit doors, because the reversal it has to be able to
-    /// exhibit is one no edit door can mint. The doors touch
-    /// `Doc::order` twice — `InsertNode` pushes the id it has just
-    /// minted, `DeleteNode` retains — and ids are minted
-    /// monotonically, so through the doors the order is ascending by
-    /// id always and the reversal is unreachable. A loaded document
-    /// can hold any order. In-crate reach spells that state in five
-    /// lines and keeps the row's subject the walk rather than the
-    /// door.
+    /// the edit doors, because the reversal has to be the row's choice:
+    /// through the doors, how a node's id sorts against the ids before
+    /// it is the mint's digest, not the author's. In-crate reach spells
+    /// that state in five lines and keeps the row's subject the walk
+    /// rather than the door.
     #[test]
     fn name_carriers_reads_the_payloads_then_the_store() {
         let mut doc: ProfileDoc = Doc::empty_derived("carriers", Tol::witness());

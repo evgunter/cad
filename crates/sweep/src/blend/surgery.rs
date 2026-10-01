@@ -102,8 +102,10 @@
 //! carry-through honesty check, **`fillet3_ring_clearance`**: a Q1
 //! trilean whose margin (meters) is the closed-form clearance between
 //! a support face's ring and a blend's trimline — circle-vs-line and
-//! circle-vs-circle, exact, never sampled. Positive carries the ring
-//! through; zero/negative refuses typed
+//! circle-vs-circle, exact, never sampled — and, on a transverse cap a
+//! convex ruled band cuts off, between each edge the cut leaves on the
+//! cap and a region enclosing the sliver it removes. Positive carries
+//! the ring or edge through; zero/negative refuses typed
 //! ([`BlendError::RingClearance`]); in-band escalates with the same
 //! recourse (two-tolerance, D4 ¶1 addendum). And the must-carry rule
 //! over every contact edge at the description pass (`attach_contact`,
@@ -175,7 +177,8 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, edge_extent, must_carry_over_edge,
+    EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal, edge_extent,
+    must_carry_over_edge,
 };
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
@@ -190,7 +193,7 @@ use super::build::{Blended, face_cycle, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
 use super::open::planar::{BlankPlan, Corner, blank_phase, corner_plan};
 use super::open::ruled::{RuledPlan, ruled_phase};
-use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
+use super::{BlendDecision, BlendError, BlendKind, BlendSite, CornerConfig, classify};
 use geom_core::Tol;
 
 // ------------------------------------------------------------------
@@ -269,13 +272,6 @@ pub(super) fn unbuilt_geometry(at: EntityId, detail: &'static str) -> BlendError
 pub(super) fn op(site: &'static str, source: topo::EulerOpError) -> BlendError {
     BlendError::Op { site, source }
 }
-
-/// The one new margin this unit decides (module docs): the exact
-/// clearance between a support face's ring and a blend trimline.
-/// A K row name reaching the funnel through a const, not a literal at
-/// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
-/// "The inventory method, restated").
-const RING_CLEARANCE: &str = "fillet3_ring_clearance";
 
 // ------------------------------------------------------------------
 // The plan: everything classified and derived before any mutation.
@@ -660,7 +656,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
 
     // ---- The ring carry-through honesty check (the one decision this
     // module adds — module docs). ----
-    ring_clearance_pass(source, &opens, &rims, band)?;
+    ring_clearance_pass(source, &opens, &rims, &ruled_plans, band)?;
 
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
@@ -825,6 +821,87 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 source.get_vertex(*v).is_some(),
                 "surgery postcondition: a retirement names {v:?}, which the source body \
                  does not carry (kernel bug)",
+            );
+        }
+    }
+    // **A birth row's SOURCE half names a SOURCE key** — the same
+    // predicate over the birth records. A row says which entity of the
+    // caller's body an output was minted for, so every key on its source
+    // side is one the source body carries; a key this carve minted is
+    // absent there, which is how a row naming a mid-call fragment (a
+    // seam piece an earlier band of this call split, say) shows up. The
+    // output-side walks cannot see it: the name such a row renders is
+    // well-formed, just rooted at an entity the caller never had.
+    #[cfg(debug_assertions)]
+    {
+        // Exhaustive, so a new row kind cannot join the records without
+        // saying here where its source half is; `dead`'s fields are the
+        // walk above.
+        let BlendNaming {
+            blends,
+            corners,
+            trims,
+            feet,
+            arcs,
+            bands,
+            rim_trims,
+            rim_feet,
+            meridian_splits,
+            meridian_remnants,
+            slits,
+            dead:
+                super::naming::Retired {
+                    edges: _,
+                    vertices: _,
+                },
+        } = &rec;
+        let edge_sources = blends
+            .iter()
+            .map(|(_, e)| e)
+            .chain(trims.iter().map(|(_, e, _)| e))
+            .chain(arcs.iter().map(|(_, _, e)| e))
+            .chain(bands.iter().flat_map(|(_, b)| b))
+            .chain(rim_trims.iter().map(|(_, e, _)| e))
+            .chain(
+                meridian_splits
+                    .iter()
+                    .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
+            )
+            .chain(meridian_remnants.iter().map(|(_, e)| e))
+            .chain(
+                slits
+                    .iter()
+                    .flat_map(|(_, e, b)| core::iter::once(e).chain(b)),
+            );
+        for e in edge_sources {
+            assert!(
+                source.get_edge(*e).is_some(),
+                "surgery postcondition: a birth row names {e:?} as its source, which the \
+                 source body does not carry (kernel bug)",
+            );
+        }
+        let vertex_sources = corners
+            .iter()
+            .map(|(_, v)| v)
+            .chain(feet.iter().map(|(_, v, _)| v))
+            .chain(arcs.iter().map(|(_, v, _)| v))
+            .chain(rim_feet.iter().map(|(_, v)| v));
+        for v in vertex_sources {
+            assert!(
+                source.get_vertex(*v).is_some(),
+                "surgery postcondition: a birth row names {v:?} as its source, which the \
+                 source body does not carry (kernel bug)",
+            );
+        }
+        let face_sources = trims
+            .iter()
+            .map(|(_, _, f)| f)
+            .chain(feet.iter().map(|(_, _, f)| f));
+        for f in face_sources {
+            assert!(
+                source.get_face(*f).is_some(),
+                "surgery postcondition: a birth row names {f:?} as its source, which the \
+                 source body does not carry (kernel bug)",
             );
         }
     }
@@ -1989,24 +2066,24 @@ fn rim_trim_circles<T: Real>(
 /// [`BlendError::RingClearance`] / [`BlendError::Escalated`].
 pub(crate) fn ring_clearance<T: Decide + Bounds>(
     face: FaceKey,
+    chain: Convexity,
     margin: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    match decide(RING_CLEARANCE, Margin::of(margin), band).map_err(|e| BlendError::Escalated {
-        site: BlendSite::Chain,
-        source: e,
-    })? {
+    let decision = BlendDecision::RingClearance;
+    match classify(BlendSite::Chain, decision, Margin::of(margin), band)? {
         Sign::Positive => Ok(()),
         sign => Err(BlendError::RingClearance {
             face,
-            margin: super::battery::classified(RING_CLEARANCE, margin, band, sign),
+            chain,
+            margin: super::battery::classified(decision, margin, band, sign),
         }),
     }
 }
 
-/// **The three clearances between a blend TRIM circle and one other
-/// circle of the same face**, meters, all closed forms over the two
-/// stored circles. Which one a caller reads is fixed by what the trim
+/// **The two clearances between a blend TRIM circle and one other
+/// whole circle of the same face — a ring —**, meters, both closed forms
+/// over the two stored circles. Which one a caller reads is fixed by what the trim
 /// circle REPLACES on that face, never by which reads better.
 ///
 /// - [`CircleMargins::external`] — the two circles are separated,
@@ -2014,10 +2091,6 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 ///   lies OUTSIDE the other circle and must not reach it: every ring of
 ///   a ladder rim's host, and every ring of a seam-split annulus rim's
 ///   wall.
-/// - [`CircleMargins::trim_inside_other`] — the other circle CONTAINS
-///   the trim circle. Read it when the other circle is the host face's
-///   own outer boundary, because the host lies inside that boundary and
-///   a trim circle nested in it with room to spare is the healthy case.
 /// - [`CircleMargins::other_inside_trim`] — the trim circle contains the
 ///   other one. Read it when the trim BECOMES the face's outer boundary
 ///   — a hostless annulus rim, whose carve excises everything between
@@ -2026,10 +2099,15 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 ///
 /// Choosing wrongly is not conservative in either direction: a ring in
 /// the excised strip reads POSITIVE under `external` when the two
-/// circles are small and far apart on the face, and a boundary that
-/// contains the trim reads minus the sum of the radii under it.
+/// circles are small and far apart on the face, and a ring that
+/// contains a hostless trim reads minus the sum of the radii under
+/// `other_inside_trim`.
 ///
-/// **The two containment readings are the same real predicate 2's
+/// A host's OUTER boundary is not read here: its edges are arcs and
+/// segments, not whole circles, and the ladder walk meters each over
+/// its own window ([`piece_distance`]).
+///
+/// **The containment reading is the same real predicate 2's
 /// boundary-pair screen computes, in closed form.** For any two circles
 /// in one plane its
 /// `gap − setback_here − setback_there` IS the containment margin of
@@ -2046,22 +2124,249 @@ struct CircleMargins<T> {
     /// `‖cj − ci‖ − si − aj`: separation of two circles that lie
     /// outside each other.
     external: T,
-    /// `aj − (‖cj − ci‖ + si)`: how much room the OTHER circle has
-    /// around the trim circle it encloses.
-    trim_inside_other: T,
     /// `si − (‖cj − ci‖ + aj)`: how much room the TRIM circle has around
     /// the other circle it encloses.
     other_inside_trim: T,
 }
 
-/// The three margins of [`CircleMargins`] for a trim circle `(ci, si)`
+/// The two margins of [`CircleMargins`] for a trim circle `(ci, si)`
 /// and one other circle `(cj, aj)`, both read from stored carriers.
 fn circle_margins<T: Real>((ci, si): (Point3<T>, T), (cj, aj): (Point3<T>, T)) -> CircleMargins<T> {
     let d = (cj - ci).norm();
     CircleMargins {
         external: d - si - aj,
-        trim_inside_other: aj - (d + si),
         other_inside_trim: si - (d + aj),
+    }
+}
+
+/// A boundary piece: a stored carrier and the window on it the piece
+/// covers.
+pub(super) type Piece<'b, T> = (&'b Curve3<T>, (T, T));
+
+/// **An edge's stored carrier and window**, where its geometry is
+/// certified: the point set every clearance below reads is the carrier
+/// over that window, never the whole carrier.
+///
+/// # Errors
+///
+/// [`BlendError::BodyNotIntact`] when the edge does not resolve.
+pub(super) fn stored_piece<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<Option<Piece<'_, T>>, BlendError> {
+    let e = body
+        .get_edge(edge)
+        .ok_or_else(|| not_intact(EntityId::Edge(edge), "a boundary edge a clearance reads"))?;
+    Ok(body
+        .get_curve_geom(e.curve)
+        .and_then(|g| g.certified())
+        .map(|c| (c.carrier(), c.params())))
+}
+
+/// **How near and how far one boundary piece comes to a point `c`**:
+/// `(near, far)` with `near ≤ ‖p − c‖ ≤ far` for every point `p` of
+/// `carrier` over the window `(ta, tb)`, in closed form; `None` for a
+/// carrier with no closed form here (neither a line nor a circle).
+///
+/// On a LINE the distance is convex, so `far` is the larger end and
+/// `near` the distance to `c`'s foot clamped into the segment. On a
+/// CIRCLE it is [`CircleFrame::distance`].
+pub(super) fn piece_distance<T: Bounds>(
+    carrier: &Curve3<T>,
+    (ta, tb): (T, T),
+    c: Point3<T>,
+) -> Option<(T, T)> {
+    match *carrier {
+        Curve3::Line { origin, dir } => {
+            let (pa, pb) = (origin + dir * ta, origin + dir * tb);
+            let d = pb - pa;
+            let s = ((c - pa).dot(d) / d.dot(d)).max(T::zero()).min(T::one());
+            Some((
+                (pa + d * s - c).norm(),
+                (pa - c).norm().max((pb - c).norm()),
+            ))
+        }
+        _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
+    }
+}
+
+/// **How low and how high one boundary piece reaches along a unit
+/// direction `u`**: `(low, high)` with `low ≤ (p − c)·u ≤ high` for
+/// every point `p` of `carrier` over the window `(ta, tb)`, in closed
+/// form; `None` for a carrier with no closed form here. A linear
+/// function is extreme at a segment's ends; on a CIRCLE it is
+/// [`CircleFrame::along`].
+pub(super) fn piece_along<T: Bounds>(
+    carrier: &Curve3<T>,
+    (ta, tb): (T, T),
+    c: Point3<T>,
+    u: Vec3<T>,
+) -> Option<(T, T)> {
+    match *carrier {
+        Curve3::Line { origin, dir } => {
+            let (la, lb) = (
+                (origin + dir * ta - c).dot(u),
+                (origin + dir * tb - c).dot(u),
+            );
+            Some((la.min(lb), la.max(lb)))
+        }
+        _ => CircleFrame::of(carrier).map(|k| k.along((ta, tb), c, u)),
+    }
+}
+
+/// **A circle carrier's frame**, destructured once, so that every
+/// closed form over an arc of it is total: the piece meters above
+/// reach it through [`Self::of`], and a caller that builds a circle of
+/// its own (a ruled cut-off's arc) holds one outright.
+#[derive(Clone, Copy)]
+pub(super) struct CircleFrame<T: Real> {
+    pub(super) center: Point3<T>,
+    pub(super) axis: Vec3<T>,
+    pub(super) radius: T,
+    pub(super) u_ref: Vec3<T>,
+}
+
+impl<T: Real> CircleFrame<T> {
+    /// The frame of a `Circle` carrier; `None` for any other.
+    fn of(carrier: &Curve3<T>) -> Option<Self> {
+        match *carrier {
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Some(Self {
+                center,
+                axis,
+                radius,
+                u_ref,
+            }),
+            _ => None,
+        }
+    }
+
+    /// The point at `t`, through [`Curve3::circle_at`] — the circle
+    /// arm of `Curve3::eval`.
+    fn at(self, t: T) -> Point3<T> {
+        Curve3::circle_at(self.center, self.axis, self.radius, self.u_ref, t)
+    }
+
+    /// **The angle of the circle point `q` past parameter `t`**, read
+    /// in `(0, τ]` — the branch `Curve3::param_near` takes anchored
+    /// half a turn past `t`, where a full turn is `q` at `t` itself.
+    pub(super) fn past(self, t: T, q: Point3<T>) -> T {
+        let (w, radial) = (q - self.center, self.at(t + T::pi()) - self.center);
+        T::pi() + w.dot(self.axis.cross(radial)).atan2(w.dot(radial))
+    }
+}
+
+impl<T: Bounds> CircleFrame<T> {
+    /// **Whether the arc over `(ta, tb)` certainly misses the circle
+    /// point `q`**: `q`'s angle past `ta` ([`Self::past`]) is certainly
+    /// beyond the arc's span and certainly short of a full turn.
+    ///
+    /// **A bracket read whose branch reaches a decision, sound by
+    /// value-channel delegation** (DL5(b), `geom_core::real`'s
+    /// delegation rule, in substance). Its one use is to SELECT, for an
+    /// extreme over the arc, between the arc's two ends and the whole
+    /// circle's value, and that extreme is the margin
+    /// [`ring_clearance`] decides — so the read is not inert, and what
+    /// makes it sound is the shape of the selection:
+    ///
+    /// - **Both candidates are sound bounds.** The whole circle's
+    ///   extreme bounds the arc's whichever way the truth lies, and the
+    ///   ends' is the arc's own extreme whenever `q` is off the arc. So
+    ///   `false` — the answer wherever the bracket is not certain, and
+    ///   for a window of a full turn or more, which holds every point —
+    ///   only ever loosens the bound, never falsifies it.
+    /// - **The two coincide at the switch, to first order.** The branch
+    ///   flips only as `q` crosses an end of the arc, and there the
+    ///   end IS the point realising the whole circle's extreme, where
+    ///   the extreme is stationary along the circle: the two values
+    ///   agree, and so do their derivatives in every parameter that
+    ///   moves them. A scalar that carries tangents (a `Dual`) reads
+    ///   its branch off its value channel alone, and either branch then
+    ///   hands on the same value and the same first-order tangent.
+    ///   The branch is locally constant everywhere off the switch, and
+    ///   on it the choice moves no tangent — what the locally-constant
+    ///   condition of DL5(b) exists to guarantee.
+    fn misses(self, (ta, tb): (T, T), q: Point3<T>) -> bool {
+        let past = self.past(ta, q);
+        (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
+    }
+
+    /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
+    /// The distance is a function of the angle from the circle's point
+    /// nearest `c` alone, growing monotonically to that point's
+    /// antipode, so each extreme is at an end unless the arc holds the
+    /// point that realises it, where it is the whole circle's —
+    /// [`Self::misses`]' selection.
+    ///
+    /// With `c` on the axis every point of the circle is both nearest
+    /// and farthest, and the whole circle's values are the answer. That
+    /// bracket read guards the division by `ρ` below, and what it
+    /// selects is the whole circle's pair, which bounds the arc's
+    /// wherever `c` is — the side [`Self::misses`] falls back to. A
+    /// point scalar takes it only at `ρ` exactly zero, where the ends'
+    /// values equal the whole circle's.
+    fn distance(self, (ta, tb): (T, T), c: Point3<T>) -> (T, T) {
+        let (da, db) = ((self.at(ta) - c).norm(), (self.at(tb) - c).norm());
+        let (o, radius) = (self.center, self.radius);
+        let w = c - o;
+        let h = w.dot(self.axis);
+        let plane = w - self.axis * h;
+        let rho = plane.norm();
+        let whole_near = (h.powi(2) + (rho - radius).powi(2)).sqrt();
+        let whole_far = (h.powi(2) + (rho + radius).powi(2)).sqrt();
+        if rho.lo() <= 0.0 {
+            return (whole_near, whole_far);
+        }
+        let toward = plane * (radius / rho);
+        let near = if self.misses((ta, tb), o + toward) {
+            da.min(db)
+        } else {
+            whole_near
+        };
+        let far = if self.misses((ta, tb), o - toward) {
+            da.max(db)
+        } else {
+            whole_far
+        };
+        (near, far)
+    }
+
+    /// **How low and how high the arc over `(ta, tb)` reaches along
+    /// the unit direction `u` from `c`**. The linear function is one of
+    /// the angle from the point farthest along `u` alone, so each
+    /// extreme is at an end unless the arc holds that point (for
+    /// `high`) or its antipode (for `low`) — [`Self::misses`]'
+    /// selection. With `u` along the axis the function is constant on
+    /// the circle, and the whole circle's pair is the answer: the same
+    /// guard as [`Self::distance`]'s on-axis read, selecting the pair
+    /// that bounds the arc's wherever `u` points, and taken by a point
+    /// scalar only where the two pairs are equal.
+    pub(super) fn along(self, (ta, tb): (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T) {
+        let (la, lb) = ((self.at(ta) - c).dot(u), (self.at(tb) - c).dot(u));
+        let (o, radius) = (self.center, self.radius);
+        let mid = (o - c).dot(u);
+        let plane = u - self.axis * u.dot(self.axis);
+        let nu = plane.norm();
+        let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
+        if nu.lo() <= 0.0 {
+            return (whole_low, whole_high);
+        }
+        let toward = plane * (radius / nu);
+        let low = if self.misses((ta, tb), o - toward) {
+            la.min(lb)
+        } else {
+            whole_low
+        };
+        let high = if self.misses((ta, tb), o + toward) {
+            la.max(lb)
+        } else {
+            whole_high
+        };
+        (low, high)
     }
 }
 
@@ -2078,19 +2383,22 @@ fn circle_margins<T: Real>((ci, si): (Point3<T>, T), (cj, aj): (Point3<T>, T)) -
 #[cfg(any(test, feature = "test-support"))]
 pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     face: FaceKey,
+    chain: Convexity,
     margin: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    ring_clearance(face, margin, band)
+    ring_clearance(face, chain, margin, band)
 }
 
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
-/// margin, in closed form.
+/// margin, in closed form — and every edge a convex ruled cut-off
+/// leaves on its cap must clear the sliver it removes.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
     opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
+    ruled: &[RuledPlan<'_, T>],
     band: Band,
 ) -> Result<(), BlendError> {
     // A ring's EFFECTIVE radius: its own circle, widened to the trim
@@ -2159,7 +2467,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 // shared construction, never by cancellation.
                 let _ = dir;
                 let margin = (c - origin).dot(m) - a;
-                ring_clearance(face, margin, band)?;
+                ring_clearance(face, o.convexity(), margin, band)?;
             }
         }
     }
@@ -2198,7 +2506,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 } else {
                     m.external
                 };
-                ring_clearance(host, margin, band)?;
+                ring_clearance(host, rim.chain.first().convexity, margin, band)?;
             }
         }
         let l0 = rim.chain.first();
@@ -2233,20 +2541,21 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         let RimShape::Ladder { .. } = rim.shape else {
             continue;
         };
-        // Scoped honestly. The CIRCLE arm reads both relations a
-        // boundary circle can stand in to the trim circle
-        // ([`CircleMargins`]) and clears on either. The LINE arm
-        // measures the INFINITE carrier line, so one false-refusal
-        // class is left: a distant line edge whose EXTENSION passes
-        // near the trim circle, which reads negative where the finite
-        // edge is nowhere near. It stays unmeasured, and errs in the
-        // conservative direction — a body that hits it refuses
-        // `RingClearance` loudly rather than passing silently, which is
-        // why it is a false refusal and not a soundness hole.
-        // A cycle edge of any OTHER carrier kind is skipped: this walk
-        // is the closed-form one, and nothing exact can be said about a
-        // NURBS boundary from stored data, so those pairs are left to
-        // predicate 2's sampled sweep, which meters them all.
+        // Each boundary EDGE — its carrier over its stored window, not
+        // the carrier — must keep the trim circle off it: every point
+        // of the edge farther from the trim centre than the trim radius
+        // ([`piece_distance`]'s `near`). On a circle edge that is the
+        // arc's own reading of both relations a boundary circle can
+        // stand in to the trim ([`CircleMargins`]: containing it, or a
+        // convex arc merely separated from it), and both failing is the
+        // carve consuming its own host. An edge of any OTHER carrier
+        // kind, or one whose geometry is not certified, is skipped: this
+        // walk is the closed-form one, and nothing exact can be said
+        // about a NURBS boundary from stored data, so those pairs are
+        // left to predicate 2's sampled sweep alone — which reads each
+        // at its sample stations only, and so can pass a gap that
+        // closes between them: the same one-sided gap the annulus
+        // paragraph above names, on this walk's skipped edges.
         let outer = face_cycle(body, rim.host0()).ok_or_else(|| {
             not_intact(
                 EntityId::Face(rim.host0()),
@@ -2254,32 +2563,71 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             )
         })?;
         for he in outer {
-            let Some(h) = body.get_half_edge(he) else {
+            let edge = body
+                .get_half_edge(he)
+                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim host's boundary"))?
+                .edge;
+            let Some((carrier, window)) = stored_piece(body, edge)? else {
                 continue;
             };
-            let Some(e) = body.get_edge(h.edge) else {
+            let Some((near, _)) = piece_distance(carrier, window, ci) else {
                 continue;
             };
-            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-                continue;
-            };
-            match *c.carrier() {
-                Curve3::Line { origin, dir } => {
-                    let d = ci - origin;
-                    let margin = (d - dir * d.dot(dir)).norm() - si;
-                    ring_clearance(rim.host0(), margin, band)?;
+            ring_clearance(rim.host0(), rim.chain.first().convexity, near - si, band)?;
+        }
+    }
+    // (c) Ruled cut-offs: the cut-off `mef` runs one arc across a cap
+    // and moves the run from foot to foot through the old vertex off
+    // it, so every OTHER edge of the cap — each edge of its other
+    // cycles, and each edge of the cut cycle except the two rims the
+    // cut shortens — stays on the cap and must be clear of the sliver
+    // the cut removes. Each is metered, over its own window, against
+    // the region [`CapSliver`](super::open::ruled::CapSliver) proves
+    // encloses that sliver ([`CapSliver::clearance`](super::open::ruled::CapSliver::clearance)).
+    // A cut-cycle edge clear of the sliver cannot be crossed by the
+    // arc, and a clear edge of another cycle is neither crossed nor
+    // carried off with the sliver. An edge whose carrier has no closed
+    // form here, one with no certified geometry, or a lone-vertex
+    // cycle refuses rather than being skipped: unlike (b)'s host
+    // boundary, no sampled screen meters a cap.
+    for plan in ruled {
+        for s in plan.removed_slivers() {
+            let fd = body
+                .get_face(s.cap)
+                .ok_or_else(|| not_intact(EntityId::Face(s.cap), "a ruled cut-off's cap"))?;
+            for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+                let lone = body
+                    .get_loop(lp)
+                    .ok_or_else(|| not_intact(EntityId::Loop(lp), "a ruled cut-off cap's cycle"))?;
+                if let topo::LoopBoundary::Empty { .. } = lone.boundary {
+                    return Err(unbuilt_geometry(
+                        EntityId::Loop(lp),
+                        "a cap beside a ruled cut-off carries a lone-vertex cycle, which the \
+                         sliver meter does not cover",
+                    ));
                 }
-                Curve3::Circle { center, radius, .. } => {
-                    // Either relation clears: the boundary circle
-                    // CONTAINS the trim circle (the host lies inside its
-                    // own outer boundary), or the edge is a convex arc
-                    // of a mixed cycle whose full circle encloses
-                    // nothing and the two are merely separated. Both
-                    // negative is the carve consuming its own host.
-                    let m = circle_margins((ci, si), (center, radius));
-                    ring_clearance(rim.host0(), m.external.max(m.trim_inside_other), band)?;
+                let walk = loop_walk(body, lp)
+                    .ok_or_else(|| not_intact(EntityId::Loop(lp), "a ruled cut-off cap's cycle"))?;
+                for (_, _, edge) in walk {
+                    if s.rims.contains(&edge) {
+                        continue;
+                    }
+                    let Some((carrier, window)) = stored_piece(body, edge)? else {
+                        return Err(unbuilt_geometry(
+                            EntityId::Edge(edge),
+                            "a cycle edge of a cap beside a ruled cut-off carries no certified \
+                             carrier",
+                        ));
+                    };
+                    let margin = s.clearance(carrier, window).ok_or_else(|| {
+                        unbuilt_geometry(
+                            EntityId::Edge(edge),
+                            "a cap edge beside a ruled cut-off is neither a line nor a circle, \
+                             which the sliver meter needs",
+                        )
+                    })?;
+                    ring_clearance(s.cap, plan.link().convexity(), margin, band)?;
                 }
-                _ => {}
             }
         }
     }
@@ -2557,6 +2905,8 @@ pub(super) struct SplitFragments {
     /// The piece still touching the vertex the split was taken beside:
     /// a cap rim's dying remnant, a ladder meridian's UPPER remnant.
     pub(super) near: EdgeKey,
+    /// The other piece, recorded as a fragment of `source`.
+    pub(super) far: EdgeKey,
     /// The ORIGINAL source edge both pieces are fragments of — the key
     /// the caller handed in, not the key that was split.
     pub(super) source: EdgeKey,
@@ -2564,10 +2914,19 @@ pub(super) struct SplitFragments {
     pub(super) vertex: VertexKey,
 }
 
+/// **The source a caller already knows its split must recover** — the
+/// annulus rim phase's plan key, resolved against the body the caller
+/// handed in — and the chain a disagreement refuses.
+pub(super) struct ExpectedSource {
+    pub(super) source: EdgeKey,
+    pub(super) chain: EdgeKey,
+}
+
 /// **Split a source edge beside `vertex`, recording the far piece as a
 /// fragment of the ORIGINAL source** — the one home of the band
-/// surgery's split provenance, for the ruled band's cap rims and the
-/// ladder rim phase's meridians alike.
+/// surgery's split provenance, for the ruled band's cap rims, the
+/// ladder rim phase's meridians and the annulus rim phase's seams
+/// alike.
 ///
 /// **The edge may already be a fragment.** Two creases on one cap share
 /// the rim between them (the rod's two creases share the flat's chord),
@@ -2583,13 +2942,23 @@ pub(super) struct SplitFragments {
 ///
 /// **That arm carries no assertion, and cannot.** It is reachable by
 /// construction — the ruled band takes it whenever one cap carries two
-/// creases, and a rim phase would take it the day one call carves two
-/// rims off one cap seam — so a guard that it is never taken would
-/// assert away the generality the lookup exists for. Which callers take
-/// it is a measurement, not an invariant: over every carve the `sweep`
-/// suite runs, the ruled band's cap-rim split meets an existing row and
-/// the two rim phases' seam splits do not. A caller that wants its own
-/// arm pinned pins it with a body, not here.
+/// creases, and the annulus rim phase whenever two of one call's bands
+/// share a wall and so both split its seam — so a guard that it is
+/// never taken would assert away the generality the lookup exists for.
+/// A caller that wants its own arm pinned pins it with a body, not
+/// here; the annulus's is `blend_tworims`' twice-split seam row.
+///
+/// **A caller that already knows the source passes it as `expected`**,
+/// and a lookup that disagrees refuses BEFORE the split, naming the
+/// sequential recourse. The annulus rim phase does: its plan key is the
+/// seam resolved against the caller's body, so a lookup that disagrees
+/// recovers some other key — one this call minted, where no earlier row
+/// covers the piece (which [`blend_surgery`]'s postcondition catches at
+/// rest) — and every row named from it would name that key instead.
+/// NOT KNOWN REACHABLE (every refreshed seam the suite meets is an
+/// earlier band's far piece, recorded against that same key); a refusal
+/// rather than an `unreachable!` because its premise is what earlier
+/// carves in this call recorded, not a fact this split established.
 ///
 /// **Which piece is `near` is the split's own answer, not the caller's
 /// guess.** [`Body::split_edge`] hands the parent key to the child
@@ -2598,30 +2967,45 @@ pub(super) struct SplitFragments {
 /// when it ends there. Both orientations are ordinary revolve and
 /// boolean outputs, which is why neither is read off the key and why
 /// [`retire_fragment`] exists.
+#[allow(clippy::too_many_arguments)] // three call sites, each the split's own inputs.
 pub(super) fn split_fragment<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
     vertex: VertexKey,
     t: T,
+    expected: Option<ExpectedSource>,
     rec: &mut BlendNaming,
     site: &'static str,
     tol: Tol,
 ) -> Result<SplitFragments, BlendError> {
+    let source = rec
+        .meridian_remnants
+        .iter()
+        .find(|(piece, _)| *piece == edge)
+        .map_or(edge, |(_, source)| *source);
+    if let Some(ExpectedSource {
+        source: want,
+        chain,
+    }) = expected
+        && want != source
+    {
+        return Err(unbuilt_chain(
+            chain,
+            "an earlier band recorded this rim's seam under another source; blend in \
+             SEQUENTIAL calls",
+        ));
+    }
     let created = body.split_edge(edge, t, tol).map_err(|e| op(site, e))?;
     let (near, far) = if edge_touches(body, edge, vertex) {
         (edge, created.new_edge)
     } else {
         (created.new_edge, edge)
     };
-    let source = rec
-        .meridian_remnants
-        .iter()
-        .find(|(piece, _)| *piece == edge)
-        .map_or(edge, |(_, source)| *source);
     rec.meridian_remnants.retain(|(piece, _)| *piece != edge);
     rec.meridian_remnants.push((far, source));
     Ok(SplitFragments {
         near,
+        far,
         source,
         vertex: created.vertex,
     })
@@ -2770,7 +3154,7 @@ fn rim_phase<T: Decide + Bounds>(
         // choice, while a minted key in this row refuses loudly at the
         // document layer rather than resolving to another entity's
         // name.
-        let frag = split_fragment(body, m, v, t_split, rec, "meridian split", tol)?;
+        let frag = split_fragment(body, m, v, t_split, None, rec, "meridian split", tol)?;
         rec.meridian_splits
             .push((frag.vertex, m, band_named.clone()));
         remnants.push((v, frag.near, frag.source));
@@ -3140,6 +3524,8 @@ enum HostAnchor {
         foot: VertexKey,
         rim_side: EdgeKey,
         far_side: EdgeKey,
+        /// The source seam both pieces are fragments of.
+        source: EdgeKey,
     },
     /// A strut was minted from the crossing out to the foot. There is no
     /// far side — that is the whole difference at a hostless crossing —
@@ -3341,10 +3727,11 @@ struct ArcPlan<T: Real> {
 /// `live` carries the crossings' seam meridians under their CARVE-time
 /// keys, one entry per crossing in `ann.crossings` order — the plan's
 /// own keys unless an earlier band's carve on a shared wall split them
-/// ([`refresh_annulus_seams`]). The SPLITS below run on the live keys;
-/// every naming row keeps the PLAN's key, because a birth record names
-/// the SOURCE entity an output was minted for and the live piece is a
-/// mid-call fragment of it.
+/// ([`refresh_annulus_seams`]). The SPLITS below run on the live keys,
+/// through [`split_fragment`] with the plan's key as the expected
+/// source; every naming row names the source the split recovers,
+/// because a birth record names the SOURCE entity an output was minted
+/// for and the live piece is a mid-call fragment of it.
 fn rim_phase_annulus<T: Decide + Bounds>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
@@ -3481,41 +3868,45 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // ---- (1)+(2) The seam splits. Each mints one foot vertex on
     // EXISTING geometry; the piece still touching the crossing vertex is
     // the rim-side one. ----
+    //
+    // Every split goes through [`split_fragment`], told the PLAN's seam
+    // key as the source it must recover: the plan is resolved against
+    // the body the caller handed in, so every row of this band names
+    // that key, read back off the split as `source`.
     let split = |body: &mut Body<T>,
+                 rec: &mut BlendNaming,
                  seam: EdgeKey,
+                 plan: EdgeKey,
                  at: VertexKey,
                  target: Point3<T>,
                  named: EdgeKey,
                  site: &'static str|
-     -> Result<(VertexKey, EdgeKey, EdgeKey), BlendError> {
+     -> Result<SplitFragments, BlendError> {
         let t = seam_split_param(body, seam, named, target)?;
-        let created = body.split_edge(seam, t, tol).map_err(|e| op(site, e))?;
-        let (rim_side, far_side) = if edge_touches(body, seam, at) {
-            (seam, created.new_edge)
-        } else {
-            (created.new_edge, seam)
+        let expected = ExpectedSource {
+            source: plan,
+            chain: rim.chain.first().edge,
         };
-        Ok((created.vertex, rim_side, far_side))
+        split_fragment(body, seam, at, t, Some(expected), rec, site, tol)
     };
-    // A split of an edge an EARLIER band recorded as a meridian
-    // remnant supersedes that record: the piece it named is subdivided
-    // here, and this band's own rows re-cover both children (the far
-    // piece as its remnant, the rim-side piece as its slit or as a
-    // death). Retiring the row before the split is what keeps the
-    // records a partition — one row per output entity, which the
-    // emitter refuses to violate.
-    let mut mate_feet = Vec::with_capacity(n);
+    let mut mate_feet: Vec<SplitFragments> = Vec::with_capacity(n);
     for (ix, c) in ann.crossings.iter().enumerate() {
-        rec.meridian_remnants.retain(|(e, _)| *e != live[ix].mate);
         mate_feet.push(split(
             body,
+            rec,
             live[ix].mate,
+            c.mate_seam,
             c.vertex,
             feet_targets[ix].mate,
             feet_targets[ix].named,
             "annulus mate seam split",
         )?);
     }
+    // The mate feet in the row shape `trim_chords` reads.
+    let mate_chord_feet: Vec<(VertexKey, EdgeKey, EdgeKey)> = mate_feet
+        .iter()
+        .map(|f| (f.vertex, f.near, f.far))
+        .collect();
     // The HOST foot, by whichever move this crossing's plan says. A seam
     // split lands it on existing geometry; a hostless crossing mints it
     // with the LADDER's strut, from the arc that starts here so the
@@ -3523,24 +3914,35 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // seam split targets, reached without a seam.
     let mut host_feet = Vec::with_capacity(n);
     for (ix, c) in ann.crossings.iter().enumerate() {
-        let anchor = match live[ix].host {
-            HostFoot::Seam(seam) => {
-                rec.meridian_remnants.retain(|(e, _)| *e != seam);
-                let (foot, rim_side, far_side) = split(
+        let anchor = match (live[ix].host, c.host) {
+            (HostFoot::Seam(seam), HostFoot::Seam(plan)) => {
+                let frag = split(
                     body,
+                    rec,
                     seam,
+                    plan,
                     c.vertex,
                     feet_targets[ix].host,
                     feet_targets[ix].named,
                     "annulus host seam split",
                 )?;
                 HostAnchor::Seam {
-                    foot,
-                    rim_side,
-                    far_side,
+                    foot: frag.vertex,
+                    rim_side: frag.near,
+                    far_side: frag.far,
+                    source: frag.source,
                 }
             }
-            HostFoot::Strut => {
+            // Both producers of `live` keep the plan's host KIND: the
+            // identity map copies it, and the refresh maps a seam to a
+            // seam and a strut to a strut or refuses.
+            (HostFoot::Seam(_), HostFoot::Strut) | (HostFoot::Strut, HostFoot::Seam(_)) => {
+                unreachable!(
+                    "annulus band: a crossing's live host foot is the plan's kind — both \
+                     producers of `live` preserve it"
+                )
+            }
+            (HostFoot::Strut, HostFoot::Strut) => {
                 let i = starters[ix];
                 let l = rim.chain.links().nth(i).ok_or_else(|| {
                     not_intact(
@@ -3582,6 +3984,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
                 foot,
                 rim_side,
                 far_side,
+                ..
             } => Some((foot, rim_side, far_side)),
             HostAnchor::Strut { .. } => None,
         })
@@ -3654,7 +4057,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         };
         let lp = loop_of_half(body, mhalf)
             .ok_or_else(|| not_intact(EntityId::HalfEdge(mhalf), "a rim arc's mate-side loop"))?;
-        let (he1, he2) = trim_chords(body, lp, &mate_feet).ok_or_else(|| {
+        let (he1, he2) = trim_chords(body, lp, &mate_chord_feet).ok_or_else(|| {
             not_intact(
                 EntityId::Loop(lp),
                 "a split seam's rim-side and far-side halves at this support's feet",
@@ -3707,7 +4110,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         // closure's piece survives as the slit, whose final description
         // below states the band's meridian, and every other one dies by
         // the `kef` after.
-        let member = mate_feet[ix].1;
+        let member = mate_feet[ix].near;
         let chord = merged_chord_spec(body, member, dying, "annulus closure kev")?;
         body.kev_describing(dying, &[(member, chord)], tol)
             .map_err(|e| op("annulus closure kev", e))?;
@@ -3717,7 +4120,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         // The mate piece now spans the two feet with a sector on each
         // side; killing it merges them, which is what carrying the walk
         // through this crossing means.
-        let Some((mp, _)) = halves_of(body, mate_feet[ix].1) else {
+        let Some((mp, _)) = halves_of(body, mate_feet[ix].near) else {
             unreachable!(
                 "annulus band: the mate seam's rim-side piece came out of this phase's \
                  own `split_edge` and only the closure crossing keeps one"
@@ -3729,7 +4132,6 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // ---- The band's chart is SEAMED at the slit (certification demands
     // a Seam edge lie in its surface's own `u_ref` half-plane; the chart
     // reference is conventional data, D2). ----
-    let closure = &ann.crossings[ann.closure];
     let Some(closure_arc) = arcs.iter().position(|a| a.at.0 == ann.closure) else {
         unreachable!(
             "annulus band: every crossing is the host-side START of exactly one arc — \
@@ -3792,7 +4194,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // The slit is the band's own seam; the arc the closure crossing
     // starts is the link it belongs to.
     described.push((
-        mate_feet[ann.closure].1,
+        mate_feet[ann.closure].near,
         ContactCarrier::SeamArc {
             center: tc + radial * tmaj,
             radius: tmin,
@@ -3809,23 +4211,17 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     for (ix, c) in ann.crossings.iter().enumerate() {
         rec.rim_feet.push((host_feet[ix].foot(), c.vertex));
     }
-    for (ix, c) in ann.crossings.iter().enumerate() {
+    for f in &mate_feet {
         rec.meridian_splits
-            .push((mate_feet[ix].0, c.mate_seam, band_named.clone()));
+            .push((f.vertex, f.source, band_named.clone()));
     }
-    for (ix, c) in ann.crossings.iter().enumerate() {
-        rec.meridian_remnants.push((mate_feet[ix].2, c.mate_seam));
-        // A hostless crossing leaves no host remnant: nothing of the
-        // host was subdivided, so there is no fragment of a source
-        // meridian to name. The STRUT is not one either — this call
-        // minted it and the closure `kev` consumes it, so it reaches
-        // neither the output nor the source and owes no row in either
-        // direction.
-        if let (HostAnchor::Seam { far_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
-        {
-            rec.meridian_remnants.push((*far_side, *seam));
-        }
-    }
+    // Each seam split's far piece is already recorded as its source's
+    // remnant, by [`split_fragment`] at the split. A hostless crossing
+    // leaves no host remnant: nothing of the host was subdivided, so
+    // there is no fragment of a source meridian to name. The STRUT is
+    // not one either — this call minted it and the closure `kev`
+    // consumes it, so it reaches neither the output nor the source and
+    // owes no row in either direction.
     for (i, l) in rim.chain.links().enumerate() {
         rec.rim_trims
             .push((host_trims[i].edge, l.edge, RimSide::Host));
@@ -3833,37 +4229,27 @@ fn rim_phase_annulus<T: Decide + Bounds>(
             .push((mate_trims[i].edge, l.edge, RimSide::Mate));
     }
     rec.slits.push((
-        mate_feet[ann.closure].1,
-        closure.mate_seam,
+        mate_feet[ann.closure].near,
+        mate_feet[ann.closure].source,
         band_named.clone(),
     ));
     for l in rim.chain.links() {
         rec.dead.edges.push(l.edge);
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
-        // The dying piece against the seam it came from, through
-        // [`retire_fragment`] — the one spelling of "only a SOURCE key
-        // is a retirement", shared with the ladder's meridian splits
-        // and the ruled band's cap rims.
-        //
-        // The seam keys here are the PLAN's, and that is what keeps a
-        // source key a source key: the plan is read off the body the
-        // caller handed in, while the key this band SPLIT is the live
-        // one, which an earlier band on a shared wall may already have
-        // moved onto a piece THIS call minted. So the comparison is a
-        // live-derived dying piece against a plan key, and where the
-        // refresh has moved the seam the two cannot be equal — which is
-        // sound rather than lucky: `split_edge` keeps the parent key
-        // for the `[t0, t]` child and a seam meridian's two ends are
-        // its wall's two latitude rims, so a moved live key puts THIS
-        // band at the seam's t1 end, where the dying rim-side piece is
-        // the fresh one and no retirement is owed.
-        if let (HostAnchor::Seam { rim_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
-        {
-            retire_fragment(rec, *rim_side, *seam);
+        // The dying piece against the source seam it is a fragment of,
+        // through [`retire_fragment`] — the one spelling of "only a
+        // SOURCE key is a retirement", shared with the ladder's meridian
+        // splits and the ruled band's cap rims. A STRUT is a mid-call
+        // entity, not a fragment of anything, and owes no row.
+        match host_feet[ix] {
+            HostAnchor::Seam {
+                rim_side, source, ..
+            } => retire_fragment(rec, rim_side, source),
+            HostAnchor::Strut { .. } => {}
         }
         if ix != ann.closure {
-            retire_fragment(rec, mate_feet[ix].1, c.mate_seam);
+            retire_fragment(rec, mate_feet[ix].near, mate_feet[ix].source);
         }
         rec.dead.vertices.push(c.vertex);
     }
@@ -4128,10 +4514,32 @@ fn attach_contact<T: Decide + Bounds>(
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
             must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
         };
-        match verdict {
-            MustCarryVerdict::JetDeterminate => {
-                EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
-            }
+        // In-band: a separation certifiable as neither positive nor
+        // zero — a band a few K·ε in radius, or a corner arc whose
+        // extent is the lever — escalated typed with the deciding
+        // station's own reading, at the link the contact edge belongs
+        // to. Refuted: a station reads the join a corner, so this
+        // branch's premise — a definitely-smooth join — is refuted by
+        // the geometry. The carrier kind routed the edge here, and
+        // every kind whose surfaces cross at an angle is routed to the
+        // transverse branch above, so that is the surgery
+        // contradicting its own routing, announced rather than
+        // repaired by storing a description the routing did not
+        // choose.
+        let refused = |refusal| match refusal {
+            MustCarryRefusal::InBand(source) => BlendError::Escalated {
+                site: BlendSite::Link { edge: link },
+                decision: BlendDecision::ContactSecondOrder,
+                source,
+            },
+            MustCarryRefusal::Refuted => BlendError::SurgeryInvariant {
+                at: EntityId::Edge(edge),
+                detail: "a contact edge routed as a smooth join reads definitely \
+                         transverse at a certification station",
+            },
+        };
+        match verdict.description(s1, s2, witness).map_err(refused)? {
+            MustCarryDescription::Intrinsic(description) => description,
             // The surfaces under-determine the locus, so the
             // description stays CONVENTIONAL: an image in a chart,
             // derived by the certification door from the exact carrier
@@ -4149,39 +4557,13 @@ fn attach_contact<T: Decide + Bounds>(
             // is the folded lever arm, or any band under a run with
             // `K < 2`. A pair the lane REFUSES lands here too once
             // every station has read smooth first-order (a crossing
-            // out of lane answers `Transverse` below, as in lane): the
+            // out of lane is refuted above, as in lane): the
             // certificate cannot store an intrinsic tangency there, so
             // the conventional image is the honest description, and
             // the door derives it — `geom_brep::chart_pcurve` images a
             // ruling `Line` in a `Cone`'s chart as readily as in a
             // plane's. No arm the battery admits mints such a pair.
-            MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::chart(s1),
-            // In-band: a separation certifiable as neither positive nor
-            // zero — a band a few K·ε in radius, or a corner arc whose
-            // extent is the lever — escalated typed with the deciding
-            // station's own reading, at the link the contact edge
-            // belongs to.
-            MustCarryVerdict::InBand(source) => {
-                return Err(BlendError::Escalated {
-                    site: BlendSite::Link { edge: link },
-                    source,
-                });
-            }
-            // A station reads the join a corner: this branch's premise
-            // — a definitely-smooth join — is refuted by the geometry.
-            // The carrier kind routed the edge here, and every kind
-            // whose surfaces cross at an angle is routed to the
-            // transverse branch above, so reaching this arm is the
-            // surgery contradicting its own routing, announced rather
-            // than repaired by storing a description the routing did
-            // not choose.
-            MustCarryVerdict::Transverse => {
-                return Err(BlendError::SurgeryInvariant {
-                    at: EntityId::Edge(edge),
-                    detail: "a contact edge routed as a smooth join reads definitely \
-                             transverse at a certification station",
-                });
-            }
+            MustCarryDescription::Conventional => EdgeDescriptionSpec::chart(s1),
         }
     };
     body.set_edge_curve(
@@ -4261,12 +4643,8 @@ mod tests {
     #[test]
     fn a_body_that_is_not_one_solid_and_one_shell_is_refused_at_the_door() {
         let mut dst = cube(L, Tol::witness());
-        topo::instance::graft_disjoint_all(
-            &mut dst,
-            &cube(L * 0.5, Tol::witness()),
-            Tol::witness(),
-        )
-        .expect("the public transplant door accepts a disjoint cube");
+        topo::instance::graft_disjoint_all(&mut dst, &cube(L * 0.5, Tol::witness()))
+            .expect("the public transplant door accepts a disjoint cube");
         assert_eq!(dst.solids().count(), 2, "the graft made a second solid");
         assert_eq!(dst.shells().count(), 2, "and a second shell");
         let edges: Vec<topo::EdgeKey> = dst.edges().map(|(k, _)| k).collect();
@@ -4328,5 +4706,97 @@ mod tests {
         // the selection retires: it would hand back the sphere trim.
         let blind = rim_trim_circles(e, &swapped, true).expect("circles");
         assert_eq!(blind.0.1, a.1.1, "slot-blind trim_a IS the sphere trim");
+    }
+
+    /// **A boundary piece's extremes are its ends' unless the piece
+    /// holds the point that realises one, and then the whole
+    /// circle's** ([`super::piece_distance`], [`super::piece_along`]),
+    /// on the unit circle about the origin in the `xy` plane. Each
+    /// arm is reached both ways: an arc that misses the critical point
+    /// reads its larger or smaller end, and one that holds it (or a
+    /// window of a full turn) reads the whole circle's value — which is
+    /// what a rim piece passing its circle's far point would read, a
+    /// case no assembly fixture builds. A window stored a turn off the
+    /// principal range reads the same as its principal twin.
+    #[test]
+    fn a_pieces_extremes_are_its_ends_unless_it_holds_the_critical_point() {
+        use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+        use geom::Curve3;
+
+        use super::{piece_along, piece_distance};
+
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let at = |t: f64| Point3::new(t.cos(), t.sin(), 0.0);
+        let close = |a: f64, b: f64, what: &str| {
+            assert!((a - b).abs() <= 1e-14, "{what}: {a} vs {b}");
+        };
+        // Distance from (3, 0): nearest at angle 0 (2), farthest at π (4).
+        let c = Point3::new(3.0, 0.0, 0.0);
+        let d = |t: f64| (at(t) - c).norm();
+        let (near, far) = piece_distance(&circle, (FRAC_PI_4, FRAC_PI_2), c).expect("circle");
+        close(
+            near,
+            d(FRAC_PI_4),
+            "an arc missing both reads its nearer end",
+        );
+        close(far, d(FRAC_PI_2), "and its farther end");
+        let (near, far) = piece_distance(&circle, (-FRAC_PI_4, FRAC_PI_4), c).expect("circle");
+        close(
+            near,
+            2.0,
+            "an arc holding the nearest point reads the circle's",
+        );
+        close(far, d(FRAC_PI_4), "its farther end still reads the end");
+        let (_, far) =
+            piece_distance(&circle, (3.0 * FRAC_PI_4, 5.0 * FRAC_PI_4), c).expect("circle");
+        close(
+            far,
+            4.0,
+            "an arc holding the farthest point reads the circle's",
+        );
+        let (near, _) =
+            piece_distance(&circle, (TAU + FRAC_PI_4, TAU + FRAC_PI_2), c).expect("circle");
+        close(near, d(FRAC_PI_4), "a window a turn off reads as its twin");
+        let (near, far) = piece_distance(&circle, (0.5, 0.5 + TAU), c).expect("circle");
+        close(near, 2.0, "a full turn holds every point");
+        close(far, 4.0, "a full turn holds every point");
+        // Along +y from the origin: highest at π/2, lowest at 3π/2.
+        let u = Vec3::new(0.0, 1.0, 0.0);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (low, high) = piece_along(&circle, (0.0, FRAC_PI_4), o, u).expect("circle");
+        close(low, 0.0, "an arc missing both reads its lower end");
+        close(high, FRAC_PI_4.sin(), "and its higher end");
+        let (low, high) = piece_along(&circle, (0.0, 3.0 * FRAC_PI_4), o, u).expect("circle");
+        close(
+            high,
+            1.0,
+            "an arc holding the highest point reads the circle's",
+        );
+        close(low, 0.0, "its lower end still reads the end");
+        let (low, _) = piece_along(&circle, (PI, TAU), o, u).expect("circle");
+        close(
+            low,
+            -1.0,
+            "an arc holding the lowest point reads the circle's",
+        );
+        // A segment: the nearest point is the clamped foot, not the
+        // carrier's.
+        let line = Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (near, far) =
+            piece_distance(&line, (1.0, 2.0), Point3::new(0.0, 1.0, 0.0)).expect("line");
+        close(near, 2.0_f64.sqrt(), "a segment's near is its clamped foot");
+        close(far, 5.0_f64.sqrt(), "and its far its farther end");
+        let (low, high) =
+            piece_along(&line, (1.0, 2.0), o, Vec3::new(1.0, 0.0, 0.0)).expect("line");
+        close(low, 1.0, "a segment's low is an end");
+        close(high, 2.0, "and its high the other");
     }
 }

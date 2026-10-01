@@ -38,7 +38,7 @@ fn show_tree(session: &DocSession) {
         println!(
             "   {indent}{} {}{root}{message}",
             row.status.badge(),
-            row.kind
+            row.spoken
         );
     }
 }
@@ -79,7 +79,7 @@ fn main() {
     // Select the revolve (the root) and inspect its slots.
     let revolve = rows
         .iter()
-        .find(|row| row.kind == "Revolve")
+        .find(|row| row.spoken.kind() == Some("Revolve"))
         .expect("the ring has a revolve")
         .id;
     session.perform(SessionOp::Select(Selection::Node(revolve)));
@@ -326,7 +326,7 @@ fn main() {
             .into_owned();
         let mut this_doc_failed = false;
         for row in &rows {
-            if row.kind == "InstantiatePart" {
+            if row.spoken.kind() == Some("InstantiatePart") {
                 match &row.status {
                     RowStatus::Failed { message, .. } => {
                         instantiate_failures += 1;

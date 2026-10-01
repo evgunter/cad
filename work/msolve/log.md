@@ -797,8 +797,59 @@ That arm skews every levered predicate silently, so the fix is a
 finite arm by construction at its one formation door, and the minted
 `Indeterminate` becomes unreachable rather than re-routed. Review
 tier: single, full.
+
+## MSOLVE-9 dual review adjudicated; fix pass to the lane (2026-09-24)
+
+PR 2934 frozen at `7cf04d8ee` (run 35955846813 green, the full
+matrix). Dual review under `docs/DUAL-REVIEW-PROTOCOL.md`, run
+sequentially under its late-trigger fallback: about 4.7 GB free holds
+one build at a time, and one worktree shared by two concurrent
+reviewers would let one's broken probe break the other's build. Same
+frozen head, identical briefs. Both returned APPROVE-WITH-FIXES; both
+executed C1, C2, C3 and notes (a) and (b) as holding. The one MAJOR
+(R1) was raised by R2 at NOTE: a face frame refuses `Unpinned` on
+every analysis lane while the viewer now authors only face frames.
+Ruled honest — the pose follows the part's parameters and the solve
+decides at nominal, so a Dual's real part would drop the pose's
+sensitivity and a pinned Interval would certify a face that moves —
+and owed disclosure at every door plus a P1 row. Bilateral MINORs:
+the memo key's "iff" is an over-approximation (sound; the claims
+re-worded, a row pins it); `FaceFrame::reference` has no admitted
+value (ruled dropped, with its two refusal arms; the roll residue
+filed, since a face frame does not turn a mate's roll as `plan.md`
+item 16 assumed); `PartUnresolved` drops the part and the face;
+prose the change invalidated, A11 rule 5's clause included (it lands
+with the change). One home each for the name-table ladder, the face
+side's part, the `InPart` unwrapping and the replay's static order.
+Tally candidates: none. The pre-note is in the lane's scratch and
+goes into `docs/DUAL-REVIEW-LOG.md` at state-sync.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
 
+## Resumed after the weekly usage limit (2026-10-01)
+
+The MSOLVE-9 lane stopped on the weekly limit on 2026-09-24, after it
+merged main at `7cceee566` and before handing back. The fix pass at
+`4f7e073d8` was verified (every ruling in, run 35970616129 green)
+and the dual review is coded (DR-2 drafted; blinded coding, byte 35,
+tally 0). Main has since moved 3,721 commits, and PR 2934 is
+conflicting in 18 files: EDIT's node standing and carried refusals,
+CHROME's and VNEWS's seat line and mate panel, AUTH's held face pick,
+and names' pinned candidates all touched the files this unit
+rewrote. The state-sync is saved as a patch and lands after the
+merge goes green.
+
+Triage of five rows filed here while the session was stopped
+(`plan.md` items 19–21): the analysis-lane nominal solve becomes one
+design row (the face frame's `Unpinned` and EDIT's parametric-placer
+finding are the same question); three refusal and reporting rows
+ride MSOLVE-11; GATHER's two-roots disagreement is re-priced M with a
+design question and specced after MSOLVE-11.
+
+Friction, recorded as a finding: the session's disk allowance holds
+one build. The shared target directory is 16 GB, and 2.8 GB is free,
+so the week-late rebuild this merge needs cannot run until the stale
+cache is cleared. Clearing it was refused by the session's permission
+check and is put to Ev.
 ## MSOLVE-9 MERGED (2026-09-24, PR 2934)
 
 `MateFrame` is `Authored(AuthoredFrame) | FromFace(FaceFrame { face })`,
@@ -834,3 +885,163 @@ carries REACH's eps-scaled rows, `889b7f043`); every ruling survived
 the merge, checked against the diff.
 Spec deleted with a note in `docs/doc-ledger/msolve-9-spec.md`.
 Next: MSOLVE-11 dispatches from main.
+
+## 2026-10-01 — MSOLVE-9 merged; roll row placed; MSOLVE-11 dispatches
+
+PR 2934 merged at `9ccc89346`. The state-sync commit `1ab031f9a`
+touched only docs, the tracker and one test-file comment, on the green
+head `a9c620d94`, so it merged without a fresh run. The lane that had
+merged a week of main had finished its work (`a9c620d94`) and was
+stopped. `a-face-frame-cannot-turn-its-roll` is now plan item 22, and
+its legacy `D` is re-priced M with `design: true`: two designers weigh
+how a face frame's roll is turned before any lane builds it. Next:
+MSOLVE-11 from main with item 20's three riders, single full review.
+
+## 2026-10-01 — two design forks weighed: items 19 and 22
+
+Plan items 19 (how mates take part in analysis-lane evaluations) and
+22 (how a person turns a face-mated part about the mate's axis) are
+design forks. Each went to one designer of each model, both
+dispatched at once with the same statement of the problem and no
+candidate solutions, as `docs/DESIGN-FORK-PROTOCOL.md` requires (at
+`26db1af89`). Labels came from `/dev/urandom` bytes drawn at dispatch:
+254 for item 19, 80 for item 22. As in row 20, this session holds the
+mapping off-file until Ev decides, and it goes into each row's
+decision commit. The `[ev]` PRs open once the first reports are
+recorded and reconciled.
+
+Item 19's two designers agreed on their first reports: one mate
+solve, generic over the run's scalar, with the structure read at the
+nominal. No reconciliation was needed. `[ev]` PR 3679 states it as one
+sentence in A11 rule 5, with fork-log row 34. Two findings off the
+question are filed:
+- `a-box-independent-mate-fault-bisects-the-whole-leaf-budget` (P2,
+  here). The driver's catch-all `Bisect` arm was checked against the
+  code.
+- `a-boxed-rotation-refuses-not-rigid-at-every-placer`, routed to
+  TOPO, whose door it is (P3, design).
+
+Item 22's two designers agreed on the diagnosis but split on three
+points: the typing, whether A3 and A11 (1) move, and the planar zero.
+Round 1 settled the typing and the clauses, and crossed on the planar
+zero. Round 2, on that point alone, converged: no row, and a note
+under LINALG's `interval-orthonormal-basis-sign-hull`, written there.
+Asked on `[ev]` PR 3681 (fork-log row 35). Both `[ev]` PRs are
+subscribed for Ev's answer.
+
+## 2026-10-01 — MSOLVE-11 handed back; single full review dispatched
+
+The lane handed back PR 3680 green at `fff779e03`. The core and all
+four riders are closed, no verdict moved, and the STOP clause did not
+fire. It deviates from the spec once: `PartUnresolved` is carried
+inside the `Reach` arm, not as a twin arm. It filed
+`a-clocking-rider-is-levered-unreduced` (P3). The head is frozen. One
+full review (C1–C7, plus the lane's eight doubts) is dispatched on
+Opus, reusing the lane's warm target dir. Friction: the stopped
+MSOLVE-9 merge lane had rebuilt a 7 GB target that took free disk to
+3.9 GB. A lane that is stopped leaves its cache behind, and the
+orchestrator has to sweep it.
+
+MSOLVE-11 review of `fff779e03`: APPROVE-WITH-FIXES, no MAJOR. Claims
+C1, C2, C3, C5 and C7 hold. The memo arm, the parallel splice and the
+`Arm` door were all probed, and the `PartUnresolved` fold was judged
+right. Two claims fail on edges:
+- C4: a two-fault case names a poisoned `Part` with `States`. This is
+  a pre-existing class, filed and pinned rather than redesigned.
+- C6: an out-of-range `Part` index gets "rebind to copy 5", a copy that
+  does not exist.
+
+The review also found:
+- a second, string-keyed table of predicate words (`refuted`);
+- an unenforced "a mate op decides nothing";
+- a vacuous assert;
+- recourses that name doors no edit has;
+- the `Arm` doc overclaiming past the Roll lever;
+- the box driver now reading mate escalations through its log.
+
+The fix pass has twelve rulings (R1–R12) and went to the
+implementer lane with its context. Accepted as built: the doubled
+solve in the A2 fixture check, and the probe sink order.
+
+MSOLVE-11 fix pass (implementer lane, PR 3680), rulings R1–R12:
+- R1: a `Part` index outside its value refuses as the evaluation does,
+  at the `Part`, before the name is compared. It is
+  `PlacerRefused { InstanceOutOfRange, States }`, pinned by the
+  reviewer's P2 as a row.
+- R2: the `States`-over-a-poisoned-row class is filed as
+  `a-placer-row-states-what-a-poisoned-row-cannot` (P2). The one-liner
+  it wants is named in the item. P3 is pinned as a row of today's
+  behaviour.
+- R3: `Arm`'s doc names the clocking rider's exception.
+- R4: recourses that named a door no edit has now re-author the mate.
+- R5: a lever half that is not finite prints no metre figure.
+- R6, R10: the one-home check says what it compares. The vacuous
+  escalation half is dropped, with the reason.
+- R7: `mate::Refuted` holds each contradiction predicate's name and
+  words in one exhaustive enum. The decide sites pass its name, and
+  every row is asserted.
+- R8: `Indeterminate`'s recourse is `NO_DECLARATION_RECOURSE`.
+- R9: the mate arm asserts the frame holds exactly the spliced
+  recording.
+- R11: a box run over an escalating mate refuses
+  `WitnessDoesNotBuild`, because the driver carries no resolver. So
+  read (2) is latent. The measurement is appended to
+  `a-box-independent-mate-fault-bisects-the-whole-leaf-budget` and
+  pinned as a row.
+- R12: LIB's `part-unresolved-names-two-facts` names the moved arm.
+
+Friction: main moved twice during the pass (node tags; the cluster's
+`root`), and each merge cost a conflict in the touched sentences.
+
+## 2026-10-01 — MSOLVE-11 MERGED (PR 3680)
+
+The whole-document solve records each decision on the log of the one
+mate whose answer it decided, and each mate node splices its own
+recording. Under `parallel` and under the memo, a reused mate carries
+the same log as a fresh one, and an assert makes "a mate op decides
+nothing" fail loud. The lever is `coset::Arm`, finite by construction,
+so `parallel`'s hand-minted escalation is unreachable. A `Part`'s
+index refuses at the `Part`; an index out of range refuses as the
+evaluation does. Four riders rode with it:
+- `MateRole` reads in words;
+- every mate refusal ends on a recourse that is true at its raise
+  site, re-authoring the mate where no edit reaches the frame;
+- no document id appears in a mate sentence;
+- `LeverRefusal` and `FaceRefusal` each carry the reach's refusal once.
+
+The predicates' words have one home (`mate::Refuted`).
+
+Review tier: single, full, on `fff779e03`. Fix pass R1–R12, green at
+`9cdb91efb`; the orchestrator spot-checked the diff.
+
+Closes MSOLVE-11, `mate-lane-escalations-reach-no-nodes-log`,
+`placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`,
+`materole-has-no-display`, `msolve-refusals-short-of-the-shape-guard`,
+`mate-refusals-name-documents-by-hex-id` and
+`lever-refusal-respells-reach-refusal`. Filed:
+- `a-clocking-rider-is-levered-unreduced` (P3), which plan item 22's
+  `[ev]` PR 3681 would delete with the rider;
+- `a-placer-row-states-what-a-poisoned-row-cannot` (P2).
+
+Spec deleted, with a note in `docs/doc-ledger/msolve-11-spec.md`.
+Next: item 21's design fork, which is with two designers.
+
+## 2026-10-01 — MSOLVE-11 merged; item 21 to Ev; MSOLVE-12 dispatched
+
+MSOLVE-11 merged on PR 3680. Its MERGED entry rode the unit branch.
+
+Item 21's two designers agreed on their first reports. The solve
+should not refuse, because the two layers answer two different
+questions. The question is on `[ev]` PR 3695 (fork-log row 36), as
+one sentence in A11 (4).
+
+Friction, a triage miss: four rows were routed onto this slate on
+2026-09-20 by the P0 scoring pass (`d0ad286f6`). Three of them are P0.
+They came in through a main merge, and `incoming` listed them, but I
+never placed them, so they sat for eleven days. A review of all open
+`work/msolve/` rows by priority found them. The rule I take from it:
+at each check-in, `incoming` is followed by placing every new row on
+the plan, not only reading it. Three of the rows are now MSOLVE-12
+(plan item 23), dispatched on Opus with a single full review. The
+fourth, the null-payload spelling, is blocked on item 22 (plan item
+24).

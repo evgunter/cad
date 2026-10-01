@@ -238,8 +238,8 @@ fn fillet_computes_exact_tangent_points_and_declares() {
     assert_eq!(lp.vertices()[3].y.to_bits(), 1.0f64.to_bits());
     assert_eq!(lp.vertices()[4].x.to_bits(), 1.0f64.to_bits());
     assert_eq!(lp.vertices()[4].y.to_bits(), 1.5f64.to_bits());
-    // The arc bulge is tan(-pi/8) to rounding.
-    assert!((lp.bulges()[3] + quarter_bulge()).abs() < 1e-15);
+    // The arc's sweep reads as the bulge tan(-pi/8) to rounding.
+    assert!((crate::common::quarter_tan(&lp.segments()[3]) + quarter_bulge()).abs() < 1e-15);
     // Declares by construction, and the declarations verify.
     assert_eq!(lp.tangent_joints(), vec![3, 4]);
     let vp = profile(vec![lp])
@@ -481,8 +481,8 @@ fn the_cusp_junction_is_exact_and_the_two_carriers_oppose() {
     let v = lp.vertices();
     assert_eq!(v[2].x.to_bits(), 0.0f64.to_bits());
     assert_eq!(v[2].y.to_bits(), 0.0f64.to_bits());
-    let inner = lp.bulges()[1];
-    let outer = lp.bulges()[2];
+    let inner = crate::common::quarter_tan(&lp.segments()[1]);
+    let outer = crate::common::quarter_tan(&lp.segments()[2]);
     assert!(
         inner * outer < 0.0,
         "the lune's two arcs must wind opposite ways: {inner} vs {outer}"

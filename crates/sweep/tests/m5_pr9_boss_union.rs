@@ -110,7 +110,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     // The boss RESTING on the plate: sketched at the plate's top.
     let boss_on_top = three_arc_cylinder(Point2::new(2.0, 2.0), 0.5, 1.0, 0.6, 0.0);
     let mut body = a.clone();
-    topo::graft_disjoint(&mut body, &boss_on_top, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &boss_on_top).unwrap();
 
     // UNDECLARED: the census finds the boss cap's rim-joint vertices
     // resting on the plate's top face — the hard error, typed.
@@ -234,7 +234,7 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         "pin is tier-3"
     );
     let mut body = cradle.clone();
-    topo::graft_disjoint(&mut body, &pin, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &pin).unwrap();
     assert_eq!(
         topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
@@ -350,7 +350,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         "plate is tier-3"
     );
     let mut body = plate.clone();
-    topo::graft_disjoint(&mut body, &ball, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &ball).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("ball-cap-in-plate verdict: {verdict:?}");
@@ -438,7 +438,7 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         "ball tier-3"
     );
     let mut body = pac.clone();
-    topo::graft_disjoint(&mut body, &ball, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut body, &ball).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
     println!("reflex-arc cap + tangent ball verdict: {verdict:?}");

@@ -2,8 +2,14 @@
 id: ssi-box3-width-drops-a-refused-axis
 kind: issue
 title: ssi/enclose: Box3::width folds its three axes with f64::max, so a refused axis drops out of the sweep's floor test
-status: open
+status: closed
 opened: 2026-10-01
+priority: P2
+cost: E
+rides_with: ssi-chart-speed-usability-boundary
+closed: 2026-10-01
+pr: 3694
+branch: ssi/chart-floor
 ---
 
 
@@ -48,3 +54,7 @@ name, is the fixer's call.
 
 Found by the `ssi/chart-rate` lane's §5 sweep for NaN-dropping folds
 on SSI ground.
+
+## Closed (2026-10-01, PR 3694)
+
+`Box3::width` and `UvRect::width` (and their reaches) fold through `geom_core::interval::max_bound`, so a refused axis keeps NaN.

@@ -1,6 +1,9 @@
 //! **The coefficients are arbitrary-precision dyadic-scaled rationals**
 //! ([`Rat`], over `num-bigint`), bounded at [`rational::COEFF_BITS`]
-//! bits. The readings that argued for the bound, none of them pinned
+//! bits on every walk of every first attempt, and at a WIDER bound only
+//! inside a retry attempt that asks for one (`sym::SymRetry::bits`,
+//! scoped by `with_coeff_bound`, which puts the bound back however the
+//! attempt ends). The readings that argued for the bound, none of them pinned
 //! and none of them a claim about today's tree: the i128-era whole-box
 //! replays reported `frozen: 0` on the bracket, because the `Decide`
 //! impl's DECISION PATH never asks the form of a margin the numeric
@@ -28,6 +31,14 @@ use num_traits::{Signed, ToPrimitive};
 use super::Hash128;
 #[cfg(feature = "sym-profile-testing")]
 use super::profile;
+
+/// The primes the square-part search divides by — enough to take the
+/// square factors a kernel's coefficients actually carry (dimensions,
+/// small integer ratios, the squares a norm leaves) without a
+/// factorisation at every mint.
+const SMALL_PRIMES: &[u32] = &[
+    3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+];
 
 /// **The coefficient integer: an `i128` inline, a `BigInt` only past
 /// it.** The ring is arbitrary-precision under [`COEFF_BITS`], but the
@@ -192,6 +203,50 @@ impl Int {
         }
     }
 
+    /// **`self = q² · f` for a positive integer**: the square part `q`
+    /// taken out and the rest left. Exact where `self` is a square;
+    /// otherwise the square divisors among the small primes, and the
+    /// remainder's own exact root where it has one. A square divisor
+    /// whose prime is past the bound is left in `f` — a missed
+    /// cancellation, never a wrong one, and the same one on every
+    /// spelling because the answer is a function of `self`.
+    fn square_part(&self) -> (Self, Self) {
+        if self.is_zero() || self.is_negative() {
+            return (Self::one(), self.clone());
+        }
+        if let Some(r) = self.isqrt_exact() {
+            return (r, Self::one());
+        }
+        // Small primes first, including two through `strip_twos`.
+        let (odd, twos) = self.strip_twos();
+        let mut q = Self::one();
+        let mut rest = odd;
+        if twos >= 2 {
+            let half = usize::try_from(twos / 2).unwrap_or(0);
+            q = q.shl(half);
+            if twos % 2 == 1 {
+                rest = rest.shl(1);
+            }
+        } else if twos == 1 {
+            rest = rest.shl(1);
+        }
+        for p in SMALL_PRIMES {
+            let sq = Self::Small(i128::from(*p) * i128::from(*p));
+            loop {
+                let g = rest.gcd(&sq);
+                if g != sq {
+                    break;
+                }
+                rest = rest.div_exact(&sq);
+                q = q.mul(&Self::Small(i128::from(*p)));
+            }
+        }
+        if let Some(r) = rest.isqrt_exact() {
+            return (q.mul(&r), Self::one());
+        }
+        (q, rest)
+    }
+
     /// `Some(r)` iff `r·r == self` exactly, for `self >= 0`.
     fn isqrt_exact(&self) -> Option<Self> {
         if self.is_negative() {
@@ -311,6 +366,43 @@ pub(super) struct Rat {
 /// `plate-rim-residual-needs-the-wide-coefficient-ring`.
 pub(super) const COEFF_BITS: u64 = 256;
 
+// **The bound the ring is actually checked against on this thread** —
+// `COEFF_BITS` everywhere except inside a RETRY attempt, which
+// `with_coeff_bound` runs at a wider one.
+//
+// A thread local and not a parameter of the operations, and the reason
+// is where the operations are: `Poly::add`, `Poly::insert`,
+// `Poly::scaled` and `Poly::neg` grow an integer and take no
+// `SymBudget`, so a bound carried as a parameter would be a signature
+// change through `form`, `algebra`, `quotient`, `root`, `manifest`,
+// `signed` and `trig` to reach the two sites that read it. The tier is
+// already scoped on a thread local (`sym::SESSION`), and this one is
+// set and restored by the same scope.
+thread_local! {
+    static COEFF_BOUND: core::cell::Cell<u64> = const { core::cell::Cell::new(COEFF_BITS) };
+}
+
+/// The bound [`Rat::from_parts`] and [`Rat::add`] refuse past.
+#[inline]
+pub(super) fn coeff_bound() -> u64 {
+    COEFF_BOUND.get()
+}
+
+/// Runs `f` with the ring bounded at `bits`, restoring whatever bound
+/// was in force — including if `f` panics, because the guard restores
+/// on drop and a bound left wide would make every later form a
+/// different form.
+pub(super) fn with_coeff_bound<R>(bits: u64, f: impl FnOnce() -> R) -> R {
+    struct Restore(u64);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            COEFF_BOUND.set(self.0);
+        }
+    }
+    let _restore = Restore(COEFF_BOUND.replace(bits));
+    f()
+}
+
 impl Rat {
     pub(super) fn zero() -> Self {
         Self {
@@ -380,7 +472,8 @@ impl Rat {
             profile::note(profile::FreezeCause::Overflow);
             return None;
         };
-        if num.bits() > COEFF_BITS || den.bits() > COEFF_BITS {
+        let bound = coeff_bound();
+        if num.bits() > bound || den.bits() > bound {
             #[cfg(feature = "sym-profile-testing")]
             {
                 profile::coefficient_bits(num.bits().max(den.bits()), false);
@@ -439,7 +532,7 @@ impl Rat {
         let lo = self.exp2.min(other.exp2);
         let shift = |r: &Self| -> Option<Int> {
             let k = usize::try_from(r.exp2.checked_sub(lo)?).ok()?;
-            if k as u64 > COEFF_BITS {
+            if k as u64 > coeff_bound() {
                 #[cfg(feature = "sym-profile-testing")]
                 profile::note(profile::FreezeCause::Coefficient);
                 return None;
@@ -516,6 +609,72 @@ impl Rat {
         let sn = num.isqrt_exact()?;
         let sd = self.den.isqrt_exact()?;
         Self::from_parts(sn, sd, exp2 / 2)
+    }
+
+    /// **The CONTENT gcd of two rationals** — the gcd of the odd
+    /// numerators over the lcm of the odd denominators at the smaller
+    /// power of two, so that dividing a polynomial's coefficients by
+    /// the gcd of all of them leaves integers with no common factor.
+    /// Both arguments are read as magnitudes: a content is positive,
+    /// which is what lets the primitive part carry every sign
+    /// ([`super::root`]).
+    pub(super) fn content_gcd(&self, other: &Self) -> Option<Self> {
+        let (a, b) = (self.abs(), other.abs());
+        if a.is_zero() {
+            return Some(b);
+        }
+        if b.is_zero() {
+            return Some(a);
+        }
+        let g = a.num.gcd(&b.num);
+        let dg = a.den.gcd(&b.den);
+        let l = a.den.mul(&b.den).div_exact(&dg);
+        Self::from_parts(g, l, a.exp2.min(b.exp2))
+    }
+
+    /// **`self = s² · f` for a positive rational, with `f` a positive
+    /// INTEGER**: the denominator rationalised into the root and the
+    /// square part taken out exactly.
+    ///
+    /// **Why the integer, and not the rational the first cut left.**
+    /// `sqrt(1/17)` and `sqrt(17)` are `sqrt(17)/17` and `sqrt(17)` —
+    /// one atom apart, not two — but a split that leaves `f = 1/17` on
+    /// one side and `f = 17` on the other keys them as two
+    /// indeterminates and the tier can never meet them. Writing
+    /// `n/d = (n·d)/d²` puts the whole content under one integer root:
+    /// `sqrt(n/d) = sqrt(n·d)/d`, and `n·d` is a function of the VALUE
+    /// (the pair is in lowest terms with the power of two folded in),
+    /// so every spelling of one rational reaches the same `f`.
+    ///
+    /// The square part is the exact root where the integer is a square,
+    /// and otherwise the small-prime square divisors this ring can
+    /// afford to look for: `sqrt(12x)` becomes `2·sqrt(3x)`. A large
+    /// prime square left under the root costs a cancellation and never
+    /// a wrong answer, and it costs the same one on BOTH spellings —
+    /// the split is a function of `n·d`, so canonicity does not rest on
+    /// how far the search got.
+    pub(super) fn split_square(&self) -> Option<(Self, Self)> {
+        if self.is_negative() || self.is_zero() {
+            return None;
+        }
+        // The power of two folded in, so two spellings of one value
+        // (`2` as `2/1·2⁰` and as `1/1·2¹`) reach the same pair.
+        let (mut n, mut d) = (self.num.clone(), self.den.clone());
+        let k = usize::try_from(self.exp2.unsigned_abs()).ok()?;
+        if self.exp2 >= 0 {
+            n = n.shl(k);
+        } else {
+            d = d.shl(k);
+        }
+        let g = n.gcd(&d);
+        if !g.is_one() {
+            n = n.div_exact(&g);
+            d = d.div_exact(&g);
+        }
+        let m = n.mul(&d);
+        let (q, f) = m.square_part();
+        let s = Self::from_parts(q, d, 0)?;
+        Some((s, Self::from_parts(f, Int::one(), 0)?))
     }
 
     /// A conservative `f64` bracket of the value — the two rounded

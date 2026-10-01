@@ -81,7 +81,7 @@ pub struct Evaluation<T: Decide> {
     /// The pairing doors read this field to refuse a mispairing typed,
     /// before reading anything of the value; the memo reads it too and
     /// refuses differently, below. Node ids alone could not decide any
-    /// of it: they are minted by a per-document counter, so two
+    /// of it: they are minted from the edits that inserted them, so two
     /// documents built from one recipe carry the SAME ids for the same
     /// nodes, and every lookup would hit.
     ///
@@ -288,24 +288,24 @@ impl core::fmt::Display for NodeStanding {
                 f,
                 "node {} has no result in this evaluation: the run was canceled before it \
                  reached the node — re-evaluate the document to completion",
-                node.0
+                node
             ),
             Self::NotInDocument { node } => write!(
                 f,
                 "node {} is not a node of the document this evaluation ran over — ask about \
                  one of that document's nodes, or evaluate the document the node is in",
-                node.0
+                node
             ),
             Self::Failed { node } => write!(
                 f,
                 "node {} failed, so it has no value — fix the node's own failure",
-                node.0
+                node
             ),
             Self::Poisoned { node, through } => write!(
                 f,
                 "node {} is poisoned by the failure at node {}, so it has no value — the \
                  repair is upstream, at node {}",
-                node.0, through.0, through.0
+                node, through, through
             ),
         }
     }
@@ -996,7 +996,7 @@ impl NodeRefusal {
 /// one spelling [`NodeError`]'s `Display` and [`NodeRefusal::line_at`]
 /// share.
 fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind) -> String {
-    format!("node {} failed: {kind}", node.0)
+    format!("node {} failed: {kind}", node)
 }
 
 impl From<NodeErrorKind> for NodeRefusal {
@@ -1024,7 +1024,7 @@ impl From<NodeErrorKind> for NodeRefusal {
 impl PartialEq for NodeRefusal {
     fn eq(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.0, &other.0)
-            || format!("{:?}", self.0) == format!("{:?}", other.0)
+            || format!("{:?}", self.kind()) == format!("{:?}", other.kind())
     }
 }
 
@@ -1821,7 +1821,7 @@ pub enum NodeErrorKind {
         fault: parts::PartFault,
     },
     /// The mate solve refused for this node (ASM-R2a D-4): the mate
-    /// itself, or an instance whose cluster the refusal left without a
+    /// itself, or an instance whose group the refusal left without a
     /// pose. The fault names its own subject — the pair, the residual
     /// subgroup, the failed predicate and its measured clash.
     Mate(Box<crate::mate::MateFault>),
@@ -2132,11 +2132,11 @@ impl core::fmt::Display for NodeErrorKind {
                  {} {} of the part (minted by its node {}), which the pinned part's \
                  product does not name — the crossing does not re-verify against this \
                  version of the part",
-                instance.0,
+                instance,
                 outer,
                 name.kind.article(),
                 name.kind.noun(),
-                name.node.0
+                name.node
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -2154,7 +2154,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
             Self::CurvedSolidFrontier { what } => write!(f, "not yet buildable: {what}"),
             Self::MissingInput { input } => {
-                write!(f, "input {} names no live node", input.0)
+                write!(f, "input {} names no live node", input)
             }
             Self::ToleranceConflict {
                 document_eps,
@@ -2171,7 +2171,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "the seed on parameter {param} reaches section profile node {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
-                section.0
+                section
             ),
             Self::WrongOperand {
                 input,
@@ -2180,12 +2180,12 @@ impl core::fmt::Display for NodeErrorKind {
             } => write!(
                 f,
                 "input {} carries kind {found}; the operand needs kind {expected}",
-                input.0
+                input
             ),
             Self::EmptyOperand { input } => write!(
                 f,
                 "input {} is the empty value — the body ops take real bodies",
-                input.0
+                input
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
@@ -2194,7 +2194,7 @@ impl core::fmt::Display for NodeErrorKind {
                     crate::names::SplitHalf::Above => "above",
                     crate::names::SplitHalf::Below => "below",
                 },
-                input.0
+                input
             ),
             Self::InstanceOutOfRange {
                 input,
@@ -2204,7 +2204,7 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "instance index {index} is outside the pattern's {count} instances (node {}; \
                  the admitted indices are 0 to {})",
-                input.0,
+                input,
                 count.saturating_sub(1)
             ),
             // Every role word is already a complete noun phrase for
@@ -2264,13 +2264,13 @@ impl core::fmt::Display for NodeErrorKind {
                 profile_plane,
             } => {
                 let frame = |f: &Option<RecipeNodeId>| {
-                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n.0))
+                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n))
                 };
                 write!(
                     f,
                     "revolve axis (node {}) is written in {}, but the profile is drawn on {} \
                      — an axis revolves the sketch it lives in",
-                    axis.0,
+                    axis,
                     frame(axis_plane),
                     frame(profile_plane)
                 )
@@ -2306,7 +2306,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "a declared entity is sited at node {}, which is not an operand of this \
                  node — site each side at the member (or the boolean operand) whose table \
                  holds it",
-                at.0
+                at
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -2341,7 +2341,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
                 "the {verb} selection name minted by node {} denotes {} {}, not an edge",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2356,7 +2356,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::ShellOpenKind { name, found } => write!(
                 f,
                 "the shell open-face name minted by node {} denotes {} {}, not a face",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2375,7 +2375,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::FaceFrameKind { name, found } => write!(
                 f,
                 "the derived frame's name minted by node {} denotes {} {}, not a face",
-                name.node.0,
+                name.node,
                 found.article(),
                 found.noun()
             ),
@@ -2401,8 +2401,8 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "profile node {} is drawn on datum frame node {}, and the frame refused \
                  its own direction: {}",
-                profile.0,
-                frame.0,
+                profile,
+                frame,
                 refusal.node_error()
             ),
             Self::DerivedFrameSection { profile, frame } => write!(
@@ -2410,7 +2410,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "section profile node {} is drawn on derived frame node {}, and a loft's or a \
                  sweep's section is placed only in the plain (f64) evaluation, so this \
                  evaluation refuses rather than guess where the frame lies",
-                profile.0, frame.0
+                profile, frame
             ),
             Self::MeasureRefResolve { error } => {
                 write!(f, "a measure reference failed to resolve: {error}")
@@ -2418,7 +2418,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,
                 "the measure reference minted by node {} could not be read back: {error}",
-                name.node.0
+                name.node
             ),
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {
@@ -2640,8 +2640,9 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which answers the three injected doors — the offset fit's, the
-/// fitted pcurves' and the shell verb's — and names the scalar; the
+/// which answers the four injected doors — the offset fit's, the
+/// fitted pcurves', the plane × NURBS lane's and the shell verb's — and
+/// names the scalar; the
 /// part seam gathers a referenced document's product, so evaluation
 /// owns a gate policy per scalar), the two per-scalar
 /// analysis capabilities
@@ -2707,8 +2708,15 @@ pub(crate) mod leaf {
         /// Plain `Interval`, the pre-E12 replay.
         Numeric,
         /// `Sym<Interval>` inside a fresh session at this budget, with
-        /// these atom-algebra rules.
-        Symbolic(geom_core::SymBudget, geom_core::SymRules),
+        /// these atom-algebra rules and this retry ladder
+        /// (`geom_core::SymRetry`) — the three dials
+        /// `drive::SymbolicDials` carries, so a leaf read back here
+        /// runs the tier the drive certified at and not a narrower one.
+        Symbolic(
+            geom_core::SymBudget,
+            geom_core::SymRules,
+            geom_core::SymRetry,
+        ),
     }
 
     /// A shared memo prior over the nominal box, for the numeric lane.
@@ -2813,8 +2821,8 @@ pub(crate) mod leaf {
                     evaluate(doc, prior, &CancelToken::new(), opts, tol);
                 read_leaf(&ev, want, |v| v)
             }
-            LeafLane::Symbolic(budget, rules) => {
-                let (out, _) = geom_core::sym::with_session_rules(budget, rules, || {
+            LeafLane::Symbolic(budget, rules, retry) => {
+                let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, &CancelToken::new(), opts, tol);
                     read_leaf(&ev, want, |v: geom_core::Sym<geom_core::Interval>| v.value)
@@ -3356,10 +3364,10 @@ where
         tol,
     );
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
-    // (A11): one spanning tree per cluster, folded once, read by every
+    // (A11): one spanning tree per group, folded once, read by every
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this cluster sit". Its two geometric
+    // answer to "where does this group sit". Its two geometric
     // reads — each mated part's extent (the lever) and a `FromFace`
     // side's face pose — come off THIS run's part cache: at the top a
     // mated part is evaluated on its first ask, once, under the cache's
@@ -3594,7 +3602,7 @@ fn resolve_appearance<T: Decide>(
             (id, state.map(|v| &*v.name_table))
         })
         .collect();
-    appearance::resolve(doc.appearance(), &states)
+    appearance::resolve(doc.appearance(), order, &states)
 }
 
 /// One node's evaluation step: the result plus whether it was a memo
@@ -3665,6 +3673,22 @@ where
         // Unreachable: the schedule only lists live nodes.
         return fail(bracket, NodeErrorKind::MissingInput { input: id });
     };
+    // A mate's log opens with what the solve decided about it: the
+    // solve ran before any frame was open and kept each decision for
+    // the one mate whose answer it decided
+    // (`mate::solve::SolvedPoses::take_recordings`), so the decision
+    // is on this mate's log whether the mate evaluates `Ok` or not.
+    let spliced = matches!(node, crate::node::Node::Mate { .. }).then(|| {
+        let mut kept = geom_core::k_stats::Recorded::default();
+        for recording in op_env.poses.take_recordings(id) {
+            kept.verdicts
+                .extend_from_slice(&recording.recorded().verdicts);
+            kept.escalations
+                .extend_from_slice(&recording.recorded().escalations);
+            geom_core::k_stats::splice(recording);
+        }
+        kept
+    });
 
     // Poison propagation (spec D2, GQ2): first blocking input in the
     // node's deterministic input order; `through` always names a
@@ -3868,6 +3892,23 @@ where
         // dozen verdicts per hit, beside a precompute that just
         // replayed and validated the profile.
         let fresh = bracket.finish();
+        // A mate's log is the solve's recording for it and nothing
+        // else (its op decides nothing), and the solve runs afresh
+        // every evaluation: what it decides about a mate reads the
+        // mates folded before it, which the mate's key does not. So a
+        // reused mate carries this run's recording, the log a fresh
+        // evaluation of it would carry.
+        if let Some(spliced) = &spliced {
+            mate_log_is_the_solves(id, &fresh, spliced);
+            return NodeStep {
+                result: NodeResult::Ok(NodeValue {
+                    verdicts: Arc::new(fresh.verdicts),
+                    escalations: Arc::new(fresh.escalations),
+                    ..v.clone()
+                }),
+                reused: true,
+            };
+        }
         assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations),
@@ -3913,6 +3954,9 @@ where
         Err(_) => Ok(None),
     };
     let recorded = bracket.finish();
+    if let Some(spliced) = &spliced {
+        mate_log_is_the_solves(id, &recorded, spliced);
+    }
     let escalations = Arc::new(recorded.escalations);
     match (op, placement) {
         (Ok(out), Ok(placement)) => NodeStep {
@@ -3950,6 +3994,27 @@ where
             reused: false,
         },
     }
+}
+
+/// **A mate's frame holds exactly what the solve recorded for it.** A
+/// mate's key and its op decide nothing, which is what lets a reused
+/// mate carry this run's recording in place of its prior log (the memo
+/// hit's mate arm, which bypasses the prefix assert). A mate op or key
+/// that comes to decide anything breaks that, and trips here. The
+/// escalations compare by predicate, since a margin that is no number
+/// compares unequal to itself.
+fn mate_log_is_the_solves(
+    id: RecipeNodeId,
+    frame: &geom_core::k_stats::Recorded,
+    spliced: &geom_core::k_stats::Recorded,
+) {
+    let named = |r: &geom_core::k_stats::Recorded| -> Vec<&'static str> {
+        r.escalations.iter().map(|e| e.predicate()).collect()
+    };
+    assert!(
+        frame.verdicts == spliced.verdicts && named(frame) == named(spliced),
+        "mate {id}'s frame holds decisions the solve did not record for it"
+    );
 }
 
 /// **The content key's structural tags, declared by vocabulary.**
@@ -4355,7 +4420,7 @@ fn document_verb_tag(kind: verbs::VerbKind) -> u8 {
 struct SolveAnswer {
     /// The instance's solved world placement, `None` when the node is
     /// not a placed instance — which includes an instance whose
-    /// cluster refused.
+    /// group refused.
     placement: Option<crate::placement::Frame>,
     /// The role the solve assigned. `None` covers BOTH "not a live
     /// mate" and a live mate the solve never reached — a `Band`
@@ -4418,7 +4483,7 @@ impl SolveAnswer {
         }
     }
 
-    /// The placement's tags: one for "no pose" so a refusing cluster
+    /// The placement's tags: one for "no pose" so a refusing group
     /// keys distinctly from any pose, else the frame's bits.
     fn feed_placement(self, h: &mut KeyHasher) {
         match self.placement {
@@ -4786,7 +4851,7 @@ where
         }
         // ASM-2A D-1/D-2: WHICH document (id + pin — the pin IS the
         // referenced content, so nothing about the part needs hashing
-        // here) and WHERE its cluster sits. The placement is document
+        // here) and WHERE its group sits. The placement is document
         // data, not node data, which is exactly why it must feed the
         // key: a `SetPlacement` moves this node's value and nothing
         // else about the node changes. The INTERFACE RECORD feeds the
@@ -4800,7 +4865,7 @@ where
         } => {
             feed_doc_ref(&mut h, doc_ref);
             // The SOLVED placement (ASM-R2a D-5): a mate edit that
-            // moves this instance's pose moves its key, and a cluster
+            // moves this instance's pose moves its key, and a group
             // that refuses to solve keys DISTINCTLY from any pose —
             // otherwise a repaired document could hit the memo on a
             // stale success.
