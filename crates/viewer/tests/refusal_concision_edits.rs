@@ -373,7 +373,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                             },
                         )],
                     },
-                    s(3, "Profile"),
+                    s(3, "Extrude"),
                 ),
                 step: editor_core::StepId(tagged(9)),
             },

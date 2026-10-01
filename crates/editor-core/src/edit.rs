@@ -2538,22 +2538,25 @@ impl core::fmt::Display for Maintenance {
             // were deleted, and the name is exactly what survives.
             Self::Strand { node, name } => write!(
                 f,
-                "{} carries a {}; this edit removed what it denoted (its minting node, or \
+                "{} carries {} {}; this edit removed what it denoted (its minting node, or \
                  the profile segment it named), so the name resolves to nothing until it is \
                  rebound",
-                node, name
+                node,
+                name.name().kind.article(),
+                name
             ),
             // The same sentence with the store where the carrying
             // node was: what a reader has to know is that the paint
             // is still there and what took its referent. A store holds
-            // a thing UNDER a key, and `StableName`'s own Display
-            // supplies the noun ("face name minted by node 7"), so
+            // a thing UNDER a key, and `SpokenName`'s Display supplies
+            // the noun ("face name minted by Extrude 3fa9c1d2a0b1"), so
             // the article is this sentence's to provide.
             Self::StrandedAppearance { name } => write!(
                 f,
-                "the appearance store holds an attachment under a {}; this edit removed what it \
-                 denoted (its minting node, or the profile segment it named), so the name \
+                "the appearance store holds an attachment under {} {}; this edit removed what \
+                 it denoted (its minting node, or the profile segment it named), so the name \
                  resolves to nothing until it is rebound or cleared",
+                name.name().kind.article(),
                 name
             ),
             // The subject is the SURVIVOR here, where both strand
@@ -2574,12 +2577,6 @@ impl core::fmt::Display for Maintenance {
                  again",
                 declare
             ),
-            // The two names render through `StableName`'s own Display,
-            // which spells the kind and the minting node and not the
-            // path, so the two spellings read alike; what the sentence
-            // adds is what happened between them — the profile the
-            // name's segment was drawn from was reshaped, and the
-            // rewrite is a repair the door made, not a loss it left.
         }
     }
 }
@@ -3065,10 +3062,13 @@ fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
     }
 }
 
-/// **A node an edit's result names, as its refusal speaks it**: by
-/// [`written`]'s rule when `after` holds it, and from `before` when it
-/// does not, which is [`SpokenNode::absent`] when neither holds it.
-fn spoken_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId) -> SpokenNode {
+/// **A node an edit's result names, as its refusal speaks it**: from
+/// `before` when it holds the node, else by its kind as `after` mints
+/// it ([`written`]), else [`SpokenNode::absent`]. A refusal speaks the
+/// node as the author handed it; a cluster gauge prefers `after`
+/// (`mate::solve::gauge_spoken`) because its row reports what the edit
+/// left.
+fn spoken_before_else_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId) -> SpokenNode {
     match after.node(id) {
         Some(node) => written(before, id, node),
         None => before.spoken(id),
@@ -4305,7 +4305,8 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     // The D-2 backstop, on EVERY arm: the maintenance rules make the
     // invariant-violating states unreachable, and this is what says so
     // rather than assuming it.
-    crate::roots::check(&new, |id| spoken_after(doc, &new, id)).map_err(EditError::Roots)?;
+    crate::roots::check(&new, |id| spoken_before_else_after(doc, &new, id))
+        .map_err(EditError::Roots)?;
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
     // lists at least one placement, and its frames meet the SAME bar

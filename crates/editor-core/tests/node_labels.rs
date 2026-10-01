@@ -519,3 +519,44 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
         "{refused}"
     );
 }
+
+/// **The load door speaks the node it refuses with its label.** The
+/// validator judges a deserialized document whose labels have already
+/// passed `Label::new` and the live-key rule, so a root refusal there
+/// speaks from it like the edit door's does. The craft drops one of
+/// two tips from the root list, stranding that tip's whole chain.
+#[test]
+fn a_load_root_refusal_speaks_the_labelled_node_from_the_file() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("node-labels-load-roots", tol);
+    let (doc, [_, _, kept]) = block(doc, 0.0);
+    let (doc, lost) = block(doc, 5.0);
+    let doc = lost
+        .iter()
+        .fold(doc, |doc, &id| set_label(doc, id, Some("stranded")));
+    let text = save(&doc, &[], tol).expect("the honest document saves");
+    let honest = format!(
+        "\"roots\": [\n      {},\n      {}\n    ]",
+        kept.0, lost[2].0
+    );
+    assert!(
+        text.contains(&honest),
+        "the save's root list is the two tips"
+    );
+    let crafted = text.replace(&honest, &format!("\"roots\": [\n      {}\n    ]", kept.0));
+    let refused = match load(&crafted, tol) {
+        Err(PersistError::Snapshot(SnapshotError::Roots(fault))) => fault,
+        other => panic!("a crafted uncovered document refuses, got {other:?}"),
+    };
+    let RootFault::Uncovered { node } = &refused else {
+        panic!("the stranded chain is uncovered, got {refused:?}");
+    };
+    assert!(lost.contains(&node.id()), "{node}");
+    assert_eq!(node.label(), Some(&label("stranded")), "{node}");
+    assert!(
+        refused
+            .to_string()
+            .contains(&format!("\"stranded\" ({})", tag(node.id().0))),
+        "{refused}"
+    );
+}

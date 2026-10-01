@@ -32,13 +32,13 @@ use crate::doc::Doc;
 use crate::node::RecipeNodeId;
 use crate::spoken::SpokenNode;
 
-/// A product-root invariant violation. One type, two doors: the edit
-/// layer wraps it in [`crate::EditError`], the persistence validator
-/// in [`crate::SnapshotError`] — a single implementation of the
-/// invariant, so the two doors cannot drift. Each door speaks the
-/// nodes it names its own way: the edit door from the document it was
-/// handed, the load door by tag, since the bytes it judges are not a
-/// document yet.
+/// A product-root invariant violation. One type, three doors: the edit
+/// layer wraps it in [`crate::EditError`], the load and save doors'
+/// shared validator in [`crate::SnapshotError`] — a single
+/// implementation of the invariant, so the doors cannot drift. Every
+/// door speaks the nodes it names from the document it holds; the edit
+/// door's is the one it was handed, and the validator's the one it
+/// judges.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RootFault {
     /// A root entry does not name a live node.

@@ -1523,7 +1523,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
     // walk so a file with dangling inputs is diagnosed as such rather
     // than as an incidental coverage failure.
-    crate::roots::check(doc, crate::SpokenNode::absent).map_err(SnapshotError::Roots)?;
+    crate::roots::check(doc, |id| doc.spoken(id)).map_err(SnapshotError::Roots)?;
     // D7's producer convention, asked of the whole map. The RULE is
     // already shared — `MetaValue::require_versioned` is the one
     // predicate, and `SetAppearanceMeta` calls it too — and what is not

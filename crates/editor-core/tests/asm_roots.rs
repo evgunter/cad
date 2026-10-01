@@ -270,9 +270,13 @@ fn row2b_coverage_refuses_on_a_crafted_save() {
                 node.id() != a,
                 "the stranded chain is b's, not a's (got {node})"
             );
-            // The bytes are not a document yet, so the load door
-            // speaks the node by its tag alone.
-            assert_eq!(node, SpokenNode::absent(node.id()), "{node}");
+            // The validator holds the document it judges, and speaks
+            // the node from it.
+            assert_eq!(node, doc.spoken(node.id()), "{node}");
+            assert!(
+                node.kind().is_some(),
+                "a held node is spoken by its kind: {node}"
+            );
         }
         other => panic!("a crafted uncovered document must refuse, got {other:?}"),
     }

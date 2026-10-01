@@ -14,7 +14,8 @@
 //!   one a later rename left stale.
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
-//!   `Display`, a load door reading bytes that are not a document yet).
+//!   `Display`, a stored reference). The edit, load and save doors all
+//!   hold a document, so each speaks.
 //! - [`FullId`] — every bit of the id, for a machine channel (a
 //!   binding's `repr`, a goldened report) where two ids must never
 //!   print alike.
@@ -201,14 +202,25 @@ impl fmt::Display for SpokenNode {
 /// from, under [`SpokenNode`]'s rule. Boxed, so that a refusal carrying
 /// one stays the width of a pointer.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SpokenName(Box<(StableName, SpokenNode)>);
+pub struct SpokenName(Box<SpokenNameParts>);
+
+/// [`SpokenName`]'s two halves, behind its box.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SpokenNameParts {
+    name: StableName,
+    minter: SpokenNode,
+}
 
 impl SpokenName {
     /// A spoken name with no document behind it, for a fixture that
     /// builds by hand what a document would say.
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn forged(name: StableName, minter: SpokenNode) -> Self {
-        Self(Box::new((name, minter)))
+        Self::new(name, minter)
+    }
+
+    fn new(name: StableName, minter: SpokenNode) -> Self {
+        Self(Box::new(SpokenNameParts { name, minter }))
     }
 
     /// A name whose minting node no document at hand holds: `node
@@ -216,19 +228,19 @@ impl SpokenName {
     #[must_use]
     pub fn absent(name: StableName) -> Self {
         let minter = SpokenNode::absent(name.node);
-        Self(Box::new((name, minter)))
+        Self::new(name, minter)
     }
 
     /// The name, as the document stores it.
     #[must_use]
     pub fn name(&self) -> &StableName {
-        &self.0.0
+        &self.0.name
     }
 
     /// The node that minted it, spoken.
     #[must_use]
     pub fn minter(&self) -> &SpokenNode {
-        &self.0.1
+        &self.0.minter
     }
 }
 
@@ -248,7 +260,7 @@ impl<P> Doc<P> {
     /// minting node read off this document now.
     #[must_use]
     pub fn spoken_name(&self, name: &StableName) -> SpokenName {
-        SpokenName(Box::new((name.clone(), self.spoken(name.node))))
+        SpokenName::new(name.clone(), self.spoken(name.node))
     }
 
     /// The node `id` as a sentence speaks it ([`SpokenNode`]), read off

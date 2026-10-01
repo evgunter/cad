@@ -557,7 +557,14 @@ fn nominal_of(
         Ok(v) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
             ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
-            other => Err((id, format!("node is a {}", other.kind_name()))),
+            other => Err((
+                id,
+                format!(
+                    "node is {} {} node",
+                    crate::sentence::article(other.kind_name()),
+                    other.kind_name()
+                ),
+            )),
         },
         Err(standing) => Err(no_measure(ev, standing)),
     }
@@ -603,7 +610,11 @@ fn measure_of<T: geom_core::Decide + Copy>(
             // node's own refusal rather than panicking.
             other => Err((
                 id,
-                format!("node evaluated to a {}, not a measure", other.kind_name()),
+                format!(
+                    "node evaluated to {} {} value, not a measure",
+                    crate::sentence::article(other.kind_name()),
+                    other.kind_name()
+                ),
             )),
         },
         Err(standing) => Err(no_measure(ev, standing)),
