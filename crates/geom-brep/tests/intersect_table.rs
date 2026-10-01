@@ -642,7 +642,7 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
     let cone = cone_z(alpha);
     let apex = Point3::new(0.0, 0.0, 1.0);
     let q = Point3::new(0.0, 0.0, 4.0);
-    for phi in [1e-3f64, 0.2, 0.5, 0.9, 1.0] {
+    for phi in [0.02f64, 0.2, 0.5, 0.9, 1.0] {
         let plane = tilted_plane(phi, q);
         let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
         let PlaneConeSection::TiltedEllipse(e) = s else {
@@ -688,14 +688,22 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
             assert!(implicit_residual(&cone, p).abs() < 1e-12, "phi {phi}");
         }
     }
-    // The circle limit: at a small tilt both semi-axes approach the
-    // axis-normal circle's |h|·tan α = 3·tan 30°.
-    let s = plane_cone_section(&tilted_plane(1e-3, q), &cone, 1.0, band()).unwrap();
-    let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { major, minor, .. }) = s else {
-        panic!("expected the ellipse, got {s:?}");
-    };
+    // The circle limit: both semi-axes approach the axis-normal
+    // circle's |h|·tan α = 3·tan 30° as the tilt φ closes, at O(φ²). A
+    // tilt the band cannot tell from the circle is the constructor's
+    // `ellipse_axes_distinct` refusal, so the limit is read at tilts
+    // every ε row resolves.
     let rim = 3.0 * alpha.tan();
-    assert!((major - rim).abs() < 1e-5 && (minor - rim).abs() < 1e-5);
+    for phi in [0.04f64, 0.02, 0.01] {
+        let s = plane_cone_section(&tilted_plane(phi, q), &cone, 1.0, band()).unwrap();
+        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { major, minor, .. }) = s else {
+            panic!("phi {phi}: expected the ellipse, got {s:?}");
+        };
+        for axis in [major, minor] {
+            let rel = (axis / rim - 1.0).abs();
+            assert!(rel > 0.0 && rel < 2.0 * phi * phi, "phi {phi}: {rel:e}");
+        }
+    }
 }
 
 /// A plane parallel to a generator cuts a parabola and a steeper one a
