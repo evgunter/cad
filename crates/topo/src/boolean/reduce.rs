@@ -3756,7 +3756,12 @@ mod declaration_order_rows {
             let got = crate::mass_properties(body, tol)
                 .expect("its volume")
                 .volume;
-            assert!((got - volume).abs() <= 1e-9, "{label}: {got} vs {volume}");
+            // The lump takes an in-band residue: the face it glues
+            // moves by less than the band over less than unit area.
+            assert!(
+                (got - volume).abs() <= band.escalate(),
+                "{label}: {got} vs {volume}"
+            );
             let contradicted = union_declared(&block, &wedge, pair, Some(other));
             assert!(
                 matches!(
