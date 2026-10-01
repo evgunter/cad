@@ -5451,3 +5451,36 @@ pattern, so it raises no new design question.
 such a move and neither reordering nor `set_face_surfaces_describing`
 serves it, the lane stops before adding a describing twin. A new public
 door is the orchestrator's design question.
+
+## PR 3648 (kev under --all-features) delivered; row closed; merge on CI (2026-10-01)
+
+The lane delivered PR 3648 (`7879fbbd69`), and CI run 36830963302 went
+green.
+
+**The feature:** `per-op-postcondition` alone, the per-op tier-1
+"scalpel", which also sweeps inside surgery scopes.
+
+**The cause: (b), test-side.** Both tests plant a tear on purpose. The
+scalpel then correctly reports the planted tear after the operator's
+last write. `kev` writes nothing wrong.
+
+**The fix:** `fixtures::through_the_scalpel`, a test-only helper.
+- Without the feature it runs the operator unchanged.
+- Under the feature it catches only the named operator's own
+  postcondition panic, and re-raises every other panic.
+- The kev row asserts the scalpel reports exactly the planted dangling
+  reference.
+- The kill-anchor and movefac tear rows count a fired check as the
+  `Ok` it preceded, then read the operator's complete write.
+
+**My read:** the helper is narrow, and default builds are untouched. No
+full review, since it is test-only.
+
+**Local `--all-features` results** (CI cannot see them):
+- topo lib 1105/1105 and `all` 772/772;
+- sweep with the scalpel, 1777/1777.
+
+**Filed on CIW** (which owns `.github/workflows/`): no CI row runs topo
+under the scalpel. Evidence was added to GUARD's feature-gated-tests row.
+
+The row is closed on the branch (`e4eb061aff`). The PR merges on green.
