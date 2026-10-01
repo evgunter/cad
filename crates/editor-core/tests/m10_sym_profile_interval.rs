@@ -302,10 +302,9 @@ const PLATE_MAX_TERMS: usize = 288;
 ///
 /// What moves it: any change to the forms the walks meet, or the order
 /// they meet them in — a loop's start vertex, how a sketch segment or
-/// an arc apex is pushed forward, the margin a naming decision reads
-/// (a crossing's rank reads the crossed edge's carrier parameter).
-/// A change that moves only digests reorders the forms; one that moves
-/// counts changes what is built.
+/// an arc apex is pushed forward, where a curve is sampled. A change
+/// that moves only digests reorders the forms; one that moves counts
+/// changes what is built.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 951 forms 14609 frozen 672 digest 862d1bcb8824974bf5e7adcbcd51a7f8\n\
      Plain/Assertion calls 462 forms 2593 frozen 372 digest a65c6becddcd3c0c854d538a57a53cc3\n\
