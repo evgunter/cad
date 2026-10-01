@@ -75,9 +75,9 @@ fn constructor_bit_movement_over_the_recorded_corpus() {
     let (mut res_old, mut res_new) = (0.0f64, 0.0f64);
 
     for ax in AXES {
-        let axis = Vec3::new(ax[0], ax[1], ax[2]);
+        let axis = Vec3::from_array(ax);
         for an in ANCHORS {
-            let p = Point3::new(an[0], an[1], an[2]);
+            let p = Point3::from_array(an);
             let q = p - Point3::origin();
             let mag = q.norm();
             for angle in ANGLES {

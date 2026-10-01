@@ -2,12 +2,13 @@
 id: a-rigid-map-re-derives-the-plane-nurbs-edge-certificate-in-a-frame-that-moves-it
 kind: issue
 title: transform_rigid_via re-derives the plane x NURBS edge certificate in the new frame, and its componentwise box norms move under rotation, so an edge certified near its band can refuse after a rigid map
-status: open
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: M
-pr: 3668
-branch: ssi/probes
+closed: 2026-10-01
+pr: 3685
+branch: ssi/frame-invariant-bound
 design: true
 ---
 
@@ -78,14 +79,15 @@ limbs read:
 | `min_sin_theta` | 1.000000 | unchanged |
 | limb 2, `hull_sup` | 0.97053 ε | up to 1.14790 ε (**×1.183**) |
 
-Limb 2 decomposes into the fold and the enclosure width. The bound is
+Limb 2 decomposes into the fold and the Bernstein-box overshoot. The bound is
 `tensor::SurfaceResidual::sup_bound`: the three whole-domain
 per-coordinate sups, folded Euclidean. For this field that fold is
 `√(1 + ½)·δ = 1.2247 δ` seated and up to `√2·δ = 1.4140 δ` under a
 quarter-turn-ish map (**×1.155**). The bound over the fold of the true
-field, which is the enclosure-width overshoot, goes from 1.0123 to
+field, which is the Bernstein-box overshoot (each coordinate's
+coefficient hull over that coordinate's true sup), goes from 1.0123 to
 1.0371 (**×1.024**). So the fold accounts for most of the drift and the
-enclosure width for the rest. `EncloseBox::speed_sup` and the tube pad
+Bernstein-box overshoot for the rest; both are boxes. `EncloseBox::speed_sup` and the tube pad
 do not move anything measurable here.
 
 The same composite's per-span bounds (`span_bounds()`), each folded
@@ -115,7 +117,7 @@ unlucky frame.
    into the plane's own frame (origin, `u_ref`, `n × u_ref`, `n`) before
    the composite, plus a pad for the rounding of that map. The
    certificate is then rigid-invariant up to that pad, which fixes both
-   the fold and the enclosure term, at the cost of a rigorous pad
+   the fold and the Bernstein-box overshoot, at the cost of a rigorous pad
    argument. It still refuses within an ulp-scale band of ε, which is
    the honest residue.
 3. *Carry the certificate across the map.* Accept the operand-frame
@@ -134,3 +136,42 @@ are frame-sensitive and points here. The same docs' two-class contract
 ("what can still refuse is authored VERDICT marginality") is
 ratified text (the PR #83 ruling) and is not re-worded here. This class
 is a third refusal it does not name.
+
+## Closed (2026-10-01, PR 3685)
+
+Landed in `ssi/frame-invariant-bound`, as the two designers' agreed
+remedy (neither option 1 nor 2 above). `tensor::SurfaceResidual` reads
+limb 2 from the residual's vector Bernstein coefficients: per cell,
+`max_k |n_k| / |d_k|` over a one-signed scalar denominator, which is
+sound because `N/D` is a convex combination of the `n_k/d_k` and the
+norm is convex. `|n_k|` is `norm_sup`, and the quotient is `div_up` over
+`|d_k|`'s lower end. Per span it takes the largest over the cells
+touched, and `sup_bound` the largest over spans. A rigid map rotates
+each `n_k` and leaves its norm unchanged, so the bound moves only by
+rounding. The per-coordinate `[Interval; 3]` per span and its
+whole-domain `bound()` are gone.
+
+On this row's subject, at the default ε, with the edge seated at
+0.969 ε: **32 of 32 rotations move the body** (8 before), and limb 2
+moves by at most ×1.00066 (×1.183 before). That is about 6e-13 m, and
+it does not scale with δ. The two rows in
+`crates/topo/tests/rigid_map_near_eps_plane_nurbs.rs` pin both claims.
+They cost seconds each, so they are in the CI slow set and run nightly
+(and per PR only when the diff seeds `topo`). The per-PR guard on frame
+invariance is the fast geom-core row
+`m5_pr7b_tensor_compose::a_rotation_moves_the_bound_only_by_rounding`,
+which runs on every PR. The two topo rows pin the bound's floor at
+δ = 0 (3.06e-12 m at every battery ε) and stand down by name only at
+an ε that floor reaches, which is ε = 1e-12.
+
+The measured section's "enclosure width" was the Bernstein-box
+overshoot, which is also a box artefact; it is corrected above. The
+transform module's doc now says that this limb is preserved up to
+rounding and that the residue can still refuse an edge certified within
+that width of ε, typed.
+
+Siblings found by the sweep and filed:
+`work/ssi/the-chart-speed-and-tube-pads-read-a-derivative-norm-off-a-per-coordinate-box.md`,
+`work/encl/the-offset-certificate-reads-vector-norms-off-per-coordinate-cell-hulls.md`,
+`work/props/props-reads-vector-norm-bounds-off-per-coordinate-hulls.md`,
+`work/chord/chord-reads-derivative-norm-bounds-off-per-coordinate-enclosures.md`.

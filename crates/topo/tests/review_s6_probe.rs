@@ -70,7 +70,14 @@ fn probe_boolean_coincidence_pair_e2e() {
         .expect_err("in-band gap must escalate");
     let msg = err.to_string();
     eprintln!("[probe] boolean in-band:\n  {msg}\n");
-    assert_unified(&msg, COINCIDENCE_RECOURSE);
+    // The sweep asks a corner's side of the other brick's face before
+    // any declaration is read, so its refusal names the geometry and
+    // the tolerance, and no declaration a pair of faces could carry.
+    assert_unified(
+        &msg,
+        "Recourse: move the parts so they clearly meet or clearly stand apart there",
+    );
+    assert!(!msg.contains("declare the coincidence"), "{msg}");
     assert!(
         msg.contains("ambiguity band") || msg.contains("cannot be classified"),
         "margin payload must survive: {msg}"

@@ -49,3 +49,23 @@ reason.
 Found by the `ssi/chart-rate` lane's sweep for `sqrt().next_up()`.
 That pattern cannot match a root and its step written apart, which is
 how `quad.rs` was found only by a second pass over `fn *sqrt*`.
+
+## Since `linalg/certification-gains-a-sqrt-door`
+
+The door exists (`Certification::sqrt`, the backend's root), and
+`sqrt_up`/`sqrt_down` are gone from `geom_core::interval`. Two of the
+three sites retired into the door on that branch: `quad.rs`'s
+`sqrt_enclosure` and the `chords.rs` closing root. The backend's root
+of `[0, 0]` is now exactly `[0, 0]` (`interval_transcendentals`'
+`sqrt_hi` used to pad it to the least subnormal, below the 2Prod
+witness's floor), so a door root keeps the exact zero this row worried
+about.
+
+What is left is the first site:
+`crates/geom/src/curves/second_derivative.rs`,
+`nonrational_second_derivative_sup`, still
+`sum_sq.hi().sqrt().next_up()`. The file is a listed door importer, so
+the fix is `sum_sq.sqrt().hi()` behind the typed refusal it already
+asks. The consumer judgement this row asks for still stands: at an
+exact-zero sum it moves the bound from `5e-324` to `0.0`, and
+`step-export`'s `writer.rs` reads it into a node count.

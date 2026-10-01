@@ -344,6 +344,20 @@ pub enum SplitJoinError {
         /// What failed.
         what: &'static str,
     },
+    /// A sphere face's section plane is definitely TILTED against the
+    /// face's chart polar axis (`split_sphere_section_polar`): the
+    /// azimuth-anchored arc-side rule premises azimuth monotone along
+    /// the section carrier, which a sphere chart gives only for a polar
+    /// section. A deliberate typed frontier, for a plane×sphere pair and
+    /// for a sphere pair's radical plane alike — the no-crossings re-cut
+    /// re-charts a free ball so its sections ARE polar; a configuration
+    /// it does not reach stops here.
+    SectionNotPolar {
+        /// The sphere face being divided.
+        face: FaceKey,
+        /// The band the tilt was decided against.
+        band: Band,
+    },
 }
 
 impl From<EulerOpError> for SplitJoinError {
@@ -496,6 +510,15 @@ impl SplitJoinError {
             Self::SectionInvariant { face, what } => {
                 write!(f, "curved-section invariant at face {face:?}: {what}")
             }
+            Self::SectionNotPolar { band, .. } => write!(
+                f,
+                "a section through a sphere face is tilted against the sphere's polar axis, \
+                 and the join takes only polar sections ('split_sphere_section_polar', band \
+                 ({:e}, {:e})). Recourse: revolve the ball about the section's normal: the \
+                 line through both centres for two balls, the face's normal for a plane",
+                band.zero(),
+                band.escalate(),
+            ),
         }
     }
 }
@@ -766,12 +789,8 @@ fn section_case<T: Decide>(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
                  plane×cylinder and plane×sphere, and a curved×curved pair has no arc-side \
                  rule to run; refused typed rather than defaulted to a straight chord. A \
-                 SPHERE PAIR is the sharp case: its section IS an exact closed-form Circle \
-                 (sphere_sphere_section), so what is missing is not the locus but the \
-                 CHART the arc-side rule reads — the azimuth-anchored rule premises \
-                 azimuth monotone along the carrier, which holds on a sphere chart only \
-                 for a POLAR section, and a sphere pair's section axis is the centre line, \
-                 polar for neither operand unless both charts already aim along it",
+                 sphere pair never arrives here: its section lies in the pair's radical \
+                 plane, which the boolean's join hands each side as a plane×sphere pair",
             ));
         }
     };
@@ -827,12 +846,7 @@ fn section_case<T: Decide>(
         {
             Sign::Zero => {}
             Sign::Positive | Sign::Negative => {
-                return Err(invariant(
-                    "plane×sphere section tilted against the sphere chart's polar \
-                     axis — the azimuth-anchored arc-side rule needs a polar \
-                     section (the extent-certified re-cut re-charts the operand; a tilted \
-                     residual configuration is a typed frontier)",
-                ));
+                return Err(SplitJoinError::SectionNotPolar { face, band });
             }
         }
         return Ok(SectionCase::Conic(SectionConic {
@@ -1432,6 +1446,29 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
     Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
+}
+
+/// [`face_azimuth_window`] on `face`'s own surface: the window every
+/// reader folds, read from outside the crate so a suite can hold the
+/// interval lane's window against the `f64` replay's. `sweep-testing`
+/// only, never production surface.
+///
+/// # Errors
+///
+/// As [`face_azimuth_window`], and [`SplitJoinError::Corrupt`] for a
+/// face or surface key that does not resolve.
+#[cfg(feature = "sweep-testing")]
+pub fn face_azimuth_window_traces<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Option<(T, T)>, SplitJoinError> {
+    let key = body
+        .get_face(face)
+        .ok_or_else(|| corrupt_face(face))?
+        .surface;
+    let surface = body.get_surface(key).ok_or_else(|| corrupt_face(face))?;
+    face_azimuth_window(body, surface, face, band)
 }
 
 /// The azimuth hull of a walk's images: the window every caller folds.
@@ -2101,21 +2138,25 @@ fn run_azimuth_images<T: Decide>(
                             // index above: the branch wanted is the
                             // unique one in an OPEN interval, and the
                             // nearest one is exactly what carries no
-                            // information here. That puts this fold's
-                            // jump at an integer `q` — the entry azimuth
-                            // landing exactly on the previous exit —
-                            // where the open interval's two ends are
-                            // genuinely different answers and an
-                            // enclosure straddling it reports both. It
-                            // is a boundary of a half-open selection,
-                            // not a fold written around its own live
-                            // value, so it is recorded rather than
-                            // respelled.
+                            // information here.
+                            //
+                            // The selection jumps at an integer `q`: the
+                            // entry meridian leaves the pole along the
+                            // half-meridian the previous one arrived on —
+                            // a slit, two meridian edges overlapping, or a
+                            // wedge inside rounding. An enclosure
+                            // straddling the jump spans both branches,
+                            // `prev` and `prev ± τ`, so the window's width
+                            // encloses τ or more. What makes that sound
+                            // is the property a window reader relies on:
+                            // it reads the window as a region only once
+                            // its period gate has decided the width
+                            // definitely under τ, so on this window it
+                            // declines or escalates and never reads it.
+                            let q = (prev - raw) / tau;
                             k = if advancing {
-                                let q = (prev - raw) / tau;
                                 q.floor() + T::one()
                             } else {
-                                let q = (prev - raw) / tau;
                                 T::zero() - (T::zero() - q).floor() - T::one()
                             };
                         }
@@ -2515,8 +2556,8 @@ fn face_plane_normal<T: Decide>(
     }
 }
 
-/// A representative point of a ring (its anchor vertex).
-fn ring_representative<T: Decide>(
+/// A representative point of a loop (its anchor vertex).
+pub(crate) fn ring_representative<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
 ) -> Result<Point3<T>, SplitJoinError> {

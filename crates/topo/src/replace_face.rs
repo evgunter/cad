@@ -1901,7 +1901,8 @@ fn plan_edge<T: Decide>(
             let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
             let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
                 .map_err(|e| match e {
-                geom_brep::SectionError::Escalated(source) => {
+                geom_brep::SectionError::Escalated(source)
+                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
                     ReplaceFaceError::Escalated { source }
                 }
                 // `route_pose` returns only an escalation or a
@@ -2514,7 +2515,7 @@ mod offset_fit_door_rows {
         let bits = |n: &geom::NurbsSurface<f64>| -> Vec<u64> {
             n.control()
                 .iter()
-                .flat_map(|p| [p.x, p.y, p.z])
+                .flat_map(|p| p.to_array())
                 .chain(n.weights().iter().copied())
                 .chain(n.knots_u().knots().iter().copied())
                 .chain(n.knots_v().knots().iter().copied())

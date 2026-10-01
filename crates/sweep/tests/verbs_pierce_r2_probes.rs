@@ -251,7 +251,7 @@ fn r2_the_1032_declaration_measurement_reproduces() {
 
     let mut body = plate.clone();
     let plate_faces: std::collections::BTreeSet<_> = body.faces().map(|(k, _)| k).collect();
-    topo::graft_disjoint(&mut body, &boss, tol).unwrap();
+    topo::graft_disjoint(&mut body, &boss).unwrap();
     let is_cyl = |body: &Body<f64>, f: &topo::Face| {
         matches!(
             body.get_surface(f.surface),

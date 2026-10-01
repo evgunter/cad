@@ -61,7 +61,7 @@ use pncad::authoring::polygon;
 use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 use pncad::prelude::{Bulge, Open, Start, Via};
-use pncad::profile::{ProfileLoop, Segment};
+use pncad::profile::{ConstructedLoop, Segment};
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
 use pncad::topo::readback::euler_counts;
@@ -71,7 +71,7 @@ use pncad::geom_core::Tol;
 
 /// A square-with-an-arc section, scaled by `s` (LIB-U3 profile
 /// vocabulary: one loop, the arc as vertex 1's bulge).
-fn chain(s: f64, tol: Tol) -> Section {
+fn chain(s: f64, tol: Tol) -> Section<ConstructedLoop<f64>> {
     // Lattice-authored since LIB-RETTAIL (raw `ProfileLoop` construction
     // is no longer presented surface, Ev's ruling on #413). The one
     // curved leg was a bulge of 0.25 on the vertex at (2, 0); the same
@@ -171,7 +171,7 @@ pub fn narration(tol: Tol) {
     // through the lattice like any other arc and read back as the
     // canonical segment the lowering stores (its carrier and sweep).
     let (a, b) = (Point2::new(0.0, 0.0), Point2::new(3.0, 3.0));
-    let lp: ProfileLoop<f64> = Open
+    let lp: ConstructedLoop<f64> = Open
         .at(a)
         .arc_to(Bulge { p: b, b: 0.4 }, tol)
         .and_then(|t| t.line_to(Start, tol))
@@ -246,7 +246,7 @@ pub fn narration(tol: Tol) {
 /// through the façade's polygon door, which classifies every corner at
 /// authoring — the spelling this tour is here to show, and the only one
 /// a consumer has.
-fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section {
+fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section<ConstructedLoop<f64>> {
     vec![polygon(&pts, tol).expect("the quad section")]
 }
 
@@ -335,7 +335,7 @@ const TC_C: f64 = 1.5;
 
 /// A centred square LOOP of half-width `h` — one loop, so an annular
 /// section is two of them.
-fn square(h: f64, tol: Tol) -> pncad::profile::ProfileLoop<f64> {
+fn square(h: f64, tol: Tol) -> pncad::profile::ConstructedLoop<f64> {
     polygon(&[(-h, -h), (h, -h), (h, h), (-h, h)], tol).expect("the square loop")
 }
 
@@ -466,7 +466,7 @@ fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
 // is why the narration keeps it and the constant does not).
 const NONUNIFORM_T: f64 = 0.1762536890990181;
 
-fn prism_sections(tol: Tol) -> Vec<Section> {
+fn prism_sections(tol: Tol) -> Vec<Section<ConstructedLoop<f64>>> {
     vec![
         quad(PRISM_SQUARE, tol),
         quad(PRISM_TRAPEZOID, tol),
@@ -879,7 +879,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let unrolled_places: Vec<Affine3<f64>> = (0..TUBE_STATIONS)
         .map(|i| tube_place(&cubic_path, i, 0.0, tol))
         .collect();
-    let tube_sections: Vec<Section> = (0..TUBE_STATIONS)
+    let tube_sections: Vec<Section<ConstructedLoop<f64>>> = (0..TUBE_STATIONS)
         .map(|i| {
             let k = tube_taper(i);
             vec![square(TUBE_OUT * k, tol), square(TUBE_IN * k, tol)]
@@ -887,7 +887,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .collect();
     // The same stations with the hole left out: the volume oracle's
     // other operand, and nothing else.
-    let solid_sections: Vec<Section> = (0..TUBE_STATIONS)
+    let solid_sections: Vec<Section<ConstructedLoop<f64>>> = (0..TUBE_STATIONS)
         .map(|i| vec![square(TUBE_OUT * tube_taper(i), tol)])
         .collect();
 

@@ -982,10 +982,16 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::Unleverable {
             mate: id(1),
-            refusal: LeverRefusal::PartUnresolved {
+            refusal: Box::new(LeverRefusal::Reach {
                 instance: id(0),
-                fault: pncad::document::PartFault::NoResolver,
-            },
+                part: pncad::document::DocRef {
+                    id: pncad::document::DocumentId::derive("unleverable"),
+                    pin: pncad::document::ContentPin([0u8; 32]),
+                },
+                refusal: pncad::document::ReachRefusal::PartUnresolved {
+                    fault: pncad::document::PartFault::NoResolver,
+                },
+            }),
         },
         &["mate", "instance", "inner_variant"],
     );
@@ -1168,10 +1174,16 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     let unleverable = F::Unleverable {
         mate: id(1),
-        refusal: LeverRefusal::PartUnresolved {
+        refusal: Box::new(LeverRefusal::Reach {
             instance: id(0),
-            fault: pncad::document::PartFault::NoResolver,
-        },
+            part: pncad::document::DocRef {
+                id: pncad::document::DocumentId::derive("unleverable"),
+                pin: pncad::document::ContentPin([0u8; 32]),
+            },
+            refusal: pncad::document::ReachRefusal::PartUnresolved {
+                fault: pncad::document::PartFault::NoResolver,
+            },
+        }),
     };
     let payload = mate_payload(&unleverable);
     assert_eq!(payload.inner_variant, Some("part_unresolved"));
@@ -2141,7 +2153,7 @@ fn the_persist_doors_nested_arms_carry_their_own_word() {
     assert_eq!(snapshot_error_tag(&snapshot), "order_mismatch");
 
     let replayed = EditError::UnknownNode {
-        id: RecipeNodeId(7),
+        id: pncad::document::SpokenNode::absent(RecipeNodeId(7)),
     };
     let carrier = PersistError::EditReplay {
         index: 3,
@@ -2516,8 +2528,8 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
-        profile: RecipeNodeId(7),
-        frame: RecipeNodeId(3),
+        profile: RecipeNodeId(test_utils::refusal::tagged(7)),
+        frame: RecipeNodeId(test_utils::refusal::tagged(3)),
         refusal: DirectionRefusal {
             role: "datum frame x axis",
             error,
@@ -2601,11 +2613,11 @@ fn edit_inner_variant_tags_are_stable() {
     // ways the D7 producer convention was broken.
     assert_eq!(
         pair(&EditError::MetaUnversioned {
-            name: StableName {
+            name: pncad::document::SpokenName::absent(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(7),
                 path: vec![RoleSeg::OutputBody],
-            },
+            }),
             key: "fit".to_owned(),
             error: MetaVersionError::VersionNotInt,
         }),
@@ -2615,7 +2627,7 @@ fn edit_inner_variant_tags_are_stable() {
     // `PlacementRule` does one carrier over.
     assert_eq!(
         pair(&EditError::Roots(RootFault::Duplicate {
-            root: RecipeNodeId(1)
+            root: pncad::document::SpokenNode::absent(RecipeNodeId(1))
         })),
         ("root_duplicate", None)
     );
@@ -2647,18 +2659,21 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
-        DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
+        DocumentId, EditError as E, Frame, MeasureNodeFault, MetaVersionError, ParamName,
         RecipeNodeId, RootFault, SlotId, StepId, StepIdFault,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
 
     let id = |n: u64| RecipeNodeId(n);
+    let sp = |n: u64| pncad::document::SpokenNode::absent(id(n));
     let param = || ParamName::from_static("bore");
-    let named = || StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId(7),
-        path: vec![RoleSeg::OutputBody],
+    let named = || {
+        pncad::document::SpokenName::absent(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(7),
+            path: vec![RoleSeg::OutputBody],
+        })
     };
     let carries = |err: &E, want: &[&str]| {
         assert_eq!(
@@ -2670,36 +2685,36 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     };
 
     // ---- the node roles ----
-    carries(&E::UnknownNode { id: id(1) }, &["node"]);
-    carries(&E::WouldCycle { at: id(1) }, &["node"]);
-    carries(&E::ReadSiteMissingNode { at: id(1) }, &["node"]);
-    carries(&E::SetMembersOnNonList { node: id(1) }, &["node"]);
-    carries(&E::SetProgramOnNonProfile { node: id(1) }, &["node"]);
+    carries(&E::UnknownNode { id: sp(1) }, &["node"]);
+    carries(&E::WouldCycle { at: sp(1) }, &["node"]);
+    carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
+    carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
+    carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
-            node: id(1),
+            node: sp(1),
             fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &["node"],
     );
-    carries(&E::WitnessOnNonSketch { node: id(1) }, &["node"]);
-    carries(&E::DuplicateWitnessEntry { node: id(1) }, &["node"]);
-    carries(&E::PlacementOnNonInstance { node: id(1) }, &["node"]);
-    carries(&E::PlacementRuleMismatch { node: id(1) }, &["node"]);
-    carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
+    carries(&E::WitnessOnNonSketch { node: sp(1) }, &["node"]);
+    carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
+    carries(&E::PlacementOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::PlacementRuleMismatch { node: sp(1) }, &["node"]);
+    carries(&E::EmptyPlacementList { node: sp(1) }, &["node"]);
     carries(
         &E::NonFinitePlacement {
-            node: id(1),
+            node: sp(1),
             at: pncad::document::FrameSite::Registry,
         },
         &["node"],
     );
-    carries(&E::NonFiniteAlignment { node: id(1) }, &["node"]);
+    carries(&E::NonFiniteAlignment { node: sp(1) }, &["node"]);
     // The door's per-mate admission carries the solve's fault WHOLE
     // beside the mate: the one payload that crosses as a value.
     carries(
         &E::MateRefused {
-            node: id(1),
+            node: sp(1),
             fault: Box::new(pncad::document::MateFault::TableLacks {
                 mate: id(1),
                 what: "a clocking rider on a planar rest",
@@ -2707,33 +2722,33 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         },
         &["node", "fault"],
     );
-    carries(&E::UpdateOnNonInstance { node: id(1) }, &["node"]);
-    carries(&E::UnresolvedInput { input: id(2) }, &["input"]);
+    carries(&E::UpdateOnNonInstance { node: sp(1) }, &["node"]);
+    carries(&E::UnresolvedInput { input: sp(2) }, &["input"]);
     carries(
         &E::DuplicateInput {
-            node: id(1),
-            input: id(2),
+            node: sp(1),
+            input: sp(2),
         },
         &["node", "input"],
     );
     carries(
         &E::DeclareInputNotDeclare {
-            node: id(1),
-            input: id(2),
+            node: sp(1),
+            input: sp(2),
         },
         &["node", "input"],
     );
     carries(
         &E::AssertionTarget {
-            node: id(1),
-            measure: id(2),
+            node: sp(1),
+            measure: sp(2),
         },
         &["node", "input"],
     );
     carries(
         &E::DeleteWouldDangle {
-            id: id(1),
-            referenced_by: id(2),
+            id: sp(1),
+            referenced_by: sp(2),
         },
         &["node", "referenced_by"],
     );
@@ -2741,8 +2756,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // The two-node arms answer with the ids they were given, not with
     // the first id twice: the roles are what a caller acts on.
     let dangle = E::DeleteWouldDangle {
-        id: id(4),
-        referenced_by: id(9),
+        id: sp(4),
+        referenced_by: sp(9),
     };
     let payload = edit_payload(&dangle);
     assert_eq!(payload.node, Some(id(4)));
@@ -2751,7 +2766,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // ---- slots and dimensions ----
     carries(
         &E::UnknownSlot {
-            id: id(1),
+            id: sp(1),
             slot: SlotId::Count,
         },
         &["node", "slot"],
@@ -2778,8 +2793,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::AssertionDimension {
-            node: id(1),
-            measure: id(2),
+            node: sp(1),
+            measure: sp(2),
             measured: Dimension::Length,
             bound: Dimension::Angle,
         },
@@ -2802,14 +2817,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::PayloadUnknownDocParam {
             name: param(),
-            node: id(1),
+            node: sp(1),
         },
         &["node", "param"],
     );
     carries(
         &E::PayloadDocParamDimension {
             name: param(),
-            node: id(1),
+            node: sp(1),
             declared: Dimension::Length,
             referenced: Dimension::Angle,
         },
@@ -2818,7 +2833,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::SlotUnknownDocParam {
             name: param(),
-            node: id(1),
+            node: sp(1),
             slot: SlotId::Count,
         },
         &["node", "slot", "param"],
@@ -2826,7 +2841,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::SlotDocParamDimension {
             name: param(),
-            node: id(1),
+            node: sp(1),
             slot: SlotId::Count,
             declared: Dimension::Count,
             referenced: Dimension::Length,
@@ -2863,14 +2878,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // ---- the list-shape arms ----
     carries(
         &E::TooFewMembers {
-            node: id(1),
+            node: sp(1),
             found: 1,
         },
         &["node", "count"],
     );
     carries(
         &E::RepeatedDesignation {
-            node: id(1),
+            node: sp(1),
             first: 0,
             again: 3,
         },
@@ -2879,13 +2894,13 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // The sorted designation's fault reports ONE position, so it
     // carries `first` and not `again`.
     carries(
-        &E::SelectionNotCanonical { node: id(1), at: 2 },
+        &E::SelectionNotCanonical { node: sp(1), at: 2 },
         &["node", "first"],
     );
     // `found` on a short list is a COUNT and takes the `count`
     // attribute, so it never lands where a dimension word would.
     let short = E::TooFewMembers {
-        node: id(1),
+        node: sp(1),
         found: 1,
     };
     let payload = edit_payload(&short);
@@ -2975,7 +2990,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
     carries(
         &E::ImproperPlacement {
-            node: id(1),
+            node: sp(1),
             at: pncad::document::FrameSite::Step { index: 2 },
             determinant: -1.0,
         },
@@ -2983,7 +2998,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::NonRigidPlacement {
-            node: id(1),
+            node: sp(1),
             at: pncad::document::FrameSite::Listed { index: 0 },
             check: "transform_rigid_col0_unit",
         },
@@ -2991,7 +3006,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::PinUnchanged {
-            node: id(1),
+            node: sp(1),
             pin: ContentPin([0u8; 32]),
         },
         &["node", "pin"],
@@ -3001,11 +3016,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // the metadata float's address is a `str` under `value_path`, a
     // different address in a different tree.
     let off_tree = E::PathOffTree {
-        path: ExprPath {
-            node: id(5),
-            slot: SlotId::Distance,
-            path: vec![0, 1],
-        },
+        node: sp(5),
+        slot: SlotId::Distance,
+        path: vec![0, 1],
     };
     carries(&off_tree, &["node", "slot", "path"]);
     let payload = edit_payload(&off_tree);
@@ -3014,15 +3027,19 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     assert_eq!(payload.path, Some(&[0u8, 1][..]));
 
     // ---- the product-root invariants ----
-    carries(&E::Roots(RootFault::NotLive { root: id(1) }), &["node"]);
-    carries(&E::Roots(RootFault::Duplicate { root: id(1) }), &["node"]);
-    carries(&E::Roots(RootFault::Uncovered { node: id(1) }), &["node"]);
-    carries(
-        &E::Roots(RootFault::Ancestor {
-            ancestor: id(1),
-            descendant: id(2),
-        }),
-        &["node", "referenced_by"],
+    carries(&E::Roots(RootFault::NotLive { root: sp(1) }), &["node"]);
+    carries(&E::Roots(RootFault::Duplicate { root: sp(1) }), &["node"]);
+    carries(&E::Roots(RootFault::Uncovered { node: sp(1) }), &["node"]);
+    let ancestor = E::Roots(RootFault::Ancestor {
+        ancestor: sp(1),
+        descendant: sp(2),
+    });
+    carries(&ancestor, &["node", "referenced_by"]);
+    let payload = edit_payload(&ancestor);
+    assert_eq!(
+        (payload.node, payload.referenced_by),
+        (Some(id(1)), Some(id(2))),
+        "the machine channel carries the spoken nodes' ids"
     );
 
     // ---- the arms that carry a nested refusal, and the empty one ----
@@ -3033,7 +3050,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // with no payload at all is the whole of the empty case.
     carries(
         &E::ProfileProgramRefused {
-            node: id(1),
+            node: sp(1),
             refusal: Box::new(pncad::document::ProgramRefusal::Validate(
                 pncad::profile::ProfileError::EmptyProfile,
             )),
@@ -3042,7 +3059,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::MeasureMalformed {
-            node: id(1),
+            node: sp(1),
             fault: MeasureNodeFault::RefIndexOutOfRange {
                 verb: "distance",
                 index: 5,
@@ -3319,51 +3336,49 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     assert!(reads_as_prose("Tessellate refused"));
 }
 
-/// A blend escalation names its site in prose at every site.
+/// A blend escalation reads as prose for every decision.
 ///
-/// `BlendSite::Link` and `::Joint` are struct variants, so rendering
-/// the site through `Debug` puts the field-brace fingerprint in the
-/// message and the refusal PANICS `crate::py::typed_err` instead of
-/// raising. The escalation arm is the one an indeterminate predicate
-/// is for, so that panic sits behind an ordinary fillet or chamfer
-/// request; the site renders through its own `Display`, and this is
-/// the rendering that says so.
+/// What the refusal renders is chosen by its decision alone (the site
+/// is payload and is not rendered), so each decision is rendered once,
+/// at a site whose `Debug` carries a field: a payload rendered through
+/// `Debug` would put the field-brace fingerprint in the message and
+/// PANIC `crate::py::typed_err` instead of raising, behind an ordinary
+/// fillet or chamfer request.
 #[test]
-fn a_blend_escalation_reads_as_prose_at_every_site() {
-    use pncad::prelude::{Band, BlendError, BlendSite, EdgeKey, Indeterminate};
-    use pncad::prelude::{MarginDiag, VertexKey};
+fn a_blend_escalation_reads_as_prose_for_every_decision() {
+    use pncad::prelude::MarginDiag;
+    use pncad::prelude::{Band, BlendDecision, BlendError, BlendSite, EdgeKey, Indeterminate};
 
     let band = Band::new(1e-9, 1e-6).expect("a band");
-    for site in [
-        BlendSite::Link {
-            edge: EdgeKey::default(),
-        },
-        BlendSite::Joint {
-            vertex: VertexKey::default(),
-        },
-        BlendSite::Chain,
+    for decision in [
+        BlendDecision::RadiusHeadroom,
+        BlendDecision::FaceClearance,
+        BlendDecision::SpineRegularity,
+        BlendDecision::ChainG1,
+        BlendDecision::ChainArm,
+        BlendDecision::ConvexitySign,
+        BlendDecision::RingClearance,
+        BlendDecision::SupportCoaxiality,
+        BlendDecision::ContactSecondOrder,
+        BlendDecision::CornerIndependence,
+        BlendDecision::CapTransverse,
     ] {
         let refused = BlendError::Escalated {
-            site,
+            site: BlendSite::Link {
+                edge: EdgeKey::default(),
+            },
+            decision,
             source: Indeterminate {
-                margin: MarginDiag::value(0.0),
+                margin: MarginDiag::value(5e-7),
                 band,
-                // A name no recourse table routes: the sentence then
-                // names the site, which is what this row reads.
-                predicate: Some("a_name_no_table_routes"),
+                predicate: Some(decision.predicate()),
                 terminal_sliver: false,
             },
         };
         let text = refused.to_string();
         assert!(
-            reads_as_prose(&text),
-            "a fillet or chamfer escalation at {site:?} panics the binding \
-             rather than raising: {text}"
-        );
-        assert!(
-            text.starts_with("at ") && !text.contains("Key("),
-            "the site names itself after the preposition the sentence supplies, \
-             and no arena key: {text}"
+            reads_as_prose(&text) && !text.contains("Key("),
+            "a {decision:?} escalation panics the binding rather than raising: {text}"
         );
     }
 }
@@ -4335,6 +4350,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
 
     let node = RecipeNodeId(5);
+    let spoken = pncad::document::SpokenNode::absent(node);
     let name = || ParamName::from_static("width");
 
     let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
@@ -4343,7 +4359,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
             "unknown",
             EditError::SlotUnknownDocParam {
                 name: name(),
-                node,
+                node: spoken.clone(),
                 slot: SlotId::Radius,
             },
             SnapshotError::SlotUnknownDocParam {
@@ -4357,7 +4373,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
             "dimension",
             EditError::SlotDocParamDimension {
                 name: name(),
-                node,
+                node: spoken.clone(),
                 slot: SlotId::Radius,
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
@@ -4373,7 +4389,10 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
         (
             "payload",
             "unknown",
-            EditError::PayloadUnknownDocParam { name: name(), node },
+            EditError::PayloadUnknownDocParam {
+                name: name(),
+                node: spoken.clone(),
+            },
             SnapshotError::PayloadUnknownDocParam { node, name: name() },
         ),
         (
@@ -4381,7 +4400,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
             "dimension",
             EditError::PayloadDocParamDimension {
                 name: name(),
-                node,
+                node: spoken.clone(),
                 declared: Dimension::Length,
                 referenced: Dimension::Angle,
             },
@@ -4579,6 +4598,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "classification_invariant",
             "contact_contradicted",
             "containment",
+            "coplanar_neighbours",
             "corrupt_operand",
             "crossing_insertion",
             "curved_boolean_unsupported",
@@ -4613,6 +4633,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_operand",
             "seam_orientation",
             "shell_witness_exhausted",
+            "spheres_meet",
             "torn_component",
             "undeclared_coincidence",
             "underflowed_sector_chord",
@@ -4632,7 +4653,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_serialize",
             "param_name_not_an_identifier",
         ],
-        delegates: &["declare_error_tag", "placement_rule_fault_tag"],
+        delegates: &[
+            "declare_error_tag",
+            "label_fault_tag",
+            "placement_rule_fault_tag",
+        ],
     },
     TagEntry {
         function: "census_contact_tag",
@@ -4754,6 +4779,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
+            "label_unchanged",
             "maintenance_refused",
             "maintenance_unrecorded",
             "mate_refused",
@@ -4763,6 +4789,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_unversioned",
             "name_step_never_minted",
             "name_unresolved_in_evaluation",
+            "node_id_collides",
             "non_finite_alignment",
             "non_finite_doc_param",
             "non_finite_placement",
@@ -4903,17 +4930,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "face_refusal_tag",
+        function: "face_pose_refusal_tag",
         values: &[
             "ambiguous",
             "no_such_name",
             "not_a_face",
-            "not_an_instance",
             "part_unresolved",
             "readback",
             "unpinned",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "face_refusal_tag",
+        values: &["not_an_instance"],
+        delegates: &["face_pose_refusal_tag"],
     },
     TagEntry {
         function: "fmt_quantity_error_tag",
@@ -4962,7 +4993,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
-            "step_map_diverged",
             "stranded_part_name",
             "unknown_node",
             "unplaceable_frame",
@@ -4987,16 +5017,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["node_standing_tag", "readback_error_tag"],
     },
     TagEntry {
-        function: "lever_refusal_tag",
-        values: &[
-            "face_unbounded",
-            "malformed_body",
-            "no_extent",
-            "no_finite_bound",
-            "not_an_instance",
-            "part_unresolved",
-        ],
+        function: "label_fault_tag",
+        values: &["label_blank", "label_control_character", "label_line_break"],
         delegates: &[],
+    },
+    TagEntry {
+        function: "lever_refusal_tag",
+        values: &["not_an_instance", "out_of_range"],
+        delegates: &["reach_refusal_tag"],
     },
     TagEntry {
         function: "loft_error_tag",
@@ -5391,10 +5419,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "profile_error_tag",
         values: &[
+            "arc_below_scene_resolution",
             "band",
             "degenerate_segment",
             "empty_profile",
             "escalated",
+            "inconsistent_arc",
             "multiple_outer_loops",
             "near_full_arc",
             "nesting_too_deep",
@@ -5436,6 +5466,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "promoted_kind_tag",
         values: &["cylinder", "plane"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "reach_refusal_tag",
+        values: &[
+            "face_unbounded",
+            "malformed_body",
+            "no_extent",
+            "no_finite_bound",
+            "part_unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5671,13 +5712,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_input",
             "epsilon_invalid",
             "forward_input",
-            "id_beyond_counter",
             "input_list",
+            "label_on_missing_node",
             "mate_alignment",
             "measure_refs",
             "metadata_unversioned",
             "mint_log_order",
             "name_step_not_minted",
+            "node_not_minted",
             "order_mismatch",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
@@ -5715,7 +5757,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "remainder_edit",
             "severed_edge",
             "split_pin",
-            "step_map_diverged",
             "torn_group",
             "uncut_param_reference",
             "unknown_cut_node",
@@ -5855,6 +5896,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_map",
             "not_rigid",
             "null_scaffold",
+            "nurbs_lane_unsupported",
             "nurbs_placeholder",
             "pcurve",
         ],
@@ -6116,7 +6158,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("smooth_join_refuted", 2),
     ("split", 2),
     ("step_ids", 3),
-    ("step_map_diverged", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
@@ -6175,10 +6216,10 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
 
 /// **A face refusal spells the facts it shares the way their own maps
 /// do** — four of `SHARED_TAG_WORDS`' entries are one fact, not a
-/// coincidence. `FaceRefusal` mirrors `LeverRefusal` over the member
-/// walk and the resolver (a part not in hand, a member on no instance:
-/// the same two refusals, met while resolving a face instead of while
-/// levering), and its name arms are the name table's own answers that
+/// coincidence. The two reach refusals meet a part that does not
+/// resolve while levering and while reading a face, and the two
+/// carriers meet a member on no instance: the same refusal, met by two
+/// readers. A face's name arms are the name table's own answers that
 /// `InterrogateError` publishes (no row, a tie). A binding reading
 /// `inner_variant` across `mate_unleverable` and `mate_face_unresolved`,
 /// or across a mate and a measure, reads one word for one fact.
@@ -6186,8 +6227,8 @@ fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
 fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
     use crate::tags::{face_refusal_tag, interrogate_error_tag, lever_refusal_tag};
     use pncad::document::{
-        ContentPin, DocRef, DocumentId, FaceName, FaceRefusal, LeverRefusal, PartFault,
-        RecipeNodeId,
+        ContentPin, DocRef, DocumentId, FaceName, FacePoseRefusal, FaceRefusal, LeverRefusal,
+        PartFault, ReachRefusal, RecipeNodeId,
     };
     use pncad::select::{EntityKind, InterrogateError};
 
@@ -6202,16 +6243,22 @@ fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
         path: vec![],
     })
     .expect("a face");
+    let read = |refusal| FaceRefusal::Reach {
+        instance,
+        part,
+        face: face.clone(),
+        refusal,
+    };
     assert_eq!(
-        face_refusal_tag(&FaceRefusal::PartUnresolved {
+        face_refusal_tag(&read(FacePoseRefusal::PartUnresolved {
+            fault: PartFault::NoResolver,
+        })),
+        lever_refusal_tag(&LeverRefusal::Reach {
             instance,
             part,
-            face: face.clone(),
-            fault: PartFault::NoResolver,
-        }),
-        lever_refusal_tag(&LeverRefusal::PartUnresolved {
-            instance,
-            fault: PartFault::NoResolver,
+            refusal: ReachRefusal::PartUnresolved {
+                fault: PartFault::NoResolver,
+            },
         }),
     );
     assert_eq!(
@@ -6219,20 +6266,11 @@ fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
         lever_refusal_tag(&LeverRefusal::NotAnInstance { node: instance }),
     );
     assert_eq!(
-        face_refusal_tag(&FaceRefusal::NoSuchName {
-            instance,
-            part,
-            face: face.clone(),
-        }),
+        face_refusal_tag(&read(FacePoseRefusal::NoSuchName)),
         interrogate_error_tag(&InterrogateError::NoSuchName),
     );
     assert_eq!(
-        face_refusal_tag(&FaceRefusal::Ambiguous {
-            instance,
-            part,
-            face,
-            candidates: 2,
-        }),
+        face_refusal_tag(&read(FacePoseRefusal::Ambiguous { candidates: 2 })),
         interrogate_error_tag(&InterrogateError::Ambiguous { candidates: 2 }),
     );
 }

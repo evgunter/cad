@@ -50,7 +50,7 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// Three disjoint boxes, and a union of them in the given member
-/// order. Returns the document, the three box nodes in construction
+/// order (one union node for every order, [`crate::fixture::union_over`]). Returns the document, the three box nodes in construction
 /// order, and the union node.
 fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
@@ -58,13 +58,7 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
     let (doc, b) = cube(doc, 2.0);
     let (doc, c) = cube(doc, 4.0);
     let boxes = [a, b, c];
-    let (doc, u) = insert(
-        doc,
-        Node::Union {
-            members: order.map(|i| boxes[i]).to_vec(),
-            declare: None,
-        },
-    );
+    let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]), None);
     (doc, boxes, u)
 }
 
@@ -252,7 +246,7 @@ fn insert_refuses_a_node_that_takes_one_input_twice() {
             )
             .expect_err("a repeated input must refuse");
         assert!(
-            matches!(err, EditError::DuplicateInput { input, .. } if input == x),
+            matches!(&err, EditError::DuplicateInput { input, .. } if input.id() == x),
             "{node:?} refused with {err:?}"
         );
     }
@@ -274,7 +268,7 @@ fn set_members_refuses_a_duplicate_member() {
         )
         .expect_err("a duplicate member must refuse");
     assert!(
-        matches!(err, EditError::DuplicateInput { node, input } if node == u && input == boxes[0]),
+        matches!(&err, EditError::DuplicateInput { node, input } if node.id() == u && input.id() == boxes[0]),
         "{err:?}"
     );
 }
@@ -309,7 +303,8 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
         .expect_err("a duplicate member must refuse");
     let said = format!("{err}");
     assert!(
-        said.contains("pairwise distinct") && said.contains(&format!("node {:012x}", u.0)),
+        said.contains("pairwise distinct")
+            && said.contains(&format!("node {}", test_utils::refusal::tag(u.0))),
         "{said}"
     );
     // And a list left under two.
@@ -346,7 +341,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
         )
         .expect_err("a boolean carries no list");
     assert!(
-        matches!(err, EditError::SetMembersOnNonList { node } if node == pair),
+        matches!(&err, EditError::SetMembersOnNonList { node } if node.id() == pair),
         "{err:?}"
     );
 }
@@ -367,7 +362,7 @@ fn set_members_refuses_a_member_that_is_not_live() {
         )
         .expect_err("a dangling member must refuse");
     assert!(
-        matches!(err, EditError::UnresolvedInput { input } if input == ghost),
+        matches!(&err, EditError::UnresolvedInput { input } if input.id() == ghost),
         "{err:?}"
     );
 }
@@ -414,7 +409,7 @@ fn set_members_refuses_fewer_than_two() {
         )
         .expect_err("a union of one is its own input");
     assert!(
-        matches!(err, EditError::TooFewMembers { node, found } if node == u && found == 1),
+        matches!(&err, EditError::TooFewMembers { node, found } if node.id() == u && *found == 1),
         "{err:?}"
     );
 }
@@ -1136,7 +1131,7 @@ fn set_members_refuses_an_unknown_node() {
         )
         .expect_err("a node the document does not hold cannot be re-membered");
     assert!(
-        matches!(err, EditError::UnknownNode { id } if id == RecipeNodeId(9999)),
+        matches!(&err, EditError::UnknownNode { id } if id.id() == RecipeNodeId(9999)),
         "{err:?}"
     );
 }

@@ -173,18 +173,13 @@ fn the_partial_eq_impl_is_bit_eq_and_answers_the_same_on_the_two_zeros() {
 }
 
 /// The twelve stored components of a placement, as bits — the
-/// comparison `bit_eq` makes, spelled out so a row can hold an
-/// `Affine3` against a `SketchPlane`. The door's bit-identity corpus
-/// (every sign pattern of zeros, extremes, a generated sweep) lives
-/// with the door, in `geom-core`'s `affine.rs` tests; it is not
-/// reachable from here without a new dev-dependency, so this suite
+/// comparison `bit_eq` makes, read through the same door so a row can
+/// hold an `Affine3` against a `SketchPlane`. The door's bit-identity
+/// corpus (every sign pattern of zeros, extremes, a generated sweep)
+/// lives with the door, in `geom-core`'s `affine.rs` tests; this suite
 /// keeps the delegation row on a handful of frames and no corpus.
 fn bits(a: Affine3<f64>) -> [u64; 12] {
-    let (l, t) = (a.linear, a.translation);
-    [
-        l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y, l.c2.z, t.x, t.y, t.z,
-    ]
-    .map(f64::to_bits)
+    a.components().map(f64::to_bits)
 }
 
 /// The canonical planes, one general triple, one frame of signed

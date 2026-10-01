@@ -11,7 +11,7 @@ use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
+    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -121,7 +121,9 @@ fn set_appearance_validates_and_applies_purely() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::AppearanceWrongKind { name: edge }
+        EditError::AppearanceWrongKind {
+            name: doc.spoken_name(&edge)
+        }
     );
 
     // A never-existed node id: typed refusal at the edit door.
@@ -140,7 +142,9 @@ fn set_appearance_validates_and_applies_purely() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::AppearanceNamesMissingNode { name: bogus }
+        EditError::AppearanceNamesMissingNode {
+            name: SpokenName::absent(bogus)
+        }
     );
 }
 
@@ -167,7 +171,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         )
         .unwrap_err(),
         EditError::AppearanceNotSet {
-            name: body.clone(),
+            name: doc.spoken_name(&body),
             kind: AttrKind::Color,
         }
     );
@@ -175,12 +179,16 @@ fn multi_attribute_per_entity_and_clear_semantics() {
     // Three kinds coexist on one name.
     let doc = set(doc, body.clone(), red());
     let doc = set(doc, body.clone(), Attr::Visibility(false));
-    let doc = set(doc, body.clone(), Attr::Label("housing".into()));
+    let doc = set(
+        doc,
+        body.clone(),
+        Attr::Label(editor_core::Label::new("housing").unwrap()),
+    );
     let attrs = doc.appearance_of(&body).unwrap();
     assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
         attrs.attrs.get(&AttrKind::Label),
-        Some(&Attr::Label("housing".into()))
+        Some(&Attr::Label(editor_core::Label::new("housing").unwrap()))
     );
 
     // Same-kind set replaces (one slot per kind).
@@ -296,7 +304,11 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
                 .then(|| n.clone())
         })
         .expect("final die table has a unique face");
-    let doc = set(d.doc, body.clone(), Attr::Label("die".into()));
+    let doc = set(
+        d.doc,
+        body.clone(),
+        Attr::Label(editor_core::Label::new("die").unwrap()),
+    );
     let doc = set(doc, face.clone(), red());
 
     let ev1 = run(&doc);

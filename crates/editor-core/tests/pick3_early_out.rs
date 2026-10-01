@@ -515,7 +515,7 @@ fn equal_widths_refuse_with_both_faces() {
     );
     for hit in first.iter().chain(&second) {
         assert_eq!(
-            [hit.point.x, hit.point.y, hit.point.z],
+            hit.point.to_array(),
             [first[0].point.x, first[0].point.y, first[0].point.z],
             "at the same point: the refusal names faces, not places"
         );
@@ -574,8 +574,8 @@ fn a_ray_down_a_shared_edge_refuses_with_both_faces() {
     for (i, hit) in hits.iter().enumerate() {
         assert_eq!(hit.t, 2.0, "tied face {i} answers the midpoint at t = 2");
         assert_eq!(
-            [hit.point.x, hit.point.y, hit.point.z].map(f64::to_bits),
-            [midpoint.x, midpoint.y, midpoint.z].map(f64::to_bits),
+            hit.point.to_array().map(f64::to_bits),
+            midpoint.to_array().map(f64::to_bits),
             "and places it at the shared edge's midpoint: every tied hit is TRUE"
         );
     }

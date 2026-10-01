@@ -76,7 +76,7 @@ fn line_arc_r3(radius: f64) -> Built {
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **Two unit lobes about (±0.6, 0)**: the external clearance is
@@ -98,7 +98,7 @@ fn lobes_06(radius: f64) -> Built {
         },
         tol(),
     )
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// **Mixed winding, radius-1.5 carriers about (±0.8, 0)**: offsets go
@@ -119,7 +119,7 @@ fn mixed_08(radius: f64) -> Built {
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// **A short straight leg meeting a radius-2 circle at a real angle.**
@@ -145,7 +145,7 @@ fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Built {
         .line_to(Point2::new(-3.0, -3.0), tol())?
         .line_to(Point2::new(-3.0, 3.0), tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The lever lens.** Two carriers of radius `big`, mixed winding, so
@@ -175,7 +175,7 @@ fn lever_lens(big: f64, rho2: f64) -> Built {
     .line_to(Point2::new(-1.5 * big, 2.0 * big), tol())?
     .line_to(Point2::new(-1.5 * big, -1.5 * big), tol())?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// The gate's own least lever for the lens (`sugar.rs`'s law with its

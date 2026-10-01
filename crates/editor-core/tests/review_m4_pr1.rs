@@ -14,7 +14,7 @@ use geom_core::Tol;
 // v4: `Doc<P>` requires `P: ProfilePayload` (defaults = the retired
 // opaque behavior), which a foreign `&str` cannot implement here — a
 // transparent local newtype carries the same test payloads.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 struct Fake(&'static str);
 impl editor_core::ProfilePayload for Fake {}
 type Doc = editor_core::Doc<Fake>;
@@ -132,9 +132,15 @@ fn r1_partialeq_and_diff_conflate_signed_zero_and_nan() {
         Doc::empty_derived("review_m4_pr1", Tol::witness()),
         &[point_edit(len(0.0))],
     );
+    // The signed zero written by a value edit, so the point keeps its
+    // id (an insert of -0.0 mints another id: the mint reads bits).
     let (neg, _) = apply_all(
-        Doc::empty_derived("review_m4_pr1", Tol::witness()),
-        &[point_edit(len(-0.0))],
+        pos.clone(),
+        &[DocEdit::SetParam {
+            node: pos.order()[0],
+            slot: SlotId::Origin(editor_core::Axis3::X),
+            expr: len(-0.0),
+        }],
     );
     // Bitwise the docs DIFFER…
     let vp = eval::<f64>(
@@ -510,7 +516,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     );
     match res {
         Err(EditError::DeclareNamesMissingNode { name }) => {
-            assert_eq!(name.node, phantom, "refusal names the typo'd id");
+            assert_eq!(name.name().node, phantom, "refusal names the typo'd id");
         }
         other => panic!("phantom StableName.node must be refused, got {other:?}"),
     }

@@ -130,7 +130,7 @@ fn resolved_patch(
 /// are dyadic-integer by construction; a fractional coordinate is a
 /// fixture bug, surfaced loudly).
 fn int_point(p: Point3<f64>) -> [i128; 3] {
-    let c = [p.x, p.y, p.z];
+    let c = p.to_array();
     let mut out = [0i128; 3];
     for a in 0..3 {
         assert!(

@@ -327,7 +327,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 t1,
                 radius,
                 lever,
-                noise: T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms,
+                noise: rounding_charge(terms),
                 f_per_metre,
             },
             &CIRCLE_TORUS_ROWS,
@@ -392,8 +392,16 @@ pub(super) struct HalfAngleFrame<T> {
 /// count with room. It is a ROUNDING estimate, the `f64` lane's
 /// contract, not an enclosure: the `Interval` lane carries the
 /// enclosure itself through every coefficient and the ladder decides on
-/// it, so it needs no meter to be sound.
-const NOISE_ULPS: f64 = 16.0;
+/// it, so it needs no meter to be sound. The circle × sphere door
+/// ([`super::circle_sphere`]) charges its first harmonic the same count:
+/// its chain is shorter, so the count holds there with more room.
+pub(super) const NOISE_ULPS: f64 = 16.0;
+
+/// The rounding charged against a term bound `terms`: [`NOISE_ULPS`]
+/// half-ulps of it — the meters' one spelling of the charge.
+pub(super) fn rounding_charge<T: geom_core::Real>(terms: T) -> T {
+    T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5) * terms
+}
 
 /// What [`half_angle_roots`] certifies.
 pub(super) enum HalfAngleRoots<T> {
@@ -755,8 +763,7 @@ fn parallel_axes_roots<T: Decide>(
         // decisions are on the wrong point.
         let sin_spread = (T::one() - c.powi(2)).max(T::zero()).sqrt();
         let slope = half / minor_radius * radius * offset * sin_spread / contour;
-        let rounding = T::from_f64(NOISE_ULPS * f64::EPSILON * 0.5)
-            * (contour.powi(2) + offset.powi(2) + radius.powi(2))
+        let rounding = rounding_charge(contour.powi(2) + offset.powi(2) + radius.powi(2))
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
         match decide("bool_circle_torus_root_slack", Margin::of(slack), band) {
@@ -831,8 +838,7 @@ mod tests {
     fn point(pose: Pose, theta: f64) -> Point3<f64> {
         let (n, u) = (v3::<f64>(pose.n), v3::<f64>(pose.u));
         let v = n.cross(u);
-        Point3::new(pose.c[0], pose.c[1], pose.c[2])
-            + (u * theta.cos() + v * theta.sin()) * pose.rho
+        Point3::from_array(pose.c) + (u * theta.cos() + v * theta.sin()) * pose.rho
     }
 
     /// The torus's own implicit `F` at a point — the oracle's function.
@@ -871,7 +877,7 @@ mod tests {
 
     fn door(pose: Pose, t0: f64, t1: f64) -> CircleTorusRoots<f64> {
         circle_torus_roots(
-            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
             v3(pose.u),
@@ -1207,7 +1213,7 @@ mod tests {
             // An in-band bump is a refusal either way: `Uncertain`, or
             // the band's own escalation when the margin lands in its gap.
             let got = circle_torus_roots(
-                Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+                Point3::from_array(pose.c),
                 v3(pose.n),
                 pose.rho,
                 v3(pose.u),
@@ -1339,7 +1345,7 @@ mod tests {
             u: [1.0, 0.0, 0.0],
         };
         let got = circle_torus_roots(
-            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
             v3(pose.u),
@@ -1430,7 +1436,7 @@ mod tests {
         // The dip is chosen against the default band, pinned: at a band
         // wider than 9.8e-8 m it is a graze the band calls touching.
         let got = circle_torus_roots(
-            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            Point3::from_array(pose.c),
             v3(pose.n),
             pose.rho,
             v3(pose.u),
@@ -1515,7 +1521,7 @@ mod tests {
                     );
                     let label = format!("ρ {rho}, α {alpha}, depth {depth}");
                     let got = circle_torus_roots(
-                        Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+                        Point3::from_array(pose.c),
                         v3(pose.n),
                         pose.rho,
                         v3(pose.u),
@@ -1587,7 +1593,7 @@ mod tests {
                 u: [1.0, 0.0, 0.0],
             };
             let got = circle_torus_roots(
-                Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+                Point3::from_array(pose.c),
                 v3(pose.n),
                 pose.rho,
                 v3(pose.u),

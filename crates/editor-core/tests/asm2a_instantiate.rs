@@ -571,11 +571,13 @@ fn row4_set_placement_moves_undoes_and_refuses() {
         &editor_core::RefusingReach,
     ) {
         Err(
-            e @ EditError::ImproperPlacement {
-                node, determinant, ..
+            ref e @ EditError::ImproperPlacement {
+                ref node,
+                determinant,
+                ..
             },
         ) => {
-            assert_eq!(node, ids[0]);
+            assert_eq!(node.id(), ids[0]);
             assert!(determinant < 0.0);
             let rendered = e.to_string();
             assert!(
@@ -598,7 +600,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, target),
+        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node.id(), target),
         other => panic!("a non-instance target must refuse, got {other:?}"),
     }
 }
@@ -1065,7 +1067,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         "the message never points at an object the caller cannot reach: {rendered}"
     );
     assert!(
-        rendered.contains(&format!("node {:012x}", inner_root.0))
+        rendered.contains(&format!("node {}", test_utils::refusal::tag(inner_root.0)))
             && !rendered.contains("did not resolve"),
         "it names the root and points, never quoting the root's own refusal: {rendered}"
     );
@@ -1169,8 +1171,10 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     );
     let rendered = fault.to_string();
     assert!(
-        rendered.contains(&format!("repair node {:012x}", extrude.0))
-            && rendered.contains(&format!("node {:012x}", moved.0)),
+        rendered.contains(&format!(
+            "repair node {}",
+            test_utils::refusal::tag(extrude.0)
+        )) && rendered.contains(&format!("node {}", test_utils::refusal::tag(moved.0))),
         "the instance names the root and points at the failed node: {rendered}"
     );
     let levels: Vec<_> = failure(&ev, ids[0])
@@ -1183,7 +1187,10 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
         "the traceback ends at the failing node, drawn as the part draws it"
     );
     let refused = own
-        .strip_prefix(&format!("node {:012x} failed: ", extrude.0))
+        .strip_prefix(&format!(
+            "node {} failed: ",
+            test_utils::refusal::tag(extrude.0)
+        ))
         .expect("a node line opens with its node");
     assert!(
         !rendered.contains(refused),
@@ -1237,7 +1244,10 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String {
     match run(doc, opts).result(node) {
         Some(NodeResult::Failed(e)) => e.to_string(),
-        other => panic!("node {:012x} refuses on its own: {other:?}", node.0),
+        other => panic!(
+            "node {} refuses on its own: {other:?}",
+            test_utils::refusal::tag(node.0)
+        ),
     }
 }
 
@@ -1484,10 +1494,10 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
         // `eval::wire::wire_transform`'s own expression, verbatim: the
         // axis normalized (its `unit`), then `Mat3::rotation_about`,
         // then `Affine3::from_parts` with the translation.
-        let unit = geom_core::Vec3::new(axis[0], axis[1], axis[2]).normalize();
+        let unit = geom_core::Vec3::from_array(axis).normalize();
         let expected = geom_core::Affine3::from_parts(
             geom_core::Mat3::rotation_about(unit, angle),
-            geom_core::Vec3::new(translation[0], translation[1], translation[2]),
+            geom_core::Vec3::from_array(translation),
         );
         let got = frame.affine::<f64>();
         let cols = [

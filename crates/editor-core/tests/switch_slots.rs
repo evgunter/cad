@@ -220,7 +220,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node, doc.order()[1]);
+            assert_eq!(node.id(), doc.order()[1]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
@@ -925,6 +925,38 @@ fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
 /// written a distinct tag through `expr_mut` and read back through
 /// `expr`, so the render names the field by what landed in it, whatever
 /// the two fields held before.
+/// **The mint's preimage is pinned for every node shape**: the id each
+/// shape draws from an empty document's mint. `mint.rs`'s pin freezes
+/// one profile's bytes; a node shape whose serde form moves — a field
+/// renamed, reordered or re-typed, a variant renamed, display units
+/// reaching the bytes — re-mints every id a saved log replays to, and
+/// goes red here on the shape that moved. The shapes are
+/// `one_of_every_node_shape`'s, which
+/// `every_node_kinds_slots_are_all_readable` welds to the roster.
+#[test]
+fn every_node_shapes_mint_is_pinned() {
+    use std::fmt::Write as _;
+    let mut text = String::new();
+    for node in one_of_every_node_shape() {
+        let id = editor_core::test_support::first_node_id(&node);
+        let kind = test_utils::f6::variant_identifier(&node);
+        writeln!(text, "{kind} {}", id.0).unwrap();
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/mint_node_ids.txt");
+    if std::env::var_os("PNCAD_BLESS").is_some() {
+        std::fs::write(&path, &text).expect("the golden writes");
+        return;
+    }
+    assert_eq!(
+        text,
+        include_str!("golden/mint_node_ids.txt"),
+        "a node shape's mint preimage moved, and with it every id a saved log replays to. \
+         Read the diff and say in the PR body which shape moved and why (regenerate: \
+         PNCAD_BLESS=1 cargo test -p editor-core --test all every_node_shapes_mint_is_pinned)"
+    );
+}
+
 #[test]
 fn every_node_shapes_slot_table_is_pinned() {
     use std::fmt::Write as _;

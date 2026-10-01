@@ -54,7 +54,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
     applied
         .iter()
         .filter_map(|row| match row {
-            Maintenance::Strand { node, name } => Some((*node, name.clone())),
+            Maintenance::Strand { node, name } => Some((node.id(), name.name().clone())),
             Maintenance::Cluster(_)
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::OrphanedDeclare { .. } => None,
@@ -68,7 +68,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
     applied
         .iter()
         .filter_map(|row| match row {
-            Maintenance::StrandedAppearance { name } => Some(name.clone()),
+            Maintenance::StrandedAppearance { name } => Some(name.name().clone()),
             Maintenance::Strand { .. }
             | Maintenance::Cluster(_)
             | Maintenance::OrphanedDeclare { .. } => None,
@@ -696,10 +696,12 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
         applied.maintenance,
         vec![
             Maintenance::Strand {
-                node: fillet,
-                name: carried,
+                node: doc.spoken(fillet),
+                name: doc.spoken_name(&carried),
             },
-            Maintenance::StrandedAppearance { name: painted },
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(&painted),
+            },
         ],
         "the payload carriers are walked before the store"
     );
@@ -764,10 +766,12 @@ fn an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete() {
         &applied.maintenance[..cluster],
         &[
             Maintenance::Strand {
-                node: mate,
-                name: head_a,
+                node: doc.spoken(mate),
+                name: doc.spoken_name(&head_a),
             },
-            Maintenance::StrandedAppearance { name: painted },
+            Maintenance::StrandedAppearance {
+                name: doc.spoken_name(&painted),
+            },
         ],
         "both strand kinds are read at the door, before the registry reconciles: {:?}",
         applied.maintenance
@@ -863,7 +867,7 @@ fn a_reported_appearance_strand_is_still_clearable() {
 /// same way the payload half does**: by being recomputable. The store
 /// round-trips with the document, so the same delete against the
 /// loaded value reports the same keys — a stranded key's dead minting
-/// node is below the mint counter and the save validator accepts it.
+/// node is in the mint log and the save validator accepts it.
 #[test]
 fn a_round_tripped_document_reports_the_same_appearance_strands() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_round_trip", Tol::witness());
@@ -927,7 +931,9 @@ fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
     let none_left = delete(&one_left.doc, second);
     assert_eq!(
         none_left.maintenance,
-        vec![Maintenance::OrphanedDeclare { declare: decl }],
+        vec![Maintenance::OrphanedDeclare {
+            declare: one_left.doc.spoken(decl),
+        }],
         "the last consumer's delete is the transition, and reports it once"
     );
     let Some(Node::Declare { .. }) = none_left.doc.node(decl) else {
@@ -966,7 +972,9 @@ fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
         let none_left = delete(&one_left.doc, takes_the_last);
         assert_eq!(
             none_left.maintenance,
-            vec![Maintenance::OrphanedDeclare { declare: decl }],
+            vec![Maintenance::OrphanedDeclare {
+                declare: one_left.doc.spoken(decl),
+            }],
             "the last consumer is the last consumer whatever kind it is"
         );
     }
@@ -994,7 +1002,9 @@ fn no_delete_can_report_two_orphans_today() {
     let applied = delete(&doc, union);
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::OrphanedDeclare { declare: decl }],
+        vec![Maintenance::OrphanedDeclare {
+            declare: doc.spoken(decl),
+        }],
         "one delete, one declare edge, one row"
     );
     assert!(
@@ -1105,6 +1115,7 @@ fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
         vec![union, decl],
         "the consumer goes first: the declare edge is a DAG input"
     );
+    let declare = doc.spoken(decl);
     let mut doc = doc;
     let mut per_step = Vec::new();
     for id in order {
@@ -1115,7 +1126,7 @@ fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
     assert_eq!(
         per_step,
         vec![
-            (union, vec![Maintenance::OrphanedDeclare { declare: decl }]),
+            (union, vec![Maintenance::OrphanedDeclare { declare }]),
             (decl, Vec::new()),
         ],
         "the union's step cannot tell this cascade from any other delete of the union"
@@ -1144,6 +1155,7 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
     let (doc, _union, decl) = declared_union(doc, &[a, b], pairs);
 
     let doomed = cascade_delete_order(&doc, decl);
+    let declare = doc.spoken(decl);
     let mut walked = doc;
     let mut rows: Vec<Maintenance> = Vec::new();
     let mut net = editor_core::MaintenanceNet::new();
@@ -1153,7 +1165,7 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
         rows.extend(applied.maintenance);
         walked = applied.doc;
     }
-    assert_eq!(rows, vec![Maintenance::OrphanedDeclare { declare: decl }]);
+    assert_eq!(rows, vec![Maintenance::OrphanedDeclare { declare }]);
     assert_eq!(
         net.finish(&walked),
         Vec::new(),
@@ -1184,7 +1196,9 @@ fn the_orphaned_declaration_is_re_rooted_by_the_same_delete() {
     let applied = delete(&doc, union);
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::OrphanedDeclare { declare: decl }]
+        vec![Maintenance::OrphanedDeclare {
+            declare: doc.spoken(decl)
+        }]
     );
     assert!(
         applied.doc.roots().contains(&decl),
@@ -1227,10 +1241,12 @@ fn an_orphaned_declare_follows_the_strands_of_the_same_delete() {
         applied.maintenance,
         vec![
             Maintenance::Strand {
-                node: fillet,
-                name: carried,
+                node: doc.spoken(fillet),
+                name: doc.spoken_name(&carried),
             },
-            Maintenance::OrphanedDeclare { declare: decl },
+            Maintenance::OrphanedDeclare {
+                declare: doc.spoken(decl),
+            },
         ],
         "the strands of a delete come before the declarations it left inert"
     );

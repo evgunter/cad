@@ -24,8 +24,8 @@ from them:
 - **A DAG edge**: a `RecipeNodeId` in a node's inputs, structural,
   liveness- and cycle-checked at the edit door (`edit.rs`,
   `InsertNode`: `UnresolvedInput`, `WouldCycle`), enumerated by
-  `Node::inputs`. Ids are minted by the document's monotone counter
-  and never reused (D3; `doc.rs`).
+  `Node::inputs`. Ids are minted from the document's mint chain and
+  never reused (D3, N1; `mint.rs`).
 - **A frozen `StableName`**: `{ kind, node, path }` (N1,
   `names/role.rs`) stored at authoring and resolved at evaluation
   through a name table under the N5 ladder — `NodeGone`, then

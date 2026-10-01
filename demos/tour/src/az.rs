@@ -35,7 +35,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::profile::{ProfileLoop, SketchPlane};
+use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::Body;
 
@@ -72,7 +72,7 @@ const A_COUNTER: [(f64, f64); 3] = [(0.90625, 1.4375), (1.09375, 1.4375), (1.0, 
 /// Letterform outlines: every corner of these polygons is
 /// definitely sharp, so the door's authoring-time classification
 /// passes and the `.expect` is demo-loud rather than load-bearing.
-fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ProfileLoop<S> {
+fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ConstructedLoop<S> {
     polygon(poly, tol).expect("letterform outline")
 }
 

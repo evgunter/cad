@@ -183,7 +183,7 @@ pub fn edges_with_corners(body: &Body<f64>, on: impl Fn(Point3<f64>) -> bool) ->
 
 /// A corner of [`vented_cavity`]'s cavity box `[1,3]³`.
 pub fn cavity_corner(p: Point3<f64>) -> bool {
-    [p.x, p.y, p.z]
+    p.to_array()
         .iter()
         .all(|c| (c - 1.0).abs() < 1e-12 || (c - 3.0).abs() < 1e-12)
 }
