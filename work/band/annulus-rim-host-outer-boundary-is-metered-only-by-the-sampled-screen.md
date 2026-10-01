@@ -2,10 +2,13 @@
 id: annulus-rim-host-outer-boundary-is-metered-only-by-the-sampled-screen
 kind: issue
 title: blend: an annulus rim's host outer boundary is metered only by predicate 2's sampled screen, which overestimates an off-sample gap
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
+closed: 2026-10-01
+pr: 3715
+branch: band/annulus-host-outer-metered
 ---
 
 
