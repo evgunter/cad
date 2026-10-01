@@ -234,7 +234,10 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     let leaf = session.delete_affordance(die.fillets[1]);
     assert_eq!(
         leaf.label,
-        format!("Delete Fillet {:012x}", die.fillets[1].0)
+        format!(
+            "Delete Fillet {}",
+            test_utils::refusal::tag(die.fillets[1].0)
+        )
     );
     assert_eq!(
         leaf.hover, None,
@@ -245,8 +248,8 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     assert_eq!(
         mid.label,
         format!(
-            "Delete Boolean {:012x} and 12 dependent features",
-            die.booleans[10].0
+            "Delete Boolean {} and 12 dependent features",
+            test_utils::refusal::tag(die.booleans[10].0)
         )
     );
     assert_eq!(
@@ -261,8 +264,8 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     assert_eq!(
         blank_cascade.label,
         format!(
-            "Delete Boolean {:012x} and 22 dependent features",
-            die.booleans[0].0
+            "Delete Boolean {} and 22 dependent features",
+            test_utils::refusal::tag(die.booleans[0].0)
         )
     );
 
@@ -271,8 +274,8 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     assert_eq!(
         one.label,
         format!(
-            "Delete Fillet {:012x} and 1 dependent feature",
-            die.fillets[0].0
+            "Delete Fillet {} and 1 dependent feature",
+            test_utils::refusal::tag(die.fillets[0].0)
         )
     );
     assert_eq!(

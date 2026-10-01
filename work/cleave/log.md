@@ -204,3 +204,15 @@ Track claimed (`status: active`). — (CLEAVE orchestrator)
 
   Filed `edge-mint-doors-read-the-nurbs-lane-from-the-policy` (unit 2
   of the NURBS-lane design); held until PR 3678 lands.
+- NURBS lane merged (PR 3678) after a dual review (DR-31, no MAJOR) and
+  one fix pass. The lane is sealed and held per scalar by
+  `AtRestPolicy::nurbs_lane()`. `transform_rigid` reads it, the void
+  graft carries certificates, and refusals now name the cause that is
+  actually known where they are raised. The dead `tol` left the
+  `insert_void`/`graft_disjoint*` doors. Four rows closed, including
+  SHELL's P0 transform row and EXCH's placed-instance row. Unit 2
+  (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) is
+  dispatchable. Known gap: `PcurveCertifyError::FittedLaneUnsupported`
+  has the same conflation of causes, though its claim holds in
+  production today; not filed.
+- Unit 2 (`edge-mint-doors-read-the-nurbs-lane-from-the-policy`) dispatched on `cleave/mint-doors`; it also takes TOPO's `euler-rebased-run-...` row. Review: single, full.

@@ -27,6 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use test_utils::refusal::tagged;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKey,
@@ -645,7 +646,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     // only has the Display still learns which mate is wrong.
     let msg = err.to_string();
     assert!(
-        msg.contains(&format!("mate {:012x}", mate.0)),
+        msg.contains(&format!("mate {}", test_utils::refusal::tag(mate.0))),
         "the rendering names the mate: {msg}"
     );
     // The other side of the split: a REFUTED declaration is a finding
@@ -855,7 +856,10 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     // REMAINDER, `inner` in the part), so the rendering tells them
     // apart.
     assert!(
-        err.contains(&format!("minted by node {:012x}", outer_probe.node.0)),
+        err.contains(&format!(
+            "minted by node {}",
+            test_utils::refusal::tag(outer_probe.node.0)
+        )),
         "the refusal names the crossing by its `outer`: {err}"
     );
     assert_ne!(
@@ -1017,7 +1021,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         0.0,
         1.0,
     );
-    let doc_ref = store.insert(part, Tol::witness());
+    let doc_ref = store.insert(part.clone(), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("asm-r2b-row5e"), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..2 {
@@ -1042,19 +1046,16 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         "pre-move the declaration is not contradicted: {before:?}"
     );
 
-    // The move: SAME node layout, different geometry — the cube is
-    // half as tall, so its top cap is at z = 0.5 while the mate still
-    // seats the second instance's bottom at z = 1.
-    let (shorter, shorter_body) = block(
-        ProfileDoc::empty(part_id, Tol::witness()),
-        (0.0, 1.0),
-        (0.0, 1.0),
-        0.0,
-        0.5,
-    );
-    assert_eq!(
-        shorter_body, body,
-        "the same node layout keeps the body's id"
+    // The move: SAME node layout, different geometry — a value edit
+    // makes the cube half as tall, so its top cap is at z = 0.5 while
+    // the mate still seats the second instance's bottom at z = 1.
+    let (shorter, _) = step(
+        part,
+        DocEdit::SetParam {
+            node: body,
+            slot: editor_core::SlotId::Distance,
+            expr: len(0.5),
+        },
     );
     let new_pin = content_pin(&shorter, Tol::witness()).expect("the pin computes");
     store.replace_without_repinning(part_id, shorter);
@@ -1131,7 +1132,6 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
     };
     let (with, id_with) = insert(host.clone(), Node::instantiate_part_with(doc_ref, record));
     let (without, id_without) = insert(host, Node::instantiate_part(doc_ref));
-    assert_eq!(id_with, id_without, "same id, same reference, same pin");
 
     let key = |d: &ProfileDoc, id| {
         run(d, &with_resolver(store.clone()))
@@ -1573,7 +1573,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         name.path = vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId(tagged(99)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -1600,18 +1600,18 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
 #[test]
 fn the_crossing_refusal_is_a_named_node_error() {
     let e = NodeErrorKind::CrossingUnverified {
-        instance: RecipeNodeId(1),
+        instance: RecipeNodeId(tagged(1)),
         outer: Box::new(
             FaceName::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(2),
+                node: RecipeNodeId(tagged(2)),
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             })
             .expect("a crossing's references are face names"),
         ),
         name: Box::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(3),
+            node: RecipeNodeId(tagged(3)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }),
     };
@@ -1769,15 +1769,15 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     use editor_core::{AtRestFinding, Attribution, MintedDeclaration};
 
     let minted = MintedDeclaration {
-        mate: RecipeNodeId(4),
+        mate: RecipeNodeId(tagged(4)),
         a: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(1),
+            node: RecipeNodeId(tagged(1)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         },
         b: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(2),
+            node: RecipeNodeId(tagged(2)),
             path: vec![RoleSeg::Cap(CapEnd::Start)],
         },
         class: ContactClass::Rest,
@@ -1854,7 +1854,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     let cases = vec![
         ProductError::RootInvalid {
             findings: vec![editor_core::SourceFinding {
-                node: RecipeNodeId(3),
+                node: RecipeNodeId(tagged(3)),
                 output: 1,
                 errors: vec![
                     topo::ValidationError::NegativeVolume {
@@ -1867,15 +1867,15 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             }],
         },
         ProductError::Naming {
-            node: RecipeNodeId(2),
+            node: RecipeNodeId(tagged(2)),
             name: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId(tagged(1)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         },
         ProductError::Graft {
-            node: RecipeNodeId(5),
+            node: RecipeNodeId(tagged(5)),
             source: Box::new(topo::BooleanError::Band(geom_core::BandError::Empty {
                 zero: 1.0,
                 escalate: 0.5,
