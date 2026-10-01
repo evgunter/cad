@@ -134,3 +134,37 @@ refusal reads
 is invalid (NaN or a poisoned enclosure) …"* about two planes 5 units
 apart whose offset DECIDED nonzero. Pinned (by kind, not text) in
 `docm8_flat_merged::a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refuses`.
+
+## More sites, found by LINALG's sweep (2026-10-01)
+
+The `linalg/decided-not-minted` branch retired `sector_shape`'s two
+(`decide_positive` at both gates) and then swept `MarginDiag::INVALID`
+literals and `invalid`-style helpers across `crates/*/src`. On this
+row's ground, minted after a DEFINITE sign and named by neither list
+above:
+
+- `crates/topo/src/boolean/reduce.rs` `vertex_on_curved_face`:
+  `Ok(Sign::Negative)` of a distance → a struct-literal
+  `BooleanError::Escalated { decision: VertexOnVertex, .. }`.
+- `crates/topo/src/boolean/rim_wedge.rs` `classify_shared_rim`: the
+  `Sign::Zero` arm on a quantity whose magnitude decided nonzero one
+  decision above → a hand mint (`decide_nonzero` is the door; the
+  same shape in `validate.rs` is filed on restfront,
+  `work/restfront/validate-material-side-zero-mints-an-indeterminate.md`).
+- `crates/topo/src/boolean/carrier_eq.rs` `data_rungs`:
+  `Ok(Sign::Positive | Sign::Negative)` → an `INVALID` diagnostic
+  under the decided datum's own name — the "contradiction dressed as
+  poison" half of the note above.
+- `crates/topo/src/splitting/containment.rs`, through the crate-level
+  helper `crate::invalid_margin::invalid` (a fifth spelling of
+  spelling 2): `hit`'s `rows.on` arms after a definite
+  `Sign::Negative` of a nonnegative miss (three sites), and the
+  `rows.end` arm after a definite sign. Its `rows.straddle` sites are
+  the helper's documented two-bounds-straddle meaning, not a gate.
+
+Not this class, and left: `rim_wedge.rs`'s spline-chart and
+corner/tangency mints and `carrier_eq.rs`'s `KindsDiffer` /
+`Undeclared` fallbacks (no decision precedes them),
+`solid_contain.rs`'s `bool_ray_torus_count` (two bounds that
+disagree), and `splitting/order.rs`'s `in_plane_frame` fallback (every
+schedule member decided and none positive — no escalation to return).
