@@ -17,8 +17,10 @@ The exact spiric rim carrier, delivered end to end, and nothing else:
 `Curve3::Spiric` with its deciding constructor, census and
 `mint_carrier` arm (PR-1a, #2566), the `Pcurve::Spiric` variant, its
 certification and STEP export (PR-1b, #2861, in its fix pass), and
-the klein elbow's equator-seam re-author (the next unit), which makes
-the elbow hollow end to end. Cut down to this on 2026-09-20 from 69
+the klein elbow's equator-seam re-author with its rims' windows read
+forward (#3626), which brings the SEALED elbow's hollow to the props
+door; the opened arm stops at SHELL's rim-stage lift
+(`work/shell/shell-open-lift-takes-the-per-chart-door-on-the-klein-elbow.md`). Cut down to this on 2026-09-20 from 69
 items (Ev, in-chat); the rest is REACH, TANG and CHART. Charter and
 exit: `work/curved/plan.md`; narrative in `work/curved/log.md`. Same
 orchestrator as TRIM.
