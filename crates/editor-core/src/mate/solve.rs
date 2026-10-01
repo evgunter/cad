@@ -346,7 +346,7 @@ fn groups_welded_by<P>(
     components(&instances, &adjacency)
 }
 
-/// The group representative (root) that keys `instance`'s placement
+/// The group root that keys `instance`'s placement
 /// record, or `instance` itself when it is not a live instance (the
 /// total reading a registry lookup wants).
 pub fn root_of<P>(doc: &Doc<P>, instance: RecipeNodeId) -> RecipeNodeId {
