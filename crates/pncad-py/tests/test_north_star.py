@@ -4350,7 +4350,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `instantiate_part` and `mate` LEFT this list at LIB-G18b,
         # and `set_placement` with them — it was never a `Node` at
         # all, it is `DocEdit.set_placement`, which is where the A11
-        # rule that placement is the CLUSTER's puts it.
+        # rule that placement is the GROUP's puts it.
         #
         # `shell` LEFT this list at LIB-G17: `Node::Shell` landed and
         # `Node.shell` binds it, with the open faces as ORDERED names

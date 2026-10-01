@@ -320,7 +320,7 @@ pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) ->
 ///
 /// A pattern node, a `Part` node or an instance is NOT such a key:
 /// `SolvedPoses::fault` maps refusing MATES and the instances of a
-/// cluster that consequently has no pose, so `fault(pattern)` answers
+/// group that consequently has no pose, so `fault(pattern)` answers
 /// `None` for every document ever written and asserts nothing. The
 /// kind check is what keeps a row's `fault(mate).is_none()` from
 /// passing on an id it could never fail on.

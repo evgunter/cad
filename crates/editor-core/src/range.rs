@@ -755,7 +755,7 @@ pub fn derive(
 
 /// One edit, applied purely, with the door's refusal carried. The
 /// edits this module applies are document-parameter edits, which
-/// never move a cluster's gauge, so the reach is the refusing one: it
+/// never move a group's root, so the reach is the refusing one: it
 /// is never asked, and a door that did ask would refuse typed rather
 /// than lever over nothing.
 fn edit(
