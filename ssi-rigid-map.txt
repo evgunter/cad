@@ -1,0 +1,4 @@
+fork: ssi rigid-map re-certification (a-rigid-map-re-derives-the-plane-nurbs-edge-certificate-in-a-frame-that-moves-it)
+dispatched: 2026-10-01
+byte: 184
+mapping: A = Opus, B = Fable
