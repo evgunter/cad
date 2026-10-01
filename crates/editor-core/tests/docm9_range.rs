@@ -806,7 +806,7 @@ fn a_profile_step_argument_widens() {
 #[test]
 fn a_parameter_under_the_synthetic_spelling_is_not_widened() {
     let (mut doc, node) = slab_slot(1.0);
-    let base = format!("query_certified_range_{}", node.0);
+    let base = format!("query_certified_range_{:016x}", node.0);
     let declared = [
         base.clone(),
         format!("{base}_1"),

@@ -945,6 +945,17 @@ impl DocSession {
         Some((run.doc.as_ref(), run.evaluation.as_ref()))
     }
 
+    /// The part files the landed run's resolver could name
+    /// ([`PartFiles`]): what the tree names an instance's part by.
+    /// Unscanned while nothing has landed.
+    pub fn part_files(&self) -> &PartFiles {
+        static UNSCANNED: PartFiles = PartFiles::Unscanned;
+        self.derived
+            .landed
+            .as_ref()
+            .map_or(&UNSCANNED, |run| &run.files)
+    }
+
     /// Why the landed evaluation's product does not gather, if it does
     /// not — every class, whichever channel reports it
     /// (`frame::badge_site` decides that).
@@ -2414,7 +2425,7 @@ impl DocSession {
         self.require_kind(node, NodeKindWanted::Profile)?;
         let doc = self.committed_doc();
         let Some(Node::Profile(current)) = doc.node(node) else {
-            unreachable!("`require_kind` admitted feature {} as a profile", node.0)
+            unreachable!("`require_kind` admitted node {} as a profile", node)
         };
         // The editor's program is an edit OF the program it loaded;
         // over any other program it would be a guess about what the
