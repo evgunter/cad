@@ -5213,3 +5213,33 @@ spots. It also adds the reviewer's failing poses as harness cases.
 
 **Verification** is a re-run of fr4's own probe set and chain executor
 on the new head, rather than a sixth full review.
+
+## PR 3618 delivered; single full review dispatched (2026-10-01)
+
+The null-face lane delivered PR 3618 (`ccb0886a04`), and CI run
+36816737265 went green.
+
+**The measurement fired neither guard.** No production caller sets a
+foreign loop (23,672 boolean sets and 640 split sets, all own). No kill
+removes a named loop. `mfkrh` is the only re-home, and the next touch
+after it is always `clear_null_face_pair`.
+
+**The mechanism:**
+- one helper, `drop_null_face_records_naming`, runs in six mutation
+  phases;
+- the door refuses `NullPairForeignLoop`;
+- the census's last Filed relation, `StaleNullFaceLoop`, is now Read, so
+  `Filed` is gone.
+
+**Filed:** HONE's section promotion clears a record `mfkrh` has already
+dropped (P4).
+
+**The single full review** is dispatched on the rebase target, frozen
+`ccb0886a04`. It is to probe:
+- the re-home measurement, including whether anything reads the record
+  between the move and the clear;
+- drop-exactly-when;
+- door over-refusal;
+- the two mutants claimed equivalent;
+- whether the paragraph added to F9's ratified module docs changes
+  what F9 decides.
