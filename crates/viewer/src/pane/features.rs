@@ -9,7 +9,7 @@ use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::frame;
 use crate::session::{Refusal, Selection, SessionOp, VersionOffer};
 use crate::theme::Theme;
-use crate::tree::{self, Measured, RowStatus, TreeRow};
+use crate::tree::{self, Readout, RowStatus, TreeRow};
 
 /// Points of indent per level of the feature tree.
 pub(crate) const INDENT_STEP: f32 = 12.0;
@@ -194,9 +194,10 @@ pub(crate) fn failure_lines(
 }
 
 /// **What the run said about a row, drawn beside it**: the badge of a
-/// row that is not `Ok`, and on one that is, a measure's value or an
-/// assertion's verdict — its state in the kernel's word, at the
-/// verdict's own tone, and the comparison it decided.
+/// row that is not `Ok`, and on one that is, what its value says — a
+/// measure's value, an assertion's verdict (its state in the kernel's
+/// word, at the verdict's own tone, and the comparison it decided), or
+/// which part of the value is empty.
 ///
 /// Whether a row draws a badge at all is this pane's decision. How
 /// LOUD a drawn badge or verdict is, is not decided here — that is
@@ -206,18 +207,21 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) {
         // A healthy row draws no badge: a tree of unmarked rows is
         // what makes the marked ones carry. The status still has one,
         // which `examples/r1_e2e.rs` prints.
-        RowStatus::Ok => match &row.measured {
-            Some(Measured::Value(value)) => {
+        RowStatus::Ok => match &row.readout {
+            Some(Readout::Value(value)) => {
                 ui.label(value);
             }
-            Some(Measured::Asserted(asserted)) => {
+            Some(Readout::Empty(emptiness)) => {
+                ui.label(emptiness.to_string());
+            }
+            Some(Readout::Asserted(asserted)) => {
                 ui.label(toned(asserted.verdict.label(), theme, row.tone()));
                 if let Some(comparison) = asserted.comparison() {
                     ui.label(comparison);
                 }
             }
             // Its reason is a sentence, drawn under the row.
-            Some(Measured::Unavailable(_)) | None => {}
+            Some(Readout::Unavailable(_)) | None => {}
         },
         RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
             ui.label(toned(row.status.badge(), theme, row.tone()));
@@ -231,11 +235,11 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) {
 /// selects, as [`failure_lines`] does.
 fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
     let mut clicked = failure_lines(ui, row, theme);
-    match &row.measured {
-        Some(Measured::Unavailable(reason)) => {
+    match &row.readout {
+        Some(Readout::Unavailable(reason)) => {
             advisory_line(ui, row.depth, &reason.to_string(), theme);
         }
-        Some(Measured::Asserted(asserted)) => match &asserted.verdict {
+        Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
             } => clicked = link_to(ui, row.depth, asserted.measure).or(clicked),
@@ -246,7 +250,7 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
             } => advisory_line(ui, row.depth, &reason.to_string(), theme),
             AssertionVerdict::Holds { .. } | AssertionVerdict::Violated { .. } => {}
         },
-        Some(Measured::Value(_)) | None => {}
+        Some(Readout::Value(_) | Readout::Empty(_)) | None => {}
     }
     if let Some(note) = &row.note {
         advisory_line(ui, row.depth, note, theme);
@@ -345,7 +349,7 @@ mod tests {
     };
     use crate::theme::Theme;
     use crate::tree;
-    use crate::tree::{CarriedLine, RowStatus, TreeRow};
+    use crate::tree::{CarriedLine, Readout, RowStatus, TreeRow};
     use crate::widgets::{message, message_floor};
 
     /// A failure line of the length and shape a refusal has, quoting a
@@ -433,7 +437,7 @@ mod tests {
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
-            measured: None,
+            readout: None,
             version_offer: None,
         }
     }
@@ -482,7 +486,7 @@ mod tests {
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
-            measured: None,
+            readout: None,
             version_offer: None,
         };
         let drawn = painted_text(|ui| {
@@ -529,7 +533,7 @@ mod tests {
             },
             note: None,
             repair_at,
-            measured: None,
+            readout: None,
             version_offer: None,
         }
     }
@@ -810,8 +814,8 @@ mod tests {
     /// notation the chrome writes any computed value in: canonical,
     /// with the unit's symbol.
     ///
-    /// Red if `row_result` stops drawing `Measured::Value` or is drawn
-    /// off the row's line, or if `measured_of` spells the value any
+    /// Red if `row_result` stops drawing `Readout::Value` or is drawn
+    /// off the row's line, or if `readout_of` spells the value any
     /// other way.
     #[test]
     fn a_measure_with_a_value_paints_it_beside_its_row() {
@@ -837,7 +841,7 @@ mod tests {
     /// **The value is written in the kind its dimension is**: an
     /// angle in radians, not a length.
     ///
-    /// Red if `measured_of` renders every measure as a length.
+    /// Red if `readout_of` renders every measure as a length.
     #[test]
     fn a_measured_angle_paints_in_radians() {
         let fixture = measure_fixture();
@@ -845,11 +849,55 @@ mod tests {
         assert!(drawn.contains("0.5 rad"), "{drawn}");
     }
 
+    /// **An empty value says so on its own row, beside its kind**, and
+    /// draws no badge: the row is `Ok`.
+    ///
+    /// Red if `row_result` stops drawing `Readout::Empty`, draws it off
+    /// the row's line, or re-spells `tree::Emptiness`'s phrase.
+    #[test]
+    fn an_empty_value_paints_its_phrase_beside_its_row() {
+        use pncad::select::SplitHalf;
+
+        let row = |readout| TreeRow {
+            id: RecipeNodeId(4),
+            kind: "Split",
+            pose: None,
+            depth: 0,
+            root: false,
+            status: RowStatus::Ok,
+            note: None,
+            repair_at: None,
+            readout: Some(Readout::Empty(readout)),
+            version_offer: None,
+        };
+        for (emptiness, phrase) in [
+            (tree::Emptiness::Whole, "empty"),
+            (tree::Emptiness::Half(SplitHalf::Above), "above half empty"),
+            (tree::Emptiness::Half(SplitHalf::Below), "below half empty"),
+        ] {
+            let painted = landed(|ui| feature_row_drawn(ui, &row(emptiness)));
+            let said = find(&painted, phrase);
+            let kind = find(&painted, "Split");
+            assert!(
+                (said.rows[0].center().y - kind.rows[0].center().y).abs() <= SLACK
+                    && said.rows[0].left() > kind.rows[0].right(),
+                "{phrase:?} stands beside the row's kind, on its line: {:?} / {:?}",
+                kind.rows,
+                said.rows
+            );
+            assert_eq!(
+                texts(&painted),
+                vec!["Split", phrase],
+                "the kind and the phrase, and no badge"
+            );
+        }
+    }
+
     /// **A measure with no value at this scalar paints the kernel's
     /// reason under its row, byte for byte**, quietly: the node
     /// evaluated, so there is no badge, and the line is a report.
     ///
-    /// Red if `lines_under` drops `Measured::Unavailable`, if the
+    /// Red if `lines_under` drops `Readout::Unavailable`, if the
     /// reason is re-spelled, or if the line is drawn loud.
     #[test]
     fn a_measure_with_no_value_paints_the_kernels_reason_under_its_row() {
@@ -953,7 +1001,7 @@ mod tests {
     /// its own line**: the kernel's word, quietly, then the comparison
     /// in the measure's notation with the kernel's relation between.
     ///
-    /// Red if `row_result` stops drawing `Measured::Asserted`, draws it
+    /// Red if `row_result` stops drawing `Readout::Asserted`, draws it
     /// off the row's line, draws a holding verdict loud, or if
     /// `Asserted::comparison` drops a number or the relation.
     #[test]
@@ -1163,7 +1211,7 @@ mod tests {
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
-            measured: None,
+            readout: None,
             version_offer: None,
         }
     }
