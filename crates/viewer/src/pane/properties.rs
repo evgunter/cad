@@ -23,6 +23,9 @@ use crate::widgets::{
     value_gesture, vec3_row_ops,
 };
 
+/// MOCKUP: the hard-coded text of y's open edit.
+const MOCK_Y: &str = "width / 2.0 + offset_from_left_edge";
+
 impl ViewerBehavior<'_> {
     /// The property panel.
     pub(crate) fn properties_ui(&mut self, ui: &mut egui::Ui) {
@@ -567,11 +570,18 @@ impl ViewerBehavior<'_> {
                 });
             }
             SlotGroup::Vector { family, rows } => {
+                let mock = family.label() == "origin" && self.drafts.expr_target.is_some();
                 ui.horizontal(|ui| {
                     ui.label(family.label());
-                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                    for (i, (axis, row)) in Axis3::ALL.iter().zip(rows.iter()).enumerate() {
                         ui.weak(axis.label());
-                        self.slot_value_ui(ui, node, row);
+                        // MOCKUP: y's field stays short and marked as
+                        // the one being edited; its edit is under the row.
+                        if mock && i == 1 {
+                            ui.add(egui::Button::new("0.0000").selected(true));
+                        } else {
+                            self.slot_value_ui(ui, node, row);
+                        }
                     }
                     // ONE picker for the vector: the components of a
                     // point that are written at all are written in one
@@ -585,8 +595,33 @@ impl ViewerBehavior<'_> {
                 // The notes stay PER COMPONENT: an affordance names the
                 // parameters driving one component, and a range is one
                 // field's. Each names its component's slot.
+                // MOCKUP: the open edit on its own wrapping line, as
+                // wide as the pane, labelled with its slot.
+                if mock {
+                    ui.horizontal(|ui| {
+                        ui.label("y:");
+                        let mut text = MOCK_Y.to_owned();
+                        let id = egui::Id::new("mock_y_edit");
+                        let response = ui.add(
+                            egui::TextEdit::multiline(&mut text)
+                                .id(id)
+                                .desired_rows(1)
+                                .desired_width(ui.available_width()),
+                        );
+                        response.request_focus();
+                    });
+                }
                 for row in rows.iter() {
                     self.slot_notes_ui(ui, node, row);
+                    // MOCKUP: a refused draft is said under the row.
+                    if self.drafts.expr_target == Some((node, row.slot)) {
+                        crate::widgets::message_toned(
+                            ui,
+                            format!("{}: not applied: {}", row.slot.label(), self.drafts.expr_text),
+                            &self.theme,
+                            Tone::Advisory,
+                        );
+                    }
                 }
                 ui.horizontal(|ui| {
                     ui.weak("range");
@@ -622,8 +657,9 @@ impl ViewerBehavior<'_> {
     /// the field names the unit, and saying it twice adjacently says
     /// it once.
     pub(crate) fn slot_value_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        let draft = (self.drafts.expr_target == Some((node, row.slot)))
-            .then_some(self.drafts.expr_text.as_str());
+        // MOCKUP: the draft is not shown in the field.
+        let draft: Option<&str> = None;
+        let _ = node;
         // **The panel's value field, both doors and the gesture** —
         // the parameter row's field is this same call with its own
         // two operations. What a slot contributes is what the field
