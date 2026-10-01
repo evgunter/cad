@@ -2,11 +2,13 @@
 id: a-computed-slots-value-reads-in-metres-and-radians
 kind: issue
 title: viewer: a computed slot's value reads in metres and radians, whatever the document is written in
-status: open
+status: closed
 opened: 2026-09-29
+closed: 2026-10-01
+pr: 3639
 priority: P3
 cost: M
-design: true
+branch: chrome/working-notation
 refs: [a-driven-slots-field-draws-its-expression-source-at-any-width, the-gui-shows-no-measure-value-and-no-clearance]
 ---
 
@@ -90,3 +92,15 @@ Two cleanups go with it:
 - `unparse`'s dead "canonical unit when it remembers none" clause goes.
 - `rendering_unit`'s canonical-choice argument goes.
 
+## Closed
+
+PR 3639: the working notation is `props::Notation` (a length unit and
+an angle unit, default `m` and `pi rad`), held by
+`session::DocSession::notation` and persisted in `prefs::Prefs` as
+`[notation] length`/`angle` by unit symbol; an unknown symbol is
+`prefs::Notice::UnknownUnit` and that unit falls back to the default.
+The creation forms' unit pickers write it, and `Drafts` holds no unit.
+A driven slot's `= value`, `Refusal::affordance`, `tree::Measured::Value`
+and `tree::Asserted` (both numbers, carried as `props::Computed` and
+spelled when drawn) read in it, and so do the camera readout, the
+display δ (field, badge, budget sentence) and the free-move probe.

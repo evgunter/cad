@@ -2,8 +2,11 @@
 id: the-camera-hud-spells-its-angles-at-a-fixed-tenth-of-a-degree
 kind: issue
 title: the camera readout spells yaw and pitch at a fixed tenth of a degree, beside a distance rendered on the crate's grid
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-10-01
+pr: 3639
+branch: chrome/working-notation
 priority: P3
 cost: E
 ---
@@ -60,3 +63,14 @@ the closed unit table, and inherits whatever grid the sibling row
 settles — or a HUD legend about view state no document holds, in which
 case a fixed precision is a legitimate choice and the label should say
 so where it makes it. The present code says neither.
+
+## Closed
+
+PR 3639 answers the question above with its first branch: the camera
+readout is a quantity the chrome writes in a notation. `view_ui` spells
+yaw and pitch through `props::written_text` in the working notation's
+angle unit (`props::Notation`, default `pi rad`) and the distance band
+in its length unit, so the label has one number policy and the
+`{:.1}°` format is gone. The grid an angle render lands on is the
+sibling row's, `the-render-grids-cap-is-a-length-and-angles-go-through-it`,
+which this readout now inherits as that row said it would.
