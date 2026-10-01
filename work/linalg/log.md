@@ -109,3 +109,57 @@ owner. Nothing new targets `props/sign-hull`.
   because the population is large. The point-order and literal-door
   rows are marked `design: true`. The plan now states the present
   order.
+
+## 2026-10-01 (later) — the pole row, the doors, a designer pair
+
+- **Restart.** The worker restarted mid-wave, and three lane reports
+  were lost with the inbox. I recovered them from the pushed branches
+  and PRs, and had both designers re-deliver.
+  - The doors lane (#3710) left no surviving dispatch record, so I
+    treated its PR as a claim to verify. A fresh lane took it over
+    and found its red was main's: `bounds_census` was missing a
+    roster line that main had since added.
+- **#3711 landed (`49da0ea`).** The pole branch pick is a sound hull,
+  not a refusal. The measurement is on the closed row.
+  - Review: single FULL, APPROVE WITH FIXES. Two MINORs: at `Interval`
+    the readers escalate rather than decline; and nothing pinned
+    "the Interval window encloses f64's". A new row now pins it, and
+    a planted one-branch pick turns it red.
+- **#3710 landed (`330e305`).** It adds:
+  - the array doors;
+  - `norm_inf` (the review caught that the first name, `norm_sup`, is
+    `interval::norm_sup`'s, which is a bound on the Euclidean norm —
+    the unsafe direction to confuse);
+  - escalation recourse with no declare menu, and one
+    `DIRECTION_LENGTH_SUBJECT` where four copies stood;
+  - svd folds on `Real::min/max`.
+
+  Review: single FULL, APPROVE WITH FIXES. Every retired lowering was
+  differentially bit-identical, and there was no MAJOR.
+- **Designer pair on geom_core's point surface** (`Point3` order; an
+  f64 literal constructor). Blinding byte 165, recorded on
+  `analysis/design-fork/linalg-point-surface`.
+  - First reports split: A recommended `total_cmp` plus `from_f64`; B
+    recommended neither.
+  - On reconciliation A moved to B's position, and B held. This was
+    not a crossover.
+  - Converged: no door. This is the status quo that `linalg.rs`'s
+    "Deliberate omissions" already states, so it is not a fork for Ev
+    and not a design-fork log row. I added one sentence to that bullet
+    (clouds are compared by matching under a tolerance, never by
+    sorting and zipping).
+  - The #3710 reviewer noted that the sentence is a mild extension of
+    the bullet and binds tests (the tint row). That is said to Ev in
+    the session summary rather than held.
+- Filed from these units:
+  - TINT: sort-and-zip clouds.
+  - TOPO: a `Body` vertex-point door.
+  - CLEAVE: a strut-bearing operand reaching the join.
+  - On this slate: the test adoption of the array doors, the Chebyshev
+    chains, and Mat4.
+- **Friction.** The session's disk allowance (~39G) holds about three
+  concurrent building lanes. One lane ran it to zero twice. Reclaim
+  each target as its report lands.
+- Main's nightly is red on k-lint only (`chart_bound_outer_span` NaN
+  and `bool_circle_torus_root_slack`). Those belong to CHART, GERM and
+  PROPS, and none of it is a linalg K name.
