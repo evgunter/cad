@@ -7,6 +7,13 @@
 //!   declared `Tangent` across the rim the routing classifies the seam
 //!   and refuses `RimSeamNotDeclarable`; declared `Rest` it is
 //!   contradicted on carrier kind.
+//! - **Any cap abutting the tube on its rim, with only the two end discs
+//!   declared `Rest`** — the G1 hemisphere, a transverse 45° spherical
+//!   dome, a same-radius stacked cylinder — stops at the crossing layer,
+//!   undeclared or so declared: an edge on the rim rides the other
+//!   operand's undeclared wall, and the disc pair's cover does not reach
+//!   it. The answer does not depend on the corner. A cone frustum is
+//!   refused earlier, at the operand gate, on its kind.
 //! - **Tube ∪ ball** (overlapping, ball centred on the top cap) stops at
 //!   the crossing layer.
 //! - **The stadium** (slab ∪ cylinder whose wall the slab's top and
@@ -100,27 +107,53 @@ fn rod_z(r: f64, z0: f64, len: f64) -> Body<f64> {
     extrude(&p, Extrusion::Distance(len), tol).unwrap().body
 }
 
-/// A solid hemisphere of radius [`R`] standing on `z = H`: the quarter
-/// profile revolved, turned onto `+z`, lifted, and its base disc's two
-/// revolve halves merged (the boolean refuses a non-maximal operand).
-fn hemisphere_on_the_cap() -> Body<f64> {
+/// A revolved cap standing on `z = H`: the profile (sketch x radial,
+/// sketch y axial from the cap's base) revolved, turned onto `+z`,
+/// lifted, and its base disc's two revolve halves merged (the boolean
+/// refuses a non-maximal operand).
+fn cap_on_the_tube(profile: Vec<(Point2<f64>, f64)>) -> Body<f64> {
     let tol = Tol::witness();
-    let bulge = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-    let at0 = revolved_about_y(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(R, 0.0), bulge),
-            (Point2::new(0.0, R), 0.0),
-        ],
-        Revolution::Full,
-        tol,
-    );
+    let at0 = revolved_about_y(profile, Revolution::Full, tol);
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0);
     let turned = topo::transform_rigid(&at0, &turn, tol).unwrap();
-    let mut hemi =
+    let mut cap =
         topo::transform_rigid(&turned, &Affine3::translation(Vec3::new(0.0, 0.0, H)), tol).unwrap();
-    hemi.merge_coplanar_faces(tol).unwrap();
-    hemi
+    cap.merge_coplanar_faces(tol).unwrap();
+    cap
+}
+
+/// A solid hemisphere of radius [`R`] standing on `z = H`.
+fn hemisphere_on_the_cap() -> Body<f64> {
+    let bulge = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
+    cap_on_the_tube(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(R, 0.0), bulge),
+        (Point2::new(0.0, R), 0.0),
+    ])
+}
+
+/// A 45° cone frustum standing on `z = H`: base radius [`R`], top
+/// radius `R / 2` at height `R / 2`. Its wall meets the tube's along
+/// the rim circle at a 45° corner, not tangentially.
+fn frustum_on_the_cap() -> Body<f64> {
+    cap_on_the_tube(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(R, 0.0), 0.0),
+        (Point2::new(R / 2.0, R / 2.0), 0.0),
+        (Point2::new(0.0, R / 2.0), 0.0),
+    ])
+}
+
+/// A spherical cap of radius `√2·R` standing on `z = H`, its centre on
+/// the axis `R` below the cap's base, so the base circle is the tube's
+/// rim and the sphere meets the tube's wall there at 45°.
+fn dome_on_the_cap() -> Body<f64> {
+    let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
+    cap_on_the_tube(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(R, 0.0), bulge),
+        (Point2::new(0.0, (2.0_f64.sqrt() - 1.0) * R), 0.0),
+    ])
 }
 
 fn is_pierce(e: &BooleanError) -> bool {
@@ -183,6 +216,58 @@ fn the_sphere_capped_tube_refuses_at_every_door() {
             matches!(e, BooleanError::ContactContradicted { .. }),
             "the cap discs declared Tangent: one plane, contradicted: {e:?}"
         );
+    }
+}
+
+#[test]
+fn a_cap_abutting_on_the_rim_refuses_whatever_the_corner_with_its_discs_declared_rest() {
+    let tol = Tol::witness();
+    let tube = rod_z(R, 0.0, H);
+    let dome = dome_on_the_cap();
+    let rise = (2.0_f64.sqrt() - 1.0) * R;
+    let dome_v = PI * rise * rise * (3.0 * 2.0_f64.sqrt() * R - rise) / 3.0;
+    let v = topo::mass_properties(&dome, tol).unwrap().volume;
+    assert!(
+        (v - dome_v).abs() <= 1e-12 * dome_v,
+        "the dome fixture is the spherical cap on the rim: {v} vs {dome_v}"
+    );
+    let cap_t = planes_at_z(&tube, H);
+    // G1 (wedge π), transverse (45°), and the same carrier continued.
+    for (label, cap) in [
+        ("hemisphere", hemisphere_on_the_cap()),
+        ("dome", dome),
+        ("stacked cylinder", rod_z(R, H, 1.0)),
+    ] {
+        let cap_c = planes_at_z(&cap, H);
+        assert_eq!((cap_t.len(), cap_c.len()), (1, 1), "{label}: one disc each");
+        for class in [None, Some(ContactClass::Rest)] {
+            for e in union_both_orders(&tube, &cap, &cap_t, &cap_c, class) {
+                // At ε = 1e-6 the dome's rim-circle clearance against
+                // the tube's wall lands in band and escalates
+                // (`bool_circle_curved_clearance`) rather than piercing:
+                // the same crossing layer, one predicate earlier.
+                assert!(
+                    is_pierce(&e) || matches!(e, BooleanError::Escalated { .. }),
+                    "{label}, discs {class:?}: the crossing layer's refusal: {e:?}"
+                );
+            }
+        }
+    }
+    let cone = frustum_on_the_cap();
+    let cap_c = planes_at_z(&cone, H);
+    for class in [None, Some(ContactClass::Rest)] {
+        for e in union_both_orders(&tube, &cone, &cap_t, &cap_c, class) {
+            assert!(
+                matches!(
+                    e,
+                    BooleanError::CurvedPairUnsupported {
+                        kind: SurfaceKind::Cone,
+                        ..
+                    }
+                ),
+                "frustum, discs {class:?}: the operand gate's refusal: {e:?}"
+            );
+        }
     }
 }
 
