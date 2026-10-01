@@ -2336,8 +2336,8 @@ impl core::fmt::Display for SiteRowRefusal {
             ),
             Self::Corrupt => write!(
                 f,
-                "the body is structurally corrupt (a key did not resolve); read the \
-                 structural validators' report and repair the reference it names"
+                "a key the face's records hold does not resolve, so the body is torn. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::KeysOnly => write!(
                 f,
