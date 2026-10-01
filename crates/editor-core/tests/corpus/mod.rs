@@ -96,7 +96,7 @@ pub struct CorpusDoc {
     /// One-line description (printed in the latency table).
     pub about: &'static str,
     /// The recorded edit log (applied to the empty snapshot).
-    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     /// The replayed current state (empty snapshot + `edits`).
     pub doc: ProfileDoc,
     /// The node carrying the document's headline solid, if it has one
@@ -410,9 +410,9 @@ pub const NODE_KINDS: [&str; 21] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
-/// `SetPlacement` and `UpdateReference` are arms of `DocEdit` that no
-/// corpus document authors, and listing them here would report four
-/// permanent misses rather than covering anything. `SetProgram` is
+/// `SetOffset`, `SetGauge` and `UpdateReference` are arms of `DocEdit`
+/// that no corpus document authors, and listing them here would report
+/// five permanent misses rather than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
@@ -571,7 +571,8 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. }
-        | Node::InstantiatePart { .. } => Vec::new(),
+        | Node::InstantiatePart { .. }
+        | Node::Gauge { .. } => Vec::new(),
     }
 }
 
@@ -601,6 +602,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
+        Node::Gauge { .. } => "Gauge",
     }
 }
 
@@ -627,7 +629,8 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::SetRoots { .. } => "SetRoots",
-        DocEdit::SetPlacement { .. } => "SetPlacement",
+        DocEdit::SetOffset { .. } => "SetOffset",
+        DocEdit::SetGauge { .. } => "SetGauge",
         DocEdit::UpdateReference { .. } => "UpdateReference",
     }
 }
@@ -662,12 +665,7 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
             );
         }
         let mut seen_e = BTreeSet::new();
-        for e in d
-            .edits
-            .iter()
-            .map(|e| &e.edit)
-            .chain(std::iter::once(&d.bump))
-        {
+        for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
             seen_e.insert(edit_kind(e));
             if let DocEdit::InsertNode { node } = e {
                 note(node, &mut seen_n, &mut seen_s);

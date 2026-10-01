@@ -41,10 +41,10 @@ use crate::fixture;
 
 use editor_core::{
     Attr, CapEnd, Datum, Dimension, DocEdit, DocParam, EditError, EntityKind, EvalOptions, Expr,
-    LoggedEdit, LoopProgram, Maintenance, NameRef, Node, NodeErrorKind, NodeResult, ParamName,
-    PersistError, PieceRole, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId,
-    StepIdFault, apply, load, save,
+    LoopProgram, Maintenance, NameRef, Node, NodeErrorKind, NodeResult, ParamName, PersistError,
+    PieceRole, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId, StepIdFault,
+    apply, load, save,
 };
 use fixture::{ang, edge_of, ends, fname, insert, len, len2, minted, point, scl, table, tol};
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
@@ -886,7 +886,7 @@ fn extruded(label: &str, loops: Vec<LoopProgram>) -> (ProfileDoc, RecipeNodeId, 
 
 /// The rod document as a LOG: the empty document plus every edit that
 /// built it, the reshaping last.
-fn rod_log() -> (ProfileDoc, Vec<LoggedEdit<ProfileProgram>>) {
+fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     let empty = ProfileDoc::empty_derived("set-program-log", tol());
     let r = rod("set-program-log", &[CREASE]);
     // The log is the edits `rod` applied, so it mints the same ids.
@@ -921,7 +921,7 @@ fn rod_log() -> (ProfileDoc, Vec<LoggedEdit<ProfileProgram>>) {
             ids: bump_ids(&rod_ids(&r.doc, profile_node)),
         },
     ];
-    (empty, LoggedEdit::bare_all(&edits))
+    (empty, edits.to_vec())
 }
 
 /// **A document whose log holds a `SetProgram` saves, loads and
@@ -933,7 +933,7 @@ fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
     let (empty, log) = rod_log();
     let mut applied = empty.clone();
     for entry in &log {
-        applied = editor_core::apply_logged(&applied, entry, tol())
+        applied = editor_core::apply_replayed(&applied, entry, tol())
             .expect("the log applies")
             .doc;
     }
@@ -971,7 +971,7 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
         loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).unwrap()],
         ids: vec![vec![None]],
     };
-    let wire = serde_json::to_string(&LoggedEdit::bare(edit)).expect("serializes");
+    let wire = serde_json::to_string(&edit).expect("serializes");
     assert_eq!(
         wire,
         r#"{"edit":{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"ids":[[null]]}},"maintenance":[]}"#

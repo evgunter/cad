@@ -550,6 +550,7 @@ test_utils::f6_variants! {
         PlacedUnion,
         Declare,
         InstantiatePart,
+        Gauge,
         Mate,
         Measure,
         Assertion,
@@ -764,7 +765,21 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             interface: InterfaceRecord {
                 crossings: Vec::new(),
             },
+            gauge: None,
+            offset: Some(Placement::from(Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            })),
         },
+        Node::gauge(
+            None,
+            Step::Rigid {
+                translation: [len(0.0), len(2.0), len(0.0)],
+                axis: [scl(1.0), scl(0.0), scl(0.0)],
+                angle: ang(0.25),
+            },
+        ),
         Node::Mate {
             a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),

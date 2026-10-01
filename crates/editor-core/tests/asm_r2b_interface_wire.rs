@@ -93,7 +93,15 @@ fn doc_with_a_crossing() -> ProfileDoc {
             inner: face(RecipeNodeId(7), CapEnd::Start),
         }],
     };
-    push(&host, Node::instantiate_part_with(doc_ref, record))
+    push(
+        &host,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    )
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was

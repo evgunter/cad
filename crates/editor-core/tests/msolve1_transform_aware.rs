@@ -632,15 +632,17 @@ fn a4_a_placed_root_group_seats_through_both_chains() {
     );
     let (doc, _) = step(
         s.doc.clone(),
-        DocEdit::SetPlacement {
-            node: s.base,
-            frame: editor_core::Frame::rotate_then_translate(
-                [0.3, -0.2, 0.9],
-                0.8,
-                [2.0, -1.0, 3.0],
-                fixture::band(),
-            )
-            .expect("a literal axis has a definite direction"),
+        DocEdit::SetOffset {
+            instance: s.base,
+            offset: Some(editor_core::Placement::literal(
+                &editor_core::Frame::rotate_then_translate(
+                    [0.3, -0.2, 0.9],
+                    0.8,
+                    [2.0, -1.0, 3.0],
+                    fixture::band(),
+                )
+                .expect("a literal axis has a definite direction"),
+            )),
         },
     );
     let placed = Scene { doc, ..s };

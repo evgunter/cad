@@ -806,7 +806,15 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
             inner: inner.clone(),
         }],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
 
     let ev = run(&doc, &with_resolver(store.clone()));
     assert!(
@@ -897,7 +905,15 @@ fn row5_c_inline_dissolves_the_crossing_record() {
             inner,
         }],
     };
-    let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, instance) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
     let before = doc.order().len();
     let part_nodes = store.doc(doc_ref.id).order().len();
     let back = inline(
@@ -1133,7 +1149,15 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
             inner,
         }],
     };
-    let (with, id_with) = insert(host.clone(), Node::instantiate_part_with(doc_ref, record));
+    let (with, id_with) = insert(
+        host.clone(),
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            None,
+            Some(editor_core::Placement::IDENTITY),
+        ),
+    );
     let (without, id_without) = insert(host, Node::instantiate_part(doc_ref));
     assert_eq!(id_with, id_without, "same id, same reference, same pin");
 
@@ -1191,7 +1215,15 @@ fn a_crossing_record_keys_on_each_of_its_fields() {
         }],
     };
     let key = |record| {
-        let (doc, id) = insert(host.clone(), Node::instantiate_part_with(doc_ref, record));
+        let (doc, id) = insert(
+            host.clone(),
+            Node::instantiate_part_with(
+                doc_ref,
+                record,
+                None,
+                Some(editor_core::Placement::IDENTITY),
+            ),
+        );
         run(&doc, &with_resolver(store.clone()))
             .value(id)
             .expect("the instance evaluates")

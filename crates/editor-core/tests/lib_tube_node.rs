@@ -855,7 +855,7 @@ fn both_kinds_round_trip_through_persistence() {
         let empty = ProfileDoc::empty_derived("lib-tube-roundtrip", Tol::witness());
         let mut expected = empty.clone();
         for edit in &d.edits {
-            expected = editor_core::apply_logged(&expected, edit, Tol::witness())
+            expected = editor_core::apply_replayed(&expected, edit, Tol::witness())
                 .expect("a corpus edit applies")
                 .doc;
         }

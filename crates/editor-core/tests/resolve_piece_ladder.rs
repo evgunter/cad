@@ -294,6 +294,7 @@ fn one_node_eval(
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
         document,
         prior_refused: None,
         order: vec![node],

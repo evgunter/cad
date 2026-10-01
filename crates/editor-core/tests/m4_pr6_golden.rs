@@ -465,12 +465,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
 #[test]
 fn golden_bytes_are_frozen() {
     let (doc, edits) = golden();
-    let text = save(
-        &doc,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("golden saves");
+    let text = save(&doc, &edits.to_vec(), Tol::witness()).expect("golden saves");
     if std::env::var("M4_PR6_BLESS_GOLDEN").is_ok() {
         std::fs::write(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN_PATH),
@@ -497,11 +492,7 @@ fn golden_bytes_load() {
             assert_eq!(ambient.to_bits(), 1e-9f64.to_bits());
             let (doc, edits) = golden();
             assert!(loaded.snapshot.bit_eq(&doc), "golden snapshot drifted");
-            assert_eq!(
-                loaded.edits,
-                editor_core::LoggedEdit::bare_all(&edits),
-                "golden edit log drifted"
-            );
+            assert_eq!(loaded.edits, edits.to_vec(), "golden edit log drifted");
         }
         Err(PersistError::ToleranceConflict { process, document }) => {
             // The ε door is the LAST load door, so this outcome still

@@ -16,10 +16,10 @@ use crate::wire::doctored;
 
 use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, ClusterMaintenance, ContactClass, DocEdit, DocumentId, EditError,
-    EntityKind, Evaluation, Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply,
-    groups, load, product, relative_freedom_components, save,
+    Alignment, AxisSense, ContactClass, DocEdit, DocumentId, EditError, EntityKind, Evaluation,
+    Frame, Maintenance, MateFrame, MatePrimitive, MateRole, Node, NodeErrorKind, NodeResult,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, apply, groups, load, product,
+    relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
@@ -379,81 +379,85 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
     assert!(message.contains("clash"), "{message}");
 }
 
-// ---- Row 4: the cluster-record keying migration ----
+// ---- Row 4: the mate door, and no edit records a frame (A11 (2)) ----
 
+/// Row 4a — a mate insert that joins two groups clears the root offset
+/// of `b`'s group (the mate door), in the same logged edit, and replays
+/// without solving: the merged group keeps one root.
 #[test]
-fn row4a_a_mate_insert_joins_two_groups_consuming_the_absorbed_frame() {
+fn row4a_a_mate_insert_joins_two_groups_clearing_bs_root_offset() {
     let (doc, ids, _, body) = assembly("asm-r2a-row4a", 2);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
         },
     );
+    let b_offset = editor_core::Placement::literal(&Frame::translation([0.0, 5.0, 0.0]));
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([0.0, 5.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(b_offset.clone()),
         },
     );
     assert_eq!(groups(&doc).len(), 2, "two singleton groups");
     let before = doc.clone();
-
-    let applied = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: mate(
-                body,
-                ids[0],
-                ids[1],
-                MatePrimitive::Coaxial,
-                AxisSense::Aligned,
-                z_up(),
-                z_up(),
-                Some(0.0),
-            ),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the mate inserts");
+    let insert = DocEdit::InsertNode {
+        node: mate(
+            body,
+            ids[0],
+            ids[1],
+            MatePrimitive::Coaxial,
+            AxisSense::Aligned,
+            z_up(),
+            z_up(),
+            Some(0.0),
+        ),
+    };
+    let applied = apply(&doc, &insert, Tol::witness(), &editor_core::RefusingReach)
+        .expect("the mate inserts");
     assert_eq!(groups(&applied.doc).len(), 1, "one group now");
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::Cluster(ClusterMaintenance::Join {
-            survived: ids[0],
-            absorbed: ids[1],
-            absorbed_frame: Some(Frame::translation([0.0, 5.0, 0.0])),
-        })],
-        "the join names the survivor and CONSUMES the absorbed frame"
+        vec![Maintenance::OffsetCleared {
+            instance: ids[1],
+            offset: b_offset,
+        }],
+        "the door clears the joined root's offset and says so"
     );
+    assert_eq!(fixture::offset_of(&applied.doc, ids[1]), None);
     assert_eq!(
-        applied.doc.placements().len(),
-        1,
-        "one group, one recorded frame"
+        fixture::offset_of(&applied.doc, ids[0]),
+        fixture::offset_of(&doc, ids[0]),
+        "the surviving root's offset is unchanged"
     );
+    let replayed = editor_core::apply_replayed(&doc, &insert, Tol::witness())
+        .expect("the logged edit replays with no reach");
     assert!(
-        applied.doc.placement(ids[1]).bit_eq(&doc.placement(ids[0])),
-        "the surviving root's frame is unchanged, bit for bit"
+        replayed.doc.bit_eq(&applied.doc),
+        "and replays to the same document"
     );
+    assert_eq!(replayed.maintenance, applied.maintenance);
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
 
+/// Row 4b — deleting the placing mate is not refused, records no
+/// frame, and leaves the orphan's group UNPLACED: it has no offset, so
+/// it lives in its own space and has no world pose.
 #[test]
-fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
+fn row4b_a_mate_delete_is_not_refused_and_unplaces_the_orphan() {
     let (doc, ids, joint, store, _) = stacked_pair("asm-r2a-row4b");
-    // Deleting the mate SPLITS the group: the orphan's frame is
-    // minted from the solved pose, so the edit levers through the
-    // store's own reach.
-    let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([0.0, 0.0, 4.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                0.0, 0.0, 4.0,
+            ]))),
         },
     );
     let before = doc.clone();
@@ -461,54 +465,44 @@ fn row4b_a_mate_delete_splits_and_re_mints_from_the_solved_pose() {
         &doc,
         &DocEdit::DeleteNode { id: joint },
         Tol::witness(),
-        &reach,
+        &editor_core::RefusingReach,
     )
     .expect("the mate deletes");
     assert_eq!(groups(&applied.doc).len(), 2, "the group split");
+    assert!(applied.maintenance.is_empty(), "no frame is recorded");
+    let poses = solve(&applied.doc, &with_resolver(store), Tol::witness());
     assert_eq!(
-        applied.maintenance,
-        vec![Maintenance::Cluster(ClusterMaintenance::Split {
-            from: ids[0],
-            to: ids[1],
-            frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-        })],
-        "the orphan's frame is RE-MINTED from its solved pose, so its \
-         world pose is unchanged"
+        poses.unplaced(ids[1]),
+        Some(editor_core::Unplaced::NoOffset)
     );
+    assert!(matches!(
+        poses.placement(&applied.doc, ids[1]),
+        Err(editor_core::PoseRefusal::Unplaced { instance, .. }) if instance == ids[1]
+    ));
     assert!(
-        applied
-            .doc
-            .placement(ids[0])
+        poses
+            .placement(&applied.doc, ids[0])
+            .expect("the surviving root is placed")
             .bit_eq(&Frame::translation([0.0, 0.0, 4.0])),
-        "the surviving group keeps its frame verbatim"
+        "the surviving group keeps its offset verbatim"
     );
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
 
+/// Row 4c — deleting the root is not refused either: DM7 reports the
+/// mate head it stranded, and the survivor's group, which no member
+/// places, is unplaced.
 #[test]
-fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
+fn row4c_deleting_the_root_unplaces_the_survivor() {
     let (doc, ids, _, store, body) = stacked_pair("asm-r2a-row4c");
-    let o = with_resolver(store);
-    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([0.0, 0.0, 4.0]),
-        },
-    );
     let before = doc.clone();
     let applied = apply(
         &doc,
         &DocEdit::DeleteNode { id: ids[0] },
         Tol::witness(),
-        &reach,
+        &editor_core::RefusingReach,
     )
     .expect("the root deletes");
-    // The mate names the dead instance with an instance-qualified
-    // head, which is a payload NAME and not a DAG edge: the delete
-    // stands and DM7's report rides beside the registry act, read at
-    // the door before the registry reconciles.
     let mate_node = applied
         .doc
         .order()
@@ -518,61 +512,58 @@ fn row4c_deleting_the_gauge_rewrites_the_key_and_holds_world_poses() {
         .expect("the mate survives its member");
     assert_eq!(
         applied.maintenance,
-        vec![
-            Maintenance::Strand {
-                node: mate_node,
-                name: in_part(ids[0], body, CapEnd::Start),
-            },
-            Maintenance::Cluster(ClusterMaintenance::GaugeRewrite {
-                from: ids[0],
-                to: ids[1],
-                frame: Some(Frame::translation([0.0, 0.0, 5.0])),
-            }),
-        ],
-        "the key moves to the next representative, composed with the \
-         already-solved relative pose, so the survivor's world pose \
-         does not move"
+        vec![Maintenance::Strand {
+            node: mate_node,
+            name: in_part(ids[0], body, CapEnd::Start),
+        }],
+        "the strand is the whole report: no frame is recorded"
     );
+    let poses = solve(&applied.doc, &with_resolver(store), Tol::witness());
     assert_eq!(
-        applied.doc.placements().keys().copied().collect::<Vec<_>>(),
-        vec![ids[1]]
+        poses.unplaced(ids[1]),
+        Some(editor_core::Unplaced::NoOffset)
     );
     assert!(before.bit_eq(&doc), "undo is the prior value, held exactly");
 }
 
+/// Row 4d — a lone instance's world pose is its offset's frame, bit for
+/// bit (A11 (5)), and a mate-less document round-trips identically.
 #[test]
 fn row4d_a_no_mates_document_round_trips_identically_below_the_header() {
-    let (doc, ids, _, _) = assembly("asm-r2a-row4d", 3);
+    let (doc, ids, store, _) = assembly("asm-r2a-row4d", 3);
+    let placed =
+        Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.25, [2.0, 3.0, 0.0], fixture::band())
+            .expect("a literal axis has a definite direction");
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::rotate_then_translate(
-                [0.0, 0.0, 1.0],
-                0.25,
-                [2.0, 3.0, 0.0],
-                fixture::band(),
-            )
-            .expect("a literal axis has a definite direction"),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&placed)),
         },
     );
-    assert_eq!(
-        doc.placements().keys().copied().collect::<Vec<_>>(),
-        vec![ids[2]],
-        "a singleton group's root IS its instance, so the key is \
-         exactly the pre-mate one"
+    let poses = solve(&doc, &with_resolver(store), Tol::witness());
+    assert!(
+        poses
+            .placement(&doc, ids[2])
+            .expect("placed")
+            .bit_eq(&placed),
+        "a lone instance returns its offset's frame bit for bit"
+    );
+    assert!(
+        poses
+            .placement(&doc, ids[0])
+            .expect("placed")
+            .is_identity_bits(),
+        "an instance at the empty offset on the world sits at the identity"
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the round trip is bit-exact");
-    // The header necessarily moved (the `Node::Mate` arm took a schema
-    // version), so byte-identity is asserted BELOW it — everything the
-    // group keying could have touched.
     let body = |t: &str| t.split_once('\n').expect("a header").1.to_string();
     assert_eq!(
         body(&text),
         body(&save(&back, &[], Tol::witness()).expect("saves")),
-        "every byte below the header survives the keying migration"
+        "every byte below the header survives the round trip"
     );
 }
 
@@ -605,25 +596,28 @@ fn two_groups() -> (ProfileDoc, Vec<RecipeNodeId>, Vec<RecipeNodeId>, PartStore)
     }
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([3.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                3.0, 0.0, 0.0,
+            ]))),
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::translation([7.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                7.0, 0.0, 0.0,
+            ]))),
         },
     );
     (doc, ids, mates, store)
 }
 
-/// Row 4e — a cut of ONE WHOLE group hoists its frame onto the
-/// remainder instance and leaves the part unplaced. This is ASM-4's
-/// D-2 rider (ii) doing its job at a group the pre-mate predicate
-/// could not even spell: two instantiate nodes, one group.
+/// Row 4e — a cut of ONE WHOLE placed group hoists its root's offset
+/// onto the remainder instance and lands the root at the empty chain in
+/// the part (A4).
 #[test]
 fn row4e_a_whole_group_cut_hoists_the_group_frame() {
     use std::collections::BTreeSet;
@@ -638,10 +632,11 @@ fn row4e_a_whole_group_cut_hoists_the_group_frame() {
         o.resolver.as_ref(),
     )
     .expect("a whole-group cut splits");
-    assert!(
-        out.part.placements().is_empty(),
-        "the part holds the group UNPLACED — its world pose belongs \
-         to the assembly"
+    assert_eq!(
+        fixture::offset_of(&out.part, out.node_map[&ids[0]]),
+        Some(editor_core::Placement::IDENTITY),
+        "the part's root lands at the empty chain — its world pose \
+         belongs to the assembly"
     );
     let instance = *out
         .remainder
@@ -649,17 +644,19 @@ fn row4e_a_whole_group_cut_hoists_the_group_frame() {
         .iter()
         .find(|id| doc.node(**id).is_none())
         .expect("the remainder gained an instance");
-    assert!(
-        out.remainder
-            .placement(instance)
-            .bit_eq(&Frame::translation([3.0, 0.0, 0.0])),
-        "the group's frame HOISTED onto the remainder instance"
+    assert_eq!(
+        fixture::offset_of(&out.remainder, instance),
+        Some(editor_core::Placement::literal(&Frame::translation([
+            3.0, 0.0, 0.0
+        ]))),
+        "the root's offset HOISTED onto the remainder instance"
     );
-    assert!(
-        out.remainder
-            .placement(ids[2])
-            .bit_eq(&Frame::translation([7.0, 0.0, 0.0])),
-        "the untouched group keeps its own frame"
+    assert_eq!(
+        fixture::offset_of(&out.remainder, ids[2]),
+        Some(editor_core::Placement::literal(&Frame::translation([
+            7.0, 0.0, 0.0
+        ]))),
+        "the untouched group keeps its own offset"
     );
 }
 
@@ -1087,23 +1084,13 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
         &[ids[0], ids[1], mate_id][..],
         "no tip transfer: the mate APPENDS as an ordinary non-body root"
     );
-    // A lone coaxial mate leaves the pair UNDER-determined, so the
-    // prior solve places the second instance nowhere — and deleting
-    // the mate is the recourse that refusal names, so the edit door
-    // takes it: the orphan keeps the group's frame (there is no
-    // solved pose to preserve) rather than the delete refusing.
+    // A lone coaxial mate leaves the pair UNDER-determined; deleting
+    // it is the recourse that refusal names, and no edit records a
+    // frame, so the door takes it and reports nothing.
     let applied = doc
         .apply(&DocEdit::DeleteNode { id: mate_id }, Tol::witness(), &reach)
         .expect("deleting an under-determined mate is its recourse");
-    assert_eq!(
-        applied.cluster_rows(),
-        vec![ClusterMaintenance::Split {
-            from: ids[0],
-            to: ids[1],
-            frame: None,
-        }],
-        "the orphan takes the group's (absent) frame"
-    );
+    assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
     let doc = applied.doc;
     assert_eq!(doc.roots(), &ids[..], "and leaves them as it found them");
 }

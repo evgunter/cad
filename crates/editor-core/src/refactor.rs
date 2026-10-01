@@ -114,7 +114,7 @@ use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
 use crate::program::{ProfileDoc, ProfilePayload as _, ProfileProgram};
 use crate::resolve::derivation_nodes;
-use crate::sentence::{PASS_A_RESOLVER, Recourse};
+use crate::sentence::Recourse;
 use crate::step_mint::StepMint;
 use geom_core::Tol;
 
@@ -394,11 +394,12 @@ pub enum SplitError {
         /// The unplaced group the cut holds first, by its root.
         group: RecipeNodeId,
     },
-    /// **A declaring mate would start placing** (A4): it crosses the
-    /// cut between a kept instance and a cut one on different gauges,
-    /// and the instance the split leaves behind sits on the anchor —
-    /// the kept instance's gauge — so the mate would place what it
-    /// only declared.
+    /// **A mate would start placing** (A4): it reads a kept instance on
+    /// one side and the cut on the other — a cut instance on another
+    /// gauge, which it declares against, or cut material that is no
+    /// instance — and the instance the split leaves behind sits on the
+    /// anchor, the kept instance's gauge, so the mate would place what
+    /// it did not.
     WouldStartPlacing {
         /// The mate.
         mate: RecipeNodeId,
@@ -585,8 +586,8 @@ impl core::fmt::Display for SplitError {
             ),
             Self::WouldStartPlacing { mate } => write!(
                 f,
-                "split: mate {m} declares across gauges, and once its cut side is read at the \
-                 instance the split leaves behind it would place on one gauge. {}",
+                "split: mate {m} reads the cut from an instance on the gauge the split's \
+                 instance would sit on, so it would start placing. {}",
                 Recourse(&format!("delete mate {m}, then split", m = mate.0)),
                 m = mate.0
             ),
@@ -1090,8 +1091,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             },
             // The forwarded mate refusal's whole sentence, which the
             // mate solve owns. A part the solve could not lever through
-            // states its resolver's recourse inside it: the fault's own,
-            // or the split's resolver's (`WithPart`).
+            // states its resolver's recourse inside it.
             EditError::MateRefused { .. } => Ok(()),
             // Every other edit re-writes what the source document or
             // the part already holds, each validated at its own door
@@ -2016,13 +2016,14 @@ pub fn split(
     {
         return Err(SplitError::HoistedMemberOffset { instance });
     }
-    // The mates that cross the cut — a kept mate reading a cut
-    // instance. Each declares (a placing one tears its group), and A4
-    // holds each to two rules: it must not start placing once its cut
-    // side is read at the instance left behind, which sits on the
-    // anchor; and its cut side's coordinates must not change, so the
-    // instance it reads must be, in the part, its group's root at the
-    // empty chain on the part's world.
+    // The mates that cross the cut — a kept mate one of whose sides
+    // reads the cut, the other a kept instance. A4 holds each to two
+    // rules: it must not start placing once its cut side is read at the
+    // instance left behind, which sits on the anchor (a placing one
+    // tears its group, and a declaring one, or one whose cut side read
+    // no instance, would start); and its cut side's coordinates must
+    // not change, so an instance it reads must be, in the part, its
+    // group's root at the empty chain on the part's world.
     let root_lands_empty = |instance: RecipeNodeId| match hoisted {
         Some((_, root)) => root == instance,
         None => cut_groups.iter().any(|&(_, root, cause)| {
@@ -2038,25 +2039,23 @@ pub fn split(
         let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
             continue;
         };
-        let (Some(ma), Some(mb)) = (
-            crate::mate::member_of(doc, a),
-            crate::mate::member_of(doc, b),
-        ) else {
-            continue;
-        };
         for (side, inner, outer) in [
-            (crate::mate::MateSide::A, &ma, &mb),
-            (crate::mate::MateSide::B, &mb, &ma),
+            (crate::mate::MateSide::A, a, b),
+            (crate::mate::MateSide::B, b, a),
         ] {
-            if !cut.contains(&inner.instance) || cut.contains(&outer.instance) {
+            let Some(kept) = crate::mate::member_of(doc, outer) else {
+                continue;
+            };
+            if !derivation_nodes(&inner.name).is_subset(cut) || cut.contains(&kept.instance) {
                 continue;
             }
-            if doc.node(outer.instance).and_then(Node::gauge_ref) == anchor {
+            if doc.node(kept.instance).and_then(Node::gauge_ref) == anchor {
                 return Err(SplitError::WouldStartPlacing { mate });
             }
-            if !inner.copy.is_empty()
-                || inner.at != inner.instance
-                || !root_lands_empty(inner.instance)
+            if let Some(read) = crate::mate::member_of(doc, inner)
+                && (!read.copy.is_empty()
+                    || read.at != read.instance
+                    || !root_lands_empty(read.instance))
             {
                 return Err(SplitError::MateFrameCrosses { mate, side });
             }
@@ -2361,21 +2360,9 @@ pub fn split(
 
     // ---- The remainder, as recorded edits from the input ----
     let mut remainder = Recording::start(doc.clone());
-    // **The remainder's reach knows the part this split is minting.**
-    // Rebinding a mate's heads onto the new instance one name at a time
-    // passes through documents where that mate stands on the new part,
-    // and the maintenance that re-keys the groups those rebinds
-    // split solves through the mate's lever — the new part's own
-    // extent, which no store holds yet because this call is what
-    // creates it. The reach is therefore composed here: the part in
-    // hand answers its own reference, the caller's resolver answers
-    // every other, and an absent resolver refuses those typed.
-    let carving: std::sync::Arc<dyn PartResolver> = std::sync::Arc::new(WithPart {
-        doc_ref: DocRef { id: part_id, pin },
-        part: part.doc.clone(),
-        inner: resolver.cloned(),
-    });
-    let rem_reach = crate::eval::PartReach::<f64>::with_resolver(Some(&carving), tol);
+    // The remainder inserts no mate — an instance, rebinds, deletes and
+    // the root list — so none of its edits asks a reach.
+    let rem_reach = crate::mate::RefusingReach;
     let rem_apply = |remainder: &mut Recording,
                      edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
@@ -2879,46 +2866,6 @@ pub fn inline(
         node_map,
         step_map,
     })
-}
-
-/// **The split's own resolver**: the part being minted, answered from
-/// the document in hand, and every other reference answered by the
-/// caller's resolver — or refused typed when there is none.
-#[derive(Debug)]
-struct WithPart {
-    /// The new part's reference: its id and the pin of the document
-    /// this split built.
-    doc_ref: DocRef,
-    /// That document.
-    part: ProfileDoc,
-    /// The caller's seam, for every other part.
-    inner: Option<std::sync::Arc<dyn PartResolver>>,
-}
-
-impl PartResolver for WithPart {
-    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        if doc_ref.id == self.doc_ref.id {
-            // A kept instance may reference `part_id` (the split's
-            // freshness check reads only the cut), and the solve the
-            // remainder's maintenance makes asks this resolver for it.
-            if doc_ref.pin != self.doc_ref.pin {
-                return Err(ResolveFailure::pin_mismatch(format!(
-                    "the reference shares its id with the part this split is minting, and names \
-                     another version of it. {}",
-                    Recourse("split under an id this document does not reference")
-                )));
-            }
-            return Ok(self.part.clone());
-        }
-        match &self.inner {
-            Some(inner) => inner.resolve(doc_ref, tol),
-            None => Err(ResolveFailure::unresolved(format!(
-                "the split was given no resolver, and the reference is not the part it is \
-                 minting. {}",
-                Recourse(PASS_A_RESOLVER)
-            ))),
-        }
-    }
 }
 
 /// **A remap never changes a KIND.**

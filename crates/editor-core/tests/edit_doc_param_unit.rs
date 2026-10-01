@@ -434,17 +434,12 @@ fn the_unit_edit_saves_replays_and_loads() {
             unit: deg(),
         },
     ];
-    let text = save(
-        &snapshot,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("a legal log saves");
+    let text = save(&snapshot, &edits.to_vec(), Tol::witness()).expect("a legal log saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
     assert_eq!(loaded.edits.len(), 2, "the log round-tripped");
     assert_eq!(
         loaded.edits[0],
-        editor_core::LoggedEdit::from(edits[0].clone()),
+        edits[0].clone(),
         "the edit itself round-tripped, notation and all"
     );
     match loaded.doc.params()[&p("wall")] {
@@ -469,12 +464,7 @@ fn the_unit_edit_saves_replays_and_loads() {
         unit: deg(),
     }];
     assert!(
-        save(
-            &snapshot,
-            &editor_core::LoggedEdit::bare_all(&bad),
-            Tol::witness()
-        )
-        .is_err(),
+        save(&snapshot, &bad.to_vec(), Tol::witness()).is_err(),
         "save refuses a log that cannot replay"
     );
 }
@@ -579,7 +569,7 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         assert_eq!(
             Doc::replay(
                 DocumentId::derive("edit-doc-param-unit"),
-                &editor_core::LoggedEdit::bare_all(&log),
+                &log.to_vec(),
                 Tol::witness()
             )
             .expect_err("replay refuses"),
@@ -640,12 +630,7 @@ fn the_notation_edit_round_trips_the_bytes() {
         name: p("wall"),
         unit: mm(),
     }];
-    let text = save(
-        &doc,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("saves");
+    let text = save(&doc, &edits.to_vec(), Tol::witness()).expect("saves");
     assert!(
         text.contains("SetDocParamUnit") && text.contains("\"unit\": \"mm\""),
         "the wire form is the derive's, symbol and all"

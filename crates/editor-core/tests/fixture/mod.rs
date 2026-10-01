@@ -58,10 +58,10 @@ pub mod value_channel;
 
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
-    Entry, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, NameTable, Node,
-    ParamName, ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef,
-    RecipeNodeId, RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate,
-    mate_reach, solve_document,
+    Entry, EvalOptions, Evaluation, Expr, LoopProgram, MateReach, NameTable, Node, ParamName,
+    ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId,
+    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
+    solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -183,12 +183,30 @@ pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 /// on a mated document mints a frame from the parts' extent and
 /// refuses here — a row that deletes a mate or an instance of a mated
 /// document steps through [`step_with`] and the store's own reach.
+/// Whether two instances carry the same offset, bit for bit (or both
+/// none).
+pub fn same_offset(a: &ProfileDoc, ai: RecipeNodeId, b: &ProfileDoc, bi: RecipeNodeId) -> bool {
+    match (offset_of(a, ai), offset_of(b, bi)) {
+        (None, None) => true,
+        (Some(x), Some(y)) => x.bit_eq(&y),
+        _ => false,
+    }
+}
+
+/// An instance's offset (A11 (2)); panics on a node that is not one.
+pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Placement> {
+    match doc.node(id) {
+        Some(Node::InstantiatePart { offset, .. }) => offset.clone(),
+        other => panic!("node {} is an instance, got {other:?}", id.0),
+    }
+}
+
 pub fn step(doc: ProfileDoc, edit: DocEdit<ProfileProgram>) -> (ProfileDoc, Option<RecipeNodeId>) {
     step_with(doc, edit, &RefusingReach)
 }
 
-/// [`step`] through `reach` — the store's, for an edit whose
-/// maintenance mints a frame from a solve.
+/// [`step`] through `reach` — the store's, for a mate insert whose
+/// clocking rider is decided over its parts.
 pub fn step_with(
     doc: ProfileDoc,
     edit: DocEdit<ProfileProgram>,
@@ -561,7 +579,7 @@ pub struct Recorder {
     /// The document as edited so far.
     pub doc: ProfileDoc,
     /// The recorded log.
-    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
 }
 
 impl Default for Recorder {
@@ -584,10 +602,7 @@ impl Recorder {
     pub fn push(&mut self, edit: DocEdit<ProfileProgram>) -> Option<RecipeNodeId> {
         let applied = editor_core::apply(&self.doc, &edit, Tol::witness(), &RefusingReach)
             .expect("recorded edit must apply");
-        self.edits.push(LoggedEdit {
-            edit,
-            maintenance: applied.cluster_rows(),
-        });
+        self.edits.push(edit);
         self.doc = applied.doc;
         applied.record.minted
     }
@@ -631,7 +646,7 @@ impl Recorder {
 pub struct Die {
     pub doc: ProfileDoc,
     /// The document's full edit log (snapshot = the empty document).
-    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     /// The final Subtract (the die body).
     pub final_node: RecipeNodeId,
     /// The +z face's pip-master Extrude (the poisoning target: its

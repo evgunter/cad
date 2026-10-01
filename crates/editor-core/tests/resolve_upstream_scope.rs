@@ -640,6 +640,7 @@ fn two_node_eval(
     nodes.insert(named, value(table, vec![]));
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
         document: doc.id(),
         prior_refused: None,
         order: vec![upstream, named],

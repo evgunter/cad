@@ -446,8 +446,8 @@ fn a_union_and_a_set_members_replay_bit_identically() {
             .expect("the log replays")
             .doc;
     }
-    let text = editor_core::persist::save(&empty, &editor_core::LoggedEdit::bare_all(&edits), tol)
-        .expect("the document saves");
+    let text =
+        editor_core::persist::save(&empty, &edits.to_vec(), tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("the document loads");
     assert!(
         loaded.doc.bit_eq(&replayed),

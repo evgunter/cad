@@ -813,9 +813,9 @@ fn the_placement_axis_refuses_in_its_own_voice() {
         let frame = Frame::rotate_then_translate(axis, 0.5, [1.0, 2.0, 3.0], fixture::band())?;
         Ok(editor_core::apply(
             &doc,
-            &DocEdit::SetPlacement {
-                node: instance,
-                frame,
+            &DocEdit::SetOffset {
+                instance: instance,
+                offset: Some(editor_core::Placement::literal(&frame)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,

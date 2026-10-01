@@ -120,12 +120,7 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
             Distribution::Normal { sigma: 0.01 },
         ),
     };
-    let text = save(
-        &base,
-        &[editor_core::LoggedEdit::bare(edit.clone())],
-        Tol::witness(),
-    )
-    .expect("a valid snapshot+log saves");
+    let text = save(&base, &[edit.clone()], Tol::witness()).expect("a valid snapshot+log saves");
     let corrupt = text.replace("\"sigma\": 0.01", "\"sigma\": -2.0");
     assert_ne!(corrupt, text, "the corruption must land (in the LOG)");
     match load(&corrupt, Tol::witness()) {

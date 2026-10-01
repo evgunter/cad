@@ -1535,6 +1535,8 @@ mod tests {
                             .expect("the fixture spells a face"),
                     }],
                 },
+                gauge: None,
+                offset: Some(crate::placement::Placement::IDENTITY),
             },
         );
         doc.order = vec![RecipeNodeId(2), RecipeNodeId(1), RecipeNodeId(0)];

@@ -196,12 +196,7 @@ fn die_authors_replays_and_diffs() {
     assert_eq!(die.doc.len(), 46);
 
     // Replay identity (spec D7): from empty, BIT-IDENTICAL.
-    let replayed = TDoc::replay(
-        die.doc.id(),
-        &editor_core::LoggedEdit::bare_all(&die.log),
-        Tol::witness(),
-    )
-    .unwrap();
+    let replayed = TDoc::replay(die.doc.id(), &die.log.to_vec(), Tol::witness()).unwrap();
     assert_eq!(replayed, die.doc);
     assert!(replayed.diff(&die.doc).is_empty());
     assert_eq!(replayed.epsilon().to_bits(), die.doc.epsilon().to_bits());
@@ -250,14 +245,7 @@ fn die_authors_replays_and_diffs() {
     assert_eq!(die.doc.len(), 46);
     assert!(
         die.doc
-            .diff(
-                &TDoc::replay(
-                    die.doc.id(),
-                    &editor_core::LoggedEdit::bare_all(&die.log),
-                    Tol::witness()
-                )
-                .unwrap()
-            )
+            .diff(&TDoc::replay(die.doc.id(), &die.log.to_vec(), Tol::witness()).unwrap())
             .is_empty()
     );
 }

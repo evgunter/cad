@@ -457,11 +457,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         name: ParamName::from_static("bad"),
         value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
-    match save(
-        &doc,
-        &[editor_core::LoggedEdit::bare(nan_edit)],
-        Tol::witness(),
-    ) {
+    match save(&doc, &[nan_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { index: 0, inner },
         }) => assert!(
@@ -494,11 +490,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         key: "k".into(),
         value: MetaValue::Map(m),
     };
-    match save(
-        &doc,
-        &[editor_core::LoggedEdit::bare(meta_edit)],
-        Tol::witness(),
-    ) {
+    match save(&doc, &[meta_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { inner, .. },
         }) => assert!(matches!(*inner, NonFiniteSite::Metadata { .. })),
@@ -515,9 +507,7 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     let other_eps = ambient * 2.0;
     let text = save(
         &doc,
-        &[editor_core::LoggedEdit::bare(DocEdit::SetTolerance {
-            eps: other_eps,
-        })],
+        &[DocEdit::SetTolerance { eps: other_eps }],
         Tol::witness(),
     )
     .expect("save");
@@ -773,7 +763,7 @@ fn unreplayable_edit_log_refuses_at_save() {
         key: "k".into(),
         value: MetaValue::Map(m),
     };
-    match save(&doc, &[editor_core::LoggedEdit::bare(bad)], Tol::witness()) {
+    match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index: 0, error }) => assert!(
             matches!(error, editor_core::EditError::MetaUnversioned { .. }),
             "expected the apply door's refusal, got {error:?}"
@@ -787,11 +777,7 @@ fn unreplayable_edit_log_refuses_at_save() {
         expr: len(1.0),
     };
     assert!(matches!(
-        save(
-            &doc,
-            &[editor_core::LoggedEdit::bare(orphan)],
-            Tol::witness()
-        ),
+        save(&doc, &[orphan], Tol::witness()),
         Err(PersistError::EditReplay { index: 0, .. })
     ));
 }

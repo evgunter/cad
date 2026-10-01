@@ -30,10 +30,10 @@ use crate::fixture;
 use crate::wire;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
-    EditError, EvalOptions, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive,
-    MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc, ReachRefusal,
-    RecipeNodeId, RefusingReach, load, mate_reach, root_of, save,
+    Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
+    Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Node,
+    PartFault, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, RefusingReach, load,
+    mate_reach, root_of, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
@@ -400,10 +400,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
         node: mate(body, ids[0], ids[1], seat(Some(0.0))),
     };
     let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
-    let log = vec![LoggedEdit {
-        edit: edit.clone(),
-        maintenance: applied.cluster_rows(),
-    }];
+    let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a log the door admitted loads with no store");
     assert_eq!(loaded.doc.order(), applied.doc.order());
@@ -411,7 +408,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
 
     // The hand-edited entry: a rider on a planar rest, spliced in as
     // a bare entry at index 1.
-    let gap = LoggedEdit::bare(DocEdit::InsertNode {
+    let gap = DocEdit::InsertNode {
         node: mate(
             body,
             ids[0],
@@ -421,7 +418,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
                 ..seat(Some(0.3))
             },
         ),
-    });
+    };
     let gap_wire = serde_json::to_value(&gap).expect("an entry serializes");
     let doctored = wire::doctored(&text, |wire| {
         wire["edits"]
@@ -449,14 +446,14 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
 
     // A contradictory rider, hand-edited in, replays: no reach, no
     // decision, and the evaluation's solve refuses it as before.
-    let contradictory = LoggedEdit::bare(DocEdit::InsertNode {
+    let contradictory = DocEdit::InsertNode {
         node: mate(
             body,
             ids[0],
             ids[1],
             seat(Some(core::f64::consts::FRAC_PI_2)),
         ),
-    });
+    };
     let wire_entry = serde_json::to_value(&contradictory).expect("serializes");
     let doctored = wire::doctored(&text, |wire| {
         wire["edits"]
@@ -702,7 +699,9 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::Under { .. }
         | MateFault::Band { .. }
         | MateFault::PosesOfAnotherDocument { .. }
-        | MateFault::PlacerRefused { .. } => None,
+        | MateFault::PlacerRefused { .. }
+        | MateFault::OffsetDisagrees { .. }
+        | MateFault::OffsetUnchecked { .. } => None,
     }
 }
 
@@ -789,6 +788,7 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
             mate: r(mate),
             refusal,
         },
+        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => fault,
     }
 }
 
@@ -1026,20 +1026,13 @@ fn corpus() -> Vec<Row> {
         // The mate joins the two instances' groups, and a log entry
         // carries the rows its edit performs — so the hand-edited entry
         // records the join, as the save door would have.
-        let entry = LoggedEdit {
-            edit: DocEdit::InsertNode {
-                node: mate(
-                    body,
-                    ids[0],
-                    ids[1],
-                    seat(Some(core::f64::consts::FRAC_PI_2)),
-                ),
-            },
-            maintenance: vec![ClusterMaintenance::Join {
-                survived: ids[0],
-                absorbed: ids[1],
-                absorbed_frame: doc.placements().get(&ids[1]).copied(),
-            }],
+        let entry = DocEdit::InsertNode {
+            node: mate(
+                body,
+                ids[0],
+                ids[1],
+                seat(Some(core::f64::consts::FRAC_PI_2)),
+            ),
         };
         let entry = serde_json::to_value(&entry).expect("serializes");
         let doctored = wire::doctored(&text, |wire| {

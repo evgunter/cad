@@ -1235,8 +1235,9 @@ fn c4_poses_of_another_document_reaches_no_row() {
     for &id in &ids {
         assert!(
             matches!(
-                poses.placement(&other, id).map_err(|e| *e),
-                Err(MateFault::PosesOfAnotherDocument { .. })
+                poses.placement(&other, id),
+                Err(editor_core::PoseRefusal::Mate(ref f))
+                    if matches!(**f, MateFault::PosesOfAnotherDocument { .. })
             ),
             "{id:?}"
         );

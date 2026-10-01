@@ -153,9 +153,9 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
     };
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: leg,
-            frame: f,
+        DocEdit::SetOffset {
+            instance: leg,
+            offset: Some(editor_core::Placement::literal(&f)),
         },
     );
 
@@ -308,9 +308,9 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
     };
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: leg,
-            frame: f,
+        DocEdit::SetOffset {
+            instance: leg,
+            offset: Some(editor_core::Placement::literal(&f)),
         },
     );
 
@@ -406,9 +406,11 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     // And the edit door refuses to place a pattern directly.
     let bad = editor_core::apply(
         &doc,
-        &DocEdit::SetPlacement {
-            node: pattern,
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        &DocEdit::SetOffset {
+            instance: pattern,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -501,7 +503,13 @@ fn r1_pattern_free_solves_are_bit_identical() {
         } else {
             doc
         };
-        let (doc, _) = step(doc, DocEdit::SetPlacement { node: a, frame: fr });
+        let (doc, _) = step(
+            doc,
+            DocEdit::SetOffset {
+                instance: a,
+                offset: Some(editor_core::Placement::literal(&fr)),
+            },
+        );
 
         let o = with_resolver(store);
         let poses = solve(&doc, &o, Tol::witness());

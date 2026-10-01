@@ -16,13 +16,13 @@
 use editor_core::ParamNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    AssemblyError, CapEnd, CarriedRefusal, Clash, ClusterMaintenance, ContactClass, DeclareError,
-    Diagnosis, Dimension, DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind,
-    EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
-    Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
-    MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
-    PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef,
-    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
+    DimensionError, DocParamValue, DocRef, DocumentId, EditError, EntityKind, EvalError,
+    HitTestError, InputFault, InterrogateError, Lever, LeverRefusal, Maintenance, MateFault,
+    MateSide, MeasureNodeFault, MeshPickError, MetaVersionError, MintRefusal, NamingError,
+    NodeErrorKind, NodePickError, ParamName, ParseError, PartFault, PlacementRuleFault,
+    ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef, ResolveFault,
+    ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
     SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError, UnnamedEntity,
 };
 use editor_core::{Mispaired, NameLookupError, NodeStanding};
@@ -1008,11 +1008,11 @@ test_utils::f6_variants! {
         PayloadDocParamDimension,
         EpsilonInvalid,
         Roots,
-        PlacementSite,
+        NotAGauge,
+        GaugeCycle,
         PlacementNonFinite,
         PlacementImproper,
         PlacementNonRigid,
-        PlacementNotGauge,
         MateAlignment,
         PlacementRule,
         MeasureRefs,
@@ -1174,15 +1174,25 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec!["product root"],
         ),
         (
-            SnapshotError::PlacementSite { node },
-            vec!["keyed by node 5", "does not instantiate a part"],
+            SnapshotError::NotAGauge {
+                node,
+                gauge: RecipeNodeId(2),
+            },
+            vec!["node 5's gauge reference", "node 2", "not a gauge"],
+        ),
+        (
+            SnapshotError::GaugeCycle {
+                node,
+                gauge: RecipeNodeId(2),
+            },
+            vec!["gauge 5 sits on gauge 2", "which sits on it"],
         ),
         (
             SnapshotError::PlacementNonFinite {
                 node,
-                at: editor_core::FrameSite::Registry,
+                at: editor_core::FrameSite::Step { index: 0 },
             },
-            vec!["placement frame for node 5", "non-finite coordinate"],
+            vec!["step 1 of node 5's placement", "non-finite coordinate"],
         ),
         (
             SnapshotError::PlacementImproper {
@@ -1195,21 +1205,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::PlacementNonRigid {
                 node,
-                at: editor_core::FrameSite::Registry,
+                at: editor_core::FrameSite::Step { index: 0 },
                 check: "transform_rigid_col01_orth",
             },
             vec![
-                "placement frame for node 5",
+                "step 1 of node 5's placement",
                 "not definitely rigid",
                 "may shear",
             ],
-        ),
-        (
-            SnapshotError::PlacementNotGauge {
-                node,
-                gauge: RecipeNodeId(2),
-            },
-            vec!["cluster's gauge, node 2"],
         ),
         (
             SnapshotError::MateAlignment { node },
@@ -2317,69 +2320,6 @@ fn a_lever_refusal_names_the_instance_and_why() {
     );
 }
 
-/// **The maintenance refusals name the gauge and end on what to do**:
-/// a refused maintenance solve carries the prior solve's own sentence
-/// (or says the solve recorded nothing for the gauge — the typed
-/// report of a state its invariants exclude), and an unrecorded row
-/// says the entry carries none and that an entry records every row its
-/// edit performs.
-#[test]
-fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
-    let gauge = RecipeNodeId(3);
-    assert_f6(
-        &EditError::MaintenanceRefused {
-            gauge,
-            fault: Some(Box::new(MateFault::Unleverable {
-                mate: RecipeNodeId(5),
-                refusal: LeverRefusal::PartUnresolved {
-                    instance: gauge,
-                    fault: PartFault::NoResolver,
-                },
-            })),
-        },
-        &["could not place gauge 3", "refused: mate 5", "instance 3"],
-        &["MaintenanceRefused", "Unleverable"],
-    );
-    assert_f6(
-        &EditError::MaintenanceRefused { gauge, fault: None },
-        &["could not place gauge 3", "no pose", "no fault"],
-        &["MaintenanceRefused"],
-    );
-    assert_f6(
-        &EditError::MaintenanceUnrecorded { gauge },
-        &[
-            "gauge 3",
-            "no maintenance rows",
-            "records every cluster row",
-        ],
-        &["MaintenanceUnrecorded"],
-    );
-    assert_f6(
-        &PersistError::MaintenanceFrame {
-            index: 2,
-            row: 0,
-            fault: FrameFault::Improper { determinant: -1.0 },
-        },
-        &[
-            "edit 2",
-            "row 0",
-            "not a placement",
-            "determinant -1",
-            "mirroring",
-        ],
-        &["MaintenanceFrame", "Improper"],
-    );
-    assert_f6(
-        &PersistError::MaintenanceFrame {
-            index: 2,
-            row: 1,
-            fault: FrameFault::NonFinite,
-        },
-        &["edit 2", "row 1", "non-finite coordinate"],
-        &["MaintenanceFrame", "NonFinite"],
-    );
-}
-
 test_utils::f6_variants! {
     /// `NamingError`'s census: one ident per variant, feeding both the
     /// wildcard-free `match` rustc checks and the identifier roster the
@@ -2751,64 +2691,15 @@ fn a_program_fault_states_its_lattice_coordinate() {
 }
 
 test_utils::f6_variants! {
-    /// `ClusterMaintenance`'s census — see [`NODE_PICK_ERROR`]. The
-    /// four registry acts render beside their own type, so this is the
-    /// list that guards them; `Maintenance` delegates and carries only
-    /// its own two arms.
-    const CLUSTER_MAINTENANCE: ClusterMaintenance = [Join, Split, GaugeRewrite, Drop];
-}
-
-test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare];
-}
-
-/// **Each registry act says what it did to the placement registry.**
-/// The maintenance column is rendered to a person, so these are prose
-/// and not the `Debug` dump of a frame.
-#[test]
-fn cluster_maintenance_display_names_the_act_not_its_struct() {
-    let gauge = RecipeNodeId(3);
-    let other = RecipeNodeId(5);
-    let cases = [
-        (
-            ClusterMaintenance::Join {
-                survived: gauge,
-                absorbed: other,
-                absorbed_frame: None,
-            },
-            vec!["cluster gauged by node 5", "absorbed into", "node 3"],
-        ),
-        (
-            ClusterMaintenance::Split {
-                from: gauge,
-                to: other,
-                frame: None,
-            },
-            vec!["separated from", "node 3", "now gauged by node 5"],
-        ),
-        (
-            ClusterMaintenance::GaugeRewrite {
-                from: gauge,
-                to: other,
-                frame: None,
-            },
-            vec!["node 3", "lost that instance", "now gauged by node 5"],
-        ),
-        (
-            ClusterMaintenance::Drop { gauge, frame: None },
-            vec!["node 3", "lost its last instance", "placement record"],
-        ),
-    ];
-    assert_f6_every_variant(&cases, &CLUSTER_MAINTENANCE, &[]);
+    const MAINTENANCE: Maintenance = [OffsetCleared, Strand, StrandedAppearance, OrphanedDeclare];
 }
 
 /// **What an accepted edit DID reads as prose too** — the strand count
 /// beside the cascade count is rendered from these sentences.
 ///
-/// The cluster arm FORWARDS its carried act's own words (the
-/// `NodePickError::Standing` shape one row up), which is why its case
-/// here asserts the delegated sentence rather than a paraphrase of it.
+/// The offset arm names the instance whose offset the mate door
+/// cleared, and why: the mate placed its group on the one it joined.
 /// The strand sentence's relative clause binds to the NODE: the name
 /// is what survives a strand, so a sentence reading "a name, which
 /// this edit deleted" would name the wrong casualty.
@@ -2827,12 +2718,11 @@ fn maintenance_display_says_what_the_edit_did() {
     let other = RecipeNodeId(5);
     let cases = [
         (
-            Maintenance::Cluster(ClusterMaintenance::Join {
-                survived: gauge,
-                absorbed: other,
-                absorbed_frame: None,
-            }),
-            vec!["cluster gauged by node 5", "absorbed into", "node 3"],
+            Maintenance::OffsetCleared {
+                instance: gauge,
+                offset: editor_core::Placement::IDENTITY,
+            },
+            vec!["instance 3's group", "offset was cleared"],
         ),
         (
             Maintenance::Strand {

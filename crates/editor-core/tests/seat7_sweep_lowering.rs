@@ -159,7 +159,7 @@ fn spin(
 struct BothSweeps {
     snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
+    edits: Vec<editor_core::DocEdit<ProfileProgram>>,
     sweeps: [RecipeNodeId; 2],
 }
 

@@ -599,8 +599,7 @@ fn row6c_replay_rebuilds_the_root_list() {
         .expect("set roots")
         .doc;
     log.push(swap);
-    let replayed = Doc::replay(id, &editor_core::LoggedEdit::bare_all(&log), Tol::witness())
-        .expect("the log replays");
+    let replayed = Doc::replay(id, &log.to_vec(), Tol::witness()).expect("the log replays");
     assert_eq!(replayed.roots(), doc.roots());
     assert!(replayed.bit_eq(&doc));
 }

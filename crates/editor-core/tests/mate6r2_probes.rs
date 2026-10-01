@@ -155,9 +155,11 @@ fn row_of(
             let dx = spacing * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
                 },
             );
             doc = next;
@@ -337,9 +339,11 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
     // (unmintable, and not touching, so it contributes no pair).
     let (next, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::translation([10.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                10.0, 0.0, 0.0,
+            ]))),
         },
     );
     doc = next;

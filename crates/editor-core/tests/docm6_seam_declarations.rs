@@ -104,9 +104,9 @@ fn mate_node(
 fn place(doc: ProfileDoc, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
     step(
         doc,
-        DocEdit::SetPlacement {
-            node,
-            frame: Frame::translation(at),
+        DocEdit::SetOffset {
+            instance: node,
+            offset: Some(editor_core::Placement::literal(&Frame::translation(at))),
         },
     )
     .0

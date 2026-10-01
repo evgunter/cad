@@ -275,6 +275,7 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.u64(pairs.len() as u64);
                 }
                 ValuePayload::Mate(_) => d.u64(20),
+                ValuePayload::Gauge => d.u64(25),
                 // The measured quantity IS a lane value, so it is
                 // digested through the same value-channel bracket
                 // every coordinate takes.

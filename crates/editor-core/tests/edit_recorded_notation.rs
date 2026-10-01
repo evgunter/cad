@@ -364,12 +364,7 @@ fn a_recorded_notation_round_trips_through_save_and_load() {
     let program = LoopProgram::from_recorded_with_notation(&steps, &notation).expect("lifts");
     let base = ProfileDoc::empty(DocumentId::derive("edit-recorded-notation"), Tol::witness());
     let edits = edits_of(program.clone());
-    let text = save(
-        &base,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("the log saves");
+    let text = save(&base, &edits.to_vec(), Tol::witness()).expect("the log saves");
     // The STORED FORM, before any load: a save that dropped the symbol
     // and a load that re-derived it from the dimension would satisfy
     // every assertion below, and would lose the notation the moment a
@@ -380,9 +375,7 @@ fn a_recorded_notation_round_trips_through_save_and_load() {
     );
     let plain = save(
         &base,
-        &editor_core::LoggedEdit::bare_all(&edits_of(
-            LoopProgram::from_recorded(&square(0.025)).expect("lifts"),
-        )),
+        &edits_of(LoopProgram::from_recorded(&square(0.025)).expect("lifts")).to_vec(),
         Tol::witness(),
     )
     .expect("the log saves");

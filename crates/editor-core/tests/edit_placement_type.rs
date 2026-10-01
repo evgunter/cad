@@ -10,7 +10,7 @@ use crate::wire::doctored;
 
 use editor_core::{
     Axis3, CancelToken, Dimension, DocEdit, DocParam, DocParamValue, EditError, EvalOptions, Expr,
-    Frame, FrameSite, LoggedEdit, Node, ParamEnv, ParamName, PersistError, Placement, ProfileDoc,
+    Frame, FrameSite, Node, ParamEnv, ParamName, PersistError, Placement, ProfileDoc,
     ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RigidArg, SlotId, SnapshotError, Step,
     ValuePayload, VectorSlot, evaluate, load, save,
 };
@@ -537,12 +537,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
             .is_err(),
         "step 0 has no later-step address"
     );
-    let text = save(
-        &snapshot,
-        &[LoggedEdit::bare(insert_edit), LoggedEdit::bare(set)],
-        Tol::witness(),
-    )
-    .expect("saves with the log");
+    let text = save(&snapshot, &[insert_edit, set], Tol::witness()).expect("saves with the log");
     assert!(
         load(&text, Tol::witness())
             .expect("loads and replays")

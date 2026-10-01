@@ -109,12 +109,7 @@ fn r1_replay_bit_identity_adversarial() {
         .unwrap()
         .doc;
     log.push(e);
-    let replayed = Doc::replay(
-        doc.id(),
-        &editor_core::LoggedEdit::bare_all(&log),
-        Tol::witness(),
-    )
-    .unwrap();
+    let replayed = Doc::replay(doc.id(), &log.to_vec(), Tol::witness()).unwrap();
     assert_bit_identical(&replayed, &doc);
     // The crate's own bit-semantic comparator agrees (fix pass).
     assert!(replayed.bit_eq(&doc), "Doc::bit_eq on replay");

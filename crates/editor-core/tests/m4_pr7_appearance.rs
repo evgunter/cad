@@ -270,12 +270,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             attr: red(),
         },
     ];
-    let replayed = ProfileDoc::replay(
-        doc3.id(),
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .unwrap();
+    let replayed = ProfileDoc::replay(doc3.id(), &edits.to_vec(), Tol::witness()).unwrap();
     assert!(replayed.bit_eq(&doc3));
 }
 

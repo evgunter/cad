@@ -232,9 +232,9 @@ fn r2_oblique_circular_conjugation_at_a_placed_group_frame() {
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: leg,
-            frame: group_frame(),
+        DocEdit::SetOffset {
+            instance: leg,
+            offset: Some(editor_core::Placement::literal(&group_frame())),
         },
     );
     let (doc, axis) = insert(
@@ -312,9 +312,9 @@ fn r2_consistent_loop_still_verifies_under_a_placed_group_frame() {
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: leg,
-            frame: group_frame(),
+        DocEdit::SetOffset {
+            instance: leg,
+            offset: Some(editor_core::Placement::literal(&group_frame())),
         },
     );
     let (doc, pattern) = insert(

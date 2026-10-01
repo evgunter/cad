@@ -323,6 +323,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     );
     let ev = Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
         document: doc.id(),
         prior_refused: None,
         order: vec![node],
@@ -1377,6 +1378,7 @@ fn one_node_eval(
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        unplaced: Default::default(),
         document,
         prior_refused: None,
         order: vec![node],
