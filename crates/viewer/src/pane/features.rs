@@ -518,7 +518,7 @@ mod tests {
         );
     }
 
-    /// A mate row refused because its placer (`feature 3`) did not
+    /// A mate row refused because its placer (node 3) did not
     /// derive, as `tree::rows` builds one: `Failed`, with the link.
     fn placer_refused_row(repair_at: Option<SpokenNode>) -> TreeRow {
         TreeRow {

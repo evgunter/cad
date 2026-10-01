@@ -167,3 +167,52 @@ pub fn node_kind_noun<P>(node: &Node<P>) -> &'static str {
         Node::Assertion { .. } => "Assertion",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use geom_core::Tol;
+
+    use super::{FullId, node_kind_noun};
+    use crate::doc::Doc;
+    use crate::edit::DocEdit;
+    use crate::node::{RecipeNodeId, StepId};
+    use crate::program::ProfileProgram;
+    use crate::{RefusingReach, test_support};
+
+    /// The tag is the id's low twelve hex digits, zero-padded; the full
+    /// id is all sixteen. Written as numbers whose digits a reader can
+    /// check by eye, and one past 48 bits, where the two part.
+    #[test]
+    fn the_tag_is_twelve_low_hex_digits_and_the_full_id_sixteen() {
+        assert_eq!(RecipeNodeId(3).to_string(), "000000000003");
+        assert_eq!(RecipeNodeId(0xab).to_string(), "0000000000ab");
+        assert_eq!(StepId(0x10).to_string(), "000000000010");
+        let wide = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
+        assert_eq!(wide.to_string(), "c1d2a0b10042", "the tag drops the high digits");
+        assert_eq!(wide.full().to_string(), "3fa9c1d2a0b10042");
+        assert_eq!(StepId(7).full(), FullId(7));
+        assert_eq!(FullId(7).to_string(), "0000000000000007");
+    }
+
+    /// A node the document holds is spoken by its kind noun and tag;
+    /// an id it does not hold, as `node` and the tag.
+    #[test]
+    fn a_held_node_is_its_kind_and_tag_and_an_absent_one_is_a_node() {
+        let tol = Tol::witness();
+        let empty: Doc<ProfileProgram> = Doc::empty_derived("spoken", tol);
+        let node = test_support::xy_frame();
+        let kind = node_kind_noun(&node);
+        let doc = empty
+            .apply(&DocEdit::InsertNode { node }, tol, &RefusingReach)
+            .expect("the frame inserts")
+            .doc;
+        let id = *doc.order().last().expect("the inserted frame");
+        assert_eq!(kind, "Datum frame");
+        let spoken = doc.spoken(id);
+        assert_eq!((spoken.id(), spoken.kind()), (id, Some("Datum frame")));
+        assert_eq!(spoken.to_string(), format!("Datum frame {:012x}", id.0));
+        let gone = empty.spoken(id);
+        assert_eq!(gone.kind(), None);
+        assert_eq!(gone.to_string(), format!("node {:012x}", id.0));
+    }
+}
