@@ -17,7 +17,7 @@
 //! use the second to read what was published. Neither flattens a
 //! name: the set is flat because the mint made it so.
 
-use super::role::{EntityKind, NameRef, PieceRun, RoleSeg, StableName};
+use super::role::{EntityKind, MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
 /// that is itself a merged face, through any wrapping — refused at
@@ -65,29 +65,68 @@ pub(crate) fn constituents_through_wrappers(name: &StableName) -> Option<Vec<Sta
     )
 }
 
-/// The one-piece walls a run wall of two or more pieces stands for —
-/// its `Lateral`, `Band` or `BandPi` segment spelled once per piece —
-/// read through its descent wrappers and re-wrapped by that same chain,
-/// or `None` when the name, peeled to its foot, is not such a wall. A
-/// run wall is not a merge: it holds its pieces' walls the way a merged
-/// face holds its constituents, and is read the same way, but nothing
-/// mints it as `Merged` and nothing flattens it.
+/// The run-holding role of a name's foot: which sweep role holds the
+/// run (a meridian with its end), so two feet are the same role over
+/// two runs exactly when their [`RunRole`]s are equal.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RunRole {
+    Lateral,
+    Band,
+    BandPi,
+    Meridian(MeridianEnd),
+}
+
+impl RunRole {
+    /// The foot segment of this role over `run`.
+    fn seg(self, run: PieceRun) -> RoleSeg {
+        match self {
+            Self::Lateral => RoleSeg::Lateral(run),
+            Self::Band => RoleSeg::Band(run),
+            Self::BandPi => RoleSeg::BandPi(run),
+            Self::Meridian(end) => RoleSeg::Meridian(end, run),
+        }
+    }
+}
+
+/// A foot that holds a run: its role and the run, or `None`.
+fn run_foot(foot: &StableName) -> Option<(RunRole, &PieceRun)> {
+    match foot.path.as_slice() {
+        [RoleSeg::Lateral(run)] => Some((RunRole::Lateral, run)),
+        [RoleSeg::Band(run)] => Some((RunRole::Band, run)),
+        [RoleSeg::BandPi(run)] => Some((RunRole::BandPi, run)),
+        [RoleSeg::Meridian(end, run)] => Some((RunRole::Meridian(*end), run)),
+        _ => None,
+    }
+}
+
+/// One descent wrapper (`FromA`/`FromB`) peeled off `name`: which side,
+/// and the name inside, or `None` when `name` is not one.
+fn peel(name: &StableName) -> Option<(bool, &StableName)> {
+    match name.path.as_slice() {
+        [RoleSeg::FromA(inner)] => Some((true, inner)),
+        [RoleSeg::FromB(inner)] => Some((false, inner)),
+        _ => None,
+    }
+}
+
+/// The one-piece walls (or meridian edges) a run of two or more pieces
+/// stands for — its `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`
+/// segment spelled once per piece — read through its descent wrappers
+/// and re-wrapped by that same chain, or `None` when the name, peeled
+/// to its foot, holds no such run. A run wall is not a merge: it holds
+/// its pieces' walls the way a merged face holds its constituents, and
+/// is read the same way, but nothing mints it as `Merged` and nothing
+/// flattens it.
 pub(crate) fn run_constituents(name: &StableName) -> Option<Vec<StableName>> {
     type Side = fn(NameRef) -> RoleSeg;
     let mut wrappers: Vec<(Side, crate::node::RecipeNodeId)> = Vec::new();
     let mut at = name;
-    let (seg, run): (fn(PieceRun) -> RoleSeg, &PieceRun) = loop {
-        let (side, inner): (Side, &NameRef) = match at.path.as_slice() {
-            [RoleSeg::Lateral(run)] => break (RoleSeg::Lateral, run),
-            [RoleSeg::Band(run)] => break (RoleSeg::Band, run),
-            [RoleSeg::BandPi(run)] => break (RoleSeg::BandPi, run),
-            [RoleSeg::FromA(inner)] => (RoleSeg::FromA, inner),
-            [RoleSeg::FromB(inner)] => (RoleSeg::FromB, inner),
-            _ => return None,
-        };
+    while let Some((a, inner)) = peel(at) {
+        let side: Side = if a { RoleSeg::FromA } else { RoleSeg::FromB };
         wrappers.push((side, at.node));
         at = inner;
-    };
+    }
+    let (role, run) = run_foot(at)?;
     if run.pieces().len() < 2 {
         return None;
     }
@@ -98,7 +137,7 @@ pub(crate) fn run_constituents(name: &StableName) -> Option<Vec<StableName>> {
                 let foot = StableName {
                     kind: at.kind,
                     node: at.node,
-                    path: vec![seg(PieceRun::one(*p))],
+                    path: vec![role.seg(PieceRun::one(*p))],
                 };
                 wrappers
                     .iter()
@@ -113,25 +152,53 @@ pub(crate) fn run_constituents(name: &StableName) -> Option<Vec<StableName>> {
     )
 }
 
-/// **N3's one constituents view**: the faces a set-holding row stands
-/// for — a merged face's constituents or a run wall's one-piece walls,
-/// each read through the row's descent wrappers — or `None` for a row
-/// that holds no set.
+/// True iff the run row `row` (two or more pieces) holds `name`: the
+/// two read through the SAME descent chain to feet of one role on one
+/// node, and every piece of `name`'s run is one of `row`'s. A one-piece
+/// wall is held by the run that contains its piece, a sub-run by the
+/// run around it, and a run by itself. Reads in place: no name is
+/// built.
+fn run_holds(row: &StableName, name: &StableName) -> bool {
+    let (mut r, mut n) = (row, name);
+    loop {
+        if r.kind != n.kind {
+            return false;
+        }
+        match (peel(r), peel(n)) {
+            (Some((ra, ri)), Some((na, ni))) if ra == na && r.node == n.node => {
+                (r, n) = (ri, ni);
+            }
+            (None, None) => break,
+            _ => return false,
+        }
+    }
+    let (Some((rr, row_run)), Some((nr, name_run))) = (run_foot(r), run_foot(n)) else {
+        return false;
+    };
+    rr == nr
+        && r.node == n.node
+        && row_run.pieces().len() >= 2
+        && name_run.pieces().iter().all(|p| row_run.holds(p))
+}
+
+/// **N3's one constituents view**: the names a set-holding row stands
+/// for — a merged face's constituents, or a run's one-piece walls or
+/// meridians, each read through the row's descent wrappers — or `None`
+/// for a row that holds no set. A loft wall (`LoftWall`) holds one
+/// locator per SECTION of one wall, not a set of walls, so it has no
+/// constituents here (`names/README.md`, N1).
 pub(crate) fn constituents(name: &StableName) -> Option<Vec<StableName>> {
     constituents_through_wrappers(name).or_else(|| run_constituents(name))
 }
 
-/// True iff a row whose constituent set is `set` covers `name`: `name`
-/// is a constituent or is held by one (a run wall the merge listed
-/// holds its pieces' walls), or `name` is itself a set-holding face
-/// ([`constituents`]) every one of whose constituents is so covered.
+/// True iff a merged row whose constituent set is `set` covers `name`:
+/// `name` is a constituent or is held by one (a run wall the merge
+/// listed holds its pieces' walls), or `name` is itself a set-holding
+/// face ([`constituents`]) every one of whose constituents is so
+/// covered. `set` is sorted, as every minted set is (name order), so
+/// membership is a binary search; the run reading allocates nothing.
 pub(crate) fn covers(set: &[StableName], name: &StableName) -> bool {
-    let one = |n: &StableName| {
-        set.contains(n)
-            || set
-                .iter()
-                .any(|c| run_constituents(c).is_some_and(|held| held.contains(n)))
-    };
+    let one = |n: &StableName| set.binary_search(n).is_ok() || set.iter().any(|c| run_holds(c, n));
     if one(name) {
         return true;
     }
@@ -142,23 +209,25 @@ pub(crate) fn covers(set: &[StableName], name: &StableName) -> bool {
 }
 
 /// True iff the live row `row` covers `name` by a set it holds: a
-/// merged row by its flat constituent set, a run wall by its pieces'
-/// walls (`Lateral([p0, p1])` covers `Lateral([p0])` and a run inside
-/// its own).
+/// merged row by its flat constituent set, a run row by its pieces
+/// (`Lateral([p0, p1])` covers `Lateral([p0])`, a run inside its own,
+/// and itself).
 pub(crate) fn row_covers(row: &StableName, name: &StableName) -> bool {
-    let merged = row.path.iter().any(|seg| match seg {
-        RoleSeg::Merged(set) => covers(set, name),
-        _ => false,
-    });
-    merged || run_constituents(row).is_some_and(|set| covers(&set, name))
+    run_holds(row, name)
+        || row.path.iter().any(|seg| match seg {
+            RoleSeg::Merged(set) => covers(set, name),
+            _ => false,
+        })
 }
 
 /// N3's offers for a name that no longer resolves, read off the live
 /// `rows`: a merged name's constituents as spelled (the merge stopped
-/// happening, so they are live again); for a run wall, the live walls
-/// that cover its pieces (an edit broke the run); and every live row
+/// happening, so they are live again); for a run, the live rows that
+/// cover one of its pieces (an edit broke the run); and every live row
 /// that covers the name (it was merged away, or a station joined it
-/// into a run). Deterministic: first-seen order, no repeats.
+/// into a run). Deterministic: first-seen order, no repeats. A broken
+/// run's pieces are built once; the row reads ([`row_covers`]) build
+/// nothing.
 pub(crate) fn offers<'r>(
     name: &StableName,
     rows: impl Iterator<Item = &'r StableName> + Clone,
@@ -342,5 +411,65 @@ mod tests {
         let wider = lateral(3, &[7, 8, 9]);
         let split = [lateral(3, &[7]), lateral(3, &[8, 9])];
         assert_eq!(offers(&wider, split.iter()), split.to_vec());
+    }
+
+    /// **A meridian over a run is read like a run wall**: the seam
+    /// meridian a full revolve keeps over a run of two pieces covers
+    /// each piece's own meridian, and a broken run offers them — while
+    /// a meridian at another END is a different role and is not
+    /// covered.
+    #[test]
+    fn a_run_meridian_covers_its_pieces_meridians_at_its_own_end() {
+        let pieces = |ks: &[u64]| {
+            PieceRun::new(
+                ks.iter()
+                    .map(|&k| ProfileEdgeRef::Piece {
+                        step: crate::node::StepId(k),
+                        role: crate::names::PieceRole::Leg,
+                    })
+                    .collect(),
+            )
+            .unwrap()
+        };
+        let meridian = |end: MeridianEnd, ks: &[u64]| StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId(3),
+            path: vec![RoleSeg::Meridian(end, pieces(ks))],
+        };
+        let run = meridian(MeridianEnd::Seam, &[7, 8]);
+        assert_eq!(
+            run_constituents(&run).unwrap(),
+            vec![
+                meridian(MeridianEnd::Seam, &[7]),
+                meridian(MeridianEnd::Seam, &[8])
+            ]
+        );
+        assert!(row_covers(&run, &meridian(MeridianEnd::Seam, &[8])));
+        assert!(!row_covers(&run, &meridian(MeridianEnd::Pi, &[8])));
+        let rows = [run.clone()];
+        assert_eq!(
+            offers(&meridian(MeridianEnd::Seam, &[7]), rows.iter()),
+            vec![run.clone()]
+        );
+    }
+
+    /// **A loft wall holds no set**: its locators are one per section
+    /// of one wall, so the constituents view has nothing for it.
+    #[test]
+    fn a_loft_wall_has_no_constituents() {
+        let wall = face(
+            3,
+            vec![RoleSeg::LoftWall(vec![
+                ProfileEdgeRef::Piece {
+                    step: crate::node::StepId(1),
+                    role: crate::names::PieceRole::Leg,
+                },
+                ProfileEdgeRef::Piece {
+                    step: crate::node::StepId(2),
+                    role: crate::names::PieceRole::Leg,
+                },
+            ])],
+        );
+        assert!(constituents(&wall).is_none());
     }
 }

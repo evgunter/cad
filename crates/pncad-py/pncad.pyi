@@ -4237,8 +4237,9 @@ def band(node: NodeId, piece: Piece) -> str:
 
 def band_pi(node: NodeId, piece: Piece) -> str:
     """The `[pi, 2pi)` band face swept from the profile piece `piece` —
-    `band`'s twin, where a full revolve emits a segment as two faces.
-    A face, as `band` is."""
+    `band`'s twin, where a full revolve emits a CURVED segment as two
+    faces. A planar segment sweeps whole, one face, its `band`, and has
+    no `band_pi`. A face, as `band` is."""
 
 def band_rim(node: NodeId, piece: Piece) -> str:
     """The latitude rim at the vertex the profile piece `piece` starts

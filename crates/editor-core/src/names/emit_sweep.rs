@@ -39,7 +39,7 @@ const UNRESOLVED: NamingError = NamingError::Emission {
 ///
 /// The same shape as [`UNRESOLVED`] and the same word for the same
 /// reason. **The premise, stated exactly**: this emitter builds
-/// nothing — `sweep` does — and [`name_swept_topology`] takes the body
+/// nothing — `sweep` does — and [`name_loft_topology`] takes the body
 /// and the key lists as independent parameters with nothing in the
 /// signature tying them. What makes the refusal a bug report is that
 /// every caller passes a body and a bundle from ONE mint, which is true
@@ -149,17 +149,17 @@ pub(crate) fn name_extrude<T: Decide>(
         )?;
     }
     for (l, walls) in built.walls.iter().enumerate() {
-        // Swept positions to canonical ones (`Extruded::reversed`).
+        // A wall's segments are canonical; the vertex the sweep starts
+        // each at is `Extruded::start_vertex` (the reversal's one home).
         let n: usize = walls.iter().map(|w| w.segments.len()).sum();
-        let segment = |j: usize| if built.reversed { n - 1 - j } else { j };
-        let vertex = |j: usize| if built.reversed { (n - j) % n } else { j };
+        let vertex = |c: usize| built.start_vertex(n, c);
         for wall in walls {
-            let run: Vec<usize> = wall.segments.iter().map(|&j| segment(j)).collect();
+            let run: &[usize] = &wall.segments;
             t.insert(
                 name1(
                     EntityKind::Face,
                     node,
-                    RoleSeg::Lateral(pieces.run(l, &run).ok_or(NO_PIECE)?),
+                    RoleSeg::Lateral(pieces.run(l, run).ok_or(NO_PIECE)?),
                 ),
                 ent(0, EntityKey::Face(wall.face)),
             )?;
@@ -190,7 +190,7 @@ pub(crate) fn name_extrude<T: Decide>(
                 // the previous segment's rim meets its rim at a station.
                 let mut before = edge_ends(body, wall.strut)?;
                 for (&j, &rim) in wall.segments.iter().zip(rims.iter()) {
-                    let piece = edge_at(pieces, l, segment(j))?;
+                    let piece = edge_at(pieces, l, j)?;
                     t.insert(
                         name1(EntityKind::Edge, node, RoleSeg::RimEdge(end, piece)),
                         ent(0, EntityKey::Edge(rim)),
@@ -227,7 +227,7 @@ pub(crate) fn name_loft<T: Decide>(
     built: &sweep::Lofted<T>,
     sections: &[ProfilePieces],
 ) -> Result<Arc<NameTable>, NamingError> {
-    name_swept_topology(
+    name_loft_topology(
         node,
         &Sections(sections),
         &built.body,
@@ -240,7 +240,7 @@ pub(crate) fn name_loft<T: Decide>(
 
 /// The loft's zip: two caps, per-(loop, segment) walls, per-(loop,
 /// vertex) seam edges, each wall meeting each cap along one rim.
-fn name_swept_topology<T: Decide>(
+fn name_loft_topology<T: Decide>(
     node: RecipeNodeId,
     swept: &Sections<'_>,
     body: &Body<T>,

@@ -11,12 +11,17 @@
 //! segment and per canonical vertex, which the sweep emitters read in
 //! place of the position they iterate.
 //!
-//! So a value edit moves no name. Which loop is outer, which way a
-//! loop runs and how many segments a step draws are decisions about
-//! geometry, and each can move a canonical position; none of them
-//! moves a step's id or a piece's role. A piece the current values do
-//! not draw has no canonical segment and its name resolves `Vanished`
-//! until they draw it again.
+//! So a value edit moves no PIECE's locator. Which loop is outer,
+//! which way a loop runs and how many segments a step draws are
+//! decisions about geometry, and each can move a canonical position;
+//! none of them moves a step's id or a piece's role. A piece the
+//! current values do not draw has no canonical segment and its name
+//! resolves `Vanished` until they draw it again. What a value edit CAN
+//! change is which pieces one swept wall holds: runs are decided on the
+//! values (N1, "Swept walls over a run"), so an edit that makes two
+//! pieces collinear joins their walls into one run wall, and one that
+//! bends them apart splits it — the old wall's name vanishes and N3
+//! offers the wall that covers it, or the walls that cover its pieces.
 //!
 //! # Mechanism
 //!

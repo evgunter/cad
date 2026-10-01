@@ -200,20 +200,13 @@ fn read_revolve<T: Decide>(
     Ok(SweptOut { body, table, walls })
 }
 
-/// An extrusion's wall per CANONICAL segment: its per-segment view is in
-/// swept order, which a reversed extrusion runs backwards
-/// (`Extruded::reversed`).
+/// An extrusion's wall per CANONICAL segment
+/// (`Extruded::canonical_side_faces`), in the revolve's `Option` shape.
 fn canonical_side_faces<T: Decide>(built: &Extruded<T>) -> Vec<Vec<Option<topo::FaceKey>>> {
     built
-        .side_faces()
+        .canonical_side_faces()
         .into_iter()
-        .map(|swept| {
-            let mut canonical: Vec<Option<topo::FaceKey>> = swept.into_iter().map(Some).collect();
-            if built.reversed {
-                canonical.reverse();
-            }
-            canonical
-        })
+        .map(|faces| faces.into_iter().map(Some).collect())
         .collect()
 }
 

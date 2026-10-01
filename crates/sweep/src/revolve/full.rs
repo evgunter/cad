@@ -846,21 +846,7 @@ pub(super) fn collapse_runs<T: Decide>(
 ) -> Result<Collapsed<T>, RevolveError> {
     let n = segs.len();
     let walled = |j: usize| cls.walls[j].kind().is_some();
-    let mut pair = Vec::with_capacity(n);
-    for j in 0..n {
-        let p = (j + n - 1) % n;
-        pair.push(
-            walled(p)
-                && walled(j)
-                && cosurface(&segs[p], &segs[j], WALL_COSURFACE, band).map_err(|source| {
-                    RevolveError::CosurfaceEscalated {
-                        loop_index,
-                        vertex_index: segs[j].canonical_vertex,
-                        source,
-                    }
-                })?,
-        );
-    }
+    let pair = super::partial::loop_pairs(segs, cls, loop_index, band)?;
     let runs = crate::swept::wall_runs(segs, &pair, walled);
     let mut out = Collapsed {
         segs: Vec::with_capacity(runs.len()),

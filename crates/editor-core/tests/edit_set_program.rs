@@ -11,9 +11,12 @@
 //! names keep denoting its pieces wherever the new program draws them,
 //! and nothing is rewritten or reported, while a dropped step's names
 //! keep their spelling, resolve `Vanished`, and are reported stranded.
-//! A value edit moves no name at all: which loop is outer, which way a
-//! loop runs and how many segments a step draws are decisions about
-//! geometry, not about what the author made.
+//! A value edit moves no piece's locator: which loop is outer, which
+//! way a loop runs and how many segments a step draws are decisions
+//! about geometry, not about what the author made. (It can change which
+//! pieces one swept wall holds — runs are decided on the values, N1
+//! "Swept walls over a run" — and then a run wall's name vanishes with
+//! an N3 offer; no row here edits pieces into or out of collinearity.)
 //!
 //! The fixture most rows share is `edit_ruled_carve`'s sunk rod: a
 //! block with a rod's section standing on its top edge, whose two
@@ -1222,7 +1225,7 @@ fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
 }
 
 // ---------------------------------------------------------------- //
-// What cannot move a name: value edits (N1)
+// What cannot move a piece's locator: value edits (N1)
 // ---------------------------------------------------------------- //
 
 /// `At, Toward(+x), Fillet(r), Toward(+y), FarEndTo(2,2), LineTo(0,2),

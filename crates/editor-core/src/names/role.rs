@@ -740,33 +740,52 @@ impl From<ProfileEdgeRef> for PieceRun {
     }
 }
 
-/// [`PieceRun`]'s wire spelling: the bare locator for one piece, the
-/// list for several.
-#[derive(serde::Serialize, serde::Deserialize)]
-#[serde(untagged)]
-enum PieceRunWire {
-    One(ProfileEdgeRef),
-    Many(Vec<ProfileEdgeRef>),
-}
-
+/// [`PieceRun`]'s wire spelling: the bare locator for one piece (a JSON
+/// object, `ProfileEdgeRef`'s externally tagged form), the list for
+/// several (a JSON array). The reader dispatches ONCE on the token it
+/// meets — an object or an array — and never tries one arm and falls
+/// back to the other, so a refusal inside a locator is the refusal that
+/// decided the read (`persist::refusal`'s premise,
+/// `scripts/gates/persist-no-backtracking.sh`).
 impl serde::Serialize for PieceRun {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self.single() {
-            Some(one) => PieceRunWire::One(one),
-            None => PieceRunWire::Many(self.0.clone()),
+            Some(one) => one.serialize(s),
+            None => self.0.serialize(s),
         }
-        .serialize(s)
+    }
+}
+
+/// The one-dispatch reader behind [`PieceRun`]'s `Deserialize`.
+struct PieceRunVisitor;
+
+impl<'de> serde::de::Visitor<'de> for PieceRunVisitor {
+    type Value = PieceRun;
+
+    fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("a profile piece locator, or a non-empty list of them")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, map: A) -> Result<PieceRun, A::Error> {
+        let one = <ProfileEdgeRef as serde::Deserialize>::deserialize(
+            serde::de::value::MapAccessDeserializer::new(map),
+        )?;
+        Ok(PieceRun::one(one))
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<PieceRun, A::Error> {
+        let mut pieces = Vec::new();
+        while let Some(piece) = seq.next_element::<ProfileEdgeRef>()? {
+            pieces.push(piece);
+        }
+        PieceRun::new(pieces)
+            .ok_or_else(|| serde::de::Error::custom("a run of profile pieces holds at least one"))
     }
 }
 
 impl<'de> serde::Deserialize<'de> for PieceRun {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        match PieceRunWire::deserialize(d)? {
-            PieceRunWire::One(one) => Ok(Self::one(one)),
-            PieceRunWire::Many(many) => Self::new(many).ok_or_else(|| {
-                serde::de::Error::custom("a run of profile pieces holds at least one")
-            }),
-        }
+        d.deserialize_any(PieceRunVisitor)
     }
 }
 

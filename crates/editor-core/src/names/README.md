@@ -185,11 +185,13 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   piece after the start vertex. `LateralEdge` and `BandRim` are minted only
   where an entity exists, so a station inside a run has none; rims and cap
   vertices stay per piece. A run wall is not a merge and never `Merged`.
-  Covers and offers (N3) read one constituents view shared by every role
-  that holds a set (`Merged`, `LoftWall`, a run wall): `Lateral([p0, p1])`
+  Covers and offers (N3) read one constituents view shared by every row
+  that holds a set of names — a `Merged` face, and a run held by
+  `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`: `Lateral([p0, p1])`
   covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
-  walls.
+  walls. A `LoftWall` holds one locator per section of ONE wall, not a set
+  of walls, so it has no constituents in that view.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:

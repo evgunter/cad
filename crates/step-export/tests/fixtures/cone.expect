@@ -7,7 +7,10 @@
 # half-bands and ONE base disc, which a full revolve builds whole); OCC
 # reports 6 EDGES, adding a degenerate apex edge per conical face (the
 # same pole-chart normalisation it applies to the ball). Faces, vertices
-# and the volume are unchanged.
+# and the volume are unchanged. These EXPECT_* lines were re-derived
+# from the kernel census by that normalisation when the base disc
+# became one face (BAND, one wall per run), NOT re-measured in FreeCAD;
+# scripts/check_step.sh is what confirms them.
 #
 # KERNEL_* pin the NATIVE body's census and certified volume, full
 # precision (the literal is the export writer's round-tripping float

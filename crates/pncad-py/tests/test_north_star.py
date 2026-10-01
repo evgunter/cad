@@ -2498,8 +2498,8 @@ class TestTeapot(unittest.TestCase):
     unions the operand gate has no arm for.
 
     Every selection here is a NAME the evaluation answered: the mouth
-    is the pot's two `Band`/`BandPi` half-discs at the mouth-disc
-    segment, the rims are the lid's `BandRim` edges at the meridian
+    is the pot's `Band` at the mouth-disc segment (a full revolve sweeps
+    a planar wall whole, one face), the rims are the lid's `BandRim` edges at the meridian
     vertices they stand on, and nothing composes a name from text.
     Segment and vertex are read off the profile's canonical traversal
     (`Doc.pieces`), which the names the evaluation answered are ordered
@@ -2839,17 +2839,17 @@ class TestTeapot(unittest.TestCase):
             doc, vessel, pot, band_pi, self.seg_faces(ev, pot, SegTag.BandPi)
         )
         self.assertEqual(len(bands), 4, "one band per meridian segment that sweeps")
-        self.assertEqual(len(bands_pi), 4, "and its [pi, 2pi) half")
-        # The mouth is the mouth-disc segment's TWO half-faces, the
-        # `Band` half first: the first designated face of a chart
-        # carries the rim's identity.
+        self.assertEqual(
+            len(bands_pi), 2, "the two CURVED walls' [pi, 2pi) halves; the discs are whole"
+        )
+        # The mouth is the mouth-disc segment's ONE face.
         seg_mouth = self.mouth_segment(ev, pot, bands)
         self.assertEqual(
             seg_mouth,
             self.SEG_MOUTH,
             "the mouth disc is the meridian's fourth segment in program order",
         )
-        mouth = [bands[seg_mouth], bands_pi[seg_mouth]]
+        mouth = [bands[seg_mouth]]
         sealed = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), []))
         cup = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), mouth))
 
@@ -2933,7 +2933,7 @@ class TestTeapot(unittest.TestCase):
             props.surface_area, self.pot_area(0.0) + self.pot_area(self.WALL), "sealed pot A"
         )
         self.assertEqual(props.volume_pad, 0.0, "closed forms need no pad")
-        self.assertEqual(len(ev.all_faces(sealed)), 16, "the operand's 8 faces, twice")
+        self.assertEqual(len(ev.all_faces(sealed)), 12, "the operand's 6 faces, twice")
 
         # The cup: the sealed wall LESS the plug the rim lift opens,
         # which over that slab is the belly SPHERE rather than a
@@ -2948,68 +2948,43 @@ class TestTeapot(unittest.TestCase):
 
         plug = math.pi * (zone(self.Y_MOUTH) - zone(self.Y_MOUTH - self.WALL))
         self.close(cup_body.mass_properties().volume, v_out - v_cav - plug, "cup V")
-        # ONE rim face: the revolve's seam is retired before the glue,
-        # so the mouth's two designated halves come back as one
-        # annulus and not as two half-annuli.
+        # ONE rim face: the mouth disc comes back as one annulus.
         rim = ev.select(
             cup, Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Rim)))
         )
         self.assertEqual(len(rim), 1, "one designated chart, one rim")
-        self.assertEqual(len(ev.all_faces(cup)), 13, "5 outer + the rim + 7 cavity")
+        self.assertEqual(len(ev.all_faces(cup)), 11, "5 outer + the rim + 5 cavity")
 
-    def test_the_mouths_designation_is_a_CHART_and_its_ORDER_is_meaning(self):
-        """Both halves or neither, and which one is named FIRST decides
-        whose name the rim wears.
-
-        A full revolve cuts the mouth disc at the two seam meridians,
-        so the chart is two half-discs; the kernel's rim surgery lifts
-        a chart as a whole and refuses a partial designation. Naming
-        one half is therefore not "most of the mouth" — it is a
-        refusal. Naming both in the other order is not a different
-        shape — it is the same body with a different name on its rim,
-        which is what makes the order MEANING rather than style."""
+    def test_the_mouths_designation_is_ONE_face_and_the_rim_wears_its_name(self):
+        """A full revolve sweeps the mouth disc whole, so the mouth's
+        chart is ONE face, its `Band`, and has no `BandPi` half. (The
+        rows that measured a half-chart refusal and the meaning of the
+        designation ORDER over two half-discs have no shape left to
+        measure: there is one face to designate.)"""
         doc = Doc()
         frame, axis = teapot_frame_and_axis(doc)
         pot = fully_revolved(doc, frame, axis, self.vessel_meridian())
         ev = evaluate(doc)
         bands = self.seg_faces(ev, pot, SegTag.Band)
-        bands_pi = self.seg_faces(ev, pot, SegTag.BandPi)
         seg = self.mouth_segment(ev, pot, bands)
-        half, half_pi = bands[seg], bands_pi[seg]
+        mouth = bands[seg]
+        for name in self.seg_faces(ev, pot, SegTag.BandPi):
+            self.assertNotEqual(
+                ev.face_carrier_kind(pot, name), SurfaceKind.Plane, "no planar pi half"
+            )
 
-        # Half a chart is a refusal, from either side.
-        for one in (half, half_pi):
-            node = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), [one]))
-            with self.assertRaises(EvaluationError) as caught:
-                evaluate(doc).value(node)
-            self.assertEqual(caught.exception.kind, "shell")
-            self.assertIn("chart", str(caught.exception))
-
-        # Both halves, in each order: two documents, one shape.
-        forward = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), [half, half_pi]))
-        backward = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), [half_pi, half]))
+        node = doc.insert(Node.shell(pot, Expr.length_in(self.WALL, m), [mouth]))
         ev = evaluate(doc)
+        body = ev.value(node).body()
+        body.validate()
         faces = NamePat.of_kind(EntityKind.Face)
-        rims = {}
-        for node in (forward, backward):
-            body = ev.value(node).body()
-            body.validate()
-            rim = ev.select(node, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))
-            self.assertEqual(len(rim), 1, "one designated chart, one rim")
-            origin = ev.face_frame(node, rim[0]).origin
-            self.assertAlmostEqual(origin[1].meters, self.Y_MOUTH, delta=1e-12)
-            self.assertAlmostEqual(origin[0].meters, 0.0, delta=1e-12)
-            rims[node] = rim[0]
-        # The rim wears the FIRST designated face's name, so the two
-        # orders mint two different names for one annulus.
-        self.assertIn(half, rims[forward])
-        self.assertIn(half_pi, rims[backward])
-        self.assertNotEqual(rims[forward], rims[backward])
-        # And the geometry does not know the difference: exactly equal,
-        # not merely close.
-        a = ev.value(forward).body().mass_properties()
-        b = ev.value(backward).body().mass_properties()
-        self.assertEqual((a.volume, a.surface_area), (b.volume, b.surface_area))
+        rim = ev.select(node, Selector.of(faces.seg(SegPat.tag(SegTag.Rim))))
+        self.assertEqual(len(rim), 1, "one designated chart, one rim")
+        origin = ev.face_frame(node, rim[0]).origin
+        self.assertAlmostEqual(origin[1].meters, self.Y_MOUTH, delta=1e-12)
+        self.assertAlmostEqual(origin[0].meters, 0.0, delta=1e-12)
+        # The rim wears the designated face's name.
+        self.assertIn(mouth, rim[0])
 
     def test_the_lid_rolls_the_three_rims_it_names(self):
         doc = Doc()

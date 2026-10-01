@@ -277,7 +277,7 @@ let seam = StableName {
     node,
     path: vec![RoleSeg::Seam {
         a: face(vec![RoleSeg::Cap(CapEnd::End)]).into(),
-        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId(1), role: PieceRole::Leg })]).into(),
+        b: face(vec![RoleSeg::Band(ProfileEdgeRef::Piece { step: StepId(1), role: PieceRole::Leg }.into())]).into(),
     }],
 };
 

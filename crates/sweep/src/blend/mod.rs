@@ -918,7 +918,10 @@ pub const FILLET3_CORNER_INDEPENDENCE_RECOURSE: &str = "tilt the faces meeting a
 /// **A recourse must be true at every site its tag can fire.** This
 /// tag's firing rule ([`battery::is_seam_vertex`](battery)) is purely
 /// INCIDENCE — two rim arcs carrying one support pair, plus two
-/// co-surface seam meridians — and never reads convexity, so it fires
+/// co-surface seam meridians, or ONE where the other support is a whole
+/// face carrying the rim (a full revolve's plane disc or annulus) and
+/// the rim's arcs close into one chain, which is what `rim_of` answers
+/// — and never reads convexity, so it fires
 /// at a concave rim's seam vertex exactly as readily as at a convex
 /// one. The sentence conditions on nothing because the door it names
 /// serves both sides. Held to it by
