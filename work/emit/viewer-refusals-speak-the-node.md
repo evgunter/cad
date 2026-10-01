@@ -22,4 +22,4 @@ Split from `refusal-values-speak-the-node-with-its-label` (its PR spoke `EditErr
 - `AdmissionFault` (`display.rs`).
 - Also hit by the same sweep: `blend.rs` and `pickindex.rs` (`Display`s), `session.rs` (`set_program_of`), `drafts.rs` (`profile_edit`).
 
-The sweep matched `"…node {…}"` in non-test `src/` at that PR's merge base. A second pass for a node printed under another noun closes the gap it cannot see.
+The sweep matched `"…node {…}"` in non-test `src/` at that PR's merge base. A second pass listed the viewer's `pub enum …Error`/`…Fault`/`…Refusal` types holding a `RecipeNodeId` field, whatever noun prints it. It found the six types above, plus `EdgeNameFault` and `PickIndexError` (`pickindex.rs`) and `Standing` (`session/select.rs`).

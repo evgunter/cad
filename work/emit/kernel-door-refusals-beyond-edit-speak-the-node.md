@@ -25,4 +25,9 @@ Each needs a ruling first: is the value raised at a door that holds the document
 - `pncad/src/export.rs`, `pncad-py/src/py/checks.rs` (`__repr__`, `new`).
 - `persist/check.rs`, `persist/mod.rs` (`fmt_labelled`), `mint.rs`: the load door reads bytes that are not a document yet. These most likely keep the tag; say so on the row when it is built.
 
-The grep matches a format string with `node {…}` on one line. It cannot see a node printed under another noun (`instance {}`, `mate {}`, `gauge {}`, `root {}`) or through a helper. A second pass for `RecipeNodeId` fields in `pub enum …Error`/`…Fault`/`…Refusal` types closes that gap.
+The grep matches a format string with `node {…}` on one line. It cannot see a node printed under another noun (`instance {}`, `mate {}`, `gauge {}`, `root {}`) or through a helper. So a second pass listed every `pub enum` named `…Error`/`…Fault`/`…Refusal`/`…Standing` that holds a `RecipeNodeId` field. Its kernel hits, with the number of such fields:
+
+- Door-side, for this row: `MintRefusal` 2 (`assembly.rs`), `SelectionRefusal` 1 (`clearance.rs`), `DriveRefusal` 2 and `RefusalReason` 1 (`drive.rs`), `McRefusal` 1 (`mc.rs`), `NamingError` 4 (`names/emit.rs`), `SelectRefusal` 1 (`names/geompred.rs`), `ProductError` 6 (`product.rs`), `RangeRefusal` 4, `SplitError` 11 and `InlineError` 6 (`refactor.rs`), `NodePickError` 2 (`resolve/pick.rs`), `RootFault` 5, `LiftRefusal` 1, `SensitivityRefusal` 2 and `StackupRefusal` 2 (`stackup.rs`), `NodeStanding` 5, `ExportError` 2 (`pncad/src/export.rs`).
+- Load door, where the tag likely stays: `SnapshotError` 30, `PersistError` 1.
+- Node-local faults that a door renders in its own words: `InputFault` 1 and `AssertionBoundFault` 2 (`node.rs`). The edit door already speaks them through `EditError`.
+- Memoized, owned by `memoized-refusals-speak-inner-nodes-through-the-frame`: `NodeErrorKind` 13, `PartFault` 4, `MateFault` 19, `FaceRefusal` 2, `LeverRefusal` 2.
