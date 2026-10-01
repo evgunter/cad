@@ -2406,10 +2406,7 @@ test_utils::f6_variants! {
         MergedChord,
         MergedChordOffRim,
         MergedChordConstituents,
-        SeamLineSides,
         MemberEdgeTied,
-        SplitReference,
-        NarrowBand,
         Band,
         Escalated,
     ];
@@ -2545,13 +2542,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["merged face", "holds 2 faces", "no rule picks"],
         ),
         (
-            NamingError::SeamLineSides {
-                node: RecipeNodeId(31),
-                edge,
-            },
-            vec!["node 31", "each side of its recorded pair"],
-        ),
-        (
             NamingError::MemberEdgeTied {
                 member: RecipeNodeId(37),
                 edge: Box::new(StableName {
@@ -2571,29 +2561,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 escalate: 5e-324,
             }),
             vec!["naming band", "5e-324"],
-        ),
-        (
-            NamingError::NarrowBand {
-                zero: 1e-9,
-                escalate: 1.5e-9,
-            },
-            vec!["naming band is too narrow", "below 2"],
-        ),
-        (
-            NamingError::SplitReference {
-                group: Box::new(StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId(41),
-                    path: vec![RoleSeg::Cap(CapEnd::Start)],
-                }),
-                reference: Box::new(StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId(43),
-                    path: vec![RoleSeg::Cap(CapEnd::Start)],
-                }),
-                curved: false,
-            },
-            vec!["node 41", "node 43", "several faces on different carriers"],
         ),
         (
             NamingError::Escalated {

@@ -746,9 +746,10 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, NameRef, bool)>
 /// names moved: the order is then the member's, in every member order,
 /// and not the one the fold happened to rank along at the step that met
 /// the group. A seam citing two member edges refuses, as the collapse
-/// already does for such a group's ranks. A group with a moved name
-/// whose one seam crosses a union seam cited by its head
-/// ([`name_by_parents`]) has no one carrier to rank along, and ties. A
+/// already does for such a group's ranks. A group whose one seam
+/// crosses a union seam [`name_by_parents`] re-spelled by its head has
+/// no one carrier to rank along, since the seam may be several curves,
+/// and ties. A
 /// group with a moved name and no single seam, or a seam citing no
 /// edge, refuses. A group with no moved name and no member edge to rank
 /// along keeps its names: its ranks, if any, lie along a seam, in the
@@ -766,6 +767,8 @@ fn cite_member_edges<T: geom_core::Decide>(
     let mut out = NameTable::new();
     // base → (name as it stands, entry, whether the rewrite moved it)
     let mut vertices: BTreeMap<StableName, Vec<(StableName, Entry, bool)>> = BTreeMap::new();
+    // The bases of groups a seam cited by its head moved.
+    let mut respelled_bases: BTreeSet<StableName> = BTreeSet::new();
     let rows = t
         .iter()
         .map(|(name, entry)| (name.clone(), entry.clone(), false))
@@ -802,6 +805,9 @@ fn cite_member_edges<T: geom_core::Decide>(
         }
         let moved = respelled || cited != name;
         let base = without_tail(&cited, |q| matches!(q, Qualifier::OrderAlong { .. }));
+        if respelled {
+            respelled_bases.insert(base.clone());
+        }
         vertices
             .entry(base)
             .or_default()
@@ -819,9 +825,7 @@ fn cite_member_edges<T: geom_core::Decide>(
             [RoleSeg::Seam { a, b }] => match (whole(a), whole(b)) {
                 (Some(m), None) | (None, Some(m)) => Some(m),
                 (Some(_), Some(_)) => return Err(bug(Unrankable::SidedVertexRank.what())),
-                (None, None)
-                    if moved && (a.kind == EntityKind::Edge || b.kind == EntityKind::Edge) =>
-                {
+                (None, None) if respelled_bases.contains(&base) => {
                     let mut ents = Vec::with_capacity(rows.len());
                     for (_, entry, _) in rows {
                         match entry {
@@ -2054,22 +2058,40 @@ mod tests {
         }
     }
 
-    /// **A seam edge whose pair canonicalization swaps reads its rank
-    /// from the other end.** The emitter's A side here is member 5's
-    /// face and its B side member 2's; in name order member 2 comes
-    /// first, so the chain's line is reversed and rank 0 of 3 becomes 2.
-    /// In minted order the same rank stands.
+    /// Member `m`'s first lateral edge's start vertex, as `member_view`
+    /// keys it.
+    fn member_vertex(union: RecipeNodeId, m: u64) -> StableName {
+        let mut v = member_edge(union, m);
+        v.kind = EntityKind::Vertex;
+        v
+    }
+
+    /// **A seam edge piece whose pair canonicalization swaps keeps its
+    /// ends.** The emitter's A side here is member 5's face and its B
+    /// side member 2's; in name order member 2 comes first, and the
+    /// piece's `Ends`, which orders nothing, comes through as it was
+    /// written, each end collapsed.
     #[test]
-    fn a_swapped_seam_edge_reads_its_rank_from_the_other_end() {
+    fn a_swapped_seam_edge_piece_keeps_its_ends() {
         let union = RecipeNodeId(9);
+        let ends = vec![member_vertex(union, 3), member_vertex(union, 4)];
         let swapped = seam(through_a(member_cap(union, 5)), member_cap(union, 2));
         let kept = seam(through_a(member_cap(union, 2)), member_cap(union, 5));
-        for (line, want) in [(swapped, 2), (kept, 0)] {
-            let out = collapse(union, &ranked(EntityKind::Edge, union, line, 0, 3)).unwrap();
-            assert_eq!(rank_of(&out), want, "{out:?}");
+        for line in [swapped, kept] {
+            let piece = StableName {
+                kind: EntityKind::Edge,
+                node: union,
+                path: vec![line, RoleSeg::Fragment(Qualifier::Ends(ends.clone()))],
+            };
+            let out = collapse(union, &piece).unwrap();
             assert!(
                 matches!(&out.path[0], RoleSeg::Seam { a, .. } if **a == member_cap(union, 2)),
                 "the pair is not in name order: {out:?}"
+            );
+            assert_eq!(
+                out.path[1],
+                RoleSeg::Fragment(Qualifier::Ends(ends.clone())),
+                "{out:?}"
             );
         }
     }
@@ -2118,25 +2140,32 @@ mod tests {
         }
     }
 
-    /// **A later step's pieces of a seam edge take the seam's rule.** The
-    /// pair emitter ranks the pieces of a cut seam along the seam's own
-    /// pair line, so where name order reverses that pair, the
-    /// descent's rank reads from the other end too.
+    /// **A later step's pieces of a seam edge carry no rank to re-read**:
+    /// the seam's pair goes into name order and the piece's `Ends`
+    /// stands, whichever side the emitter wrote first.
     #[test]
-    fn a_descent_through_a_swapped_seam_edge_reads_its_rank_from_the_other_end() {
+    fn a_descent_through_a_swapped_seam_edge_keeps_its_ends() {
         let union = RecipeNodeId(9);
-        for (swap, want) in [(true, 1), (false, 0)] {
+        let ends = vec![member_vertex(union, 3), member_vertex(union, 4)];
+        let mut out = Vec::new();
+        for swap in [true, false] {
             let piece = StableName {
                 kind: EntityKind::Edge,
                 node: union,
                 path: vec![
                     RoleSeg::FromA(seam_edge(union, swap).into()),
-                    RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
+                    RoleSeg::Fragment(Qualifier::Ends(ends.clone())),
                 ],
             };
-            let out = collapse(union, &piece).unwrap();
-            assert_eq!(rank_of(&out), want, "swap={swap}: {out:?}");
+            out.push(collapse(union, &piece).unwrap());
         }
+        assert_eq!(out[0], out[1], "one name from either side");
+        assert_eq!(
+            out[0].path.last(),
+            Some(&RoleSeg::Fragment(Qualifier::Ends(ends))),
+            "{:?}",
+            out[0]
+        );
     }
 
     /// **A seam vertex group ranked along a seam edge takes that edge's
@@ -2156,11 +2185,11 @@ mod tests {
     #[test]
     fn a_reversed_rank_outside_its_count_refuses() {
         let union = RecipeNodeId(9);
-        let line = seam(through_a(member_cap(union, 5)), member_cap(union, 2));
+        let line = seam(through_a(seam_edge(union, true)), member_cap(union, 7));
         for (rank, of) in [(2, 2), (0, 0)] {
             let err = collapse(
                 union,
-                &ranked(EntityKind::Edge, union, line.clone(), rank, of),
+                &ranked(EntityKind::Vertex, union, line.clone(), rank, of),
             )
             .unwrap_err();
             assert!(
@@ -2219,15 +2248,12 @@ mod tests {
         }
     }
 
-    /// **A tie where the member-edge ranker needs one edge refuses as a
-    /// missing rule**, in both places a tie can stand: the member's own
-    /// table ties the edge's name, or the union's table ties two of its
-    /// pieces under one name. Neither is guessed past with the fold's
-    /// ranks, which are order-dependent. No probe document reaches either
-    /// (0 tied rows over the review corpus and its fixtures), so the
-    /// refusal is pinned here, on the ranker itself.
+    /// **The fold's tie over two pieces of a member edge is grouped
+    /// under the member edge**, as one group descended from a tie: the
+    /// pieces are told apart by their ends afterwards, so no rule has to
+    /// pick one edge, and the fold's qualifier is not carried.
     #[test]
-    fn a_tied_member_edge_or_piece_refuses_as_a_missing_rule() {
+    fn a_tied_member_edge_piece_is_grouped_under_its_member_edge() {
         let (union, m) = (RecipeNodeId(9), RecipeNodeId(4));
         let (body, k0, k1) = two_edge_body();
         let edge = StableName {
@@ -2240,63 +2266,33 @@ mod tests {
                 },
             )],
         };
-        let piece = |rank| {
-            let mut n = member_name(union, m, &edge);
-            n.path
-                .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
-            n
-        };
+        let mut piece = member_name(union, m, &edge);
+        piece.path.push(RoleSeg::Fragment(Qualifier::Ends(vec![
+            member_vertex(union, 3),
+            member_vertex(union, 4),
+        ])));
         let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
-        // The member ties its edge's name; the union's row is unique.
-        let mut tied_member = NameTable::new();
-        tied_member
-            .insert_tied(edge.clone(), vec![edge_ref(k0), edge_ref(k1)])
-            .unwrap();
-        let mut t = NameTable::new();
-        t.insert(piece(0), edge_ref(k0)).unwrap();
-        // The member names its edge once; the union ties two pieces.
-        let mut unique_member = NameTable::new();
-        unique_member.insert(edge.clone(), edge_ref(k0)).unwrap();
+        let mut member_table = NameTable::new();
+        member_table.insert(edge.clone(), edge_ref(k0)).unwrap();
         let mut tied_rows = NameTable::new();
         tied_rows
-            .insert_tied(piece(0), vec![edge_ref(k0), edge_ref(k1)])
+            .insert_tied(piece, vec![edge_ref(k0), edge_ref(k1)])
             .unwrap();
-        for (label, member_table, table) in [
-            ("member ties the edge", &tied_member, t),
-            ("union ties two pieces", &unique_member, tied_rows),
-        ] {
-            let members = [Member {
-                node: m,
-                body: &body,
-                table: member_table,
-            }];
-            let parents = Parents::empty();
-            let flush = Flush::of(union, &body, &members, &parents, bnd).unwrap();
-            let err =
-                rank_member_edges(table, Vec::new(), &body, &members, &flush, bnd).unwrap_err();
-            assert!(
-                matches!(&err, NamingError::MemberEdgeTied { member, edge: e }
-                    if *member == m && **e == edge),
-                "{label}: {err:?}"
-            );
-        }
-    }
-
-    /// **A band with ambiguity K below 2 refuses to count cells**: two
-    /// coincidences in a row could span a definite separation there, so
-    /// a place would be a guess.
-    #[test]
-    fn a_band_narrower_than_twice_its_zero_refuses_to_count_cells() {
-        let (body, k0, _) = two_edge_body();
-        let seg = Segment::of_edge(&body, k0).unwrap();
-        let narrow = geom_core::Band::new(1e-9, 1.5e-9).unwrap();
-        let err = Cells::of(&body, &seg, narrow).map(|_| ()).unwrap_err();
-        assert!(
-            matches!(err, NamingError::NarrowBand { zero, escalate } if zero == 1e-9 && escalate == 1.5e-9),
-            "{err:?}"
-        );
-        let wide = geom_core::Band::new(1e-9, 2e-9).unwrap();
-        assert!(Cells::of(&body, &seg, wide).is_ok());
+        let members = [Member {
+            node: m,
+            body: &body,
+            table: &member_table,
+        }];
+        let parents = Parents::empty();
+        let flush = Flush::of(union, &body, &members, &parents, bnd).unwrap();
+        let (rest, groups) = group_member_edges(tied_rows, Vec::new(), &flush).unwrap();
+        assert_eq!(rest.iter().count(), 0, "the row was not taken into a group");
+        let [group] = groups.as_slice() else {
+            panic!("one group, got {}", groups.len());
+        };
+        assert_eq!(group.base, member_name(union, m, &edge));
+        assert!(group.from_tie, "the group does not descend from the tie");
+        assert_eq!(group.edges, vec![k0, k1]);
     }
 
     /// The pieces [`cite_member_edges`] is run on: member 5's body
@@ -2342,8 +2338,15 @@ mod tests {
                     .vertex
             };
             let (low, high) = (lone(0.25), lone(0.75));
-            let seg = Segment::of_edge(&member_body, edge).unwrap();
-            let at = |v| seg.along(vertex_point(&body, v).unwrap());
+            let at = |v| {
+                crate::names::emit_topo::param_along(
+                    &member_body,
+                    edge,
+                    vertex_point(&body, v).unwrap(),
+                )
+                .unwrap()
+                .unwrap()
+            };
             let along = if at(low) < at(high) {
                 [low, high]
             } else {
@@ -2368,10 +2371,12 @@ mod tests {
 
         /// A piece of member 5's edge as the fold spells it once a step
         /// has cut it in two.
-        fn piece(&self, rank: u32) -> StableName {
+        fn piece(&self, k: u64) -> StableName {
             let mut n = member_edge(self.union, 5);
-            n.path
-                .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
+            n.path.push(RoleSeg::Fragment(Qualifier::Ends(vec![
+                member_vertex(self.union, 10 + k),
+                member_vertex(self.union, 11 + k),
+            ])));
             n
         }
 
@@ -2391,22 +2396,21 @@ mod tests {
         }
 
         fn cite(&self, rows: Vec<(StableName, topo::VertexKey)>) -> Result<NameTable, NamingError> {
-            let mut t = NameTable::new();
-            for (name, v) in rows {
-                t.insert(
-                    name,
-                    crate::names::table::EntityRef {
+            let rows = rows
+                .into_iter()
+                .map(|(name, v)| {
+                    let at = crate::names::table::EntityRef {
                         body: 0,
                         key: EntityKey::Vertex(v),
-                    },
-                )
-                .unwrap();
-            }
+                    };
+                    (name, Entry::Unique(at), false)
+                })
+                .collect();
             let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
             let members = self.members();
             let parents = Parents::empty();
             let flush = Flush::of(self.union, &self.body, &members, &parents, bnd)?;
-            cite_member_edges(t, &self.body, &members, &flush, bnd)
+            cite_member_edges(NameTable::new(), rows, &self.body, &members, &flush, bnd)
         }
     }
 
@@ -2465,7 +2469,7 @@ mod tests {
     fn a_cited_group_that_is_not_one_seam_refuses() {
         let g = CitedGroup::new();
         let other = seam(member_cap(g.union, 3), member_cap(g.union, 4));
-        let run = |k| {
+        let run = |k: u64| {
             let one = g.named(g.piece(k), None);
             let mut path = one.into_path();
             path.push(other.clone());
@@ -2487,7 +2491,7 @@ mod tests {
     #[test]
     fn a_cited_group_with_no_member_edge_side_refuses() {
         let g = CitedGroup::new();
-        let carrying = |k: u32| StableName {
+        let carrying = |k: u64| StableName {
             kind: EntityKind::Edge,
             node: g.union,
             path: vec![seam(g.piece(k), member_cap(g.union, 3))],

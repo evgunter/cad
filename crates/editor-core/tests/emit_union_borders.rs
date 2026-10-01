@@ -29,9 +29,9 @@ use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, scl, step, table};
 
 use editor_core::{
-    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
-    StableName,
+    Axis3, BooleanOp, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable,
+    NamingError, Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg,
+    SlotId, StableName,
 };
 use geom_core::Tol;
 
@@ -1224,20 +1224,17 @@ fn cylinder(
     )
 }
 
-/// **A curved divider answers in the union as it does in the pair
+/// **A curved divider names in the union as it does in the pair
 /// boolean.** A cylinder lying along y across the plate's top divides
-/// it in two with curved walls. `Borders` reads no plane, so the pieces
-/// need none; whatever the lone pair boolean does with this recipe,
-/// each member order of the union does the same.
-///
-/// What both do is refuse as a missing rule: the seam chain along the
-/// cylinder's wall is ranked along `n_a × n_b`, and the wall has no
-/// plane (`NamingError::SplitReference`, curved, citing the wall). In
-/// the union it is the fold's pair step that refuses, so which of the
-/// seam's sides is `a` follows member order; every order cites the one
-/// seam.
+/// it in two with curved walls. `Borders` reads no plane, so the face
+/// pieces need none, and the seam between the plate's top and the
+/// cylinder's wall is two separate lines (x = 1.2 and x = 1.8) that no
+/// direction separates: each piece is named by its two ends (N2's
+/// `Ends`), which differ in the lateral edge of the cylinder each line
+/// runs into. So the pair boolean names, and so does the union in
+/// either member order, with one table between the two orders.
 #[test]
-fn a_curved_divider_answers_as_the_pair_boolean_does() {
+fn a_curved_divider_names_as_the_pair_boolean_does() {
     let doc = ProfileDoc::empty_derived("union-dividing-across", Tol::witness());
     let (doc, cyl) = cylinder(doc, [1.5, 4.0, 1.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0);
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
@@ -1250,48 +1247,55 @@ fn a_curved_divider_answers_as_the_pair_boolean_does() {
             declare: None,
         },
     );
-    let member = |n: &StableName| match n.path.as_slice() {
-        [RoleSeg::FromMember { of, .. }] => of.name().clone(),
-        _ => n.clone(),
-    };
-    // A curved refusal as (the curved side, the seam's two sides), each
-    // read through the union's `FromMember` to the member's own name so
-    // the pair boolean's and the union's spellings compare. The sides
-    // are a set: which is `a` follows member order.
-    let curved = |e: Option<&NodeErrorKind>| match e {
-        Some(NodeErrorKind::Naming(NamingError::SplitReference {
-            group,
-            reference,
-            curved: true,
-        })) => match group.path.as_slice() {
-            [RoleSeg::Seam { a, b }] => Some((
-                member(reference),
-                BTreeSet::from([member(a.name()), member(b.name())]),
-            )),
-            _ => None,
-        },
-        _ => None,
+    // The edge pieces each table names by their ends: (seam head, the
+    // pieces' qualifiers), the head's sides read as a set.
+    let ends_groups = |t: &NameTable| -> BTreeMap<String, usize> {
+        let mut out = BTreeMap::new();
+        for (name, entry) in t.iter() {
+            assert!(
+                matches!(entry, Entry::Unique(_)),
+                "a tied row: {name:?} {entry:?}"
+            );
+            if name.kind == EntityKind::Edge
+                && matches!(
+                    name.path.last(),
+                    Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+                )
+            {
+                *out.entry(format!("{:?}", name.path.first())).or_default() += 1;
+            }
+        }
+        out
     };
     let pair_ev = run(&pair_doc);
-    let alone = curved(failure(&pair_ev, pair));
     assert!(
-        alone
-            .as_ref()
-            .is_some_and(|(wall, sides)| wall.node == cyl && sides.contains(wall)),
-        "the pair boolean refuses the seam chain along the cylinder's wall as a missing \
-         rule: {:?}",
+        failure(&pair_ev, pair).is_none(),
+        "the pair boolean names: {:?}",
         failure(&pair_ev, pair)
     );
+    let alone = ends_groups(table(&pair_ev, pair));
+    assert!(
+        alone.values().any(|&n| n == 2),
+        "the seam along the wall is two pieces told apart by their ends: {alone:?}"
+    );
+    let mut tables = Vec::new();
     for order in permutations(&[0, 1]) {
         let (docx, u) = union_of(doc.clone(), &[plate, cyl], &order);
         let ev = run(&docx);
-        assert_eq!(
-            curved(failure(&ev, u)),
-            alone,
-            "{order:?}: {:?}",
+        assert!(
+            failure(&ev, u).is_none(),
+            "{order:?}: the union names: {:?}",
             failure(&ev, u)
         );
+        let t = table(&ev, u);
+        assert_eq!(
+            ends_groups(t).values().copied().collect::<Vec<_>>(),
+            alone.values().copied().collect::<Vec<_>>(),
+            "{order:?}: the union cuts its edges as the pair boolean does"
+        );
+        tables.push(t.iter().map(|(n, _)| n.clone()).collect::<BTreeSet<_>>());
     }
+    assert_eq!(tables[0], tables[1], "the names depend on member order");
 }
 
 /// **A merged face cut in two is two pieces of one parent.** A cylinder

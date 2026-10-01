@@ -1809,7 +1809,6 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
     )
 }
 
-
 /// **Names the pieces of one parent edge** (N2): a lone piece is
 /// `base`, and each of several is `base` + `Fragment(Ends)`, the sorted
 /// pair of its two end vertices' names as `t` publishes them, read off
@@ -1830,7 +1829,13 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
     edges: &[EdgeKey],
 ) -> Result<(), NamingError> {
     if let [one] = edges {
-        return Ok(put(t, tie, from_tie, base.clone(), ent(ix, EntityKey::Edge(*one)))?);
+        return Ok(put(
+            t,
+            tie,
+            from_tie,
+            base.clone(),
+            ent(ix, EntityKey::Edge(*one)),
+        )?);
     }
     let mut by_ends: BTreeMap<StableName, Vec<super::table::EntityRef>> = BTreeMap::new();
     for &e in edges {
@@ -1960,7 +1965,13 @@ pub(super) fn rank_crossings<T: Decide, K: Copy>(
 ) -> Result<(), NamingError> {
     let (body, table, e, name) = crossed;
     let tied = |t: &mut NameTable, tie: &mut TieRows| {
-        mint_candidates(t, tie, from_tie, base.clone(), keys.iter().map(&to_ent).collect())
+        mint_candidates(
+            t,
+            tie,
+            from_tie,
+            base.clone(),
+            keys.iter().map(&to_ent).collect(),
+        )
     };
     let Some(forward) = crossed_edge_orientation(body, table, e, name)? else {
         return Ok(tied(t, tie)?);

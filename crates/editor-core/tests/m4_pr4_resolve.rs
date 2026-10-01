@@ -937,7 +937,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         RoleSeg::InPart { .. } => false,
         // Discrimination, not derivation: the fragment is classified
         // AGAINST these, not built from them.
-        RoleSeg::Fragment(Qualifier::Borders(v)) => {
+        RoleSeg::Fragment(Qualifier::Borders(v) | Qualifier::Keeps(v) | Qualifier::Ends(v)) => {
             partners == Partners::Include && v.iter().any(under)
         }
         RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => false,
