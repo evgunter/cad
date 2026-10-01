@@ -26,6 +26,8 @@ walk is `docs/guide/assembly.md`.
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9, A11 partitions | `relative_freedom_components`, `groups`, `root_of` in `src/mate/solve.rs` |
+| A11 (2) gauges, offsets, spaces | `Node::Gauge` and `InstantiatePart`'s `gauge`/`offset` in `src/node.rs`; `DocEdit::SetOffset`/`SetGauge`, the mate door (`clear_joined_offset`) and `regauge_then_mate` in `src/edit.rs`; `group_frame`, `Pose`, `check_offsets`, `spaces_with` in `src/mate/solve.rs`; `instance_frame` in `src/eval/wire.rs`; the per-space gather in `src/product.rs` and `src/assembly.rs` |
+| A11 (3) roots | `root_and_cause` in `src/mate/solve.rs`: a group's members are `InstantiatePart` nodes, and a pattern's copies are values of the pattern node, never `InstantiatePart` nodes, so no pattern-placed instance is a root candidate |
 | A10 roots and gather | `src/roots.rs`, `src/product.rs`, `DocEdit::SetRoots` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
@@ -316,9 +318,9 @@ declaration C6 above describes, are not implemented.
 **A6 — Mirror and improper frames.** `Frame` stores a general linear
 part so an improper frame (det = −1) is representable, and it is
 refused wherever a document admits a frame, by one predicate
-(`Frame::admission_fault`): `DocEdit::SetPlacement`'s frame, an
-explicit placement rule's listed frames and a transform's literal
-steps refuse `EditError::ImproperPlacement` for det ≤ 0, naming which
+(`Frame::admission_fault`): a literal step of an instance's offset, a
+gauge's placement or a transform's chain, and an explicit placement
+rule's listed frames, refuse `EditError::ImproperPlacement` for det ≤ 0, naming which
 frame, and the load validator refuses the same. Mirrored instances are
 not implemented; STEP import refuses a mirroring placement.
 

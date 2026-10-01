@@ -1362,9 +1362,9 @@ Cross-milestone commitments; each binds at the layer named.
   formatting (serde_json with `float_roundtrip`) for finite values;
   NaN/inf refuse typed (`PersistError::NonFinite`); lossy formatters
   banned; enforced by a save/load/replay-identity test. Replay never
-  solves: a logged edit carries the cluster-maintenance rows it
-  performed, and load re-applies them, so a saved document reproduces
-  its placement registry bit for bit with no part store in hand.
+  solves: no edit records a frame (A11 (2)), so load re-applies the
+  edits alone, and a saved document reproduces its gauges and offsets
+  bit for bit with no part store in hand.
 - **Flags banked**: mate solving needs witnesses/interval contraction
   on SE(3), not ℝⁿ; recipe-level provenance carries **pattern indices**
   explicitly so references into indexed families never degrade to
