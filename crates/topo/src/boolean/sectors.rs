@@ -495,7 +495,12 @@ pub(super) fn side_code<T: Decide>(
                     return Err(BooleanError::of_lever(
                         LeverArm::SectorSide,
                         DeclarationRead::Moot,
-                        at_departure(escalation, dir.normalize().dot(n) * lever_arm, band),
+                        at_departure(
+                            escalation,
+                            lever_arm,
+                            dir.normalize().dot(n) * lever_arm,
+                            band,
+                        ),
                     ));
                 }
             };
@@ -556,10 +561,16 @@ pub(super) fn side_code<T: Decide>(
 /// poisoned arm does.
 fn at_departure<T: Decide>(
     escalation: geom_brep::LeverEscalation,
+    arm: T,
     departure: T,
     band: Band,
 ) -> geom_brep::LeverEscalation {
-    if escalation.rung != geom_brep::LeverRung::Arm || escalation.diag.margin.is_invalid() {
+    // `arm / departure` is finite unless the departure is exactly zero
+    // (or poison).
+    if escalation.rung != geom_brep::LeverRung::Arm
+        || escalation.diag.margin.is_invalid()
+        || !geom_core::is_finite_length(arm / departure)
+    {
         return escalation;
     }
     match geom_core::k_stats::decide_positive_reported(
@@ -567,21 +578,13 @@ fn at_departure<T: Decide>(
         Margin::of(departure.abs()),
         band,
     ) {
-        Err(diag)
-            if matches!(
-                diag.margin.diagnostic_f64_for_error_text(),
-                geom_core::ErrorTextReading::Value(m) if m != 0.0
-            ) =>
-        {
-            geom_brep::LeverEscalation {
-                rung: geom_brep::LeverRung::Arm,
-                diag,
-            }
-        }
-        // An exactly zero departure, an unreadable one, or (unreachable:
-        // the departure is no longer than an arm that did not read
-        // positive) a positive one.
-        Err(_) | Ok(()) => escalation,
+        Err(diag) => geom_brep::LeverEscalation {
+            rung: geom_brep::LeverRung::Arm,
+            diag,
+        },
+        // Unreachable: the departure is no longer than an arm that did
+        // not read positive.
+        Ok(()) => escalation,
     }
 }
 

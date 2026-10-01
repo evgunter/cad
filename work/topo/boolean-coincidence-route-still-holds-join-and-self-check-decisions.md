@@ -111,9 +111,16 @@ The "Since" sections above name types this head no longer has
   its site: `sphere_barely_leaning`).
 - **The join's matching and the strut order** read no declaration
   (`DeclarationRead::Moot`), so none offers one, and end from their own
-  pass sets (`Coincide::Join`, `Coincide::Sectors`); every tolerance
-  they offer is executed (`offer_rows`' `germs_nearly_*`,
-  `direction_just_outside_a_sector`).
+  pass sets (`Coincide::Join`, `Coincide::Sectors`). Their offers are
+  not executed at these sites: `offer_rows`' `germs_nearly_*` raise
+  `Coincide::Join` at `join::germs_face_each_other`, and
+  `direction_just_outside_a_sector` raises `Coincide::Sectors` at
+  `sectors::within`; `join::find_match`, `join::loose_partners` and the
+  strut order (`insert::mint_directed`) are raised by no case, since the
+  executed census is keyed per decision. PR 3513's fifth pass keys the
+  sites (`offer_rows::every_site_names_the_decision_it_raises`), which
+  pins the decision each of them names but executes none of their
+  offers.
 - **The circle × torus lane** is `BooleanDecision::ArcTorusRoots`, on
   its lever alone until it carries its rung
   (`circle-torus-lane-escalates-without-its-rung`).

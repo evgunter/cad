@@ -236,7 +236,7 @@ pub(crate) fn wedge_decided<T: Decide>(
     // Negative one as Invalid, and an in-band or poisoned arm as the
     // funnel's own escalation.
     crate::enters::decide_arm("dihedral_arm", Margin::of(arm), band)
-        .map_err(|diag| LeverEscalation::arm(at_wedge(diag, sin_theta * arm, band)))?;
+        .map_err(|diag| LeverEscalation::arm(at_wedge(diag, arm, sin_theta * arm, band)))?;
     let margin = Margin::levered(sin_theta, arm);
     let Decided { sign, margin } =
         decide_reported("dihedral_wedge", margin, band).map_err(LeverEscalation::reading)?;
@@ -262,28 +262,21 @@ pub(crate) fn wedge_decided<T: Decide>(
 /// An exactly zero wedge reads smooth at every tolerance that decides the
 /// arm, so there the arm binds and keeps its own margin, as does a
 /// poisoned arm.
-fn at_wedge<T: Decide>(arm: Indeterminate, wedge: T, band: Band) -> Indeterminate {
-    if arm.margin.is_invalid() {
-        return arm;
+fn at_wedge<T: Decide>(gate: Indeterminate, arm: T, wedge: T, band: Band) -> Indeterminate {
+    // `arm / wedge` is finite unless the wedge is exactly zero, or poison
+    // (a gradient the arm's decided zero leaves unread, at a cone's apex).
+    if gate.margin.is_invalid() || !geom_core::is_finite_length(arm / wedge) {
+        return gate;
     }
     match geom_core::k_stats::decide_positive_reported(
         "dihedral_arm_wedge",
         Margin::of(wedge.abs()),
         band,
     ) {
-        Err(diag)
-            if matches!(
-                diag.margin.diagnostic_f64_for_error_text(),
-                geom_core::ErrorTextReading::Value(m) if m != 0.0
-            ) =>
-        {
-            diag
-        }
-        // An exactly zero wedge, an unreadable one (a gradient the arm's
-        // decided zero left unread, at a cone's apex), or (unreachable:
-        // the wedge is no longer than an arm that did not read positive)
-        // a positive one.
-        Err(_) | Ok(()) => arm,
+        Err(diag) => diag,
+        // Unreachable: the wedge is no longer than an arm that did not
+        // read positive.
+        Ok(()) => gate,
     }
 }
 
