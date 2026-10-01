@@ -2,7 +2,8 @@
 id: failed-row-repair-links-for-arms-with-two-candidate-repairs
 kind: issue
 title: A Failed row links to no node for AxisInDifferentPlane, EmptyOperand and EmptyHalf, whose repair could be either of two nodes
-status: open
+status: dispatched
+branch: chrome/repair-readout
 opened: 2026-09-29
 priority: P4
 cost: E
