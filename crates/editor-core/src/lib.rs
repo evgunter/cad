@@ -141,12 +141,13 @@ pub use expr::{
 };
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use mate::{
-    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Coset,
-    Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide,
-    Member, NO_AT_REST_RECORD_RECOURSE, OFFSET_RECOURSE, OffsetCheck, PlacerRow, PoseRefusal,
-    ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE,
-    Unplaced, class_admission, gauge_chain, groups, member_of, places, reading_edges,
-    relative_freedom_components, root_of, solve_document, table_gap,
+    Alignment, AuthoredFrame, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash,
+    ClassAdmission, Coset, FaceFrame, FacePoseRefusal, FaceRefusal, Lever, LeverRefusal, MateFault,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
+    OFFSET_RECOURSE, OffsetCheck, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses,
+    Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, class_admission, gauge_chain,
+    groups, member_of, places, reading_edges, relative_freedom_components, root_of, solve_document,
+    table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,

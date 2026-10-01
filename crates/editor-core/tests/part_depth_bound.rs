@@ -395,11 +395,7 @@ fn below_the_top_a_documents_rows_are_the_ones_its_own_evaluation_produces() {
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// A document instantiating `first` and `second` — each a reference

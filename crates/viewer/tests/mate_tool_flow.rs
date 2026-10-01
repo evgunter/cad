@@ -12,7 +12,7 @@ use crate::common;
 use common::asm;
 use common::{ang, len, scl};
 use pncad::document::{ClassAdmission, MatePrimitive, MateSide, RecipeNodeId};
-use pncad::geom_core::{Point3, Tol};
+use pncad::geom_core::Tol;
 use pncad::select::{ContactClass, RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
 use viewer::session::{DatumSpec, DocSession, FaceSelection, PatternRuleSpec, SessionOp};
@@ -48,43 +48,43 @@ fn two_picks_one_choice_one_committed_edit() {
     tool.pick(shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 
-    // The proposal: frames derived through `face_frame`, pulled back
-    // into part coordinates through each instance's placement.
+    // The proposal: each side IS the picked face, by the part's own
+    // name, resolved by the solve at every evaluation.
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("the seat proposes");
     assert_eq!(proposal.class, ContactClass::Rest);
     assert_eq!(proposal.admission, ClassAdmission::Mints);
-    // Pick a is post_b's top cap: its derived frame is in the POST's
-    // own coordinates (the placement was divided out), so its origin
-    // sits on the part's top plane, not at the instance's world spot.
-    assert!(
-        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
-        "part coordinates: {:?}",
-        proposal.alignment.a.origin
+    // Pick a is post_b's top cap: the frame names the POST's own cap
+    // row, not the instance-qualified name the head carries and not
+    // numbers read at the instance's world spot.
+    assert_eq!(
+        proposal.alignment.a,
+        asm::from_face(&bench.post_top),
+        "the frame is the post's own cap face"
+    );
+    assert_eq!(
+        proposal.alignment.b,
+        asm::from_face(&bench.shelf_bottom),
+        "the frame is the shelf's own underside"
     );
 
     // EXACTLY one committed edit, through the session's one door.
     common::commit_mate(&mut session, proposal.op());
 
-    // The placement is SOLVED from the mate: the two picked frames
-    // now coincide in world space (composition through the solved
-    // poses reproduces the coincidence the alignment declares).
-    let (doc, _) = session.landed_pair().expect("landed");
-    let poses = common::solve(&session, doc, tol);
-    let placed_a = poses
-        .placement(doc, bench.post_b)
-        .expect("post_b is placed")
-        .affine::<f64>();
-    let placed_b = poses
-        .placement(doc, bench.shelf_i)
-        .expect("the shelf is placed")
-        .affine::<f64>();
-    let [ax, ay, az] = proposal.alignment.a.origin;
-    let [bx, by, bz] = proposal.alignment.b.origin;
-    let world_a = placed_a.transform_point(Point3::new(ax, ay, az));
-    let world_b = placed_b.transform_point(Point3::new(bx, by, bz));
+    // The placement is SOLVED from the mate: the two picked FACES now
+    // coincide in world space — their poses read off the landed
+    // evaluation, where each instance's body is placed, meet at one
+    // origin, which is what the alignment declares of the faces it
+    // names.
+    let (_, eval) = session.landed_pair().expect("landed");
+    let world_a = face_frame(eval, post_top.node, &post_top.name)
+        .expect("the post's cap has a pose")
+        .origin;
+    let world_b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name)
+        .expect("the shelf's underside has a pose")
+        .origin;
     for (got, want) in [
         (world_a.x, world_b.x),
         (world_a.y, world_b.y),
@@ -112,7 +112,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     // No picks yet: NotTwoPicks.
     let tool = MateTool::new();
     assert!(matches!(
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()),
+        tool.proposal(doc, eval, asm::seat_choice()),
         Err(MateToolError::NotTwoPicks)
     ));
 
@@ -122,7 +122,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     tool.pick(post_top.clone());
     tool.pick(post_top.clone());
     assert!(matches!(
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()),
+        tool.proposal(doc, eval, asm::seat_choice()),
         Err(MateToolError::SamePick { head }) if head == bench.post_b
     ));
 
@@ -139,13 +139,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     session2.pump();
     let (doc2, eval2) = session2.landed_pair().expect("landed");
     assert!(matches!(
-        tool.proposal(
-            doc2,
-            eval2,
-            &session2.eval_options(),
-            tol,
-            asm::seat_choice()
-        ),
+        tool.proposal(doc2, eval2, asm::seat_choice()),
         Err(MateToolError::NotAnInstancePick {
             side: MateSide::B,
             ..
@@ -183,15 +177,12 @@ fn the_tool_refuses_the_tables_static_gaps_before_any_geometry() {
     let mut choice = asm::seat_choice();
     choice.primitive = MatePrimitive::PlanarRest { offset: 0.0 };
     choice.clocking = Some(0.3);
-    let Err(MateToolError::TableRefused { what: rest }) =
-        tool.proposal(doc, eval, &gone.eval_options(), tol, choice)
-    else {
+    let Err(MateToolError::TableRefused { what: rest }) = tool.proposal(doc, eval, choice) else {
         panic!("a rider on a planar rest refuses at the tool");
     };
     let mut choice = asm::seat_choice();
     choice.primitive = MatePrimitive::Clocking;
-    let Err(MateToolError::TableRefused { what: clocking }) =
-        tool.proposal(doc, eval, &gone.eval_options(), tol, choice)
+    let Err(MateToolError::TableRefused { what: clocking }) = tool.proposal(doc, eval, choice)
     else {
         panic!("a standalone clocking refuses at the tool");
     };
@@ -199,7 +190,7 @@ fn the_tool_refuses_the_tables_static_gaps_before_any_geometry() {
     // And a choice the table has a row for reaches the pick door,
     // which is what "before any geometry" means here.
     assert!(matches!(
-        tool.proposal(doc, eval, &gone.eval_options(), tol, asm::seat_choice()),
+        tool.proposal(doc, eval, asm::seat_choice()),
         Err(MateToolError::NotAnInstancePick {
             side: MateSide::B,
             ..
@@ -324,7 +315,7 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("a pattern copy is a member");
 
     // The reference is `Instance(i)`-headed, on the pattern node —
@@ -339,22 +330,22 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
         proposal.a.name.path.first()
     );
 
-    // The alignment is in the MASTER's part coordinates — the same
-    // numbers copy 0 would author, because the pattern's derived
-    // offset is the solve's to apply and not the tool's to bake in.
-    assert!(
-        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
-        "part coordinates: {:?}",
-        proposal.alignment.a.origin
+    // The alignment names the MASTER's own face — the same row copy
+    // 0 names, because the pattern's derived offset is the solve's to
+    // apply and not the tool's to bake into a frame.
+    assert_eq!(
+        proposal.alignment.a,
+        asm::from_face(&bench.post_top),
+        "the frame is the post's own cap face"
     );
     let mut zero = MateTool::new();
     zero.pick(copy_pick(&session, 0));
     zero.pick(shelf_bottom.clone());
     let from_zero = zero
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("copy 0 is a member too");
     assert_eq!(
-        from_zero.alignment.a.origin, proposal.alignment.a.origin,
+        from_zero.alignment.a, proposal.alignment.a,
         "every copy of one pattern is the same part"
     );
 
@@ -419,7 +410,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     tool.pick(shelf_bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("a pattern copy over a transform carries a member");
     assert_eq!(
         proposal.a.at, pattern,
@@ -473,7 +464,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
-            tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()),
+            tool.proposal(doc, eval, asm::seat_choice()),
             Err(MateToolError::NotAnInstancePick {
                 side: MateSide::A,
                 node
@@ -520,18 +511,17 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("a moved instance carries a member");
     assert_eq!(proposal.a.at, moved, "authored at the node the ray met");
     assert_eq!(proposal.a.name.node, bench.post_b, "naming the instance");
-    // The alignment is in the POST's own part coordinates — the top
-    // cap at z = POST_HEIGHT — because the frame is read at the
-    // member's instance and divided by that instance's placement.
-    // The transform's map is the SOLVE's to apply, not the tool's.
-    assert!(
-        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
-        "the authored frame is the master's: {:?}",
-        proposal.alignment.a
+    // The alignment names the POST's own cap face — read INSIDE the
+    // part, where the transform's map is the SOLVE's to apply, not
+    // the tool's to bake in.
+    assert_eq!(
+        proposal.alignment.a,
+        asm::from_face(&bench.post_top),
+        "the frame is the master's own face"
     );
 
     common::commit_mate(&mut session, proposal.op());
@@ -656,46 +646,24 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
         let mut tool = MateTool::new();
         tool.pick(copy.clone());
         tool.pick(shelf_bottom.clone());
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        tool.proposal(doc, eval, asm::seat_choice())
             .expect("a pattern copy is a member")
     };
     let spun = proposal_of(&copy_one);
     let unspun = proposal_of(&copy_zero);
 
-    // The ROTATED channels FIRST — they are what a linear rule cannot
-    // move and what a naive read of the copy's own pose corrupts.
+    // Every copy of one pattern is the same part, so both proposals
+    // name the same row of it: the copy's own rotated pose — what a
+    // linear rule cannot move and what a naive read of the placed
+    // body corrupts — never enters the frame at all.
     assert_eq!(
-        spun.alignment.a.axis, unspun.alignment.a.axis,
-        "axis: every copy of one pattern is the same part"
-    );
-    assert_eq!(
-        spun.alignment.a.reference, unspun.alignment.a.reference,
-        "reference: every copy of one pattern is the same part"
+        spun.alignment.a, unspun.alignment.a,
+        "every copy of one pattern is the same part"
     );
     assert_eq!(
-        spun.alignment.a.origin, unspun.alignment.a.origin,
-        "origin: every copy of one pattern is the same part"
-    );
-
-    // And in ABSOLUTE terms, in the post's own coordinates: the cap
-    // sits on the part's top plane with its normal along the part's
-    // +z and its roll reference across it. The quarter turn would
-    // carry that normal onto the part's x axis.
-    let frame = spun.alignment.a;
-    assert!(
-        (frame.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
-        "part coordinates: {:?}",
-        frame.origin
-    );
-    assert!(
-        (frame.axis[2].abs() - 1.0).abs() < 1e-12,
-        "the cap's normal is the part's z: {:?}",
-        frame.axis
-    );
-    assert!(
-        frame.reference[2].abs() < 1e-12,
-        "the roll reference is across the part's z: {:?}",
-        frame.reference
+        spun.alignment.a,
+        asm::from_face(&bench.post_top),
+        "the frame is the post's own cap face, whichever copy was picked"
     );
 
     // And it SOLVES: the spun copy's cap meets the shelf's underside
@@ -839,7 +807,7 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("a nested copy is a member");
 
     // The reference wears one `Instance(i)` per level, outermost
@@ -855,13 +823,12 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
         "the inner copy rides in the inner head: {of:?}"
     );
 
-    // The alignment is in the MASTER's part coordinates, read through
-    // both levels — the same numbers a mate on the unpatterned post
-    // authors.
-    assert!(
-        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
-        "part coordinates: {:?}",
-        proposal.alignment.a.origin
+    // The alignment names the MASTER's own face, read through both
+    // levels — the same row a mate on the unpatterned post names.
+    assert_eq!(
+        proposal.alignment.a,
+        asm::from_face(&bench.post_top),
+        "the frame is the post's own cap face"
     );
 
     let mate = common::commit_mate(&mut session, proposal.op());
@@ -896,7 +863,7 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        .proposal(doc, eval, asm::seat_choice())
         .expect("a Part-selected copy is a member");
 
     // Read AT the `Part`, under the PATTERN's own name: the Part
@@ -912,10 +879,10 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
         "the copy rides in the head: {:?}",
         proposal.a.name
     );
-    assert!(
-        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
-        "part coordinates: {:?}",
-        proposal.alignment.a.origin
+    assert_eq!(
+        proposal.alignment.a,
+        asm::from_face(&bench.post_top),
+        "the frame is the post's own cap face"
     );
 
     let mate = common::commit_mate(&mut session, proposal.op());

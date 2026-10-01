@@ -1448,6 +1448,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     ring: LoopKey::default(),
                 },
             ),
+            (
+                "RingHomingUncrossable",
+                J::RingHomingUncrossable {
+                    ring: LoopKey::default(),
+                },
+            ),
             ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
             ("SectionLoopMixed", J::SectionLoopMixed { face }),
             ("CutInvariant", J::CutInvariant { edge }),

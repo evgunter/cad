@@ -4533,7 +4533,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
 
         self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
         self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 8)
-        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 32)
+        def pieces(kind, tag):
+            pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
+            return len(ev.select(cut, Selector.of(pat)))
+
+        # A section line that re-enters one operand face cuts several
+        # chords of it, each named by its ends.
+        self.assertEqual(count(EntityKind.Edge, SegTag.SectionEdge), 20)
+        self.assertEqual(pieces(EntityKind.Edge, SegTag.SectionEdge), 28)
         self.assertEqual(count(EntityKind.Face, SegTag.SplitFragment), 32)
         self.assertEqual(count(EntityKind.Edge, SegTag.SplitFragment), 48)
 

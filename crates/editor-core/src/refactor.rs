@@ -1735,7 +1735,12 @@ fn remap_node(
                 name: face(&b.name)?,
             },
             class: *class,
-            alignment: *alignment,
+            // The datum crosses verbatim: its vectors are numbers, and
+            // a `FromFace` side's name is a row of the PART's table,
+            // in the part's own id space, which no cut of this
+            // document moves — it crosses as the instance's own
+            // reference does.
+            alignment: alignment.clone(),
         },
         // A measure's references are BOTH names and edges, so they
         // remap through the name door exactly once — `nm` rewrites the
@@ -3071,9 +3076,9 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 /// The split's node map follows document order, which a loaded
 /// document need not keep in id order, so two ids can come out in the
 /// other order. Every name-ordered position then has to be put back in
-/// order, and a union seam whose sides swap reads its ranks from the
-/// other end — the form the emitters would mint for the same entity
-/// under the new ids.
+/// order, and a crossing ranked along a union seam whose sides swap
+/// reads its rank from the other end — the form the emitters would mint
+/// for the same entity under the new ids.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod a_remap_that_reorders_ids_republishes_the_canonical_form {
@@ -3129,23 +3134,36 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
         }
     }
 
-    /// A union seam edge between members 1 and 2, first of three.
-    fn union_edge(u: u64, (m1, m2): (u64, u64), r: u32) -> StableName {
+    /// A union seam edge between members 1 and 2.
+    fn union_edge(u: u64, (m1, m2): (u64, u64)) -> StableName {
         let (x, y) = (
             member(EntityKind::Face, u, m1),
             member(EntityKind::Face, u, m2),
         );
         let (x, y) = if x <= y { (x, y) } else { (y, x) };
-        name(EntityKind::Edge, u, vec![seam(x, y), rank(r, 3)])
+        name(EntityKind::Edge, u, vec![seam(x, y)])
+    }
+
+    /// A piece of that seam, ending at members 1's and 2's start-cap
+    /// vertices.
+    fn union_piece(u: u64, (m1, m2): (u64, u64)) -> StableName {
+        let mut piece = union_edge(u, (m1, m2));
+        let mut ends = vec![
+            member(EntityKind::Vertex, u, m1),
+            member(EntityKind::Vertex, u, m2),
+        ];
+        ends.sort();
+        piece.path.push(RoleSeg::Fragment(Qualifier::Ends(ends)));
+        piece
     }
 
     #[test]
-    fn a_union_seam_edge_swaps_its_sides_and_reverses_its_rank() {
-        let out = remap_name(&union_edge(9, (1, 2), 0), &map(), &StepMap::new()).expect("covered");
+    fn a_union_seam_edge_piece_swaps_its_sides_and_reorders_its_ends() {
+        let out = remap_name(&union_piece(9, (1, 2)), &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out,
-            union_edge(20, (31, 30), 2),
-            "the pair in name order under the new ids, the rank from the other end"
+            union_piece(20, (31, 30)),
+            "the pair and the ends in name order under the new ids"
         );
     }
 
@@ -3160,9 +3178,9 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             };
             name(EntityKind::Vertex, u, vec![seam(x, y), rank(r, 2)])
         };
-        let was = vertex(9, union_edge(9, (1, 2), 0), 3, 0);
+        let was = vertex(9, union_edge(9, (1, 2)), 3, 0);
         let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
-        assert_eq!(out, vertex(20, union_edge(20, (31, 30), 2), 32, 1));
+        assert_eq!(out, vertex(20, union_edge(20, (31, 30)), 32, 1));
     }
 
     #[test]
@@ -3197,14 +3215,14 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             "the run re-sorted, each line A-first"
         );
         let sided = name(
-            EntityKind::Edge,
+            EntityKind::Vertex,
             5,
-            vec![seam(face(1), face(2)), rank(0, 3)],
+            vec![seam(cap(EntityKind::Edge, 1), face(2)), rank(0, 3)],
         );
         let out = remap_name(&sided, &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out.path,
-            vec![seam(face(31), face(30)), rank(0, 3)],
+            vec![seam(cap(EntityKind::Edge, 31), face(30)), rank(0, 3)],
             "a pair boolean's seam is sided: no swap, no reversal"
         );
     }

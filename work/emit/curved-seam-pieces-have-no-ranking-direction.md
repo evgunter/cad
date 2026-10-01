@@ -2,11 +2,13 @@
 id: curved-seam-pieces-have-no-ranking-direction
 kind: issue
 title: A seam whose side is curved has no direction to rank its pieces along, so a pair boolean or union with a seam chain on a curved face refuses SplitReference
-status: open
+status: closed
 opened: 2026-09-30
 priority: P0
 cost: M
 refs: [edge-pieces-are-named-by-their-ends]
+closed: 2026-10-01
+pr: 3629
 ---
 
 
@@ -90,3 +92,11 @@ rule is `crates/editor-core/src/names/README.md` N2. Seam pieces take
 along `n_a × n_b`, so no ranker reads a plane and `SplitReference`
 retires. `edge-pieces-are-named-by-their-ends` implements it and closes
 this row.
+
+## Closed (2026-10-01, PR 3629)
+
+`edge-pieces-are-named-by-their-ends` built N2's rule: seam pieces take
+`Ends`, so no ranker reads a plane and `SplitReference` is gone. The
+evidence fixture names in the pair boolean and in the union in both
+member orders, with one table between the orders
+(`emit_union_borders::a_curved_divider_names_as_the_pair_boolean_does`).

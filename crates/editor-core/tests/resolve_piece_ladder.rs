@@ -187,8 +187,8 @@ fn vanished(res: &Resolution) -> &Diagnosis {
 // ---------------------------------------------------------------
 
 #[test]
-fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
-    // The corpus's own pruned-pair row: the ranked rim edge's group
+fn a_vanished_rim_piece_is_diagnosed_as_its_group_resizing() {
+    // The corpus's own pruned-pair row: the rim piece's group
     // goes from two to one (why no flip exists there:
     // `resolve::group_resized`'s docs). The undivided rim edge rides
     // in the offers.
@@ -204,9 +204,9 @@ fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
     assert!(
         matches!(
             name.path.last(),
-            Some(RoleSeg::Fragment(Qualifier::OrderAlong { of: 2, .. }))
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
         ),
-        "the row is about a ranked fragment: {name:?}"
+        "the row is about a piece named by its ends: {name:?}"
     );
     // The cutter whose seam vertex with the rim edge is gone is the
     // other operand's cap VERTEX, a point on the edge, not a face.
@@ -441,30 +441,30 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
 }
 
 #[test]
-fn a_collapsed_orderalong_edge_group_at_the_cut_is_diagnosed_group_resized() {
-    // The same collapse, read off the ranked EDGE fragments the cut
+fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
+    // The same collapse, read off the EDGE pieces the cut
     // mints along the cap's rim: the second, non-flush witness of the
-    // `OrderAlong` half, on a subtract rather than the corpus union.
+    // `Ends` half, on a subtract rather than the corpus union.
     for to in [2.5_f64, 3.5] {
         let s = slot();
         let ev1 = run(&s.doc, None);
-        let ranked: Vec<StableName> = ev1
+        let pieces: Vec<StableName> = ev1
             .value(s.cut)
             .expect("the cut evaluates")
             .name_table
             .iter()
             .filter_map(|(n, e)| {
-                let hit = matches!(
-                    n.path.last(),
-                    Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
-                );
+                let hit = matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
                 (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
             })
             .collect();
-        assert!(!ranked.is_empty(), "the cut ranks some edge fragments");
+        assert!(
+            !pieces.is_empty(),
+            "the cut names some edge pieces by their ends"
+        );
         let doc2 = slide(&s, Axis3::Y, to);
         let ev2 = run(&doc2, Some(&ev1));
-        let gone: Vec<&StableName> = ranked
+        let gone: Vec<&StableName> = pieces
             .iter()
             .filter(|n| {
                 ev2.value(s.cut)
@@ -474,7 +474,7 @@ fn a_collapsed_orderalong_edge_group_at_the_cut_is_diagnosed_group_resized() {
                     .is_none()
             })
             .collect();
-        assert!(!gone.is_empty(), "y = {to}: some ranked fragment vanishes");
+        assert!(!gone.is_empty(), "y = {to}: some edge piece vanishes");
         for name in gone {
             let res = resolve_with_prior(
                 RunCtx {

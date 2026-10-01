@@ -254,6 +254,8 @@ pub enum NodeErrorClass {
     Unplaced,
     /// [`NodeErrorKind::PlacementRefused`].
     PlacementRefused,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::FaceUnresolved`].
+    MateFaceUnresolved,
     /// [`NodeErrorKind::CrossingUnverified`].
     CrossingUnverified,
     /// [`NodeErrorKind::MeasureRefResolve`].
@@ -440,6 +442,7 @@ impl NodeErrorClass {
             MateFault::Unleverable { .. } => Self::MateUnleverable,
             MateFault::OffsetDisagrees { .. } => Self::MateOffsetDisagrees,
             MateFault::OffsetUnchecked { .. } => Self::MateOffsetUnchecked,
+            MateFault::FaceUnresolved { .. } => Self::MateFaceUnresolved,
         }
     }
 
@@ -599,6 +602,7 @@ mod tests {
         MateOffsetUnchecked,
         Unplaced,
         PlacementRefused,
+        MateFaceUnresolved,
         CrossingUnverified,
         MeasureRefResolve,
         MeasureRefUnreadable,
@@ -1058,6 +1062,15 @@ mod tests {
                 }
                 .into(),
             },
+            C::MateFaceUnresolved => mate(crate::MateFault::FaceUnresolved {
+                mate: n(9),
+                side: crate::MateSide::A,
+                refusal: Box::new(crate::FaceRefusal::NoSuchName {
+                    instance: n(6),
+                    part: doc_ref(),
+                    face: crate::FaceName::new(name()).expect("a face name"),
+                }),
+            }),
             C::CrossingUnverified => K::CrossingUnverified {
                 instance: n(6),
                 outer: Box::new(crate::FaceName::new(name()).expect("a face name")),

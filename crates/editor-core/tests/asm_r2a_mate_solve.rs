@@ -82,11 +82,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference,
-    }
+    MateFrame::authored(origin, axis, reference)
 }
 
 /// A rest mate between instances `a` and `b` of the part whose body is

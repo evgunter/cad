@@ -51,11 +51,7 @@ fn leg_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 fn mate_frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 fn seat_mate(

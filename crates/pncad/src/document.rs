@@ -341,8 +341,9 @@ pub use editor_core::{
 };
 
 // Mates: the declaration node's
-// authored payload (`Alignment` over two `MateFrame`s, a
-// `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
+// authored payload (`Alignment` over two `MateFrame`s — each an
+// `AuthoredFrame` or a `FaceFrame` — a `MatePrimitive`, an
+// `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
@@ -368,12 +369,26 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, Lever, MateFault, MateFrame,
-    MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
-    PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
-    UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, mate_reach, member_of,
-    places, reading_edges, relative_freedom_components, root_of, solve_document,
+    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, FaceFrame, Lever,
+    MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE,
+    OffsetCheck, PartReach, PlacerRow, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses,
+    Space, Subgroup, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, mate_reach,
+    member_of, places, reading_edges, relative_freedom_components, root_of, solve_document,
 };
+/// Why a mate's `FromFace` frame did not resolve to a pose, which
+/// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
+///
+/// A `FromFace` frame ([`MateFrame::FromFace`], a [`FaceFrame`])
+/// names a face of the mated part and takes that face's canonical
+/// pose as the side's frame, read through the mated part's own
+/// evaluation (`MateReach::face_pose`, whose refusal is
+/// [`FacePoseRefusal`]); every arm names the instance whose part it
+/// is about and why: the part does not resolve, the part's table has
+/// no row for the name or ties it, the readback refuses the carrier
+/// (no canonical frame), or the product's scalar pins no `f64`. A
+/// consumer that could match `FaceUnresolved` and not name this type
+/// would read all of that out of the message prose.
+pub use editor_core::{FacePoseRefusal, FaceRefusal};
 
 // The class-admission table (`ClassAdmission`, read through
 // `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its

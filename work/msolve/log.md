@@ -798,3 +798,39 @@ finite arm by construction at its one formation door, and the minted
 `Indeterminate` becomes unreachable rather than re-routed. Review
 tier: single, full.
 - 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+
+## MSOLVE-9 MERGED (2026-09-24, PR 2934)
+
+`MateFrame` is `Authored(AuthoredFrame) | FromFace(FaceFrame { face })`,
+externally tagged on the wire, with each inner struct closed. A face
+side resolves at the solve through `MateReach::face_pose`, off the
+mated part's own cached product in the part's own coordinates. Its
+roll reference is the carrier's own `u_ref`. It resolves at the
+nominal value only, so on an analysis lane it refuses `Unpinned`,
+typed. A11 rule 5's inputs sentence (Ev, #2895) is the ratified text,
+and its clause on an unresolved part was re-worded because this
+change moved which fault names one. The viewer authors face frames;
+the tour's posts seat on their caps, and its update walk now shows
+the shelf following a shortened post where it used to show the gate
+refuting the stale mates.
+
+Dual review on `7cf04d8ee` (row DR-28 in `docs/DUAL-REVIEW-LOG.md`):
+both reviewers APPROVE-WITH-FIXES, no unilateral MAJOR, tally +0.
+The seven-ruling fix pass landed in one push at `4f7e073d8`, green;
+orchestrator check of the diff: every ruling in. Process note: the
+lane amended an unpushed local merge commit to add its trailers.
+No pushed history moved, but merge-only means no amend at all.
+
+Closes MSOLVE-9, `mate-frames-resolve-from-a-face-at-evaluation`,
+`msolve-9-spec-prescribes-an-untagged-wire`,
+`a11-rule-5-names-unleverable-where-a-face-side-faults-face-unresolved`,
+and LIB's `no-door-mints-mate-frame-from-face`. Filed:
+`a-face-frame-cannot-turn-its-roll` (P1) and
+`from-face-frame-under-an-analysis-lane-refuses-unpinned` (P1), placed
+on the plan by the orchestrator branch, and a second instance
+appended to `lever-refusal-respells-reach-refusal`. Main was merged
+three more times after the fix pass (the last at `a9c620d94`, which
+carries REACH's eps-scaled rows, `889b7f043`); every ruling survived
+the merge, checked against the diff.
+Spec deleted with a note in `docs/doc-ledger/msolve-9-spec.md`.
+Next: MSOLVE-11 dispatches from main.
