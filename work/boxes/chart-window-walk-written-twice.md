@@ -30,3 +30,15 @@ The unification is a channel parameter with the pole arm gated on the azimuth ch
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## The per-edge extent, too (pcert/chart-box-harmonic-extent, 2026-10-01)
+
+The two walks also spelled each edge's chart EXTENT differently. That
+branch moved `chord_join::chart_azimuth_range` onto
+`geom_brep::Pcurve::harmonic_span_box`, the one home `chart_box` and
+the torus window walk (`boolean::boxes::TorusChartWindow::step`) read.
+`solid_contain::torus_chart_windows` still takes the endpoint hull of
+the linear part alone (`let at = |t| (p0.x + pl.x * t, …)`), dropping
+whatever trigonometric part `bool_torus_chart_affine` classified Zero
+in band. The span box encloses that residue; the unification above
+should read it rather than carry a third spelling.
