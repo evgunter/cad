@@ -242,7 +242,7 @@ fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
     // aggregate's list.
     let mut aggregate = Body::new();
     for node in [a, b] {
-        topo::graft_disjoint_all(&mut aggregate, slot(&mut ev, node), Tol::witness())
+        topo::graft_disjoint_all(&mut aggregate, slot(&mut ev, node))
             .expect("the two blocks are disjoint");
     }
     let together =
@@ -271,8 +271,8 @@ fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
     assert!(of_b.iter().any(is_inside_out), "b's own finding: {of_b:?}");
     let text = err.to_string();
     assert!(
-        text.contains(&format!("root {:012x} output 0", a.0))
-            && text.contains(&format!("root {:012x} output 0", b.0)),
+        text.contains(&format!("root {} output 0", test_utils::refusal::tag(a.0)))
+            && text.contains(&format!("root {} output 0", test_utils::refusal::tag(b.0))),
         "the message names both roots: {text}"
     );
 }

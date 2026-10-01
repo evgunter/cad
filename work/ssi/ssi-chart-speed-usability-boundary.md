@@ -2,13 +2,15 @@
 id: ssi-chart-speed-usability-boundary
 kind: issue
 title: ssi: wrong diagnoses survive at finite-but-unusable speeds — the usability boundary is ~5.6e-312, not 0, and both guards test only the class
-status: dispatched
+status: closed
 opened: 2026-08-29
 github: 1238
 refs: [762, 1221]
 priority: P0
 cost: M
 branch: ssi/chart-floor
+closed: 2026-10-01
+pr: 3694
 ---
 
 ## From GitHub issue 1238
@@ -132,3 +134,7 @@ Folded in as findings from the weighing:
 
 README C2/C3 are re-worded to describe the landed code. That is a
 description, not a second decision.
+
+## Closed (2026-10-01, PR 3694)
+
+The last of the three chart-speed units. A sweep floor is minted once per lane through `SweepFloor`, which refuses a floor its domain cannot resolve (exactly where bisection stops making progress) with `FloorUnresolvable` naming the rate. The stepper guards its own step (`StepUnusable`; a diagonal cap). Every SSI door validates its domain (`DomainUnusable`). Issue 1238's march claims are measured in the PR body: the "2e297 m step" was state units read as metres through an inconsistent test point map. Review was a single FULL review with one fix pass.

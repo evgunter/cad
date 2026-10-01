@@ -37,11 +37,11 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// What the pin holds: flip-vanish → GroupResized { was: 2, now: 1 }
 /// naming B's cap vertex as the one cutter gone; cascade → Cascade;
 /// structural-param → StructuralParam; node-gone; ambiguous. It moves
-/// with every spelling the diagnosed names carry (profile step ids,
-/// `Borders` on the ambiguous row's piece, `Ends` on the probed rim
+/// with every spelling the diagnosed names carry (node and profile step
+/// ids, `Borders` on the ambiguous row's piece, `Ends` on the probed rim
 /// pieces) as well as with a row's diagnosis; a move that keeps every
 /// row's shape is a spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0x9570_ed60_23e4_9b78;
+const DIAGNOSIS_DIGEST: u64 = 0xc04d_ee6e_389f_699c;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

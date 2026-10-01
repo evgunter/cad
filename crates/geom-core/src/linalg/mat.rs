@@ -375,6 +375,34 @@ mod tests {
         }
     }
 
+    /// `Mul<Vec3>` and `Mul` against hand-computed literals. Every
+    /// entry and product here is exact except row 0's sum, whose
+    /// summands `1`, `2^53` and `−2^53` make the fixed association
+    /// `(1 + 2^53) − 2^53 = 0` (the inner sum ties to even) while any
+    /// grouping that adds the two large terms first gives `1`. So a
+    /// regrouped or reordered sum, a permuted column, a transpose or a
+    /// swapped operand each moves at least one literal.
+    #[test]
+    fn products_are_pinned_to_hand_computed_literals() {
+        let two52 = 4_503_599_627_370_496.0; // 2^52
+        let two51 = 2_251_799_813_685_248.0; // 2^51
+        let a = Mat3::from_cols(
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::new(two52, 5.0, -7.0),
+            Vec3::new(-two51, 11.0, 13.0),
+        );
+        // (1·1 + 2^52·2) + (−2^51)·4 = 0;  2 + 10 + 44;  3 − 14 + 52.
+        let v = Vec3::new(1.0, 2.0, 4.0);
+        assert_vec3_bits_eq(a * v, Vec3::new(0.0, 56.0, 41.0));
+
+        let b = Mat3::from_cols(v, Vec3::new(0.0, 1.0, 0.0), Vec3::new(3.0, 0.0, 1.0));
+        let ab = a * b;
+        assert_vec3_bits_eq(ab.c0, Vec3::new(0.0, 56.0, 41.0));
+        assert_vec3_bits_eq(ab.c1, Vec3::new(two52, 5.0, -7.0));
+        // 3 − 2^51 is exact: the spacing at 2^51 is 0.5.
+        assert_vec3_bits_eq(ab.c2, Vec3::new(-2_251_799_813_685_245.0, 17.0, 22.0));
+    }
+
     #[test]
     fn determinant_of_identity_is_one() {
         // All products are of exact 0s and 1s: det(I) is exactly 1.

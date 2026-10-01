@@ -63,8 +63,8 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 message.as_deref(),
                 Some(
                     format!(
-                        "upstream failure at Extrude {:012x} — that row carries the cause",
-                        extrude.0
+                        "upstream failure at Extrude {} — that row carries the cause",
+                        test_utils::refusal::tag(extrude.0)
                     )
                     .as_str()
                 ),
@@ -687,8 +687,10 @@ fn every_surface_names_the_row_the_tree_names_for_a_group_refused_node() {
         .detail()
         .expect("the badge defers its words to the tooltip");
     assert!(
-        detail.contains(&format!("failure at node {:012x}", offender.0))
-            && !detail.contains("ancestor"),
+        detail.contains(&format!(
+            "failure at node {}",
+            test_utils::refusal::tag(offender.0)
+        )) && !detail.contains("ancestor"),
         "the pick index's tooltip names the offending mate: {detail}"
     );
 
@@ -1612,8 +1614,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 /// mate's id alone: the mate as the document speaks it.
 fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
     format!(
-        "upstream failure at Mate {:012x} — that row carries the cause",
-        mate.0
+        "upstream failure at Mate {} — that row carries the cause",
+        test_utils::refusal::tag(mate.0)
     )
 }
 

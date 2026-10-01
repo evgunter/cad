@@ -742,14 +742,17 @@ class TestPersistence(unittest.TestCase):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
         text = doc.save()
-        # Wind the mint counter back behind ids the document holds.
-        tampered = text.replace('"next_id": 3', '"next_id": 1')
-        self.assertNotEqual(tampered, text, "the tamper found its slot")
+        # Take a node the document holds out of its mint log.
+        header, body = text.split("\n", 1)
+        wire = json.loads(body)
+        log = wire["snapshot"]["mint"]["log"]
+        held = wire["snapshot"]["order"][-1]
+        log.remove({"node": held})
         with self.assertRaises(pncad.PersistError) as caught:
-            load(tampered)
+            load(f"{header}\n{json.dumps(wire)}")
         refusal = caught.exception
         self.assertEqual(refusal.variant, "snapshot")
-        self.assertEqual(refusal.inner_variant, "id_beyond_counter")
+        self.assertEqual(refusal.inner_variant, "node_not_minted")
         # The snapshot refusal's own node ids are the snapshot door's
         # surface, not this one's: the word crosses, the payload does
         # not.

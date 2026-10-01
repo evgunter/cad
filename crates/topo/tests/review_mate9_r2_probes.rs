@@ -70,7 +70,7 @@ fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
     );
     let post_side_x030 = post.side_faces[3];
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let shelf_side_y030 = keys.face(shelf.side_faces[2]).unwrap();
     (
@@ -307,9 +307,9 @@ fn r2_an_unverified_opposed_pair_backs_no_crossing() {
         Tol::witness(),
     );
     let mut body = post.body;
-    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_b = skeys.face(shelf.bottom_face).unwrap();
-    let fkeys = topo::graft_disjoint_all_keyed(&mut body, &far.body, Tol::witness()).unwrap();
+    let fkeys = topo::graft_disjoint_all_keyed(&mut body, &far.body).unwrap();
     let far_top = fkeys.face(far.top_face).unwrap();
     let _ = body_base;
 

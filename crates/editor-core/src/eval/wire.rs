@@ -2073,8 +2073,8 @@ fn resolve_open_faces(
 /// ([`ladder::resolve_in`]):
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
-///    document. Ids are never reused, so an id below the mint counter
-///    was DELETED and one at/above it was never this document's
+///    document. Ids are never reused, so an id the mint log holds was
+///    DELETED and one it does not hold was never this document's
 ///    (`ForeignNode`). The [`ladder::Live`] token makes this rung
 ///    outrank every later refusal, a door's own included.
 /// 2. [`ladder::Landing::Tied`] → `Ambiguous`: the tie row IS the
@@ -4285,12 +4285,12 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         // a union of separated bodies has, and the only one the seamed
         // boolean path accepts as an operand.
         let keys = if i == 0 {
-            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed, tol)
+            let keys = topo::graft_disjoint_all_keyed(&mut fused, &placed)
                 .map_err(NodeErrorKind::Boolean)?;
             targets = keys.solids().to_vec();
             keys
         } else {
-            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed, tol)
+            topo::graft_disjoint_all_onto_keyed(&mut fused, &targets, &placed)
                 .map_err(NodeErrorKind::Boolean)?
         };
         bridges.push(keys);
