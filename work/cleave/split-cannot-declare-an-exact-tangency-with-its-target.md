@@ -2,11 +2,12 @@
 id: split-cannot-declare-an-exact-tangency-with-its-target
 kind: issue
 title: rule (b) sends a convex one-sided edge in the split plane to the side opposite its material, so an exact tangency along an edge refuses where it should classify with its material
-status: dispatched
+status: review
 opened: 2026-09-24
 priority: P1
 cost: H
 branch: cleave/tangency
+pr: 3726
 ---
 
 
