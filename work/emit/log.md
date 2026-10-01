@@ -1247,3 +1247,16 @@ The optional findings also landed: per-variant mint pins, one collision recourse
 - `edit/di1-may-simplify-now-node-ids-are-digests` (P1, design).
 
 The container restarted twice mid-lane. The first lane's work had already been pushed and survived. The second lane's work was rescued from the worktree. I now ask lanes to push after each item.
+
+## 2026-10-01 — tied-face swap ruled by design (PR 3523, fork-log row 21)
+
+Ev approved: "this sounds good! … the behavior you suggest seems safe and principled".
+
+**What changed.**
+- N2 no longer promises a recorded per-candidate choice. A tie is repaired by a discriminator in the recipe, or by `Rebind`.
+- N4 names a divider as a discriminator among a tie's candidates.
+- The tie-swap row is closed as by-design, with `emit_union_borders::a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it` pinning the motion by centroid.
+
+**Not filed:** the optional datum-side discriminator, because Ev did not ask for it.
+
+**Fork log.** Main already held a row 21, so there are now two rows numbered 21, following the duplicate 15s and 18s. The open `[ev]` PRs 3553 and 3565 use 22 and 23, which other branches also use. Row numbers are no longer unique; the fork column identifies each row.
