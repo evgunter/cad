@@ -1,0 +1,4 @@
+fork: ssi short-branch stepper (ssi-short-branch-step-reads-only-the-callers-extent)
+dispatched: 2026-10-01
+byte: 235
+mapping: A = Fable, B = Opus
